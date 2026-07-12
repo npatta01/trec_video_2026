@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="440" viewBox="0 0 640 440" role="img" aria-labelledby="finetuning-pipeline-title finetuning-pipeline-desc" preserveAspectRatio="xMidYMid meet">
+  <title id="finetuning-pipeline-title">A defensible adapter fine-tuning pipeline for video question answering</title>
+  <desc id="finetuning-pipeline-desc">Build grounded training examples containing a question, timestamped visual and audio evidence, and the correct answer. Split examples into training, validation, and a locked test set. Train only LoRA or QLoRA adapter weights while freezing the base model. Choose the checkpoint using validation only and never tune on the test set. Finally evaluate answer generation and multiple choice separately and validate the required output format.</desc>
+  <defs>
+    <marker id="finetuning-pipeline-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.2" markerHeight="5.2" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#1f5e99" fill-opacity=".82"/>
+    </marker>
+  </defs>
+  <rect width="640" height="440" rx="22" fill="#fbfcfe"/>
+  <style>
+    .title { font: 700 23px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .subtitle { font: 500 16px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .num { font: 700 15px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #ffffff; }
+    .label { font: 700 19px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .small { font: 500 16px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .pill { font: 700 15px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .box { stroke: #1f5e99; stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .arrow { stroke: #1f5e99; stroke-width: 2; stroke-opacity: .82; fill: none; marker-end: url(#finetuning-pipeline-arrow); vector-effect: non-scaling-stroke; }
+  </style>
+
+  <text class="title" x="28" y="38">Fine-tuning pipeline · keep the test honest</text>
+  <text class="subtitle" x="28" y="61">Every stage produces something you can inspect, compare, or reproduce.</text>
+
+  <rect class="box" x="42" y="77" width="556" height="55" rx="14" fill="#eaf4fb"/>
+  <circle cx="69" cy="104.5" r="17" fill="#1f5e99"/>
+  <text class="num" x="69" y="109.5" text-anchor="middle">1</text>
+  <text class="label" x="96" y="101">Build grounded examples</text>
+  <text class="small" x="96" y="122">question + timestamped frames/audio + correct answer</text>
+
+  <path class="arrow" d="M320 132 V143"/>
+
+  <rect class="box" x="42" y="146" width="556" height="55" rx="14" fill="#eef1f4"/>
+  <circle cx="69" cy="173.5" r="17" fill="#40536a"/>
+  <text class="num" x="69" y="178.5" text-anchor="middle">2</text>
+  <text class="label" x="96" y="170">Split before training</text>
+  <text class="small" x="96" y="191">train learns · validation selects · test stays locked</text>
+
+  <path class="arrow" d="M320 201 V212"/>
+
+  <rect class="box" x="42" y="215" width="556" height="55" rx="14" fill="#fff4d8"/>
+  <circle cx="69" cy="242.5" r="17" fill="#ad7a10"/>
+  <text class="num" x="69" y="247.5" text-anchor="middle">3</text>
+  <text class="label" x="96" y="239">Train the adapter</text>
+  <text class="small" x="96" y="260">frozen base · train LoRA / QLoRA · save checkpoints</text>
+
+  <path class="arrow" d="M320 270 V281"/>
+
+  <rect class="box" x="42" y="284" width="556" height="55" rx="14" fill="#eaf4fb"/>
+  <circle cx="69" cy="311.5" r="17" fill="#1f5e99"/>
+  <text class="num" x="69" y="316.5" text-anchor="middle">4</text>
+  <text class="label" x="96" y="308">Select on validation; freeze test</text>
+  <text class="small" x="96" y="329">pick by validation only · never adapt after test scores</text>
+
+  <path class="arrow" d="M320 339 V350"/>
+
+  <rect class="box" x="42" y="353" width="556" height="70" rx="14" fill="#eef1f4"/>
+  <circle cx="69" cy="379" r="17" fill="#40536a"/>
+  <text class="num" x="69" y="384" text-anchor="middle">5</text>
+  <text class="label" x="96" y="376">Evaluate competition outputs</text>
+  <rect x="96" y="389" width="149" height="24" rx="12" fill="#ffffff" stroke="#1f5e99" stroke-width="1.3"/>
+  <text class="pill" x="170.5" y="406" text-anchor="middle">AG · rank 10 answers</text>
+  <rect x="255" y="389" width="142" height="24" rx="12" fill="#ffffff" stroke="#1f5e99" stroke-width="1.3"/>
+  <text class="pill" x="326" y="406" text-anchor="middle">MC · rank 4 options</text>
+  <rect x="407" y="389" width="169" height="24" rx="12" fill="#ffffff" stroke="#7b8da1" stroke-width="1.3"/>
+  <text class="pill" x="491.5" y="406" text-anchor="middle">schema + IDs + timing</text>
+</svg>

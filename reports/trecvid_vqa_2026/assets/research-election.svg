@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="440" viewBox="0 0 640 440" role="img" aria-labelledby="election-title election-desc" preserveAspectRatio="xMidYMid meet">
+  <title id="election-title">Generate answers, compare them, then choose</title>
+  <desc id="election-desc">For the question what does Ana carry onto the train, one stage proposes bag, red suitcase, and backpack. A separate choosing stage checks each proposal against the video evidence and ranks red suitcase first.</desc>
+  <defs>
+    <marker id="election-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.2" markerHeight="5.2" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#1f5e99" fill-opacity=".82"/>
+    </marker>
+  </defs>
+  <rect width="640" height="440" rx="22" fill="#fbfcfe"/>
+  <style>
+    .title { font: 700 23px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .label { font: 700 19px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .small { font: 500 16px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .tiny { font: 600 14px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .box { stroke: #1f5e99; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+    .chip { stroke: #8b99a8; stroke-width: 1.7; vector-effect: non-scaling-stroke; }
+    .chosen { stroke: #c08a17; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+    .arrow { stroke: #1f5e99; stroke-width: 2.1; stroke-opacity: .82; fill: none; marker-end: url(#election-arrow); vector-effect: non-scaling-stroke; }
+  </style>
+
+  <text class="title" x="28" y="42">6 · Generate, compare, then choose</text>
+  <rect class="box" x="28" y="62" width="584" height="55" rx="13" fill="#eaf4fb"/>
+  <text class="small" x="48" y="84">QUESTION</text>
+  <text class="label" x="48" y="106">What does Ana carry onto the train?</text>
+
+  <rect class="box" x="62" y="137" width="516" height="53" rx="13" fill="#dcecf8"/>
+  <text class="small" x="86" y="160">VIDEO EVIDENCE</text>
+  <text class="label" x="240" y="173">Ana pulls a red suitcase aboard.</text>
+
+  <path class="arrow" d="M320 192 V214"/>
+  <text class="label" x="28" y="231">Step 1 · Propose several answers</text>
+  <rect class="chip" x="28" y="246" width="178" height="49" rx="13" fill="#edf1f4"/>
+  <text class="label" x="117" y="277" text-anchor="middle">bag</text>
+  <rect class="chosen" x="231" y="246" width="178" height="49" rx="13" fill="#fff4d8"/>
+  <text class="label" x="320" y="277" text-anchor="middle">red suitcase</text>
+  <rect class="chip" x="434" y="246" width="178" height="49" rx="13" fill="#edf1f4"/>
+  <text class="label" x="523" y="277" text-anchor="middle">backpack</text>
+
+  <path class="arrow" d="M320 298 V319"/>
+  <text class="label" x="28" y="333">Step 2 · Rank by fit with the evidence</text>
+  <rect class="chosen" x="28" y="348" width="584" height="67" rx="14" fill="#fff4d8"/>
+  <text class="label" x="55" y="376">1 · red suitcase</text>
+  <text class="small" x="235" y="376">exact and evidence-backed ✓</text>
+  <text class="tiny" x="55" y="400">2 · bag △ too vague</text>
+  <text class="tiny" x="250" y="400">3 · backpack × contradicted</text>
+
+  <text class="small" x="320" y="432" text-anchor="middle">Thinking of options and choosing among them are different jobs.</text>
+</svg>
