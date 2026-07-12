@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="440" viewBox="0 0 640 440" role="img" aria-labelledby="direct-title direct-desc" preserveAspectRatio="xMidYMid meet">
+  <title id="direct-title">Direct-answer team architecture</title>
+  <desc id="direct-desc">WHU, tcna, and TJUMI use a comparatively direct path from video and question through reported preprocessing and one backbone to a generated answer. WHU adds embedding matching for multiple choice. Intermediate details for tcna and TJUMI were not fully published.</desc>
+  <defs>
+    <marker id="direct-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.2" markerHeight="5.2" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#1f5e99" fill-opacity=".82"/>
+    </marker>
+  </defs>
+  <rect width="640" height="440" rx="22" fill="#fbfcfe"/>
+  <style>
+    .title { font: 700 26px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .label { font: 700 21px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .small { font: 500 18px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .note { font: 500 16px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .box { stroke: #1f5e99; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+    .arrow { stroke: #1f5e99; stroke-width: 2.2; stroke-opacity: .82; fill: none; marker-end: url(#direct-arrow); vector-effect: non-scaling-stroke; }
+  </style>
+  <text class="title" x="32" y="43">Pattern 1 · One backbone answers directly</text>
+
+  <rect class="box" x="100" y="70" width="440" height="52" rx="14" fill="#fff4d8"/>
+  <text class="label" x="320" y="103" text-anchor="middle">Video + question</text>
+  <path class="arrow" d="M320 122 V145"/>
+
+  <rect class="box" x="100" y="148" width="440" height="52" rx="14" fill="#eaf4fb"/>
+  <text class="label" x="320" y="181" text-anchor="middle">Reported preprocessing</text>
+  <path class="arrow" d="M320 200 V224"/>
+
+  <rect class="box" x="82" y="227" width="476" height="92" rx="16" fill="#dcecf8"/>
+  <text class="label" x="320" y="256" text-anchor="middle">Single multimodal backbone</text>
+  <text class="small" x="320" y="282" text-anchor="middle">WHU · VideoLLaMA  |  tcna · Gemini Flash</text>
+  <text class="small" x="320" y="306" text-anchor="middle">TJUMI · fine-tuned VideoLLaMA2</text>
+  <path class="arrow" d="M320 319 V325"/>
+
+  <rect class="box" x="100" y="328" width="440" height="52" rx="14" fill="#fff4d8"/>
+  <text class="label" x="320" y="361" text-anchor="middle">Generated answer → submission</text>
+
+  <text class="note" x="320" y="398" text-anchor="middle">WHU adds embedding matching for MC.</text>
+  <text class="note" x="320" y="416" text-anchor="middle">tcna / TJUMI intermediate stages were not fully published.</text>
+</svg>

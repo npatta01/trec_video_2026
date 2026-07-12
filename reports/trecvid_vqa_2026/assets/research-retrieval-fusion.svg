@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="440" viewBox="0 0 640 440" role="img" aria-labelledby="retrieval-title retrieval-desc" preserveAspectRatio="xMidYMid meet">
+  <title id="retrieval-title">Find evidence first, then combine it</title>
+  <desc id="retrieval-desc">For the question why does Leo go back inside, the system first retrieves two moments: rain begins and an umbrella remains inside. It then combines those moments to answer that Leo returns for the umbrella because it starts raining.</desc>
+  <defs>
+    <marker id="retrieval-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.2" markerHeight="5.2" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#1f5e99" fill-opacity=".82"/>
+    </marker>
+  </defs>
+  <rect width="640" height="440" rx="22" fill="#fbfcfe"/>
+  <style>
+    .title { font: 700 23px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .label { font: 700 19px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .small { font: 500 16px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .tiny { font: 600 14px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .box { stroke: #1f5e99; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+    .frame { stroke: #8b99a8; stroke-width: 1.7; vector-effect: non-scaling-stroke; }
+    .chosen { stroke: #c08a17; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+    .arrow { stroke: #1f5e99; stroke-width: 2.1; stroke-opacity: .82; fill: none; marker-end: url(#retrieval-arrow); vector-effect: non-scaling-stroke; }
+  </style>
+
+  <text class="title" x="28" y="42">2 · Find evidence, then combine it</text>
+  <rect class="box" x="28" y="62" width="584" height="55" rx="13" fill="#eaf4fb"/>
+  <text class="small" x="48" y="84">QUESTION</text>
+  <text class="label" x="48" y="106">Why does Leo go back inside?</text>
+
+  <text class="label" x="28" y="149">Step 1 · Retrieve the useful moments</text>
+  <g aria-label="Five video moments, with two relevant moments selected">
+    <rect class="frame" x="28" y="164" width="104" height="61" rx="10" fill="#edf1f4"/>
+    <text class="tiny" x="80" y="190" text-anchor="middle">makes tea</text>
+    <text class="tiny" x="80" y="212" text-anchor="middle">00:18</text>
+    <rect class="frame" x="148" y="164" width="104" height="61" rx="10" fill="#edf1f4"/>
+    <text class="tiny" x="200" y="190" text-anchor="middle">walks out</text>
+    <text class="tiny" x="200" y="212" text-anchor="middle">00:41</text>
+    <rect class="chosen" x="268" y="164" width="104" height="61" rx="10" fill="#fff4d8"/>
+    <text class="tiny" x="320" y="190" text-anchor="middle">rain starts</text>
+    <text class="tiny" x="320" y="212" text-anchor="middle">00:53</text>
+    <rect class="chosen" x="388" y="164" width="104" height="61" rx="10" fill="#fff4d8"/>
+    <text class="tiny" x="440" y="190" text-anchor="middle">umbrella</text>
+    <text class="tiny" x="440" y="212" text-anchor="middle">inside · 00:58</text>
+    <rect class="frame" x="508" y="164" width="104" height="61" rx="10" fill="#edf1f4"/>
+    <text class="tiny" x="560" y="190" text-anchor="middle">door shuts</text>
+    <text class="tiny" x="560" y="212" text-anchor="middle">01:03</text>
+  </g>
+
+  <path class="arrow" d="M320 232 V259"/>
+  <text class="label" x="28" y="275">Step 2 · Fuse the clues into one explanation</text>
+  <rect class="chosen" x="44" y="292" width="214" height="58" rx="13" fill="#fff4d8"/>
+  <text class="label" x="151" y="327" text-anchor="middle">Rain starts</text>
+  <text class="label" x="320" y="328" text-anchor="middle">+</text>
+  <rect class="chosen" x="382" y="292" width="214" height="58" rx="13" fill="#fff4d8"/>
+  <text class="label" x="489" y="317" text-anchor="middle">Umbrella is</text>
+  <text class="label" x="489" y="339" text-anchor="middle">still inside</text>
+
+  <path class="arrow" d="M320 352 V370"/>
+  <rect class="box" x="54" y="373" width="532" height="48" rx="13" fill="#dcecf8"/>
+  <text class="small" x="320" y="395" text-anchor="middle">ANSWER · Leo goes back for the umbrella</text>
+  <text class="tiny" x="320" y="414" text-anchor="middle">because it has started raining.</text>
+</svg>

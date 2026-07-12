@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="440" viewBox="0 0 640 440" role="img" aria-labelledby="global-title global-desc" preserveAspectRatio="xMidYMid meet">
+  <title id="global-title">See the whole story, then zoom in</title>
+  <desc id="global-desc">For the question what number is on the winner's bib, a low-detail storyboard locates the finish at three minutes forty-two seconds. The system then examines a high-detail crop of the winner and reads bib number 27.</desc>
+  <defs>
+    <marker id="global-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.2" markerHeight="5.2" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#1f5e99" fill-opacity=".82"/>
+    </marker>
+  </defs>
+  <rect width="640" height="440" rx="22" fill="#fbfcfe"/>
+  <style>
+    .title { font: 700 23px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .label { font: 700 19px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .small { font: 500 16px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .tiny { font: 600 14px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .box { stroke: #1f5e99; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+    .frame { stroke: #8b99a8; stroke-width: 1.7; vector-effect: non-scaling-stroke; }
+    .chosen { stroke: #c08a17; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+    .arrow { stroke: #1f5e99; stroke-width: 2.1; stroke-opacity: .82; fill: none; marker-end: url(#global-arrow); vector-effect: non-scaling-stroke; }
+  </style>
+
+  <text class="title" x="28" y="42">3 · See the whole story, then zoom in</text>
+  <rect class="box" x="28" y="62" width="584" height="55" rx="13" fill="#eaf4fb"/>
+  <text class="small" x="48" y="84">QUESTION</text>
+  <text class="label" x="48" y="106">What number is on the winner’s bib?</text>
+
+  <text class="label" x="28" y="149">Global view · low detail, whole race</text>
+  <g aria-label="A five-panel overview of a race">
+    <rect class="frame" x="28" y="164" width="104" height="68" rx="10" fill="#edf1f4"/>
+    <text class="tiny" x="80" y="191" text-anchor="middle">start</text>
+    <path d="M54 211 H106" stroke="#8b99a8" stroke-width="3"/>
+    <rect class="frame" x="148" y="164" width="104" height="68" rx="10" fill="#edf1f4"/>
+    <text class="tiny" x="200" y="191" text-anchor="middle">hill</text>
+    <path d="M166 213 L200 183 L234 213" fill="none" stroke="#8b99a8" stroke-width="2"/>
+    <rect class="frame" x="268" y="164" width="104" height="68" rx="10" fill="#edf1f4"/>
+    <text class="tiny" x="320" y="191" text-anchor="middle">turn</text>
+    <path d="M292 214 Q320 180 348 214" fill="none" stroke="#8b99a8" stroke-width="2"/>
+    <rect class="frame" x="388" y="164" width="104" height="68" rx="10" fill="#edf1f4"/>
+    <text class="tiny" x="440" y="191" text-anchor="middle">sprint</text>
+    <path d="M414 213 L440 182 L466 213" fill="none" stroke="#8b99a8" stroke-width="2"/>
+    <rect class="chosen" x="508" y="164" width="104" height="68" rx="10" fill="#fff4d8"/>
+    <text class="tiny" x="560" y="190" text-anchor="middle">finish</text>
+    <text class="tiny" x="560" y="214" text-anchor="middle">03:42</text>
+  </g>
+
+  <path class="arrow" d="M560 235 V261 H440"/>
+  <rect class="box" x="28" y="258" width="584" height="101" rx="15" fill="#dcecf8"/>
+  <text class="label" x="48" y="285">Local view · high-detail crop at 03:42</text>
+  <circle cx="116" cy="320" r="25" fill="#fff4d8" stroke="#c08a17" stroke-width="2.2"/>
+  <path d="M98 349 L82 365" stroke="#c08a17" stroke-width="5" stroke-linecap="round"/>
+  <rect x="103" y="307" width="27" height="28" rx="4" fill="#ffffff" stroke="#1f5e99" stroke-width="1.8"/>
+  <text x="116" y="328" text-anchor="middle" style="font:800 18px system-ui,-apple-system,'Segoe UI',sans-serif;fill:#14213d">27</text>
+  <text class="small" x="166" y="313">Spend resolution only on the chosen moment.</text>
+  <text class="small" x="166" y="339">The crop makes the small number readable.</text>
+
+  <path class="arrow" d="M320 362 V377"/>
+  <rect class="chosen" x="176" y="380" width="288" height="43" rx="13" fill="#fff4d8"/>
+  <text class="label" x="320" y="408" text-anchor="middle">ANSWER · Bib 27</text>
+</svg>

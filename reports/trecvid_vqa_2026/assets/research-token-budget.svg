@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="440" viewBox="0 0 640 440" role="img" aria-labelledby="token-title token-desc" preserveAspectRatio="xMidYMid meet">
+  <title id="token-title">Spend a fixed frame budget on useful evidence</title>
+  <desc id="token-desc">For the question what does Maya do after the alarm, the system keeps one frame for broad coverage and two frames around the alarm. It uses a limited three-frame budget to capture the alarm and Maya leaving.</desc>
+  <defs>
+    <marker id="token-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.2" markerHeight="5.2" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#1f5e99" fill-opacity=".82"/>
+    </marker>
+  </defs>
+  <rect width="640" height="440" rx="22" fill="#fbfcfe"/>
+  <style>
+    .title { font: 700 23px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .label { font: 700 19px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .small { font: 500 16px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .tiny { font: 600 14px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .box { stroke: #1f5e99; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+    .frame { stroke: #8b99a8; stroke-width: 1.7; vector-effect: non-scaling-stroke; }
+    .chosen { stroke: #c08a17; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+    .arrow { stroke: #1f5e99; stroke-width: 2.1; stroke-opacity: .82; fill: none; marker-end: url(#token-arrow); vector-effect: non-scaling-stroke; }
+  </style>
+
+  <text class="title" x="28" y="42">1 · Spend a fixed frame budget wisely</text>
+
+  <rect class="box" x="28" y="62" width="584" height="56" rx="13" fill="#eaf4fb"/>
+  <text class="small" x="48" y="85">QUESTION</text>
+  <text class="label" x="48" y="108">What does Maya do after the alarm?</text>
+
+  <text class="small" x="28" y="150">Scan the whole timeline</text>
+  <line x1="48" y1="186" x2="592" y2="186" stroke="#8b99a8" stroke-width="2"/>
+  <g aria-label="Eight candidate moments across the video">
+    <rect class="chosen" x="30" y="166" width="61" height="41" rx="8" fill="#fff4d8"/>
+    <text class="tiny" x="60" y="192" text-anchor="middle">start</text>
+    <rect class="frame" x="104" y="166" width="61" height="41" rx="8" fill="#edf1f4"/>
+    <circle cx="134" cy="185" r="7" fill="none" stroke="#8b99a8" stroke-width="2"/>
+    <rect class="frame" x="178" y="166" width="61" height="41" rx="8" fill="#edf1f4"/>
+    <path d="M196 194 L220 178 M196 178 L220 194" stroke="#8b99a8" stroke-width="2"/>
+    <rect class="chosen" x="252" y="166" width="61" height="41" rx="8" fill="#fff4d8"/>
+    <path d="M272 193 Q282 180 292 193 M275 180 Q282 173 289 180" fill="none" stroke="#c08a17" stroke-width="2"/>
+    <rect class="chosen" x="326" y="166" width="61" height="41" rx="8" fill="#fff4d8"/>
+    <path d="M341 177 V197 H371 M361 187 L371 197 L361 207" fill="none" stroke="#c08a17" stroke-width="2"/>
+    <rect class="frame" x="400" y="166" width="61" height="41" rx="8" fill="#edf1f4"/>
+    <circle cx="430" cy="186" r="9" fill="none" stroke="#8b99a8" stroke-width="2"/>
+    <rect class="frame" x="474" y="166" width="61" height="41" rx="8" fill="#edf1f4"/>
+    <path d="M489 197 H520 L504 176 z" fill="none" stroke="#8b99a8" stroke-width="2"/>
+    <rect class="frame" x="548" y="166" width="61" height="41" rx="8" fill="#edf1f4"/>
+    <text class="tiny" x="578" y="192" text-anchor="middle">end</text>
+  </g>
+
+  <path class="arrow" d="M320 214 V242"/>
+  <rect x="205" y="237" width="230" height="38" rx="19" fill="#14213d"/>
+  <text x="320" y="262" text-anchor="middle" style="font:700 17px system-ui,-apple-system,'Segoe UI',sans-serif;fill:#ffffff">BUDGET · only 3 frames</text>
+
+  <g aria-label="The three selected frames">
+    <rect class="box" x="28" y="294" width="178" height="89" rx="14" fill="#edf1f4"/>
+    <text class="small" x="117" y="321" text-anchor="middle">1 · broad coverage</text>
+    <text class="label" x="117" y="350" text-anchor="middle">Opening scene</text>
+    <text class="tiny" x="117" y="373" text-anchor="middle">keeps context</text>
+
+    <rect class="chosen" x="231" y="294" width="178" height="89" rx="14" fill="#fff4d8"/>
+    <text class="small" x="320" y="321" text-anchor="middle">2 · question clue</text>
+    <text class="label" x="320" y="350" text-anchor="middle">Alarm rings</text>
+    <text class="tiny" x="320" y="373" text-anchor="middle">finds the event</text>
+
+    <rect class="chosen" x="434" y="294" width="178" height="89" rx="14" fill="#fff4d8"/>
+    <text class="small" x="523" y="321" text-anchor="middle">3 · what follows</text>
+    <text class="label" x="523" y="350" text-anchor="middle">Maya leaves</text>
+    <text class="tiny" x="523" y="373" text-anchor="middle">answers “after”</text>
+  </g>
+
+  <text class="small" x="320" y="417" text-anchor="middle">Coverage prevents tunnel vision; relevance spends detail where it matters.</text>
+</svg>

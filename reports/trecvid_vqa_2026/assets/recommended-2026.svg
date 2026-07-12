@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="440" viewBox="0 0 640 440" role="img" aria-labelledby="recommended-title recommended-desc" preserveAspectRatio="xMidYMid meet">
+  <title id="recommended-title">Recommended shared architecture for TRECVID VQA 2026</title>
+  <desc id="recommended-desc">Video, audio, and the question enter one shared evidence engine for reliable decoding, temporal frames, spatial tiles, Whisper transcription, timestamps, and question routing. Separate answer-generation and multiple-choice heads produce ranked outputs, which a JSON validator checks for schema, identifiers, answer counts, and timing.</desc>
+  <defs>
+    <marker id="recommended-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.2" markerHeight="5.2" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#1f5e99" fill-opacity=".82"/>
+    </marker>
+  </defs>
+  <rect width="640" height="440" rx="22" fill="#fbfcfe"/>
+  <style>
+    .title { font: 700 23px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .label { font: 700 20px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .small { font: 500 17px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .box { stroke: #1f5e99; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+    .arrow { stroke: #1f5e99; stroke-width: 2.2; stroke-opacity: .82; fill: none; marker-end: url(#recommended-arrow); vector-effect: non-scaling-stroke; }
+  </style>
+  <text class="title" x="32" y="42">Recommended 2026 · Shared evidence, two heads</text>
+
+  <rect class="box" x="30" y="66" width="174" height="54" rx="13" fill="#eaf4fb"/>
+  <text class="label" x="117" y="100" text-anchor="middle">Video</text>
+  <rect class="box" x="233" y="66" width="174" height="54" rx="13" fill="#eaf4fb"/>
+  <text class="label" x="320" y="100" text-anchor="middle">Audio</text>
+  <rect class="box" x="436" y="66" width="174" height="54" rx="13" fill="#fff4d8"/>
+  <text class="label" x="523" y="100" text-anchor="middle">Question</text>
+
+  <path class="arrow" d="M117 120 V143 H260 V157"/>
+  <path class="arrow" d="M320 120 V157"/>
+  <path class="arrow" d="M523 120 V143 H380 V157"/>
+
+  <rect class="box" x="60" y="160" width="520" height="88" rx="17" fill="#dcecf8"/>
+  <text class="label" x="320" y="188" text-anchor="middle">Shared evidence engine</text>
+  <text class="small" x="320" y="214" text-anchor="middle">reliable decode · temporal frames · spatial tiles</text>
+  <text class="small" x="320" y="237" text-anchor="middle">Whisper + timestamps · question routing</text>
+
+  <path class="arrow" d="M260 248 V272 H172 V282"/>
+  <path class="arrow" d="M380 248 V272 H468 V282"/>
+
+  <rect class="box" x="46" y="285" width="252" height="70" rx="15" fill="#fff4d8"/>
+  <text class="label" x="172" y="312" text-anchor="middle">AG head</text>
+  <text class="small" x="172" y="338" text-anchor="middle">pool · deduplicate · rank 10</text>
+
+  <rect class="box" x="342" y="285" width="252" height="70" rx="15" fill="#eaf4fb"/>
+  <text class="label" x="468" y="312" text-anchor="middle">MC head</text>
+  <text class="small" x="468" y="338" text-anchor="middle">score directly · rank all 4</text>
+
+  <path class="arrow" d="M172 355 V374 H260 V382"/>
+  <path class="arrow" d="M468 355 V374 H380 V382"/>
+  <rect class="box" x="96" y="385" width="448" height="42" rx="13" fill="#dcecf8"/>
+  <text class="label" x="320" y="403" text-anchor="middle">JSON validator</text>
+  <text class="small" x="320" y="423" text-anchor="middle">schema · IDs · exactly 10 / 4 · timing</text>
+</svg>

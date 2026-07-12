@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="440" viewBox="0 0 640 440" role="img" aria-labelledby="rank-title rank-desc" preserveAspectRatio="xMidYMid meet">
+  <title id="rank-title">Generate-then-rank team architectures</title>
+  <desc id="rank-desc">HLTCOE uses Qwen2.5-VL with video, a Whisper transcript, and the question to generate candidates, then a LoRA listwise reranker orders answers. kslab uses a LoRA-tuned VideoLLaMA3-2B without reported audio; it uses stochastic samples and confidence for answer generation, and a generated anchor plus cosine similarity for multiple choice.</desc>
+  <defs>
+    <marker id="rank-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.2" markerHeight="5.2" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#1f5e99" fill-opacity=".82"/>
+    </marker>
+  </defs>
+  <rect width="640" height="440" rx="22" fill="#fbfcfe"/>
+  <style>
+    .title { font: 700 26px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .team { font: 700 20px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .label { font: 700 18px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .small { font: 500 17px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .lane { stroke: #c3cfdb; stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .box { stroke: #1f5e99; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+    .arrow { stroke: #1f5e99; stroke-width: 2.2; stroke-opacity: .82; fill: none; marker-end: url(#rank-arrow); vector-effect: non-scaling-stroke; }
+  </style>
+  <text class="title" x="32" y="43">Pattern 4 · Generate first, judge second</text>
+
+  <rect class="lane" x="20" y="67" width="600" height="158" rx="18" fill="#f7fafc"/>
+  <text class="team" x="42" y="98">HLTCOE</text>
+  <rect class="box" x="38" y="113" width="180" height="90" rx="14" fill="#eaf4fb"/>
+  <text class="label" x="128" y="139" text-anchor="middle">Qwen2.5-VL</text>
+  <text class="small" x="128" y="164" text-anchor="middle">video + Whisper</text>
+  <text class="small" x="128" y="186" text-anchor="middle">transcript + question</text>
+  <path class="arrow" d="M218 158 H246"/>
+  <rect class="box" x="250" y="113" width="132" height="90" rx="14" fill="#fff4d8"/>
+  <text class="label" x="316" y="146" text-anchor="middle">Candidate</text>
+  <text class="label" x="316" y="170" text-anchor="middle">answers</text>
+  <text class="small" x="316" y="191" text-anchor="middle">generate pool</text>
+  <path class="arrow" d="M382 158 H410"/>
+  <rect class="box" x="414" y="113" width="188" height="90" rx="14" fill="#dcecf8"/>
+  <text class="label" x="508" y="139" text-anchor="middle">LoRA listwise ranker</text>
+  <text class="small" x="508" y="165" text-anchor="middle">judges the whole list</text>
+  <text class="small" x="508" y="187" text-anchor="middle">→ ranked AG answers</text>
+
+  <rect class="lane" x="20" y="244" width="600" height="176" rx="18" fill="#f7fafc"/>
+  <text class="team" x="42" y="275">kslab</text>
+  <rect class="box" x="38" y="291" width="210" height="104" rx="14" fill="#eaf4fb"/>
+  <text class="label" x="143" y="315" text-anchor="middle">LoRA-tuned</text>
+  <text class="label" x="143" y="338" text-anchor="middle">VideoLLaMA3-2B</text>
+  <text class="small" x="143" y="364" text-anchor="middle">video + question</text>
+  <text class="small" x="143" y="388" text-anchor="middle">audio not used</text>
+  <path class="arrow" d="M248 326 H280"/>
+  <path class="arrow" d="M248 368 H280"/>
+  <rect class="box" x="284" y="286" width="318" height="62" rx="14" fill="#fff4d8"/>
+  <text class="label" x="443" y="311" text-anchor="middle">AG · stochastic samples</text>
+  <text class="small" x="443" y="335" text-anchor="middle">+ confidence → rank answers</text>
+  <rect class="box" x="284" y="357" width="318" height="62" rx="14" fill="#dcecf8"/>
+  <text class="label" x="443" y="382" text-anchor="middle">MC · anchor + cosine similarity</text>
+  <text class="small" x="443" y="406" text-anchor="middle">compare answer vector with options</text>
+</svg>
