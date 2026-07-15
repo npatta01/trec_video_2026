@@ -1,0 +1,5 @@
+# TRECVID VTT dataset (downloaded from NIST)
+/data/vtt/
+
+# TRECVID VQA development and test datasets
+/data/vqa/
