@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
+import os
 import re
 import subprocess
 import sys
@@ -10,6 +12,47 @@ from collections.abc import Callable
 from pathlib import Path
 
 VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+
+def pid_is_active(pid_path: Path) -> bool:
+    """Return whether a PID file identifies a running process."""
+    try:
+        pid = int(pid_path.read_text(encoding="utf-8").strip())
+        os.kill(pid, 0)
+    except (FileNotFoundError, ValueError, ProcessLookupError):
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def start_detached(
+    repo_root: Path,
+    popen: Callable[..., object] = subprocess.Popen,
+) -> int:
+    """Start the download worker detached and return its PID."""
+    runtime = repo_root / "data/vqa/download_runtime"
+    runtime.mkdir(parents=True, exist_ok=True)
+    pid_path = runtime / "download.pid"
+    if pid_is_active(pid_path):
+        raise RuntimeError(
+            f"VQA download is already running with PID "
+            f"{pid_path.read_text(encoding='utf-8').strip()}"
+        )
+    log_path = runtime / "download.log"
+    with log_path.open("a", encoding="utf-8") as log_handle:
+        child = popen(
+            [sys.executable, "-m", "trec_video_2026.vqa_download", "run"],
+            cwd=repo_root,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    pid = int(child.pid)
+    temporary_pid_path = runtime / "download.pid.tmp"
+    temporary_pid_path.write_text(f"{pid}\n", encoding="utf-8")
+    temporary_pid_path.replace(pid_path)
+    return pid
 
 
 def read_video_ids(csv_path: Path) -> list[str]:
@@ -43,6 +86,23 @@ def write_manifest(
         encoding="utf-8",
     )
     return ids
+
+
+def prepare_manifests(repo_root: Path) -> dict[str, int]:
+    """Generate training/testing URL manifests and return usable counts."""
+    vqa_root = repo_root / "data/vqa"
+    runtime = vqa_root / "download_runtime"
+    training = write_manifest(
+        vqa_root / "2025/training/annotations/train.2025.csv",
+        vqa_root / "2025/training/README.txt",
+        runtime / "training.urls.txt",
+    )
+    testing = write_manifest(
+        vqa_root / "2025/testing/testing.dataset.vqa.2025.csv",
+        vqa_root / "2025/testing/README.txt",
+        runtime / "testing.urls.txt",
+    )
+    return {"training": len(training), "testing": len(testing)}
 
 
 def build_ytdlp_command(
@@ -87,25 +147,21 @@ def run_downloads(
     """Download training and testing videos sequentially."""
     vqa_root = repo_root / "data/vqa"
     runtime = vqa_root / "download_runtime"
+    prepare_manifests(repo_root)
     datasets = (
         (
             "training",
-            vqa_root / "2025/training/annotations/train.2025.csv",
-            vqa_root / "2025/training/README.txt",
             vqa_root / "2025/training/videos_original",
         ),
         (
             "testing",
-            vqa_root / "2025/testing/testing.dataset.vqa.2025.csv",
-            vqa_root / "2025/testing/README.txt",
             vqa_root / "2025/testing/videos_original",
         ),
     )
     try:
-        for name, csv_path, readme_path, output_dir in datasets:
+        for name, output_dir in datasets:
             manifest = runtime / f"{name}.urls.txt"
             archive = runtime / f"{name}.archive.txt"
-            write_manifest(csv_path, readme_path, manifest)
             runner(
                 build_ytdlp_command(manifest, output_dir, archive),
                 check=False,
@@ -114,3 +170,56 @@ def run_downloads(
         print(f"Unable to start yt-dlp: {error}", file=sys.stderr)
         return 1
     return 0
+
+
+def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
+    """Run manifest preparation, worker, detached launch, or status reporting."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("command", choices=("prepare", "run", "start", "status"))
+    args = parser.parse_args(argv)
+    root = repo_root or Path(__file__).resolve().parents[2]
+    runtime = root / "data/vqa/download_runtime"
+
+    if args.command == "prepare":
+        counts = prepare_manifests(root)
+        print(f"training URLs: {counts['training']}")
+        print(f"testing URLs: {counts['testing']}")
+        return 0
+    if args.command == "run":
+        return run_downloads(root)
+    if args.command == "start":
+        try:
+            pid = start_detached(root)
+        except RuntimeError as error:
+            print(error, file=sys.stderr)
+            return 1
+        print(f"started VQA download with PID {pid}")
+        print(f"log: {runtime / 'download.log'}")
+        return 0
+
+    pid_path = runtime / "download.pid"
+    active = pid_is_active(pid_path)
+    pid = pid_path.read_text(encoding="utf-8").strip() if pid_path.exists() else "none"
+    print(f"state: {'running' if active else 'stopped'}")
+    print(f"pid: {pid}")
+    for name in ("training", "testing"):
+        archive = runtime / f"{name}.archive.txt"
+        completed = (
+            len(archive.read_text(encoding="utf-8").splitlines())
+            if archive.exists()
+            else 0
+        )
+        media_dir = root / f"data/vqa/2025/{name}/videos_original"
+        media = sum(
+            1
+            for path in media_dir.glob("*")
+            if path.is_file() and path.suffix.lower() in {".mkv", ".mp4", ".webm", ".mov"}
+        )
+        print(f"{name} completed: {completed}")
+        print(f"{name} media files: {media}")
+    print(f"log: {runtime / 'download.log'}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
