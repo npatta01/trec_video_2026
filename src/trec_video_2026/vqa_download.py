@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import csv
 import re
+import subprocess
+import sys
+from collections.abc import Callable
 from pathlib import Path
 
 VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
@@ -40,3 +43,74 @@ def write_manifest(
         encoding="utf-8",
     )
     return ids
+
+
+def build_ytdlp_command(
+    manifest: Path, output_dir: Path, archive: Path
+) -> list[str]:
+    """Build a resumable yt-dlp command that never transcodes streams."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    return [
+        sys.executable,
+        "-m",
+        "yt_dlp",
+        "--batch-file",
+        str(manifest),
+        "--format",
+        "bestvideo*+bestaudio/best",
+        "--merge-output-format",
+        "mkv",
+        "--output",
+        str(output_dir / "%(id)s.%(ext)s"),
+        "--write-info-json",
+        "--continue",
+        "--no-overwrites",
+        "--download-archive",
+        str(archive),
+        "--retries",
+        "10",
+        "--fragment-retries",
+        "10",
+        "--extractor-retries",
+        "3",
+        "--ignore-errors",
+        "--no-playlist",
+        "--newline",
+    ]
+
+
+def run_downloads(
+    repo_root: Path,
+    runner: Callable[..., object] = subprocess.run,
+) -> int:
+    """Download training and testing videos sequentially."""
+    vqa_root = repo_root / "data/vqa"
+    runtime = vqa_root / "download_runtime"
+    datasets = (
+        (
+            "training",
+            vqa_root / "2025/training/annotations/train.2025.csv",
+            vqa_root / "2025/training/README.txt",
+            vqa_root / "2025/training/videos_original",
+        ),
+        (
+            "testing",
+            vqa_root / "2025/testing/testing.dataset.vqa.2025.csv",
+            vqa_root / "2025/testing/README.txt",
+            vqa_root / "2025/testing/videos_original",
+        ),
+    )
+    try:
+        for name, csv_path, readme_path, output_dir in datasets:
+            manifest = runtime / f"{name}.urls.txt"
+            archive = runtime / f"{name}.archive.txt"
+            write_manifest(csv_path, readme_path, manifest)
+            runner(
+                build_ytdlp_command(manifest, output_dir, archive),
+                check=False,
+            )
+    except OSError as error:
+        print(f"Unable to start yt-dlp: {error}", file=sys.stderr)
+        return 1
+    return 0
