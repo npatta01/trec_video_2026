@@ -44,6 +44,7 @@ def test_ytdlp_command_keeps_original_streams(tmp_path: Path):
     assert "mkv" in command
     assert "--write-info-json" in command
     assert "--download-archive" in command
+    assert command[command.index("--js-runtimes") + 1] == "node"
     assert not any(token in joined for token in ("recode", "convert", "x264", "720"))
 
 

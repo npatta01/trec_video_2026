@@ -119,6 +119,8 @@ def build_ytdlp_command(
         str(manifest),
         "--format",
         "bestvideo*+bestaudio/best",
+        "--js-runtimes",
+        "node",
         "--merge-output-format",
         "mkv",
         "--output",
