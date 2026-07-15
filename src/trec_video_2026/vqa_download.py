@@ -6,12 +6,25 @@ import argparse
 import csv
 import os
 import re
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
 
 VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
+MEDIA_SUFFIXES = {".mkv", ".mp4", ".webm", ".mov"}
+
+
+def count_final_media(media_dir: Path) -> int:
+    """Count finalized ID-named media, excluding yt-dlp format fragments."""
+    return sum(
+        1
+        for path in media_dir.glob("*")
+        if path.is_file()
+        and path.suffix.lower() in MEDIA_SUFFIXES
+        and VIDEO_ID.fullmatch(path.stem)
+    )
 
 
 def pid_is_active(pid_path: Path) -> bool:
@@ -29,6 +42,7 @@ def pid_is_active(pid_path: Path) -> bool:
 def start_detached(
     repo_root: Path,
     popen: Callable[..., object] = subprocess.Popen,
+    node_path: str | None = None,
 ) -> int:
     """Start the download worker detached and return its PID."""
     runtime = repo_root / "data/vqa/download_runtime"
@@ -39,6 +53,11 @@ def start_detached(
             f"VQA download is already running with PID "
             f"{pid_path.read_text(encoding='utf-8').strip()}"
         )
+    resolved_node = node_path or shutil.which("node")
+    if not resolved_node:
+        raise RuntimeError("Node.js is required for complete YouTube format extraction")
+    environment = dict(os.environ)
+    environment["VQA_NODE_PATH"] = resolved_node
     log_path = runtime / "download.log"
     with log_path.open("a", encoding="utf-8") as log_handle:
         child = popen(
@@ -47,6 +66,7 @@ def start_detached(
             stdout=log_handle,
             stderr=subprocess.STDOUT,
             start_new_session=True,
+            env=environment,
         )
     pid = int(child.pid)
     temporary_pid_path = runtime / "download.pid.tmp"
@@ -111,6 +131,8 @@ def build_ytdlp_command(
     """Build a resumable yt-dlp command that never transcodes streams."""
     output_dir.mkdir(parents=True, exist_ok=True)
     archive.parent.mkdir(parents=True, exist_ok=True)
+    node_path = os.environ.get("VQA_NODE_PATH") or shutil.which("node")
+    node_runtime = f"node:{node_path}" if node_path else "node"
     return [
         sys.executable,
         "-m",
@@ -120,7 +142,13 @@ def build_ytdlp_command(
         "--format",
         "bestvideo*+bestaudio/best",
         "--js-runtimes",
-        "node",
+        node_runtime,
+        "--sleep-requests",
+        "1.0",
+        "--sleep-interval",
+        "20",
+        "--max-sleep-interval",
+        "40",
         "--merge-output-format",
         "mkv",
         "--output",
@@ -212,11 +240,7 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
             else 0
         )
         media_dir = root / f"data/vqa/2025/{name}/videos_original"
-        media = sum(
-            1
-            for path in media_dir.glob("*")
-            if path.is_file() and path.suffix.lower() in {".mkv", ".mp4", ".webm", ".mov"}
-        )
+        media = count_final_media(media_dir)
         print(f"{name} completed: {completed}")
         print(f"{name} media files: {media}")
     print(f"log: {runtime / 'download.log'}")

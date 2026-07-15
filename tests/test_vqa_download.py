@@ -5,6 +5,7 @@ import pytest
 
 from trec_video_2026.vqa_download import (
     build_ytdlp_command,
+    count_final_media,
     main,
     pid_is_active,
     prepare_manifests,
@@ -33,7 +34,10 @@ def test_manifest_excludes_unavailable_and_preserves_order(tmp_path: Path):
     )
 
 
-def test_ytdlp_command_keeps_original_streams(tmp_path: Path):
+def test_ytdlp_command_keeps_original_streams_at_a_slow_rate(
+    tmp_path: Path, monkeypatch
+):
+    monkeypatch.setenv("VQA_NODE_PATH", "/opt/node/bin/node")
     command = build_ytdlp_command(
         tmp_path / "urls.txt", tmp_path / "videos", tmp_path / "archive.txt"
     )
@@ -44,7 +48,12 @@ def test_ytdlp_command_keeps_original_streams(tmp_path: Path):
     assert "mkv" in command
     assert "--write-info-json" in command
     assert "--download-archive" in command
-    assert command[command.index("--js-runtimes") + 1] == "node"
+    assert command[command.index("--js-runtimes") + 1] == (
+        "node:/opt/node/bin/node"
+    )
+    assert command[command.index("--sleep-requests") + 1] == "1.0"
+    assert command[command.index("--sleep-interval") + 1] == "20"
+    assert command[command.index("--max-sleep-interval") + 1] == "40"
     assert not any(token in joined for token in ("recode", "convert", "x264", "720"))
 
 
@@ -84,7 +93,7 @@ def test_pid_is_active_rejects_missing_and_stale_pid(tmp_path: Path, monkeypatch
     assert pid_is_active(pid_path) is False
 
 
-def test_start_detached_records_child_pid(tmp_path: Path):
+def test_start_detached_records_child_pid_and_node_path(tmp_path: Path):
     runtime = tmp_path / "data/vqa/download_runtime"
     captured: dict[str, object] = {}
 
@@ -96,11 +105,14 @@ def test_start_detached_records_child_pid(tmp_path: Path):
         captured.update(kwargs)
         return Child()
 
-    assert start_detached(tmp_path, popen=popen) == 4242
+    assert start_detached(
+        tmp_path, popen=popen, node_path="/opt/node/bin/node"
+    ) == 4242
     assert (runtime / "download.pid").read_text(encoding="utf-8") == "4242\n"
     assert captured["start_new_session"] is True
     assert captured["cwd"] == tmp_path
     assert captured["stderr"] == -2
+    assert captured["env"]["VQA_NODE_PATH"] == "/opt/node/bin/node"
 
 
 def test_start_detached_rejects_an_active_job(tmp_path: Path):
@@ -135,3 +147,11 @@ def test_status_command_reports_stopped_job(tmp_path: Path, capsys):
     assert "state: stopped" in output
     assert "training completed: 0" in output
     assert "testing completed: 0" in output
+
+
+def test_count_final_media_excludes_unmerged_format_fragments(tmp_path: Path):
+    (tmp_path / "abcDEF123_0.mkv").touch()
+    (tmp_path / "xyzXYZ987-1.f251.webm").touch()
+    (tmp_path / "qrsQRS456_2.info.json").touch()
+
+    assert count_final_media(tmp_path) == 1
