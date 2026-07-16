@@ -58,9 +58,10 @@ def test_run_dataset_cools_down_and_resumes_from_archive(tmp_path: Path):
             AttemptResult(True, False),
         ]
     )
-    sleeps = []
+    calls, sleeps = [], []
 
     def runner(command: list[str]) -> AttemptResult:
+        calls.append(command)
         outcome = next(outcomes)
         if outcome.completed:
             archive.write_text("youtube abcDEF123_0\n", encoding="utf-8")
@@ -74,7 +75,49 @@ def test_run_dataset_cools_down_and_resumes_from_archive(tmp_path: Path):
         sleeper=sleeps.append,
     )
 
-    assert sleeps[:2] == [3600.0, 7200.0]
+    assert len(calls) == 3
+    assert sleeps == [3600.0, 7200.0, 10.0]
+
+
+def test_run_dataset_resets_cooldown_after_archived_ordinary_attempt(
+    tmp_path: Path,
+):
+    manifest = tmp_path / "urls.txt"
+    manifest.write_text(
+        "https://www.youtube.com/watch?v=abcDEF123_0\n"
+        "https://www.youtube.com/watch?v=xyzXYZ987-1\n",
+        encoding="utf-8",
+    )
+    archive = tmp_path / "archive.txt"
+    outcomes = iter(
+        [
+            AttemptResult(False, True),
+            AttemptResult(True, False),
+            AttemptResult(False, True),
+            AttemptResult(True, False),
+        ]
+    )
+    calls, sleeps = [], []
+
+    def runner(command: list[str]) -> AttemptResult:
+        calls.append(command)
+        outcome = next(outcomes)
+        if outcome.completed:
+            video_id = command[-1].rsplit("v=", 1)[-1]
+            with archive.open("a", encoding="utf-8") as handle:
+                handle.write(f"youtube {video_id}\n")
+        return outcome
+
+    run_dataset(
+        manifest,
+        tmp_path / "videos",
+        archive,
+        url_runner=runner,
+        sleeper=sleeps.append,
+    )
+
+    assert len(calls) == 4
+    assert sleeps == [3600.0, 10.0, 3600.0, 10.0]
 
 
 def test_manifest_excludes_unavailable_and_preserves_order(tmp_path: Path):
