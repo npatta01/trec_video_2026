@@ -164,6 +164,13 @@ type: task
 name: youtube-network-test
 python: "3.12"
 fleets: [cpu-exit]
+backends: [digitalocean, gcp]
+spot_policy: auto
+max_price: 0.02
+resources:
+  cpu: 1..2
+  memory: 512MB..4GB
+  disk: 10GB..25GB
 env:
   - YOUTUBE_TEST_URL
 commands:
@@ -236,4 +243,3 @@ Expected: all commands exit zero and print nothing.
 - [ ] **Step 3: Stop at the control-plane boundary**
 
 Report whether the local config is complete. Do not start `dstack server`, upload backends to Sky, create fleets, or launch the YouTube test until the user chooses the control-plane path and approves any credential upload or billable plan.
-
