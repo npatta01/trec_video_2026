@@ -47,6 +47,23 @@ def test_read_archive_ids_accepts_ytdlp_archive_rows(tmp_path: Path):
     assert read_archive_ids(archive) == {"abcDEF123_0", "xyzXYZ987-1"}
 
 
+def test_read_archive_ids_returns_empty_for_missing_file(tmp_path: Path):
+    assert read_archive_ids(tmp_path / "missing.archive.txt") == set()
+
+
+def test_read_archive_ids_filters_invalid_rows(tmp_path: Path):
+    archive = tmp_path / "archive.txt"
+    archive.write_text(
+        "youtube abcDEF123_0\n"
+        "youtube too-short\n"
+        "malformed\n"
+        "youtube abcDEF123_0 extra\n",
+        encoding="utf-8",
+    )
+
+    assert read_archive_ids(archive) == {"abcDEF123_0"}
+
+
 def test_ytdlp_command_paces_requests_without_per_stream_sleep(
     tmp_path: Path, monkeypatch
 ):
@@ -87,13 +104,37 @@ def test_run_url_streams_output_and_detects_rate_limit(capsys):
     assert "progress" in capsys.readouterr().out
 
 
-def test_run_downloads_processes_training_before_testing(tmp_path: Path):
+def test_run_url_zero_exit_without_marker_is_completed():
+    class Child:
+        stdout = iter(["finished\n"])
+
+        def wait(self):
+            return 0
+
+    result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
+
+    assert result == AttemptResult(completed=True, rate_limited=False)
+
+
+def test_run_url_zero_exit_with_marker_is_rate_limited_and_incomplete():
+    class Child:
+        stdout = iter([f"ERROR: {RATE_LIMIT_MARKER}\n"])
+
+        def wait(self):
+            return 0
+
+    result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
+
+    assert result == AttemptResult(completed=False, rate_limited=True)
+
+
+def test_run_downloads_processes_each_training_url_before_testing(tmp_path: Path):
     training = tmp_path / "data/vqa/2025/training"
     testing = tmp_path / "data/vqa/2025/testing"
     (training / "annotations").mkdir(parents=True)
     testing.mkdir(parents=True)
     (training / "annotations/train.2025.csv").write_text(
-        '1 , abcDEF123_0, "q"\n', encoding="utf-8"
+        '1 , abcDEF123_0, "q"\n2 , qrsQRS456_2, "q"\n', encoding="utf-8"
     )
     (training / "README.txt").write_text("", encoding="utf-8")
     (testing / "testing.dataset.vqa.2025.csv").write_text(
@@ -106,9 +147,12 @@ def test_run_downloads_processes_training_before_testing(tmp_path: Path):
         calls.append(command)
 
     assert run_downloads(tmp_path, runner=runner) == 0
-    assert len(calls) == 2
-    assert "training.urls.txt" in " ".join(calls[0])
-    assert "testing.urls.txt" in " ".join(calls[1])
+    assert [command[-1] for command in calls] == [
+        "https://www.youtube.com/watch?v=abcDEF123_0",
+        "https://www.youtube.com/watch?v=qrsQRS456_2",
+        "https://www.youtube.com/watch?v=xyzXYZ987-1",
+    ]
+    assert not any(".urls.txt" in argument for command in calls for argument in command)
 
 
 def test_pid_is_active_rejects_missing_and_stale_pid(tmp_path: Path, monkeypatch):

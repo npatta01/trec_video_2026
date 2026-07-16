@@ -230,10 +230,12 @@ def run_downloads(
         for name, output_dir in datasets:
             manifest = runtime / f"{name}.urls.txt"
             archive = runtime / f"{name}.archive.txt"
-            runner(
-                build_ytdlp_command(manifest, output_dir, archive),
-                check=False,
-            )
+            for url in manifest.read_text(encoding="utf-8").splitlines():
+                if url:
+                    runner(
+                        build_ytdlp_command(url, output_dir, archive),
+                        check=False,
+                    )
     except OSError as error:
         print(f"Unable to start yt-dlp: {error}", file=sys.stderr)
         return 1
