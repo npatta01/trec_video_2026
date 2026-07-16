@@ -215,12 +215,34 @@ def test_run_url_zero_exit_without_marker_is_completed():
     assert result == AttemptResult(completed=True, rate_limited=False)
 
 
-def test_run_url_zero_exit_with_marker_is_rate_limited_and_incomplete():
+@pytest.mark.parametrize(
+    "marker",
+    [RATE_LIMIT_MARKER, RATE_LIMIT_MARKER.replace("’", "'")],
+)
+def test_run_url_zero_exit_with_marker_is_rate_limited_and_incomplete(marker: str):
     class Child:
-        stdout = iter([f"ERROR: {RATE_LIMIT_MARKER}\n"])
+        stdout = iter([f"ERROR: {marker}\n"])
 
         def wait(self):
             return 0
+
+    result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
+
+    assert result == AttemptResult(completed=False, rate_limited=True)
+
+
+def test_run_url_detects_youtube_session_rate_limit_wording():
+    class Child:
+        stdout = iter(
+            [
+                "ERROR: [youtube] tfTu-B4qIDQ: Video unavailable. This content "
+                "isn't available, try again later. The current session has been "
+                "rate-limited by YouTube for up to an hour.\n"
+            ]
+        )
+
+        def wait(self):
+            return 1
 
     result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
 
