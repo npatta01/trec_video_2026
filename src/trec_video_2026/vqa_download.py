@@ -10,10 +10,20 @@ import shutil
 import subprocess
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 MEDIA_SUFFIXES = {".mkv", ".mp4", ".webm", ".mov"}
+RATE_LIMIT_MARKER = "Sign in to confirm you’re not a bot"
+
+
+@dataclass(frozen=True)
+class AttemptResult:
+    """Outcome of one yt-dlp URL attempt."""
+
+    completed: bool
+    rate_limited: bool
 
 
 def count_final_media(media_dir: Path) -> int:
@@ -92,6 +102,17 @@ def read_unavailable_ids(readme_path: Path) -> set[str]:
     return set(names) | set(quoted)
 
 
+def read_archive_ids(archive: Path) -> set[str]:
+    """Read valid video IDs from yt-dlp archive rows."""
+    if not archive.exists():
+        return set()
+    return {
+        fields[-1]
+        for line in archive.read_text(encoding="utf-8").splitlines()
+        if (fields := line.split()) and VIDEO_ID.fullmatch(fields[-1])
+    }
+
+
 def write_manifest(
     csv_path: Path, readme_path: Path, output_path: Path
 ) -> list[str]:
@@ -126,7 +147,7 @@ def prepare_manifests(repo_root: Path) -> dict[str, int]:
 
 
 def build_ytdlp_command(
-    manifest: Path, output_dir: Path, archive: Path
+    url: str, output_dir: Path, archive: Path
 ) -> list[str]:
     """Build a resumable yt-dlp command that never transcodes streams."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -137,18 +158,12 @@ def build_ytdlp_command(
         sys.executable,
         "-m",
         "yt_dlp",
-        "--batch-file",
-        str(manifest),
         "--format",
         "bestvideo*+bestaudio/best",
         "--js-runtimes",
         node_runtime,
         "--sleep-requests",
-        "1.0",
-        "--sleep-interval",
-        "20",
-        "--max-sleep-interval",
-        "40",
+        "1.5",
         "--merge-output-format",
         "mkv",
         "--output",
@@ -167,7 +182,30 @@ def build_ytdlp_command(
         "--ignore-errors",
         "--no-playlist",
         "--newline",
+        str(url),
     ]
+
+
+def run_url(
+    command: list[str], popen: Callable[..., object] = subprocess.Popen
+) -> AttemptResult:
+    """Run one URL while streaming output and classifying rate limiting."""
+    child = popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    rate_limited = False
+    for line in child.stdout:
+        print(line, end="", flush=True)
+        rate_limited = rate_limited or RATE_LIMIT_MARKER in line
+    return_code = child.wait()
+    return AttemptResult(
+        completed=return_code == 0 and not rate_limited,
+        rate_limited=rate_limited,
+    )
 
 
 def run_downloads(

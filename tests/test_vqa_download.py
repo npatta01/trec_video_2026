@@ -4,13 +4,17 @@ from pathlib import Path
 import pytest
 
 from trec_video_2026.vqa_download import (
+    AttemptResult,
+    RATE_LIMIT_MARKER,
     build_ytdlp_command,
     count_final_media,
     main,
     pid_is_active,
     prepare_manifests,
+    read_archive_ids,
     read_unavailable_ids,
     read_video_ids,
+    run_url,
     run_downloads,
     start_detached,
     write_manifest,
@@ -34,12 +38,23 @@ def test_manifest_excludes_unavailable_and_preserves_order(tmp_path: Path):
     )
 
 
-def test_ytdlp_command_keeps_original_streams_at_a_slow_rate(
+def test_read_archive_ids_accepts_ytdlp_archive_rows(tmp_path: Path):
+    archive = tmp_path / "archive.txt"
+    archive.write_text(
+        "youtube abcDEF123_0\nyoutube xyzXYZ987-1\n", encoding="utf-8"
+    )
+
+    assert read_archive_ids(archive) == {"abcDEF123_0", "xyzXYZ987-1"}
+
+
+def test_ytdlp_command_paces_requests_without_per_stream_sleep(
     tmp_path: Path, monkeypatch
 ):
     monkeypatch.setenv("VQA_NODE_PATH", "/opt/node/bin/node")
     command = build_ytdlp_command(
-        tmp_path / "urls.txt", tmp_path / "videos", tmp_path / "archive.txt"
+        "https://www.youtube.com/watch?v=abcDEF123_0",
+        tmp_path / "videos",
+        tmp_path / "archive.txt",
     )
     joined = " ".join(command)
 
@@ -51,10 +66,25 @@ def test_ytdlp_command_keeps_original_streams_at_a_slow_rate(
     assert command[command.index("--js-runtimes") + 1] == (
         "node:/opt/node/bin/node"
     )
-    assert command[command.index("--sleep-requests") + 1] == "1.0"
-    assert command[command.index("--sleep-interval") + 1] == "20"
-    assert command[command.index("--max-sleep-interval") + 1] == "40"
+    assert command[command.index("--sleep-requests") + 1] == "1.5"
+    assert "--sleep-interval" not in command
+    assert "--max-sleep-interval" not in command
+    assert "--batch-file" not in command
+    assert command[-1] == "https://www.youtube.com/watch?v=abcDEF123_0"
     assert not any(token in joined for token in ("recode", "convert", "x264", "720"))
+
+
+def test_run_url_streams_output_and_detects_rate_limit(capsys):
+    class Child:
+        stdout = iter(["progress\n", f"ERROR: {RATE_LIMIT_MARKER}\n"])
+
+        def wait(self):
+            return 1
+
+    result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
+
+    assert result == AttemptResult(completed=False, rate_limited=True)
+    assert "progress" in capsys.readouterr().out
 
 
 def test_run_downloads_processes_training_before_testing(tmp_path: Path):
