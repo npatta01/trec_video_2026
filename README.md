@@ -54,7 +54,8 @@ Downloader behavior:
 - Merges streams into MKV with stream copy; it does not re-encode or downscale.
 - Saves `.info.json` metadata next to each media file.
 - Uses separate training/testing download archives, partial-file continuation, retries, and per-video error skipping.
-- Sleeps 20–40 seconds between videos and 1 second between extraction requests to avoid YouTube rate limits; a full resume may run for most of a day.
+- Paces every attempted URL by 10 seconds and extraction requests by 1.5 seconds; separate video/audio streams do not receive duplicate long sleeps.
+- On a YouTube rate limit, automatically pauses for one hour, then up to two hours on repeated limits, and resumes safely from the download archive.
 - Uses the locked `yt-dlp-ejs` component and an absolute Node.js path for complete format extraction in detached sessions.
 - Processes training before testing.
 - Excludes the unavailable IDs listed in the NIST README files.

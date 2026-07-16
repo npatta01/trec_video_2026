@@ -9,8 +9,10 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
@@ -208,9 +210,55 @@ def run_url(
     )
 
 
+def run_dataset(
+    manifest: Path,
+    output_dir: Path,
+    archive: Path,
+    *,
+    url_runner: Callable[[list[str]], AttemptResult] = run_url,
+    sleeper: Callable[[float], None] = time.sleep,
+    ordinary_delay: float = 10.0,
+    initial_cooldown: float = 3600.0,
+    maximum_cooldown: float = 7200.0,
+) -> None:
+    """Download one manifest sequentially, cooling down after rate limits."""
+    urls = [
+        url
+        for url in manifest.read_text(encoding="utf-8").splitlines()
+        if url
+    ]
+    cooldown = initial_cooldown
+    while True:
+        rate_limited = False
+        for url in urls:
+            video_id = url.rsplit("v=", 1)[-1].split("&", 1)[0]
+            if video_id in read_archive_ids(archive):
+                continue
+            result = url_runner(build_ytdlp_command(url, output_dir, archive))
+            if result.rate_limited:
+                retry_utc = datetime.now(timezone.utc) + timedelta(seconds=cooldown)
+                retry_local = retry_utc.astimezone()
+                print(
+                    f"Rate limited; cooling down for {cooldown:g} seconds. "
+                    f"Retry at {retry_utc.isoformat()} UTC / "
+                    f"{retry_local.isoformat()} local.",
+                    flush=True,
+                )
+                sleeper(cooldown)
+                cooldown = min(cooldown * 2, maximum_cooldown)
+                rate_limited = True
+                break
+            sleeper(ordinary_delay)
+            if video_id in read_archive_ids(archive):
+                cooldown = initial_cooldown
+        if not rate_limited:
+            return
+
+
 def run_downloads(
     repo_root: Path,
-    runner: Callable[..., object] = subprocess.run,
+    runner: Callable[[list[str]], AttemptResult] = run_url,
+    sleeper: Callable[[float], None] = time.sleep,
 ) -> int:
     """Download training and testing videos sequentially."""
     vqa_root = repo_root / "data/vqa"
@@ -230,12 +278,13 @@ def run_downloads(
         for name, output_dir in datasets:
             manifest = runtime / f"{name}.urls.txt"
             archive = runtime / f"{name}.archive.txt"
-            for url in manifest.read_text(encoding="utf-8").splitlines():
-                if url:
-                    runner(
-                        build_ytdlp_command(url, output_dir, archive),
-                        check=False,
-                    )
+            run_dataset(
+                manifest,
+                output_dir,
+                archive,
+                url_runner=runner,
+                sleeper=sleeper,
+            )
     except OSError as error:
         print(f"Unable to start yt-dlp: {error}", file=sys.stderr)
         return 1

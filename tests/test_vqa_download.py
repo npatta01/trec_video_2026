@@ -15,10 +15,66 @@ from trec_video_2026.vqa_download import (
     read_unavailable_ids,
     read_video_ids,
     run_url,
+    run_dataset,
     run_downloads,
     start_detached,
     write_manifest,
 )
+
+
+def test_run_dataset_paces_every_ordinary_url(tmp_path: Path):
+    manifest = tmp_path / "urls.txt"
+    manifest.write_text(
+        "https://www.youtube.com/watch?v=abcDEF123_0\n"
+        "https://www.youtube.com/watch?v=xyzXYZ987-1\n",
+        encoding="utf-8",
+    )
+    archive = tmp_path / "archive.txt"
+    calls, sleeps = [], []
+
+    run_dataset(
+        manifest,
+        tmp_path / "videos",
+        archive,
+        url_runner=lambda command: calls.append(command)
+        or AttemptResult(False, False),
+        sleeper=sleeps.append,
+    )
+
+    assert len(calls) == 2
+    assert sleeps == [10.0, 10.0]
+
+
+def test_run_dataset_cools_down_and_resumes_from_archive(tmp_path: Path):
+    manifest = tmp_path / "urls.txt"
+    manifest.write_text(
+        "https://www.youtube.com/watch?v=abcDEF123_0\n", encoding="utf-8"
+    )
+    archive = tmp_path / "archive.txt"
+    outcomes = iter(
+        [
+            AttemptResult(False, True),
+            AttemptResult(False, True),
+            AttemptResult(True, False),
+        ]
+    )
+    sleeps = []
+
+    def runner(command: list[str]) -> AttemptResult:
+        outcome = next(outcomes)
+        if outcome.completed:
+            archive.write_text("youtube abcDEF123_0\n", encoding="utf-8")
+        return outcome
+
+    run_dataset(
+        manifest,
+        tmp_path / "videos",
+        archive,
+        url_runner=runner,
+        sleeper=sleeps.append,
+    )
+
+    assert sleeps[:2] == [3600.0, 7200.0]
 
 
 def test_manifest_excludes_unavailable_and_preserves_order(tmp_path: Path):
@@ -143,10 +199,11 @@ def test_run_downloads_processes_each_training_url_before_testing(tmp_path: Path
     (testing / "README.txt").write_text("", encoding="utf-8")
     calls: list[list[str]] = []
 
-    def runner(command: list[str], check: bool):
+    def runner(command: list[str]) -> AttemptResult:
         calls.append(command)
+        return AttemptResult(False, False)
 
-    assert run_downloads(tmp_path, runner=runner) == 0
+    assert run_downloads(tmp_path, runner=runner, sleeper=lambda _: None) == 0
     assert [command[-1] for command in calls] == [
         "https://www.youtube.com/watch?v=abcDEF123_0",
         "https://www.youtube.com/watch?v=qrsQRS456_2",
