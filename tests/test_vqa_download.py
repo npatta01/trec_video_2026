@@ -45,6 +45,39 @@ def test_run_dataset_paces_every_ordinary_url(tmp_path: Path):
     assert sleeps == [10.0, 10.0]
 
 
+def test_run_dataset_retries_ordinary_failures_after_archive_progress(
+    tmp_path: Path,
+):
+    manifest = tmp_path / "urls.txt"
+    manifest.write_text(
+        "https://www.youtube.com/watch?v=abcDEF123_0\n"
+        "https://www.youtube.com/watch?v=xyzXYZ987-1\n",
+        encoding="utf-8",
+    )
+    archive = tmp_path / "archive.txt"
+    calls: list[str] = []
+
+    def runner(command: list[str]) -> AttemptResult:
+        video_id = command[-1].rsplit("v=", 1)[-1]
+        calls.append(video_id)
+        if video_id == "abcDEF123_0":
+            archive.write_text("youtube abcDEF123_0\n", encoding="utf-8")
+            return AttemptResult(True, False)
+        return AttemptResult(False, False)
+
+    sleeps: list[float] = []
+    run_dataset(
+        manifest,
+        tmp_path / "videos",
+        archive,
+        url_runner=runner,
+        sleeper=sleeps.append,
+    )
+
+    assert calls == ["abcDEF123_0", "xyzXYZ987-1", "xyzXYZ987-1"]
+    assert sleeps == [10.0, 10.0, 10.0]
+
+
 def test_run_dataset_cools_down_and_resumes_from_archive(tmp_path: Path):
     manifest = tmp_path / "urls.txt"
     manifest.write_text(
@@ -247,6 +280,27 @@ def test_run_url_detects_youtube_session_rate_limit_wording():
     result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
 
     assert result == AttemptResult(completed=False, rate_limited=True)
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        "ERROR: Sign in to confirm you're not a bot\n",
+        "ERROR: This video is private\n",
+        "ERROR: Video unavailable\n",
+        "ERROR: This content isn't available, try again later.\n",
+    ],
+)
+def test_run_url_does_not_classify_other_errors_as_rate_limits(output: str):
+    class Child:
+        stdout = iter([output])
+
+        def wait(self):
+            return 1
+
+    result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
+
+    assert result == AttemptResult(completed=False, rate_limited=False)
 
 
 def test_run_downloads_processes_each_training_url_before_testing(tmp_path: Path):

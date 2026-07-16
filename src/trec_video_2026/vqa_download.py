@@ -17,10 +17,8 @@ from pathlib import Path
 
 VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 MEDIA_SUFFIXES = {".mkv", ".mp4", ".webm", ".mov"}
-RATE_LIMIT_MARKER = "Sign in to confirm you’re not a bot"
-RATE_LIMIT_MARKERS = (
-    "Sign in to confirm you're not a bot",
-    "The current session has been rate-limited by YouTube for up to an hour.",
+RATE_LIMIT_MARKER = (
+    "The current session has been rate-limited by YouTube for up to an hour."
 )
 
 
@@ -206,10 +204,7 @@ def run_url(
     rate_limited = False
     for line in child.stdout:
         print(line, end="", flush=True)
-        normalized_line = line.replace("’", "'")
-        rate_limited = rate_limited or any(
-            marker in normalized_line for marker in RATE_LIMIT_MARKERS
-        )
+        rate_limited = rate_limited or RATE_LIMIT_MARKER in line
     return_code = child.wait()
     return AttemptResult(
         completed=return_code == 0 and not rate_limited,
@@ -236,12 +231,15 @@ def run_dataset(
     ]
     cooldown = initial_cooldown
     while True:
+        archived_ids = read_archive_ids(archive)
+        archived_at_pass_start = archived_ids.copy()
         rate_limited = False
         for url in urls:
             video_id = url.rsplit("v=", 1)[-1].split("&", 1)[0]
-            if video_id in read_archive_ids(archive):
+            if video_id in archived_ids:
                 continue
             result = url_runner(build_ytdlp_command(url, output_dir, archive))
+            archived_ids = read_archive_ids(archive)
             if result.rate_limited:
                 retry_utc = datetime.now(timezone.utc) + timedelta(seconds=cooldown)
                 retry_local = retry_utc.astimezone()
@@ -256,9 +254,10 @@ def run_dataset(
                 rate_limited = True
                 break
             sleeper(ordinary_delay)
-            if video_id in read_archive_ids(archive):
+            if video_id in archived_ids:
                 cooldown = initial_cooldown
-        if not rate_limited:
+        made_progress = bool(archived_ids - archived_at_pass_start)
+        if not rate_limited and not made_progress:
             return
 
 
