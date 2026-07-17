@@ -1,0 +1,4 @@
+interface:
+  display_name: "Download YouTube Datasets"
+  short_description: "Safely download resumable YouTube datasets"
+  default_prompt: "Use $downloading-youtube-datasets to prepare and run a safe, resumable YouTube dataset download."
