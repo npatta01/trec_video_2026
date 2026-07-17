@@ -85,3 +85,32 @@ no matches
 ```
 
 Untracked `dstack/` and `notes.txt` remained untouched and unstaged.
+
+## Final compatibility review fix
+
+The re-review identified that `vqa_download.start_detached` had been left as the generic `(spec, config, ...)` function and that the tests hid the public API break behind a test-local adapter. The VQA module now owns a real compatibility wrapper with the established signature:
+
+```text
+start_detached(repo_root, popen=..., node_path=..., proxy_env_path=..., credential_runner=...)
+```
+
+The wrapper constructs the VQA `DatasetSpec` and explicit `DownloadConfig`, then delegates to `youtube_dataset.start_detached`. The ownership test now treats this function as adapter-specific, and all detached tests invoke the production wrapper directly. Generic startup/runtime/inherited-lock errors were also changed from “VQA” to “YouTube dataset” wording.
+
+Fresh evidence:
+
+```text
+uv run pytest -q tests/test_youtube_dataset.py tests/test_vqa_download.py
+86 passed in 0.12s
+
+uv run pytest -q
+86 passed in 0.42s
+
+python -m compileall -q src
+exit 0
+
+git diff --check
+exit 0
+
+rg -n 'VQA' src/trec_video_2026/youtube_dataset.py
+no matches
+```

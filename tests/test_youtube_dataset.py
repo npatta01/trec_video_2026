@@ -16,7 +16,6 @@ def test_generic_engine_owns_reusable_download_behavior():
         "build_ytdlp_command",
         "run_url",
         "run_dataset",
-        "start_detached",
     )
 
     for name in reusable_names:
@@ -34,6 +33,7 @@ def test_vqa_specific_manifest_parsing_remains_in_vqa_adapter():
         "prepare_manifests",
         "prepare_available_manifests",
         "run_downloads",
+        "start_detached",
         "main",
     )
 

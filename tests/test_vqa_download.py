@@ -27,7 +27,7 @@ from trec_video_2026.vqa_download import (
     run_url,
     run_dataset,
     run_downloads,
-    start_detached as shared_start_detached,
+    start_detached,
     write_proxy_config,
     write_manifest,
 )
@@ -37,31 +37,6 @@ def _secure_env(path: Path) -> Path:
     path.write_text("placeholder only\n", encoding="utf-8")
     path.chmod(0o600)
     return path
-
-
-def start_detached(
-    repo_root: Path,
-    popen=subprocess.Popen,
-    node_path: str | None = None,
-    proxy_env_path: Path | None = None,
-    credential_runner=subprocess.run,
-):
-    """Exercise shared detached behavior with explicit VQA adapter construction."""
-    runtime = repo_root / "data/vqa/download_runtime"
-    spec = youtube_dataset.DatasetSpec(
-        source=runtime / "testing.pending-available.urls.txt",
-        output_dir=repo_root / "data/vqa/2025/testing/videos_original",
-        state_dir=runtime,
-    )
-    config = youtube_dataset.DownloadConfig(
-        api_key_file=repo_root / "placeholder-api.env",
-        proxy_file=proxy_env_path or repo_root / "placeholder-proxy.env",
-        worker_command=("python", "-m", "trec_video_2026.vqa_download", "run", "--detached-worker"),
-        node_path=node_path,
-    )
-    return shared_start_detached(
-        spec, config, popen=popen, credential_runner=credential_runner
-    )
 
 
 def test_youtube_api_key_loads_without_ambient_fallback(tmp_path: Path, monkeypatch):
@@ -913,7 +888,7 @@ def test_start_command_prefilters_before_spawning_worker(
     monkeypatch.setattr(
         vqa_download,
         "start_detached",
-        lambda spec, config, **kwargs: calls.append("spawn") or 4242,
+        lambda root, **kwargs: calls.append("spawn") or 4242,
     )
 
     assert main(["start"], repo_root=tmp_path) == 0

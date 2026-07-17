@@ -6,6 +6,7 @@ import argparse
 import csv
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -35,10 +36,43 @@ read_archive_ids = _engine.read_archive_ids
 build_ytdlp_command = _engine.build_ytdlp_command
 run_url = _engine.run_url
 run_dataset = _engine.run_dataset
-start_detached = _engine.start_detached
 _startup_lock = _engine._startup_lock
 _validate_runtime_directory = _engine._validate_runtime_directory
 _validate_inherited_worker_lock = _engine._validate_inherited_worker_lock
+
+
+def start_detached(
+    repo_root: Path,
+    popen=subprocess.Popen,
+    node_path: str | None = None,
+    proxy_env_path: Path | None = None,
+    credential_runner=subprocess.run,
+) -> int:
+    """Start the shared worker using established TRECVID paths and defaults."""
+    runtime = repo_root / "data/vqa/download_runtime"
+    spec = DatasetSpec(
+        source=runtime / "testing.pending-available.urls.txt",
+        output_dir=repo_root / "data/vqa/2025/testing/videos_original",
+        state_dir=runtime,
+    )
+    config = DownloadConfig(
+        api_key_file=DEFAULT_YOUTUBE_API_ENV_PATH,
+        proxy_file=proxy_env_path or DEFAULT_PROXY_ENV_PATH,
+        worker_command=(
+            sys.executable,
+            "-m",
+            "trec_video_2026.vqa_download",
+            "run",
+            "--detached-worker",
+        ),
+        node_path=node_path,
+    )
+    return _engine.start_detached(
+        spec,
+        config,
+        popen=popen,
+        credential_runner=credential_runner,
+    )
 
 
 def read_video_ids(csv_path: Path) -> list[str]:
@@ -179,18 +213,7 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
             prepare_manifests(root)
             key = load_youtube_api_key(DEFAULT_YOUTUBE_API_ENV_PATH)
             availability = prepare_available_manifests(root, key)
-            spec = DatasetSpec(
-                source=runtime / "testing.pending-available.urls.txt",
-                output_dir=root / "data/vqa/2025/testing/videos_original",
-                state_dir=runtime,
-            )
-            config = DownloadConfig(
-                api_key_file=DEFAULT_YOUTUBE_API_ENV_PATH,
-                proxy_file=DEFAULT_PROXY_ENV_PATH,
-                worker_command=(sys.executable, "-m", "trec_video_2026.vqa_download", "run", "--detached-worker"),
-                node_path=None,
-            )
-            pid = start_detached(spec, config)
+            pid = start_detached(root)
         except RuntimeError as error:
             print(error, file=sys.stderr)
             return 1

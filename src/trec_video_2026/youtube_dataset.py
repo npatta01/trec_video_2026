@@ -405,13 +405,13 @@ def _startup_lock(runtime: Path):
         try:
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            raise RuntimeError("VQA download startup already in progress") from None
+            raise RuntimeError("YouTube dataset startup already in progress") from None
         handle = _StartupLockHandle(descriptor)
         yield handle
     except RuntimeError:
         raise
     except OSError:
-        raise RuntimeError("Unable to secure VQA download startup lock") from None
+        raise RuntimeError("Unable to secure YouTube dataset startup lock") from None
     finally:
         if descriptor >= 0:
             if handle is None or not handle.handed_off:
@@ -437,7 +437,7 @@ def _validate_runtime_directory(runtime: Path) -> None:
         ):
             raise OSError
     except OSError:
-        raise RuntimeError("VQA runtime directory is not secure") from None
+        raise RuntimeError("YouTube dataset runtime directory is not secure") from None
     finally:
         if descriptor >= 0:
             os.close(descriptor)
@@ -457,7 +457,7 @@ def _validate_inherited_worker_lock(runtime: Path, descriptor: int) -> None:
         ):
             raise OSError
     except OSError:
-        raise RuntimeError("Inherited VQA worker lock is not secure") from None
+        raise RuntimeError("Inherited YouTube dataset worker lock is not secure") from None
 
 
 def _record_pid(pid_path: Path, pid: int) -> None:
