@@ -1,8 +1,5 @@
-# TRECVID VTT dataset (downloaded from NIST)
-/data/vtt/
-
-# TRECVID VQA development and test datasets
-/data/vqa/
+# Local datasets and per-worktree links to the shared canonical data directory
+/data
 
 # Local Python environments and caches
 .venv/

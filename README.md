@@ -6,6 +6,25 @@ Local tools and private, Git-ignored datasets for the TRECVID 2026 Video Questio
 
 Everything under `data/` is local-only. The large media and runtime files are intentionally excluded from Git by `.gitignore`.
 
+### Shared data across Git worktrees
+
+The canonical checkout owns the only physical dataset copy:
+`/home/npatta01/data/competitions/trec_video_2026/data`. Linked Git worktrees
+use an ignored, absolute `data` symlink to that directory, so repository tools
+can use the same relative paths without duplicating approximately 17 GiB.
+
+Configure every currently registered worktree from any checkout:
+
+```bash
+scripts/link-shared-data.sh --all
+```
+
+After creating one future worktree, run `scripts/link-shared-data.sh` inside it.
+The helper is safe to repeat and refuses to replace any conflicting file,
+directory, or incorrect symlink. It also adds `/data` to Git's shared local
+exclude file, so links stay ignored even in older detached worktrees that do
+not yet contain the tracked `.gitignore` rule.
+
 | Path | Contents | Expected usable items |
 | --- | --- | ---: |
 | `data/vtt/` | NIST TRECVID Video-to-Text data from 2016–2024: videos, captions, URL metadata, and checksums | 10,152 local WebM videos; captions cover 16,627 IDs |
