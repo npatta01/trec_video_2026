@@ -7,6 +7,7 @@ import csv
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -14,6 +15,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 MEDIA_SUFFIXES = {".mkv", ".mp4", ".webm", ".mov"}
@@ -28,6 +30,82 @@ class AttemptResult:
 
     completed: bool
     rate_limited: bool
+
+
+def load_proxy_credentials(
+    env_path: Path, runner: Callable[..., object] = subprocess.run
+) -> tuple[str, str, str]:
+    """Load validated Decodo credentials without exposing their values."""
+    try:
+        metadata = env_path.lstat()
+    except OSError as error:
+        raise RuntimeError("Unable to inspect proxy credentials file") from error
+    if stat.S_ISLNK(metadata.st_mode):
+        raise RuntimeError("Proxy credentials file must not be a symbolic link")
+    if stat.S_IMODE(metadata.st_mode) != 0o600:
+        raise RuntimeError("Proxy credentials file must have permissions 0600")
+    if metadata.st_uid != os.getuid():
+        raise RuntimeError("Proxy credentials file must be owned by the current user")
+
+    script = (
+        'set -a; source "$1" >/dev/null 2>&1 || exit 1; '
+        'printf "%s\\0%s\\0%s\\0" "${DECODO_ENDPOINT:-}" '
+        '"${DECODO_USER:-}" "${DECODO_PASSWORD:-}"'
+    )
+    try:
+        result = runner(
+            ["bash", "-c", script, "_", str(env_path)],
+            capture_output=True,
+            check=True,
+        )
+        output = result.stdout
+        if isinstance(output, str):
+            output = output.encode()
+        fields = output.split(b"\0")
+        if len(fields) != 4 or fields[-1] != b"":
+            raise ValueError
+        endpoint, username, password = (field.decode() for field in fields[:3])
+        endpoint_match = re.fullmatch(r"([^:/@\s]+):(\d{1,5})", endpoint)
+        if (
+            not endpoint_match
+            or not username
+            or not password
+            or not 1 <= int(endpoint_match.group(2)) <= 65535
+        ):
+            raise ValueError
+    except Exception as error:
+        raise RuntimeError("Unable to load valid proxy credentials") from error
+    return endpoint, username, password
+
+
+def write_proxy_config(
+    env_path: Path,
+    config_path: Path,
+    runner: Callable[..., object] = subprocess.run,
+) -> Path:
+    """Atomically create a private yt-dlp proxy config."""
+    endpoint, username, password = load_proxy_credentials(env_path, runner=runner)
+    proxy_url = (
+        f"http://{quote(username, safe='')}:{quote(password, safe='')}@{endpoint}"
+    )
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = config_path.with_name(f".{config_path.name}.{os.getpid()}.tmp")
+    try:
+        descriptor = os.open(
+            temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
+        )
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(f"--proxy\n{proxy_url}\n")
+        os.chmod(temporary, 0o600)
+        temporary.replace(config_path)
+        os.chmod(config_path, 0o600)
+    except OSError as error:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+        raise RuntimeError("Unable to create private proxy configuration") from error
+    return config_path
 
 
 def count_final_media(media_dir: Path) -> int:
@@ -57,6 +135,7 @@ def start_detached(
     repo_root: Path,
     popen: Callable[..., object] = subprocess.Popen,
     node_path: str | None = None,
+    proxy_env_path: Path | None = None,
 ) -> int:
     """Start the download worker detached and return its PID."""
     runtime = repo_root / "data/vqa/download_runtime"
@@ -70,8 +149,17 @@ def start_detached(
     resolved_node = node_path or shutil.which("node")
     if not resolved_node:
         raise RuntimeError("Node.js is required for complete YouTube format extraction")
+    credentials = proxy_env_path or Path(
+        "/home/npatta01/.config/trec-video/decodo.env"
+    )
+    proxy_config = write_proxy_config(
+        credentials, runtime / "yt-dlp-proxy.conf"
+    )
     environment = dict(os.environ)
+    for variable in ("DECODO_ENDPOINT", "DECODO_USER", "DECODO_PASSWORD"):
+        environment.pop(variable, None)
     environment["VQA_NODE_PATH"] = resolved_node
+    environment["VQA_PROXY_CONFIG_PATH"] = str(proxy_config)
     log_path = runtime / "download.log"
     with log_path.open("a", encoding="utf-8") as log_handle:
         child = popen(
@@ -151,14 +239,17 @@ def prepare_manifests(repo_root: Path) -> dict[str, int]:
 
 
 def build_ytdlp_command(
-    url: str, output_dir: Path, archive: Path
+    url: str,
+    output_dir: Path,
+    archive: Path,
+    proxy_config: Path | None = None,
 ) -> list[str]:
     """Build a resumable yt-dlp command that never transcodes streams."""
     output_dir.mkdir(parents=True, exist_ok=True)
     archive.parent.mkdir(parents=True, exist_ok=True)
     node_path = os.environ.get("VQA_NODE_PATH") or shutil.which("node")
     node_runtime = f"node:{node_path}" if node_path else "node"
-    return [
+    command = [
         sys.executable,
         "-m",
         "yt_dlp",
@@ -186,8 +277,16 @@ def build_ytdlp_command(
         "--ignore-errors",
         "--no-playlist",
         "--newline",
-        str(url),
     ]
+    selected_proxy_config = proxy_config or (
+        Path(environment_path)
+        if (environment_path := os.environ.get("VQA_PROXY_CONFIG_PATH"))
+        else None
+    )
+    if selected_proxy_config is not None:
+        command.extend(["--config-locations", str(selected_proxy_config)])
+    command.append(str(url))
+    return command
 
 
 def run_url(

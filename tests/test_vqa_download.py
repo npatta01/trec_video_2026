@@ -1,13 +1,17 @@
 import os
+import stat
+import subprocess
 from pathlib import Path
 
 import pytest
+import trec_video_2026.vqa_download as vqa_download
 
 from trec_video_2026.vqa_download import (
     AttemptResult,
     RATE_LIMIT_MARKER,
     build_ytdlp_command,
     count_final_media,
+    load_proxy_credentials,
     main,
     pid_is_active,
     prepare_manifests,
@@ -18,8 +22,105 @@ from trec_video_2026.vqa_download import (
     run_dataset,
     run_downloads,
     start_detached,
+    write_proxy_config,
     write_manifest,
 )
+
+
+def _secure_env(path: Path) -> Path:
+    path.write_text("placeholder only\n", encoding="utf-8")
+    path.chmod(0o600)
+    return path
+
+
+def test_proxy_credentials_loads_nul_delimited_placeholders(tmp_path: Path):
+    env_path = _secure_env(tmp_path / "proxy.env")
+    captured = {}
+
+    def runner(command, **kwargs):
+        captured["command"] = command
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(
+            command, 0, stdout=b"proxy.example:7000\0user/name\0p@ss word\0"
+        )
+
+    assert load_proxy_credentials(env_path, runner=runner) == (
+        "proxy.example:7000",
+        "user/name",
+        "p@ss word",
+    )
+    assert captured["command"][-1] == str(env_path)
+    assert captured["capture_output"] is True
+    assert captured["check"] is True
+
+
+def test_proxy_config_url_encodes_credentials_and_is_mode_0600(tmp_path: Path):
+    env_path = _secure_env(tmp_path / "proxy.env")
+    config_path = tmp_path / "runtime/proxy.conf"
+
+    def runner(command, **kwargs):
+        return subprocess.CompletedProcess(
+            command, 0, stdout=b"proxy.example:7000\0user/name\0p@ss word\0"
+        )
+
+    assert write_proxy_config(env_path, config_path, runner=runner) == config_path
+    assert config_path.read_text(encoding="utf-8") == (
+        "--proxy\nhttp://user%2Fname:p%40ss%20word@proxy.example:7000\n"
+    )
+    assert stat.S_IMODE(config_path.stat().st_mode) == 0o600
+
+
+def test_proxy_credentials_rejects_wrong_permissions(tmp_path: Path):
+    env_path = _secure_env(tmp_path / "proxy.env")
+    env_path.chmod(0o640)
+
+    with pytest.raises(RuntimeError, match="permissions"):
+        load_proxy_credentials(env_path, runner=lambda *args, **kwargs: None)
+
+
+def test_proxy_credentials_rejects_symlink(tmp_path: Path):
+    target = _secure_env(tmp_path / "target.env")
+    env_path = tmp_path / "proxy.env"
+    env_path.symlink_to(target)
+
+    with pytest.raises(RuntimeError, match="symbolic link"):
+        load_proxy_credentials(env_path, runner=lambda *args, **kwargs: None)
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        b"proxy.example:7000\0user\0",
+        b"\0user\0password\0",
+        b"https://proxy.example:7000\0user\0password\0",
+        b"user:pass@proxy.example:7000\0user\0password\0",
+        b"proxy.example 7000\0user\0password\0",
+    ],
+)
+def test_proxy_credentials_rejects_missing_or_invalid_values(
+    tmp_path: Path, values: bytes
+):
+    env_path = _secure_env(tmp_path / "proxy.env")
+
+    def runner(command, **kwargs):
+        return subprocess.CompletedProcess(command, 0, stdout=values)
+
+    with pytest.raises(RuntimeError, match="credentials"):
+        load_proxy_credentials(env_path, runner=runner)
+
+
+def test_proxy_credentials_sanitizes_runner_failure(tmp_path: Path):
+    env_path = _secure_env(tmp_path / "proxy.env")
+    placeholder_secret = "PLACEHOLDER-SECRET-DO-NOT-LEAK"
+
+    def runner(command, **kwargs):
+        raise subprocess.CalledProcessError(
+            1, command, stderr=placeholder_secret.encode()
+        )
+
+    with pytest.raises(RuntimeError) as caught:
+        load_proxy_credentials(env_path, runner=runner)
+    assert placeholder_secret not in str(caught.value)
 
 
 def test_run_dataset_paces_every_ordinary_url(tmp_path: Path):
@@ -223,6 +324,24 @@ def test_ytdlp_command_paces_requests_without_per_stream_sleep(
     assert not any(token in joined for token in ("recode", "convert", "x264", "720"))
 
 
+def test_ytdlp_command_uses_private_config_path_without_proxy_credentials(
+    tmp_path: Path,
+):
+    command = build_ytdlp_command(
+        "https://www.youtube.com/watch?v=abcDEF123_0",
+        tmp_path / "videos",
+        tmp_path / "archive.txt",
+        proxy_config=Path("/private/proxy.conf"),
+    )
+
+    assert command[command.index("--config-locations") + 1] == (
+        "/private/proxy.conf"
+    )
+    assert "--proxy" not in command
+    assert not any("@" in argument for argument in command)
+    assert command[-1] == "https://www.youtube.com/watch?v=abcDEF123_0"
+
+
 def test_run_url_streams_output_and_detects_rate_limit(capsys):
     class Child:
         stdout = iter(["progress\n", f"ERROR: {RATE_LIMIT_MARKER}\n"])
@@ -343,7 +462,9 @@ def test_pid_is_active_rejects_missing_and_stale_pid(tmp_path: Path, monkeypatch
     assert pid_is_active(pid_path) is False
 
 
-def test_start_detached_records_child_pid_and_node_path(tmp_path: Path):
+def test_start_detached_records_child_pid_and_node_path(
+    tmp_path: Path, monkeypatch
+):
     runtime = tmp_path / "data/vqa/download_runtime"
     captured: dict[str, object] = {}
 
@@ -355,14 +476,65 @@ def test_start_detached_records_child_pid_and_node_path(tmp_path: Path):
         captured.update(kwargs)
         return Child()
 
+    def fake_write(source: Path, target: Path, runner=subprocess.run):
+        target.write_text("placeholder config\n", encoding="utf-8")
+        return target
+
+    monkeypatch.setattr(vqa_download, "write_proxy_config", fake_write)
+
     assert start_detached(
-        tmp_path, popen=popen, node_path="/opt/node/bin/node"
+        tmp_path,
+        popen=popen,
+        node_path="/opt/node/bin/node",
+        proxy_env_path=tmp_path / "placeholder.env",
     ) == 4242
     assert (runtime / "download.pid").read_text(encoding="utf-8") == "4242\n"
     assert captured["start_new_session"] is True
     assert captured["cwd"] == tmp_path
     assert captured["stderr"] == -2
     assert captured["env"]["VQA_NODE_PATH"] == "/opt/node/bin/node"
+
+
+def test_start_detached_prepares_private_proxy_config_without_leaking_secrets(
+    tmp_path: Path, monkeypatch
+):
+    runtime = tmp_path / "data/vqa/download_runtime"
+    env_path = tmp_path / "placeholder.env"
+    placeholder_secret = "PLACEHOLDER-SECRET-DO-NOT-LEAK"
+    captured: dict[str, object] = {}
+
+    def fake_write(source: Path, target: Path, runner=subprocess.run):
+        captured["source"] = source
+        captured["target"] = target
+        target.write_text("placeholder config\n", encoding="utf-8")
+        return target
+
+    class Child:
+        pid = 4242
+
+    def popen(command: list[str], **kwargs):
+        captured["command"] = command
+        captured.update(kwargs)
+        return Child()
+
+    monkeypatch.setattr(vqa_download, "write_proxy_config", fake_write)
+    monkeypatch.setenv("DECODO_PASSWORD", placeholder_secret)
+    assert start_detached(
+        tmp_path,
+        popen=popen,
+        node_path="/opt/node/bin/node",
+        proxy_env_path=env_path,
+    ) == 4242
+
+    config_path = runtime / "yt-dlp-proxy.conf"
+    assert captured["source"] == env_path
+    assert captured["target"] == config_path
+    assert captured["env"]["VQA_PROXY_CONFIG_PATH"] == str(config_path)
+    assert "DECODO_PASSWORD" not in captured["env"]
+    assert placeholder_secret not in " ".join(captured["command"])
+    assert placeholder_secret not in (runtime / "download.log").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_start_detached_rejects_an_active_job(tmp_path: Path):

@@ -31,7 +31,7 @@ As of 2026-07-15:
 
 - VTT: 10,152/10,152 media files, 3.2 GiB; the full NIST checksum list passed.
 - VQA training originals: 464/481 archived as complete.
-- VQA testing originals: 482/1,982 archived as complete.
+- VQA testing originals: 1,053/1,982 archived as complete after the proxy proof.
 - VQA data used approximately 3.8 GiB at this snapshot.
 - The first VQA media file was verified with `ffprobe` as 1080×1920 VP9 video plus Opus audio.
 
@@ -67,6 +67,34 @@ Operational files:
 - Downloader PID: `data/vqa/download_runtime/download.pid`
 - Completed IDs: `training.archive.txt` and `testing.archive.txt`
 - Filtered inputs: `training.urls.txt` and `testing.urls.txt`
+
+### Private proxy configuration
+
+Detached starts require `/home/npatta01/.config/trec-video/decodo.env`, owned
+by the current user with mode `0600`, and these nonempty variables:
+`DECODO_ENDPOINT`, `DECODO_USER`, and `DECODO_PASSWORD`. The downloader sources
+that file in a subprocess, URL-encodes the user and password, and atomically
+writes `data/vqa/download_runtime/yt-dlp-proxy.conf` with mode `0600`. Child
+commands receive only that config path; credentials and the proxy URL are not
+placed on the command line or in Git-tracked files.
+
+The proxy uses the existing United States sticky session for every request
+needed to complete one video. Do not rotate the session between metadata,
+video, and audio requests. This integration does not alter the provider's
+session-name syntax.
+
+Proxy gates passed on 2026-07-16:
+
+- The planned public control `BaW_jenozKc` was unavailable. Its authorized
+  replacement, `jNQXAC9IVRw`, downloaded through the proxy with exit `0`, an
+  exact archive row, one MKV, and verified video and audio streams. The isolated
+  smoke media was removed afterward.
+- Previously blocked VQA item `emArU432qfE` downloaded into the canonical test
+  collection with exit `0`, one media file, one metadata file, an exact archive
+  row, and verified video and audio streams. Testing archive and media counts
+  both increased from 1,052 to 1,053.
+- Protected-output scans found no raw or encoded credential or proxy-authority
+  leakage. The full batch remained stopped; these proofs did not start it.
 
 ## Data provenance and privacy
 
