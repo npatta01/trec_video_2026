@@ -28,6 +28,7 @@ RATE_LIMIT_MARKER = (
 )
 DEFAULT_PROXY_ENV_PATH = Path("/home/npatta01/.config/trec-video/decodo.env")
 PROXY_ENV_VARIABLES = ("DECODO_ENDPOINT", "DECODO_USER", "DECODO_PASSWORD")
+WORKER_LOCK_FD_ENV = "VQA_WORKER_LOCK_FD"
 PROCESS_STOP_TIMEOUT = 5.0
 
 
@@ -37,6 +38,12 @@ class AttemptResult:
 
     completed: bool
     rate_limited: bool
+
+
+@dataclass
+class _StartupLockHandle:
+    descriptor: int
+    handed_off: bool = False
 
 
 def _valid_proxy_host(host: str) -> bool:
@@ -78,16 +85,21 @@ def load_proxy_credentials(
                 "Proxy credentials file must be owned by the current user"
             )
         script = (
+            "unset DECODO_ENDPOINT DECODO_USER DECODO_PASSWORD; "
             'set -a; source "$1" >/dev/null 2>&1 || exit 1; '
             'printf "%s\\0%s\\0%s\\0" "${DECODO_ENDPOINT:-}" '
             '"${DECODO_USER:-}" "${DECODO_PASSWORD:-}"'
         )
         try:
+            environment = dict(os.environ)
+            for variable in PROXY_ENV_VARIABLES:
+                environment.pop(variable, None)
             result = runner(
                 ["bash", "-c", script, "_", f"/proc/self/fd/{descriptor}"],
                 capture_output=True,
                 check=True,
                 pass_fds=(descriptor,),
+                env=environment,
             )
             output = result.stdout
             if isinstance(output, str):
@@ -195,6 +207,7 @@ def _open_proxy_config(config_path: Path) -> int:
 def _startup_lock(runtime: Path):
     """Hold the secure per-runtime startup lock without blocking."""
     descriptor = -1
+    handle: _StartupLockHandle | None = None
     try:
         descriptor = os.open(
             runtime / "startup.lock",
@@ -209,18 +222,58 @@ def _startup_lock(runtime: Path):
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise RuntimeError("VQA download startup already in progress") from None
-        yield
+        handle = _StartupLockHandle(descriptor)
+        yield handle
     except RuntimeError:
         raise
     except OSError:
         raise RuntimeError("Unable to secure VQA download startup lock") from None
     finally:
         if descriptor >= 0:
-            try:
-                fcntl.flock(descriptor, fcntl.LOCK_UN)
-            except OSError:
-                pass
+            if handle is None or not handle.handed_off:
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_UN)
+                except OSError:
+                    pass
             os.close(descriptor)
+
+
+def _validate_runtime_directory(runtime: Path) -> None:
+    """Require a trusted runtime directory before creating or using locks."""
+    descriptor = -1
+    try:
+        descriptor = os.open(
+            runtime, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        )
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISDIR(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or stat.S_IMODE(metadata.st_mode) & 0o022
+        ):
+            raise OSError
+    except OSError:
+        raise RuntimeError("VQA runtime directory is not secure") from None
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+def _validate_inherited_worker_lock(runtime: Path, descriptor: int) -> None:
+    """Validate that an inherited descriptor is the secure runtime lock."""
+    try:
+        metadata = os.fstat(descriptor)
+        lock_metadata = (runtime / "startup.lock").stat(follow_symlinks=False)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+            or (metadata.st_dev, metadata.st_ino)
+            != (lock_metadata.st_dev, lock_metadata.st_ino)
+        ):
+            raise OSError
+    except OSError:
+        raise RuntimeError("Inherited VQA worker lock is not secure") from None
 
 
 def _record_pid(pid_path: Path, pid: int) -> None:
@@ -283,15 +336,19 @@ def start_detached(
     """Start the download worker detached and return its PID."""
     runtime = repo_root / "data/vqa/download_runtime"
     runtime.mkdir(parents=True, exist_ok=True)
-    with _startup_lock(runtime):
-        return _start_detached_locked(
+    _validate_runtime_directory(runtime)
+    with _startup_lock(runtime) as lock_handle:
+        pid = _start_detached_locked(
             repo_root,
             runtime,
             popen=popen,
             node_path=node_path,
             proxy_env_path=proxy_env_path,
             credential_runner=credential_runner,
+            lock_descriptor=lock_handle.descriptor,
         )
+        lock_handle.handed_off = True
+        return pid
 
 
 def _start_detached_locked(
@@ -302,6 +359,7 @@ def _start_detached_locked(
     node_path: str | None,
     proxy_env_path: Path | None,
     credential_runner: Callable[..., object],
+    lock_descriptor: int,
 ) -> int:
     """Start a detached worker while the caller holds the startup lock."""
     pid_path = runtime / "download.pid"
@@ -324,6 +382,7 @@ def _start_detached_locked(
         environment.pop(variable, None)
     environment["VQA_NODE_PATH"] = resolved_node
     environment["VQA_PROXY_CONFIG_PATH"] = str(proxy_config)
+    environment[WORKER_LOCK_FD_ENV] = str(lock_descriptor)
     log_path = runtime / "download.log"
     with log_path.open("a", encoding="utf-8") as log_handle:
         try:
@@ -340,6 +399,7 @@ def _start_detached_locked(
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
                 env=environment,
+                pass_fds=(lock_descriptor,),
             )
         except Exception:
             raise RuntimeError("Unable to start detached VQA worker") from None
@@ -364,7 +424,7 @@ def _rollback_child(child: object) -> None:
     except subprocess.TimeoutExpired:
         pass
     except Exception:
-        return
+        pass
     try:
         child.kill()
     except Exception:
@@ -624,23 +684,40 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
         print(f"testing URLs: {counts['testing']}")
         return 0
     if args.command == "run":
+        runtime.mkdir(parents=True, exist_ok=True)
         try:
+            _validate_runtime_directory(runtime)
             if args.detached_worker:
+                lock_value = os.environ.get(WORKER_LOCK_FD_ENV)
+                if not lock_value:
+                    raise RuntimeError("Inherited VQA worker lock is required")
+                try:
+                    lock_descriptor = int(lock_value)
+                except ValueError:
+                    raise RuntimeError("Inherited VQA worker lock is invalid") from None
+                _validate_inherited_worker_lock(runtime, lock_descriptor)
                 config_value = os.environ.get("VQA_PROXY_CONFIG_PATH")
                 if not config_value:
                     raise RuntimeError("Prepared proxy configuration is required")
                 validate_proxy_config(Path(config_value))
+                for variable in PROXY_ENV_VARIABLES:
+                    os.environ.pop(variable, None)
+                try:
+                    return run_downloads(root)
+                finally:
+                    os.close(lock_descriptor)
             else:
-                config_path = write_proxy_config(
-                    DEFAULT_PROXY_ENV_PATH, runtime / "yt-dlp-proxy.conf"
-                )
-                os.environ["VQA_PROXY_CONFIG_PATH"] = str(config_path)
-            for variable in PROXY_ENV_VARIABLES:
-                os.environ.pop(variable, None)
+                with _startup_lock(runtime):
+                    config_path = write_proxy_config(
+                        DEFAULT_PROXY_ENV_PATH, runtime / "yt-dlp-proxy.conf"
+                    )
+                    os.environ["VQA_PROXY_CONFIG_PATH"] = str(config_path)
+                    for variable in PROXY_ENV_VARIABLES:
+                        os.environ.pop(variable, None)
+                    return run_downloads(root)
         except RuntimeError as error:
             print(error, file=sys.stderr)
             return 1
-        return run_downloads(root)
     if args.command == "start":
         try:
             pid = start_detached(root)

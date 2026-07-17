@@ -55,6 +55,43 @@ def test_proxy_credentials_loads_nul_delimited_placeholders(tmp_path: Path):
     assert captured["pass_fds"]
     assert captured["capture_output"] is True
     assert captured["check"] is True
+    assert not any(name in captured["env"] for name in vqa_download.PROXY_ENV_VARIABLES)
+    assert "unset DECODO_ENDPOINT DECODO_USER DECODO_PASSWORD" in (
+        captured["command"][2]
+    )
+
+
+@pytest.mark.parametrize("missing", vqa_download.PROXY_ENV_VARIABLES)
+def test_proxy_credentials_missing_file_value_cannot_fall_back_to_ambient(
+    tmp_path: Path, monkeypatch, missing: str
+):
+    ambient = {
+        "DECODO_ENDPOINT": "ambient.example:7000",
+        "DECODO_USER": "ambient/user",
+        "DECODO_PASSWORD": "ambient@password",
+    }
+    for name, value in ambient.items():
+        monkeypatch.setenv(name, value)
+    env_path = tmp_path / "proxy.env"
+    env_path.write_text(
+        "\n".join(
+            f"{name}={value}"
+            for name, value in ambient.items()
+            if name != missing
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    env_path.chmod(0o600)
+
+    with pytest.raises(RuntimeError) as caught:
+        load_proxy_credentials(env_path)
+    rendered = "".join(
+        traceback.format_exception(type(caught.value), caught.value, caught.value.__traceback__)
+    )
+    for value in ambient.values():
+        assert value not in rendered
+        assert value not in repr(caught.value)
 
 
 def test_proxy_credentials_stays_bound_to_open_inode_during_path_replacement(
@@ -898,6 +935,47 @@ def test_start_detached_escalates_to_kill_when_rollback_wait_times_out(
     assert "primary placeholder" not in repr(caught.value)
 
 
+def test_start_detached_kills_when_first_rollback_wait_raises_oserror(
+    tmp_path: Path, monkeypatch
+):
+    class Child(_CleanupChild):
+        def __init__(self):
+            super().__init__()
+            self.killed = False
+            self.wait_calls = 0
+
+        def wait(self, timeout=None):
+            self.wait_calls += 1
+            if self.wait_calls == 1:
+                raise OSError("wait placeholder")
+            self.waited = True
+
+        def kill(self):
+            self.killed = True
+
+    child = Child()
+    monkeypatch.setattr(
+        vqa_download,
+        "write_proxy_config",
+        lambda source, target, runner=subprocess.run: target,
+    )
+    monkeypatch.setattr(
+        vqa_download,
+        "_record_pid",
+        lambda path, pid: (_ for _ in ()).throw(OSError("primary placeholder")),
+    )
+    with pytest.raises(RuntimeError) as caught:
+        start_detached(
+            tmp_path,
+            popen=lambda *args, **kwargs: child,
+            node_path="/opt/node/bin/node",
+            proxy_env_path=tmp_path / "placeholder.env",
+        )
+    assert child.terminated and child.killed and child.waited
+    assert "primary placeholder" not in repr(caught.value)
+    assert "wait placeholder" not in repr(caught.value)
+
+
 def test_start_detached_pid_temp_does_not_follow_predictable_symlink(
     tmp_path: Path, monkeypatch
 ):
@@ -984,6 +1062,59 @@ def test_start_detached_rejects_concurrent_startup_lock_without_spawn(
     assert calls == []
 
 
+def test_start_detached_passes_worker_lock_for_full_child_lifetime(
+    tmp_path: Path, monkeypatch
+):
+    retained = {}
+    monkeypatch.setattr(
+        vqa_download,
+        "write_proxy_config",
+        lambda source, target, runner=subprocess.run: target,
+    )
+
+    class Child:
+        pid = 4242
+
+    def popen(command, **kwargs):
+        lock_fd = int(kwargs["env"]["VQA_WORKER_LOCK_FD"])
+        assert lock_fd in kwargs["pass_fds"]
+        retained["fd"] = os.dup(lock_fd)
+        return Child()
+
+    assert start_detached(
+        tmp_path,
+        popen=popen,
+        node_path="/opt/node/bin/node",
+        proxy_env_path=tmp_path / "placeholder.env",
+    ) == 4242
+    contender = os.open(
+        tmp_path / "data/vqa/download_runtime/startup.lock", os.O_RDWR
+    )
+    try:
+        with pytest.raises(BlockingIOError):
+            fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    finally:
+        os.close(contender)
+        os.close(retained["fd"])
+
+
+def test_start_detached_rejects_insecure_runtime_directory(
+    tmp_path: Path, monkeypatch
+):
+    runtime = tmp_path / "data/vqa/download_runtime"
+    runtime.mkdir(parents=True)
+    runtime.chmod(0o777)
+    calls = []
+    with pytest.raises(RuntimeError, match="runtime directory"):
+        start_detached(
+            tmp_path,
+            popen=lambda *args, **kwargs: calls.append("spawn"),
+            node_path="/opt/node/bin/node",
+            proxy_env_path=tmp_path / "placeholder.env",
+        )
+    assert calls == []
+
+
 def test_prepare_manifests_reports_usable_counts(tmp_path: Path):
     training = tmp_path / "data/vqa/2025/training"
     testing = tmp_path / "data/vqa/2025/testing"
@@ -1027,6 +1158,49 @@ def test_direct_run_proxy_failure_makes_zero_download_calls(
     assert "sanitized" in capsys.readouterr().err
 
 
+def test_direct_run_held_worker_lock_prevents_all_preparation_and_urls(
+    tmp_path: Path, monkeypatch
+):
+    runtime = tmp_path / "data/vqa/download_runtime"
+    runtime.mkdir(parents=True)
+    lock_path = runtime / "startup.lock"
+    lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    os.fchmod(lock_fd, 0o600)
+    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    calls = []
+    monkeypatch.setattr(
+        vqa_download,
+        "write_proxy_config",
+        lambda *args, **kwargs: calls.append("config"),
+    )
+    monkeypatch.setattr(
+        vqa_download, "run_downloads", lambda root: calls.append("urls") or 0
+    )
+    try:
+        assert main(["run"], repo_root=tmp_path) == 1
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        os.close(lock_fd)
+    assert calls == []
+
+
+def test_direct_run_releases_worker_lock_after_error(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(
+        vqa_download,
+        "write_proxy_config",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("sanitized")),
+    )
+    assert main(["run"], repo_root=tmp_path) == 1
+    lock_fd = os.open(
+        tmp_path / "data/vqa/download_runtime/startup.lock", os.O_RDWR
+    )
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        os.close(lock_fd)
+
+
 def test_direct_run_scrubs_credentials_and_uses_private_bound_config(
     tmp_path: Path, monkeypatch
 ):
@@ -1064,6 +1238,15 @@ def test_direct_run_scrubs_credentials_and_uses_private_bound_config(
             return 0
 
     def download_runner(root):
+        contender = os.open(
+            tmp_path / "data/vqa/download_runtime/startup.lock", os.O_RDWR
+        )
+        try:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            captured["lock_held"] = True
+        finally:
+            os.close(contender)
         config_path = Path(os.environ["VQA_PROXY_CONFIG_PATH"])
         captured["config_path"] = config_path
         captured["mode"] = stat.S_IMODE(config_path.stat().st_mode)
@@ -1085,6 +1268,7 @@ def test_direct_run_scrubs_credentials_and_uses_private_bound_config(
     monkeypatch.setattr(vqa_download, "run_downloads", download_runner)
     assert main(["run"], repo_root=tmp_path) == 0
     assert captured["mode"] == 0o600
+    assert captured["lock_held"] is True
     assert captured["config_path"] == (
         tmp_path / "data/vqa/download_runtime/yt-dlp-proxy.conf"
     )
