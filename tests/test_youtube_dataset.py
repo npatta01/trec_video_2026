@@ -3,6 +3,8 @@
 from pathlib import Path
 import subprocess
 
+import pytest
+
 from trec_video_2026 import youtube_dataset
 from trec_video_2026 import vqa_download
 
@@ -185,3 +187,86 @@ def test_detached_spec_binds_explicit_worker_command_and_config(tmp_path: Path, 
     assert pid == 4242
     assert captured["command"] == list(config.worker_command)
     assert captured["kwargs"]["cwd"] == spec.state_dir
+
+
+def _generic_args(tmp_path: Path, command: str) -> list[str]:
+    return [
+        command,
+        "--source", str(tmp_path / "source.txt"),
+        "--output-dir", str(tmp_path / "media"),
+        "--state-dir", str(tmp_path / "state"),
+        "--api-env", str(tmp_path / "api.env"),
+        "--proxy-env", str(tmp_path / "proxy.env"),
+    ]
+
+
+def test_generic_cli_requires_every_explicit_path():
+    with pytest.raises(SystemExit) as caught:
+        youtube_dataset.main(["status", "--source", "input.txt"])
+    assert caught.value.code == 2
+
+
+def test_generic_prepare_routes_through_shared_engine(tmp_path: Path, monkeypatch, capsys):
+    (tmp_path / "source.txt").write_text("abcDEF123_0\n")
+    seen = {}
+    monkeypatch.setattr(youtube_dataset, "refuse_git_tracked_runtime_paths", lambda spec, allow: seen.update(safety=(spec, allow)))
+    monkeypatch.setattr(youtube_dataset, "prepare_dataset", lambda spec, config: seen.update(call=(spec, config)) or {"total": 1, "pending_available": 1, "api_omitted": 0})
+
+    assert youtube_dataset.main(_generic_args(tmp_path, "prepare")) == 0
+    spec, config = seen["call"]
+    assert spec.source == tmp_path / "source.txt"
+    assert spec.output_dir == tmp_path / "media"
+    assert spec.state_dir == tmp_path / "state"
+    assert config.api_key_file == tmp_path / "api.env"
+    assert config.proxy_file == tmp_path / "proxy.env"
+    assert "pending available: 1" in capsys.readouterr().out
+
+
+def test_generic_run_fails_closed_before_download_on_proxy_preflight(tmp_path: Path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(youtube_dataset, "refuse_git_tracked_runtime_paths", lambda *args: None)
+    monkeypatch.setattr(youtube_dataset, "prepare_dataset", lambda spec, config: calls.append("api") or {})
+    monkeypatch.setattr(youtube_dataset, "preflight_proxy", lambda path: (_ for _ in ()).throw(RuntimeError("proxy unavailable")))
+    monkeypatch.setattr(youtube_dataset, "run_spec", lambda *args, **kwargs: calls.append("download"))
+
+    assert youtube_dataset.main(_generic_args(tmp_path, "run")) == 1
+    assert calls == ["api"]
+
+
+def test_generic_run_fails_closed_before_proxy_or_download_on_api_preflight(tmp_path: Path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(youtube_dataset, "refuse_git_tracked_runtime_paths", lambda *args: None)
+    monkeypatch.setattr(youtube_dataset, "prepare_dataset", lambda *args: (_ for _ in ()).throw(RuntimeError("API unavailable")))
+    monkeypatch.setattr(youtube_dataset, "preflight_proxy", lambda path: calls.append("proxy"))
+    monkeypatch.setattr(youtube_dataset, "run_spec", lambda *args, **kwargs: calls.append("download"))
+    assert youtube_dataset.main(_generic_args(tmp_path, "run")) == 1
+    assert calls == []
+
+
+def test_generic_status_uses_shared_status_without_preflight(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.setattr(youtube_dataset, "refuse_git_tracked_runtime_paths", lambda *args: None)
+    monkeypatch.setattr(youtube_dataset, "dataset_status", lambda spec: {"running": False, "completed": 2, "media_files": 2, "pending_available": 3, "api_omitted": 1})
+    assert youtube_dataset.main(_generic_args(tmp_path, "status")) == 0
+    output = capsys.readouterr().out
+    assert "state: stopped" in output
+    assert "completed: 2" in output
+
+
+def test_git_tracked_output_or_state_is_refused_unless_overridden(tmp_path: Path, monkeypatch):
+    spec = youtube_dataset.DatasetSpec(tmp_path / "source", tmp_path / "output", tmp_path / "state")
+    monkeypatch.setattr(youtube_dataset, "_git_tracked", lambda path: path == spec.output_dir)
+    with pytest.raises(RuntimeError, match="tracked by Git"):
+        youtube_dataset.refuse_git_tracked_runtime_paths(spec, False)
+    youtube_dataset.refuse_git_tracked_runtime_paths(spec, True)
+
+
+def test_generic_start_prepares_then_uses_shared_detached_launcher(tmp_path: Path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(youtube_dataset, "refuse_git_tracked_runtime_paths", lambda *args: None)
+    monkeypatch.setattr(youtube_dataset, "prepare_dataset", lambda *args: calls.append("prepare") or {"pending_available": 1})
+    monkeypatch.setattr(youtube_dataset, "preflight_proxy", lambda *args: calls.append("proxy"))
+    monkeypatch.setattr(youtube_dataset, "start_detached", lambda spec, config: calls.append((spec, config)) or 4321)
+    assert youtube_dataset.main(_generic_args(tmp_path, "start")) == 0
+    assert calls[:2] == ["prepare", "proxy"]
+    assert calls[2][1].worker_command[3] == "run"
+    assert calls[2][1].worker_command[-1] == "--detached-worker"

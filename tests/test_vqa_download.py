@@ -1389,6 +1389,25 @@ def test_status_command_reports_stopped_job(tmp_path: Path, capsys):
     assert "testing completed: 0" in output
 
 
+def test_vqa_run_constructs_dataset_specs_but_preserves_legacy_runtime_paths(tmp_path: Path, monkeypatch):
+    seen = []
+    specs = []
+    real_spec = youtube_dataset.DatasetSpec
+    monkeypatch.setattr(vqa_download, "DatasetSpec", lambda *args, **kwargs: specs.append(real_spec(*args, **kwargs)) or specs[-1])
+    monkeypatch.setattr(
+        vqa_download,
+        "run_dataset",
+        lambda manifest, output, archive, **kwargs: seen.append((manifest, output, archive)),
+    )
+    assert vqa_download.run_downloads(tmp_path, sleeper=lambda _: None) == 0
+    runtime = tmp_path / "data/vqa/download_runtime"
+    assert seen == [
+        (runtime / "training.pending-available.urls.txt", tmp_path / "data/vqa/2025/training/videos_original", runtime / "training.archive.txt"),
+        (runtime / "testing.pending-available.urls.txt", tmp_path / "data/vqa/2025/testing/videos_original", runtime / "testing.archive.txt"),
+    ]
+    assert [spec.source for spec in specs] == [seen[0][0], seen[1][0]]
+
+
 def test_status_command_preserves_api_inventory_counters(tmp_path: Path, capsys):
     runtime = tmp_path / "data/vqa/download_runtime"
     runtime.mkdir(parents=True)

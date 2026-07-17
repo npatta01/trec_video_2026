@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import fcntl
 import ipaddress
 import json
@@ -20,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.error import URLError
 from urllib.parse import quote, urlencode
-from urllib.request import Request, urlopen
+from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
 VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 MEDIA_SUFFIXES = {".mkv", ".mp4", ".webm", ".mov"}
@@ -810,3 +811,160 @@ def run_spec(
         initial_cooldown=config.initial_cooldown if config else 3600.0,
         maximum_cooldown=config.maximum_cooldown if config else 7200.0,
     )
+
+
+def _git_tracked(path: Path) -> bool:
+    """Return whether Git tracks the path itself or anything below it."""
+    resolved = path.resolve(strict=False)
+    anchor = resolved.parent
+    while not anchor.exists() and anchor != anchor.parent:
+        anchor = anchor.parent
+    probe = subprocess.run(
+        ["git", "-C", str(anchor), "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+    )
+    if probe.returncode:
+        return False
+    root = Path(probe.stdout.strip())
+    try:
+        relative = resolved.relative_to(root)
+    except ValueError:
+        return False
+    tracked = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "--", str(relative)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return bool(tracked.stdout.strip())
+
+
+def refuse_git_tracked_runtime_paths(spec: DatasetSpec, allow: bool = False) -> None:
+    """Refuse writes into Git-tracked output/state paths without an override."""
+    if allow:
+        return
+    tracked = [path for path in (spec.output_dir, spec.state_dir) if _git_tracked(path)]
+    if tracked:
+        raise RuntimeError(
+            "Output or state path is tracked by Git; use --allow-git-tracked to override"
+        )
+
+
+def preflight_proxy(
+    env_path: Path,
+    opener_factory: Callable[..., object] = build_opener,
+    credential_runner: Callable[..., object] = subprocess.run,
+) -> None:
+    """Fail closed unless the configured proxy reaches neutral HTTPS and YouTube."""
+    endpoint, username, password = load_proxy_credentials(
+        env_path, runner=credential_runner
+    )
+    proxy = f"http://{quote(username, safe='')}:{quote(password, safe='')}@{endpoint}"
+    try:
+        opener = opener_factory(ProxyHandler({"https": proxy}))
+        for url in ("https://www.google.com/generate_204", "https://www.youtube.com/"):
+            with opener.open(Request(url), timeout=30) as response:
+                status = getattr(response, "status", 200)
+                if not 200 <= status < 400:
+                    raise OSError
+    except Exception:
+        raise RuntimeError("Proxy connectivity preflight failed") from None
+
+
+def _generic_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("command", choices=("prepare", "run", "start", "status"))
+    parser.add_argument("--source", required=True, type=Path)
+    parser.add_argument("--output-dir", required=True, type=Path)
+    parser.add_argument("--state-dir", required=True, type=Path)
+    parser.add_argument("--api-env", required=True, type=Path)
+    parser.add_argument("--proxy-env", required=True, type=Path)
+    parser.add_argument("--allow-git-tracked", action="store_true")
+    parser.add_argument("--detached-worker", action="store_true", help=argparse.SUPPRESS)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run the explicit-path generic YouTube dataset CLI."""
+    args = _generic_parser().parse_args(argv)
+    spec = DatasetSpec(args.source, args.output_dir, args.state_dir)
+    worker_command = (
+        sys.executable,
+        "-m",
+        "trec_video_2026.youtube_dataset",
+        "run",
+        "--source",
+        str(spec.source),
+        "--output-dir",
+        str(spec.output_dir),
+        "--state-dir",
+        str(spec.state_dir),
+        "--api-env",
+        str(args.api_env),
+        "--proxy-env",
+        str(args.proxy_env),
+        "--detached-worker",
+    )
+    if args.allow_git_tracked:
+        worker_command += ("--allow-git-tracked",)
+    config = DownloadConfig(args.api_env, args.proxy_env, worker_command=worker_command)
+    try:
+        refuse_git_tracked_runtime_paths(spec, args.allow_git_tracked)
+        if args.command == "prepare":
+            summary = prepare_dataset(spec, config)
+            print(f"total: {summary['total']}")
+            print(f"pending available: {summary['pending_available']}")
+            print(f"API omitted: {summary['api_omitted']}")
+            return 0
+        if args.command == "status":
+            status = dataset_status(spec)
+            print(f"state: {'running' if status['running'] else 'stopped'}")
+            for name in ("completed", "media_files", "pending_available", "api_omitted"):
+                print(f"{name.replace('_', ' ')}: {status[name]}")
+            print(f"log: {spec.state_dir / 'download.log'}")
+            return 0
+        spec.state_dir.mkdir(parents=True, exist_ok=True)
+        _validate_runtime_directory(spec.state_dir)
+        if args.command == "start":
+            summary = prepare_dataset(spec, config)
+            preflight_proxy(config.proxy_file)
+            pid = start_detached(spec, config)
+            print(f"pending available: {summary['pending_available']}")
+            print(f"started YouTube dataset download with PID {pid}")
+            print(f"log: {spec.state_dir / 'download.log'}")
+            return 0
+        if args.detached_worker:
+            value = os.environ.get(WORKER_LOCK_FD_ENV)
+            if not value:
+                raise RuntimeError("Inherited YouTube dataset worker lock is required")
+            try:
+                descriptor = int(value)
+            except ValueError:
+                raise RuntimeError("Inherited YouTube dataset worker lock is invalid") from None
+            _validate_inherited_worker_lock(spec.state_dir, descriptor)
+            config_path = os.environ.get("YOUTUBE_DATASET_PROXY_CONFIG_PATH")
+            if not config_path:
+                raise RuntimeError("Prepared proxy configuration is required")
+            validate_proxy_config(Path(config_path))
+            try:
+                run_spec(spec, config=config)
+            finally:
+                os.close(descriptor)
+            return 0
+        with _startup_lock(spec.state_dir):
+            prepare_dataset(spec, config)
+            preflight_proxy(config.proxy_file)
+            proxy_config = write_proxy_config(
+                config.proxy_file, spec.state_dir / "yt-dlp-proxy.conf"
+            )
+            os.environ["YOUTUBE_DATASET_PROXY_CONFIG_PATH"] = str(proxy_config)
+            run_spec(spec, config=config)
+        return 0
+    except (OSError, RuntimeError, ValueError) as error:
+        print(error, file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

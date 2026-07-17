@@ -150,12 +150,17 @@ def run_downloads(repo_root: Path, runner=run_url, sleeper=None) -> int:
     runtime = repo_root / "data/vqa/download_runtime"
     try:
         for name in ("training", "testing"):
+            spec = DatasetSpec(
+                source=runtime / f"{name}.pending-available.urls.txt",
+                output_dir=repo_root / f"data/vqa/2025/{name}/videos_original",
+                state_dir=runtime,
+            )
             kwargs = {"url_runner": runner}
             if sleeper is not None:
                 kwargs["sleeper"] = sleeper
             run_dataset(
-                runtime / f"{name}.pending-available.urls.txt",
-                repo_root / f"data/vqa/2025/{name}/videos_original",
+                spec.source,
+                spec.output_dir,
                 runtime / f"{name}.archive.txt",
                 **kwargs,
             )
