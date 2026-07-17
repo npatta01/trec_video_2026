@@ -94,4 +94,3 @@
 - [ ] Run `uv run pytest`, `git diff --check`, both CLI help/status smoke tests, skill validation, and a tracked-diff secret scan.
 - [ ] Confirm existing ignored media/archive state is unchanged and no downloader starts during verification.
 - [ ] Commit only intended tracked files, leaving `dstack/` and `notes.txt` untouched.
-

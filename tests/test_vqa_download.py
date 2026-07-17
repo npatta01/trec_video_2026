@@ -211,6 +211,50 @@ def test_prepare_available_manifests_does_not_replace_any_snapshot_on_failure(
     )
 
 
+def test_prepare_available_manifests_delegates_engine_ownership(
+    tmp_path: Path, monkeypatch
+):
+    calls = []
+    writes = []
+
+    def prepare(spec, api_key, fetcher, pending_writes):
+        calls.append((spec, api_key, fetcher, pending_writes))
+        return {"total": 3, "pending_available": 2, "api_omitted": 1}
+
+    monkeypatch.setattr(vqa_download._engine, "prepare_dataset", prepare)
+    monkeypatch.setattr(
+        vqa_download._engine,
+        "commit_prepared_datasets",
+        lambda prepared: writes.append(prepared),
+    )
+
+    fetcher = object()
+    summary = vqa_download.prepare_available_manifests(tmp_path, "key", fetcher=fetcher)
+
+    runtime = tmp_path / "data/vqa/download_runtime"
+    assert [call[0].source for call in calls] == [
+        runtime / "training.urls.txt",
+        runtime / "testing.urls.txt",
+    ]
+    assert all(call[1:] == ("key", fetcher, calls[0][3]) for call in calls)
+    assert calls[0][3] is writes[0]
+    assert calls[0][0].archive_path == runtime / "training.archive.txt"
+    assert calls[0][0].prepared_manifest_path == (
+        runtime / "training.pending-available.urls.txt"
+    )
+    assert calls[0][0].availability_snapshot_path == (
+        runtime / "training.availability-snapshot.json"
+    )
+    assert calls[0][0].api_omitted_path == (
+        runtime / "training.unavailable-or-private.txt"
+    )
+    assert summary["training"] == {
+        "unarchived": 3,
+        "pending_available": 2,
+        "unavailable_or_private": 1,
+    }
+
+
 def test_proxy_credentials_loads_nul_delimited_placeholders(tmp_path: Path):
     env_path = _secure_env(tmp_path / "proxy.env")
     captured = {}

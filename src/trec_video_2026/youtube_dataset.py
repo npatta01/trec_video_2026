@@ -34,7 +34,11 @@ RATE_LIMIT_MARKERS = (
 )
 PROXY_ENV_VARIABLES = ("DECODO_ENDPOINT", "DECODO_USER", "DECODO_PASSWORD")
 GENERIC_PROXY_ENV_VARIABLES = (
-    "PROXY_URL", "PROXY_SCHEME", "PROXY_ENDPOINT", "PROXY_USER", "PROXY_PASSWORD"
+    "PROXY_URL",
+    "PROXY_SCHEME",
+    "PROXY_ENDPOINT",
+    "PROXY_USER",
+    "PROXY_PASSWORD",
 )
 ALL_PROXY_ENV_VARIABLES = GENERIC_PROXY_ENV_VARIABLES + PROXY_ENV_VARIABLES
 WORKER_LOCK_FD_ENV = "YOUTUBE_DATASET_WORKER_LOCK_FD"
@@ -51,6 +55,7 @@ class DatasetSpec:
     archive_path: Path | None = None
     prepared_manifest_path: Path | None = None
     availability_snapshot_path: Path | None = None
+    api_omitted_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -89,11 +94,13 @@ def _valid_proxy_host(host: str) -> bool:
         return isinstance(ipaddress.ip_address(host), ipaddress.IPv4Address)
     except ValueError:
         pass
-    if not host or len(host) > 253 or all(character in ".0123456789" for character in host):
+    if (
+        not host
+        or len(host) > 253
+        or all(character in ".0123456789" for character in host)
+    ):
         return False
-    label_pattern = re.compile(
-        r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
-    )
+    label_pattern = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?")
     return all(label_pattern.fullmatch(label) for label in host.split("."))
 
 
@@ -154,7 +161,16 @@ def load_proxy_settings(
                 if len(fields) == 8:  # compatibility for injected test runners
                     fields.insert(-1, b"")
                 values = [field.decode() for field in fields[:8]]
-                scheme, endpoint, username, password, proxy_url, legacy_endpoint, legacy_user, legacy_password = values
+                (
+                    scheme,
+                    endpoint,
+                    username,
+                    password,
+                    proxy_url,
+                    legacy_endpoint,
+                    legacy_user,
+                    legacy_password,
+                ) = values
                 forms = sum(
                     (
                         bool(proxy_url),
@@ -179,10 +195,16 @@ def load_proxy_settings(
                         raise ValueError
                     scheme = parsed.scheme
                     endpoint = f"{parsed.hostname}:{parsed.port}"
-                    username, password = unquote(parsed.username), unquote(parsed.password)
+                    username, password = (
+                        unquote(parsed.username),
+                        unquote(parsed.password),
+                    )
                 elif legacy_endpoint or legacy_user or legacy_password:
                     scheme, endpoint, username, password = (
-                        "http", legacy_endpoint, legacy_user, legacy_password
+                        "http",
+                        legacy_endpoint,
+                        legacy_user,
+                        legacy_password,
                     )
                 elif not all((scheme, endpoint, username, password)):
                     raise ValueError
@@ -234,9 +256,7 @@ def load_youtube_api_key(
         if stat.S_IMODE(metadata.st_mode) != 0o600:
             raise RuntimeError("YouTube API key file must have permissions 0600")
         if metadata.st_uid != os.getuid():
-            raise RuntimeError(
-                "YouTube API key file must be owned by the current user"
-            )
+            raise RuntimeError("YouTube API key file must be owned by the current user")
         script = (
             "unset YOUTUBE_API_KEY; "
             'set -a; source "$1" >/dev/null 2>&1 || exit 1; '
@@ -300,7 +320,14 @@ def fetch_available_video_ids(
             if not returned <= set(batch):
                 raise ValueError
             available.update(returned)
-    except (OSError, URLError, UnicodeError, ValueError, TypeError, json.JSONDecodeError):
+    except (
+        OSError,
+        URLError,
+        UnicodeError,
+        ValueError,
+        TypeError,
+        json.JSONDecodeError,
+    ):
         failed = True
     if failed:
         raise RuntimeError("YouTube availability check failed") from None
@@ -343,12 +370,14 @@ def prepare_dataset(
     spec: DatasetSpec,
     api_key: str | DownloadConfig,
     fetcher: Callable[[list[str], str], set[str]] = fetch_available_video_ids,
+    pending_writes: list[tuple[Path, str]] | None = None,
 ) -> dict[str, int]:
     """Atomically prepare API-visible and omitted snapshots for one dataset."""
     if isinstance(api_key, DownloadConfig):
         api_key = load_youtube_api_key(api_key.api_key_file)
     ids = read_source_ids(spec.source)
-    archived = read_archive_ids(spec.state_dir / "download.archive.txt")
+    archive_path = spec.archive_path or spec.state_dir / "download.archive.txt"
+    archived = read_archive_ids(archive_path)
     pending = [video_id for video_id in ids if video_id not in archived]
     available = fetcher(pending, api_key)
     visible = [video_id for video_id in pending if video_id in available]
@@ -358,24 +387,47 @@ def prepare_dataset(
         "pending_available": len(visible),
         "api_omitted": len(omitted),
     }
-    _atomic_write_json(
-        spec.state_dir / "availability-snapshot.json",
-        {
-            "version": 1,
-            "visible": visible,
-            "omitted": omitted,
-            "counts": summary,
-        },
+    snapshot_path = (
+        spec.availability_snapshot_path or spec.state_dir / "availability-snapshot.json"
     )
-    _atomic_write_text(
-        spec.state_dir / "pending-available.urls.txt",
-        "".join(f"https://www.youtube.com/watch?v={video_id}\n" for video_id in visible),
+    manifest_path = (
+        spec.prepared_manifest_path or spec.state_dir / "pending-available.urls.txt"
     )
-    _atomic_write_text(
-        spec.state_dir / "api-omitted.txt",
-        "".join(f"{video_id}\n" for video_id in omitted),
-    )
+    omitted_path = spec.api_omitted_path or spec.state_dir / "api-omitted.txt"
+    writes = [
+        (
+            snapshot_path,
+            json.dumps(
+                {
+                    "version": 1,
+                    "visible": visible,
+                    "omitted": omitted,
+                    "counts": summary,
+                },
+                sort_keys=True,
+                indent=2,
+            )
+            + "\n",
+        ),
+        (
+            manifest_path,
+            "".join(
+                f"https://www.youtube.com/watch?v={video_id}\n" for video_id in visible
+            ),
+        ),
+        (omitted_path, "".join(f"{video_id}\n" for video_id in omitted)),
+    ]
+    if pending_writes is None:
+        commit_prepared_datasets(writes)
+    else:
+        pending_writes.extend(writes)
     return summary
+
+
+def commit_prepared_datasets(writes: list[tuple[Path, str]]) -> None:
+    """Commit engine-generated projections after all API checks succeed."""
+    for path, contents in writes:
+        _atomic_write_text(path, contents)
 
 
 def _atomic_write_text(path: Path, contents: str) -> None:
@@ -423,7 +475,8 @@ def _read_availability_snapshot(path: Path) -> dict[str, object]:
                 for item in visible + omitted
             )
             or len(set(visible + omitted)) != len(visible + omitted)
-            or counts != {
+            or counts
+            != {
                 "total": len(visible) + len(omitted),
                 "pending_available": len(visible),
                 "api_omitted": len(omitted),
@@ -609,9 +662,7 @@ def _validate_runtime_directory(runtime: Path) -> None:
     """Require a trusted runtime directory before creating or using locks."""
     descriptor = -1
     try:
-        descriptor = os.open(
-            runtime, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-        )
+        descriptor = os.open(runtime, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         metadata = os.fstat(descriptor)
         if (
             not stat.S_ISDIR(metadata.st_mode)
@@ -640,7 +691,9 @@ def _validate_inherited_worker_lock(runtime: Path, descriptor: int) -> None:
         ):
             raise OSError
     except OSError:
-        raise RuntimeError("Inherited YouTube dataset worker lock is not secure") from None
+        raise RuntimeError(
+            "Inherited YouTube dataset worker lock is not secure"
+        ) from None
 
 
 def _record_pid(pid_path: Path, pid: int) -> None:
@@ -690,8 +743,7 @@ def dataset_status(spec: DatasetSpec) -> dict[str, object]:
     """Return generic state counts using only paths declared by the spec."""
     archive = spec.state_dir / "download.archive.txt"
     snapshot_path = (
-        spec.availability_snapshot_path
-        or spec.state_dir / "availability-snapshot.json"
+        spec.availability_snapshot_path or spec.state_dir / "availability-snapshot.json"
     )
     counts = _read_availability_snapshot(snapshot_path)["counts"]
     pending_count = counts["pending_available"]
@@ -737,10 +789,18 @@ def worker_status(state_dir: Path) -> dict[str, object]:
             except (FileNotFoundError, ValueError):
                 pass
         runtime_pid = runtime.get("worker_pid")
-        if not running and isinstance(runtime_pid, int) and _process_active(runtime_pid):
+        if (
+            not running
+            and isinstance(runtime_pid, int)
+            and _process_active(runtime_pid)
+        ):
             running = True
             pid = str(runtime_pid)
-    if not running and (identity is not None or runtime.get("worker_pid") is not None or pid_path.exists()):
+    if not running and (
+        identity is not None
+        or runtime.get("worker_pid") is not None
+        or pid_path.exists()
+    ):
         pid_path.unlink(missing_ok=True)
         runtime = _update_runtime_state(
             state_dir / "runtime-state.json",
@@ -823,8 +883,7 @@ def _start_detached_locked(
     active = worker_status(runtime)
     if active["running"]:
         raise RuntimeError(
-            f"YouTube dataset download is already running with PID "
-            f"{active['pid']}"
+            f"YouTube dataset download is already running with PID {active['pid']}"
         )
     resolved_node = config.node_path or shutil.which("node")
     if not resolved_node:
@@ -853,7 +912,9 @@ def _start_detached_locked(
                 pass_fds=(lock_descriptor,),
             )
         except Exception:
-            raise RuntimeError("Unable to start detached YouTube dataset worker") from None
+            raise RuntimeError(
+                "Unable to start detached YouTube dataset worker"
+            ) from None
     try:
         pid = int(child.pid)
         _record_pid(pid_path, pid)
@@ -864,7 +925,9 @@ def _start_detached_locked(
         )
     except Exception:
         _rollback_child(child)
-        raise RuntimeError("Unable to record detached YouTube dataset worker PID") from None
+        raise RuntimeError(
+            "Unable to record detached YouTube dataset worker PID"
+        ) from None
     return pid
 
 
@@ -912,7 +975,9 @@ def build_ytdlp_command(
     """Build a resumable yt-dlp command that never transcodes streams."""
     output_dir.mkdir(parents=True, exist_ok=True)
     archive.parent.mkdir(parents=True, exist_ok=True)
-    node_path = node_path or os.environ.get("YOUTUBE_DATASET_NODE_PATH") or shutil.which("node")
+    node_path = (
+        node_path or os.environ.get("YOUTUBE_DATASET_NODE_PATH") or shutil.which("node")
+    )
     node_runtime = f"node:{node_path}" if node_path else "node"
     command = [
         sys.executable,
@@ -944,7 +1009,9 @@ def build_ytdlp_command(
         "--newline",
     ]
     selected_proxy_config = proxy_config or (
-        Path(value) if (value := os.environ.get("YOUTUBE_DATASET_PROXY_CONFIG_PATH")) else None
+        Path(value)
+        if (value := os.environ.get("YOUTUBE_DATASET_PROXY_CONFIG_PATH"))
+        else None
     )
     if selected_proxy_config is not None:
         command.extend(["--config-locations", str(selected_proxy_config)])
@@ -1049,11 +1116,7 @@ def run_dataset(
     maximum_consecutive_proxy_failures: int = 2,
 ) -> None:
     """Download one manifest sequentially, cooling down after rate limits."""
-    urls = [
-        url
-        for url in manifest.read_text(encoding="utf-8").splitlines()
-        if url
-    ]
+    urls = [url for url in manifest.read_text(encoding="utf-8").splitlines() if url]
     cooldown = initial_cooldown
     state_path = archive.parent / "runtime-state.json"
     while True:
@@ -1098,7 +1161,10 @@ def run_dataset(
             if result.proxy_failure:
                 consecutive_proxy_failures += 1
                 if consecutive_proxy_failures >= maximum_consecutive_proxy_failures:
-                    print("Repeated proxy transport failures; stopping this pass.", flush=True)
+                    print(
+                        "Repeated proxy transport failures; stopping this pass.",
+                        flush=True,
+                    )
                     _update_runtime_state(state_path, current_id=None)
                     return
             else:
@@ -1221,7 +1287,9 @@ def preflight_proxy(
     scheme, endpoint, username, password = load_proxy_settings(
         env_path, runner=credential_runner
     )
-    proxy = f"{scheme}://{quote(username, safe='')}:{quote(password, safe='')}@{endpoint}"
+    proxy = (
+        f"{scheme}://{quote(username, safe='')}:{quote(password, safe='')}@{endpoint}"
+    )
     try:
         opener = opener_factory(ProxyHandler({"https": proxy}))
         for url in ("https://www.google.com/generate_204", "https://www.youtube.com/"):
@@ -1242,7 +1310,9 @@ def _generic_parser() -> argparse.ArgumentParser:
     parser.add_argument("--api-env", required=True, type=Path)
     parser.add_argument("--proxy-env", required=True, type=Path)
     parser.add_argument("--allow-git-tracked", action="store_true")
-    parser.add_argument("--detached-worker", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--detached-worker", action="store_true", help=argparse.SUPPRESS
+    )
     return parser
 
 
@@ -1288,7 +1358,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"state: {'running' if status['running'] else 'stopped'}")
             print(f"pid: {status.get('pid') or 'none'}")
             print(f"current ID: {status.get('current_id') or 'none'}")
-            for name in ("completed", "media_files", "pending_available", "api_omitted"):
+            for name in (
+                "completed",
+                "media_files",
+                "pending_available",
+                "api_omitted",
+            ):
                 print(f"{name.replace('_', ' ')}: {status[name]}")
             print(f"last progress: {status.get('last_progress_at') or 'none'}")
             print(f"cooldown deadline: {status.get('cooldown_deadline') or 'none'}")
@@ -1302,7 +1377,9 @@ def main(argv: list[str] | None = None) -> int:
                 "rate_limit",
                 "retryable",
             ):
-                print(f"failures {category.replace('_', '-')}: {failure_counts.get(category, 0)}")
+                print(
+                    f"failures {category.replace('_', '-')}: {failure_counts.get(category, 0)}"
+                )
             print(f"retryable failures: {status.get('retryable_failures', 0)}")
             print(f"log: {spec.state_dir / 'download.log'}")
             return 0
@@ -1323,7 +1400,9 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 descriptor = int(value)
             except ValueError:
-                raise RuntimeError("Inherited YouTube dataset worker lock is invalid") from None
+                raise RuntimeError(
+                    "Inherited YouTube dataset worker lock is invalid"
+                ) from None
             _validate_inherited_worker_lock(spec.state_dir, descriptor)
             config_path = os.environ.get("YOUTUBE_DATASET_PROXY_CONFIG_PATH")
             if not config_path:

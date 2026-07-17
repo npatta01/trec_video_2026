@@ -19,6 +19,7 @@ uv run youtube-dataset-download COMMAND \
 
 - Keep `API_ENV`, `PROXY_ENV`, output, and state private and Git-ignored. Confirm with `git check-ignore` and `git ls-files`; do not edit `.gitignore` implicitly or expose secrets in arguments, logs, reports, or generated files.
 - Require current-user-owned, mode-`0600` credential files. Use separate files containing the documented API and proxy variables.
+- In `PROXY_ENV`, use either `PROXY_URL` alone or all four structured variables: `PROXY_SCHEME`, `PROXY_ENDPOINT`, `PROXY_USER`, and `PROXY_PASSWORD`. Legacy `DECODO_*` variables exist only for VQA compatibility.
 - Do not use `--allow-git-tracked` unless the user explicitly authorizes tracked runtime paths.
 - Before a substantial run, verify available space and required local dependencies without downloading media.
 

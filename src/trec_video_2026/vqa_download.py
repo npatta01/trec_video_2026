@@ -97,7 +97,9 @@ def read_unavailable_ids(readme_path: Path) -> set[str]:
 
 def write_manifest(csv_path: Path, readme_path: Path, output_path: Path) -> list[str]:
     excluded = read_unavailable_ids(readme_path)
-    ids = [video_id for video_id in read_video_ids(csv_path) if video_id not in excluded]
+    ids = [
+        video_id for video_id in read_video_ids(csv_path) if video_id not in excluded
+    ]
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         "".join(f"https://www.youtube.com/watch?v={video_id}\n" for video_id in ids),
@@ -122,43 +124,29 @@ def prepare_manifests(repo_root: Path) -> dict[str, int]:
     return {"training": len(training), "testing": len(testing)}
 
 
-def prepare_available_manifests(repo_root: Path, api_key: str, fetcher=fetch_available_video_ids):
+def prepare_available_manifests(
+    repo_root: Path, api_key: str, fetcher=fetch_available_video_ids
+):
     runtime = repo_root / "data/vqa/download_runtime"
-    snapshots = {}
     summary = {}
+    pending_writes = []
     for name in ("training", "testing"):
         spec = DatasetSpec(
             source=runtime / f"{name}.urls.txt",
             output_dir=repo_root / f"data/vqa/2025/{name}/videos_original",
-            state_dir=runtime / name,
+            state_dir=runtime,
+            archive_path=runtime / f"{name}.archive.txt",
+            prepared_manifest_path=runtime / f"{name}.pending-available.urls.txt",
+            availability_snapshot_path=runtime / f"{name}.availability-snapshot.json",
+            api_omitted_path=runtime / f"{name}.unavailable-or-private.txt",
         )
-        ids = _engine.read_source_ids(spec.source)
-        archived = read_archive_ids(runtime / f"{name}.archive.txt")
-        pending = [video_id for video_id in ids if video_id not in archived]
-        available = fetcher(pending, api_key)
-        visible = [video_id for video_id in pending if video_id in available]
-        omitted = [video_id for video_id in pending if video_id not in available]
-        snapshots[name] = (visible, omitted)
+        engine_summary = _engine.prepare_dataset(spec, api_key, fetcher, pending_writes)
         summary[name] = {
-            "unarchived": len(pending), "pending_available": len(visible),
-            "unavailable_or_private": len(omitted),
+            "unarchived": engine_summary["total"],
+            "pending_available": engine_summary["pending_available"],
+            "unavailable_or_private": engine_summary["api_omitted"],
         }
-    for name, (visible, omitted) in snapshots.items():
-        _engine._atomic_write_json(
-            runtime / f"{name}.availability-snapshot.json",
-            {
-                "version": 1,
-                "visible": visible,
-                "omitted": omitted,
-                "counts": {
-                    "total": len(visible) + len(omitted),
-                    "pending_available": len(visible),
-                    "api_omitted": len(omitted),
-                },
-            },
-        )
-        _engine._atomic_write_text(runtime / f"{name}.pending-available.urls.txt", "".join(f"https://www.youtube.com/watch?v={video_id}\n" for video_id in visible))
-        _engine._atomic_write_text(runtime / f"{name}.unavailable-or-private.txt", "".join(f"{video_id}\n" for video_id in omitted))
+    _engine.commit_prepared_datasets(pending_writes)
     return summary
 
 
@@ -171,8 +159,7 @@ def run_downloads(repo_root: Path, runner=run_url, sleeper=None) -> int:
                 output_dir=repo_root / f"data/vqa/2025/{name}/videos_original",
                 state_dir=runtime,
                 archive_path=runtime / f"{name}.archive.txt",
-                prepared_manifest_path=runtime
-                / f"{name}.pending-available.urls.txt",
+                prepared_manifest_path=runtime / f"{name}.pending-available.urls.txt",
                 availability_snapshot_path=runtime
                 / f"{name}.availability-snapshot.json",
             )
@@ -189,7 +176,9 @@ def run_downloads(repo_root: Path, runner=run_url, sleeper=None) -> int:
 def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("prepare", "run", "start", "status"))
-    parser.add_argument("--detached-worker", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--detached-worker", action="store_true", help=argparse.SUPPRESS
+    )
     args = parser.parse_args(argv)
     root = repo_root or Path(__file__).resolve().parents[2]
     runtime = root / "data/vqa/download_runtime"
@@ -220,7 +209,9 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
                 finally:
                     os.close(descriptor)
             with _startup_lock(runtime):
-                config = write_proxy_config(DEFAULT_PROXY_ENV_PATH, runtime / "yt-dlp-proxy.conf")
+                config = write_proxy_config(
+                    DEFAULT_PROXY_ENV_PATH, runtime / "yt-dlp-proxy.conf"
+                )
                 preflight_proxy(DEFAULT_PROXY_ENV_PATH)
                 os.environ["VQA_PROXY_CONFIG_PATH"] = str(config)
                 os.environ["YOUTUBE_DATASET_PROXY_CONFIG_PATH"] = str(config)
@@ -242,7 +233,9 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
             return 1
         for name in ("training", "testing"):
             counts = availability[name]
-            print(f"{name} API precheck: {counts['pending_available']} available, {counts['unavailable_or_private']} unavailable/private")
+            print(
+                f"{name} API precheck: {counts['pending_available']} available, {counts['unavailable_or_private']} unavailable/private"
+            )
         print(f"started VQA download with PID {pid}")
         print(f"log: {runtime / 'download.log'}")
         return 0
@@ -254,21 +247,28 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
     print(f"last progress: {worker_state['last_progress_at'] or 'none'}")
     print(f"cooldown deadline: {worker_state['cooldown_deadline'] or 'none'}")
     failure_counts = {
-        category: len(ids)
-        for category, ids in dict(worker_state["failures"]).items()
+        category: len(ids) for category, ids in dict(worker_state["failures"]).items()
     }
     for category in (
-        "private", "unavailable", "members_only", "authentication_required",
-        "proxy_transport", "rate_limit", "retryable",
+        "private",
+        "unavailable",
+        "members_only",
+        "authentication_required",
+        "proxy_transport",
+        "rate_limit",
+        "retryable",
     ):
         print(
-            f"failures {category.replace('_', '-')}: "
-            f"{failure_counts.get(category, 0)}"
+            f"failures {category.replace('_', '-')}: {failure_counts.get(category, 0)}"
         )
     print(f"retryable failures: {len(worker_state['retryable_failures'])}")
     for name in ("training", "testing"):
         archive = runtime / f"{name}.archive.txt"
-        completed = len(archive.read_text(encoding="utf-8").splitlines()) if archive.exists() else 0
+        completed = (
+            len(archive.read_text(encoding="utf-8").splitlines())
+            if archive.exists()
+            else 0
+        )
         media = count_final_media(root / f"data/vqa/2025/{name}/videos_original")
         print(f"{name} completed: {completed}")
         print(f"{name} media files: {media}")
@@ -280,13 +280,9 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
                 "counts"
             ]
             print(
-                f"{name} API-available pending: "
-                f"{snapshot_counts['pending_available']}"
+                f"{name} API-available pending: {snapshot_counts['pending_available']}"
             )
-            print(
-                f"{name} API unavailable/private: "
-                f"{snapshot_counts['api_omitted']}"
-            )
+            print(f"{name} API unavailable/private: {snapshot_counts['api_omitted']}")
         else:
             print(f"{name} authoritative snapshot: missing")
             if pending.exists():

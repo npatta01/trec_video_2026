@@ -614,6 +614,32 @@ def test_non_vqa_dataset_spec_drives_api_preparation_and_run_paths(
     }
 
 
+def test_prepare_dataset_honors_all_explicit_projection_paths(tmp_path: Path):
+    spec = youtube_dataset.DatasetSpec(
+        source=tmp_path / "source.txt",
+        output_dir=tmp_path / "media",
+        state_dir=tmp_path / "state",
+        archive_path=tmp_path / "legacy/archive.txt",
+        prepared_manifest_path=tmp_path / "legacy/visible.urls.txt",
+        availability_snapshot_path=tmp_path / "legacy/snapshot.json",
+        api_omitted_path=tmp_path / "legacy/omitted.txt",
+    )
+    spec.source.write_text("abcDEF123_0\nxyzXYZ987-1\n", encoding="utf-8")
+    spec.archive_path.parent.mkdir(parents=True)
+    spec.archive_path.write_text("youtube abcDEF123_0\n", encoding="utf-8")
+
+    summary = youtube_dataset.prepare_dataset(
+        spec, "key", fetcher=lambda ids, key: set()
+    )
+
+    assert summary == {"total": 1, "pending_available": 0, "api_omitted": 1}
+    assert spec.prepared_manifest_path.read_text(encoding="utf-8") == ""
+    assert spec.api_omitted_path.read_text(encoding="utf-8") == "xyzXYZ987-1\n"
+    assert json.loads(spec.availability_snapshot_path.read_text(encoding="utf-8"))[
+        "omitted"
+    ] == ["xyzXYZ987-1"]
+
+
 def test_detached_spec_binds_explicit_worker_command_and_config(
     tmp_path: Path, monkeypatch
 ):
