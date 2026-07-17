@@ -44,6 +44,8 @@ class DatasetSpec:
     source: Path
     output_dir: Path
     state_dir: Path
+    archive_path: Path | None = None
+    prepared_manifest_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -802,9 +804,9 @@ def run_spec(
 ) -> None:
     """Run the prepared manifest and state paths declared by a dataset spec."""
     run_dataset(
-        spec.state_dir / "pending-available.urls.txt",
+        spec.prepared_manifest_path or spec.state_dir / "pending-available.urls.txt",
         spec.output_dir,
-        spec.state_dir / "download.archive.txt",
+        spec.archive_path or spec.state_dir / "download.archive.txt",
         url_runner=url_runner,
         sleeper=sleeper,
         ordinary_delay=config.ordinary_delay if config else 10.0,
@@ -888,7 +890,12 @@ def _generic_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     """Run the explicit-path generic YouTube dataset CLI."""
     args = _generic_parser().parse_args(argv)
-    spec = DatasetSpec(args.source, args.output_dir, args.state_dir)
+    source = args.source.resolve()
+    output_dir = args.output_dir.resolve()
+    state_dir = args.state_dir.resolve()
+    api_env = args.api_env.resolve()
+    proxy_env = args.proxy_env.resolve()
+    spec = DatasetSpec(source, output_dir, state_dir)
     worker_command = (
         sys.executable,
         "-m",
@@ -901,14 +908,14 @@ def main(argv: list[str] | None = None) -> int:
         "--state-dir",
         str(spec.state_dir),
         "--api-env",
-        str(args.api_env),
+        str(api_env),
         "--proxy-env",
-        str(args.proxy_env),
+        str(proxy_env),
         "--detached-worker",
     )
     if args.allow_git_tracked:
         worker_command += ("--allow-git-tracked",)
-    config = DownloadConfig(args.api_env, args.proxy_env, worker_command=worker_command)
+    config = DownloadConfig(api_env, proxy_env, worker_command=worker_command)
     try:
         refuse_git_tracked_runtime_paths(spec, args.allow_git_tracked)
         if args.command == "prepare":

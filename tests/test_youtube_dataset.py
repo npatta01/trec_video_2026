@@ -270,3 +270,36 @@ def test_generic_start_prepares_then_uses_shared_detached_launcher(tmp_path: Pat
     assert calls[:2] == ["prepare", "proxy"]
     assert calls[2][1].worker_command[3] == "run"
     assert calls[2][1].worker_command[-1] == "--detached-worker"
+
+
+def test_generic_start_resolves_relative_paths_before_detached_worker_changes_cwd(
+    tmp_path: Path, monkeypatch
+):
+    invocation = tmp_path / "invocation"
+    invocation.mkdir()
+    monkeypatch.chdir(invocation)
+    captured = {}
+    monkeypatch.setattr(youtube_dataset, "refuse_git_tracked_runtime_paths", lambda *args: None)
+    monkeypatch.setattr(youtube_dataset, "prepare_dataset", lambda *args: {"pending_available": 0})
+    monkeypatch.setattr(youtube_dataset, "preflight_proxy", lambda *args: None)
+    monkeypatch.setattr(
+        youtube_dataset,
+        "start_detached",
+        lambda spec, config: captured.update(spec=spec, config=config) or 1234,
+    )
+
+    assert youtube_dataset.main([
+        "start", "--source", "inputs/source.txt", "--output-dir", "media",
+        "--state-dir", "runtime", "--api-env", "secrets/api.env",
+        "--proxy-env", "secrets/proxy.env",
+    ]) == 0
+
+    spec = captured["spec"]
+    config = captured["config"]
+    assert spec.source == invocation / "inputs/source.txt"
+    assert spec.output_dir == invocation / "media"
+    assert spec.state_dir == invocation / "runtime"
+    assert config.api_key_file == invocation / "secrets/api.env"
+    assert config.proxy_file == invocation / "secrets/proxy.env"
+    for relative in ("inputs/source.txt", "media", "runtime", "secrets/api.env", "secrets/proxy.env"):
+        assert relative not in config.worker_command

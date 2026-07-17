@@ -36,6 +36,7 @@ read_archive_ids = _engine.read_archive_ids
 build_ytdlp_command = _engine.build_ytdlp_command
 run_url = _engine.run_url
 run_dataset = _engine.run_dataset
+run_spec = _engine.run_spec
 _startup_lock = _engine._startup_lock
 _validate_runtime_directory = _engine._validate_runtime_directory
 _validate_inherited_worker_lock = _engine._validate_inherited_worker_lock
@@ -154,16 +155,14 @@ def run_downloads(repo_root: Path, runner=run_url, sleeper=None) -> int:
                 source=runtime / f"{name}.pending-available.urls.txt",
                 output_dir=repo_root / f"data/vqa/2025/{name}/videos_original",
                 state_dir=runtime,
+                archive_path=runtime / f"{name}.archive.txt",
+                prepared_manifest_path=runtime
+                / f"{name}.pending-available.urls.txt",
             )
             kwargs = {"url_runner": runner}
             if sleeper is not None:
                 kwargs["sleeper"] = sleeper
-            run_dataset(
-                spec.source,
-                spec.output_dir,
-                runtime / f"{name}.archive.txt",
-                **kwargs,
-            )
+            run_spec(spec, **kwargs)
     except OSError as error:
         print(f"Unable to start yt-dlp: {error}", file=sys.stderr)
         return 1

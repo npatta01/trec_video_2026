@@ -23,3 +23,11 @@
 - No credentials or datasets were read by the implementation tests; API/proxy behavior was mocked.
 - No network calls or workers were started.
 - Existing untracked `dstack/` and `notes.txt` were not touched.
+
+## Review follow-up evidence
+
+- Relative-path detached regression: `test_generic_start_resolves_relative_paths_before_detached_worker_changes_cwd` verifies all five explicit paths are resolved against the invocation working directory and embedded as absolute worker arguments.
+- Shared-interface equivalence: `test_vqa_run_constructs_dataset_specs_but_preserves_legacy_runtime_paths` verifies both VQA splits invoke the engine-owned `run_spec` with explicit legacy manifest, output, state, and archive paths.
+- Focused verification: `uv run pytest -q tests/test_youtube_dataset.py tests/test_vqa_download.py` -> `95 passed in 0.09s`.
+- Full verification: `uv run pytest -q` -> `95 passed in 0.41s`.
+- CLI smoke verification: generic `--help`, generic safe-path `status`, and `uv run vqa-download status` all exited 0; `git diff --check` was clean.

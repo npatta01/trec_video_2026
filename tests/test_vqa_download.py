@@ -1391,21 +1391,18 @@ def test_status_command_reports_stopped_job(tmp_path: Path, capsys):
 
 def test_vqa_run_constructs_dataset_specs_but_preserves_legacy_runtime_paths(tmp_path: Path, monkeypatch):
     seen = []
-    specs = []
-    real_spec = youtube_dataset.DatasetSpec
-    monkeypatch.setattr(vqa_download, "DatasetSpec", lambda *args, **kwargs: specs.append(real_spec(*args, **kwargs)) or specs[-1])
     monkeypatch.setattr(
         vqa_download,
-        "run_dataset",
-        lambda manifest, output, archive, **kwargs: seen.append((manifest, output, archive)),
+        "run_spec",
+        lambda spec, **kwargs: seen.append((spec, kwargs)),
     )
     assert vqa_download.run_downloads(tmp_path, sleeper=lambda _: None) == 0
     runtime = tmp_path / "data/vqa/download_runtime"
-    assert seen == [
-        (runtime / "training.pending-available.urls.txt", tmp_path / "data/vqa/2025/training/videos_original", runtime / "training.archive.txt"),
-        (runtime / "testing.pending-available.urls.txt", tmp_path / "data/vqa/2025/testing/videos_original", runtime / "testing.archive.txt"),
+    assert [item[0] for item in seen] == [
+        youtube_dataset.DatasetSpec(runtime / "training.pending-available.urls.txt", tmp_path / "data/vqa/2025/training/videos_original", runtime, runtime / "training.archive.txt", runtime / "training.pending-available.urls.txt"),
+        youtube_dataset.DatasetSpec(runtime / "testing.pending-available.urls.txt", tmp_path / "data/vqa/2025/testing/videos_original", runtime, runtime / "testing.archive.txt", runtime / "testing.pending-available.urls.txt"),
     ]
-    assert [spec.source for spec in specs] == [seen[0][0], seen[1][0]]
+    assert all(item[1]["sleeper"] is not None for item in seen)
 
 
 def test_status_command_preserves_api_inventory_counters(tmp_path: Path, capsys):
