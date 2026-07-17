@@ -32,4 +32,3 @@ Both straight and typographic apostrophe variants of `Sign in to confirm you're 
 - A real API-only precheck must reproduce the current inventory without running yt-dlp.
 - Before restart, verify generated pending IDs and omitted IDs are disjoint and partition every unarchived input ID.
 - After restart, verify exactly one yt-dlp child and confirm its ID belongs to the API-available pending manifest.
-

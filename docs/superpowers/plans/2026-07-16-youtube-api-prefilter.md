@@ -74,4 +74,3 @@
 - [ ] Run the real API precheck and verify the pending/omitted partition against unarchived inputs.
 - [ ] Commit the implementation and documentation intentionally, excluding unrelated `dstack/` and `notes.txt`.
 - [ ] Start the detached downloader and verify one child whose ID exists in the pending-available manifest.
-
