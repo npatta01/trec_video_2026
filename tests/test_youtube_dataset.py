@@ -1,5 +1,7 @@
 """Tests for the single generic YouTube dataset download engine."""
 
+from pathlib import Path
+
 from trec_video_2026 import youtube_dataset
 from trec_video_2026 import vqa_download
 
@@ -39,3 +41,67 @@ def test_vqa_specific_manifest_parsing_remains_in_vqa_adapter():
 
     assert not hasattr(youtube_dataset, "DEFAULT_PROXY_ENV_PATH")
     assert not hasattr(youtube_dataset, "DEFAULT_YOUTUBE_API_ENV_PATH")
+
+
+def test_repeated_proxy_502_failures_stop_the_pass_promptly(tmp_path: Path):
+    manifest = tmp_path / "urls.txt"
+    manifest.write_text(
+        "https://www.youtube.com/watch?v=abcDEF123_0\n"
+        "https://www.youtube.com/watch?v=xyzXYZ987-1\n"
+        "https://www.youtube.com/watch?v=qrsQRS456_2\n",
+        encoding="utf-8",
+    )
+    calls = []
+
+    def runner(command):
+        calls.append(command[-1])
+        return youtube_dataset.AttemptResult(False, False, proxy_failure=True)
+
+    youtube_dataset.run_dataset(
+        manifest,
+        tmp_path / "videos",
+        tmp_path / "archive.txt",
+        url_runner=runner,
+        sleeper=lambda _: None,
+    )
+
+    assert len(calls) == 2
+
+
+def test_ordinary_video_failures_do_not_trigger_proxy_stop(tmp_path: Path):
+    manifest = tmp_path / "urls.txt"
+    manifest.write_text(
+        "https://www.youtube.com/watch?v=abcDEF123_0\n"
+        "https://www.youtube.com/watch?v=xyzXYZ987-1\n"
+        "https://www.youtube.com/watch?v=qrsQRS456_2\n",
+        encoding="utf-8",
+    )
+    calls = []
+
+    def runner(command):
+        calls.append(command[-1])
+        return youtube_dataset.AttemptResult(False, False)
+
+    youtube_dataset.run_dataset(
+        manifest,
+        tmp_path / "videos",
+        tmp_path / "archive.txt",
+        url_runner=runner,
+        sleeper=lambda _: None,
+    )
+
+    assert len(calls) == 3
+
+
+def test_run_url_classifies_bad_gateway_as_proxy_failure():
+    class Child:
+        stdout = iter(["ERROR: Proxy returned HTTP Error 502: Bad Gateway\n"])
+
+        def wait(self):
+            return 1
+
+    result = youtube_dataset.run_url(
+        ["yt-dlp", "url"], popen=lambda *args, **kwargs: Child()
+    )
+
+    assert result.proxy_failure is True

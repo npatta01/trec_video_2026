@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 import trec_video_2026.vqa_download as vqa_download
+import trec_video_2026.youtube_dataset as youtube_dataset
 
 from trec_video_2026.vqa_download import (
     AttemptResult,
@@ -886,7 +887,7 @@ def test_start_command_prefilters_before_spawning_worker(
     monkeypatch.setattr(
         vqa_download,
         "start_detached",
-        lambda root: calls.append("spawn") or 4242,
+        lambda root, **kwargs: calls.append("spawn") or 4242,
     )
 
     assert main(["start"], repo_root=tmp_path) == 0
@@ -948,7 +949,7 @@ def test_start_detached_records_child_pid_and_node_path(
         target.write_text("placeholder config\n", encoding="utf-8")
         return target
 
-    monkeypatch.setattr(vqa_download, "write_proxy_config", fake_write)
+    monkeypatch.setattr(youtube_dataset, "write_proxy_config", fake_write)
 
     assert start_detached(
         tmp_path,
@@ -986,7 +987,7 @@ def test_start_detached_prepares_private_proxy_config_without_leaking_secrets(
         captured.update(kwargs)
         return Child()
 
-    monkeypatch.setattr(vqa_download, "write_proxy_config", fake_write)
+    monkeypatch.setattr(youtube_dataset, "write_proxy_config", fake_write)
     monkeypatch.setenv("DECODO_PASSWORD", placeholder_secret)
     assert start_detached(
         tmp_path,
@@ -1069,12 +1070,12 @@ class _CleanupChild:
 def test_start_detached_cleans_child_when_pid_write_fails(tmp_path: Path, monkeypatch):
     child = _CleanupChild()
     monkeypatch.setattr(
-        vqa_download,
+        youtube_dataset,
         "write_proxy_config",
         lambda source, target, runner=subprocess.run: target,
     )
     monkeypatch.setattr(
-        vqa_download,
+        youtube_dataset,
         "_record_pid",
         lambda path, pid: (_ for _ in ()).throw(OSError("placeholder secret")),
     )
@@ -1097,7 +1098,7 @@ def test_start_detached_cleans_child_when_spawned_pid_is_invalid(
     child = _CleanupChild()
     child.pid = "not-a-pid"
     monkeypatch.setattr(
-        vqa_download,
+        youtube_dataset,
         "write_proxy_config",
         lambda source, target, runner=subprocess.run: target,
     )
@@ -1117,7 +1118,7 @@ def test_start_detached_cleans_child_when_pid_replace_fails(
 ):
     child = _CleanupChild()
     monkeypatch.setattr(
-        vqa_download,
+        youtube_dataset,
         "write_proxy_config",
         lambda source, target, runner=subprocess.run: target,
     )
@@ -1159,12 +1160,12 @@ def test_start_detached_escalates_to_kill_when_rollback_wait_times_out(
 
     child = Child()
     monkeypatch.setattr(
-        vqa_download,
+        youtube_dataset,
         "write_proxy_config",
         lambda source, target, runner=subprocess.run: target,
     )
     monkeypatch.setattr(
-        vqa_download,
+        youtube_dataset,
         "_record_pid",
         lambda path, pid: (_ for _ in ()).throw(OSError("primary placeholder")),
     )
@@ -1202,12 +1203,12 @@ def test_start_detached_kills_when_first_rollback_wait_raises_oserror(
 
     child = Child()
     monkeypatch.setattr(
-        vqa_download,
+        youtube_dataset,
         "write_proxy_config",
         lambda source, target, runner=subprocess.run: target,
     )
     monkeypatch.setattr(
-        vqa_download,
+        youtube_dataset,
         "_record_pid",
         lambda path, pid: (_ for _ in ()).throw(OSError("primary placeholder")),
     )
@@ -1232,7 +1233,7 @@ def test_start_detached_pid_temp_does_not_follow_predictable_symlink(
     victim.write_text("keep\n", encoding="utf-8")
     (runtime / "download.pid.tmp").symlink_to(victim)
     monkeypatch.setattr(
-        vqa_download,
+        youtube_dataset,
         "write_proxy_config",
         lambda source, target, runner=subprocess.run: target,
     )
@@ -1249,7 +1250,7 @@ def test_start_detached_pid_temp_does_not_follow_predictable_symlink(
 def test_start_detached_sanitizes_spawn_failure(tmp_path: Path, monkeypatch):
     placeholder = "placeholder-secret-spawn"
     monkeypatch.setattr(
-        vqa_download,
+        youtube_dataset,
         "write_proxy_config",
         lambda source, target, runner=subprocess.run: target,
     )
@@ -1291,7 +1292,7 @@ def test_start_detached_rejects_concurrent_startup_lock_without_spawn(
     fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     calls = []
     monkeypatch.setattr(
-        vqa_download,
+        youtube_dataset,
         "write_proxy_config",
         lambda *args, **kwargs: calls.append("config"),
     )
@@ -1314,7 +1315,7 @@ def test_start_detached_passes_worker_lock_for_full_child_lifetime(
 ):
     retained = {}
     monkeypatch.setattr(
-        vqa_download,
+        youtube_dataset,
         "write_proxy_config",
         lambda source, target, runner=subprocess.run: target,
     )
