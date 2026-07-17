@@ -1,8 +1,11 @@
 import fcntl
+import json
 import os
 import stat
 import subprocess
 import traceback
+import urllib.error
+import urllib.parse
 from pathlib import Path
 
 import pytest
@@ -33,6 +36,176 @@ def _secure_env(path: Path) -> Path:
     path.write_text("placeholder only\n", encoding="utf-8")
     path.chmod(0o600)
     return path
+
+
+def test_youtube_api_key_loads_without_ambient_fallback(tmp_path: Path, monkeypatch):
+    env_path = _secure_env(tmp_path / "youtube.env")
+    monkeypatch.setenv("YOUTUBE_API_KEY", "ambient-secret")
+    captured = {}
+
+    def runner(command, **kwargs):
+        captured["command"] = command
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(command, 0, stdout=b"file-secret\0")
+
+    assert vqa_download.load_youtube_api_key(env_path, runner=runner) == "file-secret"
+    assert captured["command"][-1].startswith("/proc/self/fd/")
+    assert "YOUTUBE_API_KEY" not in captured["env"]
+    assert "unset YOUTUBE_API_KEY" in captured["command"][2]
+
+
+def test_youtube_api_key_rejects_insecure_file(tmp_path: Path):
+    env_path = tmp_path / "youtube.env"
+    env_path.write_text("YOUTUBE_API_KEY=placeholder\n", encoding="utf-8")
+    env_path.chmod(0o640)
+
+    with pytest.raises(RuntimeError, match="permissions 0600"):
+        vqa_download.load_youtube_api_key(env_path)
+
+
+def test_fetch_available_video_ids_batches_at_fifty():
+    ids = [f"vid{i:08d}" for i in range(101)]
+    batches = []
+
+    class Response:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return json.dumps(self.payload).encode()
+
+    def opener(request, timeout):
+        query = urllib.parse.parse_qs(request.full_url.split("?", 1)[1])
+        batch = query["id"][0].split(",")
+        batches.append(batch)
+        return Response({"items": [{"id": item} for item in batch[:-1]]})
+
+    available = vqa_download.fetch_available_video_ids(
+        ids, "placeholder-key", opener=opener
+    )
+
+    assert [len(batch) for batch in batches] == [50, 50, 1]
+    assert available == set(ids) - {ids[49], ids[99], ids[100]}
+
+
+def test_fetch_available_video_ids_sanitizes_api_errors():
+    captured = {}
+
+    def opener(request, timeout):
+        captured["url"] = request.full_url
+        captured["header"] = request.get_header("X-goog-api-key")
+        raise urllib.error.URLError("placeholder-key")
+
+    with pytest.raises(RuntimeError, match="YouTube availability check failed") as error:
+        vqa_download.fetch_available_video_ids(
+            ["abcDEF123_0"], "placeholder-key", opener=opener
+        )
+
+    assert "placeholder-key" not in str(error.value)
+    assert error.value.__context__ is None
+    assert "placeholder-key" not in "".join(
+        traceback.format_exception(error.value)
+    )
+    assert "placeholder-key" not in captured["url"]
+    assert captured["header"] == "placeholder-key"
+
+
+def test_fetch_available_video_ids_rejects_malformed_items():
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return b'{"items":[{"unexpected":"value"}]}'
+
+    with pytest.raises(RuntimeError, match="YouTube availability check failed"):
+        vqa_download.fetch_available_video_ids(
+            ["abcDEF123_0"], "placeholder-key", opener=lambda *args, **kwargs: Response()
+        )
+
+
+def test_prepare_available_manifests_checks_only_unarchived_ids(tmp_path: Path):
+    runtime = tmp_path / "data/vqa/download_runtime"
+    runtime.mkdir(parents=True)
+    (runtime / "training.urls.txt").write_text(
+        "https://www.youtube.com/watch?v=abcDEF123_0\n"
+        "https://www.youtube.com/watch?v=xyzXYZ987-1\n",
+        encoding="utf-8",
+    )
+    (runtime / "training.archive.txt").write_text(
+        "youtube abcDEF123_0\n", encoding="utf-8"
+    )
+    (runtime / "testing.urls.txt").write_text(
+        "https://www.youtube.com/watch?v=qrsQRS456_2\n",
+        encoding="utf-8",
+    )
+    seen = []
+
+    def fetcher(ids, api_key):
+        seen.append(ids)
+        return {"xyzXYZ987-1"} if "xyzXYZ987-1" in ids else set()
+
+    summary = vqa_download.prepare_available_manifests(
+        tmp_path, "placeholder-key", fetcher=fetcher
+    )
+
+    assert seen == [["xyzXYZ987-1"], ["qrsQRS456_2"]]
+    assert (runtime / "training.pending-available.urls.txt").read_text() == (
+        "https://www.youtube.com/watch?v=xyzXYZ987-1\n"
+    )
+    assert (runtime / "training.unavailable-or-private.txt").read_text() == ""
+    assert (runtime / "testing.pending-available.urls.txt").read_text() == ""
+    assert (runtime / "testing.unavailable-or-private.txt").read_text() == (
+        "qrsQRS456_2\n"
+    )
+    assert summary["training"]["pending_available"] == 1
+    assert summary["testing"]["unavailable_or_private"] == 1
+
+
+def test_prepare_available_manifests_does_not_replace_any_snapshot_on_failure(
+    tmp_path: Path,
+):
+    runtime = tmp_path / "data/vqa/download_runtime"
+    runtime.mkdir(parents=True)
+    for name, video_id in (
+        ("training", "abcDEF123_0"),
+        ("testing", "qrsQRS456_2"),
+    ):
+        (runtime / f"{name}.urls.txt").write_text(
+            f"https://www.youtube.com/watch?v={video_id}\n", encoding="utf-8"
+        )
+        (runtime / f"{name}.pending-available.urls.txt").write_text(
+            f"old-{name}\n", encoding="utf-8"
+        )
+        (runtime / f"{name}.unavailable-or-private.txt").write_text(
+            f"old-unavailable-{name}\n", encoding="utf-8"
+        )
+
+    def fetcher(ids, api_key):
+        if ids == ["qrsQRS456_2"]:
+            raise RuntimeError("YouTube availability check failed")
+        return set(ids)
+
+    with pytest.raises(RuntimeError, match="YouTube availability check failed"):
+        vqa_download.prepare_available_manifests(
+            tmp_path, "placeholder-key", fetcher=fetcher
+        )
+
+    assert (runtime / "training.pending-available.urls.txt").read_text() == (
+        "old-training\n"
+    )
+    assert (runtime / "training.unavailable-or-private.txt").read_text() == (
+        "old-unavailable-training\n"
+    )
 
 
 def test_proxy_credentials_loads_nul_delimited_placeholders(tmp_path: Path):
@@ -626,6 +799,24 @@ def test_run_url_detects_youtube_session_rate_limit_wording():
     "output",
     [
         "ERROR: Sign in to confirm you're not a bot\n",
+        "ERROR: Sign in to confirm you’re not a bot\n",
+    ],
+)
+def test_run_url_classifies_bot_checks_as_rate_limits(output: str):
+    class Child:
+        stdout = iter([output])
+
+        def wait(self):
+            return 1
+
+    result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
+
+    assert result == AttemptResult(completed=False, rate_limited=True)
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
         "ERROR: This video is private\n",
         "ERROR: Video unavailable\n",
         "ERROR: This content isn't available, try again later.\n",
@@ -644,18 +835,16 @@ def test_run_url_does_not_classify_other_errors_as_rate_limits(output: str):
 
 
 def test_run_downloads_processes_each_training_url_before_testing(tmp_path: Path):
-    training = tmp_path / "data/vqa/2025/training"
-    testing = tmp_path / "data/vqa/2025/testing"
-    (training / "annotations").mkdir(parents=True)
-    testing.mkdir(parents=True)
-    (training / "annotations/train.2025.csv").write_text(
-        '1 , abcDEF123_0, "q"\n2 , qrsQRS456_2, "q"\n', encoding="utf-8"
+    runtime = tmp_path / "data/vqa/download_runtime"
+    runtime.mkdir(parents=True)
+    (runtime / "training.pending-available.urls.txt").write_text(
+        "https://www.youtube.com/watch?v=abcDEF123_0\n"
+        "https://www.youtube.com/watch?v=qrsQRS456_2\n",
+        encoding="utf-8",
     )
-    (training / "README.txt").write_text("", encoding="utf-8")
-    (testing / "testing.dataset.vqa.2025.csv").write_text(
-        '1 , xyzXYZ987-1, "q"\n', encoding="utf-8"
+    (runtime / "testing.pending-available.urls.txt").write_text(
+        "https://www.youtube.com/watch?v=xyzXYZ987-1\n", encoding="utf-8"
     )
-    (testing / "README.txt").write_text("", encoding="utf-8")
     calls: list[list[str]] = []
 
     def runner(command: list[str]) -> AttemptResult:
@@ -669,6 +858,64 @@ def test_run_downloads_processes_each_training_url_before_testing(tmp_path: Path
         "https://www.youtube.com/watch?v=xyzXYZ987-1",
     ]
     assert not any(".urls.txt" in argument for command in calls for argument in command)
+
+
+def test_start_command_prefilters_before_spawning_worker(
+    tmp_path: Path, monkeypatch, capsys
+):
+    calls = []
+    monkeypatch.setattr(
+        vqa_download,
+        "prepare_manifests",
+        lambda root: calls.append("raw") or {"training": 1, "testing": 1},
+    )
+    monkeypatch.setattr(
+        vqa_download,
+        "load_youtube_api_key",
+        lambda path: calls.append("key") or "placeholder-key",
+    )
+    monkeypatch.setattr(
+        vqa_download,
+        "prepare_available_manifests",
+        lambda root, key: calls.append("available")
+        or {
+            "training": {"pending_available": 1, "unavailable_or_private": 0},
+            "testing": {"pending_available": 1, "unavailable_or_private": 0},
+        },
+    )
+    monkeypatch.setattr(
+        vqa_download,
+        "start_detached",
+        lambda root: calls.append("spawn") or 4242,
+    )
+
+    assert main(["start"], repo_root=tmp_path) == 0
+    assert calls == ["raw", "key", "available", "spawn"]
+    assert "started VQA download with PID 4242" in capsys.readouterr().out
+
+
+def test_start_command_does_not_spawn_when_api_prefilter_fails(
+    tmp_path: Path, monkeypatch, capsys
+):
+    calls = []
+    monkeypatch.setattr(vqa_download, "prepare_manifests", lambda root: {})
+    monkeypatch.setattr(
+        vqa_download, "load_youtube_api_key", lambda path: "placeholder-key"
+    )
+    monkeypatch.setattr(
+        vqa_download,
+        "prepare_available_manifests",
+        lambda root, key: (_ for _ in ()).throw(
+            RuntimeError("YouTube availability check failed")
+        ),
+    )
+    monkeypatch.setattr(
+        vqa_download, "start_detached", lambda root: calls.append("spawn") or 4242
+    )
+
+    assert main(["start"], repo_root=tmp_path) == 1
+    assert calls == []
+    assert "YouTube availability check failed" in capsys.readouterr().err
 
 
 def test_pid_is_active_rejects_missing_and_stale_pid(tmp_path: Path, monkeypatch):

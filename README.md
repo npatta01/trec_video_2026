@@ -27,12 +27,15 @@ The original NIST ZIPs and metadata are retained even when extracted working cop
 
 ## Verified snapshot
 
-As of 2026-07-15:
+As of 2026-07-16:
 
 - VTT: 10,152/10,152 media files, 3.2 GiB; the full NIST checksum list passed.
-- VQA training originals: 464/481 archived as complete.
+- VQA training originals: 475/481 archived as complete; the API precheck found
+  no additional currently available training videos.
 - VQA testing originals: 1,053/1,982 archived as complete after the proxy proof.
-- VQA data used approximately 3.8 GiB at this snapshot.
+- The YouTube Data API found 833 currently available, unarchived testing videos
+  and 96 unavailable/private unarchived IDs.
+- VQA data used approximately 11 GiB at this snapshot.
 - The first VQA media file was verified with `ffprobe` as 1080×1920 VP9 video plus Opus audio.
 
 The VQA counts change while a download is running. Use the status command for live values.
@@ -56,9 +59,14 @@ Downloader behavior:
 - Uses separate training/testing download archives, partial-file continuation, retries, and per-video error skipping.
 - Paces every attempted URL by 10 seconds and extraction requests by 1.5 seconds; separate video/audio streams do not receive duplicate long sleeps.
 - On a YouTube rate limit, automatically pauses for one hour, then up to two hours on repeated limits, and resumes safely from the download archive.
+- Treats YouTube's `Sign in to confirm you're not a bot` response as a rate
+  limit and enters the same cooldown immediately.
 - Uses the locked `yt-dlp-ejs` component and an absolute Node.js path for complete format extraction in detached sessions.
 - Processes training before testing.
 - Excludes the unavailable IDs listed in the NIST README files.
+- Before every detached start, checks only unarchived IDs through the YouTube
+  Data API in batches of 50 and passes only returned IDs to yt-dlp. API failures
+  abort startup without falling back to the unfiltered list.
 - Resuming is safe: archived successes are skipped and partial files continue.
 
 Operational files:
@@ -67,6 +75,22 @@ Operational files:
 - Downloader PID: `data/vqa/download_runtime/download.pid`
 - Completed IDs: `training.archive.txt` and `testing.archive.txt`
 - Filtered inputs: `training.urls.txt` and `testing.urls.txt`
+- API-confirmed pending inputs: `training.pending-available.urls.txt` and
+  `testing.pending-available.urls.txt`
+- API omissions: `training.unavailable-or-private.txt` and
+  `testing.unavailable-or-private.txt`
+
+### Private YouTube API configuration
+
+Detached starts require `/home/npatta01/.config/trec-video/youtube.env`, owned
+by the current user with mode `0600`, containing a nonempty `YOUTUBE_API_KEY`.
+The downloader binds the validated file through a private file descriptor and
+scrubs any ambient value before sourcing it. The key is not placed in process
+arguments, logs, generated inventories, or Git-tracked files.
+
+The API may omit private, deleted, invalid, or otherwise inaccessible IDs
+without distinguishing the reason. Runtime inventories therefore label all
+omitted IDs `unavailable-or-private`.
 
 ### Private proxy configuration
 

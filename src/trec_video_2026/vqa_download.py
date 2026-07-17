@@ -6,6 +6,7 @@ import argparse
 import csv
 import fcntl
 import ipaddress
+import json
 import os
 import re
 import shutil
@@ -19,14 +20,23 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from urllib.parse import quote
+from urllib.error import URLError
+from urllib.parse import quote, urlencode
+from urllib.request import Request, urlopen
 
 VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 MEDIA_SUFFIXES = {".mkv", ".mp4", ".webm", ".mov"}
 RATE_LIMIT_MARKER = (
     "The current session has been rate-limited by YouTube for up to an hour."
 )
+RATE_LIMIT_MARKERS = (
+    RATE_LIMIT_MARKER,
+    "Sign in to confirm you're not a bot",
+)
 DEFAULT_PROXY_ENV_PATH = Path("/home/npatta01/.config/trec-video/decodo.env")
+DEFAULT_YOUTUBE_API_ENV_PATH = Path(
+    "/home/npatta01/.config/trec-video/youtube.env"
+)
 PROXY_ENV_VARIABLES = ("DECODO_ENDPOINT", "DECODO_USER", "DECODO_PASSWORD")
 WORKER_LOCK_FD_ENV = "VQA_WORKER_LOCK_FD"
 PROCESS_STOP_TIMEOUT = 5.0
@@ -122,6 +132,167 @@ def load_proxy_credentials(
     finally:
         os.close(descriptor)
     return endpoint, username, password
+
+
+def load_youtube_api_key(
+    env_path: Path, runner: Callable[..., object] = subprocess.run
+) -> str:
+    """Load a YouTube API key from a validated private environment file."""
+    descriptor = -1
+    try:
+        descriptor = os.open(env_path, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError as error:
+        message = (
+            "YouTube API key file must not be a symbolic link"
+            if error.errno == getattr(os, "ELOOP", 40)
+            else "Unable to open YouTube API key file"
+        )
+        raise RuntimeError(message) from None
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise RuntimeError("YouTube API key file must be a regular file")
+        if stat.S_IMODE(metadata.st_mode) != 0o600:
+            raise RuntimeError("YouTube API key file must have permissions 0600")
+        if metadata.st_uid != os.getuid():
+            raise RuntimeError(
+                "YouTube API key file must be owned by the current user"
+            )
+        script = (
+            "unset YOUTUBE_API_KEY; "
+            'set -a; source "$1" >/dev/null 2>&1 || exit 1; '
+            'printf "%s\\0" "${YOUTUBE_API_KEY:-}"'
+        )
+        try:
+            environment = dict(os.environ)
+            environment.pop("YOUTUBE_API_KEY", None)
+            result = runner(
+                ["bash", "-c", script, "_", f"/proc/self/fd/{descriptor}"],
+                capture_output=True,
+                check=True,
+                pass_fds=(descriptor,),
+                env=environment,
+            )
+            output = result.stdout
+            if isinstance(output, str):
+                output = output.encode()
+            fields = output.split(b"\0")
+            if len(fields) != 2 or fields[-1] != b"" or not fields[0]:
+                raise ValueError
+            api_key = fields[0].decode()
+        except Exception:
+            raise RuntimeError("Unable to load valid YouTube API key") from None
+    finally:
+        os.close(descriptor)
+    return api_key
+
+
+def fetch_available_video_ids(
+    ids: list[str],
+    api_key: str,
+    opener: Callable[..., object] = urlopen,
+) -> set[str]:
+    """Return IDs visible through the YouTube Data API in batches of 50."""
+    if any(not VIDEO_ID.fullmatch(video_id) for video_id in ids):
+        raise ValueError("Invalid YouTube video ID")
+    available: set[str] = set()
+    failed = False
+    try:
+        for offset in range(0, len(ids), 50):
+            batch = ids[offset : offset + 50]
+            query = urlencode({"part": "status", "id": ",".join(batch)})
+            request = Request(
+                f"https://www.googleapis.com/youtube/v3/videos?{query}",
+                headers={"X-goog-api-key": api_key},
+            )
+            with opener(request, timeout=30) as response:
+                payload = json.loads(response.read())
+            items = payload.get("items") if isinstance(payload, dict) else None
+            if not isinstance(items, list):
+                raise ValueError
+            if any(
+                not isinstance(item, dict)
+                or not isinstance(item.get("id"), str)
+                or not VIDEO_ID.fullmatch(item["id"])
+                for item in items
+            ):
+                raise ValueError
+            returned = {item["id"] for item in items}
+            if not returned <= set(batch):
+                raise ValueError
+            available.update(returned)
+    except (OSError, URLError, UnicodeError, ValueError, TypeError, json.JSONDecodeError):
+        failed = True
+    if failed:
+        raise RuntimeError("YouTube availability check failed") from None
+    return available
+
+
+def _atomic_write_text(path: Path, contents: str) -> None:
+    """Atomically replace a runtime text file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = -1
+    temporary: Path | None = None
+    try:
+        descriptor, name = tempfile.mkstemp(
+            prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+        )
+        temporary = Path(name)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            descriptor = -1
+            handle.write(contents)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        temporary = None
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def prepare_available_manifests(
+    repo_root: Path,
+    api_key: str,
+    fetcher: Callable[[list[str], str], set[str]] = fetch_available_video_ids,
+) -> dict[str, dict[str, int]]:
+    """Write API-confirmed pending URL manifests for both VQA datasets."""
+    runtime = repo_root / "data/vqa/download_runtime"
+    summary: dict[str, dict[str, int]] = {}
+    snapshots: dict[str, tuple[list[str], list[str]]] = {}
+    for name in ("training", "testing"):
+        source = runtime / f"{name}.urls.txt"
+        urls = [line for line in source.read_text(encoding="utf-8").splitlines() if line]
+        ids = [url.rsplit("v=", 1)[-1].split("&", 1)[0] for url in urls]
+        archived = read_archive_ids(runtime / f"{name}.archive.txt")
+        pending = [video_id for video_id in ids if video_id not in archived]
+        available = fetcher(pending, api_key)
+        pending_available = [video_id for video_id in pending if video_id in available]
+        unavailable = [video_id for video_id in pending if video_id not in available]
+        snapshots[name] = (pending_available, unavailable)
+        summary[name] = {
+            "unarchived": len(pending),
+            "pending_available": len(pending_available),
+            "unavailable_or_private": len(unavailable),
+        }
+    for name, (pending_available, unavailable) in snapshots.items():
+        _atomic_write_text(
+            runtime / f"{name}.pending-available.urls.txt",
+            "".join(
+                f"https://www.youtube.com/watch?v={video_id}\n"
+                for video_id in pending_available
+            ),
+        )
+        _atomic_write_text(
+            runtime / f"{name}.unavailable-or-private.txt",
+            "".join(f"{video_id}\n" for video_id in unavailable),
+        )
+    _atomic_write_text(
+        runtime / "youtube-api-availability-summary.json",
+        json.dumps(summary, indent=2) + "\n",
+    )
+    return summary
 
 
 def write_proxy_config(
@@ -576,7 +747,10 @@ def run_url(
     rate_limited = False
     for line in child.stdout:
         print(line, end="", flush=True)
-        rate_limited = rate_limited or RATE_LIMIT_MARKER in line
+        normalized_line = line.replace("’", "'")
+        rate_limited = rate_limited or any(
+            marker in normalized_line for marker in RATE_LIMIT_MARKERS
+        )
     return_code = child.wait()
     return AttemptResult(
         completed=return_code == 0 and not rate_limited,
@@ -641,7 +815,6 @@ def run_downloads(
     """Download training and testing videos sequentially."""
     vqa_root = repo_root / "data/vqa"
     runtime = vqa_root / "download_runtime"
-    prepare_manifests(repo_root)
     datasets = (
         (
             "training",
@@ -654,7 +827,7 @@ def run_downloads(
     )
     try:
         for name, output_dir in datasets:
-            manifest = runtime / f"{name}.urls.txt"
+            manifest = runtime / f"{name}.pending-available.urls.txt"
             archive = runtime / f"{name}.archive.txt"
             run_dataset(
                 manifest,
@@ -720,10 +893,19 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
             return 1
     if args.command == "start":
         try:
+            prepare_manifests(root)
+            api_key = load_youtube_api_key(DEFAULT_YOUTUBE_API_ENV_PATH)
+            availability = prepare_available_manifests(root, api_key)
             pid = start_detached(root)
         except RuntimeError as error:
             print(error, file=sys.stderr)
             return 1
+        for name in ("training", "testing"):
+            counts = availability[name]
+            print(
+                f"{name} API precheck: {counts['pending_available']} available, "
+                f"{counts['unavailable_or_private']} unavailable/private"
+            )
         print(f"started VQA download with PID {pid}")
         print(f"log: {runtime / 'download.log'}")
         return 0
@@ -744,6 +926,18 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
         media = count_final_media(media_dir)
         print(f"{name} completed: {completed}")
         print(f"{name} media files: {media}")
+        pending_path = runtime / f"{name}.pending-available.urls.txt"
+        unavailable_path = runtime / f"{name}.unavailable-or-private.txt"
+        if pending_path.exists():
+            print(
+                f"{name} API-available pending: "
+                f"{len(pending_path.read_text(encoding='utf-8').splitlines())}"
+            )
+        if unavailable_path.exists():
+            print(
+                f"{name} API unavailable/private: "
+                f"{len(unavailable_path.read_text(encoding='utf-8').splitlines())}"
+            )
     print(f"log: {runtime / 'download.log'}")
     return 0
 
