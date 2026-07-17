@@ -30,3 +30,13 @@ The skill addresses private mode-`0600` credentials, Git-ignore/tracking checks,
 ## Concern
 
 None.
+
+## Final integration re-review evidence
+
+- Declared `availability_snapshot_path` is now mandatory and validated even when a legacy manifest projection is configured. Generic status fails closed on a missing/invalid authority. VQA run does the same; VQA status reports `authoritative snapshot: missing` and labels any remaining text-file counts `legacy/non-authoritative`.
+- Failure state is reconciled by ID. Recording a new observed category first removes every older category/retryable entry, and archived success removes the ID from all failures. Tests cover a category change and rate-limit followed by archived success.
+- Generic and VQA status now share live PID reconciliation over persisted `worker_pid` and the detached PID file. An attended live worker is reported running, while stale PID-file values are never printed as current.
+- Focused tests: `uv run pytest -q tests/test_youtube_dataset.py tests/test_vqa_download.py` -> `112 passed in 0.15s`.
+- Full tests: `uv run pytest -q` -> `112 passed in 0.47s`.
+- Safe smoke tests: generic help/status and VQA status against `/var/tmp/task4-final` all exited 0 without reading repository data or credentials, making network calls, or starting workers.
+- Skill validation: `quick_validate.py` -> `Skill is valid!`; `git diff --check` passed.

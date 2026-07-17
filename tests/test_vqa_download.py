@@ -847,6 +847,15 @@ def test_run_downloads_processes_each_training_url_before_testing(tmp_path: Path
     (runtime / "testing.pending-available.urls.txt").write_text(
         "https://www.youtube.com/watch?v=xyzXYZ987-1\n", encoding="utf-8"
     )
+    for name, visible in (
+        ("training", ["abcDEF123_0", "qrsQRS456_2"]),
+        ("testing", ["xyzXYZ987-1"]),
+    ):
+        youtube_dataset._atomic_write_json(
+            runtime / f"{name}.availability-snapshot.json",
+            {"version": 1, "visible": visible, "omitted": [],
+             "counts": {"total": len(visible), "pending_available": len(visible), "api_omitted": 0}},
+        )
     calls: list[list[str]] = []
 
     def runner(command: list[str]) -> AttemptResult:
@@ -1390,6 +1399,7 @@ def test_status_command_reports_stopped_job(tmp_path: Path, capsys):
     assert "last progress: none" in output
     assert "cooldown deadline: none" in output
     assert "retryable failures: 0" in output
+    assert "training authoritative snapshot: missing" in output
 
 
 def test_vqa_run_constructs_dataset_specs_but_preserves_legacy_runtime_paths(tmp_path: Path, monkeypatch):
@@ -1416,8 +1426,16 @@ def test_status_command_preserves_api_inventory_counters(tmp_path: Path, capsys)
 
     assert main(["status"], repo_root=tmp_path) == 0
     output = capsys.readouterr().out
-    assert "training API-available pending: 2" in output
-    assert "training API unavailable/private: 1" in output
+    assert "training legacy/non-authoritative API-available projection: 2" in output
+    assert "training legacy/non-authoritative API-omitted projection: 1" in output
+
+
+def test_vqa_run_requires_declared_authoritative_snapshot(tmp_path: Path):
+    runtime = tmp_path / "data/vqa/download_runtime"
+    runtime.mkdir(parents=True)
+    (runtime / "training.pending-available.urls.txt").write_text("")
+    with pytest.raises(RuntimeError, match="snapshot is invalid"):
+        run_downloads(tmp_path, sleeper=lambda _: None)
 
 
 def test_vqa_status_uses_authoritative_snapshot_over_partial_legacy_pair(tmp_path: Path, capsys):
@@ -1433,6 +1451,33 @@ def test_vqa_status_uses_authoritative_snapshot_over_partial_legacy_pair(tmp_pat
     output = capsys.readouterr().out
     assert "training API-available pending: 1" in output
     assert "training API unavailable/private: 1" in output
+
+
+def test_vqa_status_labels_projection_counts_legacy_when_snapshot_missing(tmp_path: Path, capsys):
+    runtime = tmp_path / "data/vqa/download_runtime"
+    runtime.mkdir(parents=True)
+    (runtime / "training.pending-available.urls.txt").write_text("one\ntwo\n")
+    assert main(["status"], repo_root=tmp_path) == 0
+    output = capsys.readouterr().out
+    assert "training authoritative snapshot: missing" in output
+    assert "training legacy/non-authoritative API-available projection: 2" in output
+    assert "training API-available pending:" not in output
+
+
+def test_vqa_status_uses_live_persisted_worker_pid_and_hides_stale_pid_file(tmp_path: Path, monkeypatch, capsys):
+    runtime = tmp_path / "data/vqa/download_runtime"
+    runtime.mkdir(parents=True)
+    (runtime / "download.pid").write_text("99999999\n")
+    youtube_dataset._atomic_write_json(runtime / "runtime-state.json", {
+        "worker_pid": 4242, "current_id": "abcDEF123_0", "last_progress_at": None,
+        "cooldown_deadline": None, "failures": {}, "retryable_failures": [],
+    })
+    monkeypatch.setattr(youtube_dataset, "_process_active", lambda pid: pid == 4242)
+    assert main(["status"], repo_root=tmp_path) == 0
+    output = capsys.readouterr().out
+    assert "state: running" in output
+    assert "pid: 4242" in output
+    assert "99999999" not in output
 
 
 def test_direct_run_proxy_failure_makes_zero_download_calls(

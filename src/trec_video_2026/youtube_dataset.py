@@ -391,12 +391,27 @@ def _update_runtime_state(path: Path, **changes: object) -> dict[str, object]:
 def _record_failure(path: Path, video_id: str, category: str, retryable: bool) -> None:
     state = _runtime_state(path)
     failures = {key: list(value) for key, value in dict(state["failures"]).items()}
+    for ids in failures.values():
+        while video_id in ids:
+            ids.remove(video_id)
     failures.setdefault(category, [])
     if video_id not in failures[category]:
         failures[category].append(video_id)
-    retries = list(state["retryable_failures"])
+    retries = [item for item in state["retryable_failures"] if item != video_id]
     if retryable and video_id not in retries:
         retries.append(video_id)
+    state.update(failures=failures, retryable_failures=retries)
+    _atomic_write_json(path, state)
+
+
+def _clear_failure(path: Path, video_id: str) -> None:
+    """Remove an ID from every failure inventory after archived success."""
+    state = _runtime_state(path)
+    failures = {
+        key: [item for item in value if item != video_id]
+        for key, value in dict(state["failures"]).items()
+    }
+    retries = [item for item in state["retryable_failures"] if item != video_id]
     state.update(failures=failures, retryable_failures=retries)
     _atomic_write_json(path, state)
 
@@ -599,28 +614,17 @@ def count_lines(path: Path) -> int:
 def dataset_status(spec: DatasetSpec) -> dict[str, object]:
     """Return generic state counts using only paths declared by the spec."""
     archive = spec.state_dir / "download.archive.txt"
-    snapshot_path = spec.state_dir / "availability-snapshot.json"
-    if snapshot_path.exists():
-        counts = _read_availability_snapshot(snapshot_path)["counts"]
-        pending_count = counts["pending_available"]
-        omitted_count = counts["api_omitted"]
-    else:
-        pending = spec.state_dir / "pending-available.urls.txt"
-        omitted = spec.state_dir / "api-omitted.txt"
-        pending_count = count_lines(pending) if pending.exists() else 0
-        omitted_count = count_lines(omitted) if omitted.exists() else 0
-    runtime = _runtime_state(spec.state_dir / "runtime-state.json")
-    pid_path = spec.state_dir / "download.pid"
-    detached_running = pid_is_active(pid_path)
-    detached_pid = (
-        pid_path.read_text(encoding="utf-8").strip()
-        if detached_running and pid_path.exists()
-        else None
+    snapshot_path = (
+        spec.availability_snapshot_path
+        or spec.state_dir / "availability-snapshot.json"
     )
-    runtime_pid = runtime["worker_pid"]
-    runtime_running = isinstance(runtime_pid, int) and _process_active(runtime_pid)
-    running = detached_running or runtime_running
-    pid = detached_pid or (str(runtime_pid) if runtime_running else None)
+    counts = _read_availability_snapshot(snapshot_path)["counts"]
+    pending_count = counts["pending_available"]
+    omitted_count = counts["api_omitted"]
+    worker = worker_status(spec.state_dir)
+    runtime = worker["runtime"]
+    running = worker["running"]
+    pid = worker["pid"]
     return {
         "running": running,
         "pid": pid,
@@ -636,6 +640,23 @@ def dataset_status(spec: DatasetSpec) -> dict[str, object]:
         },
         "retryable_failures": len(runtime["retryable_failures"]),
     }
+
+
+def worker_status(state_dir: Path) -> dict[str, object]:
+    """Return persisted worker details reconciled with validated live PIDs."""
+    runtime = _runtime_state(state_dir / "runtime-state.json")
+    pid_path = state_dir / "download.pid"
+    detached_running = pid_is_active(pid_path)
+    detached_pid = (
+        pid_path.read_text(encoding="utf-8").strip()
+        if detached_running and pid_path.exists()
+        else None
+    )
+    runtime_pid = runtime["worker_pid"]
+    runtime_running = isinstance(runtime_pid, int) and _process_active(runtime_pid)
+    running = detached_running or runtime_running
+    pid = detached_pid or (str(runtime_pid) if runtime_running else None)
+    return {"running": running, "pid": pid, "runtime": runtime}
 
 
 def pid_is_active(pid_path: Path) -> bool:
@@ -938,6 +959,7 @@ def run_dataset(
             result = url_runner(build_ytdlp_command(url, output_dir, archive))
             archived_ids = read_archive_ids(archive)
             if video_id in archived_ids:
+                _clear_failure(state_path, video_id)
                 _update_runtime_state(
                     state_path,
                     last_progress_at=datetime.now(timezone.utc).isoformat(),
@@ -994,7 +1016,17 @@ def run_spec(
         if spec.prepared_manifest_path is None
         else None
     )
-    if snapshot_path is not None and snapshot_path.exists():
+    if spec.availability_snapshot_path is not None:
+        snapshot = _read_availability_snapshot(spec.availability_snapshot_path)
+        manifest = manifest or spec.state_dir / "pending-available.urls.txt"
+        _atomic_write_text(
+            manifest,
+            "".join(
+                f"https://www.youtube.com/watch?v={video_id}\n"
+                for video_id in snapshot["visible"]
+            ),
+        )
+    elif snapshot_path is not None and snapshot_path.exists():
         snapshot = _read_availability_snapshot(snapshot_path)
         manifest = manifest or spec.state_dir / "pending-available.urls.txt"
         _atomic_write_text(

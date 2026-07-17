@@ -242,12 +242,10 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
         print(f"started VQA download with PID {pid}")
         print(f"log: {runtime / 'download.log'}")
         return 0
-    pid_path = runtime / "download.pid"
-    active = pid_is_active(pid_path)
-    pid = pid_path.read_text(encoding="utf-8").strip() if pid_path.exists() else "none"
-    print(f"state: {'running' if active else 'stopped'}")
-    print(f"pid: {pid}")
-    worker_state = _engine._runtime_state(runtime / "runtime-state.json")
+    worker = _engine.worker_status(runtime)
+    print(f"state: {'running' if worker['running'] else 'stopped'}")
+    print(f"pid: {worker['pid'] or 'none'}")
+    worker_state = worker["runtime"]
     print(f"current ID: {worker_state['current_id'] or 'none'}")
     print(f"last progress: {worker_state['last_progress_at'] or 'none'}")
     print(f"cooldown deadline: {worker_state['cooldown_deadline'] or 'none'}")
@@ -286,11 +284,15 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
                 f"{snapshot_counts['api_omitted']}"
             )
         else:
+            print(f"{name} authoritative snapshot: missing")
             if pending.exists():
-                print(f"{name} API-available pending: {_engine.count_lines(pending)}")
+                print(
+                    f"{name} legacy/non-authoritative API-available projection: "
+                    f"{_engine.count_lines(pending)}"
+                )
             if unavailable.exists():
                 print(
-                    f"{name} API unavailable/private: "
+                    f"{name} legacy/non-authoritative API-omitted projection: "
                     f"{_engine.count_lines(unavailable)}"
                 )
     print(f"log: {runtime / 'download.log'}")
