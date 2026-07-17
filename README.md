@@ -78,6 +78,10 @@ writes `data/vqa/download_runtime/yt-dlp-proxy.conf` with mode `0600`. Child
 commands receive only that config path; credentials and the proxy URL are not
 placed on the command line or in Git-tracked files.
 
+`DECODO_ENDPOINT` accepts a DNS hostname or IPv4 literal followed by a numeric
+port (for example, `proxy.example:7000`). Schemes, embedded credentials,
+whitespace, and bracketed IPv6 endpoints are intentionally rejected.
+
 The proxy uses the existing United States sticky session for every request
 needed to complete one video. Do not rotate the session between metadata,
 video, and audio requests. This integration does not alter the provider's

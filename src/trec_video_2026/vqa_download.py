@@ -10,6 +10,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -22,6 +23,7 @@ MEDIA_SUFFIXES = {".mkv", ".mp4", ".webm", ".mov"}
 RATE_LIMIT_MARKER = (
     "The current session has been rate-limited by YouTube for up to an hour."
 )
+DEFAULT_PROXY_ENV_PATH = Path("/home/npatta01/.config/trec-video/decodo.env")
 
 
 @dataclass(frozen=True)
@@ -36,45 +38,57 @@ def load_proxy_credentials(
     env_path: Path, runner: Callable[..., object] = subprocess.run
 ) -> tuple[str, str, str]:
     """Load validated Decodo credentials without exposing their values."""
+    descriptor = -1
     try:
-        metadata = env_path.lstat()
+        descriptor = os.open(env_path, os.O_RDONLY | os.O_NOFOLLOW)
     except OSError as error:
-        raise RuntimeError("Unable to inspect proxy credentials file") from error
-    if stat.S_ISLNK(metadata.st_mode):
-        raise RuntimeError("Proxy credentials file must not be a symbolic link")
-    if stat.S_IMODE(metadata.st_mode) != 0o600:
-        raise RuntimeError("Proxy credentials file must have permissions 0600")
-    if metadata.st_uid != os.getuid():
-        raise RuntimeError("Proxy credentials file must be owned by the current user")
-
-    script = (
-        'set -a; source "$1" >/dev/null 2>&1 || exit 1; '
-        'printf "%s\\0%s\\0%s\\0" "${DECODO_ENDPOINT:-}" '
-        '"${DECODO_USER:-}" "${DECODO_PASSWORD:-}"'
-    )
-    try:
-        result = runner(
-            ["bash", "-c", script, "_", str(env_path)],
-            capture_output=True,
-            check=True,
+        message = (
+            "Proxy credentials file must not be a symbolic link"
+            if error.errno == getattr(os, "ELOOP", 40)
+            else "Unable to open proxy credentials file"
         )
-        output = result.stdout
-        if isinstance(output, str):
-            output = output.encode()
-        fields = output.split(b"\0")
-        if len(fields) != 4 or fields[-1] != b"":
-            raise ValueError
-        endpoint, username, password = (field.decode() for field in fields[:3])
-        endpoint_match = re.fullmatch(r"([^:/@\s]+):(\d{1,5})", endpoint)
-        if (
-            not endpoint_match
-            or not username
-            or not password
-            or not 1 <= int(endpoint_match.group(2)) <= 65535
-        ):
-            raise ValueError
-    except Exception as error:
-        raise RuntimeError("Unable to load valid proxy credentials") from error
+        raise RuntimeError(message) from None
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise RuntimeError("Proxy credentials file must be a regular file")
+        if stat.S_IMODE(metadata.st_mode) != 0o600:
+            raise RuntimeError("Proxy credentials file must have permissions 0600")
+        if metadata.st_uid != os.getuid():
+            raise RuntimeError(
+                "Proxy credentials file must be owned by the current user"
+            )
+        script = (
+            'set -a; source "$1" >/dev/null 2>&1 || exit 1; '
+            'printf "%s\\0%s\\0%s\\0" "${DECODO_ENDPOINT:-}" '
+            '"${DECODO_USER:-}" "${DECODO_PASSWORD:-}"'
+        )
+        try:
+            result = runner(
+                ["bash", "-c", script, "_", f"/proc/self/fd/{descriptor}"],
+                capture_output=True,
+                check=True,
+                pass_fds=(descriptor,),
+            )
+            output = result.stdout
+            if isinstance(output, str):
+                output = output.encode()
+            fields = output.split(b"\0")
+            if len(fields) != 4 or fields[-1] != b"":
+                raise ValueError
+            endpoint, username, password = (field.decode() for field in fields[:3])
+            endpoint_match = re.fullmatch(r"([^:/@\s]+):(\d{1,5})", endpoint)
+            if (
+                not endpoint_match
+                or not username
+                or not password
+                or not 1 <= int(endpoint_match.group(2)) <= 65535
+            ):
+                raise ValueError
+        except Exception:
+            raise RuntimeError("Unable to load valid proxy credentials") from None
+    finally:
+        os.close(descriptor)
     return endpoint, username, password
 
 
@@ -89,23 +103,80 @@ def write_proxy_config(
         f"http://{quote(username, safe='')}:{quote(password, safe='')}@{endpoint}"
     )
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = config_path.with_name(f".{config_path.name}.{os.getpid()}.tmp")
+    descriptor = -1
+    temporary: Path | None = None
     try:
-        descriptor = os.open(
-            temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{config_path.name}.",
+            suffix=".tmp",
+            dir=config_path.parent,
         )
+        temporary = Path(temporary_name)
+        os.fchmod(descriptor, 0o600)
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            descriptor = -1
             handle.write(f"--proxy\n{proxy_url}\n")
-        os.chmod(temporary, 0o600)
-        temporary.replace(config_path)
-        os.chmod(config_path, 0o600)
-    except OSError as error:
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, config_path)
+        temporary = None
+    except Exception:
+        if descriptor >= 0:
+            os.close(descriptor)
         try:
-            temporary.unlink()
-        except FileNotFoundError:
+            if temporary is not None:
+                temporary.unlink()
+        except OSError:
             pass
-        raise RuntimeError("Unable to create private proxy configuration") from error
+        raise RuntimeError("Unable to create private proxy configuration") from None
     return config_path
+
+
+def validate_proxy_config(config_path: Path) -> Path:
+    """Require a regular, current-user, mode-0600 prepared proxy config."""
+    descriptor = -1
+    try:
+        descriptor = os.open(config_path, os.O_RDONLY | os.O_NOFOLLOW)
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+        ):
+            raise OSError
+    except OSError:
+        raise RuntimeError("Prepared proxy configuration is not secure") from None
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    return config_path
+
+
+def _record_pid(pid_path: Path, pid: int) -> None:
+    """Atomically record a child PID without following predictable paths."""
+    descriptor = -1
+    temporary: Path | None = None
+    try:
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{pid_path.name}.", suffix=".tmp", dir=pid_path.parent
+        )
+        temporary = Path(temporary_name)
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            descriptor = -1
+            handle.write(f"{pid}\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, pid_path)
+        temporary = None
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if temporary is not None:
+            try:
+                temporary.unlink()
+            except OSError:
+                pass
 
 
 def count_final_media(media_dir: Path) -> int:
@@ -136,6 +207,7 @@ def start_detached(
     popen: Callable[..., object] = subprocess.Popen,
     node_path: str | None = None,
     proxy_env_path: Path | None = None,
+    credential_runner: Callable[..., object] = subprocess.run,
 ) -> int:
     """Start the download worker detached and return its PID."""
     runtime = repo_root / "data/vqa/download_runtime"
@@ -149,11 +221,11 @@ def start_detached(
     resolved_node = node_path or shutil.which("node")
     if not resolved_node:
         raise RuntimeError("Node.js is required for complete YouTube format extraction")
-    credentials = proxy_env_path or Path(
-        "/home/npatta01/.config/trec-video/decodo.env"
-    )
+    credentials = proxy_env_path or DEFAULT_PROXY_ENV_PATH
     proxy_config = write_proxy_config(
-        credentials, runtime / "yt-dlp-proxy.conf"
+        credentials,
+        runtime / "yt-dlp-proxy.conf",
+        runner=credential_runner,
     )
     environment = dict(os.environ)
     for variable in ("DECODO_ENDPOINT", "DECODO_USER", "DECODO_PASSWORD"):
@@ -162,18 +234,36 @@ def start_detached(
     environment["VQA_PROXY_CONFIG_PATH"] = str(proxy_config)
     log_path = runtime / "download.log"
     with log_path.open("a", encoding="utf-8") as log_handle:
-        child = popen(
-            [sys.executable, "-m", "trec_video_2026.vqa_download", "run"],
-            cwd=repo_root,
-            stdout=log_handle,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-            env=environment,
-        )
-    pid = int(child.pid)
-    temporary_pid_path = runtime / "download.pid.tmp"
-    temporary_pid_path.write_text(f"{pid}\n", encoding="utf-8")
-    temporary_pid_path.replace(pid_path)
+        try:
+            child = popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "trec_video_2026.vqa_download",
+                    "run",
+                    "--detached-worker",
+                ],
+                cwd=repo_root,
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                env=environment,
+            )
+        except Exception:
+            raise RuntimeError("Unable to start detached VQA worker") from None
+    try:
+        pid = int(child.pid)
+        _record_pid(pid_path, pid)
+    except Exception:
+        try:
+            child.terminate()
+        except Exception:
+            pass
+        try:
+            child.wait()
+        except Exception:
+            pass
+        raise RuntimeError("Unable to record detached VQA worker PID") from None
     return pid
 
 
@@ -400,6 +490,7 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
     """Run manifest preparation, worker, detached launch, or status reporting."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("prepare", "run", "start", "status"))
+    parser.add_argument("--detached-worker", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     root = repo_root or Path(__file__).resolve().parents[2]
     runtime = root / "data/vqa/download_runtime"
@@ -410,6 +501,20 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
         print(f"testing URLs: {counts['testing']}")
         return 0
     if args.command == "run":
+        try:
+            if args.detached_worker:
+                config_value = os.environ.get("VQA_PROXY_CONFIG_PATH")
+                if not config_value:
+                    raise RuntimeError("Prepared proxy configuration is required")
+                validate_proxy_config(Path(config_value))
+            else:
+                config_path = write_proxy_config(
+                    DEFAULT_PROXY_ENV_PATH, runtime / "yt-dlp-proxy.conf"
+                )
+                os.environ["VQA_PROXY_CONFIG_PATH"] = str(config_path)
+        except RuntimeError as error:
+            print(error, file=sys.stderr)
+            return 1
         return run_downloads(root)
     if args.command == "start":
         try:

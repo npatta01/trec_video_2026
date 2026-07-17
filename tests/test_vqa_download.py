@@ -1,6 +1,7 @@
 import os
 import stat
 import subprocess
+import traceback
 from pathlib import Path
 
 import pytest
@@ -49,9 +50,44 @@ def test_proxy_credentials_loads_nul_delimited_placeholders(tmp_path: Path):
         "user/name",
         "p@ss word",
     )
-    assert captured["command"][-1] == str(env_path)
+    assert captured["command"][-1].startswith("/proc/self/fd/")
+    assert captured["pass_fds"]
     assert captured["capture_output"] is True
     assert captured["check"] is True
+
+
+def test_proxy_credentials_stays_bound_to_open_inode_during_path_replacement(
+    tmp_path: Path,
+):
+    env_path = _secure_env(tmp_path / "proxy.env")
+    replacement = _secure_env(tmp_path / "replacement.env")
+    replacement.write_text("replacement\n", encoding="utf-8")
+    observed = {}
+    original_inode = env_path.stat().st_ino
+
+    def runner(command, **kwargs):
+        env_path.unlink()
+        env_path.symlink_to(replacement)
+        fd_path = Path(command[-1])
+        observed["inode"] = fd_path.stat().st_ino
+        observed["contents"] = fd_path.read_text(encoding="utf-8")
+        return subprocess.CompletedProcess(
+            command, 0, stdout=b"proxy.example:7000\0user\0password\0"
+        )
+
+    assert load_proxy_credentials(env_path, runner=runner)[0] == (
+        "proxy.example:7000"
+    )
+    assert observed == {"inode": original_inode, "contents": "placeholder only\n"}
+
+
+def test_proxy_credentials_rejects_non_regular_file(tmp_path: Path):
+    env_path = tmp_path / "proxy.env"
+    env_path.mkdir()
+    env_path.chmod(0o600)
+
+    with pytest.raises(RuntimeError, match="regular file"):
+        load_proxy_credentials(env_path, runner=lambda *args, **kwargs: None)
 
 
 def test_proxy_config_url_encodes_credentials_and_is_mode_0600(tmp_path: Path):
@@ -120,7 +156,59 @@ def test_proxy_credentials_sanitizes_runner_failure(tmp_path: Path):
 
     with pytest.raises(RuntimeError) as caught:
         load_proxy_credentials(env_path, runner=runner)
-    assert placeholder_secret not in str(caught.value)
+    rendered = "".join(
+        traceback.format_exception(type(caught.value), caught.value, caught.value.__traceback__)
+    )
+    assert caught.value.__cause__ is None
+    assert caught.value.__suppress_context__ is True
+    assert placeholder_secret not in rendered
+    assert placeholder_secret not in repr(caught.value)
+
+
+def test_proxy_errors_hide_all_placeholder_authority_values(tmp_path: Path):
+    env_path = _secure_env(tmp_path / "proxy.env")
+    values = (
+        "placeholder.example:7000",
+        "placeholder/user",
+        "placeholder@password",
+    )
+    encoded_url = (
+        "http://placeholder%2Fuser:placeholder%40password@"
+        "placeholder.example:7000"
+    )
+
+    def runner(command, **kwargs):
+        raise RuntimeError(" ".join((*values, encoded_url)))
+
+    with pytest.raises(RuntimeError) as caught:
+        write_proxy_config(env_path, tmp_path / "proxy.conf", runner=runner)
+    rendered = "".join(
+        traceback.format_exception(type(caught.value), caught.value, caught.value.__traceback__)
+    )
+    assert caught.value.__cause__ is None
+    assert caught.value.__suppress_context__ is True
+    for protected in (*values, encoded_url):
+        assert protected not in rendered
+        assert protected not in repr(caught.value)
+
+
+def test_proxy_config_does_not_chmod_replaced_destination(
+    tmp_path: Path, monkeypatch
+):
+    env_path = _secure_env(tmp_path / "proxy.env")
+    config_path = tmp_path / "runtime/proxy.conf"
+
+    def runner(command, **kwargs):
+        return subprocess.CompletedProcess(
+            command, 0, stdout=b"proxy.example:7000\0user\0password\0"
+        )
+
+    def forbidden_chmod(*args, **kwargs):
+        raise AssertionError("path chmod must not be used")
+
+    monkeypatch.setattr(os, "chmod", forbidden_chmod)
+    assert write_proxy_config(env_path, config_path, runner=runner) == config_path
+    assert stat.S_IMODE(config_path.stat().st_mode) == 0o600
 
 
 def test_run_dataset_paces_every_ordinary_url(tmp_path: Path):
@@ -493,6 +581,7 @@ def test_start_detached_records_child_pid_and_node_path(
     assert captured["cwd"] == tmp_path
     assert captured["stderr"] == -2
     assert captured["env"]["VQA_NODE_PATH"] == "/opt/node/bin/node"
+    assert "--detached-worker" in captured["command"]
 
 
 def test_start_detached_prepares_private_proxy_config_without_leaking_secrets(
@@ -537,6 +626,187 @@ def test_start_detached_prepares_private_proxy_config_without_leaking_secrets(
     )
 
 
+def test_start_detached_real_placeholder_config_is_private_and_child_visible(
+    tmp_path: Path,
+):
+    runtime = tmp_path / "data/vqa/download_runtime"
+    env_path = _secure_env(tmp_path / "proxy.env")
+    captured: dict[str, object] = {}
+
+    def credential_runner(command, **kwargs):
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=b"proxy.example:7000\0placeholder/user\0placeholder@pass\0",
+        )
+
+    class Child:
+        pid = 4242
+
+    def popen(command: list[str], **kwargs):
+        captured["command"] = command
+        captured.update(kwargs)
+        return Child()
+
+    assert start_detached(
+        tmp_path,
+        popen=popen,
+        node_path="/opt/node/bin/node",
+        proxy_env_path=env_path,
+        credential_runner=credential_runner,
+    ) == 4242
+    config_path = runtime / "yt-dlp-proxy.conf"
+    assert captured["env"]["VQA_PROXY_CONFIG_PATH"] == str(config_path)
+    assert stat.S_IMODE(config_path.stat().st_mode) == 0o600
+    protected = (
+        "proxy.example:7000",
+        "placeholder/user",
+        "placeholder@pass",
+        "placeholder%2Fuser",
+        "placeholder%40pass",
+    )
+    captured_text = repr({k: v for k, v in captured.items() if k != "stdout"})
+    log_text = (runtime / "download.log").read_text(encoding="utf-8")
+    for value in protected:
+        assert value not in captured_text
+        assert value not in log_text
+
+
+class _CleanupChild:
+    pid = 4242
+
+    def __init__(self):
+        self.terminated = False
+        self.waited = False
+
+    def terminate(self):
+        self.terminated = True
+
+    def wait(self):
+        self.waited = True
+
+
+def test_start_detached_cleans_child_when_pid_write_fails(tmp_path: Path, monkeypatch):
+    child = _CleanupChild()
+    monkeypatch.setattr(
+        vqa_download,
+        "write_proxy_config",
+        lambda source, target, runner=subprocess.run: target,
+    )
+    monkeypatch.setattr(
+        vqa_download,
+        "_record_pid",
+        lambda path, pid: (_ for _ in ()).throw(OSError("placeholder secret")),
+    )
+
+    with pytest.raises(RuntimeError) as caught:
+        start_detached(
+            tmp_path,
+            popen=lambda *args, **kwargs: child,
+            node_path="/opt/node/bin/node",
+            proxy_env_path=tmp_path / "placeholder.env",
+        )
+    assert child.terminated and child.waited
+    assert caught.value.__cause__ is None
+    assert "placeholder secret" not in repr(caught.value)
+
+
+def test_start_detached_cleans_child_when_spawned_pid_is_invalid(
+    tmp_path: Path, monkeypatch
+):
+    child = _CleanupChild()
+    child.pid = "not-a-pid"
+    monkeypatch.setattr(
+        vqa_download,
+        "write_proxy_config",
+        lambda source, target, runner=subprocess.run: target,
+    )
+
+    with pytest.raises(RuntimeError, match="record"):
+        start_detached(
+            tmp_path,
+            popen=lambda *args, **kwargs: child,
+            node_path="/opt/node/bin/node",
+            proxy_env_path=tmp_path / "placeholder.env",
+        )
+    assert child.terminated and child.waited
+
+
+def test_start_detached_cleans_child_when_pid_replace_fails(
+    tmp_path: Path, monkeypatch
+):
+    child = _CleanupChild()
+    monkeypatch.setattr(
+        vqa_download,
+        "write_proxy_config",
+        lambda source, target, runner=subprocess.run: target,
+    )
+    original_replace = os.replace
+
+    def fail_pid_replace(source, destination):
+        if Path(destination).name == "download.pid":
+            raise OSError("replace failed")
+        return original_replace(source, destination)
+
+    monkeypatch.setattr(os, "replace", fail_pid_replace)
+    with pytest.raises(RuntimeError):
+        start_detached(
+            tmp_path,
+            popen=lambda *args, **kwargs: child,
+            node_path="/opt/node/bin/node",
+            proxy_env_path=tmp_path / "placeholder.env",
+        )
+    assert child.terminated and child.waited
+
+
+def test_start_detached_pid_temp_does_not_follow_predictable_symlink(
+    tmp_path: Path, monkeypatch
+):
+    runtime = tmp_path / "data/vqa/download_runtime"
+    runtime.mkdir(parents=True)
+    victim = tmp_path / "victim"
+    victim.write_text("keep\n", encoding="utf-8")
+    (runtime / "download.pid.tmp").symlink_to(victim)
+    monkeypatch.setattr(
+        vqa_download,
+        "write_proxy_config",
+        lambda source, target, runner=subprocess.run: target,
+    )
+
+    assert start_detached(
+        tmp_path,
+        popen=lambda *args, **kwargs: _CleanupChild(),
+        node_path="/opt/node/bin/node",
+        proxy_env_path=tmp_path / "placeholder.env",
+    ) == 4242
+    assert victim.read_text(encoding="utf-8") == "keep\n"
+
+
+def test_start_detached_sanitizes_spawn_failure(tmp_path: Path, monkeypatch):
+    placeholder = "placeholder-secret-spawn"
+    monkeypatch.setattr(
+        vqa_download,
+        "write_proxy_config",
+        lambda source, target, runner=subprocess.run: target,
+    )
+
+    def fail_spawn(*args, **kwargs):
+        raise OSError(placeholder)
+
+    with pytest.raises(RuntimeError) as caught:
+        start_detached(
+            tmp_path,
+            popen=fail_spawn,
+            node_path="/opt/node/bin/node",
+            proxy_env_path=tmp_path / "placeholder.env",
+        )
+    rendered = "".join(
+        traceback.format_exception(type(caught.value), caught.value, caught.value.__traceback__)
+    )
+    assert placeholder not in rendered
+    assert caught.value.__suppress_context__ is True
+
+
 def test_start_detached_rejects_an_active_job(tmp_path: Path):
     runtime = tmp_path / "data/vqa/download_runtime"
     runtime.mkdir(parents=True)
@@ -569,6 +839,40 @@ def test_status_command_reports_stopped_job(tmp_path: Path, capsys):
     assert "state: stopped" in output
     assert "training completed: 0" in output
     assert "testing completed: 0" in output
+
+
+def test_direct_run_proxy_failure_makes_zero_download_calls(
+    tmp_path: Path, monkeypatch, capsys
+):
+    calls = []
+    monkeypatch.setattr(
+        vqa_download,
+        "write_proxy_config",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("sanitized")),
+    )
+    monkeypatch.setattr(
+        vqa_download, "run_downloads", lambda root: calls.append(root) or 0
+    )
+
+    assert main(["run"], repo_root=tmp_path) == 1
+    assert calls == []
+    assert "sanitized" in capsys.readouterr().err
+
+
+def test_detached_worker_requires_valid_private_proxy_before_download(
+    tmp_path: Path, monkeypatch
+):
+    config_path = tmp_path / "proxy.conf"
+    config_path.write_text("placeholder\n", encoding="utf-8")
+    config_path.chmod(0o640)
+    calls = []
+    monkeypatch.setenv("VQA_PROXY_CONFIG_PATH", str(config_path))
+    monkeypatch.setattr(
+        vqa_download, "run_downloads", lambda root: calls.append(root) or 0
+    )
+
+    assert main(["run", "--detached-worker"], repo_root=tmp_path) == 1
+    assert calls == []
 
 
 def test_count_final_media_excludes_unmerged_format_fragments(tmp_path: Path):
