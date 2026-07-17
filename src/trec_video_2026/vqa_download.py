@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import csv
+import fcntl
+import ipaddress
 import os
 import re
 import shutil
@@ -13,6 +15,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -24,6 +27,8 @@ RATE_LIMIT_MARKER = (
     "The current session has been rate-limited by YouTube for up to an hour."
 )
 DEFAULT_PROXY_ENV_PATH = Path("/home/npatta01/.config/trec-video/decodo.env")
+PROXY_ENV_VARIABLES = ("DECODO_ENDPOINT", "DECODO_USER", "DECODO_PASSWORD")
+PROCESS_STOP_TIMEOUT = 5.0
 
 
 @dataclass(frozen=True)
@@ -32,6 +37,20 @@ class AttemptResult:
 
     completed: bool
     rate_limited: bool
+
+
+def _valid_proxy_host(host: str) -> bool:
+    """Return whether host is an IPv4 literal or RFC-style DNS hostname."""
+    try:
+        return isinstance(ipaddress.ip_address(host), ipaddress.IPv4Address)
+    except ValueError:
+        pass
+    if not host or len(host) > 253 or all(character in ".0123456789" for character in host):
+        return False
+    label_pattern = re.compile(
+        r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+    )
+    return all(label_pattern.fullmatch(label) for label in host.split("."))
 
 
 def load_proxy_credentials(
@@ -80,6 +99,7 @@ def load_proxy_credentials(
             endpoint_match = re.fullmatch(r"([^:/@\s]+):(\d{1,5})", endpoint)
             if (
                 not endpoint_match
+                or not _valid_proxy_host(endpoint_match.group(1))
                 or not username
                 or not password
                 or not 1 <= int(endpoint_match.group(2)) <= 65535
@@ -152,6 +172,57 @@ def validate_proxy_config(config_path: Path) -> Path:
     return config_path
 
 
+def _open_proxy_config(config_path: Path) -> int:
+    """Open and validate a proxy config for descriptor-bound child use."""
+    descriptor = -1
+    try:
+        descriptor = os.open(config_path, os.O_RDONLY | os.O_NOFOLLOW)
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+        ):
+            raise OSError
+    except OSError:
+        if descriptor >= 0:
+            os.close(descriptor)
+        raise RuntimeError("Prepared proxy configuration is not secure") from None
+    return descriptor
+
+
+@contextmanager
+def _startup_lock(runtime: Path):
+    """Hold the secure per-runtime startup lock without blocking."""
+    descriptor = -1
+    try:
+        descriptor = os.open(
+            runtime / "startup.lock",
+            os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW,
+            0o600,
+        )
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid():
+            raise OSError
+        os.fchmod(descriptor, 0o600)
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError("VQA download startup already in progress") from None
+        yield
+    except RuntimeError:
+        raise
+    except OSError:
+        raise RuntimeError("Unable to secure VQA download startup lock") from None
+    finally:
+        if descriptor >= 0:
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+            except OSError:
+                pass
+            os.close(descriptor)
+
+
 def _record_pid(pid_path: Path, pid: int) -> None:
     """Atomically record a child PID without following predictable paths."""
     descriptor = -1
@@ -212,6 +283,27 @@ def start_detached(
     """Start the download worker detached and return its PID."""
     runtime = repo_root / "data/vqa/download_runtime"
     runtime.mkdir(parents=True, exist_ok=True)
+    with _startup_lock(runtime):
+        return _start_detached_locked(
+            repo_root,
+            runtime,
+            popen=popen,
+            node_path=node_path,
+            proxy_env_path=proxy_env_path,
+            credential_runner=credential_runner,
+        )
+
+
+def _start_detached_locked(
+    repo_root: Path,
+    runtime: Path,
+    *,
+    popen: Callable[..., object],
+    node_path: str | None,
+    proxy_env_path: Path | None,
+    credential_runner: Callable[..., object],
+) -> int:
+    """Start a detached worker while the caller holds the startup lock."""
     pid_path = runtime / "download.pid"
     if pid_is_active(pid_path):
         raise RuntimeError(
@@ -228,7 +320,7 @@ def start_detached(
         runner=credential_runner,
     )
     environment = dict(os.environ)
-    for variable in ("DECODO_ENDPOINT", "DECODO_USER", "DECODO_PASSWORD"):
+    for variable in PROXY_ENV_VARIABLES:
         environment.pop(variable, None)
     environment["VQA_NODE_PATH"] = resolved_node
     environment["VQA_PROXY_CONFIG_PATH"] = str(proxy_config)
@@ -255,16 +347,32 @@ def start_detached(
         pid = int(child.pid)
         _record_pid(pid_path, pid)
     except Exception:
-        try:
-            child.terminate()
-        except Exception:
-            pass
-        try:
-            child.wait()
-        except Exception:
-            pass
+        _rollback_child(child)
         raise RuntimeError("Unable to record detached VQA worker PID") from None
     return pid
+
+
+def _rollback_child(child: object) -> None:
+    """Bound termination of a spawned worker, escalating to kill on timeout."""
+    try:
+        child.terminate()
+    except Exception:
+        pass
+    try:
+        child.wait(timeout=PROCESS_STOP_TIMEOUT)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+    except Exception:
+        return
+    try:
+        child.kill()
+    except Exception:
+        pass
+    try:
+        child.wait(timeout=PROCESS_STOP_TIMEOUT)
+    except Exception:
+        pass
 
 
 def read_video_ids(csv_path: Path) -> list[str]:
@@ -383,13 +491,28 @@ def run_url(
     command: list[str], popen: Callable[..., object] = subprocess.Popen
 ) -> AttemptResult:
     """Run one URL while streaming output and classifying rate limiting."""
-    child = popen(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-    )
+    child_command = command.copy()
+    descriptor = -1
+    try:
+        if "--config-locations" in child_command:
+            config_index = child_command.index("--config-locations") + 1
+            descriptor = _open_proxy_config(Path(child_command[config_index]))
+            child_command[config_index] = f"/proc/self/fd/{descriptor}"
+        environment = dict(os.environ)
+        for variable in PROXY_ENV_VARIABLES:
+            environment.pop(variable, None)
+        child = popen(
+            child_command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            env=environment,
+            pass_fds=(descriptor,) if descriptor >= 0 else (),
+        )
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
     rate_limited = False
     for line in child.stdout:
         print(line, end="", flush=True)
@@ -512,6 +635,8 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
                     DEFAULT_PROXY_ENV_PATH, runtime / "yt-dlp-proxy.conf"
                 )
                 os.environ["VQA_PROXY_CONFIG_PATH"] = str(config_path)
+            for variable in PROXY_ENV_VARIABLES:
+                os.environ.pop(variable, None)
         except RuntimeError as error:
             print(error, file=sys.stderr)
             return 1

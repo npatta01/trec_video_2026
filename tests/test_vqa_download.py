@@ -1,3 +1,4 @@
+import fcntl
 import os
 import stat
 import subprocess
@@ -145,6 +146,31 @@ def test_proxy_credentials_rejects_missing_or_invalid_values(
         load_proxy_credentials(env_path, runner=runner)
 
 
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "999.1.1.1:7000",
+        "proxy_name.example:7000",
+        "...:7000",
+        "-proxy.example:7000",
+        "proxy-.example:7000",
+        "[2001:db8::1]:7000",
+    ],
+)
+def test_proxy_credentials_rejects_non_dns_non_ipv4_endpoints(
+    tmp_path: Path, endpoint: str
+):
+    env_path = _secure_env(tmp_path / "proxy.env")
+
+    def runner(command, **kwargs):
+        output = f"{endpoint}\0user\0password\0".encode()
+        return subprocess.CompletedProcess(command, 0, stdout=output)
+
+    with pytest.raises(RuntimeError, match="credentials") as caught:
+        load_proxy_credentials(env_path, runner=runner)
+    assert endpoint not in repr(caught.value)
+
+
 def test_proxy_credentials_sanitizes_runner_failure(tmp_path: Path):
     env_path = _secure_env(tmp_path / "proxy.env")
     placeholder_secret = "PLACEHOLDER-SECRET-DO-NOT-LEAK"
@@ -232,6 +258,35 @@ def test_run_dataset_paces_every_ordinary_url(tmp_path: Path):
 
     assert len(calls) == 2
     assert sleeps == [10.0, 10.0]
+
+
+def test_run_dataset_never_overlaps_video_runners(tmp_path: Path):
+    manifest = tmp_path / "urls.txt"
+    manifest.write_text(
+        "https://www.youtube.com/watch?v=abcDEF123_0\n"
+        "https://www.youtube.com/watch?v=xyzXYZ987-1\n",
+        encoding="utf-8",
+    )
+    archive = tmp_path / "archive.txt"
+    active = 0
+    maximum_active = 0
+
+    def runner(command: list[str]) -> AttemptResult:
+        nonlocal active, maximum_active
+        assert active == 0
+        active += 1
+        maximum_active = max(maximum_active, active)
+        active -= 1
+        return AttemptResult(False, False)
+
+    run_dataset(
+        manifest,
+        tmp_path / "videos",
+        archive,
+        url_runner=runner,
+        sleeper=lambda _: None,
+    )
+    assert maximum_active == 1
 
 
 def test_run_dataset_retries_ordinary_failures_after_archive_progress(
@@ -453,6 +508,47 @@ def test_run_url_zero_exit_without_marker_is_completed():
     result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
 
     assert result == AttemptResult(completed=True, rate_limited=False)
+
+
+def test_run_url_binds_validated_proxy_config_inode_at_spawn(tmp_path: Path):
+    config_path = tmp_path / "proxy.conf"
+    config_path.write_text("original placeholder config\n", encoding="utf-8")
+    config_path.chmod(0o600)
+    original_inode = config_path.stat().st_ino
+    replacement = tmp_path / "replacement.conf"
+    replacement.write_text("replacement\n", encoding="utf-8")
+    replacement.chmod(0o600)
+    observed = {}
+
+    class Child:
+        stdout = iter(())
+
+        def wait(self):
+            return 0
+
+    def popen(command, **kwargs):
+        config_path.unlink()
+        config_path.symlink_to(replacement)
+        fd_path = Path(command[command.index("--config-locations") + 1])
+        observed["path"] = str(fd_path)
+        observed["inode"] = fd_path.stat().st_ino
+        observed["contents"] = fd_path.read_text(encoding="utf-8")
+        observed["pass_fds"] = kwargs["pass_fds"]
+        return Child()
+
+    command = build_ytdlp_command(
+        "https://www.youtube.com/watch?v=abcDEF123_0",
+        tmp_path / "videos",
+        tmp_path / "archive.txt",
+        proxy_config=config_path,
+    )
+    assert run_url(command, popen=popen).completed is True
+    assert observed["path"].startswith("/proc/self/fd/")
+    assert observed["inode"] == original_inode
+    assert observed["contents"] == "original placeholder config\n"
+    descriptor = observed["pass_fds"][0]
+    with pytest.raises(OSError):
+        os.fstat(descriptor)
 
 
 @pytest.mark.parametrize(
@@ -682,7 +778,7 @@ class _CleanupChild:
     def terminate(self):
         self.terminated = True
 
-    def wait(self):
+    def wait(self, timeout=None):
         self.waited = True
 
 
@@ -759,6 +855,49 @@ def test_start_detached_cleans_child_when_pid_replace_fails(
     assert child.terminated and child.waited
 
 
+def test_start_detached_escalates_to_kill_when_rollback_wait_times_out(
+    tmp_path: Path, monkeypatch
+):
+    class Child(_CleanupChild):
+        def __init__(self):
+            super().__init__()
+            self.killed = False
+            self.wait_timeouts = []
+
+        def wait(self, timeout=None):
+            self.wait_timeouts.append(timeout)
+            if len(self.wait_timeouts) == 1:
+                raise subprocess.TimeoutExpired("worker", timeout)
+            self.waited = True
+
+        def kill(self):
+            self.killed = True
+
+    child = Child()
+    monkeypatch.setattr(
+        vqa_download,
+        "write_proxy_config",
+        lambda source, target, runner=subprocess.run: target,
+    )
+    monkeypatch.setattr(
+        vqa_download,
+        "_record_pid",
+        lambda path, pid: (_ for _ in ()).throw(OSError("primary placeholder")),
+    )
+
+    with pytest.raises(RuntimeError) as caught:
+        start_detached(
+            tmp_path,
+            popen=lambda *args, **kwargs: child,
+            node_path="/opt/node/bin/node",
+            proxy_env_path=tmp_path / "placeholder.env",
+        )
+    assert child.terminated and child.killed and child.waited
+    assert len(child.wait_timeouts) == 2
+    assert all(timeout is not None for timeout in child.wait_timeouts)
+    assert "primary placeholder" not in repr(caught.value)
+
+
 def test_start_detached_pid_temp_does_not_follow_predictable_symlink(
     tmp_path: Path, monkeypatch
 ):
@@ -816,6 +955,35 @@ def test_start_detached_rejects_an_active_job(tmp_path: Path):
         start_detached(tmp_path)
 
 
+def test_start_detached_rejects_concurrent_startup_lock_without_spawn(
+    tmp_path: Path, monkeypatch
+):
+    runtime = tmp_path / "data/vqa/download_runtime"
+    runtime.mkdir(parents=True)
+    lock_path = runtime / "startup.lock"
+    lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    os.fchmod(lock_fd, 0o600)
+    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    calls = []
+    monkeypatch.setattr(
+        vqa_download,
+        "write_proxy_config",
+        lambda *args, **kwargs: calls.append("config"),
+    )
+    try:
+        with pytest.raises(RuntimeError, match="startup already in progress"):
+            start_detached(
+                tmp_path,
+                popen=lambda *args, **kwargs: calls.append("spawn"),
+                node_path="/opt/node/bin/node",
+                proxy_env_path=tmp_path / "placeholder.env",
+            )
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        os.close(lock_fd)
+    assert calls == []
+
+
 def test_prepare_manifests_reports_usable_counts(tmp_path: Path):
     training = tmp_path / "data/vqa/2025/training"
     testing = tmp_path / "data/vqa/2025/testing"
@@ -857,6 +1025,76 @@ def test_direct_run_proxy_failure_makes_zero_download_calls(
     assert main(["run"], repo_root=tmp_path) == 1
     assert calls == []
     assert "sanitized" in capsys.readouterr().err
+
+
+def test_direct_run_scrubs_credentials_and_uses_private_bound_config(
+    tmp_path: Path, monkeypatch
+):
+    protected = (
+        "direct.example:7000",
+        "direct/user",
+        "direct@password",
+        "direct%2Fuser",
+        "direct%40password",
+        "http://direct%2Fuser:direct%40password@direct.example:7000",
+    )
+    monkeypatch.setenv("DECODO_ENDPOINT", protected[0])
+    monkeypatch.setenv("DECODO_USER", protected[1])
+    monkeypatch.setenv("DECODO_PASSWORD", protected[2])
+    original_writer = write_proxy_config
+
+    def placeholder_writer(source, target):
+        env_path = _secure_env(tmp_path / "direct.env")
+
+        def credential_runner(command, **kwargs):
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=b"direct.example:7000\0direct/user\0direct@password\0",
+            )
+
+        return original_writer(env_path, target, runner=credential_runner)
+
+    captured = {}
+
+    class Child:
+        stdout = iter(())
+
+        def wait(self):
+            return 0
+
+    def download_runner(root):
+        config_path = Path(os.environ["VQA_PROXY_CONFIG_PATH"])
+        captured["config_path"] = config_path
+        captured["mode"] = stat.S_IMODE(config_path.stat().st_mode)
+        command = build_ytdlp_command(
+            "https://www.youtube.com/watch?v=abcDEF123_0",
+            tmp_path / "videos",
+            tmp_path / "archive.txt",
+        )
+
+        def popen(argv, **kwargs):
+            captured["argv"] = argv
+            captured["kwargs"] = kwargs
+            return Child()
+
+        run_url(command, popen=popen)
+        return 0
+
+    monkeypatch.setattr(vqa_download, "write_proxy_config", placeholder_writer)
+    monkeypatch.setattr(vqa_download, "run_downloads", download_runner)
+    assert main(["run"], repo_root=tmp_path) == 0
+    assert captured["mode"] == 0o600
+    assert captured["config_path"] == (
+        tmp_path / "data/vqa/download_runtime/yt-dlp-proxy.conf"
+    )
+    assert captured["argv"][captured["argv"].index("--config-locations") + 1].startswith(
+        "/proc/self/fd/"
+    )
+    assert not any(name.startswith("DECODO_") for name in captured["kwargs"]["env"])
+    rendered = repr(captured)
+    for value in protected:
+        assert value not in rendered
 
 
 def test_detached_worker_requires_valid_private_proxy_before_download(
