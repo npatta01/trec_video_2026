@@ -1,6 +1,7 @@
 """Tests for the single generic YouTube dataset download engine."""
 
 from pathlib import Path
+import json
 import subprocess
 
 import pytest
@@ -110,6 +111,102 @@ def test_run_url_classifies_bad_gateway_as_proxy_failure():
     assert result.proxy_failure is True
 
 
+@pytest.mark.parametrize("line", [
+    "ERROR: HTTP Error 429: Too Many Requests\n",
+    "ERROR: Unable to download webpage: HTTP Error 429\n",
+])
+def test_run_url_classifies_explicit_http_429_as_rate_limit(line):
+    class Child:
+        stdout = iter([line])
+        def wait(self): return 1
+    result = youtube_dataset.run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
+    assert result.rate_limited is True
+
+
+def test_run_url_does_not_treat_unrelated_429_digits_as_rate_limit():
+    class Child:
+        stdout = iter(["[download] 429 bytes received\n"])
+        def wait(self): return 1
+    assert youtube_dataset.run_url(["yt-dlp", "url"], popen=lambda *a, **k: Child()).rate_limited is False
+
+
+def test_prepare_publishes_one_authoritative_atomic_snapshot(tmp_path: Path, monkeypatch):
+    spec = youtube_dataset.DatasetSpec(tmp_path / "source.txt", tmp_path / "media", tmp_path / "state")
+    spec.source.write_text("abcDEF123_0\nxyzXYZ987-1\n")
+    youtube_dataset.prepare_dataset(spec, "key", fetcher=lambda ids, key: {ids[0]})
+    snapshot = json.loads((spec.state_dir / "availability-snapshot.json").read_text())
+    assert snapshot["visible"] == ["abcDEF123_0"]
+    assert snapshot["omitted"] == ["xyzXYZ987-1"]
+    assert snapshot["counts"] == {"total": 2, "pending_available": 1, "api_omitted": 1}
+
+
+def test_snapshot_remains_authoritative_if_legacy_projection_fails(tmp_path: Path, monkeypatch):
+    spec = youtube_dataset.DatasetSpec(tmp_path / "source.txt", tmp_path / "media", tmp_path / "state")
+    spec.source.write_text("abcDEF123_0\n")
+    original = youtube_dataset._atomic_write_text
+    def injected(path, contents):
+        if path.name == "pending-available.urls.txt":
+            raise OSError("injected")
+        return original(path, contents)
+    monkeypatch.setattr(youtube_dataset, "_atomic_write_text", injected)
+    with pytest.raises(OSError, match="injected"):
+        youtube_dataset.prepare_dataset(spec, "key", fetcher=lambda ids, key: set(ids))
+    assert json.loads((spec.state_dir / "availability-snapshot.json").read_text())["visible"] == ["abcDEF123_0"]
+
+
+def test_snapshot_publication_failure_preserves_previous_authority(tmp_path: Path, monkeypatch):
+    spec = youtube_dataset.DatasetSpec(tmp_path / "source.txt", tmp_path / "media", tmp_path / "state")
+    spec.source.write_text("abcDEF123_0\n")
+    spec.state_dir.mkdir()
+    snapshot_path = spec.state_dir / "availability-snapshot.json"
+    old = {"version": 1, "visible": [], "omitted": ["abcDEF123_0"], "counts": {"total": 1, "pending_available": 0, "api_omitted": 1}}
+    youtube_dataset._atomic_write_json(snapshot_path, old)
+    original_replace = youtube_dataset.os.replace
+    def fail_snapshot_replace(source, destination):
+        if Path(destination) == snapshot_path:
+            raise OSError("injected publication failure")
+        return original_replace(source, destination)
+    monkeypatch.setattr(youtube_dataset.os, "replace", fail_snapshot_replace)
+    with pytest.raises(OSError, match="injected publication failure"):
+        youtube_dataset.prepare_dataset(spec, "key", fetcher=lambda ids, key: set(ids))
+    assert json.loads(snapshot_path.read_text()) == old
+
+
+def test_run_spec_derives_manifest_from_authoritative_snapshot(tmp_path: Path, monkeypatch):
+    spec = youtube_dataset.DatasetSpec(tmp_path / "source", tmp_path / "media", tmp_path / "state")
+    spec.state_dir.mkdir()
+    youtube_dataset._atomic_write_json(spec.state_dir / "availability-snapshot.json", {
+        "version": 1, "visible": ["abcDEF123_0"], "omitted": [],
+        "counts": {"total": 1, "pending_available": 1, "api_omitted": 0},
+    })
+    (spec.state_dir / "pending-available.urls.txt").write_text("https://www.youtube.com/watch?v=xyzXYZ987-1\n")
+    calls = []
+    youtube_dataset.run_spec(spec, url_runner=lambda command: calls.append(command[-1]) or youtube_dataset.AttemptResult(False, False), sleeper=lambda _: None)
+    assert calls == ["https://www.youtube.com/watch?v=abcDEF123_0"]
+
+
+def test_runtime_state_persists_progress_cooldown_and_failure_categories(tmp_path: Path):
+    manifest = tmp_path / "pending.txt"
+    archive = tmp_path / "download.archive.txt"
+    manifest.write_text("https://www.youtube.com/watch?v=abcDEF123_0\n")
+    sleeps = []
+    attempts = iter([
+        youtube_dataset.AttemptResult(False, True, failure_category="rate_limit", retryable=True),
+        youtube_dataset.AttemptResult(False, False, failure_category="retryable", retryable=True),
+    ])
+    youtube_dataset.run_dataset(
+        manifest, tmp_path / "media", archive,
+        url_runner=lambda command: next(attempts),
+        sleeper=lambda seconds: sleeps.append(json.loads((tmp_path / "runtime-state.json").read_text())["cooldown_deadline"]),
+        initial_cooldown=0,
+    )
+    state = json.loads((tmp_path / "runtime-state.json").read_text())
+    assert sleeps[0] is not None
+    assert state["cooldown_deadline"] is None
+    assert state["failures"]["rate_limit"] == ["abcDEF123_0"]
+    assert state["retryable_failures"] == ["abcDEF123_0"]
+
+
 def test_non_vqa_dataset_spec_drives_api_preparation_and_run_paths(tmp_path: Path, monkeypatch):
     spec = youtube_dataset.DatasetSpec(
         source=tmp_path / "arbitrary/input.txt",
@@ -148,7 +245,10 @@ def test_non_vqa_dataset_spec_drives_api_preparation_and_run_paths(tmp_path: Pat
     assert calls[0][-1] == "https://www.youtube.com/watch?v=abcDEF123_0"
     assert any(str(spec.output_dir) in argument for argument in calls[0])
     assert str(spec.state_dir / "download.archive.txt") in calls[0]
-    assert youtube_dataset.dataset_status(spec) == {
+    status = youtube_dataset.dataset_status(spec)
+    assert {key: status[key] for key in (
+        "running", "completed", "media_files", "pending_available", "api_omitted"
+    )} == {
         "running": False,
         "completed": 0,
         "media_files": 0,
@@ -250,6 +350,26 @@ def test_generic_status_uses_shared_status_without_preflight(tmp_path: Path, mon
     output = capsys.readouterr().out
     assert "state: stopped" in output
     assert "completed: 2" in output
+
+
+def test_generic_status_prints_persisted_progress_cooldown_and_failures(tmp_path: Path, monkeypatch, capsys):
+    state_dir = tmp_path / "state"
+    youtube_dataset._atomic_write_json(state_dir / "runtime-state.json", {
+        "worker_pid": None, "current_id": None,
+        "last_progress_at": "2026-07-17T12:00:00+00:00",
+        "cooldown_deadline": "2026-07-17T13:00:00+00:00",
+        "failures": {"private": ["abcDEF123_0"], "members_only": ["xyzXYZ987-1"]},
+        "retryable_failures": ["qrsQRS456_2"],
+    })
+    monkeypatch.setattr(youtube_dataset, "refuse_git_tracked_runtime_paths", lambda *args: None)
+    assert youtube_dataset.main(_generic_args(tmp_path, "status")) == 0
+    output = capsys.readouterr().out
+    assert "pid: none" in output
+    assert "last progress: 2026-07-17T12:00:00+00:00" in output
+    assert "cooldown deadline: 2026-07-17T13:00:00+00:00" in output
+    assert "failures private: 1" in output
+    assert "failures members-only: 1" in output
+    assert "retryable failures: 1" in output
 
 
 def test_git_tracked_output_or_state_is_refused_unless_overridden(tmp_path: Path, monkeypatch):

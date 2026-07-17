@@ -46,6 +46,7 @@ class DatasetSpec:
     state_dir: Path
     archive_path: Path | None = None
     prepared_manifest_path: Path | None = None
+    availability_snapshot_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,8 @@ class AttemptResult:
     completed: bool
     rate_limited: bool
     proxy_failure: bool = False
+    failure_category: str | None = None
+    retryable: bool = False
 
 
 @dataclass
@@ -276,6 +279,20 @@ def prepare_dataset(
     available = fetcher(pending, api_key)
     visible = [video_id for video_id in pending if video_id in available]
     omitted = [video_id for video_id in pending if video_id not in available]
+    summary = {
+        "total": len(pending),
+        "pending_available": len(visible),
+        "api_omitted": len(omitted),
+    }
+    _atomic_write_json(
+        spec.state_dir / "availability-snapshot.json",
+        {
+            "version": 1,
+            "visible": visible,
+            "omitted": omitted,
+            "counts": summary,
+        },
+    )
     _atomic_write_text(
         spec.state_dir / "pending-available.urls.txt",
         "".join(f"https://www.youtube.com/watch?v={video_id}\n" for video_id in visible),
@@ -284,7 +301,7 @@ def prepare_dataset(
         spec.state_dir / "api-omitted.txt",
         "".join(f"{video_id}\n" for video_id in omitted),
     )
-    return {"total": len(pending), "pending_available": len(visible), "api_omitted": len(omitted)}
+    return summary
 
 
 def _atomic_write_text(path: Path, contents: str) -> None:
@@ -309,6 +326,79 @@ def _atomic_write_text(path: Path, contents: str) -> None:
             os.close(descriptor)
         if temporary is not None:
             temporary.unlink(missing_ok=True)
+
+
+def _atomic_write_json(path: Path, value: object) -> None:
+    """Atomically replace a machine-readable state document."""
+    _atomic_write_text(path, json.dumps(value, sort_keys=True, indent=2) + "\n")
+
+
+def _read_availability_snapshot(path: Path) -> dict[str, object]:
+    """Read and strictly validate the authoritative API availability snapshot."""
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+        visible = value["visible"]
+        omitted = value["omitted"]
+        counts = value["counts"]
+        if (
+            value.get("version") != 1
+            or not isinstance(visible, list)
+            or not isinstance(omitted, list)
+            or any(
+                not isinstance(item, str) or not VIDEO_ID.fullmatch(item)
+                for item in visible + omitted
+            )
+            or len(set(visible + omitted)) != len(visible + omitted)
+            or counts != {
+                "total": len(visible) + len(omitted),
+                "pending_available": len(visible),
+                "api_omitted": len(omitted),
+            }
+        ):
+            raise ValueError
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        raise RuntimeError("Authoritative availability snapshot is invalid") from None
+    return value
+
+
+def _runtime_state(path: Path) -> dict[str, object]:
+    default = {
+        "worker_pid": None,
+        "current_id": None,
+        "last_progress_at": None,
+        "cooldown_deadline": None,
+        "failures": {},
+        "retryable_failures": [],
+    }
+    if not path.exists():
+        return default
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(loaded, dict):
+            raise ValueError
+    except (OSError, ValueError, json.JSONDecodeError):
+        raise RuntimeError("Runtime state is invalid") from None
+    return default | loaded
+
+
+def _update_runtime_state(path: Path, **changes: object) -> dict[str, object]:
+    state = _runtime_state(path)
+    state.update(changes)
+    _atomic_write_json(path, state)
+    return state
+
+
+def _record_failure(path: Path, video_id: str, category: str, retryable: bool) -> None:
+    state = _runtime_state(path)
+    failures = {key: list(value) for key, value in dict(state["failures"]).items()}
+    failures.setdefault(category, [])
+    if video_id not in failures[category]:
+        failures[category].append(video_id)
+    retries = list(state["retryable_failures"])
+    if retryable and video_id not in retries:
+        retries.append(video_id)
+    state.update(failures=failures, retryable_failures=retries)
+    _atomic_write_json(path, state)
 
 
 def write_proxy_config(
@@ -506,17 +596,45 @@ def count_lines(path: Path) -> int:
     return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line)
 
 
-def dataset_status(spec: DatasetSpec) -> dict[str, int | bool]:
+def dataset_status(spec: DatasetSpec) -> dict[str, object]:
     """Return generic state counts using only paths declared by the spec."""
     archive = spec.state_dir / "download.archive.txt"
-    pending = spec.state_dir / "pending-available.urls.txt"
-    omitted = spec.state_dir / "api-omitted.txt"
+    snapshot_path = spec.state_dir / "availability-snapshot.json"
+    if snapshot_path.exists():
+        counts = _read_availability_snapshot(snapshot_path)["counts"]
+        pending_count = counts["pending_available"]
+        omitted_count = counts["api_omitted"]
+    else:
+        pending = spec.state_dir / "pending-available.urls.txt"
+        omitted = spec.state_dir / "api-omitted.txt"
+        pending_count = count_lines(pending) if pending.exists() else 0
+        omitted_count = count_lines(omitted) if omitted.exists() else 0
+    runtime = _runtime_state(spec.state_dir / "runtime-state.json")
+    pid_path = spec.state_dir / "download.pid"
+    detached_running = pid_is_active(pid_path)
+    detached_pid = (
+        pid_path.read_text(encoding="utf-8").strip()
+        if detached_running and pid_path.exists()
+        else None
+    )
+    runtime_pid = runtime["worker_pid"]
+    runtime_running = isinstance(runtime_pid, int) and _process_active(runtime_pid)
+    running = detached_running or runtime_running
+    pid = detached_pid or (str(runtime_pid) if runtime_running else None)
     return {
-        "running": pid_is_active(spec.state_dir / "download.pid"),
+        "running": running,
+        "pid": pid,
+        "current_id": runtime["current_id"],
         "completed": count_lines(archive) if archive.exists() else 0,
         "media_files": count_final_media(spec.output_dir),
-        "pending_available": count_lines(pending) if pending.exists() else 0,
-        "api_omitted": count_lines(omitted) if omitted.exists() else 0,
+        "pending_available": pending_count,
+        "api_omitted": omitted_count,
+        "last_progress_at": runtime["last_progress_at"],
+        "cooldown_deadline": runtime["cooldown_deadline"],
+        "failure_counts": {
+            key: len(value) for key, value in dict(runtime["failures"]).items()
+        },
+        "retryable_failures": len(runtime["retryable_failures"]),
     }
 
 
@@ -526,6 +644,16 @@ def pid_is_active(pid_path: Path) -> bool:
         pid = int(pid_path.read_text(encoding="utf-8").strip())
         os.kill(pid, 0)
     except (FileNotFoundError, ValueError, ProcessLookupError):
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _process_active(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
         return False
     except PermissionError:
         return True
@@ -602,6 +730,7 @@ def _start_detached_locked(
     try:
         pid = int(child.pid)
         _record_pid(pid_path, pid)
+        _update_runtime_state(runtime / "runtime-state.json", worker_pid=pid)
     except Exception:
         _rollback_child(child)
         raise RuntimeError("Unable to record detached YouTube dataset worker PID") from None
@@ -720,20 +849,59 @@ def run_url(
             os.close(descriptor)
     rate_limited = False
     proxy_failure = False
+    failure_category = None
     for line in child.stdout:
         print(line, end="", flush=True)
         normalized_line = line.replace("’", "'")
-        rate_limited = rate_limited or any(
-            marker in normalized_line for marker in RATE_LIMIT_MARKERS
+        rate_limited = (
+            rate_limited
+            or any(marker in normalized_line for marker in RATE_LIMIT_MARKERS)
+            or bool(
+                re.search(
+                    r"(?:HTTP Error 429\b|\bToo Many Requests\b)",
+                    normalized_line,
+                    re.I,
+                )
+            )
         )
         proxy_failure = proxy_failure or (
             "502" in normalized_line and "proxy" in normalized_line.lower()
         )
+        lowered = normalized_line.lower()
+        if "members-only" in lowered or "members only" in lowered:
+            failure_category = "members_only"
+        elif "private video" in lowered or "video is private" in lowered:
+            failure_category = "private"
+        elif "age-restricted" in lowered or "age restricted" in lowered:
+            failure_category = "authentication_required"
+        elif "sign in" in lowered and (
+            "confirm your age" in lowered or "authentication" in lowered
+        ):
+            failure_category = "authentication_required"
+        elif (
+            "video unavailable" in lowered
+            or "video is unavailable" in lowered
+            or "not available" in lowered
+            or "isn't available" in lowered
+        ):
+            failure_category = "unavailable"
     return_code = child.wait()
     return AttemptResult(
         completed=return_code == 0 and not rate_limited,
         rate_limited=rate_limited,
         proxy_failure=proxy_failure,
+        failure_category=(
+            "rate_limit"
+            if rate_limited
+            else "proxy_transport"
+            if proxy_failure
+            else failure_category or ("retryable" if return_code else None)
+        ),
+        retryable=(
+            rate_limited
+            or proxy_failure
+            or (return_code != 0 and failure_category is None)
+        ),
     )
 
 
@@ -756,6 +924,7 @@ def run_dataset(
         if url
     ]
     cooldown = initial_cooldown
+    state_path = archive.parent / "runtime-state.json"
     while True:
         archived_ids = read_archive_ids(archive)
         archived_at_pass_start = archived_ids.copy()
@@ -765,8 +934,18 @@ def run_dataset(
             video_id = url.rsplit("v=", 1)[-1].split("&", 1)[0]
             if video_id in archived_ids:
                 continue
+            _update_runtime_state(state_path, current_id=video_id)
             result = url_runner(build_ytdlp_command(url, output_dir, archive))
             archived_ids = read_archive_ids(archive)
+            if video_id in archived_ids:
+                _update_runtime_state(
+                    state_path,
+                    last_progress_at=datetime.now(timezone.utc).isoformat(),
+                )
+            elif result.failure_category:
+                _record_failure(
+                    state_path, video_id, result.failure_category, result.retryable
+                )
             if result.rate_limited:
                 retry_utc = datetime.now(timezone.utc) + timedelta(seconds=cooldown)
                 retry_local = retry_utc.astimezone()
@@ -776,7 +955,11 @@ def run_dataset(
                     f"{retry_local.isoformat()} local.",
                     flush=True,
                 )
+                _update_runtime_state(
+                    state_path, cooldown_deadline=retry_utc.isoformat()
+                )
                 sleeper(cooldown)
+                _update_runtime_state(state_path, cooldown_deadline=None)
                 cooldown = min(cooldown * 2, maximum_cooldown)
                 rate_limited = True
                 break
@@ -784,6 +967,7 @@ def run_dataset(
                 consecutive_proxy_failures += 1
                 if consecutive_proxy_failures >= maximum_consecutive_proxy_failures:
                     print("Repeated proxy transport failures; stopping this pass.", flush=True)
+                    _update_runtime_state(state_path, current_id=None)
                     return
             else:
                 consecutive_proxy_failures = 0
@@ -792,6 +976,7 @@ def run_dataset(
                 cooldown = initial_cooldown
         made_progress = bool(archived_ids - archived_at_pass_start)
         if not rate_limited and not made_progress:
+            _update_runtime_state(state_path, current_id=None, cooldown_deadline=None)
             return
 
 
@@ -803,16 +988,40 @@ def run_spec(
     config: DownloadConfig | None = None,
 ) -> None:
     """Run the prepared manifest and state paths declared by a dataset spec."""
-    run_dataset(
-        spec.prepared_manifest_path or spec.state_dir / "pending-available.urls.txt",
-        spec.output_dir,
-        spec.archive_path or spec.state_dir / "download.archive.txt",
-        url_runner=url_runner,
-        sleeper=sleeper,
-        ordinary_delay=config.ordinary_delay if config else 10.0,
-        initial_cooldown=config.initial_cooldown if config else 3600.0,
-        maximum_cooldown=config.maximum_cooldown if config else 7200.0,
+    manifest = spec.prepared_manifest_path
+    snapshot_path = spec.availability_snapshot_path or (
+        spec.state_dir / "availability-snapshot.json"
+        if spec.prepared_manifest_path is None
+        else None
     )
+    if snapshot_path is not None and snapshot_path.exists():
+        snapshot = _read_availability_snapshot(snapshot_path)
+        manifest = manifest or spec.state_dir / "pending-available.urls.txt"
+        _atomic_write_text(
+            manifest,
+            "".join(
+                f"https://www.youtube.com/watch?v={video_id}\n"
+                for video_id in snapshot["visible"]
+            ),
+        )
+    elif manifest is None:
+        raise RuntimeError("Authoritative availability snapshot is required")
+    _update_runtime_state(spec.state_dir / "runtime-state.json", worker_pid=os.getpid())
+    try:
+        run_dataset(
+            manifest,
+            spec.output_dir,
+            spec.archive_path or spec.state_dir / "download.archive.txt",
+            url_runner=url_runner,
+            sleeper=sleeper,
+            ordinary_delay=config.ordinary_delay if config else 10.0,
+            initial_cooldown=config.initial_cooldown if config else 3600.0,
+            maximum_cooldown=config.maximum_cooldown if config else 7200.0,
+        )
+    finally:
+        _update_runtime_state(
+            spec.state_dir / "runtime-state.json", worker_pid=None, current_id=None
+        )
 
 
 def _git_tracked(path: Path) -> bool:
@@ -927,8 +1136,24 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "status":
             status = dataset_status(spec)
             print(f"state: {'running' if status['running'] else 'stopped'}")
+            print(f"pid: {status.get('pid') or 'none'}")
+            print(f"current ID: {status.get('current_id') or 'none'}")
             for name in ("completed", "media_files", "pending_available", "api_omitted"):
                 print(f"{name.replace('_', ' ')}: {status[name]}")
+            print(f"last progress: {status.get('last_progress_at') or 'none'}")
+            print(f"cooldown deadline: {status.get('cooldown_deadline') or 'none'}")
+            failure_counts = status.get("failure_counts", {})
+            for category in (
+                "private",
+                "unavailable",
+                "members_only",
+                "authentication_required",
+                "proxy_transport",
+                "rate_limit",
+                "retryable",
+            ):
+                print(f"failures {category.replace('_', '-')}: {failure_counts.get(category, 0)}")
+            print(f"retryable failures: {status.get('retryable_failures', 0)}")
             print(f"log: {spec.state_dir / 'download.log'}")
             return 0
         spec.state_dir.mkdir(parents=True, exist_ok=True)

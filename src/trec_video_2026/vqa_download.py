@@ -142,6 +142,19 @@ def prepare_available_manifests(repo_root: Path, api_key: str, fetcher=fetch_ava
             "unavailable_or_private": len(omitted),
         }
     for name, (visible, omitted) in snapshots.items():
+        _engine._atomic_write_json(
+            runtime / f"{name}.availability-snapshot.json",
+            {
+                "version": 1,
+                "visible": visible,
+                "omitted": omitted,
+                "counts": {
+                    "total": len(visible) + len(omitted),
+                    "pending_available": len(visible),
+                    "api_omitted": len(omitted),
+                },
+            },
+        )
         _engine._atomic_write_text(runtime / f"{name}.pending-available.urls.txt", "".join(f"https://www.youtube.com/watch?v={video_id}\n" for video_id in visible))
         _engine._atomic_write_text(runtime / f"{name}.unavailable-or-private.txt", "".join(f"{video_id}\n" for video_id in omitted))
     return summary
@@ -158,6 +171,8 @@ def run_downloads(repo_root: Path, runner=run_url, sleeper=None) -> int:
                 archive_path=runtime / f"{name}.archive.txt",
                 prepared_manifest_path=runtime
                 / f"{name}.pending-available.urls.txt",
+                availability_snapshot_path=runtime
+                / f"{name}.availability-snapshot.json",
             )
             kwargs = {"url_runner": runner}
             if sleeper is not None:
@@ -232,6 +247,23 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
     pid = pid_path.read_text(encoding="utf-8").strip() if pid_path.exists() else "none"
     print(f"state: {'running' if active else 'stopped'}")
     print(f"pid: {pid}")
+    worker_state = _engine._runtime_state(runtime / "runtime-state.json")
+    print(f"current ID: {worker_state['current_id'] or 'none'}")
+    print(f"last progress: {worker_state['last_progress_at'] or 'none'}")
+    print(f"cooldown deadline: {worker_state['cooldown_deadline'] or 'none'}")
+    failure_counts = {
+        category: len(ids)
+        for category, ids in dict(worker_state["failures"]).items()
+    }
+    for category in (
+        "private", "unavailable", "members_only", "authentication_required",
+        "proxy_transport", "rate_limit", "retryable",
+    ):
+        print(
+            f"failures {category.replace('_', '-')}: "
+            f"{failure_counts.get(category, 0)}"
+        )
+    print(f"retryable failures: {len(worker_state['retryable_failures'])}")
     for name in ("training", "testing"):
         archive = runtime / f"{name}.archive.txt"
         completed = len(archive.read_text(encoding="utf-8").splitlines()) if archive.exists() else 0
@@ -240,10 +272,27 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
         print(f"{name} media files: {media}")
         pending = runtime / f"{name}.pending-available.urls.txt"
         unavailable = runtime / f"{name}.unavailable-or-private.txt"
-        if pending.exists():
-            print(f"{name} API-available pending: {_engine.count_lines(pending)}")
-        if unavailable.exists():
-            print(f"{name} API unavailable/private: {_engine.count_lines(unavailable)}")
+        snapshot_path = runtime / f"{name}.availability-snapshot.json"
+        if snapshot_path.exists():
+            snapshot_counts = _engine._read_availability_snapshot(snapshot_path)[
+                "counts"
+            ]
+            print(
+                f"{name} API-available pending: "
+                f"{snapshot_counts['pending_available']}"
+            )
+            print(
+                f"{name} API unavailable/private: "
+                f"{snapshot_counts['api_omitted']}"
+            )
+        else:
+            if pending.exists():
+                print(f"{name} API-available pending: {_engine.count_lines(pending)}")
+            if unavailable.exists():
+                print(
+                    f"{name} API unavailable/private: "
+                    f"{_engine.count_lines(unavailable)}"
+                )
     print(f"log: {runtime / 'download.log'}")
     return 0
 

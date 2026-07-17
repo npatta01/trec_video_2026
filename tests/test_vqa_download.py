@@ -706,7 +706,7 @@ def test_run_url_streams_output_and_detects_rate_limit(capsys):
 
     result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
 
-    assert result == AttemptResult(completed=False, rate_limited=True)
+    assert result == AttemptResult(completed=False, rate_limited=True, failure_category="rate_limit", retryable=True)
     assert "progress" in capsys.readouterr().out
 
 
@@ -776,7 +776,7 @@ def test_run_url_zero_exit_with_marker_is_rate_limited_and_incomplete(marker: st
 
     result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
 
-    assert result == AttemptResult(completed=False, rate_limited=True)
+    assert result == AttemptResult(completed=False, rate_limited=True, failure_category="rate_limit", retryable=True)
 
 
 def test_run_url_detects_youtube_session_rate_limit_wording():
@@ -794,7 +794,7 @@ def test_run_url_detects_youtube_session_rate_limit_wording():
 
     result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
 
-    assert result == AttemptResult(completed=False, rate_limited=True)
+    assert result == AttemptResult(completed=False, rate_limited=True, failure_category="rate_limit", retryable=True)
 
 
 @pytest.mark.parametrize(
@@ -813,18 +813,18 @@ def test_run_url_classifies_bot_checks_as_rate_limits(output: str):
 
     result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
 
-    assert result == AttemptResult(completed=False, rate_limited=True)
+    assert result == AttemptResult(completed=False, rate_limited=True, failure_category="rate_limit", retryable=True)
 
 
 @pytest.mark.parametrize(
-    "output",
+    ("output", "category"),
     [
-        "ERROR: This video is private\n",
-        "ERROR: Video unavailable\n",
-        "ERROR: This content isn't available, try again later.\n",
+        ("ERROR: This video is private\n", "private"),
+        ("ERROR: Video unavailable\n", "unavailable"),
+        ("ERROR: This content isn't available, try again later.\n", "unavailable"),
     ],
 )
-def test_run_url_does_not_classify_other_errors_as_rate_limits(output: str):
+def test_run_url_does_not_classify_other_errors_as_rate_limits(output: str, category: str):
     class Child:
         stdout = iter([output])
 
@@ -833,7 +833,7 @@ def test_run_url_does_not_classify_other_errors_as_rate_limits(output: str):
 
     result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
 
-    assert result == AttemptResult(completed=False, rate_limited=False)
+    assert result == AttemptResult(completed=False, rate_limited=False, failure_category=category)
 
 
 def test_run_downloads_processes_each_training_url_before_testing(tmp_path: Path):
@@ -1387,6 +1387,9 @@ def test_status_command_reports_stopped_job(tmp_path: Path, capsys):
     assert "state: stopped" in output
     assert "training completed: 0" in output
     assert "testing completed: 0" in output
+    assert "last progress: none" in output
+    assert "cooldown deadline: none" in output
+    assert "retryable failures: 0" in output
 
 
 def test_vqa_run_constructs_dataset_specs_but_preserves_legacy_runtime_paths(tmp_path: Path, monkeypatch):
@@ -1399,8 +1402,8 @@ def test_vqa_run_constructs_dataset_specs_but_preserves_legacy_runtime_paths(tmp
     assert vqa_download.run_downloads(tmp_path, sleeper=lambda _: None) == 0
     runtime = tmp_path / "data/vqa/download_runtime"
     assert [item[0] for item in seen] == [
-        youtube_dataset.DatasetSpec(runtime / "training.pending-available.urls.txt", tmp_path / "data/vqa/2025/training/videos_original", runtime, runtime / "training.archive.txt", runtime / "training.pending-available.urls.txt"),
-        youtube_dataset.DatasetSpec(runtime / "testing.pending-available.urls.txt", tmp_path / "data/vqa/2025/testing/videos_original", runtime, runtime / "testing.archive.txt", runtime / "testing.pending-available.urls.txt"),
+        youtube_dataset.DatasetSpec(runtime / "training.pending-available.urls.txt", tmp_path / "data/vqa/2025/training/videos_original", runtime, runtime / "training.archive.txt", runtime / "training.pending-available.urls.txt", runtime / "training.availability-snapshot.json"),
+        youtube_dataset.DatasetSpec(runtime / "testing.pending-available.urls.txt", tmp_path / "data/vqa/2025/testing/videos_original", runtime, runtime / "testing.archive.txt", runtime / "testing.pending-available.urls.txt", runtime / "testing.availability-snapshot.json"),
     ]
     assert all(item[1]["sleeper"] is not None for item in seen)
 
@@ -1414,6 +1417,21 @@ def test_status_command_preserves_api_inventory_counters(tmp_path: Path, capsys)
     assert main(["status"], repo_root=tmp_path) == 0
     output = capsys.readouterr().out
     assert "training API-available pending: 2" in output
+    assert "training API unavailable/private: 1" in output
+
+
+def test_vqa_status_uses_authoritative_snapshot_over_partial_legacy_pair(tmp_path: Path, capsys):
+    runtime = tmp_path / "data/vqa/download_runtime"
+    runtime.mkdir(parents=True)
+    (runtime / "training.pending-available.urls.txt").write_text("wrong\nwrong\n")
+    youtube_dataset._atomic_write_json(
+        runtime / "training.availability-snapshot.json",
+        {"version": 1, "visible": ["abcDEF123_0"], "omitted": ["xyzXYZ987-1"],
+         "counts": {"total": 2, "pending_available": 1, "api_omitted": 1}},
+    )
+    assert main(["status"], repo_root=tmp_path) == 0
+    output = capsys.readouterr().out
+    assert "training API-available pending: 1" in output
     assert "training API unavailable/private: 1" in output
 
 
