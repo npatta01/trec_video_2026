@@ -27,15 +27,19 @@ The original NIST ZIPs and metadata are retained even when extracted working cop
 
 ## Verified snapshot
 
-As of 2026-07-16:
+As of 2026-07-17:
 
 - VTT: 10,152/10,152 media files, 3.2 GiB; the full NIST checksum list passed.
 - VQA training originals: 475/481 archived as complete; the API precheck found
   no additional currently available training videos.
-- VQA testing originals: 1,053/1,982 archived as complete after the proxy proof.
-- The YouTube Data API found 833 currently available, unarchived testing videos
-  and 96 unavailable/private unarchived IDs.
-- VQA data used approximately 11 GiB at this snapshot.
+- VQA testing originals: 1,883/1,982 archived as complete. The final proxy run
+  downloaded 830 additional videos after API prefiltering.
+- The YouTube Data API omitted 96 unarchived testing IDs. Three API-visible IDs
+  also remained inaccessible to an unauthenticated downloader:
+  - `y2Ouj_3UnII`: members-only.
+  - `pau76KtNeeg`: unavailable when yt-dlp attempted it.
+  - `mOP7QZfMEjE`: age-restricted and requires authentication.
+- VQA data used approximately 13 GiB at this snapshot.
 - The first VQA media file was verified with `ffprobe` as 1080×1920 VP9 video plus Opus audio.
 
 The VQA counts change while a download is running. Use the status command for live values.
@@ -50,6 +54,12 @@ uv run vqa-download prepare  # regenerate filtered URL manifests
 uv run vqa-download status   # show PID, archive counts, and media counts
 uv run vqa-download start    # detached, resumable training-then-testing run
 ```
+
+`vqa-download` is a TRECVID path/configuration adapter over the same shared
+engine exposed by `youtube-dataset-download`. For generic newline-delimited
+YouTube ID/URL datasets, use the repository skill at
+`.agents/skills/downloading-youtube-datasets/` and the generic CLI; there is no
+second downloader implementation.
 
 Downloader behavior:
 
