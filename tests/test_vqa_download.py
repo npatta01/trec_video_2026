@@ -103,16 +103,16 @@ def test_fetch_available_video_ids_sanitizes_api_errors():
         captured["header"] = request.get_header("X-goog-api-key")
         raise urllib.error.URLError("placeholder-key")
 
-    with pytest.raises(RuntimeError, match="YouTube availability check failed") as error:
+    with pytest.raises(
+        RuntimeError, match="YouTube availability check failed"
+    ) as error:
         vqa_download.fetch_available_video_ids(
             ["abcDEF123_0"], "placeholder-key", opener=opener
         )
 
     assert "placeholder-key" not in str(error.value)
     assert error.value.__context__ is None
-    assert "placeholder-key" not in "".join(
-        traceback.format_exception(error.value)
-    )
+    assert "placeholder-key" not in "".join(traceback.format_exception(error.value))
     assert "placeholder-key" not in captured["url"]
     assert captured["header"] == "placeholder-key"
 
@@ -130,7 +130,9 @@ def test_fetch_available_video_ids_rejects_malformed_items():
 
     with pytest.raises(RuntimeError, match="YouTube availability check failed"):
         vqa_download.fetch_available_video_ids(
-            ["abcDEF123_0"], "placeholder-key", opener=lambda *args, **kwargs: Response()
+            ["abcDEF123_0"],
+            "placeholder-key",
+            opener=lambda *args, **kwargs: Response(),
         )
 
 
@@ -230,8 +232,8 @@ def test_proxy_credentials_loads_nul_delimited_placeholders(tmp_path: Path):
     assert captured["capture_output"] is True
     assert captured["check"] is True
     assert not any(name in captured["env"] for name in vqa_download.PROXY_ENV_VARIABLES)
-    assert "unset DECODO_ENDPOINT DECODO_USER DECODO_PASSWORD" in (
-        captured["command"][2]
+    assert (
+        "unset DECODO_ENDPOINT DECODO_USER DECODO_PASSWORD" in (captured["command"][2])
     )
 
 
@@ -249,9 +251,7 @@ def test_proxy_credentials_missing_file_value_cannot_fall_back_to_ambient(
     env_path = tmp_path / "proxy.env"
     env_path.write_text(
         "\n".join(
-            f"{name}={value}"
-            for name, value in ambient.items()
-            if name != missing
+            f"{name}={value}" for name, value in ambient.items() if name != missing
         )
         + "\n",
         encoding="utf-8",
@@ -261,7 +261,9 @@ def test_proxy_credentials_missing_file_value_cannot_fall_back_to_ambient(
     with pytest.raises(RuntimeError) as caught:
         load_proxy_credentials(env_path)
     rendered = "".join(
-        traceback.format_exception(type(caught.value), caught.value, caught.value.__traceback__)
+        traceback.format_exception(
+            type(caught.value), caught.value, caught.value.__traceback__
+        )
     )
     for value in ambient.values():
         assert value not in rendered
@@ -287,9 +289,7 @@ def test_proxy_credentials_stays_bound_to_open_inode_during_path_replacement(
             command, 0, stdout=b"proxy.example:7000\0user\0password\0"
         )
 
-    assert load_proxy_credentials(env_path, runner=runner)[0] == (
-        "proxy.example:7000"
-    )
+    assert load_proxy_credentials(env_path, runner=runner)[0] == ("proxy.example:7000")
     assert observed == {"inode": original_inode, "contents": "placeholder only\n"}
 
 
@@ -394,7 +394,9 @@ def test_proxy_credentials_sanitizes_runner_failure(tmp_path: Path):
     with pytest.raises(RuntimeError) as caught:
         load_proxy_credentials(env_path, runner=runner)
     rendered = "".join(
-        traceback.format_exception(type(caught.value), caught.value, caught.value.__traceback__)
+        traceback.format_exception(
+            type(caught.value), caught.value, caught.value.__traceback__
+        )
     )
     assert caught.value.__cause__ is None
     assert caught.value.__suppress_context__ is True
@@ -410,8 +412,7 @@ def test_proxy_errors_hide_all_placeholder_authority_values(tmp_path: Path):
         "placeholder@password",
     )
     encoded_url = (
-        "http://placeholder%2Fuser:placeholder%40password@"
-        "placeholder.example:7000"
+        "http://placeholder%2Fuser:placeholder%40password@placeholder.example:7000"
     )
 
     def runner(command, **kwargs):
@@ -420,7 +421,9 @@ def test_proxy_errors_hide_all_placeholder_authority_values(tmp_path: Path):
     with pytest.raises(RuntimeError) as caught:
         write_proxy_config(env_path, tmp_path / "proxy.conf", runner=runner)
     rendered = "".join(
-        traceback.format_exception(type(caught.value), caught.value, caught.value.__traceback__)
+        traceback.format_exception(
+            type(caught.value), caught.value, caught.value.__traceback__
+        )
     )
     assert caught.value.__cause__ is None
     assert caught.value.__suppress_context__ is True
@@ -429,9 +432,7 @@ def test_proxy_errors_hide_all_placeholder_authority_values(tmp_path: Path):
         assert protected not in repr(caught.value)
 
 
-def test_proxy_config_does_not_chmod_replaced_destination(
-    tmp_path: Path, monkeypatch
-):
+def test_proxy_config_does_not_chmod_replaced_destination(tmp_path: Path, monkeypatch):
     env_path = _secure_env(tmp_path / "proxy.env")
     config_path = tmp_path / "runtime/proxy.conf"
 
@@ -462,8 +463,7 @@ def test_run_dataset_paces_every_ordinary_url(tmp_path: Path):
         manifest,
         tmp_path / "videos",
         archive,
-        url_runner=lambda command: calls.append(command)
-        or AttemptResult(False, False),
+        url_runner=lambda command: calls.append(command) or AttemptResult(False, False),
         sleeper=sleeps.append,
     )
 
@@ -627,9 +627,7 @@ def test_manifest_excludes_unavailable_and_preserves_order(tmp_path: Path):
 
 def test_read_archive_ids_accepts_ytdlp_archive_rows(tmp_path: Path):
     archive = tmp_path / "archive.txt"
-    archive.write_text(
-        "youtube abcDEF123_0\nyoutube xyzXYZ987-1\n", encoding="utf-8"
-    )
+    archive.write_text("youtube abcDEF123_0\nyoutube xyzXYZ987-1\n", encoding="utf-8")
 
     assert read_archive_ids(archive) == {"abcDEF123_0", "xyzXYZ987-1"}
 
@@ -668,9 +666,7 @@ def test_ytdlp_command_paces_requests_without_per_stream_sleep(
     assert "mkv" in command
     assert "--write-info-json" in command
     assert "--download-archive" in command
-    assert command[command.index("--js-runtimes") + 1] == (
-        "node:/opt/node/bin/node"
-    )
+    assert command[command.index("--js-runtimes") + 1] == ("node:/opt/node/bin/node")
     assert command[command.index("--sleep-requests") + 1] == "1.5"
     assert "--sleep-interval" not in command
     assert "--max-sleep-interval" not in command
@@ -689,9 +685,7 @@ def test_ytdlp_command_uses_private_config_path_without_proxy_credentials(
         proxy_config=Path("/private/proxy.conf"),
     )
 
-    assert command[command.index("--config-locations") + 1] == (
-        "/private/proxy.conf"
-    )
+    assert command[command.index("--config-locations") + 1] == ("/private/proxy.conf")
     assert "--proxy" not in command
     assert not any("@" in argument for argument in command)
     assert command[-1] == "https://www.youtube.com/watch?v=abcDEF123_0"
@@ -706,7 +700,12 @@ def test_run_url_streams_output_and_detects_rate_limit(capsys):
 
     result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
 
-    assert result == AttemptResult(completed=False, rate_limited=True, failure_category="rate_limit", retryable=True)
+    assert result == AttemptResult(
+        completed=False,
+        rate_limited=True,
+        failure_category="rate_limit",
+        retryable=True,
+    )
     assert "progress" in capsys.readouterr().out
 
 
@@ -776,7 +775,12 @@ def test_run_url_zero_exit_with_marker_is_rate_limited_and_incomplete(marker: st
 
     result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
 
-    assert result == AttemptResult(completed=False, rate_limited=True, failure_category="rate_limit", retryable=True)
+    assert result == AttemptResult(
+        completed=False,
+        rate_limited=True,
+        failure_category="rate_limit",
+        retryable=True,
+    )
 
 
 def test_run_url_detects_youtube_session_rate_limit_wording():
@@ -794,7 +798,12 @@ def test_run_url_detects_youtube_session_rate_limit_wording():
 
     result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
 
-    assert result == AttemptResult(completed=False, rate_limited=True, failure_category="rate_limit", retryable=True)
+    assert result == AttemptResult(
+        completed=False,
+        rate_limited=True,
+        failure_category="rate_limit",
+        retryable=True,
+    )
 
 
 @pytest.mark.parametrize(
@@ -813,7 +822,12 @@ def test_run_url_classifies_bot_checks_as_rate_limits(output: str):
 
     result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
 
-    assert result == AttemptResult(completed=False, rate_limited=True, failure_category="rate_limit", retryable=True)
+    assert result == AttemptResult(
+        completed=False,
+        rate_limited=True,
+        failure_category="rate_limit",
+        retryable=True,
+    )
 
 
 @pytest.mark.parametrize(
@@ -824,7 +838,9 @@ def test_run_url_classifies_bot_checks_as_rate_limits(output: str):
         ("ERROR: This content isn't available, try again later.\n", "unavailable"),
     ],
 )
-def test_run_url_does_not_classify_other_errors_as_rate_limits(output: str, category: str):
+def test_run_url_does_not_classify_other_errors_as_rate_limits(
+    output: str, category: str
+):
     class Child:
         stdout = iter([output])
 
@@ -833,7 +849,9 @@ def test_run_url_does_not_classify_other_errors_as_rate_limits(output: str, cate
 
     result = run_url(["yt-dlp", "url"], popen=lambda *args, **kwargs: Child())
 
-    assert result == AttemptResult(completed=False, rate_limited=False, failure_category=category)
+    assert result == AttemptResult(
+        completed=False, rate_limited=False, failure_category=category
+    )
 
 
 def test_run_downloads_processes_each_training_url_before_testing(tmp_path: Path):
@@ -853,8 +871,16 @@ def test_run_downloads_processes_each_training_url_before_testing(tmp_path: Path
     ):
         youtube_dataset._atomic_write_json(
             runtime / f"{name}.availability-snapshot.json",
-            {"version": 1, "visible": visible, "omitted": [],
-             "counts": {"total": len(visible), "pending_available": len(visible), "api_omitted": 0}},
+            {
+                "version": 1,
+                "visible": visible,
+                "omitted": [],
+                "counts": {
+                    "total": len(visible),
+                    "pending_available": len(visible),
+                    "api_omitted": 0,
+                },
+            },
         )
     calls: list[list[str]] = []
 
@@ -899,9 +925,12 @@ def test_start_command_prefilters_before_spawning_worker(
         "start_detached",
         lambda root, **kwargs: calls.append("spawn") or 4242,
     )
+    monkeypatch.setattr(
+        vqa_download, "preflight_proxy", lambda path: calls.append("preflight")
+    )
 
     assert main(["start"], repo_root=tmp_path) == 0
-    assert calls == ["raw", "key", "available", "spawn"]
+    assert calls == ["raw", "key", "available", "preflight", "spawn"]
     assert "started VQA download with PID 4242" in capsys.readouterr().out
 
 
@@ -941,9 +970,7 @@ def test_pid_is_active_rejects_missing_and_stale_pid(tmp_path: Path, monkeypatch
     assert pid_is_active(pid_path) is False
 
 
-def test_start_detached_records_child_pid_and_node_path(
-    tmp_path: Path, monkeypatch
-):
+def test_start_detached_records_child_pid_and_node_path(tmp_path: Path, monkeypatch):
     runtime = tmp_path / "data/vqa/download_runtime"
     captured: dict[str, object] = {}
 
@@ -961,12 +988,15 @@ def test_start_detached_records_child_pid_and_node_path(
 
     monkeypatch.setattr(youtube_dataset, "write_proxy_config", fake_write)
 
-    assert start_detached(
-        tmp_path,
-        popen=popen,
-        node_path="/opt/node/bin/node",
-        proxy_env_path=tmp_path / "placeholder.env",
-    ) == 4242
+    assert (
+        start_detached(
+            tmp_path,
+            popen=popen,
+            node_path="/opt/node/bin/node",
+            proxy_env_path=tmp_path / "placeholder.env",
+        )
+        == 4242
+    )
     assert (runtime / "download.pid").read_text(encoding="utf-8") == "4242\n"
     assert captured["start_new_session"] is True
     assert captured["cwd"] == runtime
@@ -999,12 +1029,15 @@ def test_start_detached_prepares_private_proxy_config_without_leaking_secrets(
 
     monkeypatch.setattr(youtube_dataset, "write_proxy_config", fake_write)
     monkeypatch.setenv("DECODO_PASSWORD", placeholder_secret)
-    assert start_detached(
-        tmp_path,
-        popen=popen,
-        node_path="/opt/node/bin/node",
-        proxy_env_path=env_path,
-    ) == 4242
+    assert (
+        start_detached(
+            tmp_path,
+            popen=popen,
+            node_path="/opt/node/bin/node",
+            proxy_env_path=env_path,
+        )
+        == 4242
+    )
 
     config_path = runtime / "yt-dlp-proxy.conf"
     assert captured["source"] == env_path
@@ -1039,13 +1072,16 @@ def test_start_detached_real_placeholder_config_is_private_and_child_visible(
         captured.update(kwargs)
         return Child()
 
-    assert start_detached(
-        tmp_path,
-        popen=popen,
-        node_path="/opt/node/bin/node",
-        proxy_env_path=env_path,
-        credential_runner=credential_runner,
-    ) == 4242
+    assert (
+        start_detached(
+            tmp_path,
+            popen=popen,
+            node_path="/opt/node/bin/node",
+            proxy_env_path=env_path,
+            credential_runner=credential_runner,
+        )
+        == 4242
+    )
     config_path = runtime / "yt-dlp-proxy.conf"
     assert captured["env"]["YOUTUBE_DATASET_PROXY_CONFIG_PATH"] == str(config_path)
     assert stat.S_IMODE(config_path.stat().st_mode) == 0o600
@@ -1248,12 +1284,15 @@ def test_start_detached_pid_temp_does_not_follow_predictable_symlink(
         lambda source, target, runner=subprocess.run: target,
     )
 
-    assert start_detached(
-        tmp_path,
-        popen=lambda *args, **kwargs: _CleanupChild(),
-        node_path="/opt/node/bin/node",
-        proxy_env_path=tmp_path / "placeholder.env",
-    ) == 4242
+    assert (
+        start_detached(
+            tmp_path,
+            popen=lambda *args, **kwargs: _CleanupChild(),
+            node_path="/opt/node/bin/node",
+            proxy_env_path=tmp_path / "placeholder.env",
+        )
+        == 4242
+    )
     assert victim.read_text(encoding="utf-8") == "keep\n"
 
 
@@ -1276,7 +1315,9 @@ def test_start_detached_sanitizes_spawn_failure(tmp_path: Path, monkeypatch):
             proxy_env_path=tmp_path / "placeholder.env",
         )
     rendered = "".join(
-        traceback.format_exception(type(caught.value), caught.value, caught.value.__traceback__)
+        traceback.format_exception(
+            type(caught.value), caught.value, caught.value.__traceback__
+        )
     )
     assert placeholder not in rendered
     assert caught.value.__suppress_context__ is True
@@ -1286,6 +1327,11 @@ def test_start_detached_rejects_an_active_job(tmp_path: Path):
     runtime = tmp_path / "data/vqa/download_runtime"
     runtime.mkdir(parents=True)
     (runtime / "download.pid").write_text(f"{os.getpid()}\n", encoding="utf-8")
+    identity = youtube_dataset._process_identity(os.getpid())
+    youtube_dataset._atomic_write_json(
+        runtime / "runtime-state.json",
+        {"worker_pid": os.getpid(), "worker_identity": identity},
+    )
 
     with pytest.raises(RuntimeError, match="already running"):
         start_detached(tmp_path)
@@ -1339,15 +1385,16 @@ def test_start_detached_passes_worker_lock_for_full_child_lifetime(
         retained["fd"] = os.dup(lock_fd)
         return Child()
 
-    assert start_detached(
-        tmp_path,
-        popen=popen,
-        node_path="/opt/node/bin/node",
-        proxy_env_path=tmp_path / "placeholder.env",
-    ) == 4242
-    contender = os.open(
-        tmp_path / "data/vqa/download_runtime/startup.lock", os.O_RDWR
+    assert (
+        start_detached(
+            tmp_path,
+            popen=popen,
+            node_path="/opt/node/bin/node",
+            proxy_env_path=tmp_path / "placeholder.env",
+        )
+        == 4242
     )
+    contender = os.open(tmp_path / "data/vqa/download_runtime/startup.lock", os.O_RDWR)
     try:
         with pytest.raises(BlockingIOError):
             fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -1356,9 +1403,7 @@ def test_start_detached_passes_worker_lock_for_full_child_lifetime(
         os.close(retained["fd"])
 
 
-def test_start_detached_rejects_insecure_runtime_directory(
-    tmp_path: Path, monkeypatch
-):
+def test_start_detached_rejects_insecure_runtime_directory(tmp_path: Path, monkeypatch):
     runtime = tmp_path / "data/vqa/download_runtime"
     runtime.mkdir(parents=True)
     runtime.chmod(0o777)
@@ -1402,7 +1447,9 @@ def test_status_command_reports_stopped_job(tmp_path: Path, capsys):
     assert "training authoritative snapshot: missing" in output
 
 
-def test_vqa_run_constructs_dataset_specs_but_preserves_legacy_runtime_paths(tmp_path: Path, monkeypatch):
+def test_vqa_run_constructs_dataset_specs_but_preserves_legacy_runtime_paths(
+    tmp_path: Path, monkeypatch
+):
     seen = []
     monkeypatch.setattr(
         vqa_download,
@@ -1412,8 +1459,22 @@ def test_vqa_run_constructs_dataset_specs_but_preserves_legacy_runtime_paths(tmp
     assert vqa_download.run_downloads(tmp_path, sleeper=lambda _: None) == 0
     runtime = tmp_path / "data/vqa/download_runtime"
     assert [item[0] for item in seen] == [
-        youtube_dataset.DatasetSpec(runtime / "training.pending-available.urls.txt", tmp_path / "data/vqa/2025/training/videos_original", runtime, runtime / "training.archive.txt", runtime / "training.pending-available.urls.txt", runtime / "training.availability-snapshot.json"),
-        youtube_dataset.DatasetSpec(runtime / "testing.pending-available.urls.txt", tmp_path / "data/vqa/2025/testing/videos_original", runtime, runtime / "testing.archive.txt", runtime / "testing.pending-available.urls.txt", runtime / "testing.availability-snapshot.json"),
+        youtube_dataset.DatasetSpec(
+            runtime / "training.pending-available.urls.txt",
+            tmp_path / "data/vqa/2025/training/videos_original",
+            runtime,
+            runtime / "training.archive.txt",
+            runtime / "training.pending-available.urls.txt",
+            runtime / "training.availability-snapshot.json",
+        ),
+        youtube_dataset.DatasetSpec(
+            runtime / "testing.pending-available.urls.txt",
+            tmp_path / "data/vqa/2025/testing/videos_original",
+            runtime,
+            runtime / "testing.archive.txt",
+            runtime / "testing.pending-available.urls.txt",
+            runtime / "testing.availability-snapshot.json",
+        ),
     ]
     assert all(item[1]["sleeper"] is not None for item in seen)
 
@@ -1438,14 +1499,20 @@ def test_vqa_run_requires_declared_authoritative_snapshot(tmp_path: Path):
         run_downloads(tmp_path, sleeper=lambda _: None)
 
 
-def test_vqa_status_uses_authoritative_snapshot_over_partial_legacy_pair(tmp_path: Path, capsys):
+def test_vqa_status_uses_authoritative_snapshot_over_partial_legacy_pair(
+    tmp_path: Path, capsys
+):
     runtime = tmp_path / "data/vqa/download_runtime"
     runtime.mkdir(parents=True)
     (runtime / "training.pending-available.urls.txt").write_text("wrong\nwrong\n")
     youtube_dataset._atomic_write_json(
         runtime / "training.availability-snapshot.json",
-        {"version": 1, "visible": ["abcDEF123_0"], "omitted": ["xyzXYZ987-1"],
-         "counts": {"total": 2, "pending_available": 1, "api_omitted": 1}},
+        {
+            "version": 1,
+            "visible": ["abcDEF123_0"],
+            "omitted": ["xyzXYZ987-1"],
+            "counts": {"total": 2, "pending_available": 1, "api_omitted": 1},
+        },
     )
     assert main(["status"], repo_root=tmp_path) == 0
     output = capsys.readouterr().out
@@ -1453,7 +1520,9 @@ def test_vqa_status_uses_authoritative_snapshot_over_partial_legacy_pair(tmp_pat
     assert "training API unavailable/private: 1" in output
 
 
-def test_vqa_status_labels_projection_counts_legacy_when_snapshot_missing(tmp_path: Path, capsys):
+def test_vqa_status_labels_projection_counts_legacy_when_snapshot_missing(
+    tmp_path: Path, capsys
+):
     runtime = tmp_path / "data/vqa/download_runtime"
     runtime.mkdir(parents=True)
     (runtime / "training.pending-available.urls.txt").write_text("one\ntwo\n")
@@ -1464,15 +1533,29 @@ def test_vqa_status_labels_projection_counts_legacy_when_snapshot_missing(tmp_pa
     assert "training API-available pending:" not in output
 
 
-def test_vqa_status_uses_live_persisted_worker_pid_and_hides_stale_pid_file(tmp_path: Path, monkeypatch, capsys):
+def test_vqa_status_uses_live_persisted_worker_pid_and_hides_stale_pid_file(
+    tmp_path: Path, monkeypatch, capsys
+):
     runtime = tmp_path / "data/vqa/download_runtime"
     runtime.mkdir(parents=True)
     (runtime / "download.pid").write_text("99999999\n")
-    youtube_dataset._atomic_write_json(runtime / "runtime-state.json", {
-        "worker_pid": 4242, "current_id": "abcDEF123_0", "last_progress_at": None,
-        "cooldown_deadline": None, "failures": {}, "retryable_failures": [],
-    })
-    monkeypatch.setattr(youtube_dataset, "_process_active", lambda pid: pid == 4242)
+    youtube_dataset._atomic_write_json(
+        runtime / "runtime-state.json",
+        {
+            "worker_pid": 4242,
+            "worker_identity": {"pid": 4242, "start_time": "same"},
+            "current_id": "abcDEF123_0",
+            "last_progress_at": None,
+            "cooldown_deadline": None,
+            "failures": {},
+            "retryable_failures": [],
+        },
+    )
+    monkeypatch.setattr(
+        youtube_dataset,
+        "_process_identity",
+        lambda pid: {"pid": pid, "start_time": "same"} if pid == 4242 else None,
+    )
     assert main(["status"], repo_root=tmp_path) == 0
     output = capsys.readouterr().out
     assert "state: running" in output
@@ -1496,6 +1579,46 @@ def test_direct_run_proxy_failure_makes_zero_download_calls(
     assert main(["run"], repo_root=tmp_path) == 1
     assert calls == []
     assert "sanitized" in capsys.readouterr().err
+
+
+def test_vqa_attended_run_preflight_failure_makes_zero_download_calls(
+    tmp_path: Path, monkeypatch
+):
+    calls = []
+    monkeypatch.setattr(
+        vqa_download, "write_proxy_config", lambda *a, **k: tmp_path / "proxy.conf"
+    )
+    monkeypatch.setattr(
+        vqa_download,
+        "preflight_proxy",
+        lambda path: (_ for _ in ()).throw(RuntimeError("preflight failed")),
+    )
+    monkeypatch.setattr(
+        vqa_download, "run_downloads", lambda root: calls.append("download") or 0
+    )
+    assert main(["run"], repo_root=tmp_path) == 1
+    assert calls == []
+
+
+def test_vqa_start_preflight_failure_makes_zero_spawn_calls(
+    tmp_path: Path, monkeypatch
+):
+    calls = []
+    monkeypatch.setattr(vqa_download, "prepare_manifests", lambda root: {})
+    monkeypatch.setattr(vqa_download, "load_youtube_api_key", lambda path: "key")
+    monkeypatch.setattr(
+        vqa_download, "prepare_available_manifests", lambda root, key: {}
+    )
+    monkeypatch.setattr(
+        vqa_download,
+        "preflight_proxy",
+        lambda path: (_ for _ in ()).throw(RuntimeError("preflight failed")),
+    )
+    monkeypatch.setattr(
+        vqa_download, "start_detached", lambda root: calls.append("spawn") or 1
+    )
+    assert main(["start"], repo_root=tmp_path) == 1
+    assert calls == []
 
 
 def test_direct_run_held_worker_lock_prevents_all_preparation_and_urls(
@@ -1531,9 +1654,7 @@ def test_direct_run_releases_worker_lock_after_error(tmp_path: Path, monkeypatch
         lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("sanitized")),
     )
     assert main(["run"], repo_root=tmp_path) == 1
-    lock_fd = os.open(
-        tmp_path / "data/vqa/download_runtime/startup.lock", os.O_RDWR
-    )
+    lock_fd = os.open(tmp_path / "data/vqa/download_runtime/startup.lock", os.O_RDWR)
     try:
         fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     finally:
@@ -1605,6 +1726,7 @@ def test_direct_run_scrubs_credentials_and_uses_private_bound_config(
         return 0
 
     monkeypatch.setattr(vqa_download, "write_proxy_config", placeholder_writer)
+    monkeypatch.setattr(vqa_download, "preflight_proxy", lambda path: None)
     monkeypatch.setattr(vqa_download, "run_downloads", download_runner)
     assert main(["run"], repo_root=tmp_path) == 0
     assert captured["mode"] == 0o600
@@ -1612,9 +1734,9 @@ def test_direct_run_scrubs_credentials_and_uses_private_bound_config(
     assert captured["config_path"] == (
         tmp_path / "data/vqa/download_runtime/yt-dlp-proxy.conf"
     )
-    assert captured["argv"][captured["argv"].index("--config-locations") + 1].startswith(
-        "/proc/self/fd/"
-    )
+    assert captured["argv"][
+        captured["argv"].index("--config-locations") + 1
+    ].startswith("/proc/self/fd/")
     assert not any(name.startswith("DECODO_") for name in captured["kwargs"]["env"])
     rendered = repr(captured)
     for value in protected:

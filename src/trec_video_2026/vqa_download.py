@@ -24,6 +24,7 @@ MEDIA_SUFFIXES = _engine.MEDIA_SUFFIXES
 RATE_LIMIT_MARKER = _engine.RATE_LIMIT_MARKER
 RATE_LIMIT_MARKERS = _engine.RATE_LIMIT_MARKERS
 PROXY_ENV_VARIABLES = _engine.PROXY_ENV_VARIABLES
+ALL_PROXY_ENV_VARIABLES = _engine.ALL_PROXY_ENV_VARIABLES
 WORKER_LOCK_FD_ENV = _engine.WORKER_LOCK_FD_ENV
 load_proxy_credentials = _engine.load_proxy_credentials
 load_youtube_api_key = _engine.load_youtube_api_key
@@ -37,6 +38,7 @@ build_ytdlp_command = _engine.build_ytdlp_command
 run_url = _engine.run_url
 run_dataset = _engine.run_dataset
 run_spec = _engine.run_spec
+preflight_proxy = _engine.preflight_proxy
 _startup_lock = _engine._startup_lock
 _validate_runtime_directory = _engine._validate_runtime_directory
 _validate_inherited_worker_lock = _engine._validate_inherited_worker_lock
@@ -219,9 +221,10 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
                     os.close(descriptor)
             with _startup_lock(runtime):
                 config = write_proxy_config(DEFAULT_PROXY_ENV_PATH, runtime / "yt-dlp-proxy.conf")
+                preflight_proxy(DEFAULT_PROXY_ENV_PATH)
                 os.environ["VQA_PROXY_CONFIG_PATH"] = str(config)
                 os.environ["YOUTUBE_DATASET_PROXY_CONFIG_PATH"] = str(config)
-                for variable in PROXY_ENV_VARIABLES:
+                for variable in ALL_PROXY_ENV_VARIABLES:
                     os.environ.pop(variable, None)
                 return run_downloads(root)
         except RuntimeError as error:
@@ -232,6 +235,7 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
             prepare_manifests(root)
             key = load_youtube_api_key(DEFAULT_YOUTUBE_API_ENV_PATH)
             availability = prepare_available_manifests(root, key)
+            preflight_proxy(DEFAULT_PROXY_ENV_PATH)
             pid = start_detached(root)
         except RuntimeError as error:
             print(error, file=sys.stderr)

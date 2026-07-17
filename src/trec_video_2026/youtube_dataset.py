@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.error import URLError
-from urllib.parse import quote, urlencode
+from urllib.parse import parse_qs, quote, unquote, urlencode, urlsplit
 from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
 VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
@@ -33,6 +33,10 @@ RATE_LIMIT_MARKERS = (
     "Sign in to confirm you're not a bot",
 )
 PROXY_ENV_VARIABLES = ("DECODO_ENDPOINT", "DECODO_USER", "DECODO_PASSWORD")
+GENERIC_PROXY_ENV_VARIABLES = (
+    "PROXY_URL", "PROXY_SCHEME", "PROXY_ENDPOINT", "PROXY_USER", "PROXY_PASSWORD"
+)
+ALL_PROXY_ENV_VARIABLES = GENERIC_PROXY_ENV_VARIABLES + PROXY_ENV_VARIABLES
 WORKER_LOCK_FD_ENV = "YOUTUBE_DATASET_WORKER_LOCK_FD"
 PROCESS_STOP_TIMEOUT = 5.0
 
@@ -93,10 +97,10 @@ def _valid_proxy_host(host: str) -> bool:
     return all(label_pattern.fullmatch(label) for label in host.split("."))
 
 
-def load_proxy_credentials(
+def load_proxy_settings(
     env_path: Path, runner: Callable[..., object] = subprocess.run
-) -> tuple[str, str, str]:
-    """Load validated Decodo credentials without exposing their values."""
+) -> tuple[str, str, str, str]:
+    """Load one validated generic or legacy proxy form without secret exposure."""
     descriptor = -1
     try:
         descriptor = os.open(env_path, os.O_RDONLY | os.O_NOFOLLOW)
@@ -119,13 +123,16 @@ def load_proxy_credentials(
             )
         script = (
             "unset DECODO_ENDPOINT DECODO_USER DECODO_PASSWORD; "
+            "unset PROXY_URL PROXY_SCHEME PROXY_ENDPOINT PROXY_USER PROXY_PASSWORD; "
             'set -a; source "$1" >/dev/null 2>&1 || exit 1; '
-            'printf "%s\\0%s\\0%s\\0" "${DECODO_ENDPOINT:-}" '
+            'printf "%s\\0%s\\0%s\\0%s\\0%s\\0%s\\0%s\\0%s\\0" '
+            '"${PROXY_SCHEME:-}" "${PROXY_ENDPOINT:-}" "${PROXY_USER:-}" '
+            '"${PROXY_PASSWORD:-}" "${PROXY_URL:-}" "${DECODO_ENDPOINT:-}" '
             '"${DECODO_USER:-}" "${DECODO_PASSWORD:-}"'
         )
         try:
             environment = dict(os.environ)
-            for variable in PROXY_ENV_VARIABLES:
+            for variable in ALL_PROXY_ENV_VARIABLES:
                 environment.pop(variable, None)
             result = runner(
                 ["bash", "-c", script, "_", f"/proc/self/fd/{descriptor}"],
@@ -138,12 +145,53 @@ def load_proxy_credentials(
             if isinstance(output, str):
                 output = output.encode()
             fields = output.split(b"\0")
-            if len(fields) != 4 or fields[-1] != b"":
+            if fields[-1] != b"":
                 raise ValueError
-            endpoint, username, password = (field.decode() for field in fields[:3])
+            if len(fields) == 4:  # compatibility for injected legacy runners
+                endpoint, username, password = (field.decode() for field in fields[:3])
+                scheme = "http"
+            elif len(fields) in (8, 9):
+                if len(fields) == 8:  # compatibility for injected test runners
+                    fields.insert(-1, b"")
+                values = [field.decode() for field in fields[:8]]
+                scheme, endpoint, username, password, proxy_url, legacy_endpoint, legacy_user, legacy_password = values
+                forms = sum(
+                    (
+                        bool(proxy_url),
+                        any((scheme, endpoint, username, password)),
+                        any((legacy_endpoint, legacy_user, legacy_password)),
+                    )
+                )
+                if forms != 1:
+                    raise ValueError
+                if proxy_url:
+                    parsed = urlsplit(proxy_url)
+                    if (
+                        parsed.scheme not in ("http", "https")
+                        or not parsed.hostname
+                        or parsed.port is None
+                        or parsed.username is None
+                        or parsed.password is None
+                        or parsed.path not in ("", "/")
+                        or parsed.query
+                        or parsed.fragment
+                    ):
+                        raise ValueError
+                    scheme = parsed.scheme
+                    endpoint = f"{parsed.hostname}:{parsed.port}"
+                    username, password = unquote(parsed.username), unquote(parsed.password)
+                elif legacy_endpoint or legacy_user or legacy_password:
+                    scheme, endpoint, username, password = (
+                        "http", legacy_endpoint, legacy_user, legacy_password
+                    )
+                elif not all((scheme, endpoint, username, password)):
+                    raise ValueError
+            else:
+                raise ValueError
             endpoint_match = re.fullmatch(r"([^:/@\s]+):(\d{1,5})", endpoint)
             if (
-                not endpoint_match
+                scheme not in ("http", "https")
+                or not endpoint_match
                 or not _valid_proxy_host(endpoint_match.group(1))
                 or not username
                 or not password
@@ -154,6 +202,14 @@ def load_proxy_credentials(
             raise RuntimeError("Unable to load valid proxy credentials") from None
     finally:
         os.close(descriptor)
+    return scheme, endpoint, username, password
+
+
+def load_proxy_credentials(
+    env_path: Path, runner: Callable[..., object] = subprocess.run
+) -> tuple[str, str, str]:
+    """Compatibility view of securely loaded proxy credentials."""
+    _, endpoint, username, password = load_proxy_settings(env_path, runner=runner)
     return endpoint, username, password
 
 
@@ -258,7 +314,25 @@ def read_source_ids(source: Path) -> list[str]:
         value = line.strip()
         if not value:
             continue
-        video_id = value.rsplit("v=", 1)[-1].split("&", 1)[0]
+        if VIDEO_ID.fullmatch(value):
+            video_id = value
+        else:
+            parsed = urlsplit(value)
+            host = (parsed.hostname or "").lower()
+            if parsed.scheme not in ("http", "https"):
+                raise ValueError(f"Invalid YouTube ID or URL in {source}")
+            if host in ("youtube.com", "www.youtube.com", "m.youtube.com"):
+                values = parse_qs(parsed.query)
+                if parsed.path != "/watch" or len(values.get("v", [])) != 1:
+                    raise ValueError(f"Invalid YouTube ID or URL in {source}")
+                video_id = values["v"][0]
+            elif host in ("youtu.be", "www.youtu.be"):
+                parts = [part for part in parsed.path.split("/") if part]
+                if len(parts) != 1:
+                    raise ValueError(f"Invalid YouTube ID or URL in {source}")
+                video_id = parts[0]
+            else:
+                raise ValueError(f"Invalid YouTube ID or URL in {source}")
         if not VIDEO_ID.fullmatch(video_id):
             raise ValueError(f"Invalid YouTube ID or URL in {source}")
         ids.append(video_id)
@@ -364,6 +438,7 @@ def _read_availability_snapshot(path: Path) -> dict[str, object]:
 def _runtime_state(path: Path) -> dict[str, object]:
     default = {
         "worker_pid": None,
+        "worker_identity": None,
         "current_id": None,
         "last_progress_at": None,
         "cooldown_deadline": None,
@@ -422,9 +497,9 @@ def write_proxy_config(
     runner: Callable[..., object] = subprocess.run,
 ) -> Path:
     """Atomically create a private yt-dlp proxy config."""
-    endpoint, username, password = load_proxy_credentials(env_path, runner=runner)
+    scheme, endpoint, username, password = load_proxy_settings(env_path, runner=runner)
     proxy_url = (
-        f"http://{quote(username, safe='')}:{quote(password, safe='')}@{endpoint}"
+        f"{scheme}://{quote(username, safe='')}:{quote(password, safe='')}@{endpoint}"
     )
     config_path.parent.mkdir(parents=True, exist_ok=True)
     descriptor = -1
@@ -646,16 +721,33 @@ def worker_status(state_dir: Path) -> dict[str, object]:
     """Return persisted worker details reconciled with validated live PIDs."""
     runtime = _runtime_state(state_dir / "runtime-state.json")
     pid_path = state_dir / "download.pid"
-    detached_running = pid_is_active(pid_path)
-    detached_pid = (
-        pid_path.read_text(encoding="utf-8").strip()
-        if detached_running and pid_path.exists()
-        else None
-    )
-    runtime_pid = runtime["worker_pid"]
-    runtime_running = isinstance(runtime_pid, int) and _process_active(runtime_pid)
-    running = detached_running or runtime_running
-    pid = detached_pid or (str(runtime_pid) if runtime_running else None)
+    identity = runtime.get("worker_identity")
+    running = False
+    pid = None
+    if isinstance(identity, dict) and isinstance(identity.get("pid"), int):
+        current = _process_identity(identity["pid"])
+        running = current == identity
+        if running:
+            pid = str(identity["pid"])
+    elif identity is None:
+        if pid_is_active(pid_path):
+            try:
+                pid = str(int(pid_path.read_text(encoding="utf-8").strip()))
+                running = True
+            except (FileNotFoundError, ValueError):
+                pass
+        runtime_pid = runtime.get("worker_pid")
+        if not running and isinstance(runtime_pid, int) and _process_active(runtime_pid):
+            running = True
+            pid = str(runtime_pid)
+    if not running and (identity is not None or runtime.get("worker_pid") is not None or pid_path.exists()):
+        pid_path.unlink(missing_ok=True)
+        runtime = _update_runtime_state(
+            state_dir / "runtime-state.json",
+            worker_pid=None,
+            worker_identity=None,
+            current_id=None,
+        )
     return {"running": running, "pid": pid, "runtime": runtime}
 
 
@@ -679,6 +771,19 @@ def _process_active(pid: int) -> bool:
     except PermissionError:
         return True
     return True
+
+
+def _process_identity(pid: int) -> dict[str, object] | None:
+    """Return Linux PID/start-time identity, immune to PID reuse."""
+    try:
+        text = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+        _, separator, remainder = text.rpartition(")")
+        fields = remainder.strip().split()
+        if not separator or len(fields) < 20:
+            raise ValueError
+        return {"pid": pid, "start_time": fields[19]}
+    except (OSError, ValueError):
+        return None
 
 
 def start_detached(
@@ -715,10 +820,11 @@ def _start_detached_locked(
 ) -> int:
     """Start a detached worker while the caller holds the startup lock."""
     pid_path = runtime / "download.pid"
-    if pid_is_active(pid_path):
+    active = worker_status(runtime)
+    if active["running"]:
         raise RuntimeError(
             f"YouTube dataset download is already running with PID "
-            f"{pid_path.read_text(encoding='utf-8').strip()}"
+            f"{active['pid']}"
         )
     resolved_node = config.node_path or shutil.which("node")
     if not resolved_node:
@@ -729,7 +835,7 @@ def _start_detached_locked(
         runner=credential_runner,
     )
     environment = dict(os.environ)
-    for variable in PROXY_ENV_VARIABLES:
+    for variable in ALL_PROXY_ENV_VARIABLES:
         environment.pop(variable, None)
     environment["YOUTUBE_DATASET_NODE_PATH"] = resolved_node
     environment["YOUTUBE_DATASET_PROXY_CONFIG_PATH"] = str(proxy_config)
@@ -751,7 +857,11 @@ def _start_detached_locked(
     try:
         pid = int(child.pid)
         _record_pid(pid_path, pid)
-        _update_runtime_state(runtime / "runtime-state.json", worker_pid=pid)
+        _update_runtime_state(
+            runtime / "runtime-state.json",
+            worker_pid=pid,
+            worker_identity=_process_identity(pid),
+        )
     except Exception:
         _rollback_child(child)
         raise RuntimeError("Unable to record detached YouTube dataset worker PID") from None
@@ -854,7 +964,7 @@ def run_url(
             descriptor = _open_proxy_config(Path(child_command[config_index]))
             child_command[config_index] = f"/proc/self/fd/{descriptor}"
         environment = dict(os.environ)
-        for variable in PROXY_ENV_VARIABLES:
+        for variable in ALL_PROXY_ENV_VARIABLES:
             environment.pop(variable, None)
         child = popen(
             child_command,
@@ -1038,7 +1148,12 @@ def run_spec(
         )
     elif manifest is None:
         raise RuntimeError("Authoritative availability snapshot is required")
-    _update_runtime_state(spec.state_dir / "runtime-state.json", worker_pid=os.getpid())
+    pid = os.getpid()
+    _update_runtime_state(
+        spec.state_dir / "runtime-state.json",
+        worker_pid=pid,
+        worker_identity=_process_identity(pid),
+    )
     try:
         run_dataset(
             manifest,
@@ -1052,7 +1167,10 @@ def run_spec(
         )
     finally:
         _update_runtime_state(
-            spec.state_dir / "runtime-state.json", worker_pid=None, current_id=None
+            spec.state_dir / "runtime-state.json",
+            worker_pid=None,
+            worker_identity=None,
+            current_id=None,
         )
 
 
@@ -1100,10 +1218,10 @@ def preflight_proxy(
     credential_runner: Callable[..., object] = subprocess.run,
 ) -> None:
     """Fail closed unless the configured proxy reaches neutral HTTPS and YouTube."""
-    endpoint, username, password = load_proxy_credentials(
+    scheme, endpoint, username, password = load_proxy_settings(
         env_path, runner=credential_runner
     )
-    proxy = f"http://{quote(username, safe='')}:{quote(password, safe='')}@{endpoint}"
+    proxy = f"{scheme}://{quote(username, safe='')}:{quote(password, safe='')}@{endpoint}"
     try:
         opener = opener_factory(ProxyHandler({"https": proxy}))
         for url in ("https://www.google.com/generate_204", "https://www.youtube.com/"):
