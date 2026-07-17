@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="440" viewBox="0 0 640 440" role="img" aria-labelledby="causal-title causal-desc" preserveAspectRatio="xMidYMid meet">
+  <title id="causal-title">Build an evidence chain instead of guessing</title>
+  <desc id="causal-desc">For the question why does the cyclist stop, the system connects two time-stamped observations: the signal turns red at twelve seconds and the cyclist brakes at fourteen seconds. The evidence supports the answer that the cyclist stops because the light turns red.</desc>
+  <defs>
+    <marker id="causal-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.2" markerHeight="5.2" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#1f5e99" fill-opacity=".82"/>
+    </marker>
+  </defs>
+  <rect width="640" height="440" rx="22" fill="#fbfcfe"/>
+  <style>
+    .title { font: 700 23px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .label { font: 700 19px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .small { font: 500 16px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .tiny { font: 600 14px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .box { stroke: #1f5e99; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+    .arrow { stroke: #1f5e99; stroke-width: 2.1; stroke-opacity: .82; fill: none; marker-end: url(#causal-arrow); vector-effect: non-scaling-stroke; }
+  </style>
+
+  <text class="title" x="28" y="42">5 · Build an evidence chain, not a guess</text>
+  <rect class="box" x="28" y="62" width="584" height="55" rx="13" fill="#eaf4fb"/>
+  <text class="small" x="48" y="84">QUESTION</text>
+  <text class="label" x="48" y="106">Why does the cyclist stop?</text>
+
+  <rect class="box" x="62" y="143" width="516" height="66" rx="14" fill="#fff4d8"/>
+  <rect x="78" y="158" width="72" height="36" rx="18" fill="#14213d"/>
+  <text x="114" y="182" text-anchor="middle" style="font:700 15px system-ui,-apple-system,'Segoe UI',sans-serif;fill:#ffffff">00:12</text>
+  <circle cx="190" cy="176" r="12" fill="#d7a43b"/>
+  <text class="label" x="222" y="183">Traffic signal turns red</text>
+
+  <path class="arrow" d="M320 211 V235"/>
+  <text class="tiny" x="340" y="229">happens first</text>
+
+  <rect class="box" x="62" y="238" width="516" height="66" rx="14" fill="#dcecf8"/>
+  <rect x="78" y="253" width="72" height="36" rx="18" fill="#14213d"/>
+  <text x="114" y="277" text-anchor="middle" style="font:700 15px system-ui,-apple-system,'Segoe UI',sans-serif;fill:#ffffff">00:14</text>
+  <circle cx="189" cy="271" r="14" fill="none" stroke="#1f5e99" stroke-width="2.2"/>
+  <path d="M178 271 H200 M189 260 V282" stroke="#1f5e99" stroke-width="2"/>
+  <text class="label" x="222" y="278">Cyclist brakes and waits</text>
+
+  <path class="arrow" d="M320 307 V331"/>
+  <text class="tiny" x="340" y="325">supported cause</text>
+
+  <rect class="box" x="62" y="334" width="516" height="68" rx="14" fill="#eaf4fb"/>
+  <text class="small" x="320" y="360" text-anchor="middle">ANSWER</text>
+  <text class="label" x="320" y="386" text-anchor="middle">The cyclist stops because the light turns red.</text>
+
+  <text class="small" x="320" y="426" text-anchor="middle">Timestamps make the explanation checkable.</text>
+</svg>

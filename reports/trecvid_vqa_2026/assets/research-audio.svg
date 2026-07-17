@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="440" viewBox="0 0 640 440" role="img" aria-labelledby="audio-title audio-desc" preserveAspectRatio="xMidYMid meet">
+  <title id="audio-title">Listen to both the audio and its transcript</title>
+  <desc id="audio-desc">For the question which gate does the announcer say is closing, one path listens to the original audio and another reads speech converted to text. Together they recover the answer gate 12, even when one path is noisy.</desc>
+  <defs>
+    <marker id="audio-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.2" markerHeight="5.2" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#1f5e99" fill-opacity=".82"/>
+    </marker>
+  </defs>
+  <rect width="640" height="440" rx="22" fill="#fbfcfe"/>
+  <style>
+    .title { font: 700 23px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .label { font: 700 19px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .small { font: 500 16px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .tiny { font: 600 14px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .box { stroke: #1f5e99; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+    .arrow { stroke: #1f5e99; stroke-width: 2.1; stroke-opacity: .82; fill: none; marker-end: url(#audio-arrow); vector-effect: non-scaling-stroke; }
+  </style>
+
+  <text class="title" x="28" y="42">4 · Listen two ways</text>
+  <rect class="box" x="28" y="62" width="584" height="55" rx="13" fill="#eaf4fb"/>
+  <text class="small" x="48" y="84">QUESTION</text>
+  <text class="label" x="48" y="106">Which gate does the announcer say is closing?</text>
+
+  <path class="arrow" d="M320 119 V141 H166 V154"/>
+  <path class="arrow" d="M320 141 H474 V154"/>
+
+  <rect class="box" x="28" y="157" width="276" height="139" rx="15" fill="#dcecf8"/>
+  <text class="label" x="166" y="185" text-anchor="middle">A · Original audio</text>
+  <path d="M62 224 L75 224 L84 204 L96 247 L108 215 L120 237 L132 198 L144 247 L157 219 L170 230 L184 206 L198 242 L212 219 L226 228 L240 211 L269 211" fill="none" stroke="#1f5e99" stroke-width="2.2" stroke-linejoin="round"/>
+  <text class="small" x="166" y="266" text-anchor="middle">hears voice, timing and emphasis</text>
+  <text class="tiny" x="166" y="287" text-anchor="middle">useful when the transcript is wrong</text>
+
+  <rect class="box" x="336" y="157" width="276" height="139" rx="15" fill="#fff4d8"/>
+  <text class="label" x="474" y="185" text-anchor="middle">B · Speech-to-text</text>
+  <rect x="363" y="204" width="222" height="48" rx="9" fill="#ffffff" stroke="#c08a17" stroke-width="1.8"/>
+  <text class="small" x="474" y="226" text-anchor="middle">“Attention: Gate 12</text>
+  <text class="small" x="474" y="246" text-anchor="middle">is now closing.”</text>
+  <text class="tiny" x="474" y="278" text-anchor="middle">searchable words · also called ASR</text>
+
+  <path class="arrow" d="M166 299 V326 H320 V345"/>
+  <path class="arrow" d="M474 299 V326 H320"/>
+  <rect class="box" x="92" y="348" width="456" height="67" rx="15" fill="#eaf4fb"/>
+  <text class="label" x="320" y="376" text-anchor="middle">TOGETHER · Gate 12</text>
+  <text class="small" x="320" y="401" text-anchor="middle">Either path can rescue the other when sound is messy.</text>
+</svg>

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="440" viewBox="0 0 640 440" role="img" aria-labelledby="multiview-title multiview-desc" preserveAspectRatio="xMidYMid meet">
+  <title id="multiview-title">CERTH multi-view architecture</title>
+  <desc id="multiview-desc">CERTH sends full audio and ten different random frame views through Qwen2.5-Omni ten times. Generated answers are combined by voting, while multiple-choice option logits are pooled.</desc>
+  <defs>
+    <marker id="multiview-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.2" markerHeight="5.2" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#1f5e99" fill-opacity=".82"/>
+    </marker>
+  </defs>
+  <rect width="640" height="440" rx="22" fill="#fbfcfe"/>
+  <style>
+    .title { font: 700 23px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .label { font: 700 21px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .small { font: 500 18px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .box { stroke: #1f5e99; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+    .arrow { stroke: #1f5e99; stroke-width: 2.2; stroke-opacity: .82; fill: none; marker-end: url(#multiview-arrow); vector-effect: non-scaling-stroke; }
+  </style>
+  <text class="title" x="32" y="43">Pattern 2 · Ask through several visual windows</text>
+
+  <rect class="box" x="108" y="70" width="424" height="62" rx="15" fill="#fff4d8"/>
+  <text class="label" x="320" y="97" text-anchor="middle">Video + full native audio</text>
+  <text class="small" x="320" y="121" text-anchor="middle">same clip, same question</text>
+  <path class="arrow" d="M320 132 V159"/>
+
+  <rect class="box" x="108" y="162" width="424" height="62" rx="15" fill="#eaf4fb"/>
+  <text class="label" x="320" y="189" text-anchor="middle">10 random frame views</text>
+  <text class="small" x="320" y="213" text-anchor="middle">ten different looks at the timeline</text>
+  <path class="arrow" d="M320 224 V251"/>
+
+  <rect class="box" x="108" y="254" width="424" height="62" rx="15" fill="#dcecf8"/>
+  <text class="label" x="320" y="281" text-anchor="middle">Qwen2.5-Omni × 10</text>
+  <text class="small" x="320" y="305" text-anchor="middle">one prediction per view</text>
+
+  <path class="arrow" d="M270 316 V340 H178 V350"/>
+  <path class="arrow" d="M370 316 V340 H462 V350"/>
+
+  <rect class="box" x="72" y="353" width="212" height="64" rx="15" fill="#fff4d8"/>
+  <text class="label" x="178" y="380" text-anchor="middle">AG · vote</text>
+  <text class="small" x="178" y="405" text-anchor="middle">repeated answers rise</text>
+
+  <rect class="box" x="356" y="353" width="212" height="64" rx="15" fill="#eaf4fb"/>
+  <text class="label" x="462" y="380" text-anchor="middle">MC · pool logits</text>
+  <text class="small" x="462" y="405" text-anchor="middle">then rank all options</text>
+</svg>

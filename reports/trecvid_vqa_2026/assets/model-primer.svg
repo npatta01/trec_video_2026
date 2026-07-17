@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="440" viewBox="0 0 640 440" role="img" aria-labelledby="primer-title primer-desc" preserveAspectRatio="xMidYMid meet">
+  <title id="primer-title">How a video question-answering system works</title>
+  <desc id="primer-desc">Video frames, audio or a transcript, and a question feed a multimodal model. The model produces either ten ranked generated answers or a ranking of four multiple-choice options.</desc>
+  <defs>
+    <marker id="primer-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.2" markerHeight="5.2" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1f5e99" fill-opacity=".82"/>
+    </marker>
+  </defs>
+  <rect width="640" height="440" rx="22" fill="#fbfcfe"/>
+  <style>
+    .title { font: 700 26px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .label { font: 700 21px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .small { font: 500 18px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .box { stroke: #1f5e99; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+    .arrow { fill: none; stroke: #1f5e99; stroke-width: 2.2; stroke-opacity: .82; marker-end: url(#primer-arrow); vector-effect: non-scaling-stroke; }
+  </style>
+  <text class="title" x="32" y="43">Video QA, from evidence to an answer</text>
+
+  <rect class="box" x="34" y="84" width="172" height="72" rx="14" fill="#eaf4fb"/>
+  <text class="label" x="120" y="115" text-anchor="middle">Video frames</text>
+  <text class="small" x="120" y="134" text-anchor="middle">what changes</text>
+  <text class="small" x="120" y="153" text-anchor="middle">over time</text>
+
+  <rect class="box" x="34" y="184" width="172" height="72" rx="14" fill="#eaf4fb"/>
+  <text class="label" x="120" y="215" text-anchor="middle">Audio / text</text>
+  <text class="small" x="120" y="234" text-anchor="middle">speech + sound</text>
+  <text class="small" x="120" y="253" text-anchor="middle">clues</text>
+
+  <rect class="box" x="34" y="284" width="172" height="72" rx="14" fill="#fff4d8"/>
+  <text class="label" x="120" y="315" text-anchor="middle">Question</text>
+  <text class="small" x="120" y="341" text-anchor="middle">what to look for</text>
+
+  <path class="arrow" d="M206 120 H250 V176"/>
+  <path class="arrow" d="M206 220 H250"/>
+  <path class="arrow" d="M206 320 H250 V264"/>
+
+  <rect class="box" x="254" y="146" width="176" height="148" rx="18" fill="#dcecf8"/>
+  <text class="label" x="342" y="189" text-anchor="middle">Multimodal</text>
+  <text class="label" x="342" y="216" text-anchor="middle">model</text>
+  <text class="small" x="342" y="249" text-anchor="middle">fuses evidence, then</text>
+  <text class="small" x="342" y="273" text-anchor="middle">generates or scores</text>
+
+  <path class="arrow" d="M430 187 H472"/>
+  <path class="arrow" d="M430 253 H472"/>
+
+  <rect class="box" x="476" y="105" width="134" height="105" rx="15" fill="#fff4d8"/>
+  <text class="label" x="543" y="139" text-anchor="middle">AG</text>
+  <text class="small" x="543" y="166" text-anchor="middle">10 ranked</text>
+  <text class="small" x="543" y="190" text-anchor="middle">answers</text>
+
+  <rect class="box" x="476" y="232" width="134" height="105" rx="15" fill="#eaf4fb"/>
+  <text class="label" x="543" y="266" text-anchor="middle">MC</text>
+  <text class="small" x="543" y="293" text-anchor="middle">rank all 4</text>
+  <text class="small" x="543" y="317" text-anchor="middle">given options</text>
+
+  <text class="small" x="320" y="408" text-anchor="middle">AG = Answer Generation · MC = Multiple Choice</text>
+</svg>

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="440" viewBox="0 0 640 440" role="img" aria-labelledby="finetuning-decision-title finetuning-decision-desc" preserveAspectRatio="xMidYMid meet">
+  <title id="finetuning-decision-title">Decision ladder for choosing how much of a video question answering model to train</title>
+  <desc id="finetuning-decision-desc">Start with prompting and evidence retrieval, which changes no model weights. If repeatable task-specific errors remain, train small LoRA or QLoRA adapters. Consider a full fine-tune only when adapters plateau and sufficient data, compute, and engineering capacity are available. Advance only when validation results improve and a locked test remains untouched.</desc>
+  <defs>
+    <marker id="finetuning-decision-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.2" markerHeight="5.2" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#1f5e99" fill-opacity=".82"/>
+    </marker>
+  </defs>
+  <rect width="640" height="440" rx="22" fill="#fbfcfe"/>
+  <style>
+    .title { font: 700 23px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .subtitle { font: 500 16px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .step { font: 700 15px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #ffffff; }
+    .label { font: 700 20px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .small { font: 500 16px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .badge { font: 700 15px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .box { stroke: #1f5e99; stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .arrow { stroke: #1f5e99; stroke-width: 2; stroke-opacity: .82; fill: none; marker-end: url(#finetuning-decision-arrow); vector-effect: non-scaling-stroke; }
+  </style>
+
+  <text class="title" x="28" y="38">How much should you train?</text>
+  <text class="subtitle" x="28" y="61">Start with the lightest option. Move down only after a measured plateau.</text>
+
+  <rect class="box" x="28" y="78" width="584" height="88" rx="16" fill="#eaf4fb"/>
+  <circle cx="57" cy="107" r="18" fill="#1f5e99"/>
+  <text class="step" x="57" y="112" text-anchor="middle">1</text>
+  <text class="label" x="86" y="105">Prompt + retrieve evidence</text>
+  <rect x="494" y="91" width="96" height="27" rx="13.5" fill="#ffffff" stroke="#7b8da1" stroke-width="1.5"/>
+  <text class="badge" x="542" y="109" text-anchor="middle">LOW COST</text>
+  <text class="small" x="86" y="132">No weight updates · fix frame, audio, and prompt coverage first</text>
+  <text class="small" x="86" y="153">Need: a labeled dev set, evidence pipeline, and strong baseline</text>
+
+  <path class="arrow" d="M320 166 V182"/>
+
+  <rect class="box" x="28" y="185" width="584" height="88" rx="16" fill="#fff4d8"/>
+  <circle cx="57" cy="214" r="18" fill="#ad7a10"/>
+  <text class="step" x="57" y="219" text-anchor="middle">2</text>
+  <text class="label" x="86" y="212">LoRA / QLoRA adapters</text>
+  <rect x="462" y="198" width="128" height="27" rx="13.5" fill="#ffffff" stroke="#ad7a10" stroke-width="1.5"/>
+  <text class="badge" x="526" y="216" text-anchor="middle">BEST FIRST TRAIN</text>
+  <text class="small" x="86" y="239">Train small added weights; keep the base model frozen</text>
+  <text class="small" x="86" y="260">Need: curated examples, GPU memory, validation, checkpoints</text>
+
+  <path class="arrow" d="M320 273 V289"/>
+
+  <rect class="box" x="28" y="292" width="584" height="88" rx="16" fill="#eef1f4"/>
+  <circle cx="57" cy="321" r="18" fill="#40536a"/>
+  <text class="step" x="57" y="326" text-anchor="middle">3</text>
+  <text class="label" x="86" y="319">Full fine-tune</text>
+  <rect x="477" y="305" width="113" height="27" rx="13.5" fill="#ffffff" stroke="#7b8da1" stroke-width="1.5"/>
+  <text class="badge" x="533.5" y="323" text-anchor="middle">HIGH COST</text>
+  <text class="small" x="86" y="346">Update all weights only if adapters plateau and scale justifies it</text>
+  <text class="small" x="86" y="367">Need: more clean data, multiple GPUs, stronger training operations</text>
+
+  <rect x="50" y="396" width="540" height="31" rx="15.5" fill="#14213d"/>
+  <text x="320" y="417" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="16" font-weight="700" fill="#ffffff">GATE: validation must beat frozen baseline · test stays locked</text>
+</svg>

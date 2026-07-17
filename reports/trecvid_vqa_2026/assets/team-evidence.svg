@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="440" viewBox="0 0 640 440" role="img" aria-labelledby="evidence-title evidence-desc" preserveAspectRatio="xMidYMid meet">
+  <title id="evidence-title">NII evidence-densification architecture</title>
+  <desc id="evidence-desc">NII turns video into about twelve time-spaced frames and zoomed tiles, audio into a Whisper timestamped transcript, and the question into a type-aware prompt. These feed frozen Aria for answer generation and frozen InternVL3.5 for multiple choice.</desc>
+  <defs>
+    <marker id="evidence-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.2" markerHeight="5.2" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#1f5e99" fill-opacity=".82"/>
+    </marker>
+  </defs>
+  <rect width="640" height="440" rx="22" fill="#fbfcfe"/>
+  <style>
+    .title { font: 700 23px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .label { font: 700 20px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #14213d; }
+    .small { font: 500 17px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #40536a; }
+    .box { stroke: #1f5e99; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+    .arrow { stroke: #1f5e99; stroke-width: 2.2; stroke-opacity: .82; fill: none; marker-end: url(#evidence-arrow); vector-effect: non-scaling-stroke; }
+  </style>
+  <text class="title" x="32" y="43">Pattern 3 · Better evidence, frozen models</text>
+
+  <rect class="box" x="20" y="72" width="188" height="104" rx="15" fill="#eaf4fb"/>
+  <text class="label" x="114" y="100" text-anchor="middle">Video</text>
+  <text class="small" x="114" y="126" text-anchor="middle">~12 time-spaced frames</text>
+  <text class="small" x="114" y="150" text-anchor="middle">+ zoomed local tiles</text>
+
+  <rect class="box" x="226" y="72" width="188" height="104" rx="15" fill="#eaf4fb"/>
+  <text class="label" x="320" y="100" text-anchor="middle">Audio</text>
+  <text class="small" x="320" y="126" text-anchor="middle">Whisper</text>
+  <text class="small" x="320" y="150" text-anchor="middle">timestamped transcript</text>
+
+  <rect class="box" x="432" y="72" width="188" height="104" rx="15" fill="#fff4d8"/>
+  <text class="label" x="526" y="100" text-anchor="middle">Question</text>
+  <text class="small" x="526" y="126" text-anchor="middle">question-type routing</text>
+  <text class="small" x="526" y="150" text-anchor="middle">+ targeted prompt</text>
+
+  <path class="arrow" d="M114 176 V205 H260 V225"/>
+  <path class="arrow" d="M320 176 V225"/>
+  <path class="arrow" d="M526 176 V205 H380 V225"/>
+
+  <rect class="box" x="98" y="228" width="444" height="92" rx="17" fill="#dcecf8"/>
+  <text class="label" x="320" y="258" text-anchor="middle">Frozen multimodal backbones</text>
+  <text class="small" x="320" y="285" text-anchor="middle">Aria → AG   ·   InternVL3.5 → MC</text>
+  <text class="small" x="320" y="308" text-anchor="middle">better inputs, no backbone tuning</text>
+
+  <path class="arrow" d="M260 320 V348 H174 V359"/>
+  <path class="arrow" d="M380 320 V348 H466 V359"/>
+
+  <rect class="box" x="72" y="362" width="204" height="58" rx="14" fill="#fff4d8"/>
+  <text class="label" x="174" y="387" text-anchor="middle">Normalize AG</text>
+  <text class="small" x="174" y="410" text-anchor="middle">concise written answers</text>
+
+  <rect class="box" x="364" y="362" width="204" height="58" rx="14" fill="#eaf4fb"/>
+  <text class="label" x="466" y="387" text-anchor="middle">Rank MC</text>
+  <text class="small" x="466" y="410" text-anchor="middle">ordered option list</text>
+</svg>
