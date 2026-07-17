@@ -24,7 +24,18 @@ def test_generic_engine_owns_reusable_download_behavior():
 
 
 def test_vqa_specific_manifest_parsing_remains_in_vqa_adapter():
-    assert vqa_download.read_video_ids.__module__ == "trec_video_2026.vqa_download"
-    assert vqa_download.prepare_manifests.__module__ == (
-        "trec_video_2026.vqa_download"
+    adapter_names = (
+        "read_video_ids",
+        "read_unavailable_ids",
+        "write_manifest",
+        "prepare_manifests",
+        "prepare_available_manifests",
+        "run_downloads",
+        "main",
     )
+
+    for name in adapter_names:
+        assert getattr(vqa_download, name).__module__ == "trec_video_2026.vqa_download"
+
+    assert not hasattr(youtube_dataset, "DEFAULT_PROXY_ENV_PATH")
+    assert not hasattr(youtube_dataset, "DEFAULT_YOUTUBE_API_ENV_PATH")
