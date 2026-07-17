@@ -86,14 +86,49 @@ def prepare_manifests(repo_root: Path) -> dict[str, int]:
 
 
 def prepare_available_manifests(repo_root: Path, api_key: str, fetcher=fetch_available_video_ids):
-    return _engine.prepare_available_manifests(repo_root, api_key, fetcher=fetcher)
+    runtime = repo_root / "data/vqa/download_runtime"
+    snapshots = {}
+    summary = {}
+    for name in ("training", "testing"):
+        spec = DatasetSpec(
+            source=runtime / f"{name}.urls.txt",
+            output_dir=repo_root / f"data/vqa/2025/{name}/videos_original",
+            state_dir=runtime / name,
+        )
+        ids = _engine.read_source_ids(spec.source)
+        archived = read_archive_ids(runtime / f"{name}.archive.txt")
+        pending = [video_id for video_id in ids if video_id not in archived]
+        available = fetcher(pending, api_key)
+        visible = [video_id for video_id in pending if video_id in available]
+        omitted = [video_id for video_id in pending if video_id not in available]
+        snapshots[name] = (visible, omitted)
+        summary[name] = {
+            "unarchived": len(pending), "pending_available": len(visible),
+            "unavailable_or_private": len(omitted),
+        }
+    for name, (visible, omitted) in snapshots.items():
+        _engine._atomic_write_text(runtime / f"{name}.pending-available.urls.txt", "".join(f"https://www.youtube.com/watch?v={video_id}\n" for video_id in visible))
+        _engine._atomic_write_text(runtime / f"{name}.unavailable-or-private.txt", "".join(f"{video_id}\n" for video_id in omitted))
+    return summary
 
 
 def run_downloads(repo_root: Path, runner=run_url, sleeper=None) -> int:
-    kwargs = {"runner": runner}
-    if sleeper is not None:
-        kwargs["sleeper"] = sleeper
-    return _engine.run_downloads(repo_root, **kwargs)
+    runtime = repo_root / "data/vqa/download_runtime"
+    try:
+        for name in ("training", "testing"):
+            kwargs = {"url_runner": runner}
+            if sleeper is not None:
+                kwargs["sleeper"] = sleeper
+            run_dataset(
+                runtime / f"{name}.pending-available.urls.txt",
+                repo_root / f"data/vqa/2025/{name}/videos_original",
+                runtime / f"{name}.archive.txt",
+                **kwargs,
+            )
+    except OSError as error:
+        print(f"Unable to start yt-dlp: {error}", file=sys.stderr)
+        return 1
+    return 0
 
 
 def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
@@ -121,7 +156,7 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
                 except ValueError:
                     raise RuntimeError("Inherited VQA worker lock is invalid") from None
                 _validate_inherited_worker_lock(runtime, descriptor)
-                config_value = os.environ.get("VQA_PROXY_CONFIG_PATH")
+                config_value = os.environ.get("YOUTUBE_DATASET_PROXY_CONFIG_PATH")
                 if not config_value:
                     raise RuntimeError("Prepared proxy configuration is required")
                 validate_proxy_config(Path(config_value))
@@ -132,6 +167,7 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
             with _startup_lock(runtime):
                 config = write_proxy_config(DEFAULT_PROXY_ENV_PATH, runtime / "yt-dlp-proxy.conf")
                 os.environ["VQA_PROXY_CONFIG_PATH"] = str(config)
+                os.environ["YOUTUBE_DATASET_PROXY_CONFIG_PATH"] = str(config)
                 for variable in PROXY_ENV_VARIABLES:
                     os.environ.pop(variable, None)
                 return run_downloads(root)
@@ -143,7 +179,18 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
             prepare_manifests(root)
             key = load_youtube_api_key(DEFAULT_YOUTUBE_API_ENV_PATH)
             availability = prepare_available_manifests(root, key)
-            pid = start_detached(root, proxy_env_path=DEFAULT_PROXY_ENV_PATH)
+            spec = DatasetSpec(
+                source=runtime / "testing.pending-available.urls.txt",
+                output_dir=root / "data/vqa/2025/testing/videos_original",
+                state_dir=runtime,
+            )
+            config = DownloadConfig(
+                api_key_file=DEFAULT_YOUTUBE_API_ENV_PATH,
+                proxy_file=DEFAULT_PROXY_ENV_PATH,
+                worker_command=(sys.executable, "-m", "trec_video_2026.vqa_download", "run", "--detached-worker"),
+                node_path=None,
+            )
+            pid = start_detached(spec, config)
         except RuntimeError as error:
             print(error, file=sys.stderr)
             return 1
@@ -164,6 +211,12 @@ def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
         media = count_final_media(root / f"data/vqa/2025/{name}/videos_original")
         print(f"{name} completed: {completed}")
         print(f"{name} media files: {media}")
+        pending = runtime / f"{name}.pending-available.urls.txt"
+        unavailable = runtime / f"{name}.unavailable-or-private.txt"
+        if pending.exists():
+            print(f"{name} API-available pending: {_engine.count_lines(pending)}")
+        if unavailable.exists():
+            print(f"{name} API unavailable/private: {_engine.count_lines(unavailable)}")
     print(f"log: {runtime / 'download.log'}")
     return 0
 

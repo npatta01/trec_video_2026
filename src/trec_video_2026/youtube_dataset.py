@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
-import csv
 import fcntl
 import ipaddress
 import json
@@ -34,7 +32,7 @@ RATE_LIMIT_MARKERS = (
     "Sign in to confirm you're not a bot",
 )
 PROXY_ENV_VARIABLES = ("DECODO_ENDPOINT", "DECODO_USER", "DECODO_PASSWORD")
-WORKER_LOCK_FD_ENV = "VQA_WORKER_LOCK_FD"
+WORKER_LOCK_FD_ENV = "YOUTUBE_DATASET_WORKER_LOCK_FD"
 PROCESS_STOP_TIMEOUT = 5.0
 
 
@@ -56,6 +54,8 @@ class DownloadConfig:
     ordinary_delay: float = 10.0
     initial_cooldown: float = 3600.0
     maximum_cooldown: float = 7200.0
+    worker_command: tuple[str, ...] = ()
+    node_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -245,6 +245,45 @@ def fetch_available_video_ids(
     return available
 
 
+def read_source_ids(source: Path) -> list[str]:
+    """Normalize a generic ID/URL source while preserving first occurrence order."""
+    ids = []
+    for line in source.read_text(encoding="utf-8").splitlines():
+        value = line.strip()
+        if not value:
+            continue
+        video_id = value.rsplit("v=", 1)[-1].split("&", 1)[0]
+        if not VIDEO_ID.fullmatch(video_id):
+            raise ValueError(f"Invalid YouTube ID or URL in {source}")
+        ids.append(video_id)
+    return list(dict.fromkeys(ids))
+
+
+def prepare_dataset(
+    spec: DatasetSpec,
+    api_key: str | DownloadConfig,
+    fetcher: Callable[[list[str], str], set[str]] = fetch_available_video_ids,
+) -> dict[str, int]:
+    """Atomically prepare API-visible and omitted snapshots for one dataset."""
+    if isinstance(api_key, DownloadConfig):
+        api_key = load_youtube_api_key(api_key.api_key_file)
+    ids = read_source_ids(spec.source)
+    archived = read_archive_ids(spec.state_dir / "download.archive.txt")
+    pending = [video_id for video_id in ids if video_id not in archived]
+    available = fetcher(pending, api_key)
+    visible = [video_id for video_id in pending if video_id in available]
+    omitted = [video_id for video_id in pending if video_id not in available]
+    _atomic_write_text(
+        spec.state_dir / "pending-available.urls.txt",
+        "".join(f"https://www.youtube.com/watch?v={video_id}\n" for video_id in visible),
+    )
+    _atomic_write_text(
+        spec.state_dir / "api-omitted.txt",
+        "".join(f"{video_id}\n" for video_id in omitted),
+    )
+    return {"total": len(pending), "pending_available": len(visible), "api_omitted": len(omitted)}
+
+
 def _atomic_write_text(path: Path, contents: str) -> None:
     """Atomically replace a runtime text file."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -267,49 +306,6 @@ def _atomic_write_text(path: Path, contents: str) -> None:
             os.close(descriptor)
         if temporary is not None:
             temporary.unlink(missing_ok=True)
-
-
-def prepare_available_manifests(
-    repo_root: Path,
-    api_key: str,
-    fetcher: Callable[[list[str], str], set[str]] = fetch_available_video_ids,
-) -> dict[str, dict[str, int]]:
-    """Write API-confirmed pending URL manifests for both VQA datasets."""
-    runtime = repo_root / "data/vqa/download_runtime"
-    summary: dict[str, dict[str, int]] = {}
-    snapshots: dict[str, tuple[list[str], list[str]]] = {}
-    for name in ("training", "testing"):
-        source = runtime / f"{name}.urls.txt"
-        urls = [line for line in source.read_text(encoding="utf-8").splitlines() if line]
-        ids = [url.rsplit("v=", 1)[-1].split("&", 1)[0] for url in urls]
-        archived = read_archive_ids(runtime / f"{name}.archive.txt")
-        pending = [video_id for video_id in ids if video_id not in archived]
-        available = fetcher(pending, api_key)
-        pending_available = [video_id for video_id in pending if video_id in available]
-        unavailable = [video_id for video_id in pending if video_id not in available]
-        snapshots[name] = (pending_available, unavailable)
-        summary[name] = {
-            "unarchived": len(pending),
-            "pending_available": len(pending_available),
-            "unavailable_or_private": len(unavailable),
-        }
-    for name, (pending_available, unavailable) in snapshots.items():
-        _atomic_write_text(
-            runtime / f"{name}.pending-available.urls.txt",
-            "".join(
-                f"https://www.youtube.com/watch?v={video_id}\n"
-                for video_id in pending_available
-            ),
-        )
-        _atomic_write_text(
-            runtime / f"{name}.unavailable-or-private.txt",
-            "".join(f"{video_id}\n" for video_id in unavailable),
-        )
-    _atomic_write_text(
-        runtime / "youtube-api-availability-summary.json",
-        json.dumps(summary, indent=2) + "\n",
-    )
-    return summary
 
 
 def write_proxy_config(
@@ -502,6 +498,25 @@ def count_final_media(media_dir: Path) -> int:
     )
 
 
+def count_lines(path: Path) -> int:
+    """Count non-empty state inventory rows without interpreting dataset semantics."""
+    return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line)
+
+
+def dataset_status(spec: DatasetSpec) -> dict[str, int | bool]:
+    """Return generic state counts using only paths declared by the spec."""
+    archive = spec.state_dir / "download.archive.txt"
+    pending = spec.state_dir / "pending-available.urls.txt"
+    omitted = spec.state_dir / "api-omitted.txt"
+    return {
+        "running": pid_is_active(spec.state_dir / "download.pid"),
+        "completed": count_lines(archive) if archive.exists() else 0,
+        "media_files": count_final_media(spec.output_dir),
+        "pending_available": count_lines(pending) if pending.exists() else 0,
+        "api_omitted": count_lines(omitted) if omitted.exists() else 0,
+    }
+
+
 def pid_is_active(pid_path: Path) -> bool:
     """Return whether a PID file identifies a running process."""
     try:
@@ -515,23 +530,21 @@ def pid_is_active(pid_path: Path) -> bool:
 
 
 def start_detached(
-    repo_root: Path,
+    spec: DatasetSpec,
+    config: DownloadConfig,
     popen: Callable[..., object] = subprocess.Popen,
-    node_path: str | None = None,
-    proxy_env_path: Path | None = None,
     credential_runner: Callable[..., object] = subprocess.run,
 ) -> int:
     """Start the download worker detached and return its PID."""
-    runtime = repo_root / "data/vqa/download_runtime"
+    runtime = spec.state_dir
     runtime.mkdir(parents=True, exist_ok=True)
     _validate_runtime_directory(runtime)
     with _startup_lock(runtime) as lock_handle:
         pid = _start_detached_locked(
-            repo_root,
+            spec,
+            config,
             runtime,
             popen=popen,
-            node_path=node_path,
-            proxy_env_path=proxy_env_path,
             credential_runner=credential_runner,
             lock_descriptor=lock_handle.descriptor,
         )
@@ -540,12 +553,11 @@ def start_detached(
 
 
 def _start_detached_locked(
-    repo_root: Path,
+    spec: DatasetSpec,
+    config: DownloadConfig,
     runtime: Path,
     *,
     popen: Callable[..., object],
-    node_path: str | None,
-    proxy_env_path: Path | None,
     credential_runner: Callable[..., object],
     lock_descriptor: int,
 ) -> int:
@@ -553,38 +565,29 @@ def _start_detached_locked(
     pid_path = runtime / "download.pid"
     if pid_is_active(pid_path):
         raise RuntimeError(
-            f"VQA download is already running with PID "
+            f"YouTube dataset download is already running with PID "
             f"{pid_path.read_text(encoding='utf-8').strip()}"
         )
-    resolved_node = node_path or shutil.which("node")
+    resolved_node = config.node_path or shutil.which("node")
     if not resolved_node:
         raise RuntimeError("Node.js is required for complete YouTube format extraction")
-    if proxy_env_path is None:
-        raise RuntimeError("An explicit proxy credential file is required")
-    credentials = proxy_env_path
     proxy_config = write_proxy_config(
-        credentials,
+        config.proxy_file,
         runtime / "yt-dlp-proxy.conf",
         runner=credential_runner,
     )
     environment = dict(os.environ)
     for variable in PROXY_ENV_VARIABLES:
         environment.pop(variable, None)
-    environment["VQA_NODE_PATH"] = resolved_node
-    environment["VQA_PROXY_CONFIG_PATH"] = str(proxy_config)
+    environment["YOUTUBE_DATASET_NODE_PATH"] = resolved_node
+    environment["YOUTUBE_DATASET_PROXY_CONFIG_PATH"] = str(proxy_config)
     environment[WORKER_LOCK_FD_ENV] = str(lock_descriptor)
     log_path = runtime / "download.log"
     with log_path.open("a", encoding="utf-8") as log_handle:
         try:
             child = popen(
-                [
-                    sys.executable,
-                    "-m",
-                    "trec_video_2026.vqa_download",
-                    "run",
-                    "--detached-worker",
-                ],
-                cwd=repo_root,
+                list(config.worker_command),
+                cwd=runtime,
                 stdout=log_handle,
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
@@ -592,13 +595,13 @@ def _start_detached_locked(
                 pass_fds=(lock_descriptor,),
             )
         except Exception:
-            raise RuntimeError("Unable to start detached VQA worker") from None
+            raise RuntimeError("Unable to start detached YouTube dataset worker") from None
     try:
         pid = int(child.pid)
         _record_pid(pid_path, pid)
     except Exception:
         _rollback_child(child)
-        raise RuntimeError("Unable to record detached VQA worker PID") from None
+        raise RuntimeError("Unable to record detached YouTube dataset worker PID") from None
     return pid
 
 
@@ -625,23 +628,6 @@ def _rollback_child(child: object) -> None:
         pass
 
 
-def read_video_ids(csv_path: Path) -> list[str]:
-    """Read unique YouTube IDs from a NIST VQA CSV in source order."""
-    with csv_path.open(newline="", encoding="utf-8") as handle:
-        ids = [row[1].strip() for row in csv.reader(handle) if len(row) >= 2]
-    if any(not VIDEO_ID.fullmatch(video_id) for video_id in ids):
-        raise ValueError(f"Invalid YouTube ID in {csv_path}")
-    return list(dict.fromkeys(ids))
-
-
-def read_unavailable_ids(readme_path: Path) -> set[str]:
-    """Extract the unavailable video IDs listed in a NIST README."""
-    text = readme_path.read_text(encoding="utf-8")
-    names = re.findall(r"(?m)^([A-Za-z0-9_-]{11})\.json\s*$", text)
-    quoted = re.findall(r"['\"]([A-Za-z0-9_-]{11})['\"]", text)
-    return set(names) | set(quoted)
-
-
 def read_archive_ids(archive: Path) -> set[str]:
     """Read valid video IDs from yt-dlp archive rows."""
     if not archive.exists():
@@ -653,49 +639,17 @@ def read_archive_ids(archive: Path) -> set[str]:
     }
 
 
-def write_manifest(
-    csv_path: Path, readme_path: Path, output_path: Path
-) -> list[str]:
-    """Write usable YouTube URLs and return their video IDs."""
-    excluded = read_unavailable_ids(readme_path)
-    ids = [
-        video_id for video_id in read_video_ids(csv_path) if video_id not in excluded
-    ]
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        "".join(f"https://www.youtube.com/watch?v={video_id}\n" for video_id in ids),
-        encoding="utf-8",
-    )
-    return ids
-
-
-def prepare_manifests(repo_root: Path) -> dict[str, int]:
-    """Generate training/testing URL manifests and return usable counts."""
-    vqa_root = repo_root / "data/vqa"
-    runtime = vqa_root / "download_runtime"
-    training = write_manifest(
-        vqa_root / "2025/training/annotations/train.2025.csv",
-        vqa_root / "2025/training/README.txt",
-        runtime / "training.urls.txt",
-    )
-    testing = write_manifest(
-        vqa_root / "2025/testing/testing.dataset.vqa.2025.csv",
-        vqa_root / "2025/testing/README.txt",
-        runtime / "testing.urls.txt",
-    )
-    return {"training": len(training), "testing": len(testing)}
-
-
 def build_ytdlp_command(
     url: str,
     output_dir: Path,
     archive: Path,
     proxy_config: Path | None = None,
+    node_path: str | None = None,
 ) -> list[str]:
     """Build a resumable yt-dlp command that never transcodes streams."""
     output_dir.mkdir(parents=True, exist_ok=True)
     archive.parent.mkdir(parents=True, exist_ok=True)
-    node_path = os.environ.get("VQA_NODE_PATH") or shutil.which("node")
+    node_path = node_path or os.environ.get("YOUTUBE_DATASET_NODE_PATH") or shutil.which("node")
     node_runtime = f"node:{node_path}" if node_path else "node"
     command = [
         sys.executable,
@@ -727,9 +681,7 @@ def build_ytdlp_command(
         "--newline",
     ]
     selected_proxy_config = proxy_config or (
-        Path(environment_path)
-        if (environment_path := os.environ.get("VQA_PROXY_CONFIG_PATH"))
-        else None
+        Path(value) if (value := os.environ.get("YOUTUBE_DATASET_PROXY_CONFIG_PATH")) else None
     )
     if selected_proxy_config is not None:
         command.extend(["--config-locations", str(selected_proxy_config)])
@@ -840,146 +792,21 @@ def run_dataset(
             return
 
 
-def run_downloads(
-    repo_root: Path,
-    runner: Callable[[list[str]], AttemptResult] = run_url,
+def run_spec(
+    spec: DatasetSpec,
+    *,
+    url_runner: Callable[[list[str]], AttemptResult] = run_url,
     sleeper: Callable[[float], None] = time.sleep,
-) -> int:
-    """Download training and testing videos sequentially."""
-    vqa_root = repo_root / "data/vqa"
-    runtime = vqa_root / "download_runtime"
-    datasets = (
-        (
-            "training",
-            vqa_root / "2025/training/videos_original",
-        ),
-        (
-            "testing",
-            vqa_root / "2025/testing/videos_original",
-        ),
+    config: DownloadConfig | None = None,
+) -> None:
+    """Run the prepared manifest and state paths declared by a dataset spec."""
+    run_dataset(
+        spec.state_dir / "pending-available.urls.txt",
+        spec.output_dir,
+        spec.state_dir / "download.archive.txt",
+        url_runner=url_runner,
+        sleeper=sleeper,
+        ordinary_delay=config.ordinary_delay if config else 10.0,
+        initial_cooldown=config.initial_cooldown if config else 3600.0,
+        maximum_cooldown=config.maximum_cooldown if config else 7200.0,
     )
-    try:
-        for name, output_dir in datasets:
-            manifest = runtime / f"{name}.pending-available.urls.txt"
-            archive = runtime / f"{name}.archive.txt"
-            run_dataset(
-                manifest,
-                output_dir,
-                archive,
-                url_runner=runner,
-                sleeper=sleeper,
-            )
-    except OSError as error:
-        print(f"Unable to start yt-dlp: {error}", file=sys.stderr)
-        return 1
-    return 0
-
-
-def main(argv: list[str] | None = None, repo_root: Path | None = None) -> int:
-    """Run manifest preparation, worker, detached launch, or status reporting."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("prepare", "run", "start", "status"))
-    parser.add_argument("--detached-worker", action="store_true", help=argparse.SUPPRESS)
-    args = parser.parse_args(argv)
-    root = repo_root or Path(__file__).resolve().parents[2]
-    runtime = root / "data/vqa/download_runtime"
-
-    if args.command == "prepare":
-        counts = prepare_manifests(root)
-        print(f"training URLs: {counts['training']}")
-        print(f"testing URLs: {counts['testing']}")
-        return 0
-    if args.command == "run":
-        runtime.mkdir(parents=True, exist_ok=True)
-        try:
-            _validate_runtime_directory(runtime)
-            if args.detached_worker:
-                lock_value = os.environ.get(WORKER_LOCK_FD_ENV)
-                if not lock_value:
-                    raise RuntimeError("Inherited VQA worker lock is required")
-                try:
-                    lock_descriptor = int(lock_value)
-                except ValueError:
-                    raise RuntimeError("Inherited VQA worker lock is invalid") from None
-                _validate_inherited_worker_lock(runtime, lock_descriptor)
-                config_value = os.environ.get("VQA_PROXY_CONFIG_PATH")
-                if not config_value:
-                    raise RuntimeError("Prepared proxy configuration is required")
-                validate_proxy_config(Path(config_value))
-                for variable in PROXY_ENV_VARIABLES:
-                    os.environ.pop(variable, None)
-                try:
-                    return run_downloads(root)
-                finally:
-                    os.close(lock_descriptor)
-            else:
-                with _startup_lock(runtime):
-                    credential_path = os.environ.get("YOUTUBE_DATASET_PROXY_FILE")
-                    if not credential_path:
-                        raise RuntimeError("An explicit proxy credential file is required")
-                    config_path = write_proxy_config(
-                        Path(credential_path), runtime / "yt-dlp-proxy.conf"
-                    )
-                    os.environ["VQA_PROXY_CONFIG_PATH"] = str(config_path)
-                    for variable in PROXY_ENV_VARIABLES:
-                        os.environ.pop(variable, None)
-                    return run_downloads(root)
-        except RuntimeError as error:
-            print(error, file=sys.stderr)
-            return 1
-    if args.command == "start":
-        try:
-            prepare_manifests(root)
-            api_path = os.environ.get("YOUTUBE_DATASET_API_KEY_FILE")
-            if not api_path:
-                raise RuntimeError("An explicit YouTube API key file is required")
-            api_key = load_youtube_api_key(Path(api_path))
-            availability = prepare_available_manifests(root, api_key)
-            pid = start_detached(root)
-        except RuntimeError as error:
-            print(error, file=sys.stderr)
-            return 1
-        for name in ("training", "testing"):
-            counts = availability[name]
-            print(
-                f"{name} API precheck: {counts['pending_available']} available, "
-                f"{counts['unavailable_or_private']} unavailable/private"
-            )
-        print(f"started VQA download with PID {pid}")
-        print(f"log: {runtime / 'download.log'}")
-        return 0
-
-    pid_path = runtime / "download.pid"
-    active = pid_is_active(pid_path)
-    pid = pid_path.read_text(encoding="utf-8").strip() if pid_path.exists() else "none"
-    print(f"state: {'running' if active else 'stopped'}")
-    print(f"pid: {pid}")
-    for name in ("training", "testing"):
-        archive = runtime / f"{name}.archive.txt"
-        completed = (
-            len(archive.read_text(encoding="utf-8").splitlines())
-            if archive.exists()
-            else 0
-        )
-        media_dir = root / f"data/vqa/2025/{name}/videos_original"
-        media = count_final_media(media_dir)
-        print(f"{name} completed: {completed}")
-        print(f"{name} media files: {media}")
-        pending_path = runtime / f"{name}.pending-available.urls.txt"
-        unavailable_path = runtime / f"{name}.unavailable-or-private.txt"
-        if pending_path.exists():
-            print(
-                f"{name} API-available pending: "
-                f"{len(pending_path.read_text(encoding='utf-8').splitlines())}"
-            )
-        if unavailable_path.exists():
-            print(
-                f"{name} API unavailable/private: "
-                f"{len(unavailable_path.read_text(encoding='utf-8').splitlines())}"
-            )
-    print(f"log: {runtime / 'download.log'}")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

@@ -1,6 +1,7 @@
 """Tests for the single generic YouTube dataset download engine."""
 
 from pathlib import Path
+import subprocess
 
 from trec_video_2026 import youtube_dataset
 from trec_video_2026 import vqa_download
@@ -105,3 +106,82 @@ def test_run_url_classifies_bad_gateway_as_proxy_failure():
     )
 
     assert result.proxy_failure is True
+
+
+def test_non_vqa_dataset_spec_drives_api_preparation_and_run_paths(tmp_path: Path, monkeypatch):
+    spec = youtube_dataset.DatasetSpec(
+        source=tmp_path / "arbitrary/input.txt",
+        output_dir=tmp_path / "elsewhere/media",
+        state_dir=tmp_path / "custom-state",
+    )
+    spec.source.parent.mkdir(parents=True)
+    spec.source.write_text(
+        "abcDEF123_0\nhttps://www.youtube.com/watch?v=xyzXYZ987-1\n",
+        encoding="utf-8",
+    )
+
+    config = youtube_dataset.DownloadConfig(
+        api_key_file=tmp_path / "credentials/api.env",
+        proxy_file=tmp_path / "credentials/proxy.env",
+    )
+    seen = []
+    monkeypatch.setattr(
+        youtube_dataset,
+        "load_youtube_api_key",
+        lambda path: seen.append(path) or "placeholder-key",
+    )
+    summary = youtube_dataset.prepare_dataset(spec, config, fetcher=lambda ids, key: {ids[0]})
+
+    assert summary == {"total": 2, "pending_available": 1, "api_omitted": 1}
+    assert seen == [config.api_key_file]
+    assert (spec.state_dir / "pending-available.urls.txt").read_text() == (
+        "https://www.youtube.com/watch?v=abcDEF123_0\n"
+    )
+    calls = []
+    youtube_dataset.run_spec(
+        spec,
+        url_runner=lambda command: calls.append(command) or youtube_dataset.AttemptResult(False, False),
+        sleeper=lambda _: None,
+    )
+    assert calls[0][-1] == "https://www.youtube.com/watch?v=abcDEF123_0"
+    assert any(str(spec.output_dir) in argument for argument in calls[0])
+    assert str(spec.state_dir / "download.archive.txt") in calls[0]
+    assert youtube_dataset.dataset_status(spec) == {
+        "running": False,
+        "completed": 0,
+        "media_files": 0,
+        "pending_available": 1,
+        "api_omitted": 1,
+    }
+
+
+def test_detached_spec_binds_explicit_worker_command_and_config(tmp_path: Path, monkeypatch):
+    spec = youtube_dataset.DatasetSpec(
+        source=tmp_path / "input.txt", output_dir=tmp_path / "media", state_dir=tmp_path / "state"
+    )
+    proxy_file = tmp_path / "proxy.env"
+    config = youtube_dataset.DownloadConfig(
+        api_key_file=tmp_path / "api.env",
+        proxy_file=proxy_file,
+        worker_command=("python", "worker.py", "--run"),
+        node_path="/opt/node/bin/node",
+    )
+    captured = {}
+
+    def fake_write(source, target, runner=subprocess.run):
+        target.write_text("placeholder\n")
+        return target
+
+    class Child:
+        pid = 4242
+
+    monkeypatch.setattr(youtube_dataset, "write_proxy_config", fake_write)
+    pid = youtube_dataset.start_detached(
+        spec,
+        config,
+        popen=lambda command, **kwargs: captured.update(command=command, kwargs=kwargs) or Child(),
+    )
+
+    assert pid == 4242
+    assert captured["command"] == list(config.worker_command)
+    assert captured["kwargs"]["cwd"] == spec.state_dir

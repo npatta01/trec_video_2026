@@ -27,7 +27,7 @@ from trec_video_2026.vqa_download import (
     run_url,
     run_dataset,
     run_downloads,
-    start_detached,
+    start_detached as shared_start_detached,
     write_proxy_config,
     write_manifest,
 )
@@ -37,6 +37,31 @@ def _secure_env(path: Path) -> Path:
     path.write_text("placeholder only\n", encoding="utf-8")
     path.chmod(0o600)
     return path
+
+
+def start_detached(
+    repo_root: Path,
+    popen=subprocess.Popen,
+    node_path: str | None = None,
+    proxy_env_path: Path | None = None,
+    credential_runner=subprocess.run,
+):
+    """Exercise shared detached behavior with explicit VQA adapter construction."""
+    runtime = repo_root / "data/vqa/download_runtime"
+    spec = youtube_dataset.DatasetSpec(
+        source=runtime / "testing.pending-available.urls.txt",
+        output_dir=repo_root / "data/vqa/2025/testing/videos_original",
+        state_dir=runtime,
+    )
+    config = youtube_dataset.DownloadConfig(
+        api_key_file=repo_root / "placeholder-api.env",
+        proxy_file=proxy_env_path or repo_root / "placeholder-proxy.env",
+        worker_command=("python", "-m", "trec_video_2026.vqa_download", "run", "--detached-worker"),
+        node_path=node_path,
+    )
+    return shared_start_detached(
+        spec, config, popen=popen, credential_runner=credential_runner
+    )
 
 
 def test_youtube_api_key_loads_without_ambient_fallback(tmp_path: Path, monkeypatch):
@@ -654,11 +679,12 @@ def test_read_archive_ids_filters_invalid_rows(tmp_path: Path):
 def test_ytdlp_command_paces_requests_without_per_stream_sleep(
     tmp_path: Path, monkeypatch
 ):
-    monkeypatch.setenv("VQA_NODE_PATH", "/opt/node/bin/node")
+    monkeypatch.setenv("PATH", "")
     command = build_ytdlp_command(
         "https://www.youtube.com/watch?v=abcDEF123_0",
         tmp_path / "videos",
         tmp_path / "archive.txt",
+        node_path="/opt/node/bin/node",
     )
     joined = " ".join(command)
 
@@ -887,7 +913,7 @@ def test_start_command_prefilters_before_spawning_worker(
     monkeypatch.setattr(
         vqa_download,
         "start_detached",
-        lambda root, **kwargs: calls.append("spawn") or 4242,
+        lambda spec, config, **kwargs: calls.append("spawn") or 4242,
     )
 
     assert main(["start"], repo_root=tmp_path) == 0
@@ -959,9 +985,9 @@ def test_start_detached_records_child_pid_and_node_path(
     ) == 4242
     assert (runtime / "download.pid").read_text(encoding="utf-8") == "4242\n"
     assert captured["start_new_session"] is True
-    assert captured["cwd"] == tmp_path
+    assert captured["cwd"] == runtime
     assert captured["stderr"] == -2
-    assert captured["env"]["VQA_NODE_PATH"] == "/opt/node/bin/node"
+    assert captured["env"]["YOUTUBE_DATASET_NODE_PATH"] == "/opt/node/bin/node"
     assert "--detached-worker" in captured["command"]
 
 
@@ -999,7 +1025,7 @@ def test_start_detached_prepares_private_proxy_config_without_leaking_secrets(
     config_path = runtime / "yt-dlp-proxy.conf"
     assert captured["source"] == env_path
     assert captured["target"] == config_path
-    assert captured["env"]["VQA_PROXY_CONFIG_PATH"] == str(config_path)
+    assert captured["env"]["YOUTUBE_DATASET_PROXY_CONFIG_PATH"] == str(config_path)
     assert "DECODO_PASSWORD" not in captured["env"]
     assert placeholder_secret not in " ".join(captured["command"])
     assert placeholder_secret not in (runtime / "download.log").read_text(
@@ -1037,7 +1063,7 @@ def test_start_detached_real_placeholder_config_is_private_and_child_visible(
         credential_runner=credential_runner,
     ) == 4242
     config_path = runtime / "yt-dlp-proxy.conf"
-    assert captured["env"]["VQA_PROXY_CONFIG_PATH"] == str(config_path)
+    assert captured["env"]["YOUTUBE_DATASET_PROXY_CONFIG_PATH"] == str(config_path)
     assert stat.S_IMODE(config_path.stat().st_mode) == 0o600
     protected = (
         "proxy.example:7000",
@@ -1324,7 +1350,7 @@ def test_start_detached_passes_worker_lock_for_full_child_lifetime(
         pid = 4242
 
     def popen(command, **kwargs):
-        lock_fd = int(kwargs["env"]["VQA_WORKER_LOCK_FD"])
+        lock_fd = int(kwargs["env"]["YOUTUBE_DATASET_WORKER_LOCK_FD"])
         assert lock_fd in kwargs["pass_fds"]
         retained["fd"] = os.dup(lock_fd)
         return Child()
@@ -1386,6 +1412,18 @@ def test_status_command_reports_stopped_job(tmp_path: Path, capsys):
     assert "state: stopped" in output
     assert "training completed: 0" in output
     assert "testing completed: 0" in output
+
+
+def test_status_command_preserves_api_inventory_counters(tmp_path: Path, capsys):
+    runtime = tmp_path / "data/vqa/download_runtime"
+    runtime.mkdir(parents=True)
+    (runtime / "training.pending-available.urls.txt").write_text("one\ntwo\n")
+    (runtime / "training.unavailable-or-private.txt").write_text("missing\n")
+
+    assert main(["status"], repo_root=tmp_path) == 0
+    output = capsys.readouterr().out
+    assert "training API-available pending: 2" in output
+    assert "training API unavailable/private: 1" in output
 
 
 def test_direct_run_proxy_failure_makes_zero_download_calls(
