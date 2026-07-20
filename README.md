@@ -11,7 +11,7 @@ Everything under `data/` is local-only. The large media and runtime files are in
 The canonical checkout owns the only physical dataset copy:
 `/home/npatta01/data/competitions/trec_video_2026/data`. Linked Git worktrees
 use an ignored, absolute `data` symlink to that directory, so repository tools
-can use the same relative paths without duplicating approximately 17 GiB.
+can use the same relative paths without duplicating approximately 25 GiB.
 
 Configure every currently registered worktree from any checkout:
 
@@ -30,7 +30,9 @@ not yet contain the tracked `.gitignore` rule.
 | `data/vtt/` | NIST TRECVID Video-to-Text data from 2016–2024: videos, captions, URL metadata, and checksums | 10,152 local WebM videos; captions cover 16,627 IDs |
 | `data/vqa/2025/training/` | Original NIST training ZIP/README, extracted annotations, and downloaded YouTube media | 481 usable videos/annotations from 500 rows after 19 NIST exclusions |
 | `data/vqa/2025/testing/` | NIST 2025 test CSV/README and downloaded YouTube media | 1,982 usable videos from 2,000 rows after 18 NIST exclusions |
-| `data/vqa/download_runtime/` | Generated URL manifests, yt-dlp archives, PID files, progress logs, and completion-monitor state | Runtime state; safe to retain for resume |
+| `data/vqa/2026/testing/` | NIST 2026 AG README, topics JSON, retained/extracted video ZIP, and downloaded YouTube media | 1,946/1,956 unique test videos local; 10 YouTube IDs API-omitted |
+| `data/vqa/download_runtime/` | 2025 generated manifests, archives, logs, and completion state | Runtime state; safe to retain for resume |
+| `data/vqa/2026/download_runtime/` | 2026 generated manifest, API snapshot, archive, log, and completion state | Cleanly stopped; safe to retain for rechecking omitted IDs |
 
 Important files:
 
@@ -41,24 +43,40 @@ Important files:
 - `data/vqa/2025/training/annotations/*.json`: extracted question/answer annotations; the working copy excludes 19 unavailable videos.
 - `data/vqa/2025/testing/testing.dataset.vqa.2025.csv`: 2,000 prior test queries.
 - `data/vqa/2025/*/videos_original/`: highest-quality YouTube video+audio streams, merged without transcoding.
+- `data/vqa/2026/testing/vqa.2026.testingDataset.Task1.json`: 2,443 current AG queries covering 1,956 unique videos.
+- `data/vqa/2026/testing/videos/`: all 1,088 NIST-supplied WebM clips extracted from the retained ZIP.
+- `data/vqa/2026/testing/videos_original/`: 858 downloaded YouTube videos plus matching metadata.
+- `data/vqa/2026/testing/DATASET_STATUS.md`: current 2026 coverage, evidence, and recheck instructions.
+- `data/vqa/2026/testing/youtube_not_downloaded.csv`: the 10 API-omitted YouTube IDs and affected-query counts.
 
 The original NIST ZIPs and metadata are retained even when extracted working copies exclude unavailable videos.
 
-## Verified snapshot
+## Competition-data completeness
 
-As of 2026-07-17:
+As of 2026-07-20:
 
 - VTT: 10,152/10,152 media files, 3.2 GiB; the full NIST checksum list passed.
-- VQA training originals: 475/481 archived as complete; the API precheck found
-  no additional currently available training videos.
-- VQA testing originals: 1,883/1,982 archived as complete. The final proxy run
-  downloaded 830 additional videos after API prefiltering.
+- VQA 2025 training package: the original 500-item NIST ZIP passes its archive
+  test. The extracted working set contains 481 annotations after the 19
+  exclusions named by NIST; 475/481 corresponding YouTube videos are local and
+  6 are API-omitted. This is optional 2026 development data.
+- VQA 2025 testing list: the original 2,000-query NIST CSV is present. After
+  the 18 exclusions named by NIST, 1,883/1,982 corresponding YouTube videos are
+  local. The remaining 99 comprise 96 API omissions and three downloader-level
+  terminal cases documented below. This is optional 2026 development data.
 - The YouTube Data API omitted 96 unarchived testing IDs. Three API-visible IDs
   also remained inaccessible to an unauthenticated downloader:
   - `y2Ouj_3UnII`: members-only.
   - `pau76KtNeeg`: unavailable when yt-dlp attempted it.
   - `mOP7QZfMEjE`: age-restricted and requires authentication.
-- VQA data used approximately 13 GiB at this snapshot.
+- VQA 2026 AG test package: README, 2,443-query JSON, and the 1,088-video NIST
+  ZIP are present; both ZIP integrity and extracted filename coverage pass.
+  Of 868 referenced YouTube IDs, 858 have finalized media and metadata and 10
+  were omitted by the final API check. Overall local test-video coverage is
+  1,946/1,956 (99.49%); the 10 missing IDs affect 10 queries.
+- VQA 2026 MC topics/options are not yet expected. NIST schedules their release
+  for 2026-08-21 and states that AG and MC share the same testing videos.
+- All data uses approximately 25 GiB at this snapshot.
 - The first VQA media file was verified with `ffprobe` as 1080×1920 VP9 video plus Opus audio.
 
 The VQA counts change while a download is running. Use the status command for live values.
@@ -124,14 +142,16 @@ omitted IDs `unavailable-or-private`.
 ### Private proxy configuration
 
 Detached starts require `/home/npatta01/.config/trec-video/decodo.env`, owned
-by the current user with mode `0600`, and these nonempty variables:
-`DECODO_ENDPOINT`, `DECODO_USER`, and `DECODO_PASSWORD`. The downloader sources
+by the current user with mode `0600`. Use either `PROXY_URL` alone or all four
+structured variables: `PROXY_SCHEME`, `PROXY_ENDPOINT`, `PROXY_USER`, and
+`PROXY_PASSWORD`. Legacy `DECODO_*` variables remain supported only for VQA
+compatibility. The downloader sources
 that file in a subprocess, URL-encodes the user and password, and atomically
 writes `data/vqa/download_runtime/yt-dlp-proxy.conf` with mode `0600`. Child
 commands receive only that config path; credentials and the proxy URL are not
 placed on the command line or in Git-tracked files.
 
-`DECODO_ENDPOINT` accepts a DNS hostname or IPv4 literal followed by a numeric
+`PROXY_ENDPOINT` accepts a DNS hostname or IPv4 literal followed by a numeric
 port (for example, `proxy.example:7000`). Schemes, embedded credentials,
 whitespace, and bracketed IPv6 endpoints are intentionally rejected.
 
