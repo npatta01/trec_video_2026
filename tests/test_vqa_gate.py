@@ -33,6 +33,7 @@ def request(tmp_path: Path) -> RunnerRequest:
         frame_timestamps=(0.5,),
         transcript=None,
         media_path=None,
+        audio_path=None,
     )
 
 
@@ -219,6 +220,31 @@ def test_rocm_command_mounts_only_required_roots(tmp_path: Path) -> None:
     assert "/home/npatta01:/home/npatta01" not in joined
     assert condition.model_revision in command
     assert command[-1] == "32"
+    assert "--model-class" in command
+
+
+def test_rocm_command_dispatches_specialist_runner(tmp_path: Path) -> None:
+    for path in (tmp_path / "repo", tmp_path / "dataset", tmp_path / "cache"):
+        path.mkdir()
+    condition = Condition(
+        condition_id="internvl",
+        model_id="OpenGVLab/model",
+        model_revision="a" * 40,
+        evidence="native-capped-tiles",
+        download_bytes=1,
+        runner_kind="internvl",
+    )
+
+    command = build_rocm_runner_command(
+        image="local/image:pinned",
+        repo_root=tmp_path / "repo",
+        dataset_root=tmp_path / "dataset",
+        hf_cache_root=tmp_path / "cache",
+        condition=condition,
+    )
+
+    assert "trec_video_2026.vqa_specialist_runner" in command
+    assert command[command.index("--kind") + 1] == "internvl"
 
 
 def test_latest_results_prefer_success_over_later_failure() -> None:

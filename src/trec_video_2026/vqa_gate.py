@@ -37,6 +37,7 @@ class Condition:
     model_revision: str
     evidence: str
     download_bytes: int
+    runner_kind: str = "image-text"
 
 
 @dataclass(frozen=True)
@@ -85,7 +86,7 @@ def build_rocm_runner_command(
 
     roots = tuple(path.resolve(strict=True) for path in (repo_root, dataset_root, hf_cache_root))
     repo, dataset, cache = roots
-    return [
+    command = [
         "podman",
         "run",
         "--rm",
@@ -114,14 +115,34 @@ def build_rocm_runner_command(
         image,
         "python",
         "-m",
-        "trec_video_2026.vqa_transformers_runner",
+    ]
+    if condition.runner_kind in {"internvl", "minicpm"}:
+        command.extend(
+            [
+                "trec_video_2026.vqa_specialist_runner",
+                "--kind",
+                condition.runner_kind,
+            ]
+        )
+    else:
+        command.extend(
+            [
+                "trec_video_2026.vqa_transformers_runner",
+                "--model-class",
+                condition.runner_kind,
+            ]
+        )
+    command.extend(
+        [
         "--model-id",
         condition.model_id,
         "--revision",
         condition.model_revision,
         "--max-new-tokens",
         "32",
-    ]
+        ]
+    )
+    return command
 
 
 @dataclass(frozen=True)
@@ -136,6 +157,7 @@ class RunnerRequest:
     frame_timestamps: tuple[float, ...]
     transcript: str | None
     media_path: Path | None
+    audio_path: Path | None = None
 
     def __post_init__(self) -> None:
         if not self.run_id or not self.condition_id or not self.video_id:
@@ -157,6 +179,7 @@ class RunnerRequest:
             "frame_timestamps": list(self.frame_timestamps),
             "transcript": self.transcript,
             "media_path": str(self.media_path.resolve()) if self.media_path else None,
+            "audio_path": str(self.audio_path.resolve()) if self.audio_path else None,
         }
 
 

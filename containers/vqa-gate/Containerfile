@@ -6,7 +6,10 @@ RUN python -m pip install --no-cache-dir \
     "transformers @ git+https://github.com/huggingface/transformers.git@${TRANSFORMERS_REVISION}" \
     "accelerate==1.12.0" \
     "av==16.0.1" \
+    "decord2==3.4.0" \
+    "einops==0.8.2" \
     "librosa==0.11.0" \
+    "molmo_utils==0.0.1" \
     "sentencepiece==0.2.1"
 
 ENV PYTHONUNBUFFERED=1 \

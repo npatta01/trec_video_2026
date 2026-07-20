@@ -37,21 +37,24 @@
       "model_id": "google/gemma-4-12B-it",
       "model_revision": "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
       "evidence": "controlled-12-frames-transcript",
-      "download_bytes": 23900000000
+      "download_bytes": 23900000000,
+      "runner_kind": "multimodal"
     },
     {
       "condition_id": "internvl35-4b-native-tiles",
       "model_id": "OpenGVLab/InternVL3_5-4B",
       "model_revision": "481f6e32467eab4e922ccd7fd6cf420441a62331",
       "evidence": "native-capped-tiles",
-      "download_bytes": 9500000000
+      "download_bytes": 9500000000,
+      "runner_kind": "internvl"
     },
     {
       "condition_id": "minicpmo45-native-av",
       "model_id": "openbmb/MiniCPM-o-4_5",
       "model_revision": "1f761131fa83f5ed3cd6f2f22b225c4501d154fa",
       "evidence": "native-video-audio",
-      "download_bytes": 20000000000
+      "download_bytes": 20000000000,
+      "runner_kind": "minicpm"
     }
   ]
 }

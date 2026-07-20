@@ -30,6 +30,16 @@ def load_processor(auto_processor: Any, model_id: str, revision: str) -> Any:
     )
 
 
+def select_auto_model_class(
+    kind: str, image_text_class: Any, multimodal_class: Any
+) -> Any:
+    if kind == "image-text":
+        return image_text_class
+    if kind == "multimodal":
+        return multimodal_class
+    raise ValueError(f"Unsupported model class: {kind}")
+
+
 def generate_answer(
     *,
     processor: Any,
@@ -73,6 +83,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-id", required=True)
     parser.add_argument("--revision", required=True)
+    parser.add_argument(
+        "--model-class", choices=("image-text", "multimodal"), default="image-text"
+    )
     parser.add_argument("--max-new-tokens", type=int, default=64)
     return parser.parse_args(argv)
 
@@ -82,7 +95,11 @@ def main(argv: list[str] | None = None) -> int:
 
     import torch
     import transformers
-    from transformers import AutoModelForImageTextToText, AutoProcessor
+    from transformers import (
+        AutoModelForImageTextToText,
+        AutoModelForMultimodalLM,
+        AutoProcessor,
+    )
 
     args = parse_args(argv)
     payload = json.load(sys.stdin)
@@ -96,7 +113,10 @@ def main(argv: list[str] | None = None) -> int:
     torch.cuda.reset_peak_memory_stats()
     try:
         processor = load_processor(AutoProcessor, model_id, revision)
-        model = AutoModelForImageTextToText.from_pretrained(
+        auto_model = select_auto_model_class(
+            args.model_class, AutoModelForImageTextToText, AutoModelForMultimodalLM
+        )
+        model = auto_model.from_pretrained(
             model_id,
             revision=revision,
             trust_remote_code=True,

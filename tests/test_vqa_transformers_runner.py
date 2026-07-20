@@ -7,6 +7,7 @@ from trec_video_2026.vqa_transformers_runner import (
     MIN_PIXELS_PER_FRAME,
     generate_answer,
     load_processor,
+    select_auto_model_class,
 )
 
 
@@ -87,3 +88,11 @@ def test_load_processor_caps_each_frames_visual_token_budget() -> None:
 
     assert result[1]["min_pixels"] == MIN_PIXELS_PER_FRAME == 65_536
     assert result[1]["max_pixels"] == MAX_PIXELS_PER_FRAME == 262_144
+
+
+def test_select_auto_model_class_supports_gemma_multimodal() -> None:
+    assert select_auto_model_class("image-text", "image", "multimodal") == "image"
+    assert (
+        select_auto_model_class("multimodal", "image", "multimodal")
+        == "multimodal"
+    )
