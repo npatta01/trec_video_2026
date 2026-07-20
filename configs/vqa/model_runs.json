@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "runtime_image": "localhost/trec-vqa-gate-rocm:2026-07-20",
+  "runtime_base_digest": "sha256:4449f856653602317e4101a76fce599c7fcd58ccec2e539951fce5f73083179e",
+  "transformers_revision": "cbf4d720ec734edb77d25452b2790c7e4be2f8d7",
+  "conditions": [
+    {
+      "condition_id": "qwen35-4b-12f",
+      "model_id": "Qwen/Qwen3.5-4B",
+      "model_revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+      "evidence": "controlled-12-frames",
+      "download_bytes": 9300000000
+    },
+    {
+      "condition_id": "qwen35-4b-12f-whisper",
+      "model_id": "Qwen/Qwen3.5-4B",
+      "model_revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+      "evidence": "controlled-12-frames-transcript",
+      "download_bytes": 9300000000
+    },
+    {
+      "condition_id": "qwen35-9b-12f-whisper",
+      "model_id": "Qwen/Qwen3.5-9B",
+      "model_revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+      "evidence": "controlled-12-frames-transcript",
+      "download_bytes": 19300000000
+    },
+    {
+      "condition_id": "molmo2-4b-12f-whisper",
+      "model_id": "allenai/Molmo2-4B",
+      "model_revision": "042abfa7a38879a376cec03d949eff0aefaa0600",
+      "evidence": "controlled-12-frames-transcript",
+      "download_bytes": 19400000000
+    },
+    {
+      "condition_id": "gemma4-12b-12f-whisper",
+      "model_id": "google/gemma-4-12B-it",
+      "model_revision": "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
+      "evidence": "controlled-12-frames-transcript",
+      "download_bytes": 23900000000
+    },
+    {
+      "condition_id": "internvl35-4b-native-tiles",
+      "model_id": "OpenGVLab/InternVL3_5-4B",
+      "model_revision": "481f6e32467eab4e922ccd7fd6cf420441a62331",
+      "evidence": "native-capped-tiles",
+      "download_bytes": 9500000000
+    },
+    {
+      "condition_id": "minicpmo45-native-av",
+      "model_id": "openbmb/MiniCPM-o-4_5",
+      "model_revision": "1f761131fa83f5ed3cd6f2f22b225c4501d154fa",
+      "evidence": "native-video-audio",
+      "download_bytes": 20000000000
+    }
+  ]
+}

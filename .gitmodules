@@ -1,0 +1,3 @@
+[submodule "external/nist-vqa"]
+	path = external/nist-vqa
+	url = https://github.com/gawad-nist/VQA

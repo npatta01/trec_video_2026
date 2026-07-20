@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "gate_id": "three-video-gate",
+  "examples": [
+    {
+      "video_id": "BDKkVYmWqdM",
+      "category": "temporal-visual-action",
+      "annotation": "vqa/2025/training/annotations/BDKkVYmWqdM.json",
+      "media": "vqa/2025/training/videos_original/BDKkVYmWqdM.mkv"
+    },
+    {
+      "video_id": "O60MtMuSpf8",
+      "category": "spatial-color-detail",
+      "annotation": "vqa/2025/training/annotations/O60MtMuSpf8.json",
+      "media": "vqa/2025/training/videos_original/O60MtMuSpf8.mkv"
+    },
+    {
+      "video_id": "Fk_j6re_Uiw",
+      "category": "speech-audio",
+      "annotation": "vqa/2025/training/annotations/Fk_j6re_Uiw.json",
+      "media": "vqa/2025/training/videos_original/Fk_j6re_Uiw.mkv"
+    }
+  ]
+}
