@@ -46,6 +46,10 @@ def validate_request(request: dict[str, Any], *, model_kind: str) -> None:
     elif model_kind == "voxtral":
         if mode not in {"transcription", "translation", "question_answer"}:
             raise ValueError("Unknown Voxtral audio mode")
+        if mode == "transcription":
+            language = request.get("language")
+            if not isinstance(language, str) or not language.strip():
+                raise ValueError("language must be a nonempty string")
     else:
         raise ValueError("Unknown audio model kind")
     if mode == "question_answer":
@@ -81,17 +85,11 @@ def prepare_voxtral_inputs(
 
     if request["mode"] == "transcription":
         return processor.apply_transcription_request(
-            language=None,
+            language=request["language"],
             audio=request["audio_path"],
             model_id=model_id,
         )
-    return processor.apply_chat_template(
-        build_voxtral_messages(request),
-        tokenize=True,
-        add_generation_prompt=True,
-        return_dict=True,
-        return_tensors="pt",
-    )
+    return processor.apply_chat_template(build_voxtral_messages(request))
 
 
 def decode_voxtral(
@@ -153,6 +151,32 @@ def transcribe_qwen(model: Any, audio_path: str) -> dict[str, Any]:
     return normalize_qwen_asr_result(outputs[0])
 
 
+def load_qwen(
+    model_class: Any,
+    model_id: str,
+    revision: str,
+    *,
+    dtype: Any,
+    snapshot_resolver: Any = None,
+) -> Any:
+    """Bind Qwen's model and internally loaded processor to one snapshot."""
+
+    if snapshot_resolver is None:
+        from huggingface_hub import snapshot_download
+
+        snapshot_resolver = snapshot_download
+    snapshot = snapshot_resolver(
+        model_id, revision=revision, local_files_only=True
+    )
+    return model_class.from_pretrained(
+        str(snapshot),
+        dtype=dtype,
+        device_map="cuda:0",
+        max_inference_batch_size=1,
+        max_new_tokens=256,
+    )
+
+
 def validate_rocm_bfloat16(model: Any, torch_module: Any) -> tuple[str, str]:
     if not torch_module.cuda.is_available():
         raise RuntimeError("CUDA-compatible accelerator is unavailable")
@@ -175,6 +199,31 @@ def classify_error_status(error: Exception) -> str:
     }
     unsupported = unsupported or "not implemented for" in message or "hip error" in message
     return "unsupported" if unsupported else "failed"
+
+
+def audio_evidence_quality(
+    text: str, *, duration_seconds: float
+) -> dict[str, Any]:
+    """Apply deterministic, label-blind usability checks to transcript text."""
+
+    from trec_video_2026.vqa_whisper import transcript_quality
+
+    quality = transcript_quality(text, duration_seconds=duration_seconds)
+    base_status = quality["status"]
+    normalized = " ".join(text.lower().replace("’", "'").split())
+    refusal_markers = (
+        "i didn't understand",
+        "i did not understand",
+        "could you please repeat",
+        "please repeat or clarify",
+    )
+    if any(marker in normalized for marker in refusal_markers):
+        quality["status"] = "rejected-non-transcript"
+    quality["base_status"] = base_status
+    quality["rule"] += (
+        "; reject generic inability-to-understand or repeat/clarify boilerplate"
+    )
+    return quality
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -258,6 +307,20 @@ def _base_result(
     }
 
 
+def finalize_result_metrics(
+    result: dict[str, Any],
+    *,
+    started: float,
+    torch_module: Any,
+    monotonic: Any = time.monotonic,
+) -> None:
+    """Synchronize asynchronous GPU work before recording row metrics."""
+
+    torch_module.cuda.synchronize()
+    result["elapsed_seconds"] = monotonic() - started
+    result["peak_memory_bytes"] = torch_module.cuda.max_memory_allocated()
+
+
 def main(argv: list[str] | None = None) -> int:
     """Read one request or ordered request batch and emit structured JSON."""
 
@@ -269,8 +332,6 @@ def main(argv: list[str] | None = None) -> int:
     import transformers
 
     from trec_video_2026.vqa_benchmark import source_fingerprint
-    from trec_video_2026.vqa_whisper import transcript_quality
-
     args = parse_args(argv)
     payload = json.load(sys.stdin)
     is_batch = isinstance(payload, list)
@@ -300,18 +361,17 @@ def main(argv: list[str] | None = None) -> int:
         else:
             from qwen_asr import Qwen3ASRModel
 
-            model = Qwen3ASRModel.from_pretrained(
+            model = load_qwen(
+                Qwen3ASRModel,
                 args.model_id,
-                revision=args.revision,
+                args.revision,
                 dtype=torch.bfloat16,
-                device_map="cuda:0",
-                max_inference_batch_size=1,
-                max_new_tokens=args.max_new_tokens,
             )
             processor = None
         device, precision = validate_rocm_bfloat16(
             _model_with_parameters(model), torch
         )
+        torch.cuda.synchronize()
         load_seconds = time.monotonic() - loaded_at
     except Exception as error:
         results = [
@@ -340,8 +400,9 @@ def main(argv: list[str] | None = None) -> int:
 
     results = []
     for request in requests:
-        started = time.monotonic()
         torch.cuda.reset_peak_memory_stats()
+        torch.cuda.synchronize()
+        started = time.monotonic()
         audio_hash = None
         try:
             validate_request(request, model_kind=args.kind)
@@ -362,7 +423,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.kind == "qwen3_asr":
                 output = transcribe_qwen(model, str(audio_path))
                 result.update(output)
-                result["quality"] = transcript_quality(
+                result["quality"] = audio_evidence_quality(
                     output["text"], duration_seconds=duration
                 )
             else:
@@ -382,10 +443,12 @@ def main(argv: list[str] | None = None) -> int:
                     result["translated_text"] = (
                         text if request["mode"] == "translation" else None
                     )
-                    result["quality"] = transcript_quality(
+                    result["quality"] = audio_evidence_quality(
                         text, duration_seconds=duration
                     )
-            result["peak_memory_bytes"] = torch.cuda.max_memory_allocated()
+            finalize_result_metrics(
+                result, started=started, torch_module=torch
+            )
         except Exception as error:
             result = _base_result(
                 request,

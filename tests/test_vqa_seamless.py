@@ -10,9 +10,12 @@ import pytest
 import trec_video_2026.vqa_seamless as seamless
 from trec_video_2026.vqa_seamless import (
     decode_translation,
+    decode_text_translation,
     prepare_audio_inputs,
+    prepare_text_inputs,
     request_identity,
     translate_audio,
+    translate_text,
 )
 
 
@@ -96,6 +99,54 @@ def test_translate_audio_targets_english_without_sampling() -> None:
         "input_features": "features",
         "tgt_lang": "eng",
     }
+
+
+def test_prepare_text_inputs_records_source_language_without_casting_ids() -> None:
+    processor = FakeProcessor()
+
+    prepared = prepare_text_inputs(
+        processor, "Bonjour le monde", source_language="fra", device="cuda:0"
+    )
+
+    assert processor.kwargs == {
+        "text": "Bonjour le monde",
+        "src_lang": "fra",
+        "return_tensors": "pt",
+    }
+    assert prepared.to_kwargs == {"device": "cuda:0"}
+
+
+def test_translate_text_is_deterministic_text_to_english_only() -> None:
+    class FakeTextModel(FakeModel):
+        def generate(self, **kwargs):
+            type(self).generate_kwargs = kwargs
+            return [[[11, 12, 3]]]
+
+    result = translate_text(
+        FakeTextModel(),
+        FakeProcessor(),
+        "Bonjour le monde",
+        source_language="fra",
+        device="cuda:0",
+        inference_mode=FakeInferenceMode,
+    )
+
+    assert result == "Where is the bag?"
+    assert FakeTextModel.generate_kwargs == {
+        "input_features": "features",
+        "tgt_lang": "eng",
+        "generate_speech": False,
+        "do_sample": False,
+    }
+
+
+def test_decode_text_translation_uses_unified_model_text_tokens() -> None:
+    processor = FakeProcessor()
+
+    assert decode_text_translation(processor, [[[11, 12, 3]]]) == (
+        "Where is the bag?"
+    )
+    assert processor.decode_args == ([11, 12, 3],)
 
 
 def test_request_identity_copies_only_protocol_identity() -> None:

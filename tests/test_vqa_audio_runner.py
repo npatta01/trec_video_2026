@@ -6,9 +6,12 @@ import json
 import pytest
 
 from trec_video_2026.vqa_audio_runner import (
+    audio_evidence_quality,
     build_voxtral_messages,
     classify_error_status,
     decode_voxtral,
+    finalize_result_metrics,
+    load_qwen,
     normalize_qwen_asr_result,
     prepare_voxtral_inputs,
     request_identity,
@@ -28,6 +31,8 @@ def audio_request(tmp_path: Path, *, mode: str = "transcription") -> dict:
     }
     if mode == "question_answer":
         request["question"] = "What word is defined at the end?"
+    if mode == "transcription":
+        request["language"] = "en"
     return request
 
 
@@ -77,7 +82,17 @@ def test_validate_request_requires_absolute_audio_path(tmp_path: Path) -> None:
         validate_request(request, model_kind="voxtral")
 
 
-def test_voxtral_pure_transcription_uses_dedicated_auto_language_api(
+def test_voxtral_transcription_requires_separately_recorded_language(
+    tmp_path: Path,
+) -> None:
+    request = audio_request(tmp_path)
+    del request["language"]
+
+    with pytest.raises(ValueError, match="language must be a nonempty string"):
+        validate_request(request, model_kind="voxtral")
+
+
+def test_voxtral_pure_transcription_uses_dedicated_language_api(
     tmp_path: Path,
 ) -> None:
     processor = FakeProcessor()
@@ -90,7 +105,7 @@ def test_voxtral_pure_transcription_uses_dedicated_auto_language_api(
 
     assert inputs == {"input_ids": [[7, 8]]}
     assert processor.transcription_call == {
-        "language": None,
+        "language": "en",
         "audio": str(tmp_path / "Mi-NpnCBegw.wav"),
         "model_id": "mistralai/Voxtral-Mini-3B-2507",
     }
@@ -122,6 +137,20 @@ def test_voxtral_translation_uses_one_frozen_english_instruction(
         "type": "text",
         "text": "Translate the complete audio into English. Return only the translation.",
     }
+
+
+def test_voxtral_audio_instruction_uses_official_chat_template_surface(
+    tmp_path: Path,
+) -> None:
+    processor = FakeProcessor()
+
+    prepare_voxtral_inputs(
+        processor,
+        audio_request(tmp_path, mode="translation"),
+        model_id="mistralai/Voxtral-Mini-3B-2507",
+    )
+
+    assert processor.calls[0][1] == {}
 
 
 class FakeBatch(dict):
@@ -246,6 +275,70 @@ def test_qwen_transcription_uses_auto_language_and_no_sampling_surface(
     }
 
 
+class FakeQwenLoader:
+    calls = []
+
+    @classmethod
+    def from_pretrained(cls, model_path, **kwargs):
+        cls.calls.append((model_path, kwargs))
+        return "qwen-model"
+
+
+def test_qwen_loader_binds_model_and_processor_to_one_immutable_snapshot() -> None:
+    FakeQwenLoader.calls.clear()
+    resolver_calls = []
+
+    model = load_qwen(
+        FakeQwenLoader,
+        "Qwen/Qwen3-ASR-1.7B",
+        "7" * 40,
+        dtype="bf16",
+        snapshot_resolver=lambda model_id, revision, local_files_only: (
+            resolver_calls.append((model_id, revision, local_files_only))
+            or "/cache/immutable-snapshot"
+        ),
+    )
+
+    assert model == "qwen-model"
+    assert resolver_calls == [("Qwen/Qwen3-ASR-1.7B", "7" * 40, True)]
+    assert FakeQwenLoader.calls == [
+        (
+            "/cache/immutable-snapshot",
+            {
+                "dtype": "bf16",
+                "device_map": "cuda:0",
+                "max_inference_batch_size": 1,
+                "max_new_tokens": 256,
+            },
+        )
+    ]
+
+
+def test_result_metrics_synchronize_before_capturing_time_and_peak_memory() -> None:
+    calls = []
+
+    class Cuda:
+        @staticmethod
+        def synchronize():
+            calls.append("synchronize")
+
+        @staticmethod
+        def max_memory_allocated():
+            calls.append("memory")
+            return 1234
+
+    torch_module = type("Torch", (), {"cuda": Cuda()})()
+    result = {"elapsed_seconds": 0.0, "peak_memory_bytes": None}
+
+    finalize_result_metrics(
+        result, started=10.0, torch_module=torch_module, monotonic=lambda: 13.5
+    )
+
+    assert calls == ["synchronize", "memory"]
+    assert result["elapsed_seconds"] == 3.5
+    assert result["peak_memory_bytes"] == 1234
+
+
 class FakeDevice:
     type = "cuda"
 
@@ -304,6 +397,17 @@ def test_error_classification_distinguishes_runtime_incompatibility(
     error: Exception, status: str
 ) -> None:
     assert classify_error_status(error) == status
+
+
+def test_audio_quality_rejects_label_blind_non_transcript_boilerplate() -> None:
+    quality = audio_evidence_quality(
+        "I'm sorry, I didn't understand that. Could you please repeat or clarify?",
+        duration_seconds=13.63,
+    )
+
+    assert quality["status"] == "rejected-non-transcript"
+    assert quality["base_status"] == "accepted"
+    assert "reference" not in quality["rule"].lower()
 
 
 def test_registry_pins_task5_audio_conditions() -> None:

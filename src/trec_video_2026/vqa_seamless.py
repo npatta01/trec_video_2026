@@ -44,10 +44,39 @@ def prepare_audio_inputs(processor: Any, audio: Any, *, device: Any, dtype: Any)
     return inputs.to(device=device, dtype=dtype)
 
 
+def prepare_text_inputs(
+    processor: Any,
+    text: str,
+    *,
+    source_language: str,
+    device: Any,
+) -> Any:
+    if not text.strip():
+        raise ValueError("Translation source text cannot be empty")
+    if not source_language.strip():
+        raise ValueError("Translation source language cannot be empty")
+    inputs = processor(
+        text=text, src_lang=source_language, return_tensors="pt"
+    )
+    return inputs.to(device=device)
+
+
 def decode_translation(processor: Any, generated_tokens: Any) -> str:
     text = processor.decode(generated_tokens[0], skip_special_tokens=True).strip()
     if not text:
         raise ValueError("SeamlessM4T returned an empty translation")
+    return text
+
+
+def decode_text_translation(processor: Any, generated_tokens: Any) -> str:
+    sequence = generated_tokens[0]
+    if hasattr(sequence, "tolist"):
+        sequence = sequence.tolist()
+    if sequence and isinstance(sequence[0], list):
+        sequence = sequence[0]
+    text = processor.decode(sequence, skip_special_tokens=True).strip()
+    if not text:
+        raise ValueError("SeamlessM4T returned an empty text translation")
     return text
 
 
@@ -64,6 +93,31 @@ def translate_audio(
     with inference_mode():
         generated = model.generate(**inputs, tgt_lang="eng")
     return decode_translation(processor, generated)
+
+
+def translate_text(
+    model: Any,
+    processor: Any,
+    text: str,
+    *,
+    source_language: str,
+    device: Any,
+    inference_mode: Any,
+) -> str:
+    inputs = prepare_text_inputs(
+        processor,
+        text,
+        source_language=source_language,
+        device=device,
+    )
+    with inference_mode():
+        generated = model.generate(
+            **inputs,
+            tgt_lang="eng",
+            generate_speech=False,
+            do_sample=False,
+        )
+    return decode_text_translation(processor, generated)
 
 
 def validate_cli_args(argv: list[str] | None = None) -> None:
