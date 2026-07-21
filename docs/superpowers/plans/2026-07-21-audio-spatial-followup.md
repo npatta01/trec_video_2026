@@ -169,13 +169,22 @@ consulting the official answer during acceptance. Append every pass or failure;
 do not overwrite a prior attempt. Mark the plan with the exact accepted/rejected
 statuses and hashes.
 
-Observed: all three passed mechanical QC on ROCm. The bike transcript is coherent
-English, the color clip is described as music/outro rather than speech, and the
-speech clip is coherent English about Pakistan and money. The speech translation
-is accepted as usable evidence but does not itself mention a bag. Source-audio
-hashes match the frozen evidence cache.
+Observed: all three runner results passed mechanical QC on ROCm. Exact source
+hash and semantic-review status by video:
 
-- [ ] **Step 5: Commit only plan status or source changes**
+- `BDKkVYmWqdM`: `fd36bd74259576b2066b07cc693406835a817810733390726414965a8ed0962b`;
+  `accepted-consistent-with-audible-english`.
+- `O60MtMuSpf8`: `1a53591c6d7c94ccf660735ef3a3ba86564b4c816d1765105f15269dd0f10e58`;
+  `unverified-non-speech-description` (`Music Outro`).
+- `Fk_j6re_Uiw`: `22b278e2f791afaa1359029ba1145b9a2230015c3dcccc26402d6fc51334e9f7`;
+  `rejected-semantic-conflict-native-transcript-renders-katta-not-money`.
+
+The last transcript is coherent English about Pakistan and money, but coherence
+does not establish fidelity: the earlier native-script transcript renders
+`कट्टा` (`katta`, gun/pistol) where large-v3 says money. Its downstream Qwen
+request is therefore exploratory and cannot qualify large-v3 for scaling.
+
+- [x] **Step 5: Commit only plan status or source changes**
 
 ```bash
 git add docs/superpowers/plans/2026-07-21-audio-spatial-followup.md
