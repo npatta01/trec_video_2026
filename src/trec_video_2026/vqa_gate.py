@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -29,6 +30,38 @@ REQUIRED_RESULT_FIELDS = frozenset(
         "error_message",
     }
 )
+
+
+def canonical_request_sha256(request: Mapping[str, Any]) -> str:
+    """Hash every field in a JSON runner request without lossy normalization."""
+
+    encoded = json.dumps(
+        request,
+        ensure_ascii=False,
+        allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def saved_request_matches(
+    attempt: Mapping[str, Any], current_request: Mapping[str, Any]
+) -> bool:
+    """Fail closed unless a saved attempt contains the exact current request."""
+
+    saved_request = attempt.get("request")
+    if not isinstance(saved_request, Mapping):
+        return False
+    try:
+        saved_digest = canonical_request_sha256(saved_request)
+        current_digest = canonical_request_sha256(current_request)
+    except (TypeError, ValueError):
+        return False
+    recorded_digest = attempt.get("request_sha256")
+    if recorded_digest is not None and recorded_digest != saved_digest:
+        return False
+    return saved_digest == current_digest
 
 
 @dataclass(frozen=True)

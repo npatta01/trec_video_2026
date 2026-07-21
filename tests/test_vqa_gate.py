@@ -13,11 +13,13 @@ from trec_video_2026.vqa_gate import (
     RunnerRequest,
     build_runner_request,
     build_rocm_runner_command,
+    canonical_request_sha256,
     invoke_runner,
     invoke_runner_batch,
     load_conditions,
     main,
     render_gate_report,
+    saved_request_matches,
     select_latest_results,
     validate_runner_result,
 )
@@ -53,6 +55,49 @@ def test_runner_request_serializes_frame_descriptions(tmp_path: Path) -> None:
     ).to_dict()
     assert payload["frame_descriptions"] == ["Full frame:"]
     assert "reference" not in json.dumps(payload).lower()
+
+
+def test_canonical_request_sha256_is_order_independent_and_mutation_sensitive() -> None:
+    first = {
+        "run_id": "gate",
+        "condition_id": "model",
+        "video_id": "video",
+        "transcript": None,
+        "frame_paths": ["/frames/one.jpg"],
+    }
+    reordered = dict(reversed(first.items()))
+
+    assert canonical_request_sha256(first) == canonical_request_sha256(reordered)
+    assert canonical_request_sha256(first) != canonical_request_sha256(
+        {**first, "transcript": "changed"}
+    )
+    assert canonical_request_sha256(first) != canonical_request_sha256(
+        {**first, "frame_paths": ["/frames/two.jpg"]}
+    )
+
+
+def test_saved_request_matches_validates_saved_payload_and_optional_digest() -> None:
+    current = {
+        "run_id": "gate",
+        "condition_id": "model",
+        "video_id": "video",
+        "question": "What happens?",
+        "transcript": None,
+        "frame_paths": ["/frames/one.jpg"],
+    }
+    digest = canonical_request_sha256(current)
+
+    assert saved_request_matches({"request": current}, current)
+    assert saved_request_matches(
+        {"request": current, "request_sha256": digest}, current
+    )
+    assert not saved_request_matches({}, current)
+    assert not saved_request_matches(
+        {"request": current, "request_sha256": "0" * 64}, current
+    )
+    assert not saved_request_matches(
+        {"request": {**current, "question": "Changed?"}}, current
+    )
 
 
 def test_standard_condition_builds_serialized_minicpm_audio_pair_request(
