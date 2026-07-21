@@ -19,6 +19,20 @@ MIN_PIXELS_PER_FRAME = 256 * 256
 MAX_PIXELS_PER_FRAME = 512 * 512
 
 
+def attach_request_identity(
+    result: dict[str, Any], request: dict[str, Any]
+) -> dict[str, Any]:
+    """Return a result with the request identity embedded for auditability."""
+
+    return {
+        **result,
+        **{
+            field: request[field]
+            for field in ("run_id", "condition_id", "video_id")
+        },
+    }
+
+
 def load_processor(auto_processor: Any, model_id: str, revision: str) -> Any:
     """Load a processor with a bounded and recorded per-frame pixel budget."""
 
@@ -269,18 +283,21 @@ def main(argv: list[str] | None = None) -> int:
                     peak_memory=torch.cuda.max_memory_allocated(),
                 )
             result["model_load_seconds"] = load_seconds
-            results.append(result)
+            results.append(attach_request_identity(result, request))
     except Exception as error:  # Runner must return structured model/runtime errors.
         results = [
-            _error_result(
-                error=error,
-                started=load_started,
-                model_id=model_id,
-                revision=revision,
-                runtime=f"transformers {transformers.__version__}; torch {torch.__version__}",
-                peak_memory=torch.cuda.max_memory_allocated(),
+            attach_request_identity(
+                _error_result(
+                    error=error,
+                    started=load_started,
+                    model_id=model_id,
+                    revision=revision,
+                    runtime=f"transformers {transformers.__version__}; torch {torch.__version__}",
+                    peak_memory=torch.cuda.max_memory_allocated(),
+                ),
+                request,
             )
-            for _ in requests
+            for request in requests
         ]
     print(json.dumps(results if is_batch else results[0], ensure_ascii=False))
     return 0

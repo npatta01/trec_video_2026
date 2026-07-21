@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from trec_video_2026.vqa_models import (
     build_controlled_messages,
     normalize_generated_answer,
@@ -44,6 +46,57 @@ def test_controlled_messages_label_detail_crop(tmp_path: Path) -> None:
     assert messages[0]["content"][0]["text"] == (
         "Detail crop from frame at 0.610 seconds:"
     )
+
+
+def test_controlled_messages_keep_custom_descriptions_with_sorted_frames(
+    tmp_path: Path,
+) -> None:
+    frames = tuple(tmp_path / name for name in ("late.jpg", "early.jpg"))
+
+    messages = build_controlled_messages(
+        question="What happens?",
+        frame_paths=frames,
+        frame_timestamps=(8.5, 1.5),
+        frame_descriptions=("Late detail:", "Early detail:"),
+        transcript=None,
+    )
+
+    content = messages[0]["content"]
+    assert (content[0]["text"], content[1]["url"].endswith("early.jpg")) == (
+        "Early detail:",
+        True,
+    )
+    assert (content[2]["text"], content[3]["url"].endswith("late.jpg")) == (
+        "Late detail:",
+        True,
+    )
+
+
+def test_controlled_messages_fall_back_for_empty_description(tmp_path: Path) -> None:
+    frame = tmp_path / "frame.jpg"
+
+    messages = build_controlled_messages(
+        question="What happens?",
+        frame_paths=(frame,),
+        frame_timestamps=(2.5,),
+        frame_descriptions=("",),
+        transcript=None,
+    )
+
+    assert messages[0]["content"][0]["text"] == "Frame at 2.500 seconds:"
+
+
+def test_controlled_messages_reject_description_count_mismatch(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="descriptions and paths"):
+        build_controlled_messages(
+            question="What happens?",
+            frame_paths=(tmp_path / "frame.jpg",),
+            frame_timestamps=(2.5,),
+            frame_descriptions=(),
+            transcript=None,
+        )
 
 
 def test_controlled_messages_include_frozen_transcript_once(tmp_path: Path) -> None:

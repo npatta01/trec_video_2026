@@ -5,6 +5,7 @@ from pathlib import Path
 from trec_video_2026.vqa_transformers_runner import (
     MAX_PIXELS_PER_FRAME,
     MIN_PIXELS_PER_FRAME,
+    attach_request_identity,
     generate_answer,
     generation_compat_kwargs,
     load_legacy_optional_processor,
@@ -52,6 +53,27 @@ class FakeModel:
     def generate(self, **kwargs):
         self.kwargs = kwargs
         return [FakeRow()]
+
+
+def test_attach_request_identity_copies_only_protocol_identity() -> None:
+    result = {"status": "passed", "answer": "pink"}
+    request = {
+        "run_id": "followup",
+        "condition_id": "crops",
+        "video_id": "video-1",
+        "question": "What color?",
+    }
+
+    attached = attach_request_identity(result, request)
+
+    assert attached == {
+        "status": "passed",
+        "answer": "pink",
+        "run_id": "followup",
+        "condition_id": "crops",
+        "video_id": "video-1",
+    }
+    assert result == {"status": "passed", "answer": "pink"}
 
 
 def test_generate_answer_uses_deterministic_non_thinking_decode(tmp_path: Path) -> None:
