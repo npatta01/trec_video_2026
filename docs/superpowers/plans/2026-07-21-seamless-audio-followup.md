@@ -289,7 +289,7 @@ git commit -m "docs: record Seamless translation diagnostic"
 - Consumes: the Seamless English text for `Fk_j6re_Uiw`, the frozen 12-frame request, the pinned Qwen runner, and references only at scoring time.
 - Produces: one exact-capture Qwen terminal result plus a controlled three-condition metric comparison and recommendation.
 
-- [ ] **Step 1: Construct and audit the label-free Qwen request**
+- [x] **Step 1: Construct and audit the label-free Qwen request**
 
 Copy the frozen speech request fields and replace only the condition ID and
 transcript:
@@ -302,7 +302,15 @@ transcript = exact Seamless English text
 Retain the same 12 frame paths, timestamps, prompt, model ID, and revision.
 Reject the request if it contains any forbidden string or a reference/label key.
 
-- [ ] **Step 2: Run the pinned Qwen request with exact capture**
+Observed: the retained request SHA-256 is
+`638062a36c973f332941a332b9988cd9777b8b18ae5a39acf009d1683333a39d`.
+An object-level comparison against the frozen speech request confirmed that
+only `condition_id` and `transcript` changed; all 12 frame paths exist, and the
+forbidden-string plus reference/label-key scan passed before inference. The
+copied `run_id` remains `audio-spatial-2026-07-21` because this step explicitly
+required replacing only those two fields.
+
+- [x] **Step 2: Run the pinned Qwen request with exact capture**
 
 Invoke the existing `trec_video_2026.vqa_transformers_runner` with:
 
@@ -316,7 +324,18 @@ max new tokens: 32
 Redirect stdout/stderr directly, validate embedded identity and provenance, and
 append a terminal attempt with request/result/log hashes.
 
-- [ ] **Step 3: Join the reference and score the controlled comparison**
+Observed: the single authorized process exited 0 and returned `Where the girls
+are from`. Answer time was 338.2746965169936 seconds after a
+3.1548388570081443-second model load, with 11,347,926,016 peak allocated bytes.
+The result embeds the exact request identity, Qwen revision, digest-pinned
+runtime, BF16 precision, ROCm device, and expected pixel bounds. Direct-capture
+stdout SHA-256 is
+`6dc6cff9dffa9ba9808f9d2ff63700c0a061e7bb158d20f7b3696a190953354c`;
+stderr SHA-256 is
+`95d2fe748e6dd2eff2aaf4e741363aee4932587e246979c41dada9b6e20f5f4e`.
+The attempt was appended after the five preserved ASR attempts; no retry ran.
+
+- [x] **Step 3: Join the reference and score the controlled comparison**
 
 Using the existing local evaluator, compare the speech answer under:
 
@@ -331,7 +350,17 @@ Compute normalized exact match, token F1, and METEOR. State BERTScore as
 unavailable if its pinned encoder is still absent; do not download it. Do not
 call STS or interpret single-answer NDCG.
 
-- [ ] **Step 4: Write the evidence-backed report**
+Observed: the frozen annotation was first opened after inference and attempt
+indexing; its SHA-256 is
+`d64675906e7aee39d76d1606fb656fbb9a5d6558cb54faaac2373ae7c35d73d3`.
+Against `The expected contents of the bag.`, the frames-only / Whisper-large-v3
+/ Seamless conditions scored respectively: normalized EM
+`0.000 / 0.000 / 0.000`, token F1 `0.286 / 0.000 / 0.000`, and METEOR
+`0.280 / 0.075 / 0.074`. The pinned RoBERTa encoder was already cached, so an
+offline read-only layer-17 BERTScore pass produced `0.902 / 0.903 / 0.906`
+without downloading anything. STS was not called and NDCG remains null.
+
+- [x] **Step 4: Write the evidence-backed report**
 
 Report the three Seamless transcripts and semantic statuses, the downstream
 prediction and metrics, ASR/Qwen latency and memory, pinned provenance, the
@@ -339,7 +368,14 @@ CC-BY-NC-4.0 limitation, exact-capture status, and whether Seamless advances.
 Explicitly state that this is a one-example causal diagnostic and the 100-video
 run was not started.
 
-- [ ] **Step 5: Run fresh verification**
+Observed: the canonical report is
+`reports/trecvid_vqa_2026/seamless_audio_followup_results_2026-07-21.md`.
+It records all three transcript texts and semantic statuses, the controlled
+metrics, exact capture and provenance, latency/memory, the CC-BY-NC-4.0
+restriction, the no-advance recommendation, and the explicit one-example and
+no-100-video scope limits.
+
+- [x] **Step 5: Run fresh verification**
 
 Run:
 
@@ -353,7 +389,19 @@ git status --short
 Also recompute every indexed request/result/log hash, verify append-only attempt
 identities, and rerun the inference-request leakage scan.
 
-- [ ] **Step 6: Commit report and completed plan**
+Observed: `uv run pytest -q` passed all 229 tests in 1.27 seconds;
+`git diff --check` exited 0 with no output; the three-video preflight exited 0
+and reported valid audio/video for all three examples; status showed only this
+plan and the new Seamless report in Task 3 scope, alongside untouched unrelated
+untracked files. Integrity verification recomputed all 18 request/result/stderr
+hashes across six unique attempt identities. The original five-record JSONL
+prefix still hashes to
+`2dea53f64316e033552b69b88b819980b82c6c394ed59579c56618d4c158b30e`,
+confirming append-only history. The four-request leakage scan passed, the Qwen
+request still differed from the frozen source only in the two authorized
+fields, and `data` still resolved to the canonical shared dataset directory.
+
+- [x] **Step 6: Commit report and completed plan**
 
 ```bash
 git add reports/trecvid_vqa_2026/seamless_audio_followup_results_2026-07-21.md \
@@ -361,8 +409,17 @@ git add reports/trecvid_vqa_2026/seamless_audio_followup_results_2026-07-21.md \
 git commit -m "docs: report Seamless audio diagnostic"
 ```
 
-- [ ] **Step 7: Handoff and stop**
+Observed: the staging scope was restricted to the canonical report and this
+completed plan; ignored evidence and unrelated working-tree files were left
+unstaged. The commit used the exact message above.
+
+- [x] **Step 7: Handoff and stop**
 
 Give the user the transcript, downstream answer, metric delta, model/runtime
 cost, review verdict, report link, and next decision. Do not create or execute a
 100-video manifest.
+
+Observed: the handoff reports the rejected transcript, wrong downstream answer,
+negative metric delta, measured ROCm cost, no-advance verdict, canonical report,
+and the decision to keep the 12-frame baseline. Work stops after this commit;
+no 100-video manifest exists.
