@@ -93,4 +93,3 @@ execute a 100-video run.
 - An English-looking but meaning-conflicted translation remains available for
   audit and is marked semantically rejected or disputed.
 - Dataset media and generated artifacts remain ignored and are never staged.
-

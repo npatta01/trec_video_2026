@@ -34,6 +34,23 @@ encoder at layer 17 through an offline, read-only cache mount; no encoder was
 downloaded. STS was not called, and singleton NDCG was not computed or
 interpreted.
 
+The exact post-inference scoring invocation and full-precision outputs are
+retained in ignored
+`data/vqa/benchmarks/followups/seamless-audio-2026-07-21/evaluation.json`
+(SHA-256
+`37fee7e5103d4d9d3efc6a0339e23e62f0445c3a4d187046927a099981a86f86`).
+The executable was the pinned ROCm image under `podman run --rm -i
+--network=none`, with repository, dataset, and Hugging Face cache read-only,
+offline variables set, and `python -`; the JSON retains the exact argv and
+Python stdin. It records evaluator commit
+`958cbed0335fd7bf6a187de43e15bd864ce217c8` and module blob
+`0bf537d4a5e5e8825ec7fad167947f92de3906e6`, Python 3.12.3, bert-score
+0.3.12, NLTK 3.9.2, NumPy 2.4.6, SciPy 1.17.1, Torch
+2.10.0+rocm7.2.4.git3d3aa833, and Transformers 5.15.0.dev0. The encoder is
+the pre-existing cached `FacebookAI/roberta-large` revision
+`722cf37b1afa9454edce342e7895e588b6ff1d59`, layer 17 on CPU, with effective
+BERTScore options recorded; no STS or NDCG call appears in the outputs.
+
 Relative to the stronger frozen condition (the frames-only baseline), Seamless
 changed EM by 0.000, token F1 by -0.286, and METEOR by
 -0.206. Relative to the Whisper large-v3 condition, Seamless changed EM and
@@ -96,6 +113,13 @@ append-only terminal attempt.
 | Qwen stdout/result | `6dc6cff9dffa9ba9808f9d2ff63700c0a061e7bb158d20f7b3696a190953354c` |
 | Qwen stderr | `95d2fe748e6dd2eff2aaf4e741363aee4932587e246979c41dada9b6e20f5f4e` |
 | Frozen labeled annotation, joined after inference | `d64675906e7aee39d76d1606fb656fbb9a5d6558cb54faaac2373ae7c35d73d3` |
+| Post-inference evaluation | `37fee7e5103d4d9d3efc6a0339e23e62f0445c3a4d187046927a099981a86f86` |
+| Execution index after evaluation indexing | `52010fae86a79be8d27a5c275a8f2dc8a2ba6429a79406e7a2328412d52bf5be` |
+
+The execution index is retained at
+`data/vqa/benchmarks/followups/seamless-audio-2026-07-21/execution.json`; it
+indexes the evaluation path/hash, exact-invocation summary, evaluator commit,
+metric set, and explicit STS/NDCG exclusions.
 
 The result embeds the exact request identity, pinned model ID and revision,
 runtime image digest, BF16 precision, ROCm device, pixel bounds, 338.275-second

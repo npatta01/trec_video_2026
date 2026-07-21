@@ -113,6 +113,11 @@ record ROCm peak allocation, pin both model and processor revision, embed the
 request identity on success and failure, cap error text at 4,000 characters,
 and print exactly one JSON object to stdout.
 
+Final review hardening validates the request before any runtime import or model
+load: `run_id`, `condition_id`, and `video_id` must be nonempty strings, and
+`audio_path` must be a nonempty absolute path. Structured failures retain every
+available valid identity value.
+
 - [x] **Step 4: Verify focused and full tests**
 
 Run:
@@ -282,6 +287,8 @@ git commit -m "docs: record Seamless translation diagnostic"
 - Create ignored: `data/vqa/benchmarks/followups/seamless-audio-2026-07-21/raw-results/qwen-speech.json`
 - Create ignored: `data/vqa/benchmarks/followups/seamless-audio-2026-07-21/logs/qwen-speech.stderr.log`
 - Modify ignored: `data/vqa/benchmarks/followups/seamless-audio-2026-07-21/attempts.jsonl`
+- Create ignored: `data/vqa/benchmarks/followups/seamless-audio-2026-07-21/evaluation.json`
+- Modify ignored: `data/vqa/benchmarks/followups/seamless-audio-2026-07-21/execution.json`
 - Create: `reports/trecvid_vqa_2026/seamless_audio_followup_results_2026-07-21.md`
 - Modify: `docs/superpowers/plans/2026-07-21-seamless-audio-followup.md`
 
@@ -360,6 +367,25 @@ Against `The expected contents of the bag.`, the frames-only / Whisper-large-v3
 offline read-only layer-17 BERTScore pass produced `0.902 / 0.903 / 0.906`
 without downloading anything. STS was not called and NDCG remains null.
 
+The durable post-inference scoring record is
+`data/vqa/benchmarks/followups/seamless-audio-2026-07-21/evaluation.json`,
+SHA-256 `37fee7e5103d4d9d3efc6a0339e23e62f0445c3a4d187046927a099981a86f86`.
+It retains all three exact predictions and the reference, annotation hash,
+full-precision EM/F1/METEOR/BERTScore outputs, the exact executable Podman argv
+and Python stdin, evaluator commit
+`958cbed0335fd7bf6a187de43e15bd864ce217c8`, dependency versions, and the
+offline read-only `FacebookAI/roberta-large` revision
+`722cf37b1afa9454edce342e7895e588b6ff1d59` layer-17 options. Its executable
+invocation was `podman run --rm -i --network=none` with the repository, dataset,
+and Hugging Face cache mounted read-only, offline variables set, the pinned ROCm
+image, and `python -`; the artifact preserves the exact argument vector and
+source passed on stdin. It explicitly records that STS and NDCG were not run.
+The updated execution index is
+`data/vqa/benchmarks/followups/seamless-audio-2026-07-21/execution.json`,
+SHA-256 `52010fae86a79be8d27a5c275a8f2dc8a2ba6429a79406e7a2328412d52bf5be`,
+and indexes the evaluation path, hash, invocation summary, evaluator commit,
+metric set, and exclusions.
+
 - [x] **Step 4: Write the evidence-backed report**
 
 Report the three Seamless transcripts and semantic statuses, the downstream
@@ -389,7 +415,8 @@ git status --short
 Also recompute every indexed request/result/log hash, verify append-only attempt
 identities, and rerun the inference-request leakage scan.
 
-Observed: `uv run pytest -q` passed all 229 tests in 1.27 seconds;
+Observed after final review hardening: `uv run pytest -q` passed all 242 tests
+in 1.30 seconds;
 `git diff --check` exited 0 with no output; the three-video preflight exited 0
 and reported valid audio/video for all three examples; status showed only this
 plan and the new Seamless report in Task 3 scope, alongside untouched unrelated
@@ -400,6 +427,11 @@ prefix still hashes to
 confirming append-only history. The four-request leakage scan passed, the Qwen
 request still differed from the frozen source only in the two authorized
 fields, and `data` still resolved to the canonical shared dataset directory.
+The retained evaluation JSON parsed successfully and its indexed SHA-256
+recomputed to
+`37fee7e5103d4d9d3efc6a0339e23e62f0445c3a4d187046927a099981a86f86`;
+the execution index recomputed to
+`52010fae86a79be8d27a5c275a8f2dc8a2ba6429a79406e7a2328412d52bf5be`.
 
 - [x] **Step 6: Commit report and completed plan**
 

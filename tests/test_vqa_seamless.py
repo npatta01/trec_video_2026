@@ -164,6 +164,92 @@ def test_main_preserves_request_identity_when_cli_args_are_rejected(
     )
 
 
+@pytest.mark.parametrize(
+    ("field", "bad_value"),
+    [
+        ("run_id", None),
+        ("run_id", ""),
+        ("run_id", 7),
+        ("condition_id", None),
+        ("condition_id", ""),
+        ("condition_id", 7),
+        ("video_id", None),
+        ("video_id", ""),
+        ("video_id", 7),
+    ],
+)
+def test_main_rejects_invalid_identity_before_runtime_imports(
+    monkeypatch, field, bad_value
+) -> None:
+    request = {
+        "run_id": "run-1",
+        "condition_id": "condition-1",
+        "video_id": "video-1",
+        "audio_path": "/tmp/audio.wav",
+    }
+    if bad_value is None:
+        del request[field]
+    else:
+        request[field] = bad_value
+    runtime_imports = []
+    real_import = builtins.__import__
+
+    def tracking_import(name, *args, **kwargs):
+        if name in {"soundfile", "torch", "transformers"}:
+            runtime_imports.append(name)
+        return real_import(name, *args, **kwargs)
+
+    stdout = io.StringIO()
+    monkeypatch.setattr(builtins, "__import__", tracking_import)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(request)))
+    monkeypatch.setattr(sys, "stdout", stdout)
+
+    assert seamless.main([]) == 0
+
+    result = json.loads(stdout.getvalue())
+    assert result["status"] == "failed"
+    assert result["error_type"] == "ValueError"
+    assert result[field] is None
+    for identity_field in {"run_id", "condition_id", "video_id"} - {field}:
+        assert result[identity_field] == request[identity_field]
+    assert runtime_imports == []
+
+
+@pytest.mark.parametrize("audio_path", [None, "", 7, "relative/audio.wav"])
+def test_main_rejects_invalid_audio_path_before_runtime_imports(
+    monkeypatch, audio_path
+) -> None:
+    request = {
+        "run_id": "run-1",
+        "condition_id": "condition-1",
+        "video_id": "video-1",
+    }
+    if audio_path is not None:
+        request["audio_path"] = audio_path
+    runtime_imports = []
+    real_import = builtins.__import__
+
+    def tracking_import(name, *args, **kwargs):
+        if name in {"soundfile", "torch", "transformers"}:
+            runtime_imports.append(name)
+        return real_import(name, *args, **kwargs)
+
+    stdout = io.StringIO()
+    monkeypatch.setattr(builtins, "__import__", tracking_import)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(request)))
+    monkeypatch.setattr(sys, "stdout", stdout)
+
+    assert seamless.main([]) == 0
+
+    result = json.loads(stdout.getvalue())
+    assert result["status"] == "failed"
+    assert result["run_id"] == "run-1"
+    assert result["condition_id"] == "condition-1"
+    assert result["video_id"] == "video-1"
+    assert result["error_type"] == "ValueError"
+    assert runtime_imports == []
+
+
 def test_result_uses_immutable_model_provenance() -> None:
     result = seamless._result(
         request={},

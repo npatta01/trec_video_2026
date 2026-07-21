@@ -19,10 +19,26 @@ def request_identity(request: Any) -> dict[str, Any]:
     """Copy only the protocol identity fields from a runner request."""
 
     payload = request if isinstance(request, dict) else {}
-    return {
-        field: payload.get(field)
-        for field in ("run_id", "condition_id", "video_id")
-    }
+    identity = {}
+    for field in ("run_id", "condition_id", "video_id"):
+        value = payload.get(field)
+        identity[field] = (
+            value if isinstance(value, str) and value.strip() else None
+        )
+    return identity
+
+
+def validate_request(request: dict[str, Any]) -> None:
+    for field in ("run_id", "condition_id", "video_id"):
+        value = request.get(field)
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{field} must be a nonempty string")
+
+    audio_path = request.get("audio_path")
+    if not isinstance(audio_path, str) or not audio_path.strip():
+        raise ValueError("audio_path must be a nonempty absolute path")
+    if not Path(audio_path).is_absolute():
+        raise ValueError("audio_path must be a nonempty absolute path")
 
 
 def prepare_audio_inputs(
@@ -117,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
         request = json.load(sys.stdin)
         if not isinstance(request, dict):
             raise TypeError("Runner request must be a JSON object")
+        validate_request(request)
         validate_cli_args(argv)
 
         import soundfile
