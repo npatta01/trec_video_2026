@@ -34,8 +34,8 @@ encoder at layer 17 through an offline, read-only cache mount; no encoder was
 downloaded. STS was not called, and singleton NDCG was not computed or
 interpreted.
 
-Relative to the stronger of the two frozen text metrics (the frames-only
-baseline), Seamless changed EM by 0.000, token F1 by -0.286, and METEOR by
+Relative to the stronger frozen condition (the frames-only baseline), Seamless
+changed EM by 0.000, token F1 by -0.286, and METEOR by
 -0.206. Relative to the Whisper large-v3 condition, Seamless changed EM and
 token F1 by 0.000 and METEOR by -0.001. The slightly higher BERTScore for the
 wrong Seamless answer is another reminder that this similarity metric is not a
@@ -63,8 +63,9 @@ evidence.
 ## Qwen result and runtime cost
 
 The label-free request retained the frozen question, exact 12 frame paths and
-timestamps, null auxiliary fields, Qwen model/revision, and 32-token cap. Only
-the condition ID and transcript changed from the frozen speech request. The
+timestamps, and null auxiliary fields. Only the condition ID and transcript
+changed from the frozen speech request. Separately, the execution command
+pinned the Qwen model and revision shown below and set the 32-token cap. The
 single offline ROCm run returned `Where the girls are from`.
 
 | Component | Revision / runtime | Precision and device | Time | Peak allocation |
@@ -122,7 +123,7 @@ reviewable multilingual set before paying the roughly six-minute downstream
 Qwen cost per diagnostic example.
 
 Canonical design:
-`docs/superpowers/specs/2026-07-21-seamless-audio-followup-design.md`
+[docs/superpowers/specs/2026-07-21-seamless-audio-followup-design.md](../../docs/superpowers/specs/2026-07-21-seamless-audio-followup-design.md)
 
 Canonical execution plan:
-`docs/superpowers/plans/2026-07-21-seamless-audio-followup.md`
+[docs/superpowers/plans/2026-07-21-seamless-audio-followup.md](../../docs/superpowers/plans/2026-07-21-seamless-audio-followup.md)

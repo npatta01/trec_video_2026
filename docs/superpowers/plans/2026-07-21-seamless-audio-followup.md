@@ -413,13 +413,13 @@ Observed: the staging scope was restricted to the canonical report and this
 completed plan; ignored evidence and unrelated working-tree files were left
 unstaged. The commit used the exact message above.
 
-- [x] **Step 7: Handoff and stop**
+- [x] **Step 7: Prepare verified handoff and stop**
 
-Give the user the transcript, downstream answer, metric delta, model/runtime
-cost, review verdict, report link, and next decision. Do not create or execute a
-100-video manifest.
+Prepare a verified handoff containing the transcript, downstream answer, metric
+delta, model/runtime cost, review verdict, report link, and next decision. Do
+not create or execute a 100-video manifest.
 
-Observed: the handoff reports the rejected transcript, wrong downstream answer,
-negative metric delta, measured ROCm cost, no-advance verdict, canonical report,
-and the decision to keep the 12-frame baseline. Work stops after this commit;
-no 100-video manifest exists.
+Observed: the verified handoff was prepared with the rejected transcript, wrong
+downstream answer, negative metric delta, measured ROCm cost, no-advance
+verdict, canonical report, and the decision to keep the 12-frame baseline. Work
+stops after this commit; no 100-video manifest exists.
