@@ -12,6 +12,20 @@
       "download_bytes": 9300000000
     },
     {
+      "condition_id": "qwen35-4b-24f",
+      "model_id": "Qwen/Qwen3.5-4B",
+      "model_revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+      "evidence": "controlled-24-frames",
+      "download_bytes": 9300000000
+    },
+    {
+      "condition_id": "qwen35-9b-12f",
+      "model_id": "Qwen/Qwen3.5-9B",
+      "model_revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+      "evidence": "controlled-12-frames",
+      "download_bytes": 19300000000
+    },
+    {
       "condition_id": "qwen35-4b-12f-whisper",
       "model_id": "Qwen/Qwen3.5-4B",
       "model_revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
@@ -34,6 +48,14 @@
       "runtime_image": "localhost/trec-vqa-gate-molmo@sha256:f5b655ab67cd62427819ac0992a626394f42cf786b4816132ae8610c47181fee"
     },
     {
+      "condition_id": "molmo2-4b-12f",
+      "model_id": "allenai/Molmo2-4B",
+      "model_revision": "042abfa7a38879a376cec03d949eff0aefaa0600",
+      "evidence": "controlled-12-frames",
+      "download_bytes": 19400000000,
+      "runtime_image": "localhost/trec-vqa-gate-molmo@sha256:f5b655ab67cd62427819ac0992a626394f42cf786b4816132ae8610c47181fee"
+    },
+    {
       "condition_id": "gemma4-12b-12f-whisper",
       "model_id": "google/gemma-4-12b-it",
       "model_revision": "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
@@ -43,10 +65,28 @@
       "runtime_image": "localhost/trec-vqa-gate-gemma@sha256:5bbd6f039622f70ad53d62395f189b07dc8fe28e2336c8aa462081abee9b7aaa"
     },
     {
+      "condition_id": "gemma4-12b-12f",
+      "model_id": "google/gemma-4-12b-it",
+      "model_revision": "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
+      "evidence": "controlled-12-frames",
+      "download_bytes": 23900000000,
+      "runner_kind": "multimodal",
+      "runtime_image": "localhost/trec-vqa-gate-gemma@sha256:5bbd6f039622f70ad53d62395f189b07dc8fe28e2336c8aa462081abee9b7aaa"
+    },
+    {
       "condition_id": "internvl35-4b-native-tiles",
       "model_id": "OpenGVLab/InternVL3_5-4B",
       "model_revision": "481f6e32467eab4e922ccd7fd6cf420441a62331",
       "evidence": "native-capped-tiles-quality-gated-asr",
+      "download_bytes": 9500000000,
+      "runner_kind": "internvl",
+      "runtime_image": "localhost/trec-vqa-gate-internvl@sha256:64c040ec4e2cb76f055661c227c0fc456f8389091f4d3bad77bbcc643f28de12"
+    },
+    {
+      "condition_id": "internvl35-4b-12f",
+      "model_id": "OpenGVLab/InternVL3_5-4B",
+      "model_revision": "481f6e32467eab4e922ccd7fd6cf420441a62331",
+      "evidence": "controlled-12-frames-native-tiles",
       "download_bytes": 9500000000,
       "runner_kind": "internvl",
       "runtime_image": "localhost/trec-vqa-gate-internvl@sha256:64c040ec4e2cb76f055661c227c0fc456f8389091f4d3bad77bbcc643f28de12"

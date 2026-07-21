@@ -248,6 +248,51 @@ def test_minicpm_config_loads_explicit_audio_modes() -> None:
     }
 
 
+def test_cached_ten_visual_conditions_are_explicit_and_immutable() -> None:
+    config = load_conditions(Path("configs/vqa/model_runs.json"))
+    by_id = {condition.condition_id: condition for condition in config.conditions}
+    expected = {
+        "qwen35-4b-12f": (
+            "Qwen/Qwen3.5-4B",
+            "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+            "controlled-12-frames",
+        ),
+        "qwen35-4b-24f": (
+            "Qwen/Qwen3.5-4B",
+            "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+            "controlled-24-frames",
+        ),
+        "qwen35-9b-12f": (
+            "Qwen/Qwen3.5-9B",
+            "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+            "controlled-12-frames",
+        ),
+        "molmo2-4b-12f": (
+            "allenai/Molmo2-4B",
+            "042abfa7a38879a376cec03d949eff0aefaa0600",
+            "controlled-12-frames",
+        ),
+        "internvl35-4b-12f": (
+            "OpenGVLab/InternVL3_5-4B",
+            "481f6e32467eab4e922ccd7fd6cf420441a62331",
+            "controlled-12-frames-native-tiles",
+        ),
+        "gemma4-12b-12f": (
+            "google/gemma-4-12b-it",
+            "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
+            "controlled-12-frames",
+        ),
+    }
+    assert {
+        condition_id: (
+            by_id[condition_id].model_id,
+            by_id[condition_id].model_revision,
+            by_id[condition_id].evidence,
+        )
+        for condition_id in expected
+    } == expected
+
+
 def test_rocm_command_mounts_only_required_roots(tmp_path: Path) -> None:
     repo_root = tmp_path / "repo"
     dataset_root = tmp_path / "dataset"
