@@ -34,7 +34,7 @@
 - Produces: one JSON result with the same three identity fields, source audio SHA-256, translated `text`, mechanical `quality`, model/runtime/device/precision provenance, elapsed seconds, peak bytes, and structured error fields.
 - Exposes: `prepare_audio_inputs(processor, audio, *, device, dtype)`, `decode_translation(processor, generated_tokens)`, and `translate_audio(model, processor, audio, *, device, dtype, inference_mode)` for focused unit testing.
 
-- [ ] **Step 1: Write failing runner tests**
+- [x] **Step 1: Write failing runner tests**
 
 Create tests with small fakes that require:
 
@@ -71,7 +71,7 @@ def test_translate_audio_targets_english_without_sampling() -> None:
 Also test that an empty decoded string raises `ValueError` and that
 `request_identity` copies only `run_id`, `condition_id`, and `video_id`.
 
-- [ ] **Step 2: Verify the tests fail for the missing module**
+- [x] **Step 2: Verify the tests fail for the missing module**
 
 Run:
 
@@ -81,7 +81,7 @@ uv run pytest -q tests/test_vqa_seamless.py
 
 Expected: collection fails because `trec_video_2026.vqa_seamless` does not exist.
 
-- [ ] **Step 3: Implement the minimal runner**
+- [x] **Step 3: Implement the minimal runner**
 
 Implement the helpers exactly around the dedicated model API:
 
@@ -113,7 +113,7 @@ record ROCm peak allocation, pin both model and processor revision, embed the
 request identity on success and failure, cap error text at 4,000 characters,
 and print exactly one JSON object to stdout.
 
-- [ ] **Step 4: Verify focused and full tests**
+- [x] **Step 4: Verify focused and full tests**
 
 Run:
 
@@ -124,7 +124,7 @@ uv run pytest -q
 
 Expected: all focused tests and the full suite pass.
 
-- [ ] **Step 5: Commit the runner**
+- [x] **Step 5: Commit the runner**
 
 ```bash
 git add src/trec_video_2026/vqa_seamless.py tests/test_vqa_seamless.py
@@ -145,7 +145,7 @@ git commit -m "feat: add Seamless speech translation runner"
 - Consumes: the three audio paths already indexed by `audio-spatial-2026-07-21` and the Task 1 runner.
 - Produces: three exact-capture terminal result records and semantic review statuses.
 
-- [ ] **Step 1: Verify local resources and runner compatibility**
+- [x] **Step 1: Verify local resources and runner compatibility**
 
 Run:
 
@@ -161,7 +161,7 @@ podman run --rm --network=none \
 Expected: `data` resolves to the canonical shared directory, the image exists,
 more than 12 GB remains free, and the import prints `ok`.
 
-- [ ] **Step 2: Download only pinned Transformers artifacts**
+- [x] **Step 2: Download only pinned Transformers artifacts**
 
 Run:
 
@@ -178,7 +178,7 @@ Expected: the pinned snapshot completes without `.pt` or duplicate framework
 weights. Record exact file count, byte total, revision, and hashes in
 `execution.json`.
 
-- [ ] **Step 3: Create and leakage-audit the three requests**
+- [x] **Step 3: Create and leakage-audit the three requests**
 
 Use condition `seamless-m4t-v2-large-s2tt-eng`, one request per frozen video,
 and these exact video/audio pairs:
@@ -195,7 +195,7 @@ Every request contains exactly the four keys `run_id`, `condition_id`,
 Before inference, reject any request containing the forbidden strings from the
 Global Constraints and record its SHA-256.
 
-- [ ] **Step 4: Run each request with byte-exact capture**
+- [x] **Step 4: Run each request with byte-exact capture**
 
 For each request, use the digest-pinned container with `/dev/kfd`, `/dev/dri`,
 `--group-add=keep-groups`, `--network=none`, offline Hugging Face variables,
@@ -203,9 +203,7 @@ the repo mounted read-only, and shared data mounted at the same absolute path.
 Invoke:
 
 ```bash
-python -m trec_video_2026.vqa_seamless \
-  --model-id facebook/seamless-m4t-v2-large \
-  --revision 5f8cc790b19fc3f67a61c105133b20b34e3dcb76
+python -m trec_video_2026.vqa_seamless
 ```
 
 Redirect stdout and stderr directly to the per-video result/log files. Validate
@@ -213,7 +211,15 @@ that stdout is one JSON object, identity equals the request, audio hash matches,
 and model revision/device/precision/runtime image are exact. Append a terminal
 attempt with request, stdout, and stderr hashes even if inference fails.
 
-- [ ] **Step 5: Review transcript meaning and record plan status**
+Resolution: review hardened the runner after this plan was drafted, so it now
+rejects all CLI arguments and internally pins the exact model and revision. The
+no-argument command above is the reviewed, bypass-proof invocation. The pinned
+image also lacked `protobuf`; successful offline runs mounted host protobuf
+6.33.6 read-only and selected its pure-Python implementation. Two preliminary
+`BDKkVYmWqdM` failures (missing Podman `-i`, then missing protobuf) are retained
+as immutable, hashed terminal attempts before the successful retry.
+
+- [x] **Step 5: Review transcript meaning and record plan status**
 
 Apply the mechanical quality gate, then compare meaning with audible/native
 transcript evidence without opening the official reference. Record one of
@@ -221,7 +227,34 @@ transcript evidence without opening the official reference. Record one of
 `rejected-semantic-conflict` separately from runner status. Add observed text,
 latency, peak allocation, and hashes to this plan.
 
-- [ ] **Step 6: Commit only the completed plan status**
+Observed: all three terminal results passed the mechanical gate, embedded exact
+identity/provenance, and matched the frozen source-audio hash. Semantic review
+used audible/native transcript evidence only; no official reference was opened.
+
+- `BDKkVYmWqdM`: `accepted-semantically-consistent`; “He's riding a bike across
+  a tennis net.”; 12.211294302993338 s; 3,407,796,736 peak bytes; request
+  `3ae72c2c5d371260b2d083f480767b6d02593d4a98fde62fa31268baad731f80`;
+  audio `fd36bd74259576b2066b07cc693406835a817810733390726414965a8ed0962b`;
+  stdout `316ae66d923749b7ed3d0407d914b8122156de8c2f0669abf8b3fae0aff3be96`;
+  stderr `0d4c726544e0f7c5a956bc26c1ccc3bd760c95b72a724f3a155d7f7a873e702d`.
+- `O60MtMuSpf8`: `accepted-semantically-consistent`; “[Music playing]”;
+  11.553342958999565 s; 3,246,446,592 peak bytes; request
+  `4c0d050fb298cd54b430b5cfa920b0e1019d4dad88c41ba3df7759a5f24d1907`;
+  audio `1a53591c6d7c94ccf660735ef3a3ba86564b4c816d1765105f15269dd0f10e58`;
+  stdout `c945dac50bdd2cfe17b7e7768305b12a1e73e584ed601518b761a923d08f3437`;
+  stderr `a8ee80b4246b68d5dbf4659125f1378d5cf3c5cb7d651d43bb266c572a756b61`.
+- `Fk_j6re_Uiw`: `rejected-semantic-conflict`; “Where are these girls from?
+  They look like Pakistani. Where are they from?”; 11.863918471004581 s;
+  3,348,452,352 peak bytes; request
+  `aad4c021b0912177d62f37ed63ad89137ad6afbe7e2112ae43a22f1ea6317f83`;
+  audio `22b278e2f791afaa1359029ba1145b9a2230015c3dcccc26402d6fc51334e9f7`;
+  stdout `9661572284b3e4ed2f2c2107f570ce605a782f829dc8ff5c40249bee6dc3a275`;
+  stderr `e8c3980602b9f4f8de722dd2b12196b1584f4dcd5802a547f0cde2afb1088ef5`.
+  The text is materially incomplete: it covers only the opening lines while
+  19-second native-language evidence continues with later repeated `katta`
+  utterances.
+
+- [x] **Step 6: Commit only the completed plan status**
 
 ```bash
 git add docs/superpowers/plans/2026-07-21-seamless-audio-followup.md
