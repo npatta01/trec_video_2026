@@ -12,11 +12,13 @@ from trec_video_2026.vqa_evaluation import (
     NIST_2025_PARITY_MODE,
     NIST_2026_VALIDATE_AG_MODE,
     discover_submission_csvs,
+    evaluate_saved_predictions,
     evaluate_local_answer,
     execute_nist_invocation,
     normalized_exact_match,
     nist_style_semantic_metrics,
     prepare_nist_invocation,
+    summarize_paired_conditions,
     token_f1,
 )
 
@@ -113,6 +115,181 @@ def test_nist_style_semantic_metrics_use_normalized_text_and_no_ndcg() -> None:
     assert result == [{"meteor": 0.25, "bertscore_f1": 0.75, "sts": None, "ndcg": None}]
     assert calls["meteor"] == ([['the', 'dog']], ['a', 'dog'])
     assert calls["bert"] == (["a dog"], ["the dog"], "en")
+
+
+def test_saved_predictions_regenerate_aggregate_and_stratum_scores(
+    tmp_path: Path,
+) -> None:
+    predictions_path = tmp_path / "predictions.json"
+    predictions_path.write_text(
+        json.dumps(
+            [
+                {
+                    "condition_id": "audio-off",
+                    "video_id": "speech-1",
+                    "status": "passed",
+                    "answer": "A dog",
+                    "semantic_metrics": {"meteor": 0.8},
+                    "request": {
+                        "video_id": "speech-1",
+                        "question": "What is shown?",
+                    },
+                },
+                {
+                    "condition_id": "audio-off",
+                    "video_id": "sound-1",
+                    "status": "passed",
+                    "answer": "piano",
+                    "semantic_metrics": {"meteor": 0.4},
+                    "request": {
+                        "video_id": "sound-1",
+                        "question": "What is heard?",
+                    },
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    report = evaluate_saved_predictions(
+        predictions_path,
+        references={"speech-1": "dog", "sound-1": "violin"},
+        strata={"speech-1": "speech", "sound-1": "sound"},
+    )
+
+    assert report["aggregate"] == {
+        "example_count": 2,
+        "completed_count": 2,
+        "completion_rate": 1.0,
+        "normalized_exact_match": 0.5,
+        "token_f1": 0.5,
+        "meteor": pytest.approx(0.6),
+    }
+    assert report["strata"]["speech"]["normalized_exact_match"] == 1.0
+    assert report["strata"]["sound"]["token_f1"] == 0.0
+    assert report["examples"][0]["reference"] == "dog"
+    assert "reference" not in report["examples"][0]["request"]
+    assert evaluate_saved_predictions(
+        predictions_path,
+        references={"speech-1": "dog", "sound-1": "violin"},
+        strata={"speech-1": "speech", "sound-1": "sound"},
+    ) == report
+
+
+def test_saved_prediction_runner_requests_reject_reference_and_scoring_fields(
+    tmp_path: Path,
+) -> None:
+    predictions_path = tmp_path / "leaky.json"
+    predictions_path.write_text(
+        json.dumps(
+            [
+                {
+                    "condition_id": "candidate",
+                    "video_id": "video-1",
+                    "status": "passed",
+                    "answer": "dog",
+                    "request": {
+                        "video_id": "video-1",
+                        "question": "What?",
+                        "reference_answer": "dog",
+                    },
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Runner request contains evaluation field"):
+        evaluate_saved_predictions(
+            predictions_path,
+            references={"video-1": "dog"},
+            strata={"video-1": "control"},
+        )
+
+
+def test_saved_jsonl_attempts_keep_a_success_over_a_later_failure(
+    tmp_path: Path,
+) -> None:
+    predictions_path = tmp_path / "attempts.jsonl"
+    attempts = [
+        {"condition_id": "candidate", "video_id": "v1", "status": "failed", "answer": None},
+        {"condition_id": "candidate", "video_id": "v1", "status": "passed", "answer": "dog"},
+        {"condition_id": "candidate", "video_id": "v1", "status": "timed_out", "answer": None},
+    ]
+    predictions_path.write_text(
+        "".join(json.dumps(attempt) + "\n" for attempt in attempts),
+        encoding="utf-8",
+    )
+
+    report = evaluate_saved_predictions(
+        predictions_path,
+        references={"v1": "dog"},
+        strata={"v1": "speech"},
+    )
+
+    assert len(report["examples"]) == 1
+    assert report["examples"][0]["status"] == "passed"
+    assert report["examples"][0]["normalized_exact_match"] == 1.0
+
+
+def test_paired_audio_summary_reports_deltas_wins_losses_and_seeded_intervals(
+    tmp_path: Path,
+) -> None:
+    predictions_path = tmp_path / "paired.json"
+    predictions_path.write_text(
+        json.dumps(
+            [
+                {"condition_id": "off", "video_id": "v1", "status": "passed", "answer": "wrong", "semantic_metrics": {"meteor": 0.1}},
+                {"condition_id": "on", "video_id": "v1", "status": "passed", "answer": "dog", "semantic_metrics": {"meteor": 0.9}},
+                {"condition_id": "off", "video_id": "v2", "status": "passed", "answer": "cat", "semantic_metrics": {"meteor": 0.8}},
+                {"condition_id": "on", "video_id": "v2", "status": "passed", "answer": "wrong", "semantic_metrics": {"meteor": 0.2}},
+                {"condition_id": "off", "video_id": "v3", "status": "passed", "answer": "bird", "semantic_metrics": {"meteor": 0.7}},
+                {"condition_id": "on", "video_id": "v3", "status": "passed", "answer": "bird", "semantic_metrics": {"meteor": 0.7}},
+            ]
+        ),
+        encoding="utf-8",
+    )
+    scored = evaluate_saved_predictions(
+        predictions_path,
+        references={"v1": "dog", "v2": "cat", "v3": "bird"},
+        strata={"v1": "audio", "v2": "audio", "v3": "control"},
+    )
+
+    first = summarize_paired_conditions(
+        scored["examples"],
+        baseline_condition_id="off",
+        treatment_condition_id="on",
+        bootstrap_iterations=500,
+        bootstrap_seed=17,
+    )
+    second = summarize_paired_conditions(
+        scored["examples"],
+        baseline_condition_id="off",
+        treatment_condition_id="on",
+        bootstrap_iterations=500,
+        bootstrap_seed=17,
+    )
+
+    assert first == second
+    assert first["paired_count"] == 3
+    assert first["exact_match_wins"] == 1
+    assert first["exact_match_losses"] == 1
+    assert first["metric_deltas"] == {
+        "normalized_exact_match": pytest.approx(0.0),
+        "token_f1": pytest.approx(0.0),
+        "meteor": pytest.approx(0.06666666666666667),
+    }
+    assert first["bootstrap_intervals"]["meteor"] == {
+        "lower": pytest.approx(-0.6),
+        "upper": pytest.approx(0.8),
+        "confidence": 0.95,
+        "iterations": 500,
+        "seed": 17,
+        "exploratory": True,
+    }
+    assert first["strata"]["audio"]["exact_match_wins"] == 1
+    assert first["strata"]["audio"]["exact_match_losses"] == 1
+    assert first["strata"]["control"]["metric_deltas"]["meteor"] == 0.0
 
 
 def test_csv_discovery_excludes_scorer_outputs(tmp_path: Path) -> None:

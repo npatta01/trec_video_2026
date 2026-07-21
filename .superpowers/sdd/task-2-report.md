@@ -1,116 +1,172 @@
-# Task 2 report: shared YouTube engine extraction
+# Task 2 report: generalized evidence and paired scoring
 
 ## Outcome
 
-Extracted reusable YouTube download behavior into `src/trec_video_2026/youtube_dataset.py` and reduced `vqa_download.py` to a TRECVID adapter. Compatibility exports for reusable functions are direct aliases, preserving object identity.
+Implemented Task 2 on top of commit `8ca7e90` while preserving the existing
+three-video and NIST/Seamless behavior.
 
-## Boundaries
+## Implementation
 
-- `youtube_dataset.py` owns credential validation, API batching, atomic cache writes, proxy configuration, yt-dlp command construction/execution, archive reading, cooldown handling, proxy-failure stopping, detached worker primitives, PID/status helpers, and the generic dataclasses.
-- `vqa_download.py` retains the TRECVID credential defaults, NIST CSV/README parsing, manifest construction, TRECVID path construction, and the VQA command adapter.
-- The generic module defines no `DEFAULT_*` credential paths. Generic fallback entry behavior requires explicit credential file environment values.
-- Existing compatibility names point to the exact shared function objects.
-
-## Dataclasses
-
-- `DatasetSpec`: explicit source, output, and state paths.
-- `DownloadConfig`: explicit API/proxy credential paths and pacing/cooldown values.
-- `AttemptResult`: completion, rate-limit, and proxy-transport classifications.
-
-## Proxy failure behavior
-
-`run_url` recognizes a proxy-associated HTTP 502 as `proxy_failure=True`. `run_dataset` stops after two consecutive proxy transport failures, preserving the archive and avoiding a full-dataset failure loop. Any non-proxy result resets the consecutive counter; ordinary private/unavailable/video failures remain ordinary failures and do not trigger the proxy stop.
+- Made the bin-midpoint timestamp policy an explicit method of
+  `EvidenceParameters` and used it for both cache creation and validation.
+  The default remains 12 frames, and the established 12-frame timestamps are
+  unchanged. Frame count remains part of the serialized cache identity, so
+  12-frame and 24-frame evidence cannot collide.
+- Added deterministic regeneration of scoring reports from saved JSON arrays
+  and append-only JSONL attempts.
+- Retained the existing successful-attempt rule: a later failure cannot replace
+  a successful prediction.
+- Added aggregate, per-condition, and per-stratum completion and mean metrics
+  for normalized exact match, token F1, and externally supplied METEOR.
+- Added paired treatment-minus-baseline metric deltas, normalized-exact-match
+  wins/losses, per-stratum paired summaries, and deterministic seeded bootstrap
+  intervals explicitly labeled exploratory.
+- Kept existing `evaluate_local_answer`, NIST semantic parity, NIST invocation,
+  and scorer isolation interfaces unchanged.
+- Validated every saved runner request, including superseded retry attempts,
+  before references are joined. Reference, correct/incorrect-answer, and
+  scoring fields cause regeneration to fail.
 
 ## TDD evidence
 
-The ownership test initially failed during collection because `trec_video_2026.youtube_dataset` did not exist. New regression tests then covered:
+### Initial RED
 
-1. HTTP 502 proxy output classification.
-2. Prompt stop after two consecutive proxy failures.
-3. Processing all URLs when failures are ordinary video failures.
+Command:
 
-Focused verification: `uv run pytest -q tests/test_youtube_dataset.py tests/test_vqa_download.py` -> 83 passed.
+```text
+uv run pytest -q tests/test_vqa_benchmark.py tests/test_vqa_evaluation.py
+```
 
-Full verification: `uv run pytest -q` -> 83 passed.
+Exact result:
 
-Diff hygiene: `git diff --check` passed. Untracked `dstack/` and `notes.txt` were not touched or staged. No downloader or network operation was started.
+```text
+==================================== ERRORS ====================================
+________________ ERROR collecting tests/test_vqa_evaluation.py _________________
+ImportError while importing test module '/home/npatta01/.codex/worktrees/c32dfd7e-252f-44e8-b46c-854369072c00/trec_video_2026/tests/test_vqa_evaluation.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../../../.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_vqa_evaluation.py:10: in <module>
+    from trec_video_2026.vqa_evaluation import (
+E   ImportError: cannot import name 'evaluate_saved_predictions' from 'trec_video_2026.vqa_evaluation' (/home/npatta01/.codex/worktrees/c32dfd7e-252f-44e8-b46c-854369072c00/trec_video_2026/src/trec_video_2026/vqa_evaluation.py)
+=========================== short test summary info ============================
+ERROR tests/test_vqa_evaluation.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.10s
+```
+
+This failed because the required saved-prediction and paired-summary APIs did
+not exist.
+
+### First implementation check
+
+Relevant failure excerpt:
+
+```text
+...............................F............                             [100%]
+=================================== FAILURES ===================================
+________ test_saved_predictions_regenerate_aggregate_and_stratum_scores ________
+
+E       AssertionError: assert 'violin' == 'dog'
+E         - dog
+E         + violin
+
+tests/test_vqa_evaluation.py:170: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_vqa_evaluation.py::test_saved_predictions_regenerate_aggregate_and_stratum_scores
+1 failed, 43 passed in 1.58s
+```
+
+The implementation was sorting scored examples. It was corrected to preserve
+the saved artifact's order for traceability.
+
+### First GREEN
+
+```text
+............................................                             [100%]
+44 passed in 1.71s
+```
+
+### Self-review RED for append-only artifacts
+
+Command:
+
+```text
+uv run pytest -q tests/test_vqa_evaluation.py -k saved_jsonl
+```
+
+Relevant failure excerpt:
+
+```text
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_saved_jsonl_attempts_keep_a_success_over_a_later_failure _________
+
+E           ValueError: Saved predictions are missing or invalid JSON
+
+src/trec_video_2026/vqa_evaluation.py:148: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_vqa_evaluation.py::test_saved_jsonl_attempts_keep_a_success_over_a_later_failure
+1 failed, 21 deselected in 0.05s
+```
+
+This proved that the first version did not yet accept the repository's
+append-only JSONL attempt format.
+
+### Final targeted GREEN
+
+```text
+.............................................                            [100%]
+45 passed in 1.44s
+```
+
+## Final verification
+
+Command:
+
+```text
+uv run pytest -q
+```
+
+Exact output:
+
+```text
+........................................................................ [ 28%]
+........................................................................ [ 56%]
+........................................................................ [ 84%]
+.......................................                                  [100%]
+255 passed in 2.24s
+```
+
+`git diff --check` also completed with no output.
+
+## Files
+
+- `src/trec_video_2026/vqa_benchmark.py`
+- `src/trec_video_2026/vqa_evaluation.py`
+- `tests/test_vqa_benchmark.py`
+- `tests/test_vqa_evaluation.py`
+- `.superpowers/sdd/task-2-report.md` (tracked Task 2 handoff artifact)
 
 ## Self-review
 
-- Confirmed TRECVID defaults exist only in the adapter.
-- Confirmed ownership/identity assertions pass.
-- Confirmed proxy classification requires both a 502 indicator and proxy wording.
-- Confirmed bounded stopping is consecutive rather than cumulative.
-- Confirmed the existing VQA tests remain green after moving monkeypatch targets for shared implementation internals.
+- Verified default 12-frame timestamps remain exactly the old values.
+- Verified 12/24 policies produce distinct cache identities.
+- Verified scoring preserves exact-match/token-F1 behavior and consumes METEOR
+  values without changing the pinned NIST parity path.
+- Verified scoring is deterministic across repeated regeneration.
+- Verified paired metrics align by video ID rather than input position.
+- Verified bootstrap resampling uses a local seeded RNG and records seed,
+  confidence, iterations, and the exploratory label.
+- Verified labels are separate inputs and cannot be present in nested saved
+  runner requests.
+- Verified unrelated untracked files and dataset contents were not modified.
 
-## Review-fix wave
+## Concerns
 
-The initial Task 2 review found that the extracted module still contained VQA path, manifest, worker, and status assumptions, and that the adapter had lost two status counters. The correction made the shared interfaces operational rather than nominal:
-
-- `DatasetSpec` now drives arbitrary source, output, and state paths through `prepare_dataset`, `run_spec`, `dataset_status`, and `start_detached`.
-- `DownloadConfig` now drives the API-key file, proxy file, pacing, cooldowns, node runtime, and explicit detached worker command.
-- Removed generic-module copies of NIST CSV/README parsing, TRECVID manifest construction, training/testing loops, `data/vqa` paths, VQA environment names/messages, and the hard-coded `trec_video_2026.vqa_download` worker spawn.
-- The VQA adapter constructs the two TRECVID datasets and explicit detached worker command while retaining compatibility exports as the shared function objects.
-- Restored the `API-available pending` and `API unavailable/private` status counters using the shared `count_lines` helper.
-
-### Added regression coverage
-
-- A non-VQA `DatasetSpec` rooted at arbitrary source/output/state directories proves API snapshot preparation, archive/output routing, configuration-driven API key loading, execution, and status counts.
-- Detached execution proves the explicit `worker_command`, proxy config, node path, state directory, and PID handling are bound from generic configuration.
-- VQA status explicitly verifies both API inventory counters.
-
-### Verification evidence
-
-Commands run without downloader or network activity:
-
-```text
-uv run pytest -q tests/test_youtube_dataset.py tests/test_vqa_download.py
-86 passed in 0.08s
-
-uv run pytest -q
-86 passed in 0.40s
-
-python -m compileall -q src
-exit 0
-
-git diff --check
-exit 0
-```
-
-Boundary audit command:
-
-```text
-rg -n 'data/vqa|training|testing|VQA_|vqa_download|NIST|DEFAULT_' src/trec_video_2026/youtube_dataset.py
-no matches
-```
-
-Untracked `dstack/` and `notes.txt` remained untouched and unstaged.
-
-## Final compatibility review fix
-
-The re-review identified that `vqa_download.start_detached` had been left as the generic `(spec, config, ...)` function and that the tests hid the public API break behind a test-local adapter. The VQA module now owns a real compatibility wrapper with the established signature:
-
-```text
-start_detached(repo_root, popen=..., node_path=..., proxy_env_path=..., credential_runner=...)
-```
-
-The wrapper constructs the VQA `DatasetSpec` and explicit `DownloadConfig`, then delegates to `youtube_dataset.start_detached`. The ownership test now treats this function as adapter-specific, and all detached tests invoke the production wrapper directly. Generic startup/runtime/inherited-lock errors were also changed from “VQA” to “YouTube dataset” wording.
-
-Fresh evidence:
-
-```text
-uv run pytest -q tests/test_youtube_dataset.py tests/test_vqa_download.py
-86 passed in 0.12s
-
-uv run pytest -q
-86 passed in 0.42s
-
-python -m compileall -q src
-exit 0
-
-git diff --check
-exit 0
-
-rg -n 'VQA' src/trec_video_2026/youtube_dataset.py
-no matches
-```
+- Bootstrap intervals are descriptive percentile intervals over a small panel,
+  as required; they must not be presented as precise confidence bounds.
+- METEOR regeneration expects the pinned parity path to have saved per-example
+  METEOR values. Missing METEOR remains `None` and is never coerced to zero.

@@ -350,6 +350,20 @@ def test_cache_key_covers_source_and_extraction_parameters(tmp_path: Path):
     assert key != cache_key(fingerprint, EvidenceParameters(frame_count=6))
 
 
+def test_twelve_and_twenty_four_frame_policies_have_stable_distinct_identities():
+    source = SourceFingerprint(sha256="fixed-source", size_bytes=123)
+    twelve = EvidenceParameters(frame_count=12)
+    twenty_four = EvidenceParameters(frame_count=24)
+
+    assert bin_midpoint_timestamps(24.0, twelve.frame_count) == tuple(
+        float(value) for value in range(1, 24, 2)
+    )
+    assert bin_midpoint_timestamps(24.0, twenty_four.frame_count) == tuple(
+        value + 0.5 for value in range(24)
+    )
+    assert cache_key(source, twelve) != cache_key(source, twenty_four)
+
+
 def test_cached_evidence_verifies_checksums_and_rejects_stale_files(tmp_path: Path):
     cache_dir = tmp_path / "cached"
     cache_dir.mkdir()

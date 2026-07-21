@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import csv
+import json
 import os
+import random
 import re
 import shutil
 import string
@@ -12,7 +14,8 @@ import sys
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from statistics import fmean
+from typing import Any, Mapping, Sequence
 
 
 LOCAL_DIAGNOSTICS_MODE = "local-diagnostics"
@@ -98,6 +101,324 @@ def evaluate_local_answer(
         "bertscore_f1": semantic_metrics.get("bertscore_f1"),
         # The historical scorer's NDCG is meaningless for a single answer.
         "ndcg": None,
+    }
+
+
+_PRIMARY_METRICS = ("normalized_exact_match", "token_f1", "meteor")
+_EVALUATION_REQUEST_FIELDS = frozenset(
+    {
+        "answer",
+        "answers",
+        "reference",
+        "reference_answer",
+        "references",
+        "correct_answer",
+        "incorrect_answer",
+        "incorrect_answers",
+        "alternatives",
+        "normalized_exact_match",
+        "token_f1",
+        "meteor",
+        "bertscore_f1",
+        "sts",
+        "ndcg",
+        "score",
+        "scores",
+        "metrics",
+    }
+)
+
+
+def evaluate_saved_predictions(
+    predictions_path: Path,
+    *,
+    references: Mapping[str, str],
+    strata: Mapping[str, str],
+) -> dict[str, Any]:
+    """Regenerate answer scores by joining saved label-free predictions to labels.
+
+    Reference answers and strata are deliberately separate inputs. If a saved
+    runner request contains any evaluation-only field, regeneration stops
+    instead of silently accepting a leakage-contaminated artifact.
+    """
+
+    raw_predictions = _load_saved_predictions(predictions_path)
+    selected: dict[tuple[str, str], Mapping[str, Any]] = {}
+    for prediction in raw_predictions:
+        if not isinstance(prediction, Mapping):
+            raise ValueError("Each saved prediction must be a JSON object")
+        condition_id = _required_prediction_text(prediction, "condition_id")
+        video_id = _required_prediction_text(prediction, "video_id")
+        request = prediction.get("request")
+        if request is not None:
+            if not isinstance(request, Mapping):
+                raise ValueError("Saved runner request must be a JSON object")
+            _validate_label_free_request(request)
+        identity = (condition_id, video_id)
+        current = selected.get(identity)
+        if (
+            current is None
+            or prediction.get("status") == "passed"
+            or current.get("status") != "passed"
+        ):
+            selected[identity] = prediction
+    predictions = list(selected.values())
+
+    examples: list[dict[str, Any]] = []
+    for prediction in predictions:
+        condition_id = _required_prediction_text(prediction, "condition_id")
+        video_id = _required_prediction_text(prediction, "video_id")
+        if video_id not in references:
+            raise ValueError(f"Missing reference for video: {video_id}")
+        if video_id not in strata:
+            raise ValueError(f"Missing stratum for video: {video_id}")
+        request = prediction.get("request")
+        if request is not None:
+            if not isinstance(request, Mapping):
+                raise ValueError("Saved runner request must be a JSON object")
+            _validate_label_free_request(request)
+
+        status = prediction.get("status")
+        answer = prediction.get("answer")
+        completed = status == "passed" and isinstance(answer, str) and bool(
+            answer.strip()
+        )
+        reference = references[video_id]
+        if completed:
+            raw_semantic = prediction.get("semantic_metrics", {})
+            if not isinstance(raw_semantic, Mapping):
+                raise ValueError("semantic_metrics must be a JSON object")
+            semantic = {
+                name: raw_semantic.get(name, prediction.get(name))
+                for name in ("sts", "meteor", "bertscore_f1")
+            }
+            metrics = evaluate_local_answer(answer, reference, semantic_metrics=semantic)
+        else:
+            metrics = evaluate_local_answer("", reference)
+            for name in _PRIMARY_METRICS:
+                metrics[name] = None
+        examples.append(
+            {
+                **dict(prediction),
+                "condition_id": condition_id,
+                "video_id": video_id,
+                "stratum": strata[video_id],
+                "reference": reference,
+                "completed": completed,
+                **{name: metrics[name] for name in _PRIMARY_METRICS},
+            }
+        )
+
+    conditions = {
+        condition_id: _summarize_examples(
+            [item for item in examples if item["condition_id"] == condition_id]
+        )
+        for condition_id in sorted({item["condition_id"] for item in examples})
+    }
+    overall = _summarize_examples(examples)
+    return {
+        "examples": examples,
+        "aggregate": overall["aggregate"],
+        "strata": overall["strata"],
+        "conditions": conditions,
+    }
+
+
+def _load_saved_predictions(predictions_path: Path) -> list[Any]:
+    try:
+        text = predictions_path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise ValueError("Saved predictions are missing or invalid JSON") from error
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        try:
+            payload = [json.loads(line) for line in text.splitlines() if line.strip()]
+        except json.JSONDecodeError as error:
+            raise ValueError("Saved predictions are missing or invalid JSON") from error
+    if not isinstance(payload, list) or not payload:
+        raise ValueError("Saved predictions must be a non-empty JSON list or JSONL file")
+    return payload
+
+
+def summarize_paired_conditions(
+    scored_examples: Sequence[Mapping[str, Any]],
+    *,
+    baseline_condition_id: str,
+    treatment_condition_id: str,
+    bootstrap_iterations: int = 2000,
+    bootstrap_seed: int = 0,
+    confidence: float = 0.95,
+) -> dict[str, Any]:
+    """Summarize treatment-minus-baseline changes on aligned examples."""
+
+    if bootstrap_iterations <= 0:
+        raise ValueError("bootstrap_iterations must be positive")
+    if not 0 < confidence < 1:
+        raise ValueError("confidence must be between zero and one")
+    indexed: dict[tuple[str, str], Mapping[str, Any]] = {}
+    for example in scored_examples:
+        key = (str(example.get("condition_id", "")), str(example.get("video_id", "")))
+        if key in indexed:
+            raise ValueError(f"Duplicate scored example: {key[0]}/{key[1]}")
+        indexed[key] = example
+    video_ids = sorted(
+        video_id
+        for condition_id, video_id in indexed
+        if condition_id == baseline_condition_id
+        and (treatment_condition_id, video_id) in indexed
+    )
+    pairs = [
+        (
+            indexed[(baseline_condition_id, video_id)],
+            indexed[(treatment_condition_id, video_id)],
+        )
+        for video_id in video_ids
+        if indexed[(baseline_condition_id, video_id)].get("completed")
+        and indexed[(treatment_condition_id, video_id)].get("completed")
+    ]
+    if not pairs:
+        raise ValueError("Paired conditions have no aligned completed examples")
+    if any(left.get("stratum") != right.get("stratum") for left, right in pairs):
+        raise ValueError("Paired examples must have matching strata")
+
+    summary = _paired_group(
+        pairs,
+        bootstrap_iterations=bootstrap_iterations,
+        bootstrap_seed=bootstrap_seed,
+        confidence=confidence,
+    )
+    summary.update(
+        {
+            "baseline_condition_id": baseline_condition_id,
+            "treatment_condition_id": treatment_condition_id,
+            "strata": {
+                stratum: _paired_group(
+                    [pair for pair in pairs if pair[0]["stratum"] == stratum],
+                    bootstrap_iterations=bootstrap_iterations,
+                    bootstrap_seed=bootstrap_seed,
+                    confidence=confidence,
+                )
+                for stratum in sorted({str(pair[0]["stratum"]) for pair in pairs})
+            },
+        }
+    )
+    return summary
+
+
+def _required_prediction_text(prediction: Mapping[str, Any], key: str) -> str:
+    value = prediction.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"Saved prediction {key} must be a non-empty string")
+    return value.strip()
+
+
+def _validate_label_free_request(request: Mapping[str, Any]) -> None:
+    for key, value in request.items():
+        normalized = str(key).lower()
+        if (
+            normalized in _EVALUATION_REQUEST_FIELDS
+            or "reference" in normalized
+            or "correct_answer" in normalized
+            or "incorrect" in normalized
+        ):
+            raise ValueError(f"Runner request contains evaluation field: {key}")
+        if isinstance(value, Mapping):
+            _validate_label_free_request(value)
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, Mapping):
+                    _validate_label_free_request(item)
+
+
+def _summarize_examples(examples: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    return {
+        "aggregate": _aggregate(examples),
+        "strata": {
+            stratum: _aggregate(
+                [item for item in examples if str(item["stratum"]) == stratum]
+            )
+            for stratum in sorted({str(item["stratum"]) for item in examples})
+        },
+    }
+
+
+def _aggregate(examples: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    completed_count = sum(bool(item.get("completed")) for item in examples)
+    result: dict[str, Any] = {
+        "example_count": len(examples),
+        "completed_count": completed_count,
+        "completion_rate": completed_count / len(examples) if examples else 0.0,
+    }
+    for metric in _PRIMARY_METRICS:
+        values = [float(item[metric]) for item in examples if item.get(metric) is not None]
+        result[metric] = fmean(values) if values else None
+    return result
+
+
+def _paired_group(
+    pairs: Sequence[tuple[Mapping[str, Any], Mapping[str, Any]]],
+    *,
+    bootstrap_iterations: int,
+    bootstrap_seed: int,
+    confidence: float,
+) -> dict[str, Any]:
+    deltas = {
+        metric: [
+            float(treatment[metric]) - float(baseline[metric])
+            for baseline, treatment in pairs
+            if baseline.get(metric) is not None and treatment.get(metric) is not None
+        ]
+        for metric in _PRIMARY_METRICS
+    }
+    return {
+        "paired_count": len(pairs),
+        "exact_match_wins": sum(
+            baseline["normalized_exact_match"] == 0.0
+            and treatment["normalized_exact_match"] == 1.0
+            for baseline, treatment in pairs
+        ),
+        "exact_match_losses": sum(
+            baseline["normalized_exact_match"] == 1.0
+            and treatment["normalized_exact_match"] == 0.0
+            for baseline, treatment in pairs
+        ),
+        "metric_deltas": {
+            metric: fmean(values) if values else None for metric, values in deltas.items()
+        },
+        "bootstrap_intervals": {
+            metric: _bootstrap_mean_interval(
+                values,
+                iterations=bootstrap_iterations,
+                seed=bootstrap_seed,
+                confidence=confidence,
+            )
+            if values
+            else None
+            for metric, values in deltas.items()
+        },
+    }
+
+
+def _bootstrap_mean_interval(
+    values: Sequence[float], *, iterations: int, seed: int, confidence: float
+) -> dict[str, Any]:
+    random_source = random.Random(seed)
+    sample_size = len(values)
+    means = sorted(
+        fmean(random_source.choices(values, k=sample_size))
+        for _ in range(iterations)
+    )
+    tail = (1.0 - confidence) / 2.0
+    lower_index = min(iterations - 1, int(tail * iterations))
+    upper_index = min(iterations - 1, max(0, int((1.0 - tail) * iterations)))
+    return {
+        "lower": means[lower_index],
+        "upper": means[upper_index],
+        "confidence": confidence,
+        "iterations": iterations,
+        "seed": seed,
+        "exploratory": True,
     }
 
 

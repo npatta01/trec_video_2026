@@ -93,8 +93,13 @@ class SourceFingerprint:
 
 @dataclass(frozen=True)
 class EvidenceParameters:
+    """Identity of a configurable chronological bin-midpoint frame policy."""
+
     frame_count: int = 12
     extractor_version: str = EXTRACTOR_VERSION
+
+    def timestamps(self, duration_seconds: float) -> tuple[float, ...]:
+        return bin_midpoint_timestamps(duration_seconds, self.frame_count)
 
 
 @dataclass(frozen=True)
@@ -458,7 +463,7 @@ def load_cached_evidence(cache_dir: Path, expected_key: str) -> EvidenceRecord:
         raise StaleEvidenceError("Cached timestamp metadata is invalid") from error
     if len(timestamps) != parameters.frame_count:
         raise StaleEvidenceError("Cached timestamp count does not match")
-    if timestamps != bin_midpoint_timestamps(duration_seconds, parameters.frame_count):
+    if timestamps != parameters.timestamps(duration_seconds):
         raise StaleEvidenceError("Cached timestamps are not bin midpoints")
     return EvidenceRecord(
         cache_key=expected_key,
@@ -488,9 +493,7 @@ def build_frame_evidence(
     metadata = probe_media(media_path, runner=runner)
     if not metadata.has_video:
         raise ValueError(f"Media has no video stream: {media_path}")
-    timestamps = bin_midpoint_timestamps(
-        metadata.duration_seconds, count=parameters.frame_count
-    )
+    timestamps = parameters.timestamps(metadata.duration_seconds)
     staging = Path(tempfile.mkdtemp(prefix=f".{key}-", dir=evidence_root))
     try:
         frames = []
