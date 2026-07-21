@@ -31,6 +31,21 @@ def test_controlled_messages_keep_frames_in_timestamp_order(tmp_path: Path) -> N
     assert "Transcript" not in str(messages)
 
 
+def test_controlled_messages_label_detail_crop(tmp_path: Path) -> None:
+    frame = tmp_path / "crop.png"
+    frame.write_bytes(b"png")
+    messages = build_controlled_messages(
+        question="What color is the image?",
+        frame_paths=(frame,),
+        frame_timestamps=(0.61,),
+        frame_descriptions=("Detail crop from frame at 0.610 seconds:",),
+        transcript=None,
+    )
+    assert messages[0]["content"][0]["text"] == (
+        "Detail crop from frame at 0.610 seconds:"
+    )
+
+
 def test_controlled_messages_include_frozen_transcript_once(tmp_path: Path) -> None:
     frame = tmp_path / "frame.jpg"
     messages = build_controlled_messages(

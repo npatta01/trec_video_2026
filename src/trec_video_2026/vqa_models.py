@@ -13,19 +13,35 @@ def build_controlled_messages(
     frame_paths: tuple[Path, ...],
     frame_timestamps: tuple[float, ...],
     transcript: str | None,
+    frame_descriptions: tuple[str, ...] | None = None,
 ) -> list[dict[str, Any]]:
     """Build one ordered multimodal message without any evaluation label."""
 
     if len(frame_paths) != len(frame_timestamps):
         raise ValueError("Frame paths and timestamps must have equal length")
+    if frame_descriptions is not None and len(frame_descriptions) != len(frame_paths):
+        raise ValueError("Frame descriptions and paths must have equal length")
     if not question.strip():
         raise ValueError("Question cannot be empty")
-    ordered = sorted(zip(frame_timestamps, frame_paths, strict=True))
-    content: list[dict[str, str]] = []
-    for timestamp, frame_path in ordered:
-        content.append(
-            {"type": "text", "text": f"Frame at {timestamp:.3f} seconds:"}
+    default_descriptions = tuple(
+        f"Frame at {timestamp:.3f} seconds:" for timestamp in frame_timestamps
+    )
+    descriptions = (
+        default_descriptions
+        if frame_descriptions is None
+        else tuple(
+            description or default
+            for description, default in zip(
+                frame_descriptions, default_descriptions, strict=True
+            )
         )
+    )
+    ordered = sorted(
+        zip(frame_timestamps, frame_paths, descriptions, strict=True)
+    )
+    content: list[dict[str, str]] = []
+    for _, frame_path, description in ordered:
+        content.append({"type": "text", "text": description})
         content.append({"type": "image", "url": str(frame_path.resolve())})
     if transcript is not None:
         if not transcript.strip():

@@ -162,6 +162,7 @@ class RunnerRequest:
     transcript: str | None
     media_path: Path | None
     audio_path: Path | None = None
+    frame_descriptions: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         if not self.run_id or not self.condition_id or not self.video_id:
@@ -170,6 +171,10 @@ class RunnerRequest:
             raise ValueError("Runner request question cannot be empty")
         if len(self.frame_paths) != len(self.frame_timestamps):
             raise ValueError("Frame paths and timestamps must have equal length")
+        if self.frame_descriptions is not None and len(
+            self.frame_descriptions
+        ) != len(self.frame_paths):
+            raise ValueError("Frame descriptions and paths must have equal length")
         if any(timestamp < 0 for timestamp in self.frame_timestamps):
             raise ValueError("Frame timestamps cannot be negative")
 
@@ -181,6 +186,11 @@ class RunnerRequest:
             "question": self.question,
             "frame_paths": [str(path.resolve()) for path in self.frame_paths],
             "frame_timestamps": list(self.frame_timestamps),
+            "frame_descriptions": (
+                list(self.frame_descriptions)
+                if self.frame_descriptions is not None
+                else None
+            ),
             "transcript": self.transcript,
             "media_path": str(self.media_path.resolve()) if self.media_path else None,
             "audio_path": str(self.audio_path.resolve()) if self.audio_path else None,

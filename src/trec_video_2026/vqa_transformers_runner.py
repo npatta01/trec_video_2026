@@ -145,6 +145,7 @@ def generate_answer(
     question: str,
     frame_paths: tuple[Path, ...],
     frame_timestamps: tuple[float, ...],
+    frame_descriptions: tuple[str, ...] | None = None,
     transcript: str | None,
     max_new_tokens: int,
 ) -> str:
@@ -152,6 +153,7 @@ def generate_answer(
         question=question,
         frame_paths=frame_paths,
         frame_timestamps=frame_timestamps,
+        frame_descriptions=frame_descriptions,
         transcript=transcript,
     )
     inputs = processor.apply_chat_template(
@@ -240,6 +242,11 @@ def main(argv: list[str] | None = None) -> int:
                     question=request["question"],
                     frame_paths=tuple(Path(path) for path in request["frame_paths"]),
                     frame_timestamps=tuple(request["frame_timestamps"]),
+                    frame_descriptions=(
+                        tuple(request["frame_descriptions"])
+                        if request.get("frame_descriptions") is not None
+                        else None
+                    ),
                     transcript=request.get("transcript"),
                     max_new_tokens=args.max_new_tokens,
                 )

@@ -64,6 +64,7 @@ def test_generate_answer_uses_deterministic_non_thinking_decode(tmp_path: Path) 
         question="What happens?",
         frame_paths=(tmp_path / "frame.jpg",),
         frame_timestamps=(0.5,),
+        frame_descriptions=("Full frame:",),
         transcript=None,
         max_new_tokens=48,
     )
@@ -79,6 +80,7 @@ def test_generate_answer_uses_deterministic_non_thinking_decode(tmp_path: Path) 
     assert model.kwargs["do_sample"] is False
     assert model.kwargs["max_new_tokens"] == 48
     assert model.kwargs["moved_to"] == "cuda:0"
+    assert processor.messages[0]["content"][0]["text"] == "Full frame:"
 
 
 def test_load_processor_caps_each_frames_visual_token_budget() -> None:

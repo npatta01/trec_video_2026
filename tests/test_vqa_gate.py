@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import sys
 from pathlib import Path
@@ -43,6 +44,14 @@ def test_runner_request_never_serializes_reference(tmp_path: Path) -> None:
     assert payload["question"] == "What happens?"
     assert "reference" not in json.dumps(payload).lower()
     assert "answer" not in payload
+
+
+def test_runner_request_serializes_frame_descriptions(tmp_path: Path) -> None:
+    payload = dataclasses.replace(
+        request(tmp_path), frame_descriptions=("Full frame:",)
+    ).to_dict()
+    assert payload["frame_descriptions"] == ["Full frame:"]
+    assert "reference" not in json.dumps(payload).lower()
 
 
 def test_validate_runner_result_requires_provenance() -> None:
