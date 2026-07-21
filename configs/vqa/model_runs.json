@@ -110,6 +110,46 @@
       "runner_kind": "minicpm",
       "audio_mode": "audio-on",
       "runtime_image": "localhost/trec-vqa-gate-minicpm@sha256:9fd8ffb14c39440b6a036781315558ae5ac6e93893582fff8d9eceaf8ec7a12a"
+    },
+    {
+      "condition_id": "voxtral-mini-3b-transcription",
+      "model_id": "mistralai/Voxtral-Mini-3B-2507",
+      "model_revision": "3060fe34b35ba5d44202ce9ff3c097642914f8f3",
+      "evidence": "isolated-audio-label-blind-quality-gated",
+      "download_bytes": 18720263837,
+      "runner_kind": "isolated-audio",
+      "task_mode": "transcription",
+      "runtime_image": "localhost/trec-vqa-audio-rocm@sha256:faa70fc2896401f863fc1be1a83581585bba3bd9784cf4cf3b672d7815b6c234"
+    },
+    {
+      "condition_id": "voxtral-mini-3b-translation",
+      "model_id": "mistralai/Voxtral-Mini-3B-2507",
+      "model_revision": "3060fe34b35ba5d44202ce9ff3c097642914f8f3",
+      "evidence": "isolated-audio-english-translation-label-blind-quality-gated",
+      "download_bytes": 18720263837,
+      "runner_kind": "isolated-audio",
+      "task_mode": "translation",
+      "runtime_image": "localhost/trec-vqa-audio-rocm@sha256:faa70fc2896401f863fc1be1a83581585bba3bd9784cf4cf3b672d7815b6c234"
+    },
+    {
+      "condition_id": "voxtral-mini-3b-question-answer",
+      "model_id": "mistralai/Voxtral-Mini-3B-2507",
+      "model_revision": "3060fe34b35ba5d44202ce9ff3c097642914f8f3",
+      "evidence": "isolated-audio-question-aware-diagnostic",
+      "download_bytes": 18720263837,
+      "runner_kind": "isolated-audio",
+      "task_mode": "question_answer",
+      "runtime_image": "localhost/trec-vqa-audio-rocm@sha256:faa70fc2896401f863fc1be1a83581585bba3bd9784cf4cf3b672d7815b6c234"
+    },
+    {
+      "condition_id": "qwen3-asr-1.7b-transcription",
+      "model_id": "Qwen/Qwen3-ASR-1.7B",
+      "model_revision": "7278e1e70fe206f11671096ffdd38061171dd6e5",
+      "evidence": "isolated-audio-auto-language-label-blind-quality-gated",
+      "download_bytes": 4703114308,
+      "runner_kind": "isolated-audio",
+      "task_mode": "transcription",
+      "runtime_image": "localhost/trec-vqa-audio-rocm@sha256:faa70fc2896401f863fc1be1a83581585bba3bd9784cf4cf3b672d7815b6c234"
     }
   ]
 }

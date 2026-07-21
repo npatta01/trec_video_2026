@@ -74,6 +74,7 @@ class Condition:
     runner_kind: str = "image-text"
     runtime_image: str | None = None
     audio_mode: str | None = None
+    task_mode: str | None = None
 
     def __post_init__(self) -> None:
         if self.audio_mode is not None and self.audio_mode not in AUDIO_MODES:
