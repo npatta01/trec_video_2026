@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 import pytest
 
 from trec_video_2026.vqa_specialist_runner import (
     InternVLEvidence,
+    _error_result,
+    _load_audio,
     build_internvl_prompt,
     build_minicpm_content,
     chat_internvl,
@@ -14,9 +17,13 @@ from trec_video_2026.vqa_specialist_runner import (
     dynamic_tiles,
     load_internvl,
     load_minicpm,
+    minicpm_audio_enabled,
+    minicpm_metadata,
     order_evidence,
-    split_audio_at_frame_midpoints,
 )
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def request(tmp_path: Path, *, count: int = 12) -> dict:
@@ -54,9 +61,7 @@ def test_internvl_prompt_has_timestamped_frame_tokens_and_transcript() -> None:
         timestamps=tuple(index + 0.25 for index in range(12)),
     )
 
-    prompt = build_internvl_prompt(
-        evidence, "What happens?", "[00:01] A bell rings."
-    )
+    prompt = build_internvl_prompt(evidence, "What happens?", "[00:01] A bell rings.")
 
     assert prompt.startswith("Frame1 at 0.250 seconds: <image>\n")
     assert "Frame12 at 11.250 seconds: <image>" in prompt
@@ -82,6 +87,7 @@ def test_internvl_dynamic_tiling_never_exceeds_two_448_tiles() -> None:
         (0, 0, 448, 448),
         (448, 0, 896, 448),
     ]
+
 
 class FakeAutoModel:
     calls: list[tuple[str, dict]] = []
@@ -154,7 +160,9 @@ def test_load_minicpm_keeps_audio_and_disables_tts() -> None:
         FakeTorch,
         "openbmb/model",
         "b" * 40,
-        snapshot_resolver=lambda model_id, revision, local_files_only: "/cache/snapshot",
+        snapshot_resolver=lambda model_id,
+        revision,
+        local_files_only: "/cache/snapshot",
     )
 
     assert model.was_evaluated is True
@@ -171,18 +179,9 @@ def test_load_minicpm_keeps_audio_and_disables_tts() -> None:
     }
 
 
-def test_audio_is_split_at_frame_midpoints_without_dropping_samples() -> None:
-    audio = list(range(80))
-
-    chunks = split_audio_at_frame_midpoints(
-        audio, timestamps=(1.0, 3.0, 6.0), sample_rate=10
-    )
-
-    assert chunks == [list(range(20)), list(range(20, 45)), list(range(45, 80))]
-    assert sum(chunks, []) == audio
-
-
-def test_minicpm_content_interleaves_ordered_images_and_audio() -> None:
+def test_minicpm_modes_use_identical_ordered_visual_evidence_and_no_transcript() -> (
+    None
+):
     evidence = InternVLEvidence(
         frame_paths=(Path("later.jpg"), Path("earlier.jpg")),
         timestamps=(3.0, 1.0),
@@ -195,23 +194,147 @@ def test_minicpm_content_interleaves_ordered_images_and_audio() -> None:
             loaded.append(path)
             return FakeImage(path)
 
-    content = build_minicpm_content(
+    audio = list(range(40))
+    content_off = build_minicpm_content(
         evidence=evidence,
-        audio=list(range(40)),
-        sample_rate=10,
+        audio=None,
+        audio_enabled=False,
         question="What happens?",
-        transcript=None,
+        image_module=Image,
+    )
+    content_on = build_minicpm_content(
+        evidence=evidence,
+        audio=audio,
+        audio_enabled=True,
+        question="What happens?",
         image_module=Image,
     )
 
-    assert loaded == [Path("earlier.jpg"), Path("later.jpg")]
-    assert [type(item).__name__ for item in content[:-1]] == [
-        "FakeImage",
-        "list",
-        "FakeImage",
-        "list",
+    assert loaded == [
+        Path("earlier.jpg"),
+        Path("later.jpg"),
+        Path("earlier.jpg"),
+        Path("later.jpg"),
     ]
-    assert content[-1].startswith("Question: What happens?")
+    assert [item.path for item in content_off[:-1]] == [
+        Path("earlier.jpg"),
+        Path("later.jpg"),
+    ]
+    assert [item.path for item in content_on[:2]] == [
+        Path("earlier.jpg"),
+        Path("later.jpg"),
+    ]
+    assert content_on[2] is audio
+    assert "transcript" not in content_off[-1].lower()
+    assert "transcript" not in content_on[-1].lower()
+    assert content_off[-1] == content_on[-1]
+
+
+def test_minicpm_audio_on_passes_full_waveform_once_without_truncation() -> None:
+    evidence = InternVLEvidence(
+        frame_paths=tuple(Path(f"{index}.jpg") for index in range(12)),
+        timestamps=tuple(index + 0.5 for index in range(12)),
+    )
+
+    class Image:
+        @staticmethod
+        def open(path):
+            return FakeImage(path)
+
+    audio = list(range(304_089))
+    content = build_minicpm_content(
+        evidence=evidence,
+        audio=audio,
+        audio_enabled=True,
+        question="What happens?",
+        image_module=Image,
+    )
+
+    assert content[-2] is audio
+    assert sum(item is audio for item in content) == 1
+    assert len(content[-2]) == 304_089
+
+
+@pytest.mark.parametrize(
+    ("mode", "enabled"), (("audio-off", False), ("audio-on", True))
+)
+def test_minicpm_audio_mode_is_explicit(mode: str, enabled: bool) -> None:
+    assert minicpm_audio_enabled({"audio_mode": mode}) is enabled
+
+
+def test_minicpm_audio_mode_rejects_missing_or_unknown_values() -> None:
+    with pytest.raises(ValueError, match="audio_mode must be audio-off or audio-on"):
+        minicpm_audio_enabled({})
+    with pytest.raises(ValueError, match="audio_mode must be audio-off or audio-on"):
+        minicpm_audio_enabled({"audio_mode": "automatic"})
+
+
+def test_minicpm_metadata_distinguishes_the_matched_modes() -> None:
+    assert minicpm_metadata(False) == {
+        "evidence_mode": "selected_frames_audio_off",
+        "frame_count": 12,
+        "native_audio": False,
+        "audio_sample_rate_hz": None,
+        "audio_input_count": 0,
+        "max_slice_nums": 1,
+        "transcript_included": False,
+    }
+    assert minicpm_metadata(True) == {
+        "evidence_mode": "selected_frames_native_audio_on",
+        "frame_count": 12,
+        "native_audio": True,
+        "audio_sample_rate_hz": 16_000,
+        "audio_input_count": 1,
+        "max_slice_nums": 1,
+        "transcript_included": False,
+    }
+
+
+def test_minicpm_failures_remain_structured_and_bounded() -> None:
+    args = argparse.Namespace(
+        kind="minicpm", model_id="openbmb/model", revision="b" * 40
+    )
+
+    result = _error_result(
+        RuntimeError("x" * 5_000),
+        0.0,
+        args=args,
+        runtime="runtime",
+        peak_memory=123,
+        audio_enabled=False,
+    )
+
+    assert result["status"] == "failed"
+    assert result["answer"] is None
+    assert result["native_audio"] is False
+    assert len(result["error_message"]) == 4_000
+    assert result["error_message"].endswith("…")
+
+
+def test_minicpm_media_decode_uses_native_fallback_without_dropping_samples(
+    tmp_path: Path,
+) -> None:
+    payload = request(tmp_path)
+    payload["audio_path"] = None
+    calls = []
+    full_audio = list(range(192_001))
+
+    class Librosa:
+        @staticmethod
+        def load(source, **kwargs):
+            raise RuntimeError("container backend unavailable")
+
+    def native_loader(timestamps, duration, source):
+        calls.append((timestamps, duration, source))
+        return [full_audio]
+
+    audio, sample_rate = _load_audio(
+        payload, Librosa, native_audio_loader=native_loader
+    )
+
+    assert audio is full_audio
+    assert sample_rate == 16_000
+    assert calls == [([0.0], 12.0, payload["media_path"])]
 
 
 class FakeImage:
@@ -257,9 +380,7 @@ def test_specialist_chat_calls_are_deterministic_and_bounded() -> None:
 
     mini_model = MiniModel()
     assert (
-        chat_minicpm(
-            mini_model, ["content"], processor="processor", max_new_tokens=24
-        )
+        chat_minicpm(mini_model, ["content"], processor="processor", max_new_tokens=24)
         == "ringing"
     )
     assert mini_model.kwargs == {
@@ -273,11 +394,36 @@ def test_specialist_chat_calls_are_deterministic_and_bounded() -> None:
         "enable_thinking": False,
         "omni_mode": True,
         "generate_audio": False,
+        "merge_audio_from_same_content": False,
     }
 
 
-def test_rocm_kernel_failures_are_reported_as_unsupported() -> None:
-    assert classify_error_status(RuntimeError("HIP error: invalid device function")) == (
-        "unsupported"
+def test_minicpm_conditions_are_a_frozen_audio_off_on_pair() -> None:
+    import json
+
+    payload = json.loads(
+        (REPO_ROOT / "configs/vqa/model_runs.json").read_text(encoding="utf-8")
     )
+    conditions = {
+        item["condition_id"]: item
+        for item in payload["conditions"]
+        if item["model_id"] == "openbmb/MiniCPM-o-4_5"
+    }
+
+    assert set(conditions) == {
+        "minicpmo45-native-video-audio-off",
+        "minicpmo45-native-video-audio-on",
+    }
+    off = conditions["minicpmo45-native-video-audio-off"]
+    on = conditions["minicpmo45-native-video-audio-on"]
+    for key in ("model_id", "model_revision", "runner_kind", "runtime_image"):
+        assert off[key] == on[key]
+    assert off["evidence"] == "selected-12-frames-audio-off"
+    assert on["evidence"] == "selected-12-frames-native-audio-on"
+
+
+def test_rocm_kernel_failures_are_reported_as_unsupported() -> None:
+    assert classify_error_status(
+        RuntimeError("HIP error: invalid device function")
+    ) == ("unsupported")
     assert classify_error_status(ValueError("bad request")) == "failed"

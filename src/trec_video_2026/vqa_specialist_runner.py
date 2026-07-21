@@ -14,7 +14,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from trec_video_2026.vqa_models import normalize_generated_answer
 
@@ -77,7 +77,10 @@ def build_internvl_prompt(
 
 
 def dynamic_tiles(
-    image: Any, *, image_size: int = INTERNVL_IMAGE_SIZE, max_tiles: int = INTERNVL_MAX_TILES
+    image: Any,
+    *,
+    image_size: int = INTERNVL_IMAGE_SIZE,
+    max_tiles: int = INTERNVL_MAX_TILES,
 ) -> list[Any]:
     """Apply InternVL-style aspect-ratio tiling with a strict total tile cap."""
 
@@ -172,70 +175,63 @@ def load_minicpm(
     return model, processor
 
 
-def split_audio_at_frame_midpoints(
-    audio: Any, *, timestamps: Sequence[float], sample_rate: int
-) -> list[Any]:
-    """Partition mono audio into temporal regions represented by each frame."""
-
-    if sample_rate <= 0 or not timestamps:
-        raise ValueError("Audio sample rate and frame timestamps must be positive")
-    if any(right <= left for left, right in zip(timestamps, timestamps[1:])):
-        raise ValueError("Frame timestamps must be strictly increasing")
-    duration = len(audio) / sample_rate
-    if duration <= 0:
-        raise ValueError("Audio is empty")
-    boundaries = [0.0]
-    boundaries.extend(
-        (left + right) / 2 for left, right in zip(timestamps, timestamps[1:])
-    )
-    boundaries.append(duration)
-    sample_boundaries = [
-        min(len(audio), max(0, round(value * sample_rate))) for value in boundaries
-    ]
-    chunks = [
-        audio[start:end]
-        for start, end in zip(sample_boundaries, sample_boundaries[1:])
-    ]
-    if any(len(chunk) == 0 for chunk in chunks):
-        raise ValueError("Frame timestamps cannot be aligned to non-empty audio chunks")
-    return chunks
-
-
 def build_minicpm_content(
     *,
     evidence: InternVLEvidence,
-    audio: Any,
-    sample_rate: int,
+    audio: Any | None,
+    audio_enabled: bool,
     question: str,
-    transcript: str | None,
     image_module: Any,
 ) -> list[Any]:
-    """Build MiniCPM's documented native [image, audio, ...] input sequence."""
+    """Build processor-native MiniCPM input without dropping audio samples."""
 
     if not question.strip():
         raise ValueError("Question cannot be empty")
     ordered = sorted(
-        zip(evidence.timestamps, evidence.frame_paths, strict=True), key=lambda item: item[0]
+        zip(evidence.timestamps, evidence.frame_paths, strict=True),
+        key=lambda item: item[0],
     )
-    timestamps = tuple(item[0] for item in ordered)
-    chunks = split_audio_at_frame_midpoints(
-        audio, timestamps=timestamps, sample_rate=sample_rate
-    )
-    content: list[Any] = []
-    for (_, path), chunk in zip(ordered, chunks, strict=True):
-        content.append(image_module.open(path).convert("RGB"))
-        content.append(chunk)
+    content: list[Any] = [image_module.open(path).convert("RGB") for _, path in ordered]
+    if audio_enabled:
+        if audio is None or len(audio) == 0:
+            raise ValueError("MiniCPM audio-on mode requires non-empty audio")
+        content.append(audio)
     prompt = "Question: " + question.strip()
-    if transcript is not None:
-        if not transcript.strip():
-            raise ValueError("Transcript must be non-empty when supplied")
-        prompt += "\nTimestamped audio transcript:\n" + transcript.strip()
     prompt += (
         "\nAnswer with one short phrase or sentence. Return only the answer; "
         "do not explain your reasoning."
     )
     content.append(prompt)
     return content
+
+
+def minicpm_audio_enabled(request: dict[str, Any]) -> bool:
+    """Return the required matched-ablation mode for a MiniCPM request."""
+
+    mode = request.get("audio_mode")
+    if mode not in {"audio-off", "audio-on"}:
+        raise ValueError("audio_mode must be audio-off or audio-on")
+    return mode == "audio-on"
+
+
+def minicpm_metadata(audio_enabled: bool | None) -> dict[str, Any]:
+    """Describe MiniCPM evidence without implying audio on an invalid request."""
+
+    if audio_enabled is None:
+        evidence_mode = "selected_frames_audio_mode_invalid"
+    elif audio_enabled:
+        evidence_mode = "selected_frames_native_audio_on"
+    else:
+        evidence_mode = "selected_frames_audio_off"
+    return {
+        "evidence_mode": evidence_mode,
+        "frame_count": FRAME_COUNT,
+        "native_audio": audio_enabled,
+        "audio_sample_rate_hz": MINICPM_AUDIO_SAMPLE_RATE if audio_enabled else None,
+        "audio_input_count": 1 if audio_enabled else 0,
+        "max_slice_nums": MINICPM_MAX_SLICE_NUMS,
+        "transcript_included": False,
+    }
 
 
 def chat_internvl(
@@ -276,6 +272,7 @@ def chat_minicpm(
         enable_thinking=False,
         omni_mode=True,
         generate_audio=False,
+        merge_audio_from_same_content=False,
     )
     answer = normalize_generated_answer(response)
     if not answer:
@@ -293,9 +290,7 @@ def _prepare_internvl_pixels(
                 interpolation=transforms.InterpolationMode.BICUBIC,
             ),
             transforms.ToTensor(),
-            transforms.Normalize(
-                mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
-            ),
+            transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ]
     )
     tensors = []
@@ -311,13 +306,33 @@ def _prepare_internvl_pixels(
     return pixels, tile_counts
 
 
-def _load_audio(request: dict[str, Any], librosa_module: Any) -> tuple[Any, int]:
+def _load_audio(
+    request: dict[str, Any],
+    librosa_module: Any,
+    *,
+    native_audio_loader: Any = None,
+) -> tuple[Any, int]:
     source = request.get("audio_path") or request.get("media_path")
     if not source:
         raise ValueError("MiniCPM native audio requires media_path or audio_path")
-    audio, sample_rate = librosa_module.load(
-        source, sr=MINICPM_AUDIO_SAMPLE_RATE, mono=True
-    )
+    try:
+        audio, sample_rate = librosa_module.load(
+            source, sr=MINICPM_AUDIO_SAMPLE_RATE, mono=True
+        )
+    except Exception:
+        if request.get("audio_path"):
+            raise
+        if native_audio_loader is None:
+            from minicpmo.utils import get_audio_segments
+
+            native_audio_loader = get_audio_segments
+        timestamps = tuple(float(value) for value in request["frame_timestamps"])
+        duration = min(timestamps) + max(timestamps)
+        segments = native_audio_loader([0.0], duration, source)
+        if segments is None or len(segments) != 1 or len(segments[0]) == 0:
+            raise ValueError("MiniCPM native decoder returned no audio")
+        audio = segments[0]
+        sample_rate = MINICPM_AUDIO_SAMPLE_RATE
     if sample_rate != MINICPM_AUDIO_SAMPLE_RATE:
         raise ValueError("Audio loader did not return 16 kHz audio")
     return audio, sample_rate
@@ -383,6 +398,7 @@ def main(argv: list[str] | None = None) -> int:
                 args=args,
                 runtime=runtime,
                 peak_memory=torch.cuda.max_memory_allocated(),
+                audio_enabled=None,
             )
             for _ in requests
         ]
@@ -396,6 +412,7 @@ def main(argv: list[str] | None = None) -> int:
     for request in requests:
         started = time.monotonic()
         torch.cuda.reset_peak_memory_stats()
+        audio_enabled = None
         try:
             evidence = order_evidence(request)
             if args.kind == "internvl":
@@ -423,13 +440,15 @@ def main(argv: list[str] | None = None) -> int:
                     "transcript_included": request.get("transcript") is not None,
                 }
             else:
-                audio, sample_rate = _load_audio(request, librosa)
+                audio_enabled = minicpm_audio_enabled(request)
+                audio = None
+                if audio_enabled:
+                    audio, _ = _load_audio(request, librosa)
                 content = build_minicpm_content(
                     evidence=evidence,
                     audio=audio,
-                    sample_rate=sample_rate,
+                    audio_enabled=audio_enabled,
                     question=request["question"],
-                    transcript=request.get("transcript"),
                     image_module=Image,
                 )
                 answer = chat_minicpm(
@@ -438,15 +457,7 @@ def main(argv: list[str] | None = None) -> int:
                     processor=processor,
                     max_new_tokens=args.max_new_tokens,
                 )
-                metadata = {
-                    "evidence_mode": "selected_frames_native_audio",
-                    "frame_count": FRAME_COUNT,
-                    "native_audio": True,
-                    "audio_sample_rate_hz": MINICPM_AUDIO_SAMPLE_RATE,
-                    "audio_chunk_count": FRAME_COUNT,
-                    "max_slice_nums": MINICPM_MAX_SLICE_NUMS,
-                    "transcript_included": request.get("transcript") is not None,
-                }
+                metadata = minicpm_metadata(audio_enabled)
             result = _result(
                 "passed",
                 answer,
@@ -463,6 +474,7 @@ def main(argv: list[str] | None = None) -> int:
                 args=args,
                 runtime=runtime,
                 peak_memory=torch.cuda.max_memory_allocated(),
+                audio_enabled=audio_enabled,
             )
         result["model_load_seconds"] = load_seconds
         results.append(result)
@@ -480,6 +492,7 @@ def _error_result(
     args: argparse.Namespace,
     runtime: str,
     peak_memory: int,
+    audio_enabled: bool | None = None,
 ) -> dict[str, Any]:
     if args.kind == "internvl":
         metadata = {
@@ -490,14 +503,7 @@ def _error_result(
             "native_audio": False,
         }
     else:
-        metadata = {
-            "evidence_mode": "selected_frames_native_audio",
-            "frame_count": FRAME_COUNT,
-            "native_audio": True,
-            "audio_sample_rate_hz": MINICPM_AUDIO_SAMPLE_RATE,
-            "audio_chunk_count": FRAME_COUNT,
-            "max_slice_nums": MINICPM_MAX_SLICE_NUMS,
-        }
+        metadata = minicpm_metadata(audio_enabled)
     return _result(
         classify_error_status(error),
         None,
@@ -516,7 +522,9 @@ def classify_error_status(error: Exception) -> str:
     error_name = type(error).__name__
     message = str(error).lower()
     unsupported = error_name in {"NotImplementedError", "UnsupportedError", "HIPError"}
-    unsupported = unsupported or "not implemented for" in message or "hip error" in message
+    unsupported = (
+        unsupported or "not implemented for" in message or "hip error" in message
+    )
     return "unsupported" if unsupported else "failed"
 
 
