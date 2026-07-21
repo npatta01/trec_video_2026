@@ -7,15 +7,17 @@ Date: 2026-07-20
 The three-video gate is complete. Qwen 3.5 4B/9B, Molmo2 4B, InternVL3.5
 4B, and Gemma 4 12B all completed every requested inference on the local AMD
 Radeon 8060S through ROCm. MiniCPM-o 4.5 completed two of three and failed on
-the speech-heavy example with a reproducible tensor-shape error.
+the speech-heavy example with an observed tensor-shape error.
 
 This is a portability and pipeline test over three deliberately different
 examples, not a statistical model ranking. It is too small to estimate
 competition accuracy.
 
 The strongest practical baseline remains Qwen 3.5 4B with 12 uniformly sampled
-frames. Adding the quality-gated Whisper transcript did not improve these three
-examples. The larger and specialist models did not change the qualitative
+frames. The intended all-English Whisper condition was not achieved: quality
+control accepted English for one clip and rejected two clips. In the Qwen 4B
+frames-only counterfactual, that quality-gated ASR policy did not improve these
+three examples. The larger and specialist models did not change the qualitative
 1-of-3 result, while requiring more memory or model-specific environments.
 
 ## Fixed examples and labels
@@ -38,14 +40,15 @@ make the three-example smoke test interpretable.
 | Condition | Completed | Qualitative | Load | Per-video time after load | Peak GPU allocation |
 |---|---:|---:|---:|---:|---:|
 | Qwen 3.5 4B, 12 frames | 3/3 | 1/3 | 3.03 s | 10.1–338.4 s | 10.55 GiB |
-| Qwen 3.5 4B, 12 frames + Whisper | 3/3 | 1/3 | shared | 9.9–10.8 s | 10.69 GiB |
-| Qwen 3.5 9B, 12 frames + Whisper | 3/3 | 1/3 | 10.37 s | 11.4–379.8 s | 19.80 GiB |
-| Molmo2 4B, 12 frames + Whisper | 3/3 | 1/3 | 6.98 s | 0.5–2.5 s | 9.90 GiB |
-| InternVL3.5 4B, capped native tiling + Whisper | 3/3 | 1/3 | 4.33 s | 21.9–27.9 s | 23.14 GiB |
+| Qwen 3.5 4B, 12 frames + quality-gated ASR (1/3 present) | 3/3 | 1/3 | 3.03–4.79 s | 9.9–423.8 s | 10.69 GiB |
+| Qwen 3.5 9B, 12 frames + quality-gated ASR (1/3 present) | 3/3 | 1/3 | 7.46–10.37 s | 11.4–379.8 s | 19.80 GiB |
+| Molmo2 4B, 12 frames + quality-gated ASR (1/3 present) | 3/3 | 1/3 | 6.00–6.98 s | 0.5–2.5 s | 9.90 GiB |
+| InternVL3.5 4B, capped native tiling + quality-gated ASR (1/3 present) | 3/3 | 1/3 | 3.75–4.33 s | 21.9–27.9 s | 23.14 GiB |
 | MiniCPM-o 4.5, 12 frames + aligned native audio | 2/3 | 1/3 | 8.49 s | 16.8–22.1 s for passes | 19.57 GiB |
-| Gemma 4 12B, 12 frames + Whisper | 3/3 | 1/3 | 7.08 s | 19.7–26.8 s | 25.74 GiB |
+| Gemma 4 12B, 12 frames + quality-gated ASR (1/3 present) | 3/3 | 1/3 | 7.08–8.83 s | 18.5–25.7 s | 25.74 GiB |
 
-The 338–380 second Qwen first requests are ROCm kernel/JIT warm-up. Later
+The 338–424 second Qwen first requests are consistent with one-time ROCm
+kernel/JIT warm-up, but the cause was not independently instrumented. Later
 requests in the same loaded process take about 10–12 seconds. A production
 batch must keep the model loaded; multiplying the first-request time by the
 number of videos would be incorrect.
@@ -59,27 +62,27 @@ to a plaintext external HTTP service; single-answer NDCG is not meaningful.
 
 | Condition | Video | Prediction | EM | F1 | METEOR | BERTScore F1 |
 |---|---|---|---:|---:|---:|---:|
-| Gemma 4 12B + Whisper | bike | He rides across the tennis net. | 0.000 | 0.500 | 0.527 | 0.924 |
-| Gemma 4 12B + Whisper | color | The image of the herpes virus is reddish-pink and white. | 0.000 | 0.000 | 0.132 | 0.879 |
-| Gemma 4 12B + Whisper | speech | The two voices are arguing about a “katta” (a type of firearm). | 0.000 | 0.154 | 0.187 | 0.872 |
-| InternVL3.5 4B tiles + Whisper | bike | jump over tennis net | 0.000 | 0.364 | 0.199 | 0.913 |
-| InternVL3.5 4B tiles + Whisper | color | Red | 0.000 | 0.000 | 0.000 | 0.887 |
-| InternVL3.5 4B tiles + Whisper | speech | Pakistan | 0.000 | 0.000 | 0.000 | 0.831 |
+| Gemma 4 12B + gated ASR | bike | He rides across the tennis net. | 0.000 | 0.500 | 0.527 | 0.924 |
+| Gemma 4 12B + gated ASR | color | The image of the herpes virus is reddish-pink and white. | 0.000 | 0.000 | 0.132 | 0.879 |
+| Gemma 4 12B + gated ASR | speech | There are no voices arguing in the video. | 0.000 | 0.000 | 0.139 | 0.896 |
+| InternVL3.5 4B tiles + gated ASR | bike | jump over tennis net | 0.000 | 0.364 | 0.199 | 0.913 |
+| InternVL3.5 4B tiles + gated ASR | color | Red | 0.000 | 0.000 | 0.000 | 0.887 |
+| InternVL3.5 4B tiles + gated ASR | speech | The two voices are arguing about the person's actions, specifically whether they are being lazy or not. | 0.000 | 0.000 | 0.181 | 0.876 |
 | MiniCPM-o 4.5 native AV | bike | riding a bike across a tennis net | 0.000 | 0.667 | 0.607 | 0.943 |
 | MiniCPM-o 4.5 native AV | color | The image of the herpes virus is pink. | 0.000 | 0.000 | 0.139 | 0.897 |
 | MiniCPM-o 4.5 native AV | speech | **Failed:** tensor dimension 15 versus 14 | — | — | — | — |
-| Molmo2 4B + Whisper | bike | Rides over the net | 0.000 | 0.200 | 0.160 | 0.878 |
-| Molmo2 4B + Whisper | color | Red | 0.000 | 0.000 | 0.000 | 0.887 |
-| Molmo2 4B + Whisper | speech | Pakistan's situation | 0.000 | 0.000 | 0.000 | 0.853 |
+| Molmo2 4B + gated ASR | bike | Rides over the net | 0.000 | 0.200 | 0.160 | 0.878 |
+| Molmo2 4B + gated ASR | color | Red | 0.000 | 0.000 | 0.000 | 0.887 |
+| Molmo2 4B + gated ASR | speech | The nature of reality | 0.000 | 0.286 | 0.149 | 0.911 |
 | Qwen 3.5 4B, frames only | bike | ride a bike across a tennis net | 0.000 | 0.667 | 0.607 | 0.946 |
 | Qwen 3.5 4B, frames only | color | pink | 0.000 | 0.000 | 0.000 | 0.916 |
 | Qwen 3.5 4B, frames only | speech | End of the trend | 0.000 | 0.286 | 0.280 | 0.902 |
-| Qwen 3.5 4B + Whisper | bike | Riding a bike across a tennis net | 0.000 | 0.667 | 0.607 | 0.943 |
-| Qwen 3.5 4B + Whisper | color | pink | 0.000 | 0.000 | 0.000 | 0.916 |
-| Qwen 3.5 4B + Whisper | speech | Pakistan | 0.000 | 0.000 | 0.000 | 0.831 |
-| Qwen 3.5 9B + Whisper | bike | riding a bike across a tennis net | 0.000 | 0.667 | 0.607 | 0.943 |
-| Qwen 3.5 9B + Whisper | color | Brown. | 0.000 | 0.000 | 0.172 | 0.927 |
-| Qwen 3.5 9B + Whisper | speech | Pakistan | 0.000 | 0.000 | 0.000 | 0.831 |
+| Qwen 3.5 4B + gated ASR | bike | Riding a bike across a tennis net | 0.000 | 0.667 | 0.607 | 0.943 |
+| Qwen 3.5 4B + gated ASR | color | pink | 0.000 | 0.000 | 0.000 | 0.916 |
+| Qwen 3.5 4B + gated ASR | speech | End of the trend | 0.000 | 0.286 | 0.280 | 0.902 |
+| Qwen 3.5 9B + gated ASR | bike | riding a bike across a tennis net | 0.000 | 0.667 | 0.607 | 0.943 |
+| Qwen 3.5 9B + gated ASR | color | Brown. | 0.000 | 0.000 | 0.172 | 0.927 |
+| Qwen 3.5 9B + gated ASR | speech | The trend. | 0.000 | 0.000 | 0.152 | 0.919 |
 
 No answer is an exact string match, including the clearly correct bike/net
 answers. That demonstrates why normalized EM cannot be the only decision
@@ -94,15 +97,47 @@ it cannot be treated as correctness by itself either.
   “He's riding a bike across a tennis net.”
 - Whisper's color-clip transcript was rejected before inference as a repetitive
   hallucination (26.66 words/second).
-- Whisper transcribed the speech clip primarily in Hindi script rather than
-  translating it. It mentioned Pakistan and a bag-like term but did not recover
-  the reference meaning. Supplying it caused several models to answer
-  “Pakistan.”
+- Whisper transcribed the speech clip in Hindi script instead of producing the
+  required English translation. The advisor caught that the initial rate-only
+  check accepted it. A new language-script check rejected it, and every affected
+  speech row above was rerun without that text.
 - InternVL used up to two 448×448 tiles per selected frame (up to 24 tiles), not
   an additional set of sampled frames.
 - MiniCPM received the same 12 frames interleaved with 12 midpoint-aligned 16 kHz
   audio chunks. This is selected-frame native audio, not raw end-to-end video
-  decoding. Its speech-clip tensor-shape failure must be fixed before scaling.
+  decoding. Therefore the originally planned raw native-video MiniCPM condition
+  remains untested. Its observed speech-clip tensor-shape failure must be fixed
+  before scaling this selected-frame adapter.
+
+## Compatibility history
+
+The append-only log contains 65 attempts: 25 passes and 40 development-time
+failures. Terminal results above select the latest pass for each
+condition/video and never overwrite earlier failures. The failures were useful
+portability evidence:
+
+| Model | Intermediate failure | Resolution or terminal status |
+|---|---|---|
+| Qwen 3.5 | None | Main pinned runtime worked. |
+| Molmo2 | Transformers 5 optional-processor, RoPE, cache-position, and causal-mask API breaks | Isolated documented Transformers 4.57.1 runtime; all three passed. |
+| InternVL | Missing `timm`, stdout protocol contamination, unsupported SDPA, then Transformers 5 custom-code incompatibility | Added pinned `timm`, reserved stdout for JSON, selected eager attention, and isolated Transformers 4.57.1; all three passed. |
+| MiniCPM-o | Removed `pkg_resources`, offline lazy processor reload, wrong generic processor class | Pinned setuptools/Transformers 4.51.0 and loaded MiniCPM's processor from the immutable local snapshot; two passed. The speech tensor mismatch remains. |
+| Gemma 4 | Tokenizer construction under the non-canonical uppercase repository ID reported missing SentencePiece or tiktoken; Qwen-only pixel kwargs also broke processor construction | Added pinned `tiktoken==0.13.0`, used canonical `google/gemma-4-12b-it`, and omitted the Qwen pixel kwargs; all three passed. |
+
+## Reproducibility boundary
+
+Model revisions, container parents, and execution image references are now
+digest-pinned. The runner now records the resolved runtime image reference;
+the corrective Molmo/InternVL/Gemma attempts include it, while the corrective
+Qwen attempts finished just before that instrumentation was added. Transcript
+artifacts record `video_id` plus the source-audio SHA-256.
+
+The current CLI still exposes only `preflight`; the completed experiment was
+orchestrated through the tested Python seams and this analytical report was
+assembled from the append-only log. A single documented `prepare/run/report`
+command and a full resolved artifact bundle remain required before a 100-video
+run. This report therefore documents an audited executed gate, not yet a
+one-command reusable benchmark workflow.
 
 ## Reproducibility and compatibility
 
@@ -126,12 +161,14 @@ labels, or raw logs are committed.
 
 ## Recommendation before a 100-video run
 
-Run Qwen 3.5 4B frames-only and Qwen 3.5 4B plus quality-gated Whisper first,
-keeping the model loaded across the whole batch. They are the simplest and
-lowest-risk comparison. Add Molmo2 as the inexpensive different-family check.
-Do not include MiniCPM native audio until its speech-clip tensor mismatch is
-understood. Treat the projected runtimes as approximate, but the measured
-steady-state rates put each individual 100-video condition comfortably below
-five hours on this host.
+After the missing reusable workflow is implemented, run Qwen 3.5 4B frames-only
+and Qwen 3.5 4B plus quality-gated ASR first, keeping the model loaded across
+the whole batch. They are the simplest and lowest-risk comparison. Add Molmo2
+as the inexpensive different-family check. Do not include MiniCPM selected-frame
+audio until its speech-clip tensor mismatch is understood, and treat raw native
+video as a separate untested condition. Runtime projections exclude downloads
+and setup failures; the successful measured steady-state rates put each
+individual 100-video inference condition comfortably below five hours on this
+host.
 
 The 100-video experiment has not been started.

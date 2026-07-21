@@ -53,12 +53,24 @@ def transcript_quality(text: str, *, duration_seconds: float) -> dict[str, Any]:
         raise ValueError("Transcript duration must be positive")
     word_count = len(text.split())
     words_per_second = word_count / duration_seconds
-    status = "rejected-hallucination" if words_per_second > 5.0 else "accepted"
+    letters = [character for character in text if character.isalpha()]
+    latin_letters = [character for character in letters if character.isascii()]
+    latin_letter_ratio = len(latin_letters) / len(letters) if letters else 1.0
+    if words_per_second > 5.0:
+        status = "rejected-hallucination"
+    elif latin_letter_ratio < 0.8:
+        status = "rejected-non-english-script"
+    else:
+        status = "accepted"
     return {
         "status": status,
         "word_count": word_count,
         "words_per_second": words_per_second,
-        "rule": "reject when whitespace-delimited words exceed 5 per second",
+        "latin_letter_ratio": latin_letter_ratio,
+        "rule": (
+            "reject when whitespace-delimited words exceed 5 per second or "
+            "fewer than 80% of alphabetic characters are Latin"
+        ),
     }
 
 
@@ -84,6 +96,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     request = json.load(sys.stdin)
     audio_path = Path(request["audio_path"])
+    from trec_video_2026.vqa_benchmark import source_fingerprint
+
+    audio_fingerprint = source_fingerprint(audio_path)
     started = time.monotonic()
     torch.cuda.reset_peak_memory_stats()
     try:
@@ -112,6 +127,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         result = {
             "status": "passed",
+            "video_id": request.get("video_id"),
+            "source_audio_sha256": audio_fingerprint.sha256,
             **transcript,
             "quality": quality,
             "elapsed_seconds": time.monotonic() - started,
@@ -130,6 +147,8 @@ def main(argv: list[str] | None = None) -> int:
         message = str(error)
         result = {
             "status": "failed",
+            "video_id": request.get("video_id"),
+            "source_audio_sha256": audio_fingerprint.sha256,
             "text": None,
             "timestamped_text": None,
             "chunks": [],

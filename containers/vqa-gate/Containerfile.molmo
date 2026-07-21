@@ -1,4 +1,4 @@
-FROM localhost/trec-vqa-gate-rocm:2026-07-20
+FROM localhost/trec-vqa-gate-rocm@sha256:510e4ca0a165b60a50abf3a1f24545b8f4bd561f9643f0295e7d82212fe801d5
 
 # Molmo2's pinned model card specifies Transformers 4.57.1. Keep this
 # compatibility environment separate from the newer Qwen/Gemma runtime.

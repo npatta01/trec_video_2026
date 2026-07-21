@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import sys
 import time
 from dataclasses import dataclass
@@ -540,6 +541,7 @@ def _result(
         "model_id": args.model_id,
         "model_revision": args.revision,
         "runtime": runtime,
+        "runtime_image": os.environ.get("VQA_RUNTIME_IMAGE"),
         "precision": "bfloat16",
         "device": "cuda:0 (ROCm)",
         "peak_memory_bytes": peak_memory,

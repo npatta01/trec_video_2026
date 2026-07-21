@@ -87,6 +87,7 @@ def build_rocm_runner_command(
 
     roots = tuple(path.resolve(strict=True) for path in (repo_root, dataset_root, hf_cache_root))
     repo, dataset, cache = roots
+    runtime_image = condition.runtime_image or image
     command = [
         "podman",
         "run",
@@ -113,7 +114,9 @@ def build_rocm_runner_command(
         "HF_HUB_OFFLINE=1",
         "-e",
         "TRANSFORMERS_OFFLINE=1",
-        condition.runtime_image or image,
+        "-e",
+        f"VQA_RUNTIME_IMAGE={runtime_image}",
+        runtime_image,
         "python",
         "-m",
     ]

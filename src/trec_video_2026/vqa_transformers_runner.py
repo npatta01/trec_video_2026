@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -326,6 +327,7 @@ def _result(
         "model_id": model_id,
         "model_revision": revision,
         "runtime": runtime,
+        "runtime_image": os.environ.get("VQA_RUNTIME_IMAGE"),
         "precision": "bfloat16",
         "device": "cuda:0 (ROCm)",
         "peak_memory_bytes": peak_memory,

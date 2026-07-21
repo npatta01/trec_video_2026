@@ -69,3 +69,12 @@ def test_transcript_quality_accepts_short_dialogue() -> None:
     )
 
     assert quality["status"] == "accepted"
+
+
+def test_transcript_quality_rejects_untranslated_non_latin_text() -> None:
+    quality = transcript_quality(
+        "पाकिस्तान की लग रही है और कट्टा कहा है", duration_seconds=19.0
+    )
+
+    assert quality["status"] == "rejected-non-english-script"
+    assert quality["latin_letter_ratio"] < 0.8

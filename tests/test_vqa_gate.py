@@ -269,6 +269,7 @@ def test_rocm_command_uses_condition_specific_runtime_image(tmp_path: Path) -> N
 
     assert "local/molmo:pinned" in command
     assert "local/default:pinned" not in command
+    assert "VQA_RUNTIME_IMAGE=local/molmo:pinned" in command
 
 
 def test_latest_results_prefer_success_over_later_failure() -> None:
