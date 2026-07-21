@@ -204,7 +204,7 @@ Do not stage the ignored transcript or attempt artifacts.
 - Consumes: accepted full-Whisper transcript, original 12-frame evidence, optional `frame_descriptions`, existing Qwen 3.5 4B pinned condition.
 - Produces: terminal results for `qwen35-4b-12f-whisper-large-v3` on the speech clip and `qwen35-4b-12f-question-guided-crops` on the color clip.
 
-- [ ] **Step 1: Create and inspect the question-guided crops**
+- [x] **Step 1: Create and inspect the question-guided crops**
 
 Use FFmpeg's `crop` filter on each color-clip sample visibly containing the
 herpes image. Choose bounds from pixels and the question only. Record source
@@ -212,7 +212,7 @@ frame path, source timestamp, crop rectangle, source SHA-256, and crop SHA-256
 in `manifest.json`. Render a contact sheet and visually verify that each crop
 contains the requested image and no annotations derived from the reference.
 
-- [ ] **Step 2: Construct label-free requests and audit before inference**
+- [x] **Step 2: Construct label-free requests and audit before inference**
 
 The speech request contains the same 12 frame paths/timestamps plus the accepted
 full-Whisper transcript. The color request contains the same 12 originals plus
@@ -225,7 +225,7 @@ Detail crop from frame at 0.610 seconds:
 Run a JSON-key/content audit that rejects `reference`, `label`, `pale orange`,
 or any stored official answer in either request.
 
-- [ ] **Step 3: Run both requests in one Qwen batch**
+- [x] **Step 3: Run both requests in one Qwen batch**
 
 Use the pinned Qwen condition:
 
@@ -238,11 +238,23 @@ runtime: localhost/trec-vqa-gate-rocm@sha256:510e4ca0a165b60a50abf3a1f24545b8f4b
 Keep the model loaded across the ordered batch. Validate each runner result,
 join request identity, and append both attempts even if one fails.
 
-- [ ] **Step 4: Verify terminal records**
+- [x] **Step 4: Verify terminal records**
 
 Confirm two terminal identity pairs, no request/reference leakage, ROCm device,
 pinned model/runtime revisions, matching evidence hashes, and non-overwritten
 history.
+
+Observed terminal results:
+
+- Full-large-v3 transcript diagnostic: `Where the money is` (337.985 seconds,
+  11,565,486,592 peak bytes). It used the disputed transcript but did not recover
+  the reference meaning.
+- Question-guided crop diagnostic: `pink` (412.716 seconds, 12,264,128,000 peak
+  bytes), unchanged from the frozen 12-frame baseline.
+
+Both records report Qwen revision `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`,
+the digest-pinned runtime, and `cuda:0 (ROCm)`. The retained batch request passed
+the pre-inference reference/label scan; crop source and output hashes verify.
 
 ### Task 4: Score, report, and stop
 
