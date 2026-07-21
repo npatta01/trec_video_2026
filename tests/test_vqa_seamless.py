@@ -2,6 +2,7 @@ import builtins
 import io
 import json
 import sys
+import time
 from types import ModuleType
 
 import pytest
@@ -128,6 +129,55 @@ def test_cli_rejects_model_or_revision_overrides() -> None:
         seamless.validate_cli_args(["--model-id", "caller/model"])
     with pytest.raises(ValueError, match="pinned model and revision"):
         seamless.validate_cli_args(["--revision", "caller-revision"])
+
+
+def test_main_preserves_request_identity_when_cli_args_are_rejected(
+    monkeypatch,
+) -> None:
+    stdout = io.StringIO()
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        io.StringIO(
+            json.dumps(
+                {
+                    "run_id": "run-1",
+                    "condition_id": "condition-1",
+                    "video_id": "video-1",
+                    "audio_path": "/tmp/audio.wav",
+                }
+            )
+        ),
+    )
+    monkeypatch.setattr(sys, "stdout", stdout)
+
+    assert seamless.main(["--model-id", "caller/model"]) == 0
+
+    result = json.loads(stdout.getvalue())
+    assert result["status"] == "failed"
+    assert result["run_id"] == "run-1"
+    assert result["condition_id"] == "condition-1"
+    assert result["video_id"] == "video-1"
+    assert result["error_type"] == "ValueError"
+    assert result["error_message"] == (
+        "This runner uses a pinned model and revision"
+    )
+
+
+def test_result_uses_immutable_model_provenance() -> None:
+    result = seamless._result(
+        request={},
+        status="failed",
+        source_audio_sha256=None,
+        text=None,
+        quality=None,
+        started=time.monotonic(),
+        runtime="unavailable",
+        peak_memory_bytes=None,
+    )
+
+    assert result["model_id"] == seamless.MODEL_ID
+    assert result["model_revision"] == seamless.MODEL_REVISION
 
 
 def test_main_emits_structured_json_for_malformed_input(monkeypatch) -> None:

@@ -81,8 +81,6 @@ def _result(
     text: str | None,
     quality: dict[str, Any] | None,
     started: float,
-    model_id: str,
-    revision: str,
     runtime: str,
     peak_memory_bytes: int | None,
     error: Exception | None = None,
@@ -95,8 +93,8 @@ def _result(
         "text": text,
         "quality": quality,
         "elapsed_seconds": time.monotonic() - started,
-        "model_id": model_id,
-        "model_revision": revision,
+        "model_id": MODEL_ID,
+        "model_revision": MODEL_REVISION,
         "runtime": runtime,
         "runtime_image": os.environ.get("VQA_RUNTIME_IMAGE"),
         "device": "cuda:0 (ROCm)",
@@ -116,10 +114,10 @@ def main(argv: list[str] | None = None) -> int:
     source_audio_sha256 = None
     torch_module = None
     try:
-        validate_cli_args(argv)
         request = json.load(sys.stdin)
         if not isinstance(request, dict):
             raise TypeError("Runner request must be a JSON object")
+        validate_cli_args(argv)
 
         import soundfile
         import torch
@@ -164,8 +162,6 @@ def main(argv: list[str] | None = None) -> int:
             text=text,
             quality=quality,
             started=started,
-            model_id=MODEL_ID,
-            revision=MODEL_REVISION,
             runtime=runtime,
             peak_memory_bytes=peak_memory_bytes(torch_module),
         )
@@ -177,8 +173,6 @@ def main(argv: list[str] | None = None) -> int:
             text=None,
             quality=None,
             started=started,
-            model_id=MODEL_ID,
-            revision=MODEL_REVISION,
             runtime=runtime,
             peak_memory_bytes=peak_memory_bytes(torch_module),
             error=error,
