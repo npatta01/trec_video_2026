@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import trec_video_2026.vqa_benchmark as vqa_benchmark
 from trec_video_2026.vqa_benchmark import (
     EvidenceParameters,
     SourceFingerprint,
@@ -26,6 +27,59 @@ from trec_video_2026.vqa_benchmark import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATASET_ROOT = REPO_ROOT / "data"
 GATE_CONFIG = REPO_ROOT / "configs/vqa/three_video_gate.json"
+NATIVE_AUDIO_CONFIG = REPO_ROOT / "configs/vqa/native_audio_benchmark_30.json"
+
+FROZEN_IDS = [
+    "LKiaCf1QZFw",
+    "Ie-KCtcZ7uc",
+    "J1CS47pBX_M",
+    "Mi-NpnCBegw",
+    "NN7G28sBOlY",
+    "NUmb2P3Bzu8",
+    "IRTTtnSRTyY",
+    "IWSPAfCKtV8",
+    "Jc_vZjKwtvg",
+    "MdMKHhFFqJQ",
+    "NkXPPJoZ-h8",
+    "OzNdzgQi1CA",
+    "CH8Dp7EgW4I",
+    "EtNOkUJd5w8",
+    "Gp4LVTn3YbY",
+    "KgOvCPOX-Ms",
+    "PcDuz7j9LL8",
+    "C4j3Pp79KSg",
+    "Hw0bRvn1ZIo",
+    "J-sG9vePDmI",
+    "Jc2BdtyAF48",
+    "HyOKrz1C4zU",
+    "Msbpqv5aOxk",
+    "JOClNGH6yL8",
+    "EMI_anpHII4",
+    "IGL7j9-JRG4",
+    "JSOh_pKFq84",
+    "QFljXc4WpFA",
+    "PiIrinu42DQ",
+    "LusRurRrmf0",
+]
+GATE_IDS = [
+    "Mi-NpnCBegw",
+    "NN7G28sBOlY",
+    "Jc_vZjKwtvg",
+    "NkXPPJoZ-h8",
+    "EtNOkUJd5w8",
+    "PcDuz7j9LL8",
+    "Jc2BdtyAF48",
+    "HyOKrz1C4zU",
+    "EMI_anpHII4",
+    "IGL7j9-JRG4",
+]
+STRATA = {
+    "Dialogue and speech",
+    "Non-speech sound and music",
+    "Temporal and action",
+    "Spatial, OCR, and color",
+    "Visual controls",
+}
 
 
 def test_fixed_manifest_resolves_annotations_and_media_beneath_dataset():
@@ -42,6 +96,97 @@ def test_fixed_manifest_resolves_annotations_and_media_beneath_dataset():
         example.media_path.is_relative_to(DATASET_ROOT.resolve())
         for example in manifest.examples
     )
+
+
+def test_native_audio_manifest_freezes_version_ids_strata_and_gate():
+    manifest = load_manifest(NATIVE_AUDIO_CONFIG, DATASET_ROOT)
+
+    assert manifest.manifest_version == "trecvid-native-audio-2026-07-21-v1"
+    assert [example.video_id for example in manifest.examples] == FROZEN_IDS
+    assert {example.category for example in manifest.examples} == STRATA
+    assert [example.video_id for example in manifest.gate_examples] == GATE_IDS
+    assert all(
+        sum(item.category == category for item in manifest.gate_examples) == 2
+        for category in STRATA
+    )
+
+
+def test_native_audio_manifest_uses_shared_root_and_resolves_media_extensions():
+    payload = json.loads(NATIVE_AUDIO_CONFIG.read_text(encoding="utf-8"))
+    manifest = load_manifest(NATIVE_AUDIO_CONFIG, DATASET_ROOT)
+
+    assert DATASET_ROOT.is_symlink()
+    assert DATASET_ROOT.resolve() == Path(
+        "/home/npatta01/data/competitions/trec_video_2026/data"
+    )
+    assert all(Path(raw["media"]).suffix == "" for raw in payload["examples"])
+    assert all(
+        example.media_path.is_relative_to(DATASET_ROOT.resolve())
+        for example in manifest.examples
+    )
+    assert {item.media_path.suffix for item in manifest.examples} == {".mkv", ".mp4"}
+
+
+def test_native_audio_manifest_freezes_questions_but_not_references():
+    payload = json.loads(NATIVE_AUDIO_CONFIG.read_text(encoding="utf-8"))
+    manifest = load_manifest(NATIVE_AUDIO_CONFIG, DATASET_ROOT)
+
+    assert [item["question"] for item in payload["examples"]] == [
+        item.question for item in manifest.examples
+    ]
+    assert all(
+        "answer" not in key.lower() for item in payload["examples"] for key in item
+    )
+    assert all(
+        "reference_answer" not in asdict(item) for item in manifest.inference_examples
+    )
+    assert all(item.reference_answer for item in manifest.references)
+
+
+def test_native_audio_gate_selection_hash_is_deterministic():
+    manifest = load_manifest(NATIVE_AUDIO_CONFIG, DATASET_ROOT)
+
+    assert manifest.gate_selection_sha256 == (
+        "099dedfa4d74aa7ed1c135a013c8b342a62e422a6692934507c94839a2803f69"
+    )
+    assert manifest.gate_selection_sha256 == vqa_benchmark.gate_selection_hash(
+        manifest.manifest_version,
+        manifest.gate_marker,
+        manifest.gate_examples,
+    )
+
+
+@pytest.mark.skipif(
+    shutil.which("ffprobe") is None,
+    reason="ffprobe is required",
+)
+def test_native_audio_resolved_manifest_records_media_provenance(tmp_path: Path):
+    manifest = load_manifest(NATIVE_AUDIO_CONFIG, DATASET_ROOT)
+    destination = tmp_path / "resolved.json"
+
+    vqa_benchmark.write_resolved_manifest(manifest, destination)
+
+    resolved = json.loads(destination.read_text(encoding="utf-8"))
+    assert [item["video_id"] for item in resolved["examples"]] == FROZEN_IDS
+    assert all(len(item["source"]["sha256"]) == 64 for item in resolved["examples"])
+    assert all(item["source"]["size_bytes"] > 0 for item in resolved["examples"])
+    assert all(item["media"]["duration_seconds"] > 0 for item in resolved["examples"])
+    assert all(item["media"]["has_video"] for item in resolved["examples"])
+    assert all(item["media"]["has_audio"] for item in resolved["examples"])
+    assert all("video" in item["media"]["stream_types"] for item in resolved["examples"])
+    assert all("audio" in item["media"]["stream_types"] for item in resolved["examples"])
+    assert all(item["media"]["streams"] for item in resolved["examples"])
+    six_channel = next(
+        item for item in resolved["examples"] if item["video_id"] == "EtNOkUJd5w8"
+    )
+    assert {
+        stream["codec_name"] for stream in six_channel["media"]["streams"]
+    } == {"vp9", "aac"}
+    assert next(
+        stream["channels"]
+        for stream in six_channel["media"]["streams"]
+        if stream["codec_type"] == "audio"
+    ) == 6
 
 
 def test_manifest_rejects_paths_outside_dataset(tmp_path: Path):

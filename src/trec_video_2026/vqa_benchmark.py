@@ -38,6 +38,7 @@ class ManifestExample:
     media_path: Path
     annotation_path: Path
     reference_answer: str
+    is_gate: bool = False
 
     @property
     def inference(self) -> InferenceExample:
@@ -58,6 +59,9 @@ class BenchmarkManifest:
     schema_version: int
     gate_id: str
     examples: tuple[ManifestExample, ...]
+    manifest_version: str = ""
+    gate_marker: str = ""
+    gate_selection_sha256: str = ""
 
     @property
     def inference_examples(self) -> tuple[InferenceExample, ...]:
@@ -67,6 +71,17 @@ class BenchmarkManifest:
     def references(self) -> tuple[ReferenceAnswer, ...]:
         return tuple(example.reference for example in self.examples)
 
+    @property
+    def gate_examples(self) -> tuple[ManifestExample, ...]:
+        return tuple(example for example in self.examples if example.is_gate)
+
+
+@dataclass(frozen=True)
+class MediaStreamSummary:
+    codec_type: str
+    codec_name: str
+    channels: int | None = None
+
 
 @dataclass(frozen=True)
 class MediaMetadata:
@@ -74,6 +89,7 @@ class MediaMetadata:
     has_video: bool
     has_audio: bool
     stream_types: tuple[str, ...]
+    streams: tuple[MediaStreamSummary, ...]
 
 
 @dataclass(frozen=True)
@@ -135,6 +151,43 @@ def _resolved_child(root: Path, relative: str, kind: str) -> Path:
     return candidate
 
 
+def _resolved_media(root: Path, relative: str) -> Path:
+    """Resolve an exact media path or a unique supported extension."""
+    unresolved = Path(relative)
+    if unresolved.suffix:
+        return _resolved_child(root, relative, "Media")
+    resolved_root = root.resolve(strict=True)
+    matches = []
+    for suffix in (".mkv", ".mp4", ".webm", ".mov"):
+        candidate = (resolved_root / f"{relative}{suffix}").resolve()
+        if candidate.is_relative_to(resolved_root) and candidate.is_file():
+            matches.append(candidate)
+    if len(matches) != 1:
+        raise ValueError(
+            f"Media stem must resolve to exactly one supported file: {relative}"
+        )
+    return matches[0]
+
+
+def gate_selection_hash(
+    manifest_version: str,
+    gate_marker: str,
+    examples: tuple[ManifestExample, ...],
+) -> str:
+    """Hash the ordered, stratified compatibility-gate selection."""
+    identity = [
+        {
+            "manifest_version": manifest_version,
+            "marker": gate_marker,
+            "stratum": example.category,
+            "video_id": example.video_id,
+        }
+        for example in examples
+    ]
+    encoded = json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def load_manifest(config_path: Path, dataset_root: Path) -> BenchmarkManifest:
     """Resolve a benchmark manifest while keeping inference and labels separate."""
     payload = json.loads(config_path.read_text(encoding="utf-8"))
@@ -143,6 +196,17 @@ def load_manifest(config_path: Path, dataset_root: Path) -> BenchmarkManifest:
     raw_examples = payload.get("examples")
     if not isinstance(raw_examples, list) or not raw_examples:
         raise ValueError("Manifest examples must be a non-empty list")
+
+    manifest_version = payload.get("manifest_version", "")
+    gate_marker = payload.get("gate_marker", "")
+    gate_ids = payload.get("gate_ids", [])
+    if not isinstance(gate_ids, list) or any(
+        not isinstance(item, str) for item in gate_ids
+    ):
+        raise ValueError("gate_ids must be a list of video IDs")
+    if len(gate_ids) != len(set(gate_ids)):
+        raise ValueError("gate_ids must not contain duplicates")
+    gate_id_set = set(gate_ids)
 
     examples = []
     seen = set()
@@ -154,26 +218,89 @@ def load_manifest(config_path: Path, dataset_root: Path) -> BenchmarkManifest:
         annotation_path = _resolved_child(
             dataset_root, _required_text(raw, "annotation"), "Annotation"
         )
-        media_path = _resolved_child(
-            dataset_root, _required_text(raw, "media"), "Media"
-        )
+        media_path = _resolved_media(dataset_root, _required_text(raw, "media"))
         annotation = json.loads(annotation_path.read_text(encoding="utf-8"))
         if annotation.get("video_url", "").rsplit("=", 1)[-1] != video_id:
             raise ValueError(f"Annotation video ID does not match {video_id}")
+        question = raw.get("question")
+        if question is None:
+            question = _required_text(annotation, "question")
+        else:
+            question = _required_text(raw, "question")
+            if question != _required_text(annotation, "question"):
+                raise ValueError(
+                    f"Frozen question does not match annotation for {video_id}"
+                )
         examples.append(
             ManifestExample(
                 video_id=video_id,
                 category=_required_text(raw, "category"),
-                question=_required_text(annotation, "question"),
+                question=question,
                 media_path=media_path,
                 annotation_path=annotation_path,
                 reference_answer=_required_text(annotation, "correct_answer"),
+                is_gate=video_id in gate_id_set,
             )
         )
-    return BenchmarkManifest(
+    missing_gate_ids = gate_id_set - seen
+    if missing_gate_ids:
+        raise ValueError(f"Unknown gate IDs: {sorted(missing_gate_ids)}")
+    manifest = BenchmarkManifest(
         schema_version=1,
         gate_id=_required_text(payload, "gate_id"),
         examples=tuple(examples),
+        manifest_version=manifest_version,
+        gate_marker=gate_marker,
+    )
+    selection_hash = gate_selection_hash(
+        manifest.manifest_version, manifest.gate_marker, manifest.gate_examples
+    )
+    declared_hash = payload.get("gate_selection_sha256")
+    if declared_hash is not None and declared_hash != selection_hash:
+        raise ValueError("Gate selection hash does not match the frozen gate IDs")
+    return BenchmarkManifest(
+        schema_version=manifest.schema_version,
+        gate_id=manifest.gate_id,
+        examples=manifest.examples,
+        manifest_version=manifest.manifest_version,
+        gate_marker=manifest.gate_marker,
+        gate_selection_sha256=selection_hash,
+    )
+
+
+def write_resolved_manifest(manifest: BenchmarkManifest, destination: Path) -> None:
+    """Validate media and write a provenance-rich manifest for benchmark runs."""
+    examples = []
+    for example in manifest.examples:
+        metadata = probe_media(example.media_path)
+        if not metadata.has_video or not metadata.has_audio:
+            raise ValueError(
+                f"Media must contain video and audio: {example.media_path}"
+            )
+        examples.append(
+            {
+                "video_id": example.video_id,
+                "category": example.category,
+                "question": example.question,
+                "is_gate": example.is_gate,
+                "annotation_path": str(example.annotation_path),
+                "media_path": str(example.media_path),
+                "source": asdict(source_fingerprint(example.media_path)),
+                "media": asdict(metadata),
+            }
+        )
+    payload = {
+        "schema_version": manifest.schema_version,
+        "manifest_version": manifest.manifest_version,
+        "gate_id": manifest.gate_id,
+        "gate_marker": manifest.gate_marker,
+        "gate_selection_sha256": manifest.gate_selection_sha256,
+        "examples": examples,
+        "references": [asdict(item) for item in manifest.references],
+    }
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
 
 
@@ -211,7 +338,7 @@ def probe_media(path: Path, runner=subprocess.run) -> MediaMetadata:
         "-v",
         "error",
         "-show_entries",
-        "format=duration:stream=codec_type",
+        "format=duration:stream=codec_type,codec_name,channels",
         "-of",
         "json",
         str(path),
@@ -220,6 +347,15 @@ def probe_media(path: Path, runner=subprocess.run) -> MediaMetadata:
     payload = json.loads(completed.stdout)
     stream_types = tuple(
         stream["codec_type"]
+        for stream in payload.get("streams", [])
+        if stream.get("codec_type")
+    )
+    streams = tuple(
+        MediaStreamSummary(
+            codec_type=stream["codec_type"],
+            codec_name=stream.get("codec_name", ""),
+            channels=stream.get("channels"),
+        )
         for stream in payload.get("streams", [])
         if stream.get("codec_type")
     )
@@ -232,6 +368,7 @@ def probe_media(path: Path, runner=subprocess.run) -> MediaMetadata:
         has_video="video" in stream_types,
         has_audio="audio" in stream_types,
         stream_types=stream_types,
+        streams=streams,
     )
 
 
