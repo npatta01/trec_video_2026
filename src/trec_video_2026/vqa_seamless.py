@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import sys
@@ -16,11 +15,12 @@ DEVICE = "cuda:0"
 PRECISION = "float16"
 
 
-def request_identity(request: dict[str, Any]) -> dict[str, Any]:
+def request_identity(request: Any) -> dict[str, Any]:
     """Copy only the protocol identity fields from a runner request."""
 
+    payload = request if isinstance(request, dict) else {}
     return {
-        field: request[field]
+        field: payload.get(field)
         for field in ("run_id", "condition_id", "video_id")
     }
 
@@ -58,16 +58,24 @@ def translate_audio(
     return decode_translation(processor, generated)
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--model-id", default=MODEL_ID)
-    parser.add_argument("--revision", default=MODEL_REVISION)
-    return parser.parse_args(argv)
+def validate_cli_args(argv: list[str] | None = None) -> None:
+    arguments = sys.argv[1:] if argv is None else argv
+    if arguments:
+        raise ValueError("This runner uses a pinned model and revision")
+
+
+def peak_memory_bytes(torch_module: Any) -> int | None:
+    if torch_module is None:
+        return None
+    try:
+        return torch_module.cuda.max_memory_allocated()
+    except Exception:
+        return None
 
 
 def _result(
     *,
-    request: dict[str, Any],
+    request: Any,
     status: str,
     source_audio_sha256: str | None,
     text: str | None,
@@ -76,7 +84,7 @@ def _result(
     model_id: str,
     revision: str,
     runtime: str,
-    peak_memory_bytes: int,
+    peak_memory_bytes: int | None,
     error: Exception | None = None,
 ) -> dict[str, Any]:
     message = str(error)[:4_000] if error else None
@@ -102,31 +110,38 @@ def _result(
 def main(argv: list[str] | None = None) -> int:
     """Read one JSON request and emit exactly one JSON result."""
 
-    import soundfile
-    import torch
-    import transformers
-    from transformers import AutoProcessor, SeamlessM4Tv2ForSpeechToText
-
-    from trec_video_2026.vqa_benchmark import source_fingerprint
-    from trec_video_2026.vqa_whisper import load_wav_audio, transcript_quality
-
-    args = parse_args(argv)
-    request = json.load(sys.stdin)
     started = time.monotonic()
-    runtime = (
-        f"transformers {transformers.__version__}; torch {torch.__version__}"
-    )
+    request: Any = {}
+    runtime = "unavailable"
     source_audio_sha256 = None
-    torch.cuda.reset_peak_memory_stats()
+    torch_module = None
     try:
+        validate_cli_args(argv)
+        request = json.load(sys.stdin)
+        if not isinstance(request, dict):
+            raise TypeError("Runner request must be a JSON object")
+
+        import soundfile
+        import torch
+        import transformers
+        from transformers import AutoProcessor, SeamlessM4Tv2ForSpeechToText
+
+        from trec_video_2026.vqa_benchmark import source_fingerprint
+        from trec_video_2026.vqa_whisper import load_wav_audio, transcript_quality
+
+        torch_module = torch
+        runtime = (
+            f"transformers {transformers.__version__}; torch {torch.__version__}"
+        )
+        torch.cuda.reset_peak_memory_stats()
         audio_path = Path(request["audio_path"])
         source_audio_sha256 = source_fingerprint(audio_path).sha256
         processor = AutoProcessor.from_pretrained(
-            args.model_id, revision=args.revision
+            MODEL_ID, revision=MODEL_REVISION
         )
         model = SeamlessM4Tv2ForSpeechToText.from_pretrained(
-            args.model_id,
-            revision=args.revision,
+            MODEL_ID,
+            revision=MODEL_REVISION,
             dtype=torch.float16,
             low_cpu_mem_usage=True,
         ).to(DEVICE)
@@ -149,10 +164,10 @@ def main(argv: list[str] | None = None) -> int:
             text=text,
             quality=quality,
             started=started,
-            model_id=args.model_id,
-            revision=args.revision,
+            model_id=MODEL_ID,
+            revision=MODEL_REVISION,
             runtime=runtime,
-            peak_memory_bytes=torch.cuda.max_memory_allocated(),
+            peak_memory_bytes=peak_memory_bytes(torch_module),
         )
     except Exception as error:
         result = _result(
@@ -162,10 +177,10 @@ def main(argv: list[str] | None = None) -> int:
             text=None,
             quality=None,
             started=started,
-            model_id=args.model_id,
-            revision=args.revision,
+            model_id=MODEL_ID,
+            revision=MODEL_REVISION,
             runtime=runtime,
-            peak_memory_bytes=torch.cuda.max_memory_allocated(),
+            peak_memory_bytes=peak_memory_bytes(torch_module),
             error=error,
         )
     print(json.dumps(result, ensure_ascii=False))
