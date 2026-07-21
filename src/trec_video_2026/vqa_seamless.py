@@ -12,7 +12,7 @@ from typing import Any
 MODEL_ID = "facebook/seamless-m4t-v2-large"
 MODEL_REVISION = "5f8cc790b19fc3f67a61c105133b20b34e3dcb76"
 DEVICE = "cuda:0"
-PRECISION = "float16"
+PRECISION = "bfloat16"
 
 
 def request_identity(request: Any) -> dict[str, Any]:
@@ -22,9 +22,7 @@ def request_identity(request: Any) -> dict[str, Any]:
     identity = {}
     for field in ("run_id", "condition_id", "video_id"):
         value = payload.get(field)
-        identity[field] = (
-            value if isinstance(value, str) and value.strip() else None
-        )
+        identity[field] = value if isinstance(value, str) and value.strip() else None
     return identity
 
 
@@ -41,17 +39,13 @@ def validate_request(request: dict[str, Any]) -> None:
         raise ValueError("audio_path must be a nonempty absolute path")
 
 
-def prepare_audio_inputs(
-    processor: Any, audio: Any, *, device: Any, dtype: Any
-) -> Any:
+def prepare_audio_inputs(processor: Any, audio: Any, *, device: Any, dtype: Any) -> Any:
     inputs = processor(audio=audio, sampling_rate=16_000, return_tensors="pt")
     return inputs.to(device=device, dtype=dtype)
 
 
 def decode_translation(processor: Any, generated_tokens: Any) -> str:
-    text = processor.decode(
-        generated_tokens[0], skip_special_tokens=True
-    ).strip()
+    text = processor.decode(generated_tokens[0], skip_special_tokens=True).strip()
     if not text:
         raise ValueError("SeamlessM4T returned an empty translation")
     return text
@@ -66,9 +60,7 @@ def translate_audio(
     dtype: Any,
     inference_mode: Any,
 ) -> str:
-    inputs = prepare_audio_inputs(
-        processor, audio, device=device, dtype=dtype
-    )
+    inputs = prepare_audio_inputs(processor, audio, device=device, dtype=dtype)
     with inference_mode():
         generated = model.generate(**inputs, tgt_lang="eng")
     return decode_translation(processor, generated)
@@ -100,6 +92,8 @@ def _result(
     runtime: str,
     peak_memory_bytes: int | None,
     error: Exception | None = None,
+    device: str = "unverified",
+    precision: str = "unverified",
 ) -> dict[str, Any]:
     message = str(error)[:4_000] if error else None
     return {
@@ -113,8 +107,8 @@ def _result(
         "model_revision": MODEL_REVISION,
         "runtime": runtime,
         "runtime_image": os.environ.get("VQA_RUNTIME_IMAGE"),
-        "device": "cuda:0 (ROCm)",
-        "precision": PRECISION,
+        "device": device,
+        "precision": precision,
         "peak_memory_bytes": peak_memory_bytes,
         "error_type": type(error).__name__ if error else None,
         "error_message": message,
@@ -129,6 +123,8 @@ def main(argv: list[str] | None = None) -> int:
     runtime = "unavailable"
     source_audio_sha256 = None
     torch_module = None
+    device = "unverified"
+    precision = "unverified"
     try:
         request = json.load(sys.stdin)
         if not isinstance(request, dict):
@@ -142,36 +138,35 @@ def main(argv: list[str] | None = None) -> int:
         from transformers import AutoProcessor, SeamlessM4Tv2ForSpeechToText
 
         from trec_video_2026.vqa_benchmark import source_fingerprint
-        from trec_video_2026.vqa_whisper import load_wav_audio, transcript_quality
+        from trec_video_2026.vqa_whisper import (
+            load_wav_audio,
+            transcript_quality,
+            validate_rocm_bfloat16,
+        )
 
         torch_module = torch
-        runtime = (
-            f"transformers {transformers.__version__}; torch {torch.__version__}"
-        )
+        runtime = f"transformers {transformers.__version__}; torch {torch.__version__}"
         torch.cuda.reset_peak_memory_stats()
         audio_path = Path(request["audio_path"])
         source_audio_sha256 = source_fingerprint(audio_path).sha256
-        processor = AutoProcessor.from_pretrained(
-            MODEL_ID, revision=MODEL_REVISION
-        )
+        processor = AutoProcessor.from_pretrained(MODEL_ID, revision=MODEL_REVISION)
         model = SeamlessM4Tv2ForSpeechToText.from_pretrained(
             MODEL_ID,
             revision=MODEL_REVISION,
-            dtype=torch.float16,
+            dtype=torch.bfloat16,
             low_cpu_mem_usage=True,
         ).to(DEVICE)
+        device, precision = validate_rocm_bfloat16(model, torch)
         audio = load_wav_audio(audio_path, soundfile)
         text = translate_audio(
             model,
             processor,
             audio,
             device=DEVICE,
-            dtype=torch.float16,
+            dtype=torch.bfloat16,
             inference_mode=torch.inference_mode,
         )
-        quality = transcript_quality(
-            text, duration_seconds=len(audio) / 16_000
-        )
+        quality = transcript_quality(text, duration_seconds=len(audio) / 16_000)
         result = _result(
             request=request,
             status="passed",
@@ -181,6 +176,8 @@ def main(argv: list[str] | None = None) -> int:
             started=started,
             runtime=runtime,
             peak_memory_bytes=peak_memory_bytes(torch_module),
+            device=device,
+            precision=precision,
         )
     except Exception as error:
         result = _result(
@@ -193,6 +190,8 @@ def main(argv: list[str] | None = None) -> int:
             runtime=runtime,
             peak_memory_bytes=peak_memory_bytes(torch_module),
             error=error,
+            device=device,
+            precision=precision,
         )
     print(json.dumps(result, ensure_ascii=False))
     return 0

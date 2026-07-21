@@ -10,6 +10,21 @@ from pathlib import Path
 from typing import Any
 
 
+def validate_rocm_bfloat16(model: Any, torch_module: Any) -> tuple[str, str]:
+    """Verify the loaded model's actual accelerator and parameter dtype."""
+
+    if not torch_module.cuda.is_available():
+        raise RuntimeError("CUDA-compatible accelerator is unavailable")
+    if not getattr(torch_module.version, "hip", None):
+        raise RuntimeError("PyTorch runtime is not ROCm-enabled")
+    parameter = next(model.parameters())
+    if parameter.device.type != "cuda":
+        raise RuntimeError("Loaded model is not on a CUDA-compatible accelerator")
+    if parameter.dtype != torch_module.bfloat16:
+        raise RuntimeError("Loaded model parameters are not bfloat16")
+    return f"{parameter.device} (ROCm)", "bfloat16"
+
+
 def format_timestamp(seconds: float) -> str:
     total_milliseconds = max(0, int(seconds * 1000))
     hours, remainder = divmod(total_milliseconds, 3_600_000)
@@ -101,23 +116,24 @@ def main(argv: list[str] | None = None) -> int:
     audio_fingerprint = source_fingerprint(audio_path)
     started = time.monotonic()
     torch.cuda.reset_peak_memory_stats()
+    device = "unverified"
+    precision = "unverified"
     try:
         model = AutoModelForSpeechSeq2Seq.from_pretrained(
             args.model_id,
             revision=args.revision,
-            dtype=torch.float16,
+            dtype=torch.bfloat16,
             attn_implementation="sdpa",
             low_cpu_mem_usage=True,
         ).to("cuda:0")
-        processor = AutoProcessor.from_pretrained(
-            args.model_id, revision=args.revision
-        )
+        device, precision = validate_rocm_bfloat16(model, torch)
+        processor = AutoProcessor.from_pretrained(args.model_id, revision=args.revision)
         asr = pipeline(
             "automatic-speech-recognition",
             model=model,
             tokenizer=processor.tokenizer,
             feature_extractor=processor.feature_extractor,
-            dtype=torch.float16,
+            dtype=torch.bfloat16,
             device=0,
         )
         audio = load_wav_audio(audio_path, soundfile)
@@ -137,8 +153,8 @@ def main(argv: list[str] | None = None) -> int:
             "runtime": (
                 f"transformers {transformers.__version__}; torch {torch.__version__}"
             ),
-            "device": "cuda:0 (ROCm)",
-            "precision": "float16",
+            "device": device,
+            "precision": precision,
             "peak_memory_bytes": torch.cuda.max_memory_allocated(),
             "error_type": None,
             "error_message": None,
@@ -158,8 +174,8 @@ def main(argv: list[str] | None = None) -> int:
             "runtime": (
                 f"transformers {transformers.__version__}; torch {torch.__version__}"
             ),
-            "device": "cuda:0 (ROCm)",
-            "precision": "float16",
+            "device": device,
+            "precision": precision,
             "peak_memory_bytes": torch.cuda.max_memory_allocated(),
             "error_type": type(error).__name__,
             "error_message": message[:4_000],

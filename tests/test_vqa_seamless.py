@@ -77,9 +77,7 @@ def test_decode_translation_rejects_empty_text() -> None:
         def decode(self, *args, **kwargs):
             return "  "
 
-    with pytest.raises(
-        ValueError, match="SeamlessM4T returned an empty translation"
-    ):
+    with pytest.raises(ValueError, match="SeamlessM4T returned an empty translation"):
         decode_translation(EmptyProcessor(), [[3]])
 
 
@@ -159,9 +157,7 @@ def test_main_preserves_request_identity_when_cli_args_are_rejected(
     assert result["condition_id"] == "condition-1"
     assert result["video_id"] == "video-1"
     assert result["error_type"] == "ValueError"
-    assert result["error_message"] == (
-        "This runner uses a pinned model and revision"
-    )
+    assert result["error_message"] == ("This runner uses a pinned model and revision")
 
 
 @pytest.mark.parametrize(
@@ -382,9 +378,20 @@ def test_main_loads_only_the_module_pinned_model_and_revision(
             return FakeProcessor()
 
     class LoadedModel(FakeModel):
+        class Parameter:
+            device = type(
+                "Device",
+                (),
+                {"type": "cuda", "__str__": lambda self: "cuda:0"},
+            )()
+            dtype = "bfloat16"
+
         def to(self, device):
             self.device = device
             return self
+
+        def parameters(self):
+            return iter([self.Parameter()])
 
     class FakeSeamlessModel:
         @staticmethod
@@ -393,6 +400,10 @@ def test_main_loads_only_the_module_pinned_model_and_revision(
             return LoadedModel()
 
     class FakeCuda:
+        @staticmethod
+        def is_available():
+            return True
+
         @staticmethod
         def reset_peak_memory_stats():
             return None
@@ -413,7 +424,8 @@ def test_main_loads_only_the_module_pinned_model_and_revision(
     torch_module = ModuleType("torch")
     torch_module.__version__ = "test"
     torch_module.cuda = FakeCuda()
-    torch_module.float16 = "float16"
+    torch_module.bfloat16 = "bfloat16"
+    torch_module.version = type("Version", (), {"hip": "7.2"})()
     torch_module.inference_mode = InferenceMode
     transformers_module = ModuleType("transformers")
     transformers_module.__version__ = "test"
@@ -447,6 +459,8 @@ def test_main_loads_only_the_module_pinned_model_and_revision(
     assert result["status"] == "passed"
     assert result["model_id"] == seamless.MODEL_ID
     assert result["model_revision"] == seamless.MODEL_REVISION
+    assert result["device"] == "cuda:0 (ROCm)"
+    assert result["precision"] == "bfloat16"
     assert load_calls == [
         (
             "processor",
@@ -458,7 +472,7 @@ def test_main_loads_only_the_module_pinned_model_and_revision(
             (seamless.MODEL_ID,),
             {
                 "revision": seamless.MODEL_REVISION,
-                "dtype": "float16",
+                "dtype": "bfloat16",
                 "low_cpu_mem_usage": True,
             },
         ),

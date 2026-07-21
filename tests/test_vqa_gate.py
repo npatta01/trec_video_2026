@@ -256,31 +256,43 @@ def test_cached_ten_visual_conditions_are_explicit_and_immutable() -> None:
             "Qwen/Qwen3.5-4B",
             "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
             "controlled-12-frames",
+            "image-text",
+            "localhost/trec-vqa-gate-rocm@sha256:510e4ca0a165b60a50abf3a1f24545b8f4bd561f9643f0295e7d82212fe801d5",
         ),
         "qwen35-4b-24f": (
             "Qwen/Qwen3.5-4B",
             "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
             "controlled-24-frames",
+            "image-text",
+            "localhost/trec-vqa-gate-rocm@sha256:510e4ca0a165b60a50abf3a1f24545b8f4bd561f9643f0295e7d82212fe801d5",
         ),
         "qwen35-9b-12f": (
             "Qwen/Qwen3.5-9B",
             "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
             "controlled-12-frames",
+            "image-text",
+            "localhost/trec-vqa-gate-rocm@sha256:510e4ca0a165b60a50abf3a1f24545b8f4bd561f9643f0295e7d82212fe801d5",
         ),
         "molmo2-4b-12f": (
             "allenai/Molmo2-4B",
             "042abfa7a38879a376cec03d949eff0aefaa0600",
             "controlled-12-frames",
+            "image-text",
+            "localhost/trec-vqa-gate-molmo@sha256:f5b655ab67cd62427819ac0992a626394f42cf786b4816132ae8610c47181fee",
         ),
         "internvl35-4b-12f": (
             "OpenGVLab/InternVL3_5-4B",
             "481f6e32467eab4e922ccd7fd6cf420441a62331",
             "controlled-12-frames-native-tiles",
+            "internvl",
+            "localhost/trec-vqa-gate-internvl@sha256:64c040ec4e2cb76f055661c227c0fc456f8389091f4d3bad77bbcc643f28de12",
         ),
         "gemma4-12b-12f": (
             "google/gemma-4-12b-it",
             "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
             "controlled-12-frames",
+            "multimodal",
+            "localhost/trec-vqa-gate-gemma@sha256:5bbd6f039622f70ad53d62395f189b07dc8fe28e2336c8aa462081abee9b7aaa",
         ),
     }
     assert {
@@ -288,6 +300,8 @@ def test_cached_ten_visual_conditions_are_explicit_and_immutable() -> None:
             by_id[condition_id].model_id,
             by_id[condition_id].model_revision,
             by_id[condition_id].evidence,
+            by_id[condition_id].runner_kind,
+            by_id[condition_id].runtime_image or config.runtime_image,
         )
         for condition_id in expected
     } == expected
