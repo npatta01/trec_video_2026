@@ -244,17 +244,22 @@ Confirm two terminal identity pairs, no request/reference leakage, ROCm device,
 pinned model/runtime revisions, matching evidence hashes, and non-overwritten
 history.
 
-Observed terminal results:
+Observed terminal results from the identity-tagged exact-capture rerun:
 
-- Full-large-v3 transcript diagnostic: `Where the money is` (337.985 seconds,
+- Full-large-v3 transcript diagnostic: `Where the money is` (338.161 seconds,
   11,565,486,592 peak bytes). It used the disputed transcript but did not recover
   the reference meaning.
-- Question-guided crop diagnostic: `pink` (412.716 seconds, 12,264,128,000 peak
+- Question-guided crop diagnostic: `pink` (413.182 seconds, 12,264,128,000 peak
   bytes), unchanged from the frozen 12-frame baseline.
 
 Both records report Qwen revision `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`,
 the digest-pinned runtime, and `cuda:0 (ROCm)`. The retained batch request passed
 the pre-inference reference/label scan; crop source and output hashes verify.
+The identical request reproduced both initial answers. Exact stdout SHA-256 is
+`debf51c36a4d149aa3a82ee3973a651d9146a2ec138afe713d965e50d5346d31`;
+every result embeds its own run, condition, and video identity. Exact stderr,
+the enhanced self-contained crop manifest, and a retained crop contact sheet
+are also hash-indexed in the append-only run records.
 
 ### Task 4: Score, report, and stop
 
@@ -266,19 +271,19 @@ the pre-inference reference/label scan; crop source and output hashes verify.
 - Consumes: frozen baseline results and the two new terminal attempts.
 - Produces: a concise causal comparison with predictions, normalized EM, token F1, NIST-local METEOR/BERTScore where available, latency, memory, transcript text/status, and explicit diagnostic caveats.
 
-- [ ] **Step 1: Join labels only during scoring**
+- [x] **Step 1: Join labels only during scoring**
 
 Use the existing local evaluator after inference. Show the frozen comparator and
 new result side by side for the speech and color examples. Do not run external
 STS or interpret single-answer NDCG.
 
-- [ ] **Step 2: State the decision without overgeneralizing**
+- [x] **Step 2: State the decision without overgeneralizing**
 
 Report whether each hypothesis was supported, distinguish mechanical English
 QC from semantic translation quality, label crops as manually question-guided,
 and explicitly state that the 100-video run was not started.
 
-- [ ] **Step 3: Run fresh verification**
+- [x] **Step 3: Run fresh verification**
 
 ```bash
 uv run pytest -q
@@ -292,7 +297,7 @@ Expected: full test suite passes; diff check and preflight exit 0; no dataset,
 transcript, crop, request, prediction, raw log, or unrelated untracked file is
 staged.
 
-- [ ] **Step 4: Commit the report and completed plan**
+- [x] **Step 4: Commit the report and completed plan**
 
 ```bash
 git add reports/trecvid_vqa_2026/audio_spatial_followup_results_2026-07-21.md \
@@ -300,7 +305,7 @@ git add reports/trecvid_vqa_2026/audio_spatial_followup_results_2026-07-21.md \
 git commit -m "docs: report audio and spatial diagnostics"
 ```
 
-- [ ] **Step 5: Handoff and stop**
+- [x] **Step 5: Handoff and stop**
 
 Give the user the two outcomes, verified evidence, report link, and remaining
 unknowns. Do not create or execute any 100-video manifest.
