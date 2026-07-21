@@ -266,3 +266,90 @@ Full repository suite:
 - A valid success remains sticky over later failure, timeout, null-answer pass,
   or blank-answer pass records.
 - No NIST parity, evidence-cache, three-video, or Seamless behavior changed.
+
+## Second review fix: request/attempt identity
+
+The second review identified that a label-free request could still carry a
+`condition_id` or `video_id` different from its enclosing saved attempt. The
+fix validates both identities on every raw attempt before retry selection.
+
+Full evidence-bearing requests now also receive structural validation against
+the established `RunnerRequest` contract: all dataclass fields are required,
+JSON value types are checked, paths are converted to `Path`, and construction
+applies the existing nonempty identity/question, evidence-length, and
+nonnegative-timestamp invariants. Deliberately supported minimal legacy
+requests may contain only `run_id`, `condition_id`, `video_id`, and `question`;
+their present fields are type/value checked, and present identity fields must
+match the enclosing attempt.
+
+### Second-review RED
+
+Command:
+
+```text
+uv run pytest -q tests/test_vqa_evaluation.py -k 'identity_must_match or superseded_jsonl_attempt_request_identity or canonical_runner_requests_validate'
+```
+
+Exact captured output summary:
+
+```text
+FFFFFF                                                                   [100%]
+=================================== FAILURES ===================================
+_ test_saved_runner_request_identity_must_match_enclosing_attempt[condition_id-other-condition] _
+E       Failed: DID NOT RAISE ValueError
+_ test_saved_runner_request_identity_must_match_enclosing_attempt[video_id-other-video] _
+E       Failed: DID NOT RAISE ValueError
+______ test_superseded_jsonl_attempt_request_identity_is_still_validated _______
+E       Failed: DID NOT RAISE ValueError
+_ test_full_canonical_runner_requests_validate_required_fields_and_types[missing_audio_path] _
+E       Failed: DID NOT RAISE ValueError
+_ test_full_canonical_runner_requests_validate_required_fields_and_types[string_timestamp] _
+E       Failed: DID NOT RAISE ValueError
+_ test_full_canonical_runner_requests_validate_required_fields_and_types[non_string_question] _
+E       Failed: DID NOT RAISE ValueError
+=========================== short test summary info ============================
+FAILED tests/test_vqa_evaluation.py::test_saved_runner_request_identity_must_match_enclosing_attempt[condition_id-other-condition]
+FAILED tests/test_vqa_evaluation.py::test_saved_runner_request_identity_must_match_enclosing_attempt[video_id-other-video]
+FAILED tests/test_vqa_evaluation.py::test_superseded_jsonl_attempt_request_identity_is_still_validated
+FAILED tests/test_vqa_evaluation.py::test_full_canonical_runner_requests_validate_required_fields_and_types[missing_audio_path]
+FAILED tests/test_vqa_evaluation.py::test_full_canonical_runner_requests_validate_required_fields_and_types[string_timestamp]
+FAILED tests/test_vqa_evaluation.py::test_full_canonical_runner_requests_validate_required_fields_and_types[non_string_question]
+6 failed, 27 deselected in 0.07s
+```
+
+### Second-review GREEN
+
+Same focused command:
+
+```text
+......                                                                   [100%]
+6 passed, 27 deselected in 0.02s
+```
+
+Complete Task 2 files:
+
+```text
+........................................................                 [100%]
+56 passed in 1.74s
+```
+
+Final full repository suite:
+
+```text
+........................................................................ [ 27%]
+........................................................................ [ 54%]
+........................................................................ [ 81%]
+..................................................                       [100%]
+266 passed in 2.39s
+```
+
+### Second-review self-review
+
+- Identity validation occurs inside the raw-attempt loop, before selection or
+  scoring, so a mismatched failed/superseded attempt cannot evade validation.
+- Both `condition_id` and `video_id` mismatches have independent regressions.
+- JSON array and nested request-in-JSONL artifact shapes are covered.
+- Full canonical requests are validated with the actual `RunnerRequest`
+  dataclass field set and constructor rather than an independent model schema.
+- The earlier schema allowlist, recursive nested-mapping rejection,
+  valid-success selection, paired-ID guard, and metric behavior remain intact.

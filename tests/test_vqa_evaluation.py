@@ -293,6 +293,129 @@ def test_saved_runner_request_accepts_the_established_schema(tmp_path: Path) -> 
     assert report["examples"][0]["request"] == request
 
 
+@pytest.mark.parametrize(
+    ("field", "request_value"),
+    [("condition_id", "other-condition"), ("video_id", "other-video")],
+)
+def test_saved_runner_request_identity_must_match_enclosing_attempt(
+    tmp_path: Path, field: str, request_value: str
+) -> None:
+    predictions_path = tmp_path / "identity-mismatch.json"
+    request = {
+        "run_id": "run-1",
+        "condition_id": "candidate",
+        "video_id": "video-1",
+        "question": "What?",
+    }
+    request[field] = request_value
+    predictions_path.write_text(
+        json.dumps(
+            [
+                {
+                    "condition_id": "candidate",
+                    "video_id": "video-1",
+                    "status": "passed",
+                    "answer": "dog",
+                    "request": request,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=f"Attempt/request identity mismatch for {field}"):
+        evaluate_saved_predictions(
+            predictions_path,
+            references={"video-1": "dog"},
+            strata={"video-1": "control"},
+        )
+
+
+def test_superseded_jsonl_attempt_request_identity_is_still_validated(
+    tmp_path: Path,
+) -> None:
+    predictions_path = tmp_path / "identity-attempts.jsonl"
+    attempts = [
+        {
+            "condition_id": "candidate",
+            "video_id": "video-1",
+            "status": "failed",
+            "answer": None,
+            "request": {
+                "condition_id": "candidate",
+                "video_id": "nested-other-video",
+                "question": "What?",
+            },
+        },
+        {
+            "condition_id": "candidate",
+            "video_id": "video-1",
+            "status": "passed",
+            "answer": "dog",
+        },
+    ]
+    predictions_path.write_text(
+        "".join(json.dumps(attempt) + "\n" for attempt in attempts),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="identity mismatch for video_id"):
+        evaluate_saved_predictions(
+            predictions_path,
+            references={"video-1": "dog"},
+            strata={"video-1": "control"},
+        )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["missing_audio_path", "string_timestamp", "non_string_question"],
+)
+def test_full_canonical_runner_requests_validate_required_fields_and_types(
+    tmp_path: Path, mutation: str
+) -> None:
+    predictions_path = tmp_path / "invalid-canonical.json"
+    request: dict[str, object] = {
+        "run_id": "run-1",
+        "condition_id": "candidate",
+        "video_id": "video-1",
+        "question": "What?",
+        "frame_paths": ["/tmp/frame.png"],
+        "frame_timestamps": [0.5],
+        "frame_descriptions": ["a dog"],
+        "transcript": None,
+        "media_path": "/tmp/video.mkv",
+        "audio_path": None,
+    }
+    if mutation == "missing_audio_path":
+        del request["audio_path"]
+    elif mutation == "string_timestamp":
+        request["frame_timestamps"] = ["0.5"]
+    else:
+        request["question"] = 12
+    predictions_path.write_text(
+        json.dumps(
+            [
+                {
+                    "condition_id": "candidate",
+                    "video_id": "video-1",
+                    "status": "passed",
+                    "answer": "dog",
+                    "request": request,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="canonical RunnerRequest"):
+        evaluate_saved_predictions(
+            predictions_path,
+            references={"video-1": "dog"},
+            strata={"video-1": "control"},
+        )
+
+
 def test_saved_jsonl_attempts_keep_a_success_over_a_later_failure(
     tmp_path: Path,
 ) -> None:

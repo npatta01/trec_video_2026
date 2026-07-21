@@ -131,7 +131,11 @@ def evaluate_saved_predictions(
         if request is not None:
             if not isinstance(request, Mapping):
                 raise ValueError("Saved runner request must be a JSON object")
-            _validate_label_free_request(request)
+            _validate_label_free_request(
+                request,
+                condition_id=condition_id,
+                video_id=video_id,
+            )
         identity = (condition_id, video_id)
         current = selected.get(identity)
         if (
@@ -293,7 +297,9 @@ def _is_valid_success(prediction: Mapping[str, Any]) -> bool:
     )
 
 
-def _validate_label_free_request(request: Mapping[str, Any]) -> None:
+def _validate_label_free_request(
+    request: Mapping[str, Any], *, condition_id: str, video_id: str
+) -> None:
     from trec_video_2026.vqa_gate import RunnerRequest
 
     canonical_fields = frozenset(field.name for field in fields(RunnerRequest))
@@ -304,6 +310,83 @@ def _validate_label_free_request(request: Mapping[str, Any]) -> None:
         )
     for key, value in request.items():
         _reject_nested_request_mapping(value, path=str(key))
+    for field, expected in (("condition_id", condition_id), ("video_id", video_id)):
+        if field in request and request[field] != expected:
+            raise ValueError(f"Attempt/request identity mismatch for {field}")
+
+    legacy_fields = frozenset({"run_id", "condition_id", "video_id", "question"})
+    request_fields = frozenset(request)
+    if request_fields <= legacy_fields:
+        _validate_legacy_runner_request(request)
+        return
+    missing = sorted(canonical_fields - request_fields)
+    if missing:
+        raise ValueError(
+            "Invalid canonical RunnerRequest; missing fields: " + ", ".join(missing)
+        )
+    _validate_canonical_runner_request(request, RunnerRequest)
+
+
+def _validate_legacy_runner_request(request: Mapping[str, Any]) -> None:
+    for field in ("run_id", "condition_id", "video_id", "question"):
+        if field in request and not isinstance(request[field], str):
+            raise ValueError(f"Invalid legacy RunnerRequest field type: {field}")
+    for field in ("run_id", "condition_id", "video_id"):
+        if field in request and not request[field]:
+            raise ValueError(f"Invalid legacy RunnerRequest field value: {field}")
+    if "question" in request and not request["question"].strip():
+        raise ValueError("Invalid legacy RunnerRequest field value: question")
+
+
+def _validate_canonical_runner_request(request: Mapping[str, Any], request_type) -> None:
+    try:
+        for field in ("run_id", "condition_id", "video_id", "question"):
+            if not isinstance(request[field], str):
+                raise TypeError(f"{field} must be a string")
+        frame_paths = request["frame_paths"]
+        frame_timestamps = request["frame_timestamps"]
+        frame_descriptions = request["frame_descriptions"]
+        if not isinstance(frame_paths, list) or any(
+            not isinstance(value, str) for value in frame_paths
+        ):
+            raise TypeError("frame_paths must be a list of strings")
+        if not isinstance(frame_timestamps, list) or any(
+            not isinstance(value, (int, float)) or isinstance(value, bool)
+            for value in frame_timestamps
+        ):
+            raise TypeError("frame_timestamps must be a list of numbers")
+        if frame_descriptions is not None and (
+            not isinstance(frame_descriptions, list)
+            or any(not isinstance(value, str) for value in frame_descriptions)
+        ):
+            raise TypeError("frame_descriptions must be null or a list of strings")
+        for field in ("transcript", "media_path", "audio_path"):
+            if request[field] is not None and not isinstance(request[field], str):
+                raise TypeError(f"{field} must be null or a string")
+        request_type(
+            run_id=request["run_id"],
+            condition_id=request["condition_id"],
+            video_id=request["video_id"],
+            question=request["question"],
+            frame_paths=tuple(Path(value) for value in frame_paths),
+            frame_timestamps=tuple(frame_timestamps),
+            frame_descriptions=(
+                tuple(frame_descriptions) if frame_descriptions is not None else None
+            ),
+            transcript=request["transcript"],
+            media_path=(
+                Path(request["media_path"])
+                if request["media_path"] is not None
+                else None
+            ),
+            audio_path=(
+                Path(request["audio_path"])
+                if request["audio_path"] is not None
+                else None
+            ),
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError(f"Invalid canonical RunnerRequest: {error}") from error
 
 
 def _reject_nested_request_mapping(value: Any, *, path: str) -> None:
