@@ -41,7 +41,8 @@ The ten-video subset is selected deterministically by hashing manifest version,
 the compatibility marker, stratum, and video ID, selecting two per stratum.
 The dialogue selection additionally retains one English and one non-English
 metadata-language example. All 30 media files passed `ffprobe`, contain audio,
-and total 587 seconds (median 17 seconds, range 9–30 seconds). One temporal gate
+and total exactly 583.859 seconds (586 seconds when individual clips are
+rounded; median 17 seconds, range 9–30 seconds). One temporal gate
 clip has six-channel AAC audio and intentionally tests decoder robustness.
 
 ## Experimental funnel

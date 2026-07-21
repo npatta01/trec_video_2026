@@ -14,6 +14,7 @@ from typing import Any, Mapping
 
 
 EXTRACTOR_VERSION = "ffmpeg-bin-midpoint-v1"
+FROZEN_NATIVE_AUDIO_MANIFEST_VERSION = "trecvid-native-audio-2026-07-21-v1"
 
 
 @dataclass(frozen=True)
@@ -37,7 +38,6 @@ class ManifestExample:
     question: str
     media_path: Path
     annotation_path: Path
-    reference_answer: str
     is_gate: bool = False
 
     @property
@@ -49,10 +49,6 @@ class ManifestExample:
             media_path=self.media_path,
         )
 
-    @property
-    def reference(self) -> ReferenceAnswer:
-        return ReferenceAnswer(self.video_id, self.reference_answer)
-
 
 @dataclass(frozen=True)
 class BenchmarkManifest:
@@ -62,14 +58,11 @@ class BenchmarkManifest:
     manifest_version: str = ""
     gate_marker: str = ""
     gate_selection_sha256: str = ""
+    dataset_root: Path | None = None
 
     @property
     def inference_examples(self) -> tuple[InferenceExample, ...]:
         return tuple(example.inference for example in self.examples)
-
-    @property
-    def references(self) -> tuple[ReferenceAnswer, ...]:
-        return tuple(example.reference for example in self.examples)
 
     @property
     def gate_examples(self) -> tuple[ManifestExample, ...]:
@@ -238,7 +231,6 @@ def load_manifest(config_path: Path, dataset_root: Path) -> BenchmarkManifest:
                 question=question,
                 media_path=media_path,
                 annotation_path=annotation_path,
-                reference_answer=_required_text(annotation, "correct_answer"),
                 is_gate=video_id in gate_id_set,
             )
         )
@@ -251,11 +243,17 @@ def load_manifest(config_path: Path, dataset_root: Path) -> BenchmarkManifest:
         examples=tuple(examples),
         manifest_version=manifest_version,
         gate_marker=gate_marker,
+        dataset_root=dataset_root.resolve(strict=True),
     )
     selection_hash = gate_selection_hash(
         manifest.manifest_version, manifest.gate_marker, manifest.gate_examples
     )
     declared_hash = payload.get("gate_selection_sha256")
+    if (
+        manifest.manifest_version == FROZEN_NATIVE_AUDIO_MANIFEST_VERSION
+        and declared_hash is None
+    ):
+        raise ValueError("gate_selection_sha256 is required for the frozen manifest")
     if declared_hash is not None and declared_hash != selection_hash:
         raise ValueError("Gate selection hash does not match the frozen gate IDs")
     return BenchmarkManifest(
@@ -265,11 +263,34 @@ def load_manifest(config_path: Path, dataset_root: Path) -> BenchmarkManifest:
         manifest_version=manifest.manifest_version,
         gate_marker=manifest.gate_marker,
         gate_selection_sha256=selection_hash,
+        dataset_root=manifest.dataset_root,
     )
+
+
+def load_references(manifest: BenchmarkManifest) -> tuple[ReferenceAnswer, ...]:
+    """Load evaluation labels explicitly, outside inference manifest loading."""
+    references = []
+    for example in manifest.examples:
+        annotation = json.loads(example.annotation_path.read_text(encoding="utf-8"))
+        references.append(
+            ReferenceAnswer(
+                video_id=example.video_id,
+                reference_answer=_required_text(annotation, "correct_answer"),
+            )
+        )
+    return tuple(references)
 
 
 def write_resolved_manifest(manifest: BenchmarkManifest, destination: Path) -> None:
     """Validate media and write a provenance-rich manifest for benchmark runs."""
+    if manifest.dataset_root is None:
+        raise ValueError("Manifest dataset root is required for resolved output")
+    benchmark_root = (manifest.dataset_root / "vqa/benchmarks").resolve()
+    resolved_destination = destination.resolve()
+    if not resolved_destination.is_relative_to(benchmark_root):
+        raise ValueError(
+            "Resolved manifests must be written beneath data/vqa/benchmarks"
+        )
     examples = []
     for example in manifest.examples:
         metadata = probe_media(example.media_path)
@@ -296,10 +317,9 @@ def write_resolved_manifest(manifest: BenchmarkManifest, destination: Path) -> N
         "gate_marker": manifest.gate_marker,
         "gate_selection_sha256": manifest.gate_selection_sha256,
         "examples": examples,
-        "references": [asdict(item) for item in manifest.references],
     }
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(
+    resolved_destination.parent.mkdir(parents=True, exist_ok=True)
+    resolved_destination.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
 
@@ -311,7 +331,10 @@ def _required_text(mapping: Mapping[str, Any], key: str) -> str:
     return value.strip()
 
 
-def serialize_manifest(manifest: BenchmarkManifest) -> str:
+def serialize_manifest(
+    manifest: BenchmarkManifest,
+    references: tuple[ReferenceAnswer, ...] = (),
+) -> str:
     """Return canonical JSON with references isolated from inference records."""
     examples = [
         {
@@ -322,12 +345,12 @@ def serialize_manifest(manifest: BenchmarkManifest) -> str:
         }
         for item in manifest.inference_examples
     ]
-    references = [asdict(item) for item in manifest.references]
+    serialized_references = [asdict(item) for item in references]
     payload = {
         "schema_version": manifest.schema_version,
         "gate_id": manifest.gate_id,
         "examples": examples,
-        "references": references,
+        "references": serialized_references,
     }
     return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
 

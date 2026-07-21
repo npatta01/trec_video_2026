@@ -140,7 +140,51 @@ def test_native_audio_manifest_freezes_questions_but_not_references():
     assert all(
         "reference_answer" not in asdict(item) for item in manifest.inference_examples
     )
-    assert all(item.reference_answer for item in manifest.references)
+    assert all("reference_answer" not in asdict(item) for item in manifest.examples)
+    assert all(
+        item.reference_answer for item in vqa_benchmark.load_references(manifest)
+    )
+
+
+def test_manifest_loading_does_not_require_reference_values(tmp_path: Path):
+    dataset_root = tmp_path / "dataset"
+    (dataset_root / "annotations").mkdir(parents=True)
+    (dataset_root / "media").mkdir()
+    (dataset_root / "annotations/example.json").write_text(
+        json.dumps(
+            {
+                "video_url": "https://www.youtube.com/watch?v=example",
+                "question": "What happens?",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (dataset_root / "media/example.mkv").write_bytes(b"not probed")
+    config = tmp_path / "manifest.json"
+    config.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "gate_id": "label-free",
+                "examples": [
+                    {
+                        "video_id": "example",
+                        "category": "control",
+                        "question": "What happens?",
+                        "annotation": "annotations/example.json",
+                        "media": "media/example",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    manifest = load_manifest(config, dataset_root)
+
+    assert manifest.examples[0].question == "What happens?"
+    with pytest.raises(ValueError, match="correct_answer"):
+        vqa_benchmark.load_references(manifest)
 
 
 def test_native_audio_gate_selection_hash_is_deterministic():
@@ -156,17 +200,33 @@ def test_native_audio_gate_selection_hash_is_deterministic():
     )
 
 
+def test_versioned_native_audio_manifest_requires_gate_selection_hash(
+    tmp_path: Path,
+):
+    payload = json.loads(NATIVE_AUDIO_CONFIG.read_text(encoding="utf-8"))
+    del payload["gate_selection_sha256"]
+    config = tmp_path / "manifest.json"
+    config.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="gate_selection_sha256 is required"):
+        load_manifest(config, DATASET_ROOT)
+
+
 @pytest.mark.skipif(
     shutil.which("ffprobe") is None,
     reason="ffprobe is required",
 )
-def test_native_audio_resolved_manifest_records_media_provenance(tmp_path: Path):
+def test_native_audio_resolved_manifest_records_media_provenance():
     manifest = load_manifest(NATIVE_AUDIO_CONFIG, DATASET_ROOT)
-    destination = tmp_path / "resolved.json"
+    destination = (
+        DATASET_ROOT
+        / "vqa/benchmarks/test-artifacts/native_audio_benchmark_30.resolved.json"
+    )
 
     vqa_benchmark.write_resolved_manifest(manifest, destination)
 
     resolved = json.loads(destination.read_text(encoding="utf-8"))
+    assert "references" not in resolved
     assert [item["video_id"] for item in resolved["examples"]] == FROZEN_IDS
     assert all(len(item["source"]["sha256"]) == 64 for item in resolved["examples"])
     assert all(item["source"]["size_bytes"] > 0 for item in resolved["examples"])
@@ -187,6 +247,15 @@ def test_native_audio_resolved_manifest_records_media_provenance(tmp_path: Path)
         for stream in six_channel["media"]["streams"]
         if stream["codec_type"] == "audio"
     ) == 6
+
+
+def test_resolved_manifest_rejects_destinations_outside_ignored_benchmark_data(
+    tmp_path: Path,
+):
+    manifest = load_manifest(NATIVE_AUDIO_CONFIG, DATASET_ROOT)
+
+    with pytest.raises(ValueError, match="data/vqa/benchmarks"):
+        vqa_benchmark.write_resolved_manifest(manifest, tmp_path / "tracked.json")
 
 
 def test_manifest_rejects_paths_outside_dataset(tmp_path: Path):
@@ -217,7 +286,9 @@ def test_inference_records_do_not_contain_reference_answers():
     manifest = load_manifest(GATE_CONFIG, DATASET_ROOT)
 
     inference = [asdict(record) for record in manifest.inference_examples]
-    references = [asdict(record) for record in manifest.references]
+    references = [
+        asdict(record) for record in vqa_benchmark.load_references(manifest)
+    ]
 
     assert all("reference" not in key for row in inference for key in row)
     assert all("answer" not in key for row in inference for key in row)
@@ -228,9 +299,10 @@ def test_inference_records_do_not_contain_reference_answers():
 
 def test_manifest_serialization_is_deterministic_and_keeps_labels_separate():
     manifest = load_manifest(GATE_CONFIG, DATASET_ROOT)
+    references = vqa_benchmark.load_references(manifest)
 
-    first = serialize_manifest(manifest)
-    second = serialize_manifest(manifest)
+    first = serialize_manifest(manifest, references)
+    second = serialize_manifest(manifest, references)
 
     assert first == second
     payload = json.loads(first)
