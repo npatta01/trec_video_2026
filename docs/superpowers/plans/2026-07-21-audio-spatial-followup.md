@@ -33,7 +33,7 @@
 - Consumes: existing ordered `frame_paths` and `frame_timestamps`.
 - Produces: optional `frame_descriptions: tuple[str, ...] | None` on `RunnerRequest` and `build_controlled_messages`; when supplied, each non-empty description replaces the default `Frame at ... seconds:` label for the corresponding image.
 
-- [ ] **Step 1: Write failing message and serialization tests**
+- [x] **Step 1: Write failing message and serialization tests**
 
 ```python
 def test_controlled_messages_label_detail_crop(tmp_path: Path) -> None:
@@ -59,7 +59,7 @@ def test_runner_request_serializes_frame_descriptions(tmp_path: Path) -> None:
     assert "reference" not in json.dumps(payload).lower()
 ```
 
-- [ ] **Step 2: Run the tests and observe the intended failures**
+- [x] **Step 2: Run the tests and observe the intended failures**
 
 Run:
 
@@ -71,7 +71,7 @@ uv run pytest -q \
 
 Expected: failures because neither interface accepts `frame_descriptions`.
 
-- [ ] **Step 3: Implement the minimal optional field**
+- [x] **Step 3: Implement the minimal optional field**
 
 Add `frame_descriptions` to `RunnerRequest`, validate that its length equals the
 frame count, serialize it, thread it through `generate_answer`, and sort
@@ -87,7 +87,7 @@ if len(descriptions) != len(frame_paths):
 ordered = sorted(zip(frame_timestamps, frame_paths, descriptions, strict=True))
 ```
 
-- [ ] **Step 4: Verify targeted and full tests**
+- [x] **Step 4: Verify targeted and full tests**
 
 Run:
 
@@ -99,7 +99,7 @@ uv run pytest -q
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit the protocol change**
+- [x] **Step 5: Commit the protocol change**
 
 ```bash
 git add src/trec_video_2026/vqa_models.py \
@@ -121,7 +121,7 @@ git commit -m "feat: label diagnostic detail frames"
 - Consumes: three existing evidence-cache `audio.wav` files and `vqa_whisper` JSON protocol.
 - Produces: one immutable transcript result per video with source-audio SHA-256, pinned model revision, QC status, ROCm device, latency, and peak allocation.
 
-- [ ] **Step 1: Verify resources before the model download**
+- [x] **Step 1: Verify resources before the model download**
 
 Run:
 
@@ -136,18 +136,19 @@ df -h /home/npatta01/.cache/huggingface
 Expected: canonical dataset link, image exit 0, Radeon agent present, and more
 than 4 GiB free for the 3.09 GB FP16 checkpoint plus metadata.
 
-- [ ] **Step 2: Download only the pinned Transformers files**
+- [x] **Step 2: Download only the pinned Transformers files**
 
 ```bash
-hf download openai/whisper-large-v3 \
-  --revision 06f233fe06e710322aca913c1bc4249a0d71fce1 \
-  --include 'model.safetensors' '*.json' 'merges.txt' 'normalizer.json' \
-    'vocab.json' 'tokenizer.model'
+hf download openai/whisper-large-v3 model.safetensors added_tokens.json \
+  config.json generation_config.json merges.txt normalizer.json \
+  preprocessor_config.json special_tokens_map.json tokenizer.json \
+  tokenizer_config.json vocab.json \
+  --revision 06f233fe06e710322aca913c1bc4249a0d71fce1
 ```
 
 Expected: the pinned snapshot completes without downloading FP32 shards.
 
-- [ ] **Step 3: Run the three audio requests through the pinned ROCm container**
+- [x] **Step 3: Run the three audio requests through the pinned ROCm container**
 
 For each of `BDKkVYmWqdM`, `O60MtMuSpf8`, and `Fk_j6re_Uiw`, invoke
 `trec_video_2026.vqa_whisper` with:
@@ -161,12 +162,18 @@ Use `task="translate"` through the existing runner, pass the frozen evidence
 `audio.wav`, and persist stdout only after it parses as one JSON object whose
 `video_id` and `source_audio_sha256` match the request and file.
 
-- [ ] **Step 4: Audit transcript quality and record the decision**
+- [x] **Step 4: Audit transcript quality and record the decision**
 
 Check the mechanical QC result and manually compare audio/text meaning without
 consulting the official answer during acceptance. Append every pass or failure;
 do not overwrite a prior attempt. Mark the plan with the exact accepted/rejected
 statuses and hashes.
+
+Observed: all three passed mechanical QC on ROCm. The bike transcript is coherent
+English, the color clip is described as music/outro rather than speech, and the
+speech clip is coherent English about Pakistan and money. The speech translation
+is accepted as usable evidence but does not itself mention a bag. Source-audio
+hashes match the frozen evidence cache.
 
 - [ ] **Step 5: Commit only plan status or source changes**
 
