@@ -10,6 +10,7 @@ import argparse
 import json
 import math
 import os
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -310,32 +311,89 @@ def _load_audio(
     request: dict[str, Any],
     librosa_module: Any,
     *,
-    native_audio_loader: Any = None,
+    full_media_decoder: Any = None,
 ) -> tuple[Any, int]:
     source = request.get("audio_path") or request.get("media_path")
     if not source:
         raise ValueError("MiniCPM native audio requires media_path or audio_path")
-    try:
+    if request.get("audio_path"):
         audio, sample_rate = librosa_module.load(
             source, sr=MINICPM_AUDIO_SAMPLE_RATE, mono=True
         )
-    except Exception:
-        if request.get("audio_path"):
-            raise
-        if native_audio_loader is None:
-            from minicpmo.utils import get_audio_segments
+    else:
+        if full_media_decoder is None:
+            import numpy as np
 
-            native_audio_loader = get_audio_segments
-        timestamps = tuple(float(value) for value in request["frame_timestamps"])
-        duration = min(timestamps) + max(timestamps)
-        segments = native_audio_loader([0.0], duration, source)
-        if segments is None or len(segments) != 1 or len(segments[0]) == 0:
-            raise ValueError("MiniCPM native decoder returned no audio")
-        audio = segments[0]
+            def full_media_decoder(path: str) -> Any:
+                return _decode_full_media_audio(
+                    path, lambda value: np.frombuffer(value, dtype="<f4").copy()
+                )
+
+        audio = full_media_decoder(source)
         sample_rate = MINICPM_AUDIO_SAMPLE_RATE
     if sample_rate != MINICPM_AUDIO_SAMPLE_RATE:
         raise ValueError("Audio loader did not return 16 kHz audio")
     return audio, sample_rate
+
+
+def _decode_full_media_audio(
+    source: str,
+    bytes_decoder: Any,
+    *,
+    ffmpeg_resolver: Any = None,
+    runner: Any = subprocess.run,
+) -> Any:
+    """Decode the complete selected audio stream without duration-based slicing."""
+
+    if ffmpeg_resolver is None:
+        from imageio_ffmpeg import get_ffmpeg_exe
+
+        ffmpeg_resolver = get_ffmpeg_exe
+    ffmpeg = ffmpeg_resolver()
+    if not ffmpeg:
+        raise RuntimeError("Bundled FFmpeg executable is unavailable")
+    completed = runner(
+        [
+            ffmpeg,
+            "-v",
+            "error",
+            "-i",
+            str(source),
+            "-map",
+            "0:a:0",
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            str(MINICPM_AUDIO_SAMPLE_RATE),
+            "-f",
+            "f32le",
+            "-acodec",
+            "pcm_f32le",
+            "pipe:1",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    audio = bytes_decoder(completed.stdout)
+    if len(audio) == 0:
+        raise ValueError("Full-container decoder returned empty audio")
+    return audio
+
+
+def validate_rocm_bfloat16(model: Any, torch_module: Any) -> tuple[str, str]:
+    """Derive runtime provenance and fail closed outside ROCm BF16 execution."""
+
+    if not torch_module.cuda.is_available():
+        raise RuntimeError("CUDA-compatible accelerator is unavailable")
+    if not getattr(torch_module.version, "hip", None):
+        raise RuntimeError("PyTorch runtime is not ROCm-enabled")
+    parameter = next(model.parameters())
+    if parameter.device.type != "cuda":
+        raise RuntimeError("Loaded model is not on a CUDA-compatible accelerator")
+    if parameter.dtype != torch_module.bfloat16:
+        raise RuntimeError("Loaded model parameters are not bfloat16")
+    return f"{parameter.device} (ROCm)", "bfloat16"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -373,6 +431,8 @@ def main(argv: list[str] | None = None) -> int:
     loaded_at = time.monotonic()
     torch.cuda.reset_peak_memory_stats()
     runtime = f"transformers {transformers.__version__}; torch {torch.__version__}"
+    device = "unverified"
+    precision = "unverified"
     try:
         if args.kind == "internvl":
             from torchvision import transforms
@@ -389,6 +449,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             tokenizer = None
             transforms = None
+        device, precision = validate_rocm_bfloat16(model, torch)
         load_seconds = time.monotonic() - loaded_at
     except Exception as error:
         results = [
@@ -399,6 +460,8 @@ def main(argv: list[str] | None = None) -> int:
                 runtime=runtime,
                 peak_memory=torch.cuda.max_memory_allocated(),
                 audio_enabled=None,
+                device=device,
+                precision=precision,
             )
             for _ in requests
         ]
@@ -466,6 +529,8 @@ def main(argv: list[str] | None = None) -> int:
                 runtime=runtime,
                 peak_memory=torch.cuda.max_memory_allocated(),
                 metadata=metadata,
+                device=device,
+                precision=precision,
             )
         except Exception as error:
             result = _error_result(
@@ -475,6 +540,8 @@ def main(argv: list[str] | None = None) -> int:
                 runtime=runtime,
                 peak_memory=torch.cuda.max_memory_allocated(),
                 audio_enabled=audio_enabled,
+                device=device,
+                precision=precision,
             )
         result["model_load_seconds"] = load_seconds
         results.append(result)
@@ -493,6 +560,8 @@ def _error_result(
     runtime: str,
     peak_memory: int,
     audio_enabled: bool | None = None,
+    device: str = "unverified",
+    precision: str = "unverified",
 ) -> dict[str, Any]:
     if args.kind == "internvl":
         metadata = {
@@ -513,6 +582,8 @@ def _error_result(
         peak_memory=peak_memory,
         error=error,
         metadata=metadata,
+        device=device,
+        precision=precision,
     )
 
 
@@ -537,6 +608,8 @@ def _result(
     runtime: str,
     peak_memory: int,
     metadata: dict[str, Any],
+    device: str,
+    precision: str,
     error: Exception | None = None,
 ) -> dict[str, Any]:
     message = str(error) if error else None
@@ -550,8 +623,8 @@ def _result(
         "model_revision": args.revision,
         "runtime": runtime,
         "runtime_image": os.environ.get("VQA_RUNTIME_IMAGE"),
-        "precision": "bfloat16",
-        "device": "cuda:0 (ROCm)",
+        "precision": precision,
+        "device": device,
         "peak_memory_bytes": peak_memory,
         "error_type": type(error).__name__ if error else None,
         "error_message": message,

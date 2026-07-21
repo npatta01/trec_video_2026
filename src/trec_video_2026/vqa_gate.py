@@ -13,6 +13,7 @@ from typing import Any, Mapping, Sequence
 
 
 RUN_STATUSES = frozenset({"passed", "unsupported", "failed", "timed_out"})
+AUDIO_MODES = frozenset({"audio-off", "audio-on"})
 REQUIRED_RESULT_FIELDS = frozenset(
     {
         "status",
@@ -39,6 +40,11 @@ class Condition:
     download_bytes: int
     runner_kind: str = "image-text"
     runtime_image: str | None = None
+    audio_mode: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.audio_mode is not None and self.audio_mode not in AUDIO_MODES:
+            raise ValueError("Condition audio_mode must be audio-off or audio-on")
 
 
 @dataclass(frozen=True)
@@ -85,7 +91,9 @@ def build_rocm_runner_command(
 ) -> list[str]:
     """Build a rootless, offline Podman invocation for one controlled run."""
 
-    roots = tuple(path.resolve(strict=True) for path in (repo_root, dataset_root, hf_cache_root))
+    roots = tuple(
+        path.resolve(strict=True) for path in (repo_root, dataset_root, hf_cache_root)
+    )
     repo, dataset, cache = roots
     runtime_image = condition.runtime_image or image
     command = [
@@ -138,12 +146,12 @@ def build_rocm_runner_command(
         )
     command.extend(
         [
-        "--model-id",
-        condition.model_id,
-        "--revision",
-        condition.model_revision,
-        "--max-new-tokens",
-        "32",
+            "--model-id",
+            condition.model_id,
+            "--revision",
+            condition.model_revision,
+            "--max-new-tokens",
+            "32",
         ]
     )
     return command
@@ -163,6 +171,7 @@ class RunnerRequest:
     media_path: Path | None
     audio_path: Path | None = None
     frame_descriptions: tuple[str, ...] | None = None
+    audio_mode: str | None = None
 
     def __post_init__(self) -> None:
         if not self.run_id or not self.condition_id or not self.video_id:
@@ -171,12 +180,14 @@ class RunnerRequest:
             raise ValueError("Runner request question cannot be empty")
         if len(self.frame_paths) != len(self.frame_timestamps):
             raise ValueError("Frame paths and timestamps must have equal length")
-        if self.frame_descriptions is not None and len(
-            self.frame_descriptions
-        ) != len(self.frame_paths):
+        if self.frame_descriptions is not None and len(self.frame_descriptions) != len(
+            self.frame_paths
+        ):
             raise ValueError("Frame descriptions and paths must have equal length")
         if any(timestamp < 0 for timestamp in self.frame_timestamps):
             raise ValueError("Frame timestamps cannot be negative")
+        if self.audio_mode is not None and self.audio_mode not in AUDIO_MODES:
+            raise ValueError("Runner request audio_mode must be audio-off or audio-on")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -194,7 +205,38 @@ class RunnerRequest:
             "transcript": self.transcript,
             "media_path": str(self.media_path.resolve()) if self.media_path else None,
             "audio_path": str(self.audio_path.resolve()) if self.audio_path else None,
+            "audio_mode": self.audio_mode,
         }
+
+
+def build_runner_request(
+    *,
+    condition: Condition,
+    run_id: str,
+    video_id: str,
+    question: str,
+    frame_paths: tuple[Path, ...],
+    frame_timestamps: tuple[float, ...],
+    transcript: str | None,
+    media_path: Path | None,
+    audio_path: Path | None = None,
+    frame_descriptions: tuple[str, ...] | None = None,
+) -> RunnerRequest:
+    """Construct a label-free request from a configured model condition."""
+
+    return RunnerRequest(
+        run_id=run_id,
+        condition_id=condition.condition_id,
+        video_id=video_id,
+        question=question,
+        frame_paths=frame_paths,
+        frame_timestamps=frame_timestamps,
+        transcript=transcript,
+        media_path=media_path,
+        audio_path=audio_path,
+        frame_descriptions=frame_descriptions,
+        audio_mode=condition.audio_mode,
+    )
 
 
 def validate_runner_result(payload: Mapping[str, Any]) -> dict[str, Any]:

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import shutil
+import wave
 from pathlib import Path
 
 import pytest
 
 from trec_video_2026.vqa_specialist_runner import (
     InternVLEvidence,
+    _decode_full_media_audio,
     _error_result,
     _load_audio,
     build_internvl_prompt,
@@ -20,6 +23,7 @@ from trec_video_2026.vqa_specialist_runner import (
     minicpm_audio_enabled,
     minicpm_metadata,
     order_evidence,
+    validate_rocm_bfloat16,
 )
 
 
@@ -311,30 +315,102 @@ def test_minicpm_failures_remain_structured_and_bounded() -> None:
     assert result["error_message"].endswith("…")
 
 
-def test_minicpm_media_decode_uses_native_fallback_without_dropping_samples(
+def test_minicpm_media_decode_preserves_sample_beyond_midpoint_derived_duration(
     tmp_path: Path,
 ) -> None:
     payload = request(tmp_path)
     payload["audio_path"] = None
-    calls = []
-    full_audio = list(range(192_001))
+    payload["media_path"] = str(tmp_path / "fractional.wav")
+    sample_count = 192_001
+    with wave.open(payload["media_path"], "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(16_000)
+        wav.writeframes(b"\x01\x00" * sample_count)
 
     class Librosa:
         @staticmethod
         def load(source, **kwargs):
-            raise RuntimeError("container backend unavailable")
-
-    def native_loader(timestamps, duration, source):
-        calls.append((timestamps, duration, source))
-        return [full_audio]
+            raise AssertionError("media containers must use the full decoder")
 
     audio, sample_rate = _load_audio(
-        payload, Librosa, native_audio_loader=native_loader
+        payload,
+        Librosa,
+        full_media_decoder=lambda source: _decode_full_media_audio(
+            source,
+            lambda value: memoryview(value).cast("f"),
+            ffmpeg_resolver=lambda: shutil.which("ffmpeg"),
+        ),
     )
 
-    assert audio is full_audio
     assert sample_rate == 16_000
-    assert calls == [([0.0], 12.0, payload["media_path"])]
+    assert (
+        int(
+            (min(payload["frame_timestamps"]) + max(payload["frame_timestamps"]))
+            * 16_000
+        )
+        == 192_000
+    )
+    assert len(audio) == sample_count
+
+
+class FakeParameter:
+    def __init__(self, device_type="cuda", device="cuda:0", dtype="bf16"):
+        self.device = type(
+            "Device", (), {"type": device_type, "__str__": lambda self: device}
+        )()
+        self.dtype = dtype
+
+
+class ParameterModel:
+    def __init__(self, parameter):
+        self.parameter = parameter
+
+    def parameters(self):
+        yield self.parameter
+
+
+class ProvenanceTorch:
+    bfloat16 = "bf16"
+    version = type("Version", (), {"hip": "7.2"})()
+
+    class cuda:
+        @staticmethod
+        def is_available():
+            return True
+
+
+def test_runtime_provenance_comes_from_loaded_rocm_bfloat16_model() -> None:
+    provenance = validate_rocm_bfloat16(
+        ParameterModel(FakeParameter()), ProvenanceTorch
+    )
+
+    assert provenance == ("cuda:0 (ROCm)", "bfloat16")
+
+
+@pytest.mark.parametrize(
+    ("parameter", "torch_module", "message"),
+    [
+        (FakeParameter(device_type="cpu", device="cpu"), ProvenanceTorch, "CUDA"),
+        (FakeParameter(dtype="float32"), ProvenanceTorch, "bfloat16"),
+        (
+            FakeParameter(),
+            type(
+                "NoHipTorch",
+                (),
+                {
+                    "bfloat16": "bf16",
+                    "version": type("Version", (), {"hip": None})(),
+                    "cuda": ProvenanceTorch.cuda,
+                },
+            ),
+            "ROCm",
+        ),
+    ],
+)
+def test_runtime_provenance_fails_closed(parameter, torch_module, message) -> None:
+    with pytest.raises(RuntimeError, match=message):
+        validate_rocm_bfloat16(ParameterModel(parameter), torch_module)
 
 
 class FakeImage:

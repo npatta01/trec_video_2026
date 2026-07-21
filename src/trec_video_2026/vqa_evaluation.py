@@ -21,9 +21,7 @@ from typing import Any, Mapping, Sequence
 LOCAL_DIAGNOSTICS_MODE = "local-diagnostics"
 NIST_2025_PARITY_MODE = "nist-2025-parity"
 NIST_2026_VALIDATE_AG_MODE = "nist-2026-validate-ag"
-SUPPORTED_NIST_MODES = frozenset(
-    {NIST_2025_PARITY_MODE, NIST_2026_VALIDATE_AG_MODE}
-)
+SUPPORTED_NIST_MODES = frozenset({NIST_2025_PARITY_MODE, NIST_2026_VALIDATE_AG_MODE})
 
 _ARTICLES = re.compile(r"\b(a|an|the)\b")
 _SCORER_OUTPUT_NAMES = frozenset({"evaluation_results.csv"})
@@ -165,7 +163,9 @@ def evaluate_saved_predictions(
                 name: raw_semantic.get(name, prediction.get(name))
                 for name in ("sts", "meteor", "bertscore_f1")
             }
-            metrics = evaluate_local_answer(answer, reference, semantic_metrics=semantic)
+            metrics = evaluate_local_answer(
+                answer, reference, semantic_metrics=semantic
+            )
         else:
             metrics = evaluate_local_answer("", reference)
             for name in _PRIMARY_METRICS:
@@ -210,7 +210,9 @@ def _load_saved_predictions(predictions_path: Path) -> list[Any]:
         except json.JSONDecodeError as error:
             raise ValueError("Saved predictions are missing or invalid JSON") from error
     if not isinstance(payload, list) or not payload:
-        raise ValueError("Saved predictions must be a non-empty JSON list or JSONL file")
+        raise ValueError(
+            "Saved predictions must be a non-empty JSON list or JSONL file"
+        )
     return payload
 
 
@@ -319,7 +321,7 @@ def _validate_label_free_request(
     if request_fields <= legacy_fields:
         _validate_legacy_runner_request(request)
         return
-    missing = sorted(canonical_fields - request_fields)
+    missing = sorted(canonical_fields - {"audio_mode"} - request_fields)
     if missing:
         raise ValueError(
             "Invalid canonical RunnerRequest; missing fields: " + ", ".join(missing)
@@ -338,7 +340,9 @@ def _validate_legacy_runner_request(request: Mapping[str, Any]) -> None:
         raise ValueError("Invalid legacy RunnerRequest field value: question")
 
 
-def _validate_canonical_runner_request(request: Mapping[str, Any], request_type) -> None:
+def _validate_canonical_runner_request(
+    request: Mapping[str, Any], request_type
+) -> None:
     try:
         for field in ("run_id", "condition_id", "video_id", "question"):
             if not isinstance(request[field], str):
@@ -363,6 +367,9 @@ def _validate_canonical_runner_request(request: Mapping[str, Any], request_type)
         for field in ("transcript", "media_path", "audio_path"):
             if request[field] is not None and not isinstance(request[field], str):
                 raise TypeError(f"{field} must be null or a string")
+        audio_mode = request.get("audio_mode")
+        if audio_mode is not None and not isinstance(audio_mode, str):
+            raise TypeError("audio_mode must be null or a string")
         request_type(
             run_id=request["run_id"],
             condition_id=request["condition_id"],
@@ -384,6 +391,7 @@ def _validate_canonical_runner_request(request: Mapping[str, Any], request_type)
                 if request["audio_path"] is not None
                 else None
             ),
+            audio_mode=audio_mode,
         )
     except (KeyError, TypeError, ValueError) as error:
         raise ValueError(f"Invalid canonical RunnerRequest: {error}") from error
@@ -417,7 +425,9 @@ def _aggregate(examples: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "completion_rate": completed_count / len(examples) if examples else 0.0,
     }
     for metric in _PRIMARY_METRICS:
-        values = [float(item[metric]) for item in examples if item.get(metric) is not None]
+        values = [
+            float(item[metric]) for item in examples if item.get(metric) is not None
+        ]
         result[metric] = fmean(values) if values else None
     return result
 
@@ -450,7 +460,8 @@ def _paired_group(
             for baseline, treatment in pairs
         ),
         "metric_deltas": {
-            metric: fmean(values) if values else None for metric, values in deltas.items()
+            metric: fmean(values) if values else None
+            for metric, values in deltas.items()
         },
         "bootstrap_intervals": {
             metric: _bootstrap_mean_interval(
@@ -472,8 +483,7 @@ def _bootstrap_mean_interval(
     random_source = random.Random(seed)
     sample_size = len(values)
     means = sorted(
-        fmean(random_source.choices(values, k=sample_size))
-        for _ in range(iterations)
+        fmean(random_source.choices(values, k=sample_size)) for _ in range(iterations)
     )
     tail = (1.0 - confidence) / 2.0
     lower_index = min(iterations - 1, int(tail * iterations))
@@ -507,18 +517,12 @@ def nist_style_semantic_metrics(
     normalized_predictions = [_nist_normalize(value) for value in predictions]
     normalized_references = [_nist_normalize(value) for value in references]
     meteor_values = [
-        float(
-            meteor_score(
-                [word_tokenize(reference)], word_tokenize(prediction)
-            )
-        )
+        float(meteor_score([word_tokenize(reference)], word_tokenize(prediction)))
         for prediction, reference in zip(
             normalized_predictions, normalized_references, strict=True
         )
     ]
-    _, _, bert_f1 = bert_score(
-        normalized_predictions, normalized_references, lang="en"
-    )
+    _, _, bert_f1 = bert_score(normalized_predictions, normalized_references, lang="en")
     bert_values = [float(value) for value in bert_f1.tolist()]
     return [
         {

@@ -58,6 +58,7 @@
       "evidence": "selected-12-frames-audio-off",
       "download_bytes": 20000000000,
       "runner_kind": "minicpm",
+      "audio_mode": "audio-off",
       "runtime_image": "localhost/trec-vqa-gate-minicpm@sha256:9fd8ffb14c39440b6a036781315558ae5ac6e93893582fff8d9eceaf8ec7a12a"
     },
     {
@@ -67,6 +68,7 @@
       "evidence": "selected-12-frames-native-audio-on",
       "download_bytes": 20000000000,
       "runner_kind": "minicpm",
+      "audio_mode": "audio-on",
       "runtime_image": "localhost/trec-vqa-gate-minicpm@sha256:9fd8ffb14c39440b6a036781315558ae5ac6e93893582fff8d9eceaf8ec7a12a"
     }
   ]

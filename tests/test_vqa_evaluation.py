@@ -32,9 +32,7 @@ def make_scorer_checkout(tmp_path: Path) -> Path:
     scorer = tmp_path / "nist-vqa"
     scorer.mkdir()
     (scorer / "eval.vqa.ag.py").write_text("print('parity')\n", encoding="utf-8")
-    (scorer / "validate.ag.run.py").write_text(
-        "print('validator')\n", encoding="utf-8"
-    )
+    (scorer / "validate.ag.run.py").write_text("print('validator')\n", encoding="utf-8")
     return scorer
 
 
@@ -113,7 +111,7 @@ def test_nist_style_semantic_metrics_use_normalized_text_and_no_ndcg() -> None:
     )
 
     assert result == [{"meteor": 0.25, "bertscore_f1": 0.75, "sts": None, "ndcg": None}]
-    assert calls["meteor"] == ([['the', 'dog']], ['a', 'dog'])
+    assert calls["meteor"] == ([["the", "dog"]], ["a", "dog"])
     assert calls["bert"] == (["a dog"], ["the dog"], "en")
 
 
@@ -169,11 +167,14 @@ def test_saved_predictions_regenerate_aggregate_and_stratum_scores(
     assert report["strata"]["sound"]["token_f1"] == 0.0
     assert report["examples"][0]["reference"] == "dog"
     assert "reference" not in report["examples"][0]["request"]
-    assert evaluate_saved_predictions(
-        predictions_path,
-        references={"speech-1": "dog", "sound-1": "violin"},
-        strata={"speech-1": "speech", "sound-1": "sound"},
-    ) == report
+    assert (
+        evaluate_saved_predictions(
+            predictions_path,
+            references={"speech-1": "dog", "sound-1": "violin"},
+            strata={"speech-1": "speech", "sound-1": "sound"},
+        )
+        == report
+    )
 
 
 def test_saved_prediction_runner_requests_reject_reference_and_scoring_fields(
@@ -323,7 +324,9 @@ def test_saved_runner_request_identity_must_match_enclosing_attempt(
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match=f"Attempt/request identity mismatch for {field}"):
+    with pytest.raises(
+        ValueError, match=f"Attempt/request identity mismatch for {field}"
+    ):
         evaluate_saved_predictions(
             predictions_path,
             references={"video-1": "dog"},
@@ -416,15 +419,78 @@ def test_full_canonical_runner_requests_validate_required_fields_and_types(
         )
 
 
+def test_canonical_runner_request_accepts_optional_audio_mode_and_legacy_absence(
+    tmp_path: Path,
+) -> None:
+    base_request = {
+        "run_id": "run-1",
+        "condition_id": "candidate",
+        "video_id": "video-1",
+        "question": "What?",
+        "frame_paths": ["/tmp/frame.png"],
+        "frame_timestamps": [0.5],
+        "frame_descriptions": None,
+        "transcript": None,
+        "media_path": "/tmp/video.mkv",
+        "audio_path": None,
+    }
+    for index, audio_mode in enumerate((None, "audio-on")):
+        request = dict(base_request)
+        if audio_mode is not None:
+            request["audio_mode"] = audio_mode
+        predictions_path = tmp_path / f"optional-mode-{index}.json"
+        predictions_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "condition_id": "candidate",
+                        "video_id": "video-1",
+                        "status": "passed",
+                        "answer": "dog",
+                        "request": request,
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        report = evaluate_saved_predictions(
+            predictions_path,
+            references={"video-1": "dog"},
+            strata={"video-1": "control"},
+        )
+        assert report["examples"][0]["completed"] is True
+
+
 def test_saved_jsonl_attempts_keep_a_success_over_a_later_failure(
     tmp_path: Path,
 ) -> None:
     predictions_path = tmp_path / "attempts.jsonl"
     attempts = [
-        {"condition_id": "candidate", "video_id": "v1", "status": "failed", "answer": None},
-        {"condition_id": "candidate", "video_id": "v1", "status": "passed", "answer": "dog"},
-        {"condition_id": "candidate", "video_id": "v1", "status": "passed", "answer": "  "},
-        {"condition_id": "candidate", "video_id": "v1", "status": "timed_out", "answer": None},
+        {
+            "condition_id": "candidate",
+            "video_id": "v1",
+            "status": "failed",
+            "answer": None,
+        },
+        {
+            "condition_id": "candidate",
+            "video_id": "v1",
+            "status": "passed",
+            "answer": "dog",
+        },
+        {
+            "condition_id": "candidate",
+            "video_id": "v1",
+            "status": "passed",
+            "answer": "  ",
+        },
+        {
+            "condition_id": "candidate",
+            "video_id": "v1",
+            "status": "timed_out",
+            "answer": None,
+        },
     ]
     predictions_path.write_text(
         "".join(json.dumps(attempt) + "\n" for attempt in attempts),
@@ -458,12 +524,48 @@ def test_paired_audio_summary_reports_deltas_wins_losses_and_seeded_intervals(
     predictions_path.write_text(
         json.dumps(
             [
-                {"condition_id": "off", "video_id": "v1", "status": "passed", "answer": "wrong", "semantic_metrics": {"meteor": 0.1}},
-                {"condition_id": "on", "video_id": "v1", "status": "passed", "answer": "dog", "semantic_metrics": {"meteor": 0.9}},
-                {"condition_id": "off", "video_id": "v2", "status": "passed", "answer": "cat", "semantic_metrics": {"meteor": 0.8}},
-                {"condition_id": "on", "video_id": "v2", "status": "passed", "answer": "wrong", "semantic_metrics": {"meteor": 0.2}},
-                {"condition_id": "off", "video_id": "v3", "status": "passed", "answer": "bird", "semantic_metrics": {"meteor": 0.7}},
-                {"condition_id": "on", "video_id": "v3", "status": "passed", "answer": "bird", "semantic_metrics": {"meteor": 0.7}},
+                {
+                    "condition_id": "off",
+                    "video_id": "v1",
+                    "status": "passed",
+                    "answer": "wrong",
+                    "semantic_metrics": {"meteor": 0.1},
+                },
+                {
+                    "condition_id": "on",
+                    "video_id": "v1",
+                    "status": "passed",
+                    "answer": "dog",
+                    "semantic_metrics": {"meteor": 0.9},
+                },
+                {
+                    "condition_id": "off",
+                    "video_id": "v2",
+                    "status": "passed",
+                    "answer": "cat",
+                    "semantic_metrics": {"meteor": 0.8},
+                },
+                {
+                    "condition_id": "on",
+                    "video_id": "v2",
+                    "status": "passed",
+                    "answer": "wrong",
+                    "semantic_metrics": {"meteor": 0.2},
+                },
+                {
+                    "condition_id": "off",
+                    "video_id": "v3",
+                    "status": "passed",
+                    "answer": "bird",
+                    "semantic_metrics": {"meteor": 0.7},
+                },
+                {
+                    "condition_id": "on",
+                    "video_id": "v3",
+                    "status": "passed",
+                    "answer": "bird",
+                    "semantic_metrics": {"meteor": 0.7},
+                },
             ]
         ),
         encoding="utf-8",
@@ -570,7 +672,9 @@ def test_parity_invocation_stages_one_csv_and_uses_argv_not_a_shell(
     assert discover_submission_csvs(invocation.run_dir) == [
         invocation.run_dir / "candidate.csv"
     ]
-    assert (invocation.run_dir / "candidate.csv").read_bytes() == submission.read_bytes()
+    assert (
+        invocation.run_dir / "candidate.csv"
+    ).read_bytes() == submission.read_bytes()
 
 
 def test_execute_nist_invocation_uses_sanitized_environment(

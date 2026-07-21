@@ -11,6 +11,7 @@ from trec_video_2026.vqa_gate import (
     Condition,
     GateStore,
     RunnerRequest,
+    build_runner_request,
     build_rocm_runner_command,
     invoke_runner,
     invoke_runner_batch,
@@ -52,6 +53,42 @@ def test_runner_request_serializes_frame_descriptions(tmp_path: Path) -> None:
     ).to_dict()
     assert payload["frame_descriptions"] == ["Full frame:"]
     assert "reference" not in json.dumps(payload).lower()
+
+
+def test_standard_condition_builds_serialized_minicpm_audio_pair_request(
+    tmp_path: Path,
+) -> None:
+    condition = Condition(
+        condition_id="minicpm-on",
+        model_id="openbmb/MiniCPM-o-4_5",
+        model_revision="a" * 40,
+        evidence="selected-12-frames-native-audio-on",
+        download_bytes=1,
+        runner_kind="minicpm",
+        audio_mode="audio-on",
+    )
+    base = request(tmp_path)
+
+    built = build_runner_request(
+        condition=condition,
+        run_id=base.run_id,
+        video_id=base.video_id,
+        question=base.question,
+        frame_paths=base.frame_paths,
+        frame_timestamps=base.frame_timestamps,
+        transcript=None,
+        media_path=tmp_path / "video.mkv",
+    )
+
+    assert built.condition_id == condition.condition_id
+    assert built.audio_mode == "audio-on"
+    assert built.to_dict()["audio_mode"] == "audio-on"
+
+
+@pytest.mark.parametrize("value", ["auto", "", 7])
+def test_audio_mode_validation_rejects_unknown_values(value) -> None:
+    with pytest.raises((TypeError, ValueError), match="audio_mode"):
+        dataclasses.replace(request(Path("/tmp")), audio_mode=value)
 
 
 def test_validate_runner_result_requires_provenance() -> None:
@@ -197,6 +234,20 @@ def test_load_conditions_rejects_duplicate_ids(tmp_path: Path) -> None:
         load_conditions(config)
 
 
+def test_minicpm_config_loads_explicit_audio_modes() -> None:
+    config = load_conditions(Path("configs/vqa/model_runs.json"))
+    modes = {
+        condition.condition_id: condition.audio_mode
+        for condition in config.conditions
+        if condition.runner_kind == "minicpm"
+    }
+
+    assert modes == {
+        "minicpmo45-native-video-audio-off": "audio-off",
+        "minicpmo45-native-video-audio-on": "audio-on",
+    }
+
+
 def test_rocm_command_mounts_only_required_roots(tmp_path: Path) -> None:
     repo_root = tmp_path / "repo"
     dataset_root = tmp_path / "dataset"
@@ -225,7 +276,10 @@ def test_rocm_command_mounts_only_required_roots(tmp_path: Path) -> None:
     assert "TRANSFORMERS_OFFLINE=1" in command
     assert "/dev/kfd" in joined and "/dev/dri" in joined
     assert str(repo_root.resolve()) + ":" + str(repo_root.resolve()) + ":ro" in command
-    assert str(dataset_root.resolve()) + ":" + str(dataset_root.resolve()) + ":ro" in command
+    assert (
+        str(dataset_root.resolve()) + ":" + str(dataset_root.resolve()) + ":ro"
+        in command
+    )
     assert "/home/npatta01:/home/npatta01" not in joined
     assert condition.model_revision in command
     assert command[-1] == "32"
