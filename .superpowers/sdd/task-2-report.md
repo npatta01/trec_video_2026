@@ -170,3 +170,99 @@ Exact output:
   as required; they must not be presented as precise confidence bounds.
 - METEOR regeneration expects the pinned parity path to have saved per-example
   METEOR values. Missing METEOR remains `None` and is never coerced to zero.
+
+## Review fixes
+
+Commit `524f466` received a focused correctness review. All four findings were
+addressed test-first:
+
+- The request-field denylist was replaced with an allowlist derived directly
+  from the fields of the established `vqa_gate.RunnerRequest` dataclass.
+- Every value is recursively traversed through sequences; any mapping below
+  the request root is rejected because the canonical schema has no nested
+  mapping field. This catches mappings inside nested lists as well as direct
+  nested mappings.
+- Unknown fields such as `ground_truth` and `evaluation_metrics` are rejected,
+  while a complete request emitted by the established schema is accepted.
+- `_is_valid_success` now defines success once as `status == "passed"` plus a
+  nonblank string answer. Both retry selection and scoring use it, so a later
+  malformed passed record cannot displace an earlier valid success.
+- Raw/superseded attempts are each leakage-validated once; the redundant second
+  validation of selected requests was removed.
+- Paired summaries reject identical baseline and treatment condition IDs.
+
+### Review RED
+
+Command:
+
+```text
+uv run pytest -q tests/test_vqa_evaluation.py -k 'canonical_schema_recursively or established_schema or saved_jsonl or identical_condition'
+```
+
+Exact captured output summary:
+
+```text
+FFF.FF                                                                   [100%]
+=================================== FAILURES ===================================
+_ test_saved_runner_requests_enforce_canonical_schema_recursively[request_update0] _
+E       Failed: DID NOT RAISE ValueError
+_ test_saved_runner_requests_enforce_canonical_schema_recursively[request_update1] _
+E       Failed: DID NOT RAISE ValueError
+_ test_saved_runner_requests_enforce_canonical_schema_recursively[request_update2] _
+E       Failed: DID NOT RAISE ValueError
+________ test_saved_jsonl_attempts_keep_a_success_over_a_later_failure _________
+E       assert None == 1.0
+_____________ test_paired_summary_rejects_identical_condition_ids ______________
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'must be different'
+E         Actual message: 'Paired conditions have no aligned completed examples'
+=========================== short test summary info ============================
+FAILED tests/test_vqa_evaluation.py::test_saved_runner_requests_enforce_canonical_schema_recursively[request_update0]
+FAILED tests/test_vqa_evaluation.py::test_saved_runner_requests_enforce_canonical_schema_recursively[request_update1]
+FAILED tests/test_vqa_evaluation.py::test_saved_runner_requests_enforce_canonical_schema_recursively[request_update2]
+FAILED tests/test_vqa_evaluation.py::test_saved_jsonl_attempts_keep_a_success_over_a_later_failure
+FAILED tests/test_vqa_evaluation.py::test_paired_summary_rejects_identical_condition_ids
+5 failed, 1 passed, 21 deselected in 0.05s
+```
+
+The failures directly demonstrated the three leakage bypasses, malformed-pass
+selection bug, and missing identical-condition guard.
+
+### Review GREEN
+
+Same focused command, exact output:
+
+```text
+......                                                                   [100%]
+6 passed, 21 deselected in 0.03s
+```
+
+Complete Task 2 files:
+
+```text
+..................................................                       [100%]
+50 passed in 1.72s
+```
+
+Full repository suite:
+
+```text
+........................................................................ [ 27%]
+........................................................................ [ 55%]
+........................................................................ [ 83%]
+............................................                             [100%]
+260 passed in 2.27s
+```
+
+### Review-fix self-review
+
+- The allowlist is not duplicated: it is generated from the actual runner
+  dataclass, so additions to the canonical top-level schema are visible here.
+- The established full serialized request and the earlier minimal stored
+  request fixtures both remain accepted because only unknown fields and nested
+  mappings are rejected; evaluation fields cannot hide in either location.
+- Sequence traversal excludes strings and bytes and descends through arbitrarily
+  nested JSON lists/tuples.
+- A valid success remains sticky over later failure, timeout, null-answer pass,
+  or blank-answer pass records.
+- No NIST parity, evidence-cache, three-video, or Seamless behavior changed.

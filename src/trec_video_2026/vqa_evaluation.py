@@ -12,7 +12,7 @@ import string
 import subprocess
 import sys
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from statistics import fmean
 from typing import Any, Mapping, Sequence
@@ -105,28 +105,6 @@ def evaluate_local_answer(
 
 
 _PRIMARY_METRICS = ("normalized_exact_match", "token_f1", "meteor")
-_EVALUATION_REQUEST_FIELDS = frozenset(
-    {
-        "answer",
-        "answers",
-        "reference",
-        "reference_answer",
-        "references",
-        "correct_answer",
-        "incorrect_answer",
-        "incorrect_answers",
-        "alternatives",
-        "normalized_exact_match",
-        "token_f1",
-        "meteor",
-        "bertscore_f1",
-        "sts",
-        "ndcg",
-        "score",
-        "scores",
-        "metrics",
-    }
-)
 
 
 def evaluate_saved_predictions(
@@ -158,8 +136,8 @@ def evaluate_saved_predictions(
         current = selected.get(identity)
         if (
             current is None
-            or prediction.get("status") == "passed"
-            or current.get("status") != "passed"
+            or _is_valid_success(prediction)
+            or not _is_valid_success(current)
         ):
             selected[identity] = prediction
     predictions = list(selected.values())
@@ -172,17 +150,8 @@ def evaluate_saved_predictions(
             raise ValueError(f"Missing reference for video: {video_id}")
         if video_id not in strata:
             raise ValueError(f"Missing stratum for video: {video_id}")
-        request = prediction.get("request")
-        if request is not None:
-            if not isinstance(request, Mapping):
-                raise ValueError("Saved runner request must be a JSON object")
-            _validate_label_free_request(request)
-
-        status = prediction.get("status")
         answer = prediction.get("answer")
-        completed = status == "passed" and isinstance(answer, str) and bool(
-            answer.strip()
-        )
+        completed = _is_valid_success(prediction)
         reference = references[video_id]
         if completed:
             raw_semantic = prediction.get("semantic_metrics", {})
@@ -252,6 +221,8 @@ def summarize_paired_conditions(
 ) -> dict[str, Any]:
     """Summarize treatment-minus-baseline changes on aligned examples."""
 
+    if baseline_condition_id == treatment_condition_id:
+        raise ValueError("Baseline and treatment condition IDs must be different")
     if bootstrap_iterations <= 0:
         raise ValueError("bootstrap_iterations must be positive")
     if not 0 < confidence < 1:
@@ -313,22 +284,34 @@ def _required_prediction_text(prediction: Mapping[str, Any], key: str) -> str:
     return value.strip()
 
 
+def _is_valid_success(prediction: Mapping[str, Any]) -> bool:
+    answer = prediction.get("answer")
+    return (
+        prediction.get("status") == "passed"
+        and isinstance(answer, str)
+        and bool(answer.strip())
+    )
+
+
 def _validate_label_free_request(request: Mapping[str, Any]) -> None:
+    from trec_video_2026.vqa_gate import RunnerRequest
+
+    canonical_fields = frozenset(field.name for field in fields(RunnerRequest))
+    unknown = sorted(str(key) for key in request if key not in canonical_fields)
+    if unknown:
+        raise ValueError(
+            f"Runner request contains unrecognized fields: {', '.join(unknown)}"
+        )
     for key, value in request.items():
-        normalized = str(key).lower()
-        if (
-            normalized in _EVALUATION_REQUEST_FIELDS
-            or "reference" in normalized
-            or "correct_answer" in normalized
-            or "incorrect" in normalized
-        ):
-            raise ValueError(f"Runner request contains evaluation field: {key}")
-        if isinstance(value, Mapping):
-            _validate_label_free_request(value)
-        elif isinstance(value, list):
-            for item in value:
-                if isinstance(item, Mapping):
-                    _validate_label_free_request(item)
+        _reject_nested_request_mapping(value, path=str(key))
+
+
+def _reject_nested_request_mapping(value: Any, *, path: str) -> None:
+    if isinstance(value, Mapping):
+        raise ValueError(f"Runner request contains a nested mapping at {path}")
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        for index, item in enumerate(value):
+            _reject_nested_request_mapping(item, path=f"{path}[{index}]")
 
 
 def _summarize_examples(examples: Sequence[Mapping[str, Any]]) -> dict[str, Any]:

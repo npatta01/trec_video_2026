@@ -199,12 +199,98 @@ def test_saved_prediction_runner_requests_reject_reference_and_scoring_fields(
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="Runner request contains evaluation field"):
+    with pytest.raises(ValueError, match="Runner request contains unrecognized fields"):
         evaluate_saved_predictions(
             predictions_path,
             references={"video-1": "dog"},
             strata={"video-1": "control"},
         )
+
+
+@pytest.mark.parametrize(
+    "request_update",
+    [
+        {"ground_truth": "dog"},
+        {"evaluation_metrics": {"exact_match": 1.0}},
+        {"frame_descriptions": [[{"f1": 1.0}]]},
+    ],
+)
+def test_saved_runner_requests_enforce_canonical_schema_recursively(
+    tmp_path: Path, request_update: dict[str, object]
+) -> None:
+    predictions_path = tmp_path / "leaky-schema.json"
+    request = {
+        "run_id": "run-1",
+        "condition_id": "candidate",
+        "video_id": "video-1",
+        "question": "What?",
+        "frame_paths": [],
+        "frame_timestamps": [],
+        "frame_descriptions": None,
+        "transcript": None,
+        "media_path": None,
+        "audio_path": None,
+        **request_update,
+    }
+    predictions_path.write_text(
+        json.dumps(
+            [
+                {
+                    "condition_id": "candidate",
+                    "video_id": "video-1",
+                    "status": "passed",
+                    "answer": "dog",
+                    "request": request,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Runner request"):
+        evaluate_saved_predictions(
+            predictions_path,
+            references={"video-1": "dog"},
+            strata={"video-1": "control"},
+        )
+
+
+def test_saved_runner_request_accepts_the_established_schema(tmp_path: Path) -> None:
+    predictions_path = tmp_path / "canonical.json"
+    request = {
+        "run_id": "run-1",
+        "condition_id": "candidate",
+        "video_id": "video-1",
+        "question": "What?",
+        "frame_paths": ["/tmp/frame.png"],
+        "frame_timestamps": [0.5],
+        "frame_descriptions": ["a dog"],
+        "transcript": None,
+        "media_path": "/tmp/video.mkv",
+        "audio_path": None,
+    }
+    predictions_path.write_text(
+        json.dumps(
+            [
+                {
+                    "condition_id": "candidate",
+                    "video_id": "video-1",
+                    "status": "passed",
+                    "answer": "dog",
+                    "request": request,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    report = evaluate_saved_predictions(
+        predictions_path,
+        references={"video-1": "dog"},
+        strata={"video-1": "control"},
+    )
+
+    assert report["examples"][0]["request"] == request
 
 
 def test_saved_jsonl_attempts_keep_a_success_over_a_later_failure(
@@ -214,6 +300,7 @@ def test_saved_jsonl_attempts_keep_a_success_over_a_later_failure(
     attempts = [
         {"condition_id": "candidate", "video_id": "v1", "status": "failed", "answer": None},
         {"condition_id": "candidate", "video_id": "v1", "status": "passed", "answer": "dog"},
+        {"condition_id": "candidate", "video_id": "v1", "status": "passed", "answer": "  "},
         {"condition_id": "candidate", "video_id": "v1", "status": "timed_out", "answer": None},
     ]
     predictions_path.write_text(
@@ -230,6 +317,15 @@ def test_saved_jsonl_attempts_keep_a_success_over_a_later_failure(
     assert len(report["examples"]) == 1
     assert report["examples"][0]["status"] == "passed"
     assert report["examples"][0]["normalized_exact_match"] == 1.0
+
+
+def test_paired_summary_rejects_identical_condition_ids() -> None:
+    with pytest.raises(ValueError, match="must be different"):
+        summarize_paired_conditions(
+            [],
+            baseline_condition_id="same",
+            treatment_condition_id="same",
+        )
 
 
 def test_paired_audio_summary_reports_deltas_wins_losses_and_seeded_intervals(
