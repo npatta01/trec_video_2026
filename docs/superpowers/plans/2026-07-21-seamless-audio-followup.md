@@ -215,9 +215,14 @@ Resolution: review hardened the runner after this plan was drafted, so it now
 rejects all CLI arguments and internally pins the exact model and revision. The
 no-argument command above is the reviewed, bypass-proof invocation. The pinned
 image also lacked `protobuf`; successful offline runs mounted host protobuf
-6.33.6 read-only and selected its pure-Python implementation. Two preliminary
-`BDKkVYmWqdM` failures (missing Podman `-i`, then missing protobuf) are retained
-as immutable, hashed terminal attempts before the successful retry.
+6.33.6 read-only and selected its pure-Python implementation. The exact mounted
+source tree `/home/npatta01/anaconda3/lib/python3.13/site-packages/google/protobuf`
+contains 108 regular files and has deterministic aggregate SHA-256
+`6121064e28b3d75706e25d9b2179366923d9165b6488bf137aeb1914964a8f5c`,
+computed with `find "$protobuf_root" -type f -print0 | sort -z | xargs -0
+sha256sum | sha256sum`. Two preliminary `BDKkVYmWqdM` failures (missing Podman
+`-i`, then missing protobuf) are retained as immutable, hashed terminal attempts
+before the successful retry.
 
 - [x] **Step 5: Review transcript meaning and record plan status**
 
@@ -252,7 +257,16 @@ used audible/native transcript evidence only; no official reference was opened.
   stderr `e8c3980602b9f4f8de722dd2b12196b1584f4dcd5802a547f0cde2afb1088ef5`.
   The text is materially incomplete: it covers only the opening lines while
   19-second native-language evidence continues with later repeated `katta`
-  utterances.
+  utterances. The exact evidence is
+  `data/vqa/benchmarks/transcripts/Fk_j6re_Uiw.json`, SHA-256
+  `ea6efdee5e8b0b47f497335e2aff87346e741ca68180c98b4d546ce65b377e68`,
+  source-audio SHA-256
+  `22b278e2f791afaa1359029ba1145b9a2230015c3dcccc26402d6fc51334e9f7`,
+  produced by `openai/whisper-large-v3-turbo` revision
+  `41f01f3fe87f28c78e2fbf8b568835947dd65ed9`. Its runner status is `passed`,
+  its language QC status is `rejected-non-english-script`, and its single native
+  transcript chunk covers 0.0–19.0 seconds; this full-clip coverage is what
+  exposes the Seamless output's material omission.
 
 - [x] **Step 6: Commit only the completed plan status**
 
