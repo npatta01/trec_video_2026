@@ -15,6 +15,7 @@ from trec_video_2026.vqa_evaluation import (
     evaluate_local_answer,
     execute_nist_invocation,
     normalized_exact_match,
+    nist_style_semantic_metrics,
     prepare_nist_invocation,
     token_f1,
 )
@@ -81,6 +82,37 @@ def test_local_evaluation_preserves_available_semantic_metrics() -> None:
     assert result["bertscore_f1"] == 0.95
     assert result["sts"] is None
     assert result["ndcg"] is None
+
+
+def test_nist_style_semantic_metrics_use_normalized_text_and_no_ndcg() -> None:
+    calls = {}
+
+    def tokenize(text: str) -> list[str]:
+        return text.split()
+
+    def meteor(references, hypothesis):
+        calls["meteor"] = (references, hypothesis)
+        return 0.25
+
+    class Scores:
+        def tolist(self):
+            return [0.75]
+
+    def bert(predictions, references, *, lang):
+        calls["bert"] = (predictions, references, lang)
+        return Scores(), Scores(), Scores()
+
+    result = nist_style_semantic_metrics(
+        ["  A DOG  "],
+        ["The Dog"],
+        word_tokenize=tokenize,
+        meteor_score=meteor,
+        bert_score=bert,
+    )
+
+    assert result == [{"meteor": 0.25, "bertscore_f1": 0.75, "sts": None, "ndcg": None}]
+    assert calls["meteor"] == ([['the', 'dog']], ['a', 'dog'])
+    assert calls["bert"] == (["a dog"], ["the dog"], "en")
 
 
 def test_csv_discovery_excludes_scorer_outputs(tmp_path: Path) -> None:

@@ -6,14 +6,20 @@ RUN python -m pip install --no-cache-dir \
     "transformers @ git+https://github.com/huggingface/transformers.git@${TRANSFORMERS_REVISION}" \
     "accelerate==1.12.0" \
     "av==16.0.1" \
+    "bert-score==0.3.13" \
     "decord2==3.4.0" \
     "einops==0.8.2" \
     "librosa==0.11.0" \
     "molmo_utils==0.0.1" \
+    "nltk==3.9.2" \
+    "pandas==2.3.3" \
     "sentencepiece==0.2.1"
+
+RUN python -m nltk.downloader -d /opt/nltk_data wordnet punkt_tab
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    HF_HUB_DISABLE_TELEMETRY=1
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    NLTK_DATA=/opt/nltk_data
 
 WORKDIR /workspace

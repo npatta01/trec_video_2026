@@ -21,13 +21,110 @@ MAX_PIXELS_PER_FRAME = 512 * 512
 def load_processor(auto_processor: Any, model_id: str, revision: str) -> Any:
     """Load a processor with a bounded and recorded per-frame pixel budget."""
 
+    kwargs = {
+        "min_pixels": MIN_PIXELS_PER_FRAME,
+        "max_pixels": MAX_PIXELS_PER_FRAME,
+    }
+    if model_id.startswith("google/gemma-4-"):
+        kwargs = {}
+    if model_id.startswith("allenai/Molmo2-"):
+        from transformers.processing_utils import ProcessorMixin
+
+        return load_legacy_optional_processor(
+            auto_processor,
+            ProcessorMixin,
+            model_id,
+            revision,
+            **kwargs,
+        )
     return auto_processor.from_pretrained(
-        model_id,
-        revision=revision,
-        trust_remote_code=True,
-        min_pixels=MIN_PIXELS_PER_FRAME,
-        max_pixels=MAX_PIXELS_PER_FRAME,
+        model_id, revision=revision, trust_remote_code=True, **kwargs
     )
+
+
+def load_legacy_optional_processor(
+    auto_processor: Any,
+    processor_mixin: Any,
+    model_id: str,
+    revision: str,
+    **processor_kwargs: Any,
+) -> Any:
+    """Load pinned Hub processors that still use ``optional_attributes``.
+
+    Transformers 5 removed that legacy constructor path.  Molmo2's pinned
+    remote processor still relies on it, so scope the compatibility shim to
+    processor construction and always restore the shared base class.
+    """
+
+    original_init = processor_mixin.__init__
+
+    def compatible_init(instance: Any, *args: Any, **kwargs: Any) -> None:
+        optional = set(getattr(instance, "optional_attributes", ()))
+        legacy = {
+            key: kwargs.pop(key)
+            for key in tuple(kwargs)
+            if key in optional and key != "chat_template"
+        }
+        original_init(instance, *args, **kwargs)
+        for key, value in legacy.items():
+            setattr(instance, key, value)
+
+    processor_mixin.__init__ = compatible_init
+    try:
+        return auto_processor.from_pretrained(
+            model_id,
+            revision=revision,
+            trust_remote_code=True,
+            **processor_kwargs,
+        )
+    finally:
+        processor_mixin.__init__ = original_init
+
+
+def register_legacy_default_rope(rope_functions: dict[str, Any]) -> None:
+    """Restore the removed legacy default RoPE entry for pinned Molmo2 code."""
+
+    if "default" in rope_functions:
+        return
+
+    def compute_default_rope(
+        config: Any,
+        device: Any = None,
+        seq_len: int | None = None,
+        layer_type: str | None = None,
+    ) -> tuple[Any, float]:
+        del seq_len, layer_type
+        import torch
+
+        base = getattr(config, "rope_theta", 10_000.0)
+        partial = getattr(config, "partial_rotary_factor", 1.0)
+        head_dim = getattr(config, "head_dim", None)
+        if head_dim is None:
+            head_dim = config.hidden_size // config.num_attention_heads
+        dim = int(head_dim * partial)
+        positions = torch.arange(0, dim, 2, dtype=torch.int64).to(
+            device=device, dtype=torch.float
+        )
+        return 1.0 / (base ** (positions / dim)), 1.0
+
+    rope_functions["default"] = compute_default_rope
+
+
+def generation_compat_kwargs(
+    model: Any,
+    input_length: int,
+    *,
+    arange: Any = None,
+) -> dict[str, Any]:
+    """Return narrowly scoped generation arguments for pinned remote code."""
+
+    if getattr(getattr(model, "config", None), "model_type", None) != "molmo2":
+        return {}
+    if arange is None:
+        import torch
+
+        arange = torch.arange
+    return {"cache_position": arange(input_length, device=model.device)}
 
 
 def select_auto_model_class(
@@ -70,6 +167,7 @@ def generate_answer(
         **inputs,
         do_sample=False,
         max_new_tokens=max_new_tokens,
+        **generation_compat_kwargs(model, input_length),
     )
     answer_ids = generated[0][input_length:]
     text = processor.decode(answer_ids, skip_special_tokens=True)
@@ -95,11 +193,7 @@ def main(argv: list[str] | None = None) -> int:
 
     import torch
     import transformers
-    from transformers import (
-        AutoModelForImageTextToText,
-        AutoModelForMultimodalLM,
-        AutoProcessor,
-    )
+    from transformers import AutoProcessor
 
     args = parse_args(argv)
     payload = json.load(sys.stdin)
@@ -109,13 +203,22 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError("Runner request batch cannot be empty")
     model_id = args.model_id
     revision = args.revision
+    if model_id.startswith("allenai/Molmo2-"):
+        from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
+
+        register_legacy_default_rope(ROPE_INIT_FUNCTIONS)
     load_started = time.monotonic()
     torch.cuda.reset_peak_memory_stats()
     try:
         processor = load_processor(AutoProcessor, model_id, revision)
-        auto_model = select_auto_model_class(
-            args.model_class, AutoModelForImageTextToText, AutoModelForMultimodalLM
-        )
+        if args.model_class == "image-text":
+            from transformers import AutoModelForImageTextToText
+
+            auto_model = AutoModelForImageTextToText
+        else:
+            from transformers import AutoModelForMultimodalLM
+
+            auto_model = AutoModelForMultimodalLM
         model = auto_model.from_pretrained(
             model_id,
             revision=revision,

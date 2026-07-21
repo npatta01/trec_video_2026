@@ -6,7 +6,10 @@ from trec_video_2026.vqa_transformers_runner import (
     MAX_PIXELS_PER_FRAME,
     MIN_PIXELS_PER_FRAME,
     generate_answer,
+    generation_compat_kwargs,
+    load_legacy_optional_processor,
     load_processor,
+    register_legacy_default_rope,
     select_auto_model_class,
 )
 
@@ -88,6 +91,89 @@ def test_load_processor_caps_each_frames_visual_token_budget() -> None:
 
     assert result[1]["min_pixels"] == MIN_PIXELS_PER_FRAME == 65_536
     assert result[1]["max_pixels"] == MAX_PIXELS_PER_FRAME == 262_144
+
+
+def test_load_processor_does_not_forward_qwen_pixel_kwargs_to_gemma_tokenizer() -> None:
+    class FakeAutoProcessor:
+        @staticmethod
+        def from_pretrained(model_id, **kwargs):
+            return model_id, kwargs
+
+    result = load_processor(FakeAutoProcessor, "google/gemma-4-12B-it", "a" * 40)
+
+    assert "min_pixels" not in result[1]
+    assert "max_pixels" not in result[1]
+
+
+def test_legacy_optional_processor_shim_is_scoped_and_restored() -> None:
+    class FakeMixin:
+        def __init__(self, component, **kwargs):
+            if kwargs:
+                raise TypeError(f"Unexpected keyword argument {next(iter(kwargs))}.")
+            self.component = component
+
+    original_init = FakeMixin.__init__
+
+    class RemoteProcessor(FakeMixin):
+        optional_attributes = ["image_use_col_tokens"]
+
+        def __init__(self, component, image_use_col_tokens=True):
+            super().__init__(
+                component, image_use_col_tokens=image_use_col_tokens
+            )
+
+    class FakeAutoProcessor:
+        @staticmethod
+        def from_pretrained(*args, **kwargs):
+            return RemoteProcessor("image")
+
+    processor = load_legacy_optional_processor(
+        FakeAutoProcessor,
+        FakeMixin,
+        "allenai/Molmo2-4B",
+        "a" * 40,
+        min_pixels=MIN_PIXELS_PER_FRAME,
+        max_pixels=MAX_PIXELS_PER_FRAME,
+    )
+
+    assert processor.image_use_col_tokens is True
+    assert FakeMixin.__init__ is original_init
+
+
+def test_register_legacy_default_rope_does_not_replace_existing_entry() -> None:
+    existing = object()
+    registry = {"default": existing}
+
+    register_legacy_default_rope(registry)
+
+    assert registry["default"] is existing
+
+
+def test_register_legacy_default_rope_adds_missing_entry() -> None:
+    registry = {}
+
+    register_legacy_default_rope(registry)
+
+    assert callable(registry["default"])
+
+
+def test_molmo_generation_receives_initial_cache_positions() -> None:
+    class Config:
+        model_type = "molmo2"
+
+    class Model:
+        config = Config()
+        device = "cuda:0"
+
+    calls = []
+    marker = object()
+
+    result = generation_compat_kwargs(
+        Model(), 17, arange=lambda length, device: calls.append((length, device)) or marker
+    )
+
+    assert result == {"cache_position": marker}
+    assert calls == [(17, "cuda:0")]
 
 
 def test_select_auto_model_class_supports_gemma_multimodal() -> None:

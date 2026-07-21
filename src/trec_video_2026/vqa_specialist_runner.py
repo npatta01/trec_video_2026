@@ -126,7 +126,8 @@ def load_internvl(
         torch_dtype=torch_module.bfloat16,
         device_map="cuda:0",
         low_cpu_mem_usage=True,
-        attn_implementation="sdpa",
+        # InternVL's custom model does not implement Transformers' SDPA path.
+        attn_implementation="eager",
         use_flash_attn=False,
     ).eval()
     tokenizer = auto_tokenizer.from_pretrained(
@@ -139,9 +140,14 @@ def load_internvl(
 
 
 def load_minicpm(
-    auto_model: Any, torch_module: Any, model_id: str, revision: str
-) -> Any:
-    return auto_model.from_pretrained(
+    auto_model: Any,
+    torch_module: Any,
+    model_id: str,
+    revision: str,
+    *,
+    snapshot_resolver: Any = None,
+) -> tuple[Any, Any]:
+    model = auto_model.from_pretrained(
         model_id,
         revision=revision,
         trust_remote_code=True,
@@ -152,6 +158,17 @@ def load_minicpm(
         init_audio=True,
         init_tts=False,
     ).eval()
+    if snapshot_resolver is None:
+        from huggingface_hub import snapshot_download
+
+        snapshot_resolver = snapshot_download
+    snapshot_path = snapshot_resolver(
+        model_id, revision=revision, local_files_only=True
+    )
+    model.config._name_or_path = str(snapshot_path)
+    model.prepare_processor()
+    processor = model.processor
+    return model, processor
 
 
 def split_audio_at_frame_midpoints(
@@ -244,9 +261,12 @@ def chat_internvl(
     return answer
 
 
-def chat_minicpm(model: Any, content: list[Any], *, max_new_tokens: int) -> str:
+def chat_minicpm(
+    model: Any, content: list[Any], *, processor: Any, max_new_tokens: int
+) -> str:
     response = model.chat(
         msgs=[{"role": "user", "content": content}],
+        processor=processor,
         do_sample=False,
         max_new_tokens=max_new_tokens,
         use_image_id=False,
@@ -317,6 +337,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     """Read one request or an ordered request list and emit structured JSON."""
 
+    # Trusted remote model code may print informational messages. Keep stdout
+    # reserved for the runner's single JSON protocol response.
+    protocol_stdout = sys.stdout
+    sys.stdout = sys.stderr
+
     import torch
     import transformers
     from PIL import Image
@@ -343,7 +368,9 @@ def main(argv: list[str] | None = None) -> int:
         else:
             import librosa
 
-            model = load_minicpm(AutoModel, torch, args.model_id, args.revision)
+            model, processor = load_minicpm(
+                AutoModel, torch, args.model_id, args.revision
+            )
             tokenizer = None
             transforms = None
         load_seconds = time.monotonic() - loaded_at
@@ -358,7 +385,10 @@ def main(argv: list[str] | None = None) -> int:
             )
             for _ in requests
         ]
-        print(json.dumps(results if is_batch else results[0], ensure_ascii=False))
+        print(
+            json.dumps(results if is_batch else results[0], ensure_ascii=False),
+            file=protocol_stdout,
+        )
         return 0
 
     results = []
@@ -402,7 +432,10 @@ def main(argv: list[str] | None = None) -> int:
                     image_module=Image,
                 )
                 answer = chat_minicpm(
-                    model, content, max_new_tokens=args.max_new_tokens
+                    model,
+                    content,
+                    processor=processor,
+                    max_new_tokens=args.max_new_tokens,
                 )
                 metadata = {
                     "evidence_mode": "selected_frames_native_audio",
@@ -432,7 +465,10 @@ def main(argv: list[str] | None = None) -> int:
             )
         result["model_load_seconds"] = load_seconds
         results.append(result)
-    print(json.dumps(results if is_batch else results[0], ensure_ascii=False))
+    print(
+        json.dumps(results if is_batch else results[0], ensure_ascii=False),
+        file=protocol_stdout,
+    )
     return 0
 
 

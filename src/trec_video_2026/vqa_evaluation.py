@@ -101,6 +101,53 @@ def evaluate_local_answer(
     }
 
 
+def nist_style_semantic_metrics(
+    predictions: list[str],
+    references: list[str],
+    *,
+    word_tokenize,
+    meteor_score,
+    bert_score,
+) -> list[dict[str, float | None]]:
+    """Reproduce NIST's local METEOR/BERTScore calls without unsafe STS I/O.
+
+    This intentionally omits the historical scorer's plaintext-HTTP STS call
+    and its meaningless single-response NDCG value.
+    """
+
+    if not predictions or len(predictions) != len(references):
+        raise ValueError("Predictions and references must be non-empty and aligned")
+    normalized_predictions = [_nist_normalize(value) for value in predictions]
+    normalized_references = [_nist_normalize(value) for value in references]
+    meteor_values = [
+        float(
+            meteor_score(
+                [word_tokenize(reference)], word_tokenize(prediction)
+            )
+        )
+        for prediction, reference in zip(
+            normalized_predictions, normalized_references, strict=True
+        )
+    ]
+    _, _, bert_f1 = bert_score(
+        normalized_predictions, normalized_references, lang="en"
+    )
+    bert_values = [float(value) for value in bert_f1.tolist()]
+    return [
+        {
+            "meteor": meteor,
+            "bertscore_f1": bert,
+            "sts": None,
+            "ndcg": None,
+        }
+        for meteor, bert in zip(meteor_values, bert_values, strict=True)
+    ]
+
+
+def _nist_normalize(text: str) -> str:
+    return " ".join(text.strip().lower().split())
+
+
 def discover_submission_csvs(directory: Path) -> list[Path]:
     """Find candidate CSVs without rediscovering historical scorer outputs."""
 

@@ -38,6 +38,7 @@ class Condition:
     evidence: str
     download_bytes: int
     runner_kind: str = "image-text"
+    runtime_image: str | None = None
 
 
 @dataclass(frozen=True)
@@ -112,7 +113,7 @@ def build_rocm_runner_command(
         "HF_HUB_OFFLINE=1",
         "-e",
         "TRANSFORMERS_OFFLINE=1",
-        image,
+        condition.runtime_image or image,
         "python",
         "-m",
     ]

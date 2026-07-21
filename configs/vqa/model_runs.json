@@ -30,15 +30,17 @@
       "model_id": "allenai/Molmo2-4B",
       "model_revision": "042abfa7a38879a376cec03d949eff0aefaa0600",
       "evidence": "controlled-12-frames-transcript",
-      "download_bytes": 19400000000
+      "download_bytes": 19400000000,
+      "runtime_image": "localhost/trec-vqa-gate-molmo:2026-07-20"
     },
     {
       "condition_id": "gemma4-12b-12f-whisper",
-      "model_id": "google/gemma-4-12B-it",
+      "model_id": "google/gemma-4-12b-it",
       "model_revision": "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
       "evidence": "controlled-12-frames-transcript",
       "download_bytes": 23900000000,
-      "runner_kind": "multimodal"
+      "runner_kind": "multimodal",
+      "runtime_image": "localhost/trec-vqa-gate-gemma:2026-07-20"
     },
     {
       "condition_id": "internvl35-4b-native-tiles",
@@ -46,7 +48,8 @@
       "model_revision": "481f6e32467eab4e922ccd7fd6cf420441a62331",
       "evidence": "native-capped-tiles",
       "download_bytes": 9500000000,
-      "runner_kind": "internvl"
+      "runner_kind": "internvl",
+      "runtime_image": "localhost/trec-vqa-gate-internvl:2026-07-20"
     },
     {
       "condition_id": "minicpmo45-native-av",
@@ -54,7 +57,8 @@
       "model_revision": "1f761131fa83f5ed3cd6f2f22b225c4501d154fa",
       "evidence": "native-video-audio",
       "download_bytes": 20000000000,
-      "runner_kind": "minicpm"
+      "runner_kind": "minicpm",
+      "runtime_image": "localhost/trec-vqa-gate-minicpm:2026-07-20"
     }
   ]
 }

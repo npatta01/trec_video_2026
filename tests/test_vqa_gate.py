@@ -247,6 +247,30 @@ def test_rocm_command_dispatches_specialist_runner(tmp_path: Path) -> None:
     assert command[command.index("--kind") + 1] == "internvl"
 
 
+def test_rocm_command_uses_condition_specific_runtime_image(tmp_path: Path) -> None:
+    for path in (tmp_path / "repo", tmp_path / "dataset", tmp_path / "cache"):
+        path.mkdir()
+    condition = Condition(
+        condition_id="molmo",
+        model_id="allenai/Molmo2-4B",
+        model_revision="a" * 40,
+        evidence="controlled-12-frames",
+        download_bytes=1,
+        runtime_image="local/molmo:pinned",
+    )
+
+    command = build_rocm_runner_command(
+        image="local/default:pinned",
+        repo_root=tmp_path / "repo",
+        dataset_root=tmp_path / "dataset",
+        hf_cache_root=tmp_path / "cache",
+        condition=condition,
+    )
+
+    assert "local/molmo:pinned" in command
+    assert "local/default:pinned" not in command
+
+
 def test_latest_results_prefer_success_over_later_failure() -> None:
     attempts = [
         {

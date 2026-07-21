@@ -102,9 +102,17 @@ class FakeAutoTokenizer:
 
 
 class FakeLoadedModel:
+    class Config:
+        _name_or_path = "remote"
+
+    config = Config()
+
     def eval(self):
         self.was_evaluated = True
         return self
+
+    def prepare_processor(self):
+        self.processor = f"processor:{self.config._name_or_path}"
 
 
 class FakeTorch:
@@ -130,7 +138,7 @@ def test_load_internvl_uses_official_custom_model_without_flash_attention() -> N
                 "torch_dtype": "bf16",
                 "device_map": "cuda:0",
                 "low_cpu_mem_usage": True,
-                "attn_implementation": "sdpa",
+                "attn_implementation": "eager",
                 "use_flash_attn": False,
             },
         )
@@ -141,11 +149,16 @@ def test_load_internvl_uses_official_custom_model_without_flash_attention() -> N
 def test_load_minicpm_keeps_audio_and_disables_tts() -> None:
     FakeAutoModel.calls.clear()
 
-    model = load_minicpm(
-        FakeAutoModel, FakeTorch, "openbmb/model", "b" * 40
+    model, processor = load_minicpm(
+        FakeAutoModel,
+        FakeTorch,
+        "openbmb/model",
+        "b" * 40,
+        snapshot_resolver=lambda model_id, revision, local_files_only: "/cache/snapshot",
     )
 
     assert model.was_evaluated is True
+    assert processor == "processor:/cache/snapshot"
     assert FakeAutoModel.calls[0][1] == {
         "revision": "b" * 40,
         "trust_remote_code": True,
@@ -243,9 +256,15 @@ def test_specialist_chat_calls_are_deterministic_and_bounded() -> None:
             return "Answer: ringing"
 
     mini_model = MiniModel()
-    assert chat_minicpm(mini_model, ["content"], max_new_tokens=24) == "ringing"
+    assert (
+        chat_minicpm(
+            mini_model, ["content"], processor="processor", max_new_tokens=24
+        )
+        == "ringing"
+    )
     assert mini_model.kwargs == {
         "msgs": [{"role": "user", "content": ["content"]}],
+        "processor": "processor",
         "do_sample": False,
         "max_new_tokens": 24,
         "use_image_id": False,

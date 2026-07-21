@@ -1,0 +1,12 @@
+FROM localhost/trec-vqa-gate-rocm:2026-07-20
+
+# Molmo2's pinned model card specifies Transformers 4.57.1. Keep this
+# compatibility environment separate from the newer Qwen/Gemma runtime.
+RUN python -m pip install --no-cache-dir "transformers==4.57.1"
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    NLTK_DATA=/opt/nltk_data
+
+WORKDIR /workspace
