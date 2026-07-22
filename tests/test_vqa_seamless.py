@@ -16,6 +16,10 @@ from trec_video_2026.vqa_seamless import (
     request_identity,
     translate_audio,
     translate_text,
+    select_translation_attempts,
+    translation_execution_identity,
+    translation_request_sha256,
+    validate_translation_attempt,
 )
 
 
@@ -147,6 +151,111 @@ def test_decode_text_translation_uses_unified_model_text_tokens() -> None:
         "Where is the bag?"
     )
     assert processor.decode_args == ([11, 12, 3],)
+
+
+def text_translation_request() -> dict:
+    return {
+        "run_id": "task5-audio-v1",
+        "condition_id": "qwen3-asr-seamless-t2t",
+        "video_id": "video-1",
+        "original_text": "Bonjour",
+        "source_language": "French",
+        "source_language_code": "fra",
+        "source_attempt_sha256": "a" * 64,
+    }
+
+
+def valid_text_translation_attempt() -> dict:
+    request = text_translation_request()
+    identity = translation_execution_identity(request)
+    return {
+        "status": "passed",
+        "translated_text": "Hello",
+        "request": request,
+        "request_sha256": translation_request_sha256(request),
+        "reuse_identity_sha256": translation_request_sha256(identity),
+        "run_id": request["run_id"],
+        "condition_id": request["condition_id"],
+        "video_id": request["video_id"],
+        "original_text": request["original_text"],
+        "source_attempt_sha256": request["source_attempt_sha256"],
+        "source_language": "French",
+        "source_language_code": "fra",
+        "target_language": "English",
+        "target_language_code": "eng",
+        "model_id": identity["execution"]["model_id"],
+        "model_revision": identity["execution"]["model_revision"],
+        "runtime_image": identity["execution"]["runtime_image"],
+        "runtime": "transformers 5.15.0.dev0; torch 2.10.0+rocm",
+        "device": "cuda:0 (ROCm)",
+        "precision": "bfloat16",
+        "translation_mode": "text_to_text",
+        "processor_interface": identity["execution"]["processor_interface"],
+        "generate_speech": False,
+        "do_sample": False,
+    }
+
+
+def test_translation_execution_identity_binds_source_and_deterministic_prompt() -> None:
+    request = text_translation_request()
+
+    assert translation_execution_identity(request) == {
+        "request": request,
+        "execution": {
+            "model_id": "facebook/seamless-m4t-v2-large",
+            "model_revision": "5f8cc790b19fc3f67a61c105133b20b34e3dcb76",
+            "runtime_image": (
+                "localhost/trec-vqa-gate-rocm@sha256:"
+                "510e4ca0a165b60a50abf3a1f24545b8f4bd561f9643f0295e7d82212fe801d5"
+            ),
+            "translation_mode": "text_to_text",
+            "processor_interface": "AutoProcessor(text,src_lang)",
+            "target_language": "English",
+            "target_language_code": "eng",
+            "generate_speech": False,
+            "do_sample": False,
+            "device": "cuda:0 (ROCm)",
+            "precision": "bfloat16",
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    ("field", "mutated"),
+    [
+        ("translated_text", ""),
+        ("source_attempt_sha256", "b" * 64),
+        ("original_text", "mutated"),
+        ("source_language", "Spanish"),
+        ("runtime_image", "mutated-image"),
+        ("model_revision", "mutated-revision"),
+        ("device", "cpu"),
+        ("precision", "float32"),
+        ("translation_mode", "speech_to_text"),
+        ("processor_interface", "mutated-interface"),
+        ("generate_speech", True),
+        ("do_sample", True),
+        ("reuse_identity_sha256", "0" * 64),
+    ],
+)
+def test_translation_attempt_validation_fails_closed_on_mutation(
+    field, mutated
+) -> None:
+    attempt = valid_text_translation_attempt()
+    attempt[field] = mutated
+
+    assert not validate_translation_attempt(attempt, text_translation_request())
+
+
+def test_translation_attempt_selection_requires_exact_expected_rows() -> None:
+    request = text_translation_request()
+    attempt = valid_text_translation_attempt()
+
+    assert select_translation_attempts([attempt], [request]) == [attempt]
+    with pytest.raises(ValueError, match="exactly one valid translation"):
+        select_translation_attempts([], [request])
+    with pytest.raises(ValueError, match="exactly one valid translation"):
+        select_translation_attempts([attempt, attempt], [request])
 
 
 def test_request_identity_copies_only_protocol_identity() -> None:
