@@ -37,10 +37,16 @@ ALLOWED_REQUEST_FIELDS = frozenset(
 )
 
 
-def timeout_cleanup_verified(inspect_returncode: int, running_state: str) -> bool:
+def timeout_cleanup_verified(
+    exists_returncode: int, inspect_returncode: int, running_state: str
+) -> bool:
     """Accept cleanup only when a container is absent or explicitly stopped."""
 
-    return inspect_returncode != 0 or running_state.strip().lower() == "false"
+    if exists_returncode == 1:
+        return True
+    if exists_returncode != 0 or inspect_returncode != 0:
+        return False
+    return running_state.strip().lower() == "false"
 
 
 def select_pending_requests(

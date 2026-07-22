@@ -356,10 +356,24 @@ def test_evaluation_selects_valid_pass_over_retries_and_latest_failure_otherwise
 
 
 @pytest.mark.parametrize(
-    ("inspect_returncode", "running_state", "expected"),
-    ((1, "", True), (0, "false", True), (0, "true", False)),
+    ("exists_returncode", "inspect_returncode", "running_state", "expected"),
+    (
+        (1, 125, "", True),
+        (0, 0, "false", True),
+        (0, 0, "true", False),
+        (125, 125, "", False),
+        (0, 125, "", False),
+    ),
 )
 def test_timeout_cleanup_requires_container_absence_or_stopped_state(
-    inspect_returncode: int, running_state: str, expected: bool
+    exists_returncode: int,
+    inspect_returncode: int,
+    running_state: str,
+    expected: bool,
 ) -> None:
-    assert timeout_cleanup_verified(inspect_returncode, running_state) is expected
+    assert (
+        timeout_cleanup_verified(
+            exists_returncode, inspect_returncode, running_state
+        )
+        is expected
+    )
