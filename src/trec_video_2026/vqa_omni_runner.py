@@ -10,8 +10,13 @@ import argparse
 import json
 import sys
 import time
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
+from trec_video_2026.vqa_gate import (
+    canonical_request_sha256,
+    saved_request_matches,
+    validate_runner_result,
+)
 from trec_video_2026.vqa_models import normalize_generated_answer
 
 
@@ -30,6 +35,68 @@ ALLOWED_REQUEST_FIELDS = frozenset(
         "audio_mode",
     }
 )
+
+
+def select_pending_requests(
+    requests: Sequence[Mapping[str, Any]],
+    attempts: Sequence[Mapping[str, Any]],
+) -> list[Mapping[str, Any]]:
+    """Resume only exact requests that lack a matching successful attempt."""
+
+    pending = []
+    for request in requests:
+        completed = any(
+            attempt.get("status") == "passed"
+            and attempt.get("condition_id") == request.get("condition_id")
+            and attempt.get("video_id") == request.get("video_id")
+            and saved_request_matches(attempt, request)
+            for attempt in attempts
+        )
+        if not completed:
+            pending.append(request)
+    return pending
+
+
+def build_validated_attempt(
+    request: Mapping[str, Any],
+    result: Mapping[str, Any],
+    *,
+    expected_model_revision: str,
+) -> dict[str, Any]:
+    """Bind one protocol result to its exact label-free request and provenance."""
+
+    validate_request(request)
+    validated = validate_runner_result(result)
+    if (
+        validated["model_id"] != "Qwen/Qwen2.5-Omni-3B"
+        or validated["model_revision"] != expected_model_revision
+    ):
+        raise ValueError("Qwen Omni checkpoint provenance mismatch")
+    expected_audio = omni_audio_enabled(request)
+    if (
+        validated.get("native_video") is not True
+        or validated.get("native_audio") is not expected_audio
+    ):
+        raise ValueError("Qwen Omni audio evidence mismatch")
+    if (
+        validated["device"] != "cuda:0 (ROCm)"
+        or validated["precision"] != "bfloat16"
+    ):
+        raise ValueError("Qwen Omni result is not verified ROCm BF16")
+    if (
+        validated.get("talker_disabled") is not True
+        or validated.get("return_audio") is not False
+        or validated.get("transcript_included") is not False
+    ):
+        raise ValueError("Qwen Omni text-only evidence contract mismatch")
+    return {
+        **validated,
+        "run_id": request["run_id"],
+        "condition_id": request["condition_id"],
+        "video_id": request["video_id"],
+        "request": dict(request),
+        "request_sha256": canonical_request_sha256(request),
+    }
 
 
 def validate_request(request: Mapping[str, Any]) -> None:

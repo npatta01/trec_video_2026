@@ -8,11 +8,13 @@ import pytest
 
 from trec_video_2026.vqa_omni_runner import (
     _error_result,
+    build_validated_attempt,
     build_conversation,
     generate_text,
     load_omni,
     omni_audio_enabled,
     prepare_inputs,
+    select_pending_requests,
     validate_request,
 )
 
@@ -261,3 +263,38 @@ def test_empty_exception_messages_keep_actionable_repr_and_truthful_load_state()
 
     assert result["error_message"] == "NotInstalledError()"
     assert result["talker_disabled"] is False
+
+
+def passed_result(*, audio_enabled: bool = False) -> dict:
+    return {
+        "status": "passed", "answer": "a bell", "elapsed_seconds": 1.0,
+        "model_id": "Qwen/Qwen2.5-Omni-3B", "model_revision": "f" * 40,
+        "runtime": "runtime", "precision": "bfloat16",
+        "device": "cuda:0 (ROCm)", "peak_memory_bytes": 1,
+        "error_type": None, "error_message": None, "native_video": True,
+        "native_audio": audio_enabled, "talker_disabled": True,
+        "return_audio": False, "transcript_included": False,
+    }
+
+
+def test_resume_skips_only_an_exact_previously_passed_request() -> None:
+    first = request(audio_mode="audio-off")
+    second = request(audio_mode="audio-on")
+    second["condition_id"] = "omni-audio-on"
+    attempt = build_validated_attempt(first, passed_result(),
+                                      expected_model_revision="f" * 40)
+
+    assert select_pending_requests([first, second], [attempt]) == [second]
+    altered = {**first, "question": "A changed question?"}
+    assert select_pending_requests([altered], [attempt]) == [altered]
+
+
+def test_attempt_validation_fails_closed_on_audio_or_accelerator_mismatch() -> None:
+    payload = request(audio_mode="audio-on")
+    with pytest.raises(ValueError, match="audio evidence mismatch"):
+        build_validated_attempt(payload, passed_result(audio_enabled=False),
+                                expected_model_revision="f" * 40)
+    wrong_device = {**passed_result(audio_enabled=True), "device": "cpu"}
+    with pytest.raises(ValueError, match="ROCm BF16"):
+        build_validated_attempt(payload, wrong_device,
+                                expected_model_revision="f" * 40)
