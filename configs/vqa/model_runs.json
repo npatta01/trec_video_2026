@@ -150,6 +150,26 @@
       "runner_kind": "isolated-audio",
       "task_mode": "transcription",
       "runtime_image": "localhost/trec-vqa-audio-rocm@sha256:faa70fc2896401f863fc1be1a83581585bba3bd9784cf4cf3b672d7815b6c234"
+    },
+    {
+      "condition_id": "qwen25-omni-3b-native-video-audio-off",
+      "model_id": "Qwen/Qwen2.5-Omni-3B",
+      "model_revision": "f75b40e3da2003cdd6e1829b1f420ca70797c34e",
+      "evidence": "native-video-audio-off",
+      "download_bytes": 11989103936,
+      "runner_kind": "qwen-omni",
+      "audio_mode": "audio-off",
+      "runtime_image": "localhost/trec-vqa-gate-qwen-omni@sha256:effff2801d7677aa4894a641adc5793d6e5072a8cec71817bf925574862c88de"
+    },
+    {
+      "condition_id": "qwen25-omni-3b-native-video-audio-on",
+      "model_id": "Qwen/Qwen2.5-Omni-3B",
+      "model_revision": "f75b40e3da2003cdd6e1829b1f420ca70797c34e",
+      "evidence": "native-video-native-audio-on",
+      "download_bytes": 11989103936,
+      "runner_kind": "qwen-omni",
+      "audio_mode": "audio-on",
+      "runtime_image": "localhost/trec-vqa-gate-qwen-omni@sha256:effff2801d7677aa4894a641adc5793d6e5072a8cec71817bf925574862c88de"
     }
   ]
 }

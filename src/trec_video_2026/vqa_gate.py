@@ -162,7 +162,9 @@ def build_rocm_runner_command(
         "python",
         "-m",
     ]
-    if condition.runner_kind in {"internvl", "minicpm"}:
+    if condition.runner_kind == "qwen-omni":
+        command.append("trec_video_2026.vqa_omni_runner")
+    elif condition.runner_kind in {"internvl", "minicpm"}:
         command.extend(
             [
                 "trec_video_2026.vqa_specialist_runner",
