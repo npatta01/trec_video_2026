@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from trec_video_2026.vqa_gate import canonical_request_sha256
 from trec_video_2026.vqa_omni_runner import (
     _error_result,
     build_validated_attempt,
@@ -14,7 +15,9 @@ from trec_video_2026.vqa_omni_runner import (
     load_omni,
     omni_audio_enabled,
     prepare_inputs,
+    select_evaluation_attempts,
     select_pending_requests,
+    timeout_cleanup_verified,
     validate_request,
 )
 
@@ -284,9 +287,36 @@ def test_resume_skips_only_an_exact_previously_passed_request() -> None:
     attempt = build_validated_attempt(first, passed_result(),
                                       expected_model_revision="f" * 40)
 
-    assert select_pending_requests([first, second], [attempt]) == [second]
+    assert select_pending_requests(
+        [first, second], [attempt], expected_model_revision="f" * 40
+    ) == [second]
     altered = {**first, "question": "A changed question?"}
-    assert select_pending_requests([altered], [attempt]) == [altered]
+    assert select_pending_requests(
+        [altered], [attempt], expected_model_revision="f" * 40
+    ) == [altered]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        {"device": "cpu"},
+        {"model_revision": "e" * 40},
+        {"native_audio": True},
+        {"talker_disabled": False},
+        {"return_audio": True},
+        {"transcript_included": True},
+    ),
+)
+def test_resume_revalidates_saved_success_provenance(mutation: dict) -> None:
+    payload = request(audio_mode="audio-off")
+    attempt = build_validated_attempt(
+        payload, passed_result(), expected_model_revision="f" * 40
+    )
+    corrupted = {**attempt, **mutation}
+
+    assert select_pending_requests(
+        [payload], [corrupted], expected_model_revision="f" * 40
+    ) == [payload]
 
 
 def test_attempt_validation_fails_closed_on_audio_or_accelerator_mismatch() -> None:
@@ -298,3 +328,38 @@ def test_attempt_validation_fails_closed_on_audio_or_accelerator_mismatch() -> N
     with pytest.raises(ValueError, match="ROCm BF16"):
         build_validated_attempt(payload, wrong_device,
                                 expected_model_revision="f" * 40)
+
+
+def test_evaluation_selects_valid_pass_over_retries_and_latest_failure_otherwise() -> None:
+    off = request(audio_mode="audio-off")
+    on = request(audio_mode="audio-on")
+    on["condition_id"] = "omni-audio-on"
+    good = build_validated_attempt(
+        off, passed_result(), expected_model_revision="f" * 40
+    )
+    corrupt = {**good, "device": "cpu"}
+    old_failure = {
+        **good, "status": "failed", "answer": None, "device": "unknown",
+        "precision": "unknown",
+    }
+    latest_on_failure = {
+        **old_failure, "condition_id": on["condition_id"],
+        "request": on, "request_sha256": canonical_request_sha256(on),
+    }
+
+    selected = select_evaluation_attempts(
+        [off, on], [old_failure, corrupt, good, latest_on_failure],
+        expected_model_revision="f" * 40,
+    )
+
+    assert selected == [good, latest_on_failure]
+
+
+@pytest.mark.parametrize(
+    ("inspect_returncode", "running_state", "expected"),
+    ((1, "", True), (0, "false", True), (0, "true", False)),
+)
+def test_timeout_cleanup_requires_container_absence_or_stopped_state(
+    inspect_returncode: int, running_state: str, expected: bool
+) -> None:
+    assert timeout_cleanup_verified(inspect_returncode, running_state) is expected

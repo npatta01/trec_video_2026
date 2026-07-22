@@ -37,24 +37,80 @@ ALLOWED_REQUEST_FIELDS = frozenset(
 )
 
 
+def timeout_cleanup_verified(inspect_returncode: int, running_state: str) -> bool:
+    """Accept cleanup only when a container is absent or explicitly stopped."""
+
+    return inspect_returncode != 0 or running_state.strip().lower() == "false"
+
+
 def select_pending_requests(
     requests: Sequence[Mapping[str, Any]],
     attempts: Sequence[Mapping[str, Any]],
+    *,
+    expected_model_revision: str,
 ) -> list[Mapping[str, Any]]:
     """Resume only exact requests that lack a matching successful attempt."""
 
     pending = []
     for request in requests:
-        completed = any(
-            attempt.get("status") == "passed"
-            and attempt.get("condition_id") == request.get("condition_id")
-            and attempt.get("video_id") == request.get("video_id")
-            and saved_request_matches(attempt, request)
-            for attempt in attempts
-        )
+        completed = False
+        for attempt in attempts:
+            if not (
+                attempt.get("status") == "passed"
+                and attempt.get("condition_id") == request.get("condition_id")
+                and attempt.get("video_id") == request.get("video_id")
+                and saved_request_matches(attempt, request)
+            ):
+                continue
+            try:
+                build_validated_attempt(
+                    request,
+                    attempt,
+                    expected_model_revision=expected_model_revision,
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
+            completed = True
+            break
         if not completed:
             pending.append(request)
     return pending
+
+
+def select_evaluation_attempts(
+    requests: Sequence[Mapping[str, Any]],
+    attempts: Sequence[Mapping[str, Any]],
+    *,
+    expected_model_revision: str,
+) -> list[dict[str, Any]]:
+    """Select one valid pass per request, or its latest exact failure."""
+
+    selected: list[dict[str, Any]] = []
+    for request in requests:
+        valid_pass = None
+        latest_failure = None
+        for attempt in attempts:
+            if not (
+                attempt.get("condition_id") == request.get("condition_id")
+                and attempt.get("video_id") == request.get("video_id")
+                and saved_request_matches(attempt, request)
+            ):
+                continue
+            if attempt.get("status") != "passed":
+                latest_failure = dict(attempt)
+                continue
+            try:
+                valid_pass = build_validated_attempt(
+                    request,
+                    attempt,
+                    expected_model_revision=expected_model_revision,
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
+        chosen = valid_pass or latest_failure
+        if chosen is not None:
+            selected.append(chosen)
+    return selected
 
 
 def build_validated_attempt(
