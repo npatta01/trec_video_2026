@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import os
+import secrets
 import subprocess
 import time
 from dataclasses import dataclass
@@ -454,7 +455,8 @@ def _prepare_invocation(
         "command": invocation,
         "requests": list(requests),
     }
-    container_name = f"trec-vqa-{canonical_request_sha256(identity)[:24]}"
+    request_identity = canonical_request_sha256(identity)[:12]
+    container_name = f"trec-vqa-{request_identity}-{secrets.token_hex(6)}"
     invocation[2:2] = ["--name", container_name]
     return invocation, container_name
 
@@ -549,36 +551,24 @@ def _bounded(text: str, limit: int = 4_000) -> str:
 def select_latest_results(
     attempts: Sequence[Mapping[str, Any]],
     *,
-    requests: Sequence[Mapping[str, Any]] | None = None,
-    validate_pass: Callable[[Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]]
-    | None = None,
+    requests: Sequence[Mapping[str, Any]],
+    validate_pass: Callable[[Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]],
 ) -> dict[tuple[str, str], dict[str, Any]]:
-    """Select the latest result, while never replacing a pass with a failure."""
+    """Select the latest exact-request results with validated pass provenance."""
 
-    if requests is not None:
-        return {
-            (str(result["condition_id"]), str(result["video_id"])): result
-            for result in select_results_for_requests(
-                requests, attempts, validate_pass=validate_pass
-            )
-        }
-    selected: dict[tuple[str, str], dict[str, Any]] = {}
-    for attempt in attempts:
-        key = (str(attempt["condition_id"]), str(attempt["video_id"]))
-        current = selected.get(key)
-        if current is None or attempt.get("status") == "passed":
-            selected[key] = dict(attempt)
-        elif current.get("status") != "passed":
-            selected[key] = dict(attempt)
-    return selected
+    return {
+        (str(result["condition_id"]), str(result["video_id"])): result
+        for result in select_results_for_requests(
+            requests, attempts, validate_pass=validate_pass
+        )
+    }
 
 
 def select_results_for_requests(
     requests: Sequence[Mapping[str, Any]],
     attempts: Sequence[Mapping[str, Any]],
     *,
-    validate_pass: Callable[[Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]]
-    | None = None,
+    validate_pass: Callable[[Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
     """Select only attempts bound to each exact request and valid provenance."""
 
@@ -597,11 +587,7 @@ def select_results_for_requests(
                 latest_failure = dict(attempt)
                 continue
             try:
-                validated = (
-                    validate_pass(request, attempt)
-                    if validate_pass is not None
-                    else attempt
-                )
+                validated = validate_pass(request, attempt)
             except (KeyError, TypeError, ValueError):
                 continue
             valid_pass = dict(validated)
@@ -616,9 +602,8 @@ def render_gate_report(
     gate_id: str,
     references: Mapping[str, str],
     attempts: Sequence[Mapping[str, Any]],
-    requests: Sequence[Mapping[str, Any]] | None = None,
-    validate_pass: Callable[[Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]]
-    | None = None,
+    requests: Sequence[Mapping[str, Any]],
+    validate_pass: Callable[[Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]],
 ) -> str:
     """Render a compact report from raw attempts; never imply statistical rank."""
 
@@ -708,19 +693,15 @@ class GateStore:
 
     def completed(
         self,
-        condition_id: str,
-        video_id: str,
+        request: Mapping[str, Any],
         *,
-        request: Mapping[str, Any] | None = None,
         validate_pass: Callable[
             [Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]
-        ]
-        | None = None,
+        ],
     ) -> dict[str, Any] | None:
         if not self.attempts_path.exists():
             return None
         attempts: list[dict[str, Any]] = []
-        passed: dict[str, Any] | None = None
         with self.attempts_path.open(encoding="utf-8") as handle:
             for line_number, line in enumerate(handle, start=1):
                 try:
@@ -730,25 +711,12 @@ class GateStore:
                         f"Invalid JSON on attempt line {line_number}"
                     ) from error
                 attempts.append(attempt)
-                if (
-                    attempt.get("condition_id") == condition_id
-                    and attempt.get("video_id") == video_id
-                    and attempt.get("status") == "passed"
-                ):
-                    passed = attempt
-        if request is not None:
-            if (
-                request.get("condition_id") != condition_id
-                or request.get("video_id") != video_id
-            ):
-                raise ValueError("Completed lookup/request identity mismatch")
-            selected = select_results_for_requests(
-                [request], attempts, validate_pass=validate_pass
-            )
-            if selected and selected[0].get("status") == "passed":
-                return selected[0]
-            return None
-        return passed
+        selected = select_results_for_requests(
+            [request], attempts, validate_pass=validate_pass
+        )
+        if selected and selected[0].get("status") == "passed":
+            return selected[0]
+        return None
 
 
 def build_parser() -> argparse.ArgumentParser:

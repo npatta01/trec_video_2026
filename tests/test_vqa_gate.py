@@ -43,6 +43,12 @@ def request(tmp_path: Path) -> RunnerRequest:
     )
 
 
+def validate_revision_a(_request, attempt):
+    if attempt.get("model_revision") != "a" * 40:
+        raise ValueError("wrong revision")
+    return dict(attempt)
+
+
 def test_runner_request_never_serializes_reference(tmp_path: Path) -> None:
     payload = request(tmp_path).to_dict()
 
@@ -162,10 +168,11 @@ def test_invoke_runner_classifies_timeout(tmp_path: Path) -> None:
     assert result["error_type"] == "TimeoutExpired"
 
 
-def test_podman_timeout_uses_stable_name_and_records_verified_cleanup(
+def test_podman_timeout_uses_unique_name_and_records_verified_cleanup(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[list[str]] = []
+    nonces = iter(("1" * 12, "2" * 12))
 
     def fake_run(command, **kwargs):
         command = list(command)
@@ -181,6 +188,7 @@ def test_podman_timeout_uses_stable_name_and_records_verified_cleanup(
         raise AssertionError(command)
 
     monkeypatch.setattr(vqa_gate.subprocess, "run", fake_run)
+    monkeypatch.setattr(vqa_gate.secrets, "token_hex", lambda _size: next(nonces))
     runner_request = request(tmp_path)
     command = ["podman", "run", "--rm", "local/test:image", "python"]
 
@@ -198,7 +206,7 @@ def test_podman_timeout_uses_stable_name_and_records_verified_cleanup(
 
     calls.clear()
     invoke_runner(command, runner_request, timeout_seconds=1)
-    assert calls[0][calls[0].index("--name") + 1] == container_name
+    assert calls[0][calls[0].index("--name") + 1] != container_name
 
 
 def test_podman_timeout_fails_closed_when_cleanup_cannot_be_verified(
@@ -347,22 +355,26 @@ def test_invoke_runner_batch_preserves_request_order(tmp_path: Path) -> None:
 
 def test_store_is_append_only_and_preserves_success_on_resume(tmp_path: Path) -> None:
     store = GateStore(tmp_path / "run")
+    current = request(tmp_path).to_dict()
     failed = {
-        "run_id": "gate",
-        "condition_id": "fake",
-        "video_id": "video000001",
+        "run_id": current["run_id"],
+        "condition_id": current["condition_id"],
+        "video_id": current["video_id"],
         "status": "failed",
         "answer": None,
+        "request": current,
+        "request_sha256": canonical_request_sha256(current),
+        "model_revision": "a" * 40,
     }
     passed = {**failed, "status": "passed", "answer": "A jump"}
     later_failure = {**failed, "error_type": "OutOfMemoryError"}
 
     store.append_attempt(failed)
-    assert store.completed("fake", "video000001") is None
+    assert store.completed(current, validate_pass=validate_revision_a) is None
     store.append_attempt(passed)
     store.append_attempt(later_failure)
 
-    assert store.completed("fake", "video000001") == passed
+    assert store.completed(current, validate_pass=validate_revision_a) == passed
     lines = store.attempts_path.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 3
     assert [json.loads(line)["status"] for line in lines] == [
@@ -412,18 +424,14 @@ def test_store_exact_request_resume_rejects_mutated_request_and_provenance(
 
     assert (
         store.completed(
-            current["condition_id"],
-            current["video_id"],
-            request=current,
+            current,
             validate_pass=validate_provenance,
         )
         == passed
     )
     assert (
         store.completed(
-            current["condition_id"],
-            current["video_id"],
-            request={**current, "question": "Changed?"},
+            {**current, "question": "Changed?"},
             validate_pass=validate_provenance,
         )
         is None
@@ -432,9 +440,7 @@ def test_store_exact_request_resume_rejects_mutated_request_and_provenance(
     store.append_attempt(corrupted)
     assert (
         store.completed(
-            current["condition_id"],
-            current["video_id"],
-            request=current,
+            current,
             validate_pass=validate_provenance,
         )
         == passed
@@ -653,31 +659,59 @@ def test_rocm_command_uses_condition_specific_runtime_image(tmp_path: Path) -> N
 
 
 def test_latest_results_prefer_success_over_later_failure() -> None:
+    current = {
+        "run_id": "gate",
+        "condition_id": "model-a",
+        "video_id": "video-1",
+        "question": "What color?",
+    }
     attempts = [
         {
-            "condition_id": "model-a",
-            "video_id": "video-1",
+            **current,
             "status": "passed",
             "answer": "red",
+            "request": current,
+            "request_sha256": canonical_request_sha256(current),
+            "model_revision": "a" * 40,
         },
         {
-            "condition_id": "model-a",
-            "video_id": "video-1",
+            **current,
             "status": "failed",
             "answer": None,
-        },
-        {
-            "condition_id": "model-b",
-            "video_id": "video-1",
-            "status": "failed",
-            "answer": None,
+            "request": current,
+            "request_sha256": canonical_request_sha256(current),
+            "model_revision": "orchestrator",
         },
     ]
 
-    selected = select_latest_results(attempts)
+    selected = select_latest_results(
+        attempts,
+        requests=[current],
+        validate_pass=validate_revision_a,
+    )
 
     assert selected[("model-a", "video-1")]["answer"] == "red"
-    assert selected[("model-b", "video-1")]["status"] == "failed"
+
+
+def test_storage_selection_and_reporting_require_exact_request_validation(
+    tmp_path: Path,
+) -> None:
+    store = GateStore(tmp_path / "run")
+
+    with pytest.raises(TypeError):
+        store.completed(
+            {
+                "run_id": "gate",
+                "condition_id": "model-a",
+                "video_id": "video-1",
+            }
+        )
+    with pytest.raises(TypeError):
+        select_latest_results([])
+    with pytest.raises(TypeError):
+        vqa_gate.select_results_for_requests([], [])
+    with pytest.raises(TypeError):
+        render_gate_report(gate_id="gate", references={}, attempts=[])
 
 
 def test_exact_request_selection_rejects_mutations_and_invalid_provenance() -> None:
@@ -736,12 +770,17 @@ def test_latest_result_and_report_can_require_an_exact_request() -> None:
     }
     stale["request_sha256"] = canonical_request_sha256(stale["request"])
 
-    selected = select_latest_results([stale], requests=[current])
+    selected = select_latest_results(
+        [stale],
+        requests=[current],
+        validate_pass=validate_revision_a,
+    )
     report = render_gate_report(
         gate_id="exact-gate",
         references={"video-1": "red"},
         attempts=[stale],
         requests=[current],
+        validate_pass=validate_revision_a,
     )
 
     assert selected == {}
@@ -749,21 +788,30 @@ def test_latest_result_and_report_can_require_an_exact_request() -> None:
 
 
 def test_report_labels_three_examples_as_descriptive_not_ranked() -> None:
+    current = {
+        "run_id": "gate",
+        "condition_id": "model-a",
+        "video_id": "video-1",
+        "question": "What color?",
+    }
     report = render_gate_report(
         gate_id="three-video-gate",
         references={"video-1": "red"},
         attempts=[
             {
-                "condition_id": "model-a",
-                "video_id": "video-1",
+                **current,
                 "status": "passed",
                 "answer": "Red.",
                 "elapsed_seconds": 1.5,
                 "peak_memory_bytes": 1024,
                 "model_revision": "a" * 40,
                 "device": "cuda:0 (ROCm)",
+                "request": current,
+                "request_sha256": canonical_request_sha256(current),
             }
         ],
+        requests=[current],
+        validate_pass=validate_revision_a,
     )
 
     assert "descriptive portability gate" in report
