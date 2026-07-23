@@ -14,7 +14,7 @@ from typing import Any, Mapping, Sequence
 
 from trec_video_2026.vqa_gate import (
     canonical_request_sha256,
-    saved_request_matches,
+    select_results_for_requests,
     validate_runner_result,
 )
 from trec_video_2026.vqa_models import normalize_generated_answer
@@ -57,28 +57,19 @@ def select_pending_requests(
 ) -> list[Mapping[str, Any]]:
     """Resume only exact requests that lack a matching successful attempt."""
 
+    def validate_pass(request, attempt):
+        return build_validated_attempt(
+            request,
+            attempt,
+            expected_model_revision=expected_model_revision,
+        )
+
     pending = []
     for request in requests:
-        completed = False
-        for attempt in attempts:
-            if not (
-                attempt.get("status") == "passed"
-                and attempt.get("condition_id") == request.get("condition_id")
-                and attempt.get("video_id") == request.get("video_id")
-                and saved_request_matches(attempt, request)
-            ):
-                continue
-            try:
-                build_validated_attempt(
-                    request,
-                    attempt,
-                    expected_model_revision=expected_model_revision,
-                )
-            except (KeyError, TypeError, ValueError):
-                continue
-            completed = True
-            break
-        if not completed:
+        selected = select_results_for_requests(
+            [request], attempts, validate_pass=validate_pass
+        )
+        if not selected or selected[0].get("status") != "passed":
             pending.append(request)
     return pending
 
@@ -91,32 +82,16 @@ def select_evaluation_attempts(
 ) -> list[dict[str, Any]]:
     """Select one valid pass per request, or its latest exact failure."""
 
-    selected: list[dict[str, Any]] = []
-    for request in requests:
-        valid_pass = None
-        latest_failure = None
-        for attempt in attempts:
-            if not (
-                attempt.get("condition_id") == request.get("condition_id")
-                and attempt.get("video_id") == request.get("video_id")
-                and saved_request_matches(attempt, request)
-            ):
-                continue
-            if attempt.get("status") != "passed":
-                latest_failure = dict(attempt)
-                continue
-            try:
-                valid_pass = build_validated_attempt(
-                    request,
-                    attempt,
-                    expected_model_revision=expected_model_revision,
-                )
-            except (KeyError, TypeError, ValueError):
-                continue
-        chosen = valid_pass or latest_failure
-        if chosen is not None:
-            selected.append(chosen)
-    return selected
+    def validate_pass(request, attempt):
+        return build_validated_attempt(
+            request,
+            attempt,
+            expected_model_revision=expected_model_revision,
+        )
+
+    return select_results_for_requests(
+        requests, attempts, validate_pass=validate_pass
+    )
 
 
 def build_validated_attempt(

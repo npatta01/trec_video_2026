@@ -10,7 +10,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 
 RUN_STATUSES = frozenset({"passed", "unsupported", "failed", "timed_out"})
@@ -305,10 +305,11 @@ def invoke_runner(
 
     if timeout_seconds <= 0:
         raise ValueError("timeout_seconds must be positive")
+    invocation, container_name = _prepare_invocation(command, [request.to_dict()])
     started = time.monotonic()
     try:
         completed = subprocess.run(
-            list(command),
+            invocation,
             input=json.dumps(request.to_dict()),
             text=True,
             capture_output=True,
@@ -316,13 +317,14 @@ def invoke_runner(
             check=False,
         )
     except subprocess.TimeoutExpired:
-        return _orchestration_failure(
+        result = _orchestration_failure(
             request,
             "timed_out",
             time.monotonic() - started,
             "TimeoutExpired",
             f"Runner exceeded {timeout_seconds:g} seconds",
         )
+        return _record_timeout_cleanup(result, container_name)
 
     elapsed = time.monotonic() - started
     if completed.returncode != 0:
@@ -360,24 +362,31 @@ def invoke_runner_batch(
         raise ValueError("Batch requests cannot be empty")
     if timeout_seconds <= 0:
         raise ValueError("timeout_seconds must be positive")
+    request_payloads = [request.to_dict() for request in requests]
+    invocation, container_name = _prepare_invocation(command, request_payloads)
     started = time.monotonic()
     try:
         completed = subprocess.run(
-            list(command),
-            input=json.dumps([request.to_dict() for request in requests]),
+            invocation,
+            input=json.dumps(request_payloads),
             text=True,
             capture_output=True,
             timeout=timeout_seconds,
             check=False,
         )
     except subprocess.TimeoutExpired:
+        cleanup = _cleanup_timed_out_container(container_name)
         return [
-            _orchestration_failure(
-                request,
-                "timed_out",
-                time.monotonic() - started,
-                "TimeoutExpired",
-                f"Runner batch exceeded {timeout_seconds:g} seconds",
+            _timeout_failure_with_cleanup(
+                _orchestration_failure(
+                    request,
+                    "timed_out",
+                    time.monotonic() - started,
+                    "TimeoutExpired",
+                    f"Runner batch exceeded {timeout_seconds:g} seconds",
+                ),
+                container_name,
+                cleanup,
             )
             for request in requests
         ]
@@ -433,6 +442,105 @@ def _orchestration_failure(
     }
 
 
+def _prepare_invocation(
+    command: Sequence[str], requests: Sequence[Mapping[str, Any]]
+) -> tuple[list[str], str | None]:
+    invocation = list(command)
+    if invocation[:2] != ["podman", "run"]:
+        return invocation, None
+    if "--name" in invocation:
+        raise ValueError("Podman runner command must not supply its own --name")
+    identity = {
+        "command": invocation,
+        "requests": list(requests),
+    }
+    container_name = f"trec-vqa-{canonical_request_sha256(identity)[:24]}"
+    invocation[2:2] = ["--name", container_name]
+    return invocation, container_name
+
+
+def _cleanup_timed_out_container(container_name: str | None) -> dict[str, Any] | None:
+    if container_name is None:
+        return None
+
+    def run_cleanup(command: list[str]) -> dict[str, Any]:
+        try:
+            completed = subprocess.run(
+                command,
+                text=True,
+                capture_output=True,
+                timeout=30,
+                check=False,
+            )
+            return {
+                "returncode": completed.returncode,
+                "stdout": completed.stdout,
+                "error": None,
+            }
+        except (OSError, subprocess.TimeoutExpired) as error:
+            return {
+                "returncode": None,
+                "stdout": "",
+                "error": type(error).__name__,
+            }
+
+    stop = run_cleanup(["podman", "stop", "--time", "10", container_name])
+    remove = run_cleanup(["podman", "rm", "--force", container_name])
+    exists = run_cleanup(["podman", "container", "exists", container_name])
+    inspect: dict[str, Any] | None = None
+    running_state = ""
+    if exists["returncode"] == 0:
+        inspect = run_cleanup(
+            ["podman", "inspect", "--format", "{{.State.Running}}", container_name]
+        )
+        running_state = str(inspect["stdout"]).strip()
+    verified = exists["returncode"] == 1 or (
+        exists["returncode"] == 0
+        and inspect is not None
+        and inspect["returncode"] == 0
+        and running_state.lower() == "false"
+    )
+    return {
+        "stop_returncode": stop["returncode"],
+        "stop_error": stop["error"],
+        "remove_returncode": remove["returncode"],
+        "remove_error": remove["error"],
+        "exists_returncode": exists["returncode"],
+        "exists_error": exists["error"],
+        "inspect_returncode": inspect["returncode"] if inspect is not None else None,
+        "inspect_error": inspect["error"] if inspect is not None else None,
+        "running_state": running_state or None,
+        "container_absent": exists["returncode"] == 1,
+        "verified": verified,
+    }
+
+
+def _timeout_failure_with_cleanup(
+    result: dict[str, Any],
+    container_name: str | None,
+    cleanup: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    if container_name is None:
+        return result
+    result["container_name"] = container_name
+    result["timeout_cleanup"] = dict(cleanup or {})
+    if not cleanup or cleanup.get("verified") is not True:
+        result["status"] = "failed"
+        result["error_type"] = "TimeoutCleanupError"
+        result["error_message"] = (
+            "Runner timed out and Podman container cleanup could not be verified"
+        )
+    return result
+
+
+def _record_timeout_cleanup(
+    result: dict[str, Any], container_name: str | None
+) -> dict[str, Any]:
+    return _timeout_failure_with_cleanup(
+        result, container_name, _cleanup_timed_out_container(container_name)
+    )
+
+
 def _bounded(text: str, limit: int = 4_000) -> str:
     text = text.strip()
     return text if len(text) <= limit else text[: limit - 1] + "…"
@@ -440,9 +548,20 @@ def _bounded(text: str, limit: int = 4_000) -> str:
 
 def select_latest_results(
     attempts: Sequence[Mapping[str, Any]],
+    *,
+    requests: Sequence[Mapping[str, Any]] | None = None,
+    validate_pass: Callable[[Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]]
+    | None = None,
 ) -> dict[tuple[str, str], dict[str, Any]]:
     """Select the latest result, while never replacing a pass with a failure."""
 
+    if requests is not None:
+        return {
+            (str(result["condition_id"]), str(result["video_id"])): result
+            for result in select_results_for_requests(
+                requests, attempts, validate_pass=validate_pass
+            )
+        }
     selected: dict[tuple[str, str], dict[str, Any]] = {}
     for attempt in attempts:
         key = (str(attempt["condition_id"]), str(attempt["video_id"]))
@@ -454,17 +573,60 @@ def select_latest_results(
     return selected
 
 
+def select_results_for_requests(
+    requests: Sequence[Mapping[str, Any]],
+    attempts: Sequence[Mapping[str, Any]],
+    *,
+    validate_pass: Callable[[Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]]
+    | None = None,
+) -> list[dict[str, Any]]:
+    """Select only attempts bound to each exact request and valid provenance."""
+
+    selected: list[dict[str, Any]] = []
+    for request in requests:
+        valid_pass: dict[str, Any] | None = None
+        latest_failure: dict[str, Any] | None = None
+        for attempt in attempts:
+            if not (
+                attempt.get("condition_id") == request.get("condition_id")
+                and attempt.get("video_id") == request.get("video_id")
+                and saved_request_matches(attempt, request)
+            ):
+                continue
+            if attempt.get("status") != "passed":
+                latest_failure = dict(attempt)
+                continue
+            try:
+                validated = (
+                    validate_pass(request, attempt)
+                    if validate_pass is not None
+                    else attempt
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
+            valid_pass = dict(validated)
+        chosen = valid_pass or latest_failure
+        if chosen is not None:
+            selected.append(chosen)
+    return selected
+
+
 def render_gate_report(
     *,
     gate_id: str,
     references: Mapping[str, str],
     attempts: Sequence[Mapping[str, Any]],
+    requests: Sequence[Mapping[str, Any]] | None = None,
+    validate_pass: Callable[[Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]]
+    | None = None,
 ) -> str:
     """Render a compact report from raw attempts; never imply statistical rank."""
 
     from trec_video_2026.vqa_evaluation import evaluate_local_answer
 
-    selected = select_latest_results(attempts)
+    selected = select_latest_results(
+        attempts, requests=requests, validate_pass=validate_pass
+    )
     lines = [
         f"# {gate_id} results",
         "",
@@ -544,9 +706,20 @@ class GateStore:
             handle.flush()
             os.fsync(handle.fileno())
 
-    def completed(self, condition_id: str, video_id: str) -> dict[str, Any] | None:
+    def completed(
+        self,
+        condition_id: str,
+        video_id: str,
+        *,
+        request: Mapping[str, Any] | None = None,
+        validate_pass: Callable[
+            [Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]
+        ]
+        | None = None,
+    ) -> dict[str, Any] | None:
         if not self.attempts_path.exists():
             return None
+        attempts: list[dict[str, Any]] = []
         passed: dict[str, Any] | None = None
         with self.attempts_path.open(encoding="utf-8") as handle:
             for line_number, line in enumerate(handle, start=1):
@@ -556,12 +729,25 @@ class GateStore:
                     raise ValueError(
                         f"Invalid JSON on attempt line {line_number}"
                     ) from error
+                attempts.append(attempt)
                 if (
                     attempt.get("condition_id") == condition_id
                     and attempt.get("video_id") == video_id
                     and attempt.get("status") == "passed"
                 ):
                     passed = attempt
+        if request is not None:
+            if (
+                request.get("condition_id") != condition_id
+                or request.get("video_id") != video_id
+            ):
+                raise ValueError("Completed lookup/request identity mismatch")
+            selected = select_results_for_requests(
+                [request], attempts, validate_pass=validate_pass
+            )
+            if selected and selected[0].get("status") == "passed":
+                return selected[0]
+            return None
         return passed
 
 

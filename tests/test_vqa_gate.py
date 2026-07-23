@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
+import trec_video_2026.vqa_gate as vqa_gate
 from trec_video_2026.vqa_gate import (
     Condition,
     GateStore,
@@ -160,6 +162,139 @@ def test_invoke_runner_classifies_timeout(tmp_path: Path) -> None:
     assert result["error_type"] == "TimeoutExpired"
 
 
+def test_podman_timeout_uses_stable_name_and_records_verified_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        command = list(command)
+        calls.append(command)
+        if command[:2] == ["podman", "run"]:
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+        if command[:2] == ["podman", "stop"]:
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if command[:2] == ["podman", "rm"]:
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if command[:3] == ["podman", "container", "exists"]:
+            return subprocess.CompletedProcess(command, 1, "", "")
+        raise AssertionError(command)
+
+    monkeypatch.setattr(vqa_gate.subprocess, "run", fake_run)
+    runner_request = request(tmp_path)
+    command = ["podman", "run", "--rm", "local/test:image", "python"]
+
+    result = invoke_runner(command, runner_request, timeout_seconds=1)
+
+    container_name = calls[0][calls[0].index("--name") + 1]
+    assert container_name.startswith("trec-vqa-")
+    assert calls[1] == ["podman", "stop", "--time", "10", container_name]
+    assert calls[2] == ["podman", "rm", "--force", container_name]
+    assert calls[3] == ["podman", "container", "exists", container_name]
+    assert result["status"] == "timed_out"
+    assert result["container_name"] == container_name
+    assert result["timeout_cleanup"]["verified"] is True
+    assert result["timeout_cleanup"]["container_absent"] is True
+
+    calls.clear()
+    invoke_runner(command, runner_request, timeout_seconds=1)
+    assert calls[0][calls[0].index("--name") + 1] == container_name
+
+
+def test_podman_timeout_fails_closed_when_cleanup_cannot_be_verified(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run(command, **kwargs):
+        command = list(command)
+        if command[:2] == ["podman", "run"]:
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+        if command[:2] in (["podman", "stop"], ["podman", "rm"]):
+            return subprocess.CompletedProcess(command, 125, "", "cleanup failed")
+        if command[:3] == ["podman", "container", "exists"]:
+            return subprocess.CompletedProcess(command, 125, "", "unknown")
+        if command[:2] == ["podman", "inspect"]:
+            return subprocess.CompletedProcess(command, 125, "", "unknown")
+        raise AssertionError(command)
+
+    monkeypatch.setattr(vqa_gate.subprocess, "run", fake_run)
+
+    result = invoke_runner(
+        ["podman", "run", "--rm", "local/test:image", "python"],
+        request(tmp_path),
+        timeout_seconds=1,
+    )
+
+    assert result["status"] == "failed"
+    assert result["error_type"] == "TimeoutCleanupError"
+    assert result["timeout_cleanup"]["verified"] is False
+    assert result["timeout_cleanup"]["stop_returncode"] == 125
+    assert result["timeout_cleanup"]["remove_returncode"] == 125
+
+
+def test_podman_timeout_fails_closed_when_cleanup_command_times_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run(command, **kwargs):
+        command = list(command)
+        if command[:2] == ["podman", "run"]:
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+        if command[:2] == ["podman", "stop"]:
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+        if command[:2] == ["podman", "rm"]:
+            return subprocess.CompletedProcess(command, 125, "", "")
+        if command[:3] == ["podman", "container", "exists"]:
+            return subprocess.CompletedProcess(command, 125, "", "")
+        raise AssertionError(command)
+
+    monkeypatch.setattr(vqa_gate.subprocess, "run", fake_run)
+
+    result = invoke_runner(
+        ["podman", "run", "--rm", "local/test:image", "python"],
+        request(tmp_path),
+        timeout_seconds=1,
+    )
+
+    assert result["status"] == "failed"
+    assert result["error_type"] == "TimeoutCleanupError"
+    assert result["timeout_cleanup"]["stop_error"] == "TimeoutExpired"
+    assert result["timeout_cleanup"]["verified"] is False
+
+
+def test_podman_batch_timeout_cleans_one_named_container_for_every_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        command = list(command)
+        calls.append(command)
+        if command[:2] == ["podman", "run"]:
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+        if command[:2] in (["podman", "stop"], ["podman", "rm"]):
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if command[:3] == ["podman", "container", "exists"]:
+            return subprocess.CompletedProcess(command, 1, "", "")
+        raise AssertionError(command)
+
+    monkeypatch.setattr(vqa_gate.subprocess, "run", fake_run)
+    requests = [
+        request(tmp_path),
+        dataclasses.replace(request(tmp_path), video_id="video000002"),
+    ]
+
+    results = invoke_runner_batch(
+        ["podman", "run", "--rm", "local/test:image", "python"],
+        requests,
+        timeout_seconds=1,
+    )
+
+    container_name = calls[0][calls[0].index("--name") + 1]
+    assert [row["status"] for row in results] == ["timed_out", "timed_out"]
+    assert {row["container_name"] for row in results} == {container_name}
+    assert all(row["timeout_cleanup"]["verified"] is True for row in results)
+    assert [call[:2] for call in calls].count(["podman", "stop"]) == 1
+
+
 def test_invoke_runner_accepts_single_json_result(tmp_path: Path) -> None:
     payload = {
         "status": "passed",
@@ -251,6 +386,59 @@ def test_store_rejects_mismatched_identity(tmp_path: Path) -> None:
                 "request": {"condition_id": "different"},
             }
         )
+
+
+def test_store_exact_request_resume_rejects_mutated_request_and_provenance(
+    tmp_path: Path,
+) -> None:
+    store = GateStore(tmp_path / "run")
+    current = request(tmp_path).to_dict()
+    passed = {
+        "run_id": current["run_id"],
+        "condition_id": current["condition_id"],
+        "video_id": current["video_id"],
+        "status": "passed",
+        "answer": "A jump",
+        "request": current,
+        "request_sha256": canonical_request_sha256(current),
+        "model_revision": "a" * 40,
+    }
+    store.append_attempt(passed)
+
+    def validate_provenance(_request, attempt):
+        if attempt.get("model_revision") != "a" * 40:
+            raise ValueError("wrong revision")
+        return dict(attempt)
+
+    assert (
+        store.completed(
+            current["condition_id"],
+            current["video_id"],
+            request=current,
+            validate_pass=validate_provenance,
+        )
+        == passed
+    )
+    assert (
+        store.completed(
+            current["condition_id"],
+            current["video_id"],
+            request={**current, "question": "Changed?"},
+            validate_pass=validate_provenance,
+        )
+        is None
+    )
+    corrupted = {**passed, "model_revision": "b" * 40}
+    store.append_attempt(corrupted)
+    assert (
+        store.completed(
+            current["condition_id"],
+            current["video_id"],
+            request=current,
+            validate_pass=validate_provenance,
+        )
+        == passed
+    )
 
 
 def test_load_conditions_rejects_duplicate_ids(tmp_path: Path) -> None:
@@ -490,6 +678,74 @@ def test_latest_results_prefer_success_over_later_failure() -> None:
 
     assert selected[("model-a", "video-1")]["answer"] == "red"
     assert selected[("model-b", "video-1")]["status"] == "failed"
+
+
+def test_exact_request_selection_rejects_mutations_and_invalid_provenance() -> None:
+    current = {
+        "run_id": "gate",
+        "condition_id": "model-a",
+        "video_id": "video-1",
+        "question": "What color?",
+    }
+    good = {
+        **current,
+        "status": "passed",
+        "answer": "red",
+        "request": current,
+        "request_sha256": canonical_request_sha256(current),
+        "model_revision": "a" * 40,
+    }
+    changed_request = {
+        **good,
+        "answer": "blue",
+        "request": {**current, "question": "What shape?"},
+    }
+    changed_request["request_sha256"] = canonical_request_sha256(
+        changed_request["request"]
+    )
+    corrupt_provenance = {**good, "answer": "green", "model_revision": "b" * 40}
+
+    def validate_provenance(_request, attempt):
+        if attempt.get("model_revision") != "a" * 40:
+            raise ValueError("wrong revision")
+        return dict(attempt)
+
+    selected = vqa_gate.select_results_for_requests(
+        [current],
+        [changed_request, corrupt_provenance, good],
+        validate_pass=validate_provenance,
+    )
+
+    assert selected == [good]
+
+
+def test_latest_result_and_report_can_require_an_exact_request() -> None:
+    current = {
+        "run_id": "gate",
+        "condition_id": "model-a",
+        "video_id": "video-1",
+        "question": "What color?",
+    }
+    stale = {
+        **current,
+        "status": "passed",
+        "answer": "blue",
+        "request": {**current, "question": "What shape?"},
+        "elapsed_seconds": 1.0,
+        "peak_memory_bytes": 1,
+    }
+    stale["request_sha256"] = canonical_request_sha256(stale["request"])
+
+    selected = select_latest_results([stale], requests=[current])
+    report = render_gate_report(
+        gate_id="exact-gate",
+        references={"video-1": "red"},
+        attempts=[stale],
+        requests=[current],
+    )
+
+    assert selected == {}
+    assert "| model-a | video-1 | passed |" not in report
 
 
 def test_report_labels_three_examples_as_descriptive_not_ranked() -> None:
