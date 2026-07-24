@@ -1,0 +1,188 @@
+import copy
+import hashlib
+import json
+from pathlib import Path
+
+import pytest
+
+from trec_video_2026.vqa_experiments.omni_contract import (
+    DEFAULT_PANEL,
+    build_compatibility_contract,
+    contract_sha256,
+    parse_prediction,
+    promotion_decision,
+    request_sha256,
+    validate_contract,
+    validate_prediction,
+)
+
+
+def _write_panel_fixture(data_root: Path) -> None:
+    for selection in DEFAULT_PANEL:
+        annotation = (
+            data_root / "vqa/2025/training/annotations" / f"{selection.video_id}.json"
+        )
+        annotation.parent.mkdir(parents=True, exist_ok=True)
+        annotation.write_text(
+            json.dumps(
+                {
+                    "question": f"Question for {selection.operational_tag}?",
+                    "correct_answer": "must never enter the contract",
+                    "incorrect_answers": ["also private to scoring"],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        media = data_root / selection.media_path
+        media.parent.mkdir(parents=True, exist_ok=True)
+        media.write_bytes(f"media:{selection.video_id}".encode())
+
+        audio = data_root / selection.audio_path
+        audio.parent.mkdir(parents=True, exist_ok=True)
+        audio.write_bytes(f"audio:{selection.video_id}".encode())
+
+        frame_dir = data_root / selection.frame_dir
+        frame_dir.mkdir(parents=True, exist_ok=True)
+        for index in range(1, 13):
+            (frame_dir / f"frame-{index:02d}.png").write_bytes(
+                f"frame:{selection.video_id}:{index}".encode()
+            )
+
+
+def _valid_prediction(example: dict) -> dict:
+    return {
+        "schema_version": 1,
+        "run_id": "test-run",
+        "video_id": example["video_id"],
+        "operational_tag": example["operational_tag"],
+        "request_sha256": request_sha256(example),
+        "model_id": "example/model",
+        "model_revision": "a" * 40,
+        "runtime_image_digest": "sha256:" + "b" * 64,
+        "device": "cuda:0 (ROCm; Radeon 8060S Graphics)",
+        "precision": "bfloat16",
+        "elapsed_seconds": 1.25,
+        "peak_memory_bytes": 1234,
+        "status": "passed",
+        "raw_output": '{"answer":"example","evidence":"audio and frames"}',
+        "parsed_output": {
+            "answer": "example",
+            "evidence": "audio and frames",
+        },
+        "output_parse_status": "passed",
+        "input_contract_error": False,
+        "modality_attestation": {
+            "same_request": True,
+            "same_forward_pass": True,
+            "generation_call_count": 1,
+            "generation_input_keys": [
+                "input_ids",
+                "pixel_values",
+                "input_features",
+            ],
+            "vision_input_keys": ["pixel_values"],
+            "audio_input_keys": ["input_features"],
+            "vision_element_count": 12,
+            "audio_element_count": 1,
+            "vision_input_sha256": "c" * 64,
+            "audio_input_sha256": "d" * 64,
+        },
+    }
+
+
+def test_contract_binds_three_roles_to_frames_and_audio(tmp_path: Path):
+    _write_panel_fixture(tmp_path)
+
+    contract = build_compatibility_contract(tmp_path)
+
+    assert [row["operational_tag"] for row in contract["examples"]] == [
+        "lexical_speech",
+        "prosody",
+        "non_speech_sound",
+    ]
+    assert all(len(row["frame_sha256s"]) == 12 for row in contract["examples"])
+    assert all(len(row["audio_sha256"]) == 64 for row in contract["examples"])
+    assert all(len(row["media_sha256"]) == 64 for row in contract["examples"])
+    encoded = json.dumps(contract).lower()
+    assert "correct_answer" not in encoded
+    assert "incorrect_answers" not in encoded
+    validate_contract(contract, tmp_path, verify_files=True)
+
+
+def test_contract_hash_is_canonical(tmp_path: Path):
+    _write_panel_fixture(tmp_path)
+    contract = build_compatibility_contract(tmp_path)
+    expected = hashlib.sha256(
+        json.dumps(
+            contract, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode()
+    ).hexdigest()
+
+    assert contract_sha256(contract) == expected
+
+
+def test_contract_rejects_missing_modality_binding(tmp_path: Path):
+    _write_panel_fixture(tmp_path)
+    contract = build_compatibility_contract(tmp_path)
+    broken = copy.deepcopy(contract)
+    broken["examples"][0]["audio_sha256"] = ""
+
+    with pytest.raises(ValueError, match="audio_sha256"):
+        validate_contract(broken, tmp_path)
+
+
+def test_prediction_requires_joint_modality_forward(tmp_path: Path):
+    _write_panel_fixture(tmp_path)
+    example = build_compatibility_contract(tmp_path)["examples"][0]
+    prediction = _valid_prediction(example)
+    prediction["modality_attestation"]["same_forward_pass"] = False
+
+    with pytest.raises(ValueError, match="same forward pass"):
+        validate_prediction(prediction, example)
+
+
+def test_prediction_requires_runtime_attestation(tmp_path: Path):
+    _write_panel_fixture(tmp_path)
+    example = build_compatibility_contract(tmp_path)["examples"][0]
+    prediction = _valid_prediction(example)
+    del prediction["runtime_image_digest"]
+
+    with pytest.raises(ValueError, match="runtime_image_digest"):
+        validate_prediction(prediction, example)
+
+
+def test_prediction_rejects_unbound_request(tmp_path: Path):
+    _write_panel_fixture(tmp_path)
+    example = build_compatibility_contract(tmp_path)["examples"][0]
+    prediction = _valid_prediction(example)
+    prediction["request_sha256"] = "0" * 64
+
+    with pytest.raises(ValueError, match="request_sha256"):
+        validate_prediction(prediction, example)
+
+
+def test_parse_prediction_accepts_fenced_json():
+    parsed = parse_prediction(
+        '```json\n{"answer": "a cat", "evidence": "heard a scream"}\n```'
+    )
+
+    assert parsed == {"answer": "a cat", "evidence": "heard a scream"}
+
+
+def test_parse_prediction_rejects_plain_text():
+    with pytest.raises(ValueError, match="JSON object"):
+        parse_prediction("probably a cat")
+
+
+def test_promotion_requires_all_three_joint_rows(tmp_path: Path):
+    _write_panel_fixture(tmp_path)
+    contract = build_compatibility_contract(tmp_path)
+    predictions = [_valid_prediction(row) for row in contract["examples"]]
+
+    assert promotion_decision(contract, predictions)["decision"] == "promote"
+
+    predictions[1]["modality_attestation"]["audio_element_count"] = 0
+    decision = promotion_decision(contract, predictions)
+    assert decision["decision"] == "stop"
+    assert "prosody" in decision["failed_roles"]
