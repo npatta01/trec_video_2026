@@ -286,6 +286,18 @@ def validate_launch_decision(record: Mapping[str, Any]) -> dict[str, Any]:
     return dict(record)
 
 
+def validate_decision_bindings(
+    record: Mapping[str, Any], expected: Mapping[str, Any]
+) -> None:
+    """Reject a signed decision whose bound inputs no longer match current state."""
+
+    mismatched = [key for key, value in expected.items() if record.get(key) != value]
+    if mismatched:
+        raise ValueError(
+            "Launch decision is stale for current state: " + ", ".join(mismatched)
+        )
+
+
 def append_attempt_rows(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
     """Append complete attempt rows and fsync once; never rewrite the ledger."""
 
@@ -349,13 +361,8 @@ def validate_frozen_attempt(
         and attempt.get("precision") == execution.precision
         and isinstance(attempt.get("elapsed_seconds"), (int, float))
         and attempt["elapsed_seconds"] >= 0
-        and (
-            attempt.get("peak_memory_bytes") is None
-            or (
-                isinstance(attempt.get("peak_memory_bytes"), int)
-                and attempt["peak_memory_bytes"] >= 0
-            )
-        )
+        and isinstance(attempt.get("peak_memory_bytes"), int)
+        and attempt["peak_memory_bytes"] >= 0
         and attempt.get("error_type") is None
         and attempt.get("error_message") is None
     )
