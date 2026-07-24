@@ -114,8 +114,10 @@ def test_dstack_task_uploads_only_frozen_inputs_and_syncs_private_results():
     assert "HF_TOKEN=${{ secrets.hf_token }}" in text
     assert (
         "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
-        "experiments/qwen3-omni-compatibility-3-20260724-a2"
+        "experiments/qwen3-omni-compatibility-3-20260724-a3"
     ) in combined
+    assert "name: qwen3-omni-compatibility-3-20260724-a3" in text
+    assert 'readonly EXPECTED_RUN_ID="qwen3-omni-compatibility-3-20260724-a3"' in runner
     assert 'uvx --from "huggingface-hub==$HF_CLI_VERSION" hf "$@"' in runner
     assert "--break-system-packages" not in runner
     assert "hf_cli buckets sync" in runner

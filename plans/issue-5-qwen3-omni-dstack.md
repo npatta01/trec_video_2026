@@ -65,6 +65,7 @@ reproducibility and provenance, and make an honest expand/stop decision.
 - [x] Future immutable run identity advanced to `a2`.
 - [x] Authorized detached compatibility run completed.
 - [x] Remote artifacts downloaded and hash-verified.
+- [ ] Corrected immutable `a3` run completed and adjudicated.
 - [x] Static findings independently reviewed.
 - [x] Issue updated and stacked draft PR #14 opened.
 
@@ -111,11 +112,14 @@ The preflight passed, but the executed runner transferred inputs to the device
 without applying the BF16 model dtype. All rows failed in `generation` before
 joint visual/audio first-forward attestation could complete. This is an
 inconclusive probe input-dtype failure, not evidence of Qwen incompatibility.
-The runner is corrected to use the official device-plus-dtype transfer, but
-that correction was not rerun. No expansion or resubmission is authorized.
+The runner is corrected to use the official device-plus-dtype transfer. The
+user authorized exactly one fresh immutable `a3` attempt under the existing
+$4.50/hour and two-hour envelope. Combined prior spend is $0.4834, so the
+native $9.00 run cap keeps cumulative Qwen spend below $10.
 
 ## Next action
 
-Stop and report the inconclusive probe with its automatic compatibility gate.
-Preserve `a2` as immutable. A corrected run requires a new issue decision,
-immutable identity, and explicit cost authorization.
+Verify empty local, dstack, and private HF `a3` namespaces; re-preview the
+unchanged hardware/provider envelope; submit `a3` exactly once detached if at
+least two offers remain; then verify artifacts and adjudicate successful
+outputs. Do not retry or broaden beyond `a3`.

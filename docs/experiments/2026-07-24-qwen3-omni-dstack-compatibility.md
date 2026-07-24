@@ -4,7 +4,7 @@ Date: 2026-07-24
 
 Issue: #5
 
-Decision: **inconclusive probe; automatic compatibility stop**
+Decision: **corrected `a3` run authorized and pending**
 
 ## Scope and gate
 
@@ -182,9 +182,10 @@ Key hashes:
 
 ## Next action
 
-Stop. Do not resubmit `a2` or broaden the experiment. A corrected compatibility
-run would require a new immutable run identity, a new authorization, and a
-separate cost envelope.
+Preserve `a2` as immutable. The user authorized exactly one corrected
+`a3` attempt within the unchanged `$4.50/hour`, two-hour envelope. Prior
+combined spend is `$0.4834`; the `$9.00` native run maximum therefore keeps
+cumulative Qwen spend below `$10`. Do not retry or broaden beyond `a3`.
 
 ## References
 
