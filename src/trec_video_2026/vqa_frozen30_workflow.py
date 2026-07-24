@@ -124,6 +124,43 @@ def validate_cli_run_access(run_id: str, action: str) -> None:
         )
 
 
+def require_mutable_run() -> None:
+    """Reject imported mutation attempts against the archival v1 namespace."""
+
+    if RUN_ID == "native-audio-benchmark-v1":
+        raise ValueError("native-audio-benchmark-v1 is read-only")
+
+
+def _utc_timestamp(value: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (AttributeError, ValueError) as error:
+        raise ValueError("Launch timestamp must be ISO-8601 UTC") from error
+    if parsed.tzinfo is None or parsed.utcoffset() != UTC.utcoffset(parsed):
+        raise ValueError("Launch timestamp must be ISO-8601 UTC")
+    return parsed
+
+
+def validate_launch_timestamp_order(
+    config_recorded_at_utc: str,
+    authorization_recorded_at_utc: str | None,
+    *,
+    now: datetime,
+) -> None:
+    """Require configuration to predate authorization and current time."""
+
+    config_recorded = _utc_timestamp(config_recorded_at_utc)
+    if config_recorded >= now:
+        raise ValueError("Launch configuration timestamp is future or not yet elapsed")
+    if authorization_recorded_at_utc is None:
+        return
+    authorization_recorded = _utc_timestamp(authorization_recorded_at_utc)
+    if config_recorded >= authorization_recorded:
+        raise ValueError("Launch configuration must be recorded before authorization")
+    if authorization_recorded > now:
+        raise ValueError("Launch authorization timestamp is in the future")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Prepare, run, resume, and score the frozen 30 benchmark"
@@ -506,6 +543,11 @@ def _atomic_write(path: Path, text: str) -> None:
 
 def _promotions() -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     payload = _json(PROMOTION_CONFIG)
+    validate_launch_timestamp_order(
+        payload["recorded_at_utc"],
+        None,
+        now=datetime.now(UTC),
+    )
     manifest = load_manifest(MANIFEST_PATH, DATA)
     if (
         payload["manifest_version"] != manifest.manifest_version
@@ -564,6 +606,7 @@ def _extract_audio(media_path: Path, destination: Path) -> None:
 
 
 def prepare() -> None:
+    require_mutable_run()
     if _jsonl(DECISIONS):
         _validate_all_current_decisions()
         print(json.dumps({"status": "already-authorized; prepare did not rewrite"}))
@@ -768,6 +811,7 @@ def _whisper_command() -> list[str]:
 
 
 def run_whisper() -> None:
+    require_mutable_run()
     audit_no_competing_benchmark_containers()
     requests = _json(RUN / "whisper-requests.json")
     preflight = _json(RUN / "preflight.json")["whisper"]
@@ -931,6 +975,7 @@ def run_whisper() -> None:
 
 
 def build_transcript_requests() -> None:
+    require_mutable_run()
     if ATTEMPTS.exists() and any(
         row.get("condition_id") == TRANSCRIPT_CONDITION for row in _jsonl(ATTEMPTS)
     ):
@@ -1074,6 +1119,11 @@ def _validate_current_decision(
 ) -> None:
     validate_launch_decision(decision)
     promotion = _json(PROMOTION_CONFIG)
+    validate_launch_timestamp_order(
+        promotion["recorded_at_utc"],
+        decision.get("recorded_at_utc"),
+        now=datetime.now(UTC),
+    )
     preflight_audit = _json(RUN / "preflight.json")["condition_audits"][
         specification["condition_id"]
     ]
@@ -1093,6 +1143,7 @@ def _validate_current_decision(
         "run_id": RUN_ID,
         "protocol_version": 2,
         "inference_manifest_sha256": _sha256(MANIFEST_PATH),
+        "launch_config_recorded_at_utc": promotion["recorded_at_utc"],
     }
     validate_decision_bindings(decision, expected)
 
@@ -1134,6 +1185,7 @@ def _completed_counts(decisions: Sequence[Mapping[str, Any]]) -> dict[str, int]:
 
 
 def authorize(condition_id: str) -> None:
+    require_mutable_run()
     specification, requests, _ = _condition_inputs(condition_id)
     audit = audit_frozen_requests(
         requests,
@@ -1156,17 +1208,24 @@ def authorize(condition_id: str) -> None:
         print(json.dumps(existing[-1], sort_keys=True))
         return
     preflight = _json(RUN / "preflight.json")["condition_audits"][condition_id]
+    recorded_at_utc = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    promotion = _json(PROMOTION_CONFIG)
+    validate_launch_timestamp_order(
+        promotion["recorded_at_utc"],
+        recorded_at_utc,
+        now=datetime.now(UTC),
+    )
     decision = append_launch_decision(
         DECISIONS,
         {
             "schema_version": 1,
-            "manifest_version": _json(PROMOTION_CONFIG)["manifest_version"],
-            "gate_selection_sha256": _json(PROMOTION_CONFIG)["gate_selection_sha256"],
+            "manifest_version": promotion["manifest_version"],
+            "gate_selection_sha256": promotion["gate_selection_sha256"],
             "condition_id": condition_id,
             "decision": specification["decision"],
             "rationale": specification["rationale"],
             "promotion_path": specification["promotion_path"],
-            "recorded_at_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "recorded_at_utc": recorded_at_utc,
             "request_set_sha256": audit["request_set_sha256"],
             "evidence_manifest_sha256": preflight["evidence_manifest_sha256"],
             "model_id": specification["model_id"],
@@ -1175,6 +1234,7 @@ def authorize(condition_id: str) -> None:
             "run_id": RUN_ID,
             "protocol_version": 2,
             "inference_manifest_sha256": _sha256(MANIFEST_PATH),
+            "launch_config_recorded_at_utc": promotion["recorded_at_utc"],
         },
         attempts_path=ATTEMPTS,
     )
@@ -1202,6 +1262,7 @@ def _runner_request(payload: Mapping[str, Any]) -> RunnerRequest:
 
 
 def run_condition(condition_id: str) -> None:
+    require_mutable_run()
     audit_no_competing_benchmark_containers()
     specification, requests, execution = _condition_inputs(condition_id)
     all_decisions = _validate_all_current_decisions()
@@ -1358,6 +1419,7 @@ def run_condition(condition_id: str) -> None:
 
 
 def score() -> None:
+    require_mutable_run()
     import nltk
     from nltk import word_tokenize
     from nltk.translate.meteor_score import meteor_score

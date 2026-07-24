@@ -2,7 +2,7 @@
   "schema_version": 2,
   "manifest_version": "trecvid-native-audio-2026-07-21-v1",
   "gate_selection_sha256": "099dedfa4d74aa7ed1c135a013c8b342a62e422a6692934507c94839a2803f69",
-  "recorded_at_utc": "2026-07-24T04:30:00Z",
+  "recorded_at_utc": "2026-07-24T04:13:21Z",
   "recorded_before_any_frozen30_attempt": true,
   "condition_decisions": [
     {

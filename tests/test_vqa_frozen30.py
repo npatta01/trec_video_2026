@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -304,6 +305,28 @@ def test_v2_launch_config_marks_transcript_as_exploratory_not_promoted() -> None
     assert "missing visual-control gate" in transcript["rationale"]
     assert "METEOR -0.1032" in transcript["rationale"]
     assert "F1 -0.0552" in transcript["rationale"]
+
+
+def test_launch_timestamps_require_config_before_authorization_and_now() -> None:
+    now = datetime(2026, 7, 24, 4, 20, tzinfo=UTC)
+
+    frozen_workflow.validate_launch_timestamp_order(
+        "2026-07-24T04:10:00Z",
+        "2026-07-24T04:15:00Z",
+        now=now,
+    )
+    with pytest.raises(ValueError, match="before authorization"):
+        frozen_workflow.validate_launch_timestamp_order(
+            "2026-07-24T04:15:00Z",
+            "2026-07-24T04:15:00Z",
+            now=now,
+        )
+    with pytest.raises(ValueError, match="future"):
+        frozen_workflow.validate_launch_timestamp_order(
+            "2026-07-24T04:30:00Z",
+            None,
+            now=now,
+        )
 
 
 def test_exploratory_decision_can_be_authorized_but_is_not_promoted(
@@ -653,6 +676,28 @@ def test_cli_defaults_to_v2_and_v1_is_status_only() -> None:
     with pytest.raises(ValueError, match="read-only"):
         frozen_workflow.validate_cli_run_access("native-audio-benchmark-v1", "prepare")
     frozen_workflow.validate_cli_run_access("native-audio-benchmark-v1", "status")
+
+
+@pytest.mark.parametrize(
+    ("mutation", "args"),
+    [
+        ("prepare", ()),
+        ("authorize", ("condition",)),
+        ("run_condition", ("condition",)),
+        ("run_whisper", ()),
+        ("build_transcript_requests", ()),
+        ("score", ()),
+    ],
+)
+def test_every_mutating_public_workflow_rejects_imported_v1_calls(
+    mutation: str,
+    args: tuple[object, ...],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(frozen_workflow, "RUN_ID", "native-audio-benchmark-v1")
+
+    with pytest.raises(ValueError, match="read-only"):
+        getattr(frozen_workflow, mutation)(*args)
 
 
 def test_full_current_evidence_manifest_changes_with_any_evidence_byte(
