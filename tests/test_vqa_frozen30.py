@@ -754,6 +754,120 @@ def test_staged_runtime_source_contains_only_bound_python_files(
         frozen_workflow.validate_staged_runtime_source(preflight)
 
 
+def test_vqa_batch_guard_rejects_in_run_source_tamper_before_return(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run = tmp_path / "run"
+    monkeypatch.setattr(frozen_workflow, "RUN", run)
+    source_tree_sha256 = frozen_workflow.canonical_source_tree_sha256(
+        frozen_workflow.SOURCE_TREE
+    )
+    runtime_root = frozen_workflow.stage_runtime_source(source_tree_sha256)
+    manifest_path = run / "runtime-source-manifest.json"
+    preflight = {
+        "source_tree_sha256": source_tree_sha256,
+        "runtime_source_manifest_sha256": hashlib.sha256(
+            manifest_path.read_bytes()
+        ).hexdigest(),
+    }
+    staged_runner = runtime_root / "trec_video_2026/vqa_transformers_runner.py"
+
+    def tampering_invoke(*_args: object, **_kwargs: object) -> list[dict]:
+        staged_runner.write_bytes(b"tampered during VQA inference\n")
+        return [{"status": "passed", "answer": "untrusted"}]
+
+    monkeypatch.setattr(frozen_workflow, "invoke_runner_batch", tampering_invoke)
+    attempts = run / "attempts.jsonl"
+
+    with pytest.raises(ValueError, match="Staged runtime source file"):
+        frozen_workflow.invoke_runner_batch_with_source_guard(
+            ["runner"],
+            [],
+            timeout_seconds=1,
+            preflight=preflight,
+        )
+
+    assert not attempts.exists()
+
+
+def test_whisper_rejects_atomic_source_replacement_before_attempt_append(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run = tmp_path / "run"
+    monkeypatch.setattr(frozen_workflow, "RUN", run)
+    source_tree_sha256 = frozen_workflow.canonical_source_tree_sha256(
+        frozen_workflow.SOURCE_TREE
+    )
+    runtime_root = frozen_workflow.stage_runtime_source(source_tree_sha256)
+    manifest_path = run / "runtime-source-manifest.json"
+    runtime_manifest_sha256 = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    audio = run / "audio.wav"
+    audio.write_bytes(b"audio")
+    requests = [
+        {
+            "run_id": frozen_workflow.RUN_ID,
+            "condition_id": frozen_workflow.ASR_CONDITION,
+            "video_id": video_id,
+            "audio_path": str(audio),
+        }
+        for video_id in FROZEN_IDS
+    ]
+    request_path = run / "whisper-requests.json"
+    request_path.write_text(json.dumps(requests), encoding="utf-8")
+    image = "local/image@sha256:" + "a" * 64
+    preflight = {
+        "source_tree_sha256": source_tree_sha256,
+        "runtime_source_manifest_sha256": runtime_manifest_sha256,
+        "whisper": {
+            "runtime_image": image,
+            "request_set_sha256": canonical_request_sha256({"requests": requests}),
+            "requests_file_sha256": hashlib.sha256(
+                request_path.read_bytes()
+            ).hexdigest(),
+        },
+    }
+    (run / "preflight.json").write_text(json.dumps(preflight), encoding="utf-8")
+    attempts = run / "whisper-attempts.jsonl"
+    monkeypatch.setattr(frozen_workflow, "ASR_ATTEMPTS", attempts)
+    monkeypatch.setattr(frozen_workflow, "_expected_ids", lambda: FROZEN_IDS)
+    monkeypatch.setattr(
+        frozen_workflow, "audit_no_competing_benchmark_containers", lambda: None
+    )
+    monkeypatch.setattr(
+        frozen_workflow,
+        "_whisper_command",
+        lambda: ["podman", "run", "--rm", image, "runner"],
+    )
+
+    class Lock:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+        def __enter__(self) -> None:
+            return None
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+    monkeypatch.setattr(frozen_workflow, "SerialBenchmarkLock", Lock)
+    staged_runner = runtime_root / "trec_video_2026/vqa_whisper.py"
+
+    def tampering_run(
+        command: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess:
+        replacement = tmp_path / "replacement.py"
+        replacement.write_bytes(b"atomically replaced during Whisper inference\n")
+        replacement.replace(staged_runner)
+        return subprocess.CompletedProcess(command, 0, "{}", "")
+
+    monkeypatch.setattr(frozen_workflow.subprocess, "run", tampering_run)
+
+    with pytest.raises(ValueError, match="Staged runtime source file"):
+        frozen_workflow.run_whisper()
+
+    assert not attempts.exists()
+
+
 def test_prepare_does_not_rewrite_authorized_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

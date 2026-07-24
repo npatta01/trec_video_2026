@@ -492,6 +492,25 @@ def validate_staged_runtime_source(preflight: Mapping[str, Any]) -> Path:
     return runtime_root
 
 
+def invoke_runner_batch_with_source_guard(
+    command: Sequence[str],
+    requests: Sequence[RunnerRequest],
+    *,
+    timeout_seconds: float,
+    preflight: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Run one VQA batch between locked pre/post source attestations."""
+
+    validate_staged_runtime_source(preflight)
+    results = invoke_runner_batch(
+        command,
+        requests,
+        timeout_seconds=timeout_seconds,
+    )
+    validate_staged_runtime_source(preflight)
+    return results
+
+
 def validate_scorer_runtime(
     nltk_module: Any,
     environment: Mapping[str, str],
@@ -1058,6 +1077,7 @@ def run_whisper() -> None:
                                 -4000:
                             ],
                         }
+            validate_staged_runtime_source(full_preflight)
             outer_elapsed = time.monotonic() - outer_started
             outer_condition_elapsed = prior_outer_seconds + outer_elapsed
             try:
@@ -1490,11 +1510,12 @@ def run_condition(condition_id: str) -> None:
             offset += chunk_size
             chunk_id = f"{RUN_ID}-{condition_id}-{target}-{secrets.token_hex(6)}"
             outer_started = time.monotonic()
-            validate_staged_runtime_source(_json(RUN / "preflight.json"))
-            results = invoke_runner_batch(
+            full_preflight = _json(RUN / "preflight.json")
+            results = invoke_runner_batch_with_source_guard(
                 command,
                 [_runner_request(request) for request in chunk],
                 timeout_seconds=1800,
+                preflight=full_preflight,
             )
             outer_elapsed = time.monotonic() - outer_started
             outer_condition_elapsed = prior_outer_seconds + outer_elapsed
