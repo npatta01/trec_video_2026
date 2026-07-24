@@ -50,7 +50,7 @@ gold-transcript benchmark.
 - [x] Load labels only after freeze, score, and adjudicate paired transitions.
 - [x] Complete and run the public dataset-reference sanity benchmark.
 - [x] Verify exactly one full-coverage uploader-caption reference row.
-- [ ] Update the issue and draft PR with hashes and aggregate evidence.
+- [x] Update issue #7 and draft PR #9 with hashes and aggregate evidence.
 
 ## Verification evidence
 
@@ -76,5 +76,7 @@ gold-transcript benchmark.
 
 ## Next action
 
-Run final verification and independent review, then commit, push, and update
-issue #7 and draft PR #9 with the aggregate results and immutable hashes.
+Review draft PR #9. The strict human-oracle tier remains intentionally blocked
+until independent transcriber/reviewer records exist; automatic ASR, the one
+verified uploader-caption reference, and the external dataset reference are
+complete.
