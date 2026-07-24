@@ -2,6 +2,7 @@ from pathlib import Path
 
 SCRIPT = Path("scripts/run-omni-compatibility.sh")
 CONTAINERFILE = Path("containers/omni-rocm.Containerfile")
+PHI_CONTAINERFILE = Path("containers/phi4mm-rocm.Containerfile")
 
 
 def test_runner_pins_image_and_disables_network():
@@ -9,12 +10,17 @@ def test_runner_pins_image_and_disables_network():
 
     assert (
         "localhost/trec-vqa-omni-rocm@"
-        "sha256:cbda16214c953bcd2bd2a7bf65d26561ac406b0f1fbab2f719b25baab1d757f4"
+        "sha256:b1f97c47769a8a2f32a5ac9a18cc62d2aab57ed32c66720775407f6213ebf96f"
+    ) in text
+    assert (
+        "localhost/trec-vqa-phi4mm-rocm@"
+        "sha256:17275d29326529d0f0275d0466311f380b623a62d965ba372f931cae34c6d6f5"
     ) in text
     assert "--network=none" in text
     assert "--device=/dev/kfd" in text
     assert "--device=/dev/dri" in text
     assert "--group-add=keep-groups" in text
+    assert "TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1" in text
     assert "--publish" not in text
 
 
@@ -45,5 +51,19 @@ def test_runtime_image_derives_from_pinned_rocm_base():
         "FROM localhost/trec-vqa-gate-gemma@"
         "sha256:5bbd6f039622f70ad53d62395f189b07dc8fe28e2336c8aa462081abee9b7aaa"
     ) in text
+    assert "backoff==2.2.1" in text
+    assert "peft==0.13.2" in text
+    assert "timm==1.0.28" in text
+
+
+def test_phi_runtime_pins_model_declared_transformers_version():
+    text = PHI_CONTAINERFILE.read_text(encoding="utf-8")
+
+    assert (
+        "FROM localhost/trec-vqa-gate-gemma@"
+        "sha256:5bbd6f039622f70ad53d62395f189b07dc8fe28e2336c8aa462081abee9b7aaa"
+    ) in text
+    assert "transformers==4.48.2" in text
+    assert "accelerate==1.3.0" in text
     assert "backoff==2.2.1" in text
     assert "peft==0.13.2" in text

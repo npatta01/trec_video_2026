@@ -136,11 +136,7 @@ def _capture_first_forward(model: Any) -> Iterator[list[set[str]]]:
 
 def _load_backend(model_key: str, model_path: Path) -> tuple[Any, Any, Any]:
     import torch
-    from transformers import (
-        AutoModelForCausalLM,
-        AutoProcessor,
-        Gemma3nForConditionalGeneration,
-    )
+    from transformers import AutoProcessor
 
     if not torch.cuda.is_available():
         raise RuntimeError("ROCm accelerator is unavailable to PyTorch")
@@ -153,15 +149,19 @@ def _load_backend(model_key: str, model_path: Path) -> tuple[Any, Any, Any]:
         "torch_dtype": torch.bfloat16,
         "device_map": "cuda:0",
         "local_files_only": True,
-        "_attn_implementation": "eager",
+        "_attn_implementation": "sdpa" if model_key == "phi4mm" else "eager",
     }
     if model_key == "phi4mm":
+        from transformers import AutoModelForCausalLM
+
         model = AutoModelForCausalLM.from_pretrained(
             model_path,
             trust_remote_code=True,
             **common,
         )
     else:
+        from transformers import Gemma3nForConditionalGeneration
+
         model = Gemma3nForConditionalGeneration.from_pretrained(model_path, **common)
     model.eval()
     return torch, processor, model
@@ -329,6 +329,7 @@ def run_probe(
     else:
         for contract_example in contract["examples"]:
             example = resolve_example_paths(contract_example, data_root)
+            torch.cuda.empty_cache()
             torch.cuda.reset_peak_memory_stats()
             started = time.perf_counter()
             try:
@@ -379,6 +380,7 @@ def run_probe(
                     input_contract_error=input_contract_error,
                     failure_stage=failure_stage,
                 )
+                underlying_error.__traceback__ = None
             record.update(
                 {
                     "model_load_seconds": model_load_seconds,

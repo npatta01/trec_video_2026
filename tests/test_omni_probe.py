@@ -1,5 +1,7 @@
 from pathlib import Path
+import sys
 from types import SimpleNamespace
+from types import ModuleType
 
 import pytest
 
@@ -8,6 +10,7 @@ from trec_video_2026.vqa_experiments.omni_probe import (
     MODEL_SPECS,
     ProbeStageError,
     _generate_one,
+    _load_backend,
     classify_probe_failure,
     resolve_example_paths,
     validate_run_id,
@@ -104,3 +107,33 @@ def test_generate_one_labels_device_transfer_failure_separately(monkeypatch):
         )
 
     assert captured.value.stage == "device_transfer"
+
+
+def test_phi_backend_does_not_require_gemma_class(monkeypatch, tmp_path):
+    class FakeModel:
+        def eval(self):
+            return self
+
+    class FakeAuto:
+        last_kwargs = None
+
+        @classmethod
+        def from_pretrained(cls, *_args, **_kwargs):
+            cls.last_kwargs = _kwargs
+            return FakeModel()
+
+    torch = ModuleType("torch")
+    torch.cuda = SimpleNamespace(is_available=lambda: True)
+    torch.bfloat16 = "bfloat16"
+    transformers = ModuleType("transformers")
+    transformers.AutoModelForCausalLM = FakeAuto
+    transformers.AutoProcessor = FakeAuto
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    monkeypatch.setitem(sys.modules, "transformers", transformers)
+
+    loaded_torch, processor, model = _load_backend("phi4mm", tmp_path)
+
+    assert loaded_torch is torch
+    assert isinstance(processor, FakeModel)
+    assert isinstance(model, FakeModel)
+    assert FakeAuto.last_kwargs["_attn_implementation"] == "sdpa"
