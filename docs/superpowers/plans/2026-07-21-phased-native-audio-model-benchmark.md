@@ -305,8 +305,8 @@ alone is not sufficient.
 
 The first frozen-30 output remains immutable historical audit evidence.
 Protocol-v2 remediation, clean inference, two-phase scoring, deterministic
-score regeneration, and the canonical results report are complete. The next
-action is a fresh final advisor review of the v2 evidence and report.
+score regeneration, the canonical results report, and fresh final advisor
+review are complete.
 
 - [x] Add an inference-manifest loader that resolves only frozen questions,
   categories, media, and annotation paths without opening annotation content.
@@ -339,7 +339,7 @@ action is a fresh final advisor review of the v2 evidence and report.
   a new immutable v2 run rather than reusing v1 passes.
 - [x] Freeze v2 predictions before any reference load and regenerate scoring
   and the canonical report.
-- [ ] Obtain a fresh final advisor approval of the protocol-v2 code, artifacts,
+- [x] Obtain a fresh final advisor approval of the protocol-v2 code, artifacts,
   conclusions, and report.
 
 Protocol-v2 evidence:
@@ -355,5 +355,5 @@ Protocol-v2 evidence:
   `reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md`.
 - report-only advisor follow-up added every pre-v2 stopped candidate, separated
   ASR source completion from transcript acceptance and downstream completion,
-  and narrowed v2-only claims to frozen-30 comparisons. Final advisor approval
-  remains pending.
+  and narrowed v2-only claims to frozen-30 comparisons;
+- fresh final re-review verdict: `FINDINGS APPROVED`.
