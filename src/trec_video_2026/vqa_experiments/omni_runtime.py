@@ -187,7 +187,8 @@ def build_runtime_failure_record(
     elapsed_seconds: float,
     peak_memory_bytes: int,
     error: Exception,
-    input_contract_error: bool,
+    input_contract_error: bool | None,
+    failure_stage: str,
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -206,6 +207,7 @@ def build_runtime_failure_record(
         "raw_output": "",
         "output_parse_status": "not_attempted",
         "input_contract_error": input_contract_error,
+        "failure_stage": failure_stage,
         "error_type": type(error).__name__,
         "error_message": str(error),
         "modality_attestation": {

@@ -121,10 +121,12 @@ def test_runtime_failure_record_preserves_attempt_attestation():
         peak_memory_bytes=100,
         error=RuntimeError("verified ROCm failure"),
         input_contract_error=True,
+        failure_stage="attestation",
     )
 
     assert record["status"] == "failed"
     assert record["error_type"] == "RuntimeError"
+    assert record["failure_stage"] == "attestation"
     assert record["input_contract_error"] is True
     assert record["modality_attestation"]["same_request"] is False
     assert record["modality_attestation"]["generation_call_count"] == 0

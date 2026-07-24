@@ -4,6 +4,8 @@ import pytest
 
 from trec_video_2026.vqa_experiments.omni_probe import (
     MODEL_SPECS,
+    ProbeStageError,
+    classify_probe_failure,
     resolve_example_paths,
     validate_run_id,
 )
@@ -54,3 +56,21 @@ def test_run_id_rejects_path_escape_and_empty_values():
             validate_run_id(run_id)
 
     assert validate_run_id("phi4mm-rocm-bf16-20260724") == ("phi4mm-rocm-bf16-20260724")
+
+
+def test_probe_failure_classification_distinguishes_contract_and_backend():
+    processor = ProbeStageError("processor", ValueError("bad multimodal request"))
+    generation = ProbeStageError("generation", RuntimeError("HIP out of memory"))
+
+    assert classify_probe_failure(processor) == (
+        processor.original_error,
+        "processor",
+        True,
+    )
+    assert classify_probe_failure(generation) == (
+        generation.original_error,
+        "generation",
+        None,
+    )
+    internal = RuntimeError("unexpected")
+    assert classify_probe_failure(internal) == (internal, "internal", None)

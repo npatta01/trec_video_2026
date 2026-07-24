@@ -60,6 +60,22 @@ MODEL_SPECS = {
 RUN_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 
 
+class ProbeStageError(RuntimeError):
+    def __init__(self, stage: str, original_error: Exception) -> None:
+        super().__init__(f"{stage}: {original_error}")
+        self.stage = stage
+        self.original_error = original_error
+
+
+def classify_probe_failure(
+    error: Exception,
+) -> tuple[Exception, str, bool | None]:
+    if not isinstance(error, ProbeStageError):
+        return error, "internal", None
+    input_contract_error = True if error.stage in {"processor", "attestation"} else None
+    return error.original_error, error.stage, input_contract_error
+
+
 def validate_run_id(run_id: str) -> str:
     if not RUN_ID_PATTERN.fullmatch(run_id):
         raise ValueError(
@@ -184,38 +200,51 @@ def _generate_one(
     torch: Any,
     example: dict[str, Any],
 ) -> tuple[str, dict[str, Any]]:
-    inputs = (
-        _processor_inputs_phi(processor, example)
-        if model_key == "phi4mm"
-        else _processor_inputs_gemma(processor, example)
-    )
-    processor_inputs = dict(inputs)
-    if model_key == "gemma3n":
-        inputs = inputs.to("cuda:0", dtype=torch.bfloat16)
-    else:
-        inputs = inputs.to("cuda:0")
-    input_length = inputs["input_ids"].shape[1]
-
-    with torch.inference_mode(), _capture_first_forward(model) as captures:
-        generated = model.generate(
-            **inputs,
-            max_new_tokens=160,
-            do_sample=False,
+    try:
+        inputs = (
+            _processor_inputs_phi(processor, example)
+            if model_key == "phi4mm"
+            else _processor_inputs_gemma(processor, example)
         )
+        processor_inputs = dict(inputs)
+        if model_key == "gemma3n":
+            inputs = inputs.to("cuda:0", dtype=torch.bfloat16)
+        else:
+            inputs = inputs.to("cuda:0")
+        input_length = inputs["input_ids"].shape[1]
+    except Exception as error:
+        raise ProbeStageError("processor", error) from error
+
+    try:
+        with torch.inference_mode(), _capture_first_forward(model) as captures:
+            generated = model.generate(
+                **inputs,
+                max_new_tokens=160,
+                do_sample=False,
+            )
+    except Exception as error:
+        raise ProbeStageError("generation", error) from error
     if not captures:
-        raise RuntimeError("model.generate did not invoke the model forward")
-    attestation = attest_generation_inputs(
-        processor_inputs,
-        first_forward_input_keys=captures[0],
-        vision_input_keys=set(spec.vision_input_keys),
-        audio_input_keys=set(spec.audio_input_keys),
-    )
-    response_tokens = generated[:, input_length:]
-    raw_output = processor.batch_decode(
-        response_tokens,
-        skip_special_tokens=True,
-        clean_up_tokenization_spaces=False,
-    )[0]
+        error = RuntimeError("model.generate did not invoke the model forward")
+        raise ProbeStageError("attestation", error) from error
+    try:
+        attestation = attest_generation_inputs(
+            processor_inputs,
+            first_forward_input_keys=captures[0],
+            vision_input_keys=set(spec.vision_input_keys),
+            audio_input_keys=set(spec.audio_input_keys),
+        )
+    except Exception as error:
+        raise ProbeStageError("attestation", error) from error
+    try:
+        response_tokens = generated[:, input_length:]
+        raw_output = processor.batch_decode(
+            response_tokens,
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=False,
+        )[0]
+    except Exception as error:
+        raise ProbeStageError("decode", error) from error
     return raw_output, attestation
 
 
@@ -282,6 +311,7 @@ def run_probe(
                 peak_memory_bytes=peak,
                 error=load_error,
                 input_contract_error=False,
+                failure_stage="model_load",
             )
             record.update(
                 {
@@ -327,6 +357,9 @@ def run_probe(
             except Exception as error:  # noqa: BLE001
                 elapsed = time.perf_counter() - started
                 peak = int(torch.cuda.max_memory_allocated())
+                underlying_error, failure_stage, input_contract_error = (
+                    classify_probe_failure(error)
+                )
                 record = build_runtime_failure_record(
                     example=contract_example,
                     request_digest=request_sha256(contract_example),
@@ -338,8 +371,9 @@ def run_probe(
                     precision="bfloat16",
                     elapsed_seconds=elapsed,
                     peak_memory_bytes=peak,
-                    error=error,
-                    input_contract_error=True,
+                    error=underlying_error,
+                    input_contract_error=input_contract_error,
+                    failure_stage=failure_stage,
                 )
             record.update(
                 {
