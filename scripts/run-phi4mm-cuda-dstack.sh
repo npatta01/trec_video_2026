@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# HISTORICAL FAILED-RUN RECORD: this preserves the a3 dependency envelope,
-# including the missing SciPy dependency that stopped model loading. It is not
-# a reusable a4 runner, and its immutable remote prefix is already occupied.
-readonly EXPECTED_RUN_ID="phi4mm-cuda-quality-3-20260724-a3"
+readonly EXPECTED_RUN_ID="phi4mm-cuda-quality-3-20260724-a4"
 readonly EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/${EXPECTED_RUN_ID}"
 readonly EXPECTED_RUNTIME_IMAGE="docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755"
 readonly EXPECTED_RUNTIME_IMAGE_DIGEST="sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755"
@@ -14,6 +11,8 @@ readonly EXPECTED_CONTRACT_SHA256="b6fa0c299cd3efafb2dec092ba5d7037d08b0a7eb3fc8
 readonly UV_VERSION="0.11.3"
 readonly HF_CLI_VERSION="1.24.0"
 readonly TRANSFORMERS_VERSION="4.48.2"
+readonly SCIPY_VERSION="1.15.1"
+readonly SAFE_OUTPUT_DIR="/dstack/output"
 
 HF_ACCESS_TOKEN="${HF_TOKEN:-}"
 readonly HF_ACCESS_TOKEN
@@ -57,27 +56,32 @@ validate_environment() {
   [[ "$MODEL_DIR" == "/dstack/model" ]] || die "unexpected model directory"
   [[ "$OUTPUT_DIR" == "/dstack/output" ]] || die "unexpected output directory"
   [[ -f "$CONTRACT_PATH" ]] || die "contract is missing"
-  chmod -R a-w "$DATA_ROOT"
   mkdir -p "$MODEL_DIR" "$OUTPUT_DIR"
+}
+
+bootstrap_artifact_cli() {
+  "$PYTHON_BIN" -m pip install --no-cache-dir --only-binary=:all: \
+    "uv==$UV_VERSION"
+  command -v uvx >/dev/null || die "uvx is unavailable after bootstrap"
 }
 
 bootstrap_runtime() {
   "$PYTHON_BIN" -m pip install --no-cache-dir --only-binary=:all: \
-    "uv==$UV_VERSION" \
     "accelerate==1.3.0" \
     "backoff==2.2.1" \
     "peft==0.13.2" \
     "transformers==$TRANSFORMERS_VERSION" \
+    "scipy==$SCIPY_VERSION" \
     "soundfile==0.13.1" \
     "pillow==11.1.0" \
     "torchvision==0.20.1"
-  command -v uvx >/dev/null || die "uvx is unavailable after bootstrap"
   "$PYTHON_BIN" - <<'PY'
 import importlib.metadata
 import torch
 import transformers
 
 assert importlib.metadata.version("transformers") == "4.48.2"
+assert importlib.metadata.version("scipy") == "1.15.1"
 assert torch.cuda.is_available(), "NVIDIA CUDA accelerator is unavailable"
 assert torch.version.hip is None, "ROCm runtime is not permitted for this run"
 assert torch.version.cuda, "CUDA runtime version is missing"
@@ -97,14 +101,27 @@ hf_cli() {
   HF_TOKEN="$HF_ACCESS_TOKEN" uvx --from "huggingface-hub==$HF_CLI_VERSION" hf "$@"
 }
 
+authenticate() {
+  hf_cli version
+  hf_cli auth whoami
+}
+
 remote_prefix_is_empty() {
   local listing
-  set +e
-  listing="$(hf_cli buckets list "$HF_REMOTE_URI" --format json 2>/tmp/hf-list.stderr)"
-  local rc=$?
-  set -e
-  (( rc == 0 )) || die "could not verify immutable remote prefix (rc=$rc)"
-  [[ -z "$listing" ]]
+  local prefix_rc
+  if listing="$(hf_cli buckets list "$HF_REMOTE_URI" --format quiet)"; then
+    prefix_rc=0
+  else
+    prefix_rc=$?
+  fi
+  if ! (( prefix_rc == 0 )); then
+    echo "could not verify immutable remote prefix (rc=$prefix_rc)" >&2
+    return "$prefix_rc"
+  fi
+  if [[ -n "$listing" ]]; then
+    echo "immutable remote run prefix already exists" >&2
+    return 3
+  fi
 }
 
 preflight_inputs() {
@@ -136,9 +153,47 @@ download_model() {
     --local-dir "$MODEL_DIR"
 }
 
+preflight_model_import() {
+  env -u HF_TOKEN "$PYTHON_BIN" - "$MODEL_DIR" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+from transformers import AutoProcessor
+from transformers.dynamic_module_utils import get_class_from_dynamic_module
+
+model_dir = Path(sys.argv[1])
+processor = AutoProcessor.from_pretrained(
+    model_dir,
+    trust_remote_code=True,
+    local_files_only=True,
+)
+model_class = get_class_from_dynamic_module(
+    "modeling_phi4mm.Phi4MMForCausalLM",
+    model_dir,
+    local_files_only=True,
+)
+print(
+    json.dumps(
+        {
+            "model_class": model_class.__name__,
+            "processor_class": processor.__class__.__name__,
+        },
+        sort_keys=True,
+    )
+)
+PY
+}
+
 write_terminal_status() {
   local workload_rc="$1"
-  "$PYTHON_BIN" - "$OUTPUT_DIR/terminal-status.json" "$workload_rc" <<'PY'
+  local failure_stage="$2"
+  local sync_attempted="$3"
+  "$PYTHON_BIN" - \
+    "$OUTPUT_DIR/terminal-status.json" \
+    "$workload_rc" \
+    "$failure_stage" \
+    "$sync_attempted" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -147,7 +202,8 @@ Path(sys.argv[1]).write_text(
     json.dumps(
         {
             "workload_returncode": int(sys.argv[2]),
-            "artifact_sync_attempted": True,
+            "failure_stage": sys.argv[3],
+            "artifact_sync_attempted": sys.argv[4] == "1",
         },
         sort_keys=True,
     )
@@ -159,13 +215,21 @@ PY
 
 finalize_and_sync() {
   local workload_rc="$1"
-  write_terminal_status "$workload_rc"
+  local failure_stage="$2"
+  local remote_prefix_verified="$3"
+  write_terminal_status \
+    "$workload_rc" \
+    "$failure_stage" \
+    "$remote_prefix_verified"
   (
     cd "$OUTPUT_DIR"
     find . -type f ! -name SHA256SUMS -print0 \
       | sort -z \
       | xargs -0 sha256sum >SHA256SUMS
   )
+  if (( remote_prefix_verified == 0 )); then
+    return "$workload_rc"
+  fi
   set +e
   hf_cli buckets sync "$OUTPUT_DIR" "$HF_REMOTE_URI"
   local sync_rc=$?
@@ -174,24 +238,21 @@ finalize_and_sync() {
   return "$sync_rc"
 }
 
-run_probe() {
-  validate_environment
-  bootstrap_runtime
-  hf_cli version
-  hf_cli auth whoami
-  remote_prefix_is_empty || die "immutable remote run prefix already exists"
-
+run_stage() {
+  local stage="$1"
+  shift
+  failure_stage="$stage"
   set +e
-  preflight_inputs >"$OUTPUT_DIR/preflight.stdout.json"
-  local preflight_rc=$?
+  (
+    set -e
+    "$@"
+  ) >"$OUTPUT_DIR/${stage}.stdout.log" \
+    2>"$OUTPUT_DIR/${stage}.stderr.log"
+  workload_rc=$?
   set -e
-  if (( preflight_rc != 0 )); then
-    finalize_and_sync "$preflight_rc" || :
-    return "$preflight_rc"
-  fi
+}
 
-  download_model
-  set +e
+run_inference() {
   env -u HF_TOKEN "$PYTHON_BIN" -m trec_video_2026.vqa_experiments.omni_probe \
     --model phi4mm \
     --model-path "$MODEL_DIR" \
@@ -201,19 +262,54 @@ run_probe() {
     --runtime-image "$RUNTIME_IMAGE" \
     --runtime-image-digest "$RUNTIME_IMAGE_DIGEST" \
     --run-id "$EXPERIMENT_RUN_ID" \
-    --expected-contract-sha256 "$EXPECTED_CONTRACT" \
-    >"$OUTPUT_DIR/workload.stdout.json"
-  local workload_rc=$?
-  set -e
-
-  finalize_and_sync "$workload_rc"
+    --expected-contract-sha256 "$EXPECTED_CONTRACT"
 }
 
-case "${1:-}" in
-  run)
-    run_probe
-    ;;
-  *)
-    die "usage: $0 run"
-    ;;
-esac
+run_probe() {
+  local workload_rc=0
+  local failure_stage="environment_validation"
+  local remote_prefix_verified=0
+
+  mkdir -p "$SAFE_OUTPUT_DIR"
+  run_stage environment_validation validate_environment
+  if (( workload_rc == 0 )); then
+    run_stage artifact_cli_bootstrap bootstrap_artifact_cli
+  fi
+  if (( workload_rc == 0 )); then
+    run_stage authentication authenticate
+  fi
+  if (( workload_rc == 0 )); then
+    run_stage remote_prefix_check remote_prefix_is_empty
+    if (( workload_rc == 0 )); then
+      remote_prefix_verified=1
+    fi
+  fi
+  if (( workload_rc == 0 )); then
+    run_stage input_preflight preflight_inputs
+  fi
+  if (( workload_rc == 0 )); then
+    run_stage runtime_bootstrap bootstrap_runtime
+  fi
+  if (( workload_rc == 0 )); then
+    run_stage model_download download_model
+  fi
+  if (( workload_rc == 0 )); then
+    run_stage model_import_preflight preflight_model_import
+  fi
+  if (( workload_rc == 0 )); then
+    run_stage inference run_inference
+  fi
+
+  finalize_and_sync "$workload_rc" "$failure_stage" "$remote_prefix_verified"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  case "${1:-}" in
+    run)
+      run_probe
+      ;;
+    *)
+      die "usage: $0 run"
+      ;;
+  esac
+fi

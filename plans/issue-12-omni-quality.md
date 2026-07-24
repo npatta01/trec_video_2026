@@ -46,6 +46,8 @@ screening rule for a tiny diagnostic panel, not a leaderboard estimate.
 - RunPod or Vast.ai only; no ports
 - Price cap: $2.00/hour
 - Duration cap: one hour; worst-case cost cap: $2.00 per submitted run
+- Additional issue #12 CUDA authorization: `$10.00` combined cap for Phi and
+  Gemma after the first three attempts; stop and ask before exceeding it.
 
 ## Status
 
@@ -59,6 +61,13 @@ screening rule for a tiny diagnostic panel, not a leaderboard estimate.
 - [x] Final matched comparison and promote/stop decision recorded
 - [x] Fresh verification and independent review
 - [x] Draft PR and issue update
+- [x] Explicit authorization received for one corrected Phi `a4` and an exact
+  three-row Gemma CUDA comparison
+- [x] Phi `a4` reviewer blockers fixed and independent re-review passed
+- [x] Corrected Phi preview: five eligible RunPod A100 offers,
+  `$1.39`–`$1.49`/hour
+- [ ] Submit and verify Phi `a4`
+- [ ] Submit and verify Gemma CUDA three-row comparison
 
 ## Publication
 
@@ -86,7 +95,7 @@ billed cost was `$0.1571`.
 
 ## Next action
 
-Wait for explicit authorization before a fourth paid attempt. If authorized,
-audit the pinned model's dependency closure, pin SciPy, add a local model-load
-regression check, and preview a new immutable `a4` run under the same caps.
-Expansion remains stopped because Gemma already failed the frozen gate.
+Submit the reviewed immutable Phi `a4` once under the same `$2.00/hour` and
+one-hour caps. Download and verify its private artifacts before constructing
+the separate Gemma CUDA three-row run. Expansion remains stopped unless new
+coordinator evidence explicitly revises the frozen gate.
