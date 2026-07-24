@@ -288,6 +288,47 @@ def test_frozen_promotion_config_records_decisions_before_launch() -> None:
     assert len(payload["stopped_conditions"]) >= 8
 
 
+def test_v2_launch_config_marks_transcript_as_exploratory_not_promoted() -> None:
+    payload = json.loads(
+        Path("configs/vqa/native_audio_frozen30_v2_decisions.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    decisions = payload["condition_decisions"]
+
+    assert [item["decision"] for item in decisions[:3]] == ["promote"] * 3
+    transcript = decisions[3]
+    assert transcript["condition_id"] == frozen_workflow.TRANSCRIPT_CONDITION
+    assert transcript["decision"] == "explore"
+    assert transcript["promotion_path"] == "predeclared-exploratory-diagnostic"
+    assert "missing visual-control gate" in transcript["rationale"]
+    assert "METEOR -0.1032" in transcript["rationale"]
+    assert "F1 -0.0552" in transcript["rationale"]
+
+
+def test_exploratory_decision_can_be_authorized_but_is_not_promoted(
+    tmp_path: Path,
+) -> None:
+    decision = {
+        "schema_version": 1,
+        "manifest_version": "manifest",
+        "gate_selection_sha256": "a" * 64,
+        "condition_id": "exploration",
+        "decision": "explore",
+        "rationale": "Predeclared exploratory measurement only.",
+        "recorded_at_utc": "2026-07-24T00:00:00Z",
+        "request_set_sha256": "b" * 64,
+    }
+
+    recorded = append_launch_decision(
+        tmp_path / "decisions.jsonl",
+        decision,
+        attempts_path=tmp_path / "attempts.jsonl",
+    )
+
+    assert recorded["decision"] == "explore"
+
+
 def test_attempt_append_is_fsynced_jsonl_and_rejects_identity_mismatch(
     tmp_path: Path,
 ) -> None:
@@ -367,7 +408,7 @@ def test_transcript_sources_are_bound_outside_runner_request(tmp_path: Path) -> 
 def test_whisper_request_audit_requires_exact_order_schema_and_preflight_hash() -> None:
     requests = [
         {
-            "run_id": "native-audio-benchmark-v1",
+            "run_id": frozen_workflow.RUN_ID,
             "condition_id": "whisper-large-v3-bf16-frozen30",
             "video_id": video_id,
             "audio_path": f"/audio/{video_id}.wav",
@@ -506,7 +547,7 @@ def test_whisper_timeout_uses_named_cleanup_and_appends_failure(
     audio.write_bytes(b"audio")
     requests = [
         {
-            "run_id": "native-audio-benchmark-v1",
+            "run_id": frozen_workflow.RUN_ID,
             "condition_id": frozen_workflow.ASR_CONDITION,
             "video_id": video_id,
             "audio_path": str(audio),
@@ -591,7 +632,27 @@ def test_explicit_v2_run_identity_uses_separate_directory_and_request_id() -> No
     assert frozen_workflow.RUN_ID == "native-audio-benchmark-v2"
     assert frozen_workflow.ATTEMPTS.parent == frozen_workflow.RUN
 
+    frozen_workflow.configure_run("native-audio-benchmark-v2")
+
+
+def test_v1_and_v2_share_one_host_global_benchmark_lock() -> None:
     frozen_workflow.configure_run("native-audio-benchmark-v1")
+    v1_lock = frozen_workflow.benchmark_lock_path()
+    frozen_workflow.configure_run("native-audio-benchmark-v2")
+    v2_lock = frozen_workflow.benchmark_lock_path()
+
+    assert v1_lock == v2_lock
+    assert v1_lock.parent == frozen_workflow.DATA.resolve() / "vqa/benchmarks"
+    assert not v1_lock.is_relative_to(frozen_workflow.RUN)
+
+
+def test_cli_defaults_to_v2_and_v1_is_status_only() -> None:
+    parser = build_parser()
+
+    assert parser.parse_args(["status"]).run_id == "native-audio-benchmark-v2"
+    with pytest.raises(ValueError, match="read-only"):
+        frozen_workflow.validate_cli_run_access("native-audio-benchmark-v1", "prepare")
+    frozen_workflow.validate_cli_run_access("native-audio-benchmark-v1", "status")
 
 
 def test_full_current_evidence_manifest_changes_with_any_evidence_byte(
@@ -641,13 +702,69 @@ def test_competing_podman_benchmark_audit_fails_closed() -> None:
 
     with pytest.raises(RuntimeError, match="competing"):
         frozen_workflow.audit_no_competing_benchmark_containers(
-            run_command=lambda *_args, **_kwargs: completed
+            run_command=lambda *_args, **_kwargs: completed,
+            kfd_command=lambda *_args, **_kwargs: subprocess.CompletedProcess(
+                ["fuser"], 1, "", ""
+            ),
         )
     with pytest.raises(RuntimeError, match="audit"):
         frozen_workflow.audit_no_competing_benchmark_containers(
             run_command=lambda *_args, **_kwargs: subprocess.CompletedProcess(
                 ["podman", "ps"], 125, "", "unavailable"
-            )
+            ),
+            kfd_command=lambda *_args, **_kwargs: subprocess.CompletedProcess(
+                ["fuser"], 1, "", ""
+            ),
+        )
+
+
+def test_competing_audit_rejects_live_kfd_pid_and_generic_gpu_container() -> None:
+    empty_podman = subprocess.CompletedProcess(["podman", "ps"], 0, "[]", "")
+    with pytest.raises(RuntimeError, match="KFD"):
+        frozen_workflow.audit_no_competing_benchmark_containers(
+            run_command=lambda *_args, **_kwargs: empty_podman,
+            kfd_command=lambda *_args, **_kwargs: subprocess.CompletedProcess(
+                ["fuser"], 0, "1234 5678", ""
+            ),
+        )
+
+    containers = subprocess.CompletedProcess(
+        ["podman", "ps"],
+        0,
+        json.dumps([{"Id": "abc", "Names": ["generic-worker"], "Command": "python"}]),
+        "",
+    )
+
+    def podman(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess:
+        if command[:2] == ["podman", "ps"]:
+            return containers
+        assert command == ["podman", "inspect", "abc"]
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            json.dumps(
+                [
+                    {
+                        "HostConfig": {
+                            "Devices": [
+                                {
+                                    "PathOnHost": "/dev/kfd",
+                                    "PathInContainer": "/dev/kfd",
+                                }
+                            ]
+                        }
+                    }
+                ]
+            ),
+            "",
+        )
+
+    with pytest.raises(RuntimeError, match="GPU container"):
+        frozen_workflow.audit_no_competing_benchmark_containers(
+            run_command=podman,
+            kfd_command=lambda *_args, **_kwargs: subprocess.CompletedProcess(
+                ["fuser"], 1, "", ""
+            ),
         )
 
 
@@ -681,7 +798,7 @@ def test_whisper_nonzero_exit_appends_structured_failure(
     audio.write_bytes(b"audio")
     requests = [
         {
-            "run_id": "native-audio-benchmark-v1",
+            "run_id": frozen_workflow.RUN_ID,
             "condition_id": frozen_workflow.ASR_CONDITION,
             "video_id": video_id,
             "audio_path": str(audio),
@@ -735,3 +852,94 @@ def test_whisper_nonzero_exit_appends_structured_failure(
     assert row["status"] == "failed"
     assert row["error_type"] == "RunnerProcessError"
     assert "runner crashed" in row["error_message"]
+
+
+def test_whisper_command_mounts_only_source_current_audio_and_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    data = tmp_path / "data"
+    run = data / "vqa/benchmarks/runs/native-audio-benchmark-v2"
+    cache = tmp_path / "cache"
+    for path in (root / "src", run / "audio", cache):
+        path.mkdir(parents=True)
+    image = "local/image@sha256:" + "a" * 64
+    (run / "preflight.json").write_text(
+        json.dumps({"whisper": {"runtime_image": image}}), encoding="utf-8"
+    )
+    monkeypatch.setattr(frozen_workflow, "ROOT", root)
+    monkeypatch.setattr(frozen_workflow, "DATA", data)
+    monkeypatch.setattr(frozen_workflow, "RUN", run)
+    monkeypatch.setattr(frozen_workflow, "HF_CACHE", cache)
+
+    command = frozen_workflow._whisper_command()
+
+    source = (root / "src").resolve()
+    audio = (run / "audio").resolve()
+    joined = " ".join(command)
+    assert f"{source}:{source}:ro" in command
+    assert f"{audio}:{audio}:ro" in command
+    assert f"{cache.resolve()}:/root/.cache/huggingface:rw" in command
+    assert f"{root.resolve()}:{root.resolve()}:ro" not in command
+    assert f"{data.resolve()}:{data.resolve()}:ro" not in command
+    assert str((data / "vqa/benchmarks").resolve()) not in command
+    assert "native-audio-benchmark-v1" not in joined
+    assert "annotations" not in joined
+    assert "reports" not in joined
+    assert command[command.index("-w") + 1] == str(source)
+    assert f"PYTHONPATH={source}" in command
+
+
+def test_scorer_runtime_validation_checks_live_image_version_and_resource_bytes(
+    tmp_path: Path,
+) -> None:
+    punkt = tmp_path / "punkt_tab/english"
+    punkt.mkdir(parents=True)
+    (punkt / "a.tab").write_bytes(b"one")
+    (punkt / "nested").mkdir()
+    (punkt / "nested/b.txt").write_bytes(b"two")
+    wordnet = tmp_path / "corpora/wordnet.zip"
+    wordnet.parent.mkdir()
+    wordnet.write_bytes(b"wordnet")
+
+    class Data:
+        @staticmethod
+        def find(name: str) -> Path:
+            return {
+                "tokenizers/punkt_tab/english": punkt,
+                "corpora/wordnet.zip": wordnet,
+            }[name]
+
+    nltk_module = type("Nltk", (), {"__version__": "3.9.2", "data": Data()})()
+    image = frozen_workflow.SCORER_IMAGE
+    expected_punkt = frozen_workflow.canonical_resource_tree_sha256(punkt)
+    expected_wordnet = frozen_workflow.canonical_resource_tree_sha256(wordnet)
+
+    observed = frozen_workflow.validate_scorer_runtime(
+        nltk_module,
+        {"VQA_RUNTIME_IMAGE": image},
+        expected_punkt_sha256=expected_punkt,
+        expected_wordnet_sha256=expected_wordnet,
+    )
+
+    assert observed == {
+        "runtime_image": image,
+        "nltk_version": "3.9.2",
+        "punkt_tab_english_tree_sha256": expected_punkt,
+        "wordnet_zip_sha256": expected_wordnet,
+    }
+    with pytest.raises(RuntimeError, match="image"):
+        frozen_workflow.validate_scorer_runtime(
+            nltk_module,
+            {"VQA_RUNTIME_IMAGE": "wrong"},
+            expected_punkt_sha256=expected_punkt,
+            expected_wordnet_sha256=expected_wordnet,
+        )
+    (punkt / "a.tab").write_bytes(b"changed")
+    with pytest.raises(RuntimeError, match="punkt"):
+        frozen_workflow.validate_scorer_runtime(
+            nltk_module,
+            {"VQA_RUNTIME_IMAGE": image},
+            expected_punkt_sha256=expected_punkt,
+            expected_wordnet_sha256=expected_wordnet,
+        )

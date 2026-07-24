@@ -130,8 +130,9 @@ def build_rocm_runner_command(
         path.resolve(strict=True) for path in (repo_root, dataset_root, hf_cache_root)
     )
     repo, dataset, cache = roots
+    source_root = (repo / "src").resolve()
     media_root = (dataset / "vqa/2025/training/videos_original").resolve()
-    benchmark_root = (dataset / "vqa/benchmarks").resolve()
+    evidence_root = (dataset / "vqa/benchmarks/evidence").resolve()
     runtime_image = condition.runtime_image or image
     command = [
         "podman",
@@ -146,17 +147,17 @@ def build_rocm_runner_command(
         "--group-add",
         "keep-groups",
         "-v",
-        f"{repo}:{repo}:ro",
+        f"{source_root}:{source_root}:ro",
         "-v",
         f"{media_root}:{media_root}:ro",
         "-v",
-        f"{benchmark_root}:{benchmark_root}:ro",
+        f"{evidence_root}:{evidence_root}:ro",
         "-v",
         f"{cache}:/root/.cache/huggingface:rw",
         "-w",
-        str(repo),
+        str(source_root),
         "-e",
-        f"PYTHONPATH={repo / 'src'}",
+        f"PYTHONPATH={source_root}",
         "-e",
         "HF_HUB_OFFLINE=1",
         "-e",

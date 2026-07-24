@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import secrets
@@ -56,13 +57,15 @@ from trec_video_2026.vqa_gate import (
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data"
-RUN_ID = "native-audio-benchmark-v1"
+RUN_ID = "native-audio-benchmark-v2"
 RUN = DATA / "vqa/benchmarks/runs" / RUN_ID
 EVIDENCE = DATA / "vqa/benchmarks/evidence"
 MANIFEST_PATH = ROOT / "configs/vqa/native_audio_benchmark_30_inference.json"
 REFERENCE_MANIFEST_PATH = ROOT / "configs/vqa/native_audio_benchmark_30.json"
 MODEL_CONFIG = ROOT / "configs/vqa/model_runs.json"
-PROMOTION_CONFIG = ROOT / "configs/vqa/native_audio_frozen30_promotions.json"
+V1_PROMOTION_CONFIG = ROOT / "configs/vqa/native_audio_frozen30_promotions.json"
+V2_PROMOTION_CONFIG = ROOT / "configs/vqa/native_audio_frozen30_v2_decisions.json"
+PROMOTION_CONFIG = V2_PROMOTION_CONFIG
 HF_CACHE = Path("/home/npatta01/.cache/huggingface")
 ATTEMPTS = RUN / "attempts.jsonl"
 DECISIONS = RUN / "promotion-decisions.jsonl"
@@ -79,6 +82,13 @@ PROMOTED_ORDER = (
 )
 MAX_CONDITION_SECONDS = 45 * 60
 MAX_PEAK_BYTES = 32 * 1024**3
+SCORER_IMAGE = (
+    "localhost/trec-vqa-gate-qwen-omni@sha256:"
+    "effff2801d7677aa4894a641adc5793d6e5072a8cec71817bf925574862c88de"
+)
+SCORER_NLTK_VERSION = "3.9.2"
+PUNKT_TREE_SHA256 = "6073f4561d752e90f3b02bbb80a955100eb90b7f62c5fcfe17c86e8030909522"
+WORDNET_ZIP_SHA256 = "6c4365b1018d44f39b284f9a5e44766548b18db9c436c9cfc1b7116230e35711"
 
 
 def configure_run(run_id: str) -> None:
@@ -86,12 +96,32 @@ def configure_run(run_id: str) -> None:
 
     if run_id not in {"native-audio-benchmark-v1", "native-audio-benchmark-v2"}:
         raise ValueError("Unsupported frozen benchmark run ID")
-    global RUN_ID, RUN, ATTEMPTS, DECISIONS, ASR_ATTEMPTS
+    global RUN_ID, RUN, ATTEMPTS, DECISIONS, ASR_ATTEMPTS, PROMOTION_CONFIG
     RUN_ID = run_id
     RUN = DATA / "vqa/benchmarks/runs" / run_id
     ATTEMPTS = RUN / "attempts.jsonl"
     DECISIONS = RUN / "promotion-decisions.jsonl"
     ASR_ATTEMPTS = RUN / "whisper-attempts.jsonl"
+    PROMOTION_CONFIG = (
+        V1_PROMOTION_CONFIG
+        if run_id == "native-audio-benchmark-v1"
+        else V2_PROMOTION_CONFIG
+    )
+
+
+def benchmark_lock_path() -> Path:
+    """Return the one host-global lock shared by every frozen run namespace."""
+
+    return DATA.resolve() / "vqa/benchmarks/.native-audio-benchmark.lock"
+
+
+def validate_cli_run_access(run_id: str, action: str) -> None:
+    """Keep the archival v1 namespace read-only from the CLI."""
+
+    if run_id == "native-audio-benchmark-v1" and action != "status":
+        raise ValueError(
+            "native-audio-benchmark-v1 is read-only; only status is allowed"
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -101,7 +131,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--run-id",
         choices=("native-audio-benchmark-v1", "native-audio-benchmark-v2"),
-        default="native-audio-benchmark-v1",
+        default="native-audio-benchmark-v2",
     )
     subparsers = parser.add_subparsers(dest="action", required=True)
     subparsers.add_parser("prepare", help="CPU-only evidence/request preflight")
@@ -165,9 +195,22 @@ def current_evidence_manifest_sha256(
 def audit_no_competing_benchmark_containers(
     *,
     run_command: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+    kfd_command: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> None:
     """Fail closed if another Podman VQA/GPU benchmark container is running."""
 
+    kfd = kfd_command(
+        ["fuser", "/dev/kfd"],
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    if kfd.returncode == 0:
+        pids = (kfd.stdout or kfd.stderr).strip()
+        raise RuntimeError(f"Refusing to overlap live KFD/ROCm PIDs: {pids}")
+    if kfd.returncode != 1:
+        raise RuntimeError("KFD/ROCm process audit could not be completed")
     completed = run_command(
         ["podman", "ps", "--format", "json"],
         text=True,
@@ -186,6 +229,7 @@ def audit_no_competing_benchmark_containers(
     if not isinstance(containers, list):
         raise RuntimeError("Podman competing-process audit returned invalid data")
     competitors = []
+    generic_gpu_containers = []
     for container in containers:
         if not isinstance(container, Mapping):
             raise RuntimeError("Podman competing-process audit returned invalid data")
@@ -197,10 +241,46 @@ def audit_no_competing_benchmark_containers(
             "trec_video_2026.vqa_" in command
         ):
             competitors.extend(str(name) for name in names)
+            continue
+        container_id = container.get("Id", container.get("ID"))
+        if not isinstance(container_id, str) or not container_id:
+            raise RuntimeError("Podman audit could not identify a running container")
+        inspected = run_command(
+            ["podman", "inspect", container_id],
+            text=True,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+        if inspected.returncode != 0:
+            raise RuntimeError("Podman GPU-device audit could not inspect a container")
+        try:
+            inspection = json.loads(inspected.stdout)
+        except json.JSONDecodeError as error:
+            raise RuntimeError(
+                "Podman GPU-device audit returned invalid JSON"
+            ) from error
+        serialized = json.dumps(inspection).lower()
+        if any(
+            marker in serialized
+            for marker in (
+                "/dev/kfd",
+                "/dev/dri/render",
+                "rocr_visible_devices",
+                "hip_visible_devices",
+                "nvidia_visible_devices",
+            )
+        ):
+            generic_gpu_containers.extend(str(name) for name in names)
     if competitors:
         raise RuntimeError(
             "Refusing to overlap a competing benchmark container: "
             + ", ".join(competitors)
+        )
+    if generic_gpu_containers:
+        raise RuntimeError(
+            "Refusing to overlap a generic GPU container: "
+            + ", ".join(generic_gpu_containers)
         )
 
 
@@ -226,6 +306,59 @@ def measured_condition_wall_seconds(
         if previous != float(elapsed):
             raise ValueError("Condition outer wall measurements conflict")
     return sum(chunks.values())
+
+
+def canonical_resource_tree_sha256(path: Path) -> str:
+    """Hash sorted relative paths and bytes with unambiguous separators."""
+
+    path = path.resolve(strict=True)
+    root = path if path.is_dir() else path.parent
+    files = sorted(item for item in path.rglob("*") if item.is_file())
+    if path.is_file():
+        files = [path]
+    if not files:
+        raise RuntimeError(f"Scorer resource contains no files: {path}")
+    digest = hashlib.sha256()
+    for file_path in files:
+        digest.update(str(file_path.relative_to(root)).encode())
+        digest.update(b"\0")
+        digest.update(file_path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def validate_scorer_runtime(
+    nltk_module: Any,
+    environment: Mapping[str, str],
+    *,
+    expected_punkt_sha256: str = PUNKT_TREE_SHA256,
+    expected_wordnet_sha256: str = WORDNET_ZIP_SHA256,
+) -> dict[str, str]:
+    """Fail closed unless the live scoring runtime matches every pinned byte."""
+
+    image = environment.get("VQA_RUNTIME_IMAGE")
+    if image != SCORER_IMAGE:
+        raise RuntimeError("Scorer runtime image does not match the pinned digest")
+    version = getattr(nltk_module, "__version__", None)
+    if version != SCORER_NLTK_VERSION:
+        raise RuntimeError("Scorer NLTK version does not match the pinned version")
+    try:
+        punkt_path = Path(str(nltk_module.data.find("tokenizers/punkt_tab/english")))
+        wordnet_path = Path(str(nltk_module.data.find("corpora/wordnet.zip")))
+        punkt_sha256 = canonical_resource_tree_sha256(punkt_path)
+        wordnet_sha256 = canonical_resource_tree_sha256(wordnet_path)
+    except (LookupError, OSError, RuntimeError, ValueError) as error:
+        raise RuntimeError("Scorer resources could not be verified") from error
+    if punkt_sha256 != expected_punkt_sha256:
+        raise RuntimeError("Scorer punkt_tab/english bytes do not match")
+    if wordnet_sha256 != expected_wordnet_sha256:
+        raise RuntimeError("Scorer wordnet.zip bytes do not match")
+    return {
+        "runtime_image": image,
+        "nltk_version": version,
+        "punkt_tab_english_tree_sha256": punkt_sha256,
+        "wordnet_zip_sha256": wordnet_sha256,
+    }
 
 
 def attach_expected_runtime_image(
@@ -380,7 +513,10 @@ def _promotions() -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
         or payload["recorded_before_any_frozen30_attempt"] is not True
     ):
         raise ValueError("Promotion decisions do not match the frozen manifest")
-    promoted = {item["condition_id"]: item for item in payload["promoted_conditions"]}
+    decisions = payload.get("condition_decisions", payload.get("promoted_conditions"))
+    if not isinstance(decisions, list):
+        raise ValueError("Launch configuration has no condition decisions")
+    promoted = {item["condition_id"]: item for item in decisions}
     return payload, promoted
 
 
@@ -589,9 +725,9 @@ def _asr_valid(request: Mapping[str, Any], row: Mapping[str, Any]) -> bool:
 
 def _whisper_command() -> list[str]:
     image = _json(RUN / "preflight.json")["whisper"]["runtime_image"]
-    root = ROOT.resolve()
-    media = (DATA / "vqa/2025/training/videos_original").resolve(strict=True)
-    benchmarks = (DATA / "vqa/benchmarks").resolve(strict=True)
+    source = (ROOT / "src").resolve(strict=True)
+    audio = (RUN / "audio").resolve(strict=True)
+    cache = HF_CACHE.resolve(strict=True)
     return [
         "podman",
         "run",
@@ -605,17 +741,15 @@ def _whisper_command() -> list[str]:
         "--group-add",
         "keep-groups",
         "-v",
-        f"{root}:{root}:ro",
+        f"{source}:{source}:ro",
         "-v",
-        f"{media}:{media}:ro",
+        f"{audio}:{audio}:ro",
         "-v",
-        f"{benchmarks}:{benchmarks}:ro",
-        "-v",
-        f"{HF_CACHE}:/root/.cache/huggingface:rw",
+        f"{cache}:/root/.cache/huggingface:rw",
         "-w",
-        str(root),
+        str(source),
         "-e",
-        f"PYTHONPATH={root / 'src'}",
+        f"PYTHONPATH={source}",
         "-e",
         "HF_HUB_OFFLINE=1",
         "-e",
@@ -659,7 +793,8 @@ def run_whisper() -> None:
         for request in requests
         if not any(_asr_valid(request, row) for row in attempts)
     ]
-    with SerialBenchmarkLock(RUN / "serial.lock", condition_id=ASR_CONDITION):
+    with SerialBenchmarkLock(benchmark_lock_path(), condition_id=ASR_CONDITION):
+        audit_no_competing_benchmark_containers()
         for request in pending:
             audit_no_competing_benchmark_containers()
             invocation, container_name = _prepare_invocation(
@@ -947,7 +1082,7 @@ def _validate_current_decision(
         "manifest_version": promotion["manifest_version"],
         "gate_selection_sha256": promotion["gate_selection_sha256"],
         "condition_id": specification["condition_id"],
-        "decision": "promote",
+        "decision": specification["decision"],
         "rationale": specification["rationale"],
         "promotion_path": specification["promotion_path"],
         "request_set_sha256": audit["request_set_sha256"],
@@ -1028,7 +1163,7 @@ def authorize(condition_id: str) -> None:
             "manifest_version": _json(PROMOTION_CONFIG)["manifest_version"],
             "gate_selection_sha256": _json(PROMOTION_CONFIG)["gate_selection_sha256"],
             "condition_id": condition_id,
-            "decision": "promote",
+            "decision": specification["decision"],
             "rationale": specification["rationale"],
             "promotion_path": specification["promotion_path"],
             "recorded_at_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
@@ -1128,7 +1263,8 @@ def run_condition(condition_id: str) -> None:
     evidence_manifest_sha256 = decision["evidence_manifest_sha256"]
     completed_before = EXPECTED_FROZEN_COUNT - len(pending)
     targets = [target for target in (3, 10, 20, 30) if target > completed_before]
-    with SerialBenchmarkLock(RUN / "serial.lock", condition_id=condition_id):
+    with SerialBenchmarkLock(benchmark_lock_path(), condition_id=condition_id):
+        audit_no_competing_benchmark_containers()
         offset = 0
         current = completed_before
         for target in targets:
@@ -1226,6 +1362,7 @@ def score() -> None:
     from nltk import word_tokenize
     from nltk.translate.meteor_score import meteor_score
 
+    scorer_runtime = validate_scorer_runtime(nltk, os.environ)
     _, promoted = _promotions()
     attempts = _jsonl(ATTEMPTS)
     decisions = _validate_all_current_decisions()
@@ -1299,20 +1436,7 @@ def score() -> None:
             "expected_rows": EXPECTED_FROZEN_COUNT * len(promoted),
             "manifest_version": manifest.manifest_version,
             "gate_selection_sha256": manifest.gate_selection_sha256,
-            "scorer_runtime": {
-                "nltk_version": nltk.__version__,
-                "punkt_tab_english_tree_sha256": (
-                    "6073f4561d752e90f3b02bbb80a955100eb90b7f62c5fcfe17c86e8030909522"
-                ),
-                "wordnet_zip_sha256": (
-                    "6c4365b1018d44f39b284f9a5e44766548b18db9c436c9cfc1b7116230e35711"
-                ),
-                "runtime_image": os.environ.get("VQA_RUNTIME_IMAGE"),
-                "expected_runtime_image": (
-                    "localhost/trec-vqa-gate-qwen-omni@sha256:"
-                    "effff2801d7677aa4894a641adc5793d6e5072a8cec71817bf925574862c88de"
-                ),
-            },
+            "scorer_runtime": scorer_runtime,
         },
         **evaluation,
         "paired_comparisons": comparisons,
@@ -1377,6 +1501,7 @@ def status() -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    validate_cli_run_access(args.run_id, args.action)
     configure_run(args.run_id)
     if args.action == "prepare":
         prepare()

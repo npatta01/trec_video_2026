@@ -250,8 +250,8 @@ def append_launch_decision(
         raise ValueError("Launch decision is missing: " + ", ".join(missing))
     if decision.get("schema_version") != 1:
         raise ValueError("Unsupported launch-decision schema")
-    if decision.get("decision") != "promote":
-        raise ValueError("Only promoted conditions can receive launch authorization")
+    if decision.get("decision") not in {"promote", "explore"}:
+        raise ValueError("Launch authorization must be promote or explore")
     for key in required - {"schema_version"}:
         if not isinstance(decision.get(key), str) or not decision[key].strip():
             raise ValueError(f"Launch decision {key} cannot be empty")

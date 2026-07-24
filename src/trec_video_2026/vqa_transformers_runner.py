@@ -156,12 +156,16 @@ def validate_rocm_bfloat16(model: Any, torch_module: Any) -> tuple[str, str]:
         raise RuntimeError("CUDA-compatible accelerator is unavailable")
     if not getattr(torch_module.version, "hip", None):
         raise RuntimeError("PyTorch runtime is not ROCm-enabled")
-    parameter = next(model.parameters())
-    if parameter.device.type != "cuda":
-        raise RuntimeError("Loaded model is not on a CUDA-compatible accelerator")
-    if parameter.dtype != torch_module.bfloat16:
-        raise RuntimeError("Loaded model parameters are not bfloat16")
-    return f"{parameter.device} (ROCm)", "bfloat16"
+    tensors = [*model.parameters(), *getattr(model, "buffers", lambda: ())()]
+    if not tensors:
+        raise RuntimeError("Loaded model has no parameters or buffers to attest")
+    if any(tensor.device.type != "cuda" for tensor in tensors):
+        raise RuntimeError(
+            "Loaded model parameters or buffers are not on the accelerator"
+        )
+    if any(tensor.dtype != torch_module.bfloat16 for tensor in tensors):
+        raise RuntimeError("Loaded model parameters or buffers are not bfloat16")
+    return f"{tensors[0].device} (ROCm)", "bfloat16"
 
 
 def generate_answer(

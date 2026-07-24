@@ -252,3 +252,41 @@ def test_qwen_runtime_attestation_rejects_cuda_build_without_hip() -> None:
 
     with pytest.raises(RuntimeError, match="ROCm"):
         transformers_runner.validate_rocm_bfloat16(Model(), Torch())
+
+
+def test_qwen_runtime_attestation_rejects_any_mixed_parameter_or_buffer() -> None:
+    class Tensor:
+        def __init__(self, device_type: str = "cuda", dtype: str = "bf16") -> None:
+            self.device = type(
+                "Device",
+                (),
+                {
+                    "type": device_type,
+                    "__str__": lambda _self: (
+                        "cuda:0" if device_type == "cuda" else device_type
+                    ),
+                },
+            )()
+            self.dtype = dtype
+
+    class Model:
+        @staticmethod
+        def parameters():
+            return iter([Tensor(), Tensor(dtype="float32")])
+
+        @staticmethod
+        def buffers():
+            return iter([Tensor()])
+
+    class Torch:
+        bfloat16 = "bf16"
+        version = type("Version", (), {"hip": "6.4"})()
+        cuda = type("Cuda", (), {"is_available": staticmethod(lambda: True)})()
+
+    with pytest.raises(RuntimeError, match="bfloat16"):
+        transformers_runner.validate_rocm_bfloat16(Model(), Torch())
+
+    Model.parameters = staticmethod(lambda: iter([Tensor()]))
+    Model.buffers = staticmethod(lambda: iter([Tensor(device_type="cpu")]))
+    with pytest.raises(RuntimeError, match="accelerator"):
+        transformers_runner.validate_rocm_bfloat16(Model(), Torch())
