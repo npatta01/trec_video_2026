@@ -65,7 +65,7 @@ reproducibility and provenance, and make an honest expand/stop decision.
 - [x] Future immutable run identity advanced to `a2`.
 - [x] Authorized detached compatibility run completed.
 - [x] Remote artifacts downloaded and hash-verified.
-- [ ] Corrected immutable `a3` run completed and adjudicated.
+- [x] Corrected immutable `a3` run completed and evaluated.
 - [x] Static findings independently reviewed.
 - [x] Issue updated and stacked draft PR #14 opened.
 
@@ -117,9 +117,24 @@ user authorized exactly one fresh immutable `a3` attempt under the existing
 $4.50/hour and two-hour envelope. Combined prior spend is $0.4834, so the
 native $9.00 run cap keeps cumulative Qwen spend below $10.
 
+Run `a3` completed on the same qualifying RunPod H200 envelope:
+
+- dstack ID: `52477784-dfe9-476e-9d10-b1d0c77cbc3a`
+- status/reason: `done` / `all_jobs_done`
+- elapsed: 1,333.445446 seconds
+- exact `a3` cost: $1.6261
+- cumulative `a1` + `a2` + `a3` spend: $2.1095
+- remote artifacts: eight files, downloaded and checksum-verified
+- joint visual/audio input contract: passed on all three rows
+- output parsing: failed on all three rows because valid-looking JSON was
+  followed by unsolicited or repeated trailing generation
+- automatic compatibility gate: **stop**
+- semantic gate: not evaluated because no contract output succeeded
+
+No expansion or further submission is authorized.
+
 ## Next action
 
-Verify empty local, dstack, and private HF `a3` namespaces; re-preview the
-unchanged hardware/provider envelope; submit `a3` exactly once detached if at
-least two offers remain; then verify artifacts and adjudicate successful
-outputs. Do not retry or broaden beyond `a3`.
+Stop and report the output-conformance failure. Preserve `a3` as immutable. A
+future output-stopping or decoding change requires a new issue decision,
+immutable identity, and explicit cost authorization.

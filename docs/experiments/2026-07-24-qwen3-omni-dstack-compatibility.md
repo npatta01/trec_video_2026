@@ -4,7 +4,7 @@ Date: 2026-07-24
 
 Issue: #5
 
-Decision: **corrected `a3` run authorized and pending**
+Decision: **stop; joint input contract passed but output conformance failed**
 
 ## Scope and gate
 
@@ -167,6 +167,67 @@ Key hashes:
 - local artifact manifest:
   `5985c59361ede7dc98239adc3c460e9f634207decf0bcf68f9365a8fddf2fec4`
 
+## Corrected `a3` result
+
+The corrected runner was submitted exactly once as immutable run
+`qwen3-omni-compatibility-3-20260724-a3`. All three rows passed the joint input
+contract:
+
+- 12 visual elements and one audio element were present in the same request.
+- Visual and audio tensors entered the same first model forward.
+- Each row used exactly one joint generation call.
+- Processed visual and audio SHA-256 attestations were recorded.
+- No input-contract error occurred.
+
+All three rows nevertheless failed strict output parsing. Each 2,048-token
+Thinking generation produced a valid-looking JSON answer and then continued
+with unsolicited or repeated trailing text. Because the answer object was not
+terminal, the fail-closed normalizer returned the full output and the parser
+correctly rejected it as not being a single JSON object.
+
+| Role | Input contract | Parse | Generation time | Peak GPU allocated | Peak GPU reserved |
+|---|---|---|---:|---:|---:|
+| lexical speech | passed | failed | 195.537 s | 68,312,297,472 B | 70,086,819,840 B |
+| prosody | passed | failed | 194.275 s | 74,436,415,488 B | 78,502,690,816 B |
+| non-speech sound | passed | failed | 188.075 s | 74,346,811,392 B | 78,429,290,496 B |
+
+Compatibility decision: **stop** on all three roles. The raw generations are
+not successful contract outputs, so label-isolated semantic adjudication was
+not performed. The semantic promotion gate remains **not evaluated**, and no
+expansion is permitted.
+
+### `a3` runtime, cost, and provenance
+
+| Field | Terminal value |
+|---|---|
+| dstack ID | `52477784-dfe9-476e-9d10-b1d0c77cbc3a` |
+| Status / reason | `done` / `all_jobs_done` |
+| Submitted / finished | `2026-07-24T22:14:41.749480Z` / `2026-07-24T22:36:55.194926Z` |
+| Total elapsed | 1,333.445446 seconds |
+| Backend / region | RunPod / `CA-MTL-4` |
+| Exact offer | on-demand NVIDIA H200, 141 GiB VRAM, `$4.39/hour` |
+| Host allocation | 28 CPUs, 251 GiB RAM, 200 GiB disk |
+| Corrected runner SHA-256 | `5ca8b1a1e81c6bd662890d2dc9160d1d7426d2967ccf132d4726ce1bfae0016d` |
+| Exit status | 0 |
+| Exact `a3` cost | `$1.6261` |
+| Combined `a1` + `a2` + `a3` spend | `$2.1095` |
+
+The private immutable `a3` HF prefix contains exactly eight files. They were
+downloaded into ignored canonical storage at:
+
+`data/vqa/benchmarks/qwen3-omni-compatibility-3/qwen3-omni-compatibility-3-20260724-a3`
+
+Both checksum layers passed. Key hashes:
+
+- predictions:
+  `b5584e20f26e479fd3a2a5d18dcaad50f04c8e6ece083a279b145e68093f3d53`
+- summary:
+  `afdc2934b2f4315cb7bb8f156a554084925fa015ed95740962161b8bd2608aac`
+- sanitized dstack record:
+  `fff9d4507fb480be316e83f1d712389a43055afb602601cdd54ccc3e44024308`
+- local artifact manifest:
+  `38ed055e9232d7c261a5424b0982856e3b951a54b18f40e8e7625b690971bd47`
+
 ## Verification
 
 - Repository suite: 178 tests passed.
@@ -176,16 +237,19 @@ Key hashes:
 - dstack confirms `a2` is terminal with exact cost `$0.2990`.
 - The private HF prefix contains exactly the eight expected remote files.
 - Both the remote and local artifact checksums passed.
+- The corrected `a3` runner hash matched the pre-submit hash.
+- `a3` attested joint visual/audio input consumption on all three rows.
+- `a3` terminal state, `$1.6261` cost, eight-file remote prefix, and both
+  checksum layers were independently re-read after completion.
 - The allowlisted metadata projection reproduced the saved `a1` record from
   the live terminal dstack response.
 - Independent static review found no remaining Critical or Important findings.
 
 ## Next action
 
-Preserve `a2` as immutable. The user authorized exactly one corrected
-`a3` attempt within the unchanged `$4.50/hour`, two-hour envelope. Prior
-combined spend is `$0.4834`; the `$9.00` native run maximum therefore keeps
-cumulative Qwen spend below `$10`. Do not retry or broaden beyond `a3`.
+Stop. Preserve all three run identities as immutable. Do not retry or broaden
+beyond `a3`. A future output-stopping or decoding change requires a separate
+decision, immutable identity, and explicit cost authorization.
 
 ## References
 
