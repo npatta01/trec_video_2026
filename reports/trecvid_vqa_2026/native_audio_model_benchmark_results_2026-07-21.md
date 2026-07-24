@@ -228,23 +228,61 @@ isolation or actual Qwen execution identity. Protocol v2 reused no v1
 prediction: it reran all four conditions and Whisper under minimal mounts,
 staged-source binding, live device/dtype attestation, outer wall timing, and
 the two-container scoring boundary above. V1 remains immutable historical
-audit evidence only; all conclusions in this report use v2.
+audit evidence only; all **frozen-30 comparative conclusions** in this report
+use v2. The explicitly labeled pre-v2 diagnostics below still inform which
+future conditions are worth retesting.
+
+### Earlier visual/native-AV screening is diagnostic only
+
+The following conditions were screened or stopped before the clean frozen-30
+rerun. They are not mixed into the four-condition protocol-v2 ranking.
+Completed gate metrics are exact pre-v2 diagnostic values; `—` means no
+quality run was launched.
+
+| Pre-v2 condition | Evidence | EM | Token F1 | METEOR | Mean s / peak GiB | Stop decision |
+|---|---:|---:|---:|---:|---:|---|
+| Qwen3.5-9B, 12f | 10/10 gate | 0.300 | 0.493 | 0.333 | 48.18 / 19.68 | Redundant with cheaper 4B/24f; no exclusive exact win |
+| Gemma4-12B, 12f | 10/10 gate | 0.200 | 0.405 | 0.372 | 16.09 / 25.66 | Below leaders; no complement |
+| InternVL3.5-4B | 10/10 gate | 0.200 | 0.315 | 0.241 | 14.53 / 22.44 | Below leaders; no complement |
+| Molmo2-4B | 10/10 gate | 0.100 | 0.149 | 0.184 | 0.87 / 9.88 | Below leaders; no complement |
+| MiniCPM-o 4.5, audio on | 10/10 gate | 0.300 | 0.471 | 0.283 | 10.35 / 19.82 | Versus audio-off: EM `0`, F1 `-0.115`, METEOR `-0.131` |
+| Qwen2.5-Omni-3B, audio off | 10/10 gate | 0.300 | 0.467 | 0.287 | 398.73 / 75.68 | Exceeded cost and memory bounds |
+| Qwen2.5-Omni-3B, audio on | 10/10 gate | 0.300 | 0.488 | 0.273 | 415.18 / 80.35 | Versus off: EM `0`, F1 `+0.021`, METEOR `-0.015`; exceeded bounds |
+| Qwen2.5-Omni-7B, off/on | One off + one on probe (2/2 total) | 0 / 0 | 0.154 / 0.154 | 0.132 / 0.045 | 74.33 / 20.57; 29.07 / 21.10 | Both answers wrong; no probe quality signal |
+| Baichuan-Omni-1d5 | Stopped before acquisition/probe | — | — | — | — | Additional unpublished community-license text made local clearance ambiguous |
+| Qwen3-Omni-30B-A3B-Thinking | Stopped before acquisition/probe | — | — | — | 63.44 GB official shards | Larger-machine only: local runtime lacked the official FlashAttention-2 memory path, so safe headroom was not established |
+
+The Baichuan and Qwen3-Omni rows are pre-launch safety decisions, not negative
+quality findings. In particular, no local answer-quality claim is made for
+either model.
+
+Two other transcript models were stopped on the four-audio pre-v2 diagnostic:
+Whisper large-v3-turbo reached downstream F1 `0.321` (paired gain `+0.071`),
+and SeamlessM4T-v2-large reached `0.333` (paired gain `+0.083`). Both were
+inferior to the large-v3 transcript gain used for the exploratory v2 arm.
 
 ### Earlier ASR screening is diagnostic only
 
-Four small pre-v2 audio diagnostics remain useful for deciding what to retest,
-but they are not mixed into the protocol-v2 result:
+Source-model completion and transcript acceptance are separate from downstream
+Qwen completion: rejected or unavailable transcripts became null, while the
+matched visual request still ran. METEOR was not computed for this diagnostic.
 
-| Diagnostic | Completion | EM | Token F1 | METEOR | Mean downstream / peak |
-|---|---:|---:|---:|---:|---:|
-| Voxtral transcription + Qwen | 4/4 | 0.250 | 0.250 | unavailable | about 92.1 s / 10.68 GiB |
-| Voxtral translation + Qwen | 4/4 | 0.250 | 0.250 | unavailable | about 10.0 s / 10.66 GiB |
-| Qwen3-ASR + Qwen | 4/4 downstream; one incomplete source ASR row | 0.250 | 0.250 | unavailable | about 10.0 s / 10.67 GiB |
-| Voxtral direct audio QA | 4/4 | 0.000 | 0.050 | unavailable | about 4.9 s / 9.65 GiB |
+| Pre-v2 path | Source generation | Quality accepted | Downstream Qwen | EM / F1 / METEOR | Mean inference / peak |
+|---|---|---:|---:|---|---:|
+| Voxtral transcription + Qwen | 3 passed; 1 stopped before launch because source language was not validated | 3/4 | 4/4 | `0.250 / 0.250 / unavailable` | 92.050 s downstream / 10.68 GiB |
+| Voxtral translation + Qwen | 4/4 generated | 2/4 | 4/4 | `0.250 / 0.250 / unavailable` | 9.999 s downstream / 10.66 GiB |
+| Qwen3-ASR + Qwen | 3 passed; 1 failed with empty output | 3/4 | 4/4 | `0.250 / 0.250 / unavailable` | 9.978 s downstream / 10.67 GiB |
+| Voxtral direct audio QA | 4/4 diagnostic outputs | not applicable | not applicable | `0.000 / 0.050 / unavailable` | 4.880 s direct / 9.65 GiB |
 
 None improved the matched downstream answers. Any renewed comparison must be
 rerun under protocol v2 with a complete matched control and pinned scoring;
-the unavailable METEOR values must not be inferred from EM/F1.
+the unavailable METEOR values must not be inferred from EM/F1. Voxtral
+translation's two rejected rows were a 128-token repetition hallucination and
+non-transcript clarification boilerplate. Qwen3-ASR's three accepted rows
+included one mechanically accepted but semantically questionable song
+transcript; its accepted French row alone used a separately frozen
+SeamlessM4T-v2 text-translation step. The fourth Qwen3-ASR row failed empty and
+therefore supplied null downstream text.
 
 ## Recommended stack and next experiments
 
@@ -266,9 +304,9 @@ Prioritized experiments after the baseline:
 
 1. **True native-audio-on matched condition:** run audio-off versus audio-on
    with identical visual evidence on a modern native-AV model and retain
-   separate speech and non-speech strata. The earlier ten-row MiniCPM
-   audio-on gate was negative, so this must be a controlled diagnostic, not
-   assumed improvement.
+   separate speech and non-speech strata. This priority is partly informed by
+   the explicitly pre-v2 ten-row MiniCPM audio-on diagnostic, which was
+   negative; the new test must therefore be controlled, not assumed to help.
 2. **Transcript routing:** attach Whisper only when a label-blind detector
    finds speech or the question asks about dialogue; predeclare temporal and
    visual-control non-regression thresholds.
@@ -276,10 +314,13 @@ Prioritized experiments after the baseline:
    music, where every current condition had zero exact matches.
 4. **Different model families:** rerun current non-Qwen families such as
    MiniCPM, InternVL, Molmo, and Gemma under the same protocol-v2 gate when
-   newer checkpoints or materially different adapters are available.
+   newer checkpoints or materially different adapters are available. Their
+   lower rankings above are pre-v2 screening evidence, not frozen-30 v2
+   comparisons.
 5. **Larger models on a larger host:** test a larger native-AV model such as
    Qwen3-Omni-30B-A3B and a larger non-Qwen VLM as diversity checks. These are
-   future conditions, not evidence from this local frozen-30 run.
+   future conditions; this recommendation incorporates the pre-v2 local
+   headroom stop decision, not model-quality evidence.
 
 ## Honest 100-video local ETA
 

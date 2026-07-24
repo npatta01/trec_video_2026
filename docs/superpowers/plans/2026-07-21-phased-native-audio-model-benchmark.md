@@ -273,6 +273,9 @@ process. Never replace a pass with a retry; later failures remain append-only.
 - [x] Regenerate metrics and the report from append-only raw predictions.
 - [x] Report every condition and stopped candidate, not only winners; distinguish
   verified facts, inferences, and unknowns.
+  The final report separates the four clean v2 frozen-30 conditions from the
+  complete pre-v2 visual/native-AV candidate inventory, pre-launch safety
+  stops, and source/quality/downstream ASR diagnostics.
 - [x] Recommend a visual base, frame/spatial policy, transcript option, native
   audio option, and larger-machine shortlist with measured local costs.
 - [x] Ask a fresh advisor to review code and experimental findings for leakage,
@@ -350,3 +353,7 @@ Protocol-v2 evidence:
   `f610dbd3d468f3b72074c7ace38dec95176c7f47fa213b5ce374d0a9429ad9c0`;
 - canonical report:
   `reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md`.
+- report-only advisor follow-up added every pre-v2 stopped candidate, separated
+  ASR source completion from transcript acceptance and downstream completion,
+  and narrowed v2-only claims to frozen-30 comparisons. Final advisor approval
+  remains pending.
