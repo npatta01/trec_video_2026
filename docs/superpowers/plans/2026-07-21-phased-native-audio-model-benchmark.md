@@ -255,12 +255,12 @@ unpinned identity, label leakage, silent audio/frame/transcript loss, an
 unverified timed-out container cleanup, or a surviving competing benchmark
 process. Never replace a pass with a retry; later failures remain append-only.
 
-- [ ] Generate a gate table with completion, three primary metrics, per-stratum
+- [x] Generate a gate table with completion, three primary metrics, per-stratum
   results, paired audio changes, latency, memory, and unique correct answers.
-- [ ] Record the promotion decision and rationale before launching each
+- [x] Record the promotion decision and rationale before launching each
   30-video condition.
-- [ ] Run promoted conditions serially and resumably on the exact frozen panel.
-- [ ] Verify all expected rows, immutable revisions, evidence checksums, device
+- [x] Run promoted conditions serially and resumably on the exact frozen panel.
+- [x] Verify all expected rows, immutable revisions, evidence checksums, device
   records, and absence of label fields in saved requests.
 
 ## Task 9: Report and independently review the recommendation
@@ -270,16 +270,16 @@ process. Never replace a pass with a retry; later failures remain append-only.
 - Create: `reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md`
 - Modify implementation/docs identified by review
 
-- [ ] Regenerate metrics and the report from append-only raw predictions.
-- [ ] Report every condition and stopped candidate, not only winners; distinguish
+- [x] Regenerate metrics and the report from append-only raw predictions.
+- [x] Report every condition and stopped candidate, not only winners; distinguish
   verified facts, inferences, and unknowns.
-- [ ] Recommend a visual base, frame/spatial policy, transcript option, native
+- [x] Recommend a visual base, frame/spatial policy, transcript option, native
   audio option, and larger-machine shortlist with measured local costs.
-- [ ] Ask a fresh advisor to review code and experimental findings for leakage,
+- [x] Ask a fresh advisor to review code and experimental findings for leakage,
   evidence mismatch, unfair ablations, scoring defects, fallback, and
   overclaiming.
-- [ ] Address findings and rerun affected tests, inference rows, and scores.
-- [ ] Run full verification and confirm no media, transcripts, weights, raw
+- [x] Address findings and rerun affected tests, inference rows, and scores.
+- [x] Run full verification and confirm no media, transcripts, weights, raw
   logs, credentials, or unrelated user files are staged.
 
 ## Verification commands
@@ -297,3 +297,56 @@ Real-run verification additionally checks the expected condition/example row
 counts, runner-request schema, device/precision provenance, source/evidence
 fingerprints, and reproducible score regeneration. A successful process exit
 alone is not sufficient.
+
+## Task 10: Remediate the fresh post-execution protocol review
+
+The first frozen-30 output remains immutable historical audit evidence.
+Protocol-v2 remediation, clean inference, two-phase scoring, deterministic
+score regeneration, and the canonical results report are complete. The next
+action is a fresh final advisor review of the v2 evidence and report.
+
+- [x] Add an inference-manifest loader that resolves only frozen questions,
+  categories, media, and annotation paths without opening annotation content.
+- [x] Restrict inference container mounts to exact media, frame-evidence,
+  run-audio, repository, and model-cache roots; do not mount label-bearing
+  annotation directories.
+- [x] Live-attest Qwen ROCm, actual parameter device, and actual parameter
+  dtype instead of returning configured strings.
+- [x] Recompute and compare the full current evidence manifest before every
+  authorization and run; bind each selected attempt to the current manifest.
+- [x] Reject nonzero Whisper runner exits before parsing a possible success
+  payload.
+- [x] Audit competing benchmark containers/processes before launch and at
+  checkpoints without killing unrelated work.
+- [x] Persist outer chunk/condition wall time, including model/container
+  overhead, and enforce the 45-minute stop against that measured value.
+- [x] Pin the scoring image, NLTK 3.9.2, punkt-tab SHA-256
+  `6073f4561d752e90f3b02bbb80a955100eb90b7f62c5fcfe17c86e8030909522`,
+  and WordNet SHA-256
+  `6c4365b1018d44f39b284f9a5e44766548b18db9c436c9cfc1b7116230e35711`
+  in generated evaluation metadata.
+- [x] Mark the first Whisper frozen-30 promotion exploratory/protocol-deviating:
+  its four-audio gate could not test the required visual-control guard, and
+  the later panel measured visual-control METEOR `-0.1032` and temporal F1
+  `-0.0552`.
+- [x] Expand stopped ASR reporting into separate Voxtral transcription,
+  Voxtral translation, Qwen3-ASR downstream, and Voxtral direct-QA rows with
+  completeness, cost, metrics, and unavailable METEOR.
+- [x] Obtain independent code review, run the full suite/preflight, then launch
+  a new immutable v2 run rather than reusing v1 passes.
+- [x] Freeze v2 predictions before any reference load and regenerate scoring
+  and the canonical report.
+- [ ] Obtain a fresh final advisor approval of the protocol-v2 code, artifacts,
+  conclusions, and report.
+
+Protocol-v2 evidence:
+
+- 120/120 VQA rows and 30/30 Whisper rows passed, with zero ROCm failures;
+- selected prediction SHA-256
+  `8aa8c76e809402a97e32277e0846b1cdae033c9727535717724b1be0b0235879`;
+- scored prediction SHA-256
+  `c95669135b29551ef407e2889ac5e203053e944b00a0968cbe20da1fdfd0be7a`;
+- final evaluation SHA-256
+  `f610dbd3d468f3b72074c7ace38dec95176c7f47fa213b5ce374d0a9429ad9c0`;
+- canonical report:
+  `reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md`.
