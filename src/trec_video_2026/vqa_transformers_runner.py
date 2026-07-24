@@ -171,12 +171,12 @@ def validate_rocm_bfloat16(
     buffers = list(getattr(model, "buffers", lambda: ())())
     if not parameters:
         raise RuntimeError("Loaded model has no parameters to attest")
-    if any(parameter.device.type != "cuda" for parameter in parameters):
-        raise RuntimeError("Loaded model parameters are not on the accelerator")
+    if any(str(parameter.device) != "cuda:0" for parameter in parameters):
+        raise RuntimeError("Loaded model parameters are not all on cuda:0")
     if any(parameter.dtype != torch_module.bfloat16 for parameter in parameters):
         raise RuntimeError("Loaded model parameters are not bfloat16")
-    if any(buffer.device.type != "cuda" for buffer in buffers):
-        raise RuntimeError("Loaded model buffers are not on the accelerator")
+    if any(str(buffer.device) != "cuda:0" for buffer in buffers):
+        raise RuntimeError("Loaded model buffers are not all on cuda:0")
     attestation = {
         "parameter_tensor_count": len(parameters),
         "parameter_devices": _tensor_counts(parameters, "device"),
@@ -186,7 +186,7 @@ def validate_rocm_bfloat16(
         "buffer_dtypes": _tensor_counts(buffers, "dtype"),
         "torch_hip": str(torch_hip),
     }
-    return f"{parameters[0].device} (ROCm)", "bfloat16", attestation
+    return "cuda:0 (ROCm)", "bfloat16", attestation
 
 
 def generate_answer(

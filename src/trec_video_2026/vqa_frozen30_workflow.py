@@ -391,6 +391,107 @@ def validate_preflight_source_tree(preflight: Mapping[str, Any]) -> str:
     return observed
 
 
+def _runtime_source_manifest(source_tree_sha256: str) -> dict[str, Any]:
+    files = []
+    for source_path in sorted(SOURCE_TREE.rglob("*.py")):
+        relative = source_path.relative_to(SOURCE_TREE).as_posix()
+        payload = source_path.read_bytes()
+        files.append(
+            {
+                "path": f"trec_video_2026/{relative}",
+                "sha256": hashlib.sha256(payload).hexdigest(),
+                "size_bytes": len(payload),
+            }
+        )
+    return {
+        "schema_version": 1,
+        "source_tree_sha256": source_tree_sha256,
+        "files": files,
+    }
+
+
+def stage_runtime_source(source_tree_sha256: str) -> Path:
+    """Create or verify the pycache-free source snapshot used by containers."""
+
+    RUN.mkdir(parents=True, exist_ok=True)
+    runtime_root = RUN / "runtime-src"
+    package_root = runtime_root / "trec_video_2026"
+    manifest_payload = _runtime_source_manifest(source_tree_sha256)
+    if runtime_root.exists():
+        staged_files = sorted(
+            path.relative_to(runtime_root).as_posix()
+            for path in runtime_root.rglob("*")
+            if path.is_file()
+        )
+        expected_files = [row["path"] for row in manifest_payload["files"]]
+        if (
+            staged_files != expected_files
+            or canonical_source_tree_sha256(package_root) != source_tree_sha256
+        ):
+            raise ValueError("Existing staged runtime source differs; archive the run")
+    else:
+        with tempfile.TemporaryDirectory(prefix=".runtime-src-", dir=RUN) as temporary:
+            temporary_path = Path(temporary)
+            temporary_package = temporary_path / "trec_video_2026"
+            for row in manifest_payload["files"]:
+                relative = Path(str(row["path"])).relative_to("trec_video_2026")
+                destination = temporary_package / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_bytes((SOURCE_TREE / relative).read_bytes())
+            os.replace(temporary_path, runtime_root)
+    _atomic_write(
+        RUN / "runtime-source-manifest.json",
+        json.dumps(manifest_payload, ensure_ascii=False, indent=2) + "\n",
+    )
+    return runtime_root
+
+
+def validate_staged_runtime_source(preflight: Mapping[str, Any]) -> Path:
+    """Verify the exact pycache-free source snapshot immediately before use."""
+
+    runtime_root = (RUN / "runtime-src").resolve(strict=True)
+    package_root = runtime_root / "trec_video_2026"
+    manifest_path = RUN / "runtime-source-manifest.json"
+    if _sha256(manifest_path) != preflight.get("runtime_source_manifest_sha256"):
+        raise ValueError("Staged runtime source manifest does not match preflight")
+    manifest = _json(manifest_path)
+    if (
+        manifest.get("schema_version") != 1
+        or manifest.get("source_tree_sha256") != preflight.get("source_tree_sha256")
+        or not isinstance(manifest.get("files"), list)
+    ):
+        raise ValueError("Staged runtime source manifest is invalid")
+    expected_paths = []
+    for row in manifest["files"]:
+        if not isinstance(row, Mapping):
+            raise ValueError("Staged runtime source manifest entry is invalid")
+        relative = row.get("path")
+        if not isinstance(relative, str) or not relative.startswith("trec_video_2026/"):
+            raise ValueError("Staged runtime source manifest path is invalid")
+        file_path = runtime_root / relative
+        if (
+            not file_path.is_file()
+            or _sha256(file_path) != row.get("sha256")
+            or file_path.stat().st_size != row.get("size_bytes")
+        ):
+            raise ValueError("Staged runtime source file does not match manifest")
+        expected_paths.append(relative)
+    actual_paths = sorted(
+        path.relative_to(runtime_root).as_posix()
+        for path in runtime_root.rglob("*")
+        if path.is_file()
+    )
+    if actual_paths != sorted(expected_paths) or any(
+        path.name == "__pycache__" for path in runtime_root.rglob("*")
+    ):
+        raise ValueError("Staged runtime source contains unexpected files")
+    if canonical_source_tree_sha256(package_root) != preflight.get(
+        "source_tree_sha256"
+    ):
+        raise ValueError("Staged runtime source tree does not match preflight")
+    return runtime_root
+
+
 def validate_scorer_runtime(
     nltk_module: Any,
     environment: Mapping[str, str],
@@ -646,6 +747,8 @@ def prepare() -> None:
     config = load_conditions(MODEL_CONFIG)
     conditions = {item.condition_id: item for item in config.conditions}
     promotion_payload, promoted = _promotions()
+    source_tree_sha256 = canonical_source_tree_sha256(SOURCE_TREE)
+    stage_runtime_source(source_tree_sha256)
     write_resolved_manifest(manifest, RUN / "resolved-manifest.json")
     audits: dict[str, Any] = {}
     evidence_rows: dict[tuple[str, int], dict[str, Any]] = {}
@@ -735,7 +838,8 @@ def prepare() -> None:
         "schema_version": 2,
         "run_id": RUN_ID,
         "inference_manifest_sha256": _sha256(MANIFEST_PATH),
-        "source_tree_sha256": canonical_source_tree_sha256(SOURCE_TREE),
+        "source_tree_sha256": source_tree_sha256,
+        "runtime_source_manifest_sha256": _sha256(RUN / "runtime-source-manifest.json"),
         "manifest_version": manifest.manifest_version,
         "gate_selection_sha256": manifest.gate_selection_sha256,
         "ordered_video_ids": list(_expected_ids()),
@@ -796,7 +900,7 @@ def _asr_valid(request: Mapping[str, Any], row: Mapping[str, Any]) -> bool:
 
 def _whisper_command() -> list[str]:
     image = _json(RUN / "preflight.json")["whisper"]["runtime_image"]
-    source = (ROOT / "src").resolve(strict=True)
+    source = (RUN / "runtime-src").resolve(strict=True)
     audio = (RUN / "audio").resolve(strict=True)
     cache = HF_CACHE.resolve(strict=True)
     return [
@@ -822,6 +926,8 @@ def _whisper_command() -> list[str]:
         "-e",
         f"PYTHONPATH={source}",
         "-e",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "-e",
         "HF_HUB_OFFLINE=1",
         "-e",
         "TRANSFORMERS_OFFLINE=1",
@@ -842,6 +948,7 @@ def run_whisper() -> None:
     require_mutable_run()
     full_preflight = _json(RUN / "preflight.json")
     validate_preflight_source_tree(full_preflight)
+    validate_staged_runtime_source(full_preflight)
     audit_no_competing_benchmark_containers()
     requests = _json(RUN / "whisper-requests.json")
     preflight = full_preflight["whisper"]
@@ -879,6 +986,7 @@ def run_whisper() -> None:
             )
             outer_started = time.monotonic()
             try:
+                validate_staged_runtime_source(full_preflight)
                 completed = subprocess.run(
                     invocation,
                     input=json.dumps(request),
@@ -1006,7 +1114,9 @@ def run_whisper() -> None:
 
 def build_transcript_requests() -> None:
     require_mutable_run()
-    validate_preflight_source_tree(_json(RUN / "preflight.json"))
+    full_preflight = _json(RUN / "preflight.json")
+    validate_preflight_source_tree(full_preflight)
+    validate_staged_runtime_source(full_preflight)
     if ATTEMPTS.exists() and any(
         row.get("condition_id") == TRANSCRIPT_CONDITION for row in _jsonl(ATTEMPTS)
     ):
@@ -1110,6 +1220,7 @@ def _condition_inputs(
     ):
         raise ValueError("Frozen run requires a current protocol-v2 preflight")
     validate_preflight_source_tree(preflight)
+    validate_staged_runtime_source(preflight)
     requests = _json(_request_path(condition_id))
     audit = audit_frozen_requests(
         requests,
@@ -1158,6 +1269,7 @@ def _validate_current_decision(
     )
     preflight = _json(RUN / "preflight.json")
     source_tree_sha256 = validate_preflight_source_tree(preflight)
+    validate_staged_runtime_source(preflight)
     preflight_audit = preflight["condition_audits"][specification["condition_id"]]
     expected = {
         "schema_version": 1,
@@ -1176,6 +1288,7 @@ def _validate_current_decision(
         "protocol_version": 2,
         "inference_manifest_sha256": _sha256(MANIFEST_PATH),
         "source_tree_sha256": source_tree_sha256,
+        "runtime_source_manifest_sha256": preflight["runtime_source_manifest_sha256"],
         "launch_config_recorded_at_utc": promotion["recorded_at_utc"],
     }
     validate_decision_bindings(decision, expected)
@@ -1242,6 +1355,7 @@ def authorize(condition_id: str) -> None:
         return
     full_preflight = _json(RUN / "preflight.json")
     source_tree_sha256 = validate_preflight_source_tree(full_preflight)
+    validate_staged_runtime_source(full_preflight)
     preflight = full_preflight["condition_audits"][condition_id]
     recorded_at_utc = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     promotion = _json(PROMOTION_CONFIG)
@@ -1270,6 +1384,9 @@ def authorize(condition_id: str) -> None:
             "protocol_version": 2,
             "inference_manifest_sha256": _sha256(MANIFEST_PATH),
             "source_tree_sha256": source_tree_sha256,
+            "runtime_source_manifest_sha256": full_preflight[
+                "runtime_source_manifest_sha256"
+            ],
             "launch_config_recorded_at_utc": promotion["recorded_at_utc"],
         },
         attempts_path=ATTEMPTS,
@@ -1350,12 +1467,14 @@ def run_condition(condition_id: str) -> None:
         if item.condition_id == specification["base_condition_id"]
     )
     condition = replace(base, condition_id=condition_id)
+    runtime_source = validate_staged_runtime_source(_json(RUN / "preflight.json"))
     command = build_rocm_runner_command(
         image=config.runtime_image,
         repo_root=ROOT,
         dataset_root=DATA,
         hf_cache_root=HF_CACHE,
         condition=condition,
+        source_root=runtime_source,
     )
     evidence_manifest_sha256 = decision["evidence_manifest_sha256"]
     completed_before = EXPECTED_FROZEN_COUNT - len(pending)
@@ -1371,6 +1490,7 @@ def run_condition(condition_id: str) -> None:
             offset += chunk_size
             chunk_id = f"{RUN_ID}-{condition_id}-{target}-{secrets.token_hex(6)}"
             outer_started = time.monotonic()
+            validate_staged_runtime_source(_json(RUN / "preflight.json"))
             results = invoke_runner_batch(
                 command,
                 [_runner_request(request) for request in chunk],
@@ -1456,7 +1576,9 @@ def run_condition(condition_id: str) -> None:
 
 def score() -> None:
     require_mutable_run()
-    source_tree_sha256 = validate_preflight_source_tree(_json(RUN / "preflight.json"))
+    full_preflight = _json(RUN / "preflight.json")
+    source_tree_sha256 = validate_preflight_source_tree(full_preflight)
+    validate_staged_runtime_source(full_preflight)
     import nltk
     from nltk import word_tokenize
     from nltk.translate.meteor_score import meteor_score

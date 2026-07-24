@@ -208,7 +208,7 @@ def test_select_auto_model_class_supports_gemma_multimodal() -> None:
     assert select_auto_model_class("multimodal", "image", "multimodal") == "multimodal"
 
 
-def test_qwen_runtime_attestation_uses_loaded_parameter_and_rocm_runtime() -> None:
+def test_qwen_runtime_attestation_rejects_nonzero_cuda_device() -> None:
     class Device:
         type = "cuda"
 
@@ -229,19 +229,8 @@ def test_qwen_runtime_attestation_uses_loaded_parameter_and_rocm_runtime() -> No
         version = type("Version", (), {"hip": "6.4"})()
         cuda = type("Cuda", (), {"is_available": staticmethod(lambda: True)})()
 
-    assert transformers_runner.validate_rocm_bfloat16(Model(), Torch()) == (
-        "cuda:1 (ROCm)",
-        "bfloat16",
-        {
-            "parameter_tensor_count": 1,
-            "parameter_devices": {"cuda:1": 1},
-            "parameter_dtypes": {"bf16": 1},
-            "buffer_tensor_count": 0,
-            "buffer_devices": {},
-            "buffer_dtypes": {},
-            "torch_hip": "6.4",
-        },
-    )
+    with pytest.raises(RuntimeError, match="cuda:0"):
+        transformers_runner.validate_rocm_bfloat16(Model(), Torch())
 
 
 def test_runner_result_records_runtime_attestation() -> None:
@@ -369,5 +358,31 @@ def test_qwen_runtime_attestation_rejects_mixed_parameter_dtype_or_cpu_buffer() 
 
     Model.parameters = staticmethod(lambda: iter([Tensor()]))
     Model.buffers = staticmethod(lambda: iter([Tensor(device_type="cpu")]))
-    with pytest.raises(RuntimeError, match="buffers.*accelerator"):
+    with pytest.raises(RuntimeError, match="buffers.*cuda:0"):
+        transformers_runner.validate_rocm_bfloat16(Model(), Torch())
+
+
+def test_qwen_runtime_attestation_rejects_split_cuda_devices() -> None:
+    class Tensor:
+        def __init__(self, device: str) -> None:
+            self.device = type(
+                "Device",
+                (),
+                {
+                    "type": "cuda",
+                    "__str__": lambda _self: device,
+                },
+            )()
+            self.dtype = "bf16"
+
+    class Model:
+        parameters = staticmethod(lambda: iter([Tensor("cuda:0"), Tensor("cuda:1")]))
+        buffers = staticmethod(lambda: iter([Tensor("cuda:0")]))
+
+    class Torch:
+        bfloat16 = "bf16"
+        version = type("Version", (), {"hip": "6.4"})()
+        cuda = type("Cuda", (), {"is_available": staticmethod(lambda: True)})()
+
+    with pytest.raises(RuntimeError, match="cuda:0"):
         transformers_runner.validate_rocm_bfloat16(Model(), Torch())

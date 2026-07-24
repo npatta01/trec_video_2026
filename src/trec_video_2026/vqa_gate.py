@@ -123,6 +123,7 @@ def build_rocm_runner_command(
     dataset_root: Path,
     hf_cache_root: Path,
     condition: Condition,
+    source_root: Path | None = None,
 ) -> list[str]:
     """Build a rootless, offline Podman invocation for one controlled run."""
 
@@ -130,7 +131,11 @@ def build_rocm_runner_command(
         path.resolve(strict=True) for path in (repo_root, dataset_root, hf_cache_root)
     )
     repo, dataset, cache = roots
-    source_root = (repo / "src").resolve()
+    runtime_source_root = (
+        source_root.resolve(strict=True)
+        if source_root is not None
+        else (repo / "src").resolve()
+    )
     media_root = (dataset / "vqa/2025/training/videos_original").resolve()
     evidence_root = (dataset / "vqa/benchmarks/evidence").resolve()
     runtime_image = condition.runtime_image or image
@@ -147,7 +152,7 @@ def build_rocm_runner_command(
         "--group-add",
         "keep-groups",
         "-v",
-        f"{source_root}:{source_root}:ro",
+        f"{runtime_source_root}:{runtime_source_root}:ro",
         "-v",
         f"{media_root}:{media_root}:ro",
         "-v",
@@ -155,9 +160,11 @@ def build_rocm_runner_command(
         "-v",
         f"{cache}:/root/.cache/huggingface:rw",
         "-w",
-        str(source_root),
+        str(runtime_source_root),
         "-e",
-        f"PYTHONPATH={source_root}",
+        f"PYTHONPATH={runtime_source_root}",
+        "-e",
+        "PYTHONDONTWRITEBYTECODE=1",
         "-e",
         "HF_HUB_OFFLINE=1",
         "-e",

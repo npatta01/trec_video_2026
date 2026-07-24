@@ -332,6 +332,40 @@ def append_attempt_rows(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
         os.fsync(handle.fileno())
 
 
+def validate_qwen_runtime_attestation(value: object) -> bool:
+    """Validate the exact Qwen Transformers parameter/buffer attestation."""
+
+    if not isinstance(value, Mapping):
+        return False
+    torch_hip = value.get("torch_hip")
+    parameter_count = value.get("parameter_tensor_count")
+    buffer_count = value.get("buffer_tensor_count")
+    if not isinstance(torch_hip, str) or not torch_hip.strip():
+        return False
+    if type(parameter_count) is not int or parameter_count <= 0:
+        return False
+    if value.get("parameter_devices") != {"cuda:0": parameter_count}:
+        return False
+    if value.get("parameter_dtypes") != {"torch.bfloat16": parameter_count}:
+        return False
+    if type(buffer_count) is not int or buffer_count < 0:
+        return False
+    expected_buffer_devices = {} if buffer_count == 0 else {"cuda:0": buffer_count}
+    if value.get("buffer_devices") != expected_buffer_devices:
+        return False
+    buffer_dtypes = value.get("buffer_dtypes")
+    if not isinstance(buffer_dtypes, Mapping):
+        return False
+    if any(
+        not isinstance(dtype, str) or not dtype or type(count) is not int or count <= 0
+        for dtype, count in buffer_dtypes.items()
+    ):
+        return False
+    if sum(buffer_dtypes.values()) != buffer_count:
+        return False
+    return bool(buffer_dtypes) == (buffer_count > 0)
+
+
 def validate_frozen_attempt(
     request: Mapping[str, Any],
     attempt: Mapping[str, Any],
@@ -345,6 +379,10 @@ def validate_frozen_attempt(
         current_evidence = evidence_identity_sha256(request)
     except (OSError, TypeError, ValueError):
         return False
+    runtime_attestation_valid = (
+        execution.model_id != "Qwen/Qwen3.5-4B"
+        or validate_qwen_runtime_attestation(attempt.get("runtime_attestation"))
+    )
     return (
         request.get("condition_id") == execution.condition_id
         and attempt.get("run_id") == request.get("run_id")
@@ -363,6 +401,7 @@ def validate_frozen_attempt(
         and attempt.get("runtime_image") == execution.runtime_image
         and attempt.get("device") == execution.device
         and attempt.get("precision") == execution.precision
+        and runtime_attestation_valid
         and isinstance(attempt.get("elapsed_seconds"), (int, float))
         and attempt["elapsed_seconds"] >= 0
         and isinstance(attempt.get("peak_memory_bytes"), int)

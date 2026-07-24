@@ -70,6 +70,18 @@ def execution() -> FrozenExecution:
     )
 
 
+def qwen_runtime_attestation() -> dict:
+    return {
+        "parameter_tensor_count": 723,
+        "parameter_devices": {"cuda:0": 723},
+        "parameter_dtypes": {"torch.bfloat16": 723},
+        "buffer_tensor_count": 3,
+        "buffer_devices": {"cuda:0": 3},
+        "buffer_dtypes": {"torch.float32": 3},
+        "torch_hip": "7.2.53211",
+    }
+
+
 def passed_attempt(request: dict, launch_sha256: str) -> dict:
     return {
         "run_id": request["run_id"],
@@ -93,6 +105,7 @@ def passed_attempt(request: dict, launch_sha256: str) -> dict:
         "outer_chunk_elapsed_seconds": 2.0,
         "outer_condition_elapsed_seconds": 2.0,
         "runtime": "test",
+        "runtime_attestation": qwen_runtime_attestation(),
         "error_type": None,
         "error_message": None,
     }
@@ -240,6 +253,84 @@ def test_complete_selection_requires_all_expected_rows(tmp_path: Path) -> None:
             execution=execution(),
             launch_decision_sha256=launch_sha256,
         )
+
+
+@pytest.mark.parametrize(
+    "runtime_attestation",
+    [
+        None,
+        {**qwen_runtime_attestation(), "torch_hip": ""},
+        {**qwen_runtime_attestation(), "parameter_tensor_count": 0},
+        {**qwen_runtime_attestation(), "parameter_devices": {"cuda:1": 723}},
+        {
+            **qwen_runtime_attestation(),
+            "parameter_dtypes": {"torch.float32": 723},
+        },
+        {**qwen_runtime_attestation(), "buffer_tensor_count": -1},
+        {**qwen_runtime_attestation(), "buffer_devices": {"cuda:1": 3}},
+        {**qwen_runtime_attestation(), "buffer_dtypes": {"torch.float32": 2}},
+        {**qwen_runtime_attestation(), "buffer_dtypes": {"torch.float32": "3"}},
+    ],
+)
+def test_qwen_frozen_attempt_requires_structural_runtime_attestation(
+    tmp_path: Path, runtime_attestation: object
+) -> None:
+    request = make_request(tmp_path, FROZEN_IDS[0])
+    launch_sha256 = "f" * 64
+    attempt = {
+        **passed_attempt(request, launch_sha256),
+        "runtime_attestation": runtime_attestation,
+    }
+
+    assert not validate_frozen_attempt(
+        request,
+        attempt,
+        execution=execution(),
+        launch_decision_sha256=launch_sha256,
+    )
+
+
+def test_minicpm_frozen_attempt_does_not_require_qwen_runtime_attestation(
+    tmp_path: Path,
+) -> None:
+    request = make_request(tmp_path, FROZEN_IDS[0])
+    launch_sha256 = "f" * 64
+    minicpm_execution = FrozenExecution(
+        condition_id=execution().condition_id,
+        model_id="openbmb/MiniCPM-o-4_5",
+        model_revision="a" * 40,
+        runtime_image=execution().runtime_image,
+        evidence_manifest_sha256=execution().evidence_manifest_sha256,
+    )
+    attempt = passed_attempt(request, launch_sha256)
+    attempt["model_id"] = minicpm_execution.model_id
+    attempt.pop("runtime_attestation")
+
+    assert validate_frozen_attempt(
+        request,
+        attempt,
+        execution=minicpm_execution,
+        launch_decision_sha256=launch_sha256,
+    )
+
+
+def test_qwen_frozen_attempt_accepts_zero_registered_buffers(tmp_path: Path) -> None:
+    request = make_request(tmp_path, FROZEN_IDS[0])
+    launch_sha256 = "f" * 64
+    attempt = passed_attempt(request, launch_sha256)
+    attempt["runtime_attestation"] = {
+        **qwen_runtime_attestation(),
+        "buffer_tensor_count": 0,
+        "buffer_devices": {},
+        "buffer_dtypes": {},
+    }
+
+    assert validate_frozen_attempt(
+        request,
+        attempt,
+        execution=execution(),
+        launch_decision_sha256=launch_sha256,
+    )
 
 
 def test_evidence_identity_binds_transcript_source_and_file_bytes(
@@ -618,6 +709,51 @@ def test_condition_inputs_rejects_source_tree_drift(
         frozen_workflow._condition_inputs(condition_id)
 
 
+def test_staged_runtime_source_contains_only_bound_python_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_tree = tmp_path / "host-src/trec_video_2026"
+    source_tree.mkdir(parents=True)
+    (source_tree / "__init__.py").write_bytes(b"")
+    (source_tree / "runner.py").write_bytes(b"answer = 42\n")
+    pycache = source_tree / "__pycache__"
+    pycache.mkdir()
+    (pycache / "runner.pyc").write_bytes(b"unbound")
+    run = tmp_path / "run"
+    monkeypatch.setattr(frozen_workflow, "SOURCE_TREE", source_tree)
+    monkeypatch.setattr(frozen_workflow, "RUN", run)
+    source_sha256 = frozen_workflow.canonical_source_tree_sha256(source_tree)
+
+    runtime_root = frozen_workflow.stage_runtime_source(source_sha256)
+    manifest_path = run / "runtime-source-manifest.json"
+    preflight = {
+        "source_tree_sha256": source_sha256,
+        "runtime_source_manifest_sha256": hashlib.sha256(
+            manifest_path.read_bytes()
+        ).hexdigest(),
+    }
+
+    assert frozen_workflow.validate_staged_runtime_source(preflight) == runtime_root
+    assert sorted(
+        path.relative_to(runtime_root).as_posix()
+        for path in runtime_root.rglob("*")
+        if path.is_file()
+    ) == [
+        "trec_video_2026/__init__.py",
+        "trec_video_2026/runner.py",
+    ]
+    staged_runner = runtime_root / "trec_video_2026/runner.py"
+    staged_runner.write_bytes(b"tampered")
+    with pytest.raises(ValueError, match="file"):
+        frozen_workflow.validate_staged_runtime_source(preflight)
+    staged_runner.write_bytes(b"answer = 42\n")
+    staged_pycache = runtime_root / "trec_video_2026/__pycache__"
+    staged_pycache.mkdir()
+    (staged_pycache / "runner.pyc").write_bytes(b"tampered")
+    with pytest.raises(ValueError, match="unexpected"):
+        frozen_workflow.validate_staged_runtime_source(preflight)
+
+
 def test_prepare_does_not_rewrite_authorized_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -641,6 +777,14 @@ def test_whisper_timeout_uses_named_cleanup_and_appends_failure(
 ) -> None:
     run = tmp_path / "run"
     run.mkdir()
+    monkeypatch.setattr(frozen_workflow, "RUN", run)
+    source_tree_sha256 = frozen_workflow.canonical_source_tree_sha256(
+        frozen_workflow.SOURCE_TREE
+    )
+    frozen_workflow.stage_runtime_source(source_tree_sha256)
+    runtime_manifest_sha256 = hashlib.sha256(
+        (run / "runtime-source-manifest.json").read_bytes()
+    ).hexdigest()
     audio = run / "audio.wav"
     audio.write_bytes(b"audio")
     requests = [
@@ -658,11 +802,8 @@ def test_whisper_timeout_uses_named_cleanup_and_appends_failure(
     (run / "preflight.json").write_text(
         json.dumps(
             {
-                "source_tree_sha256": (
-                    frozen_workflow.canonical_source_tree_sha256(
-                        frozen_workflow.SOURCE_TREE
-                    )
-                ),
+                "source_tree_sha256": source_tree_sha256,
+                "runtime_source_manifest_sha256": runtime_manifest_sha256,
                 "whisper": {
                     "runtime_image": image,
                     "request_set_sha256": canonical_request_sha256(
@@ -692,7 +833,6 @@ def test_whisper_timeout_uses_named_cleanup_and_appends_failure(
             return subprocess.CompletedProcess(command, 1, "", "")
         raise AssertionError(command)
 
-    monkeypatch.setattr(frozen_workflow, "RUN", run)
     monkeypatch.setattr(frozen_workflow, "ASR_ATTEMPTS", attempts)
     monkeypatch.setattr(frozen_workflow, "_expected_ids", lambda: FROZEN_IDS)
     monkeypatch.setattr(
@@ -919,6 +1059,14 @@ def test_whisper_nonzero_exit_appends_structured_failure(
 ) -> None:
     run = tmp_path / "run"
     run.mkdir()
+    monkeypatch.setattr(frozen_workflow, "RUN", run)
+    source_tree_sha256 = frozen_workflow.canonical_source_tree_sha256(
+        frozen_workflow.SOURCE_TREE
+    )
+    frozen_workflow.stage_runtime_source(source_tree_sha256)
+    runtime_manifest_sha256 = hashlib.sha256(
+        (run / "runtime-source-manifest.json").read_bytes()
+    ).hexdigest()
     audio = run / "audio.wav"
     audio.write_bytes(b"audio")
     requests = [
@@ -936,11 +1084,8 @@ def test_whisper_nonzero_exit_appends_structured_failure(
     (run / "preflight.json").write_text(
         json.dumps(
             {
-                "source_tree_sha256": (
-                    frozen_workflow.canonical_source_tree_sha256(
-                        frozen_workflow.SOURCE_TREE
-                    )
-                ),
+                "source_tree_sha256": source_tree_sha256,
+                "runtime_source_manifest_sha256": runtime_manifest_sha256,
                 "whisper": {
                     "runtime_image": image,
                     "request_set_sha256": canonical_request_sha256(
@@ -956,7 +1101,6 @@ def test_whisper_nonzero_exit_appends_structured_failure(
     )
     attempts = run / "whisper-attempts.jsonl"
 
-    monkeypatch.setattr(frozen_workflow, "RUN", run)
     monkeypatch.setattr(frozen_workflow, "ASR_ATTEMPTS", attempts)
     monkeypatch.setattr(frozen_workflow, "_expected_ids", lambda: FROZEN_IDS)
     monkeypatch.setattr(
@@ -991,7 +1135,12 @@ def test_whisper_command_mounts_only_source_current_audio_and_cache(
     data = tmp_path / "data"
     run = data / "vqa/benchmarks/runs/native-audio-benchmark-v2"
     cache = tmp_path / "cache"
-    for path in (root / "src", run / "audio", cache):
+    for path in (
+        root / "src",
+        run / "runtime-src/trec_video_2026",
+        run / "audio",
+        cache,
+    ):
         path.mkdir(parents=True)
     image = "local/image@sha256:" + "a" * 64
     (run / "preflight.json").write_text(
@@ -1004,10 +1153,12 @@ def test_whisper_command_mounts_only_source_current_audio_and_cache(
 
     command = frozen_workflow._whisper_command()
 
-    source = (root / "src").resolve()
+    source = (run / "runtime-src").resolve()
+    host_source = (root / "src").resolve()
     audio = (run / "audio").resolve()
     joined = " ".join(command)
     assert f"{source}:{source}:ro" in command
+    assert f"{host_source}:{host_source}:ro" not in command
     assert f"{audio}:{audio}:ro" in command
     assert f"{cache.resolve()}:/root/.cache/huggingface:rw" in command
     assert f"{root.resolve()}:{root.resolve()}:ro" not in command
@@ -1018,6 +1169,8 @@ def test_whisper_command_mounts_only_source_current_audio_and_cache(
     assert "reports" not in joined
     assert command[command.index("-w") + 1] == str(source)
     assert f"PYTHONPATH={source}" in command
+    assert "PYTHONDONTWRITEBYTECODE=1" in command
+    assert "__pycache__" not in joined
 
 
 def test_scorer_runtime_validation_checks_live_image_version_and_resource_bytes(

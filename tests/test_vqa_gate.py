@@ -550,8 +550,10 @@ def test_rocm_command_mounts_only_required_roots(tmp_path: Path) -> None:
     repo_root = tmp_path / "repo"
     dataset_root = tmp_path / "dataset"
     cache_root = tmp_path / "cache"
+    staged_source = tmp_path / "run/runtime-src"
     for path in (
         repo_root / "src",
+        staged_source / "trec_video_2026",
         dataset_root / "vqa/2025/training/videos_original",
         dataset_root / "vqa/benchmarks/evidence",
         cache_root,
@@ -571,6 +573,7 @@ def test_rocm_command_mounts_only_required_roots(tmp_path: Path) -> None:
         dataset_root=dataset_root,
         hf_cache_root=cache_root,
         condition=condition,
+        source_root=staged_source,
     )
 
     joined = " ".join(command)
@@ -579,8 +582,10 @@ def test_rocm_command_mounts_only_required_roots(tmp_path: Path) -> None:
     assert "TRANSFORMERS_OFFLINE=1" in command
     assert "/dev/kfd" in joined and "/dev/dri" in joined
     assert f"{repo_root.resolve()}:{repo_root.resolve()}:ro" not in command
-    source_root = (repo_root / "src").resolve()
+    source_root = staged_source.resolve()
+    host_source_root = (repo_root / "src").resolve()
     assert f"{source_root}:{source_root}:ro" in command
+    assert f"{host_source_root}:{host_source_root}:ro" not in command
     assert f"{dataset_root.resolve()}:{dataset_root.resolve()}:ro" not in command
     assert all("annotations" not in item for item in command)
     media_root = (dataset_root / "vqa/2025/training/videos_original").resolve()
@@ -595,6 +600,7 @@ def test_rocm_command_mounts_only_required_roots(tmp_path: Path) -> None:
     assert "native-audio-benchmark-v1" not in joined
     assert command[command.index("-w") + 1] == str(source_root)
     assert f"PYTHONPATH={source_root}" in command
+    assert "PYTHONDONTWRITEBYTECODE=1" in command
     assert "/home/npatta01:/home/npatta01" not in joined
     assert condition.model_revision in command
     assert command[-1] == "32"
