@@ -176,6 +176,85 @@ submodule.
 - Create: `data/vqa/benchmarks/runs/native-audio-benchmark-v1/` (ignored)
 - Modify: `docs/superpowers/plans/2026-07-21-phased-native-audio-model-benchmark.md`
 
+### Frozen promotion rules
+
+These rules and the decisions below were frozen at
+`2026-07-24T00:28:27Z`, before
+`data/vqa/benchmarks/runs/native-audio-benchmark-v1/` existed and before any
+30-video attempt was launched.
+
+A condition is eligible only when:
+
+1. at least 90% of its applicable gate rows are terminal, scoreable,
+   exact-request matches with a pinned revision and image, observed ROCm/BF16,
+   non-null timing/memory provenance, and no silent evidence loss;
+2. its gate quality satisfies at least one predeclared path:
+   - **leader:** it is on the leading quality frontier across normalized exact
+     match, token F1, and NIST-style METEOR;
+   - **complement:** it has at least one normalized-exact correct answer missed
+     by every leader;
+   - **paired evidence:** a transcript/native-audio treatment has no negative
+     exact-match delta, has token-F1 delta at least `+0.10` or METEOR delta at
+     least `+0.05` on the four audio rows, and does not materially regress the
+     visual controls;
+   - **predeclared diagnostic:** it is the minimum matched control needed to
+     answer the 12-vs-24-frame or transcript-evidence question;
+3. projected local cost is at most 45 minutes and observed peak allocation is
+   below 32 GiB per 30-row condition. A same-family condition within `0.01`
+   token F1 and `0.03` METEOR of a cheaper condition is redundant unless it
+   supplies a complement.
+
+METEOR below was regenerated over the frozen saved gate predictions in the
+already pinned Qwen-Omni image using NLTK 3.9.2 and the recorded WordNet and
+punkt resources. Latency is mean per-row inference; memory is maximum allocated
+accelerator memory. Strata cells are `EM / token F1 / METEOR` in manifest order
+`dialogue; sound; temporal; spatial; control`.
+
+| Condition | Scoreable | EM | Token F1 | METEOR | Strata | Mean s | Peak GiB | Exclusive exact wins | Decision |
+|---|---:|---:|---:|---:|---|---:|---:|---:|---|
+| MiniCPM-o 4.5 audio-off | 10/10 | .300 | .586 | .414 | `.500/.800/.392; .000/.250/.066; .000/.382/.343; 1.00/1.00/.820; .000/.500/.451` | 7.82 | 19.07 | 0 | **Promote: quality leader** |
+| Qwen3.5-4B 24f | 10/10 | .300 | .496 | .357 | `.500/.500/.132; .000/.000/.000; .000/.481/.380; 1.00/1.00/.820; .000/.500/.451` | 44.49 | 15.30 | 0 | **Promote: predeclared 12-vs-24 diagnostic** |
+| Qwen3.5-4B 12f | 10/10 | .300 | .475 | .333 | `.500/.500/.132; .000/.000/.046; .000/.624/.541; 1.00/1.00/.820; .000/.250/.128` | 43.82 | 10.56 | 0 | **Promote: matched control** |
+| Qwen3.5-4B 12f + Whisper large-v3 | 4/4 audio | .250 | .500 | .271 | `.500/.500/.167; .000/.500/.374; —; —; —` | 8.83 downstream | 10.82 | 0 | **Promote: paired transcript evidence** |
+| Qwen3.5-9B 12f | 10/10 | .300 | .493 | .333 | `.500/.500/.132; .000/.250/.066; .000/.467/.464; 1.00/1.00/.938; .000/.250/.066` | 48.18 | 19.68 | 0 | Stop: redundant with 4B/24f |
+| Gemma4-12B 12f | 10/10 | .200 | .405 | .372 | `.500/.618/.223; .000/.250/.319; .000/.208/.266; .500/.750/.740; .000/.200/.312` | 16.09 | 25.66 | 0 | Stop: below leaders, no complement |
+| InternVL3.5-4B | 10/10 | .200 | .315 | .241 | `.500/.500/.167; .000/.250/.066; .000/.125/.245; .500/.700/.726; .000/.000/.000` | 14.53 | 22.44 | 0 | Stop: below leaders, no complement |
+| Molmo2-4B | 10/10 | .100 | .149 | .184 | `.000/.000/.036; .000/.000/.190; .000/.154/.218; .500/.591/.410; .000/.000/.066` | .87 | 9.88 | 0 | Stop: below leaders, no complement |
+| MiniCPM-o 4.5 audio-on | 10/10 | .300 | .471 | .283 | `.500/.500/.132; .000/.250/.103; .000/.356/.296; 1.00/1.00/.820; .000/.250/.066` | 10.35 | 19.82 | 0 | Stop: paired F1 `-0.115`, METEOR `-0.131` |
+| Qwen2.5-Omni-3B audio-off | 10/10 | .300 | .467 | .287 | see Task 6 evaluation | 398.73 | 75.68 | 0 | Stop: exceeds cost/memory bounds |
+| Qwen2.5-Omni-3B audio-on | 10/10 | .300 | .488 | .273 | see Task 6 evaluation | 415.18 | 80.35 | 0 | Stop: METEOR `-0.015`, exceeds bounds |
+| Qwen2.5-Omni-7B off/on | 2/2 probe | .000 | .154 | `.132/.045` | one temporal probe only | `74.33/29.07` | `20.57/21.10` | 0 | Stop: no probe quality signal |
+| New Voxtral/Qwen3-ASR paths | applicable audio rows only | .250 downstream | .250 downstream | not run | audio strata only | about 10 downstream | about 10.7 | 0 | Stop: no downstream gain; incomplete ASR row |
+
+Whisper large-v3 changes the four-audio subset relative to Qwen3.5-4B/12f by
+`0.000` exact match, `+0.250` token F1, and `+0.182` METEOR. MiniCPM audio-on
+changes all ten by `0.000`, `-0.115`, and `-0.131`; Qwen2.5-Omni-3B audio-on
+changes all ten by `0.000`, `+0.021`, and `-0.015`, with no exact-match
+wins/losses. No full-gate condition has an exclusive normalized-exact win.
+
+### Frozen 30 launch decisions
+
+The promoted execution order is serial:
+
+1. `qwen35-4b-12f-frozen30` — required visual-only control;
+2. `qwen35-4b-24f-frozen30` — controlled temporal-coverage treatment;
+3. `minicpmo45-native-video-audio-off-frozen30` — gate quality leader;
+4. `qwen35-4b-12f-whisper-large-v3-frozen30` — exact 12-frame control plus
+   quality-gated, independently generated Whisper large-v3 evidence.
+
+Each launch additionally requires an append+fsync promotion record binding the
+condition, this manifest/version/hash, exact ordered 30-request SHA-256, pinned
+model/revision/image, and the rationale above. The runner refuses a condition
+without that pre-launch record.
+
+At checkpoints after rows 3, 10, and 20, stop the active condition if any saved
+pass fails exact-request/evidence/provenance validation; if projected wall time
+exceeds 45 minutes; if peak allocation reaches 32 GiB; or, after ten attempted
+rows, if more than 10% are unscoreable. Stop immediately on CPU fallback,
+unpinned identity, label leakage, silent audio/frame/transcript loss, an
+unverified timed-out container cleanup, or a surviving competing benchmark
+process. Never replace a pass with a retry; later failures remain append-only.
+
 - [ ] Generate a gate table with completion, three primary metrics, per-stratum
   results, paired audio changes, latency, memory, and unique correct answers.
 - [ ] Record the promotion decision and rationale before launching each
