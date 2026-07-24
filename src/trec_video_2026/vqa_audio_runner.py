@@ -22,7 +22,9 @@ def request_identity(request: Any) -> dict[str, str | None]:
 
     payload = request if isinstance(request, dict) else {}
     return {
-        field: value if isinstance(value := payload.get(field), str) and value.strip() else None
+        field: value
+        if isinstance(value := payload.get(field), str) and value.strip()
+        else None
         for field in ("run_id", "condition_id", "video_id")
     }
 
@@ -165,15 +167,14 @@ def load_qwen(
         from huggingface_hub import snapshot_download
 
         snapshot_resolver = snapshot_download
-    snapshot = snapshot_resolver(
-        model_id, revision=revision, local_files_only=True
-    )
+    snapshot = snapshot_resolver(model_id, revision=revision, local_files_only=True)
     return model_class.from_pretrained(
         str(snapshot),
         dtype=dtype,
         device_map="cuda:0",
         max_inference_batch_size=1,
         max_new_tokens=256,
+        attn_implementation="sdpa",
     )
 
 
@@ -197,13 +198,13 @@ def classify_error_status(error: Exception) -> str:
         "UnsupportedError",
         "HIPError",
     }
-    unsupported = unsupported or "not implemented for" in message or "hip error" in message
+    unsupported = (
+        unsupported or "not implemented for" in message or "hip error" in message
+    )
     return "unsupported" if unsupported else "failed"
 
 
-def audio_evidence_quality(
-    text: str, *, duration_seconds: float
-) -> dict[str, Any]:
+def audio_evidence_quality(text: str, *, duration_seconds: float) -> dict[str, Any]:
     """Apply deterministic, label-blind usability checks to transcript text."""
 
     from trec_video_2026.vqa_whisper import transcript_quality
@@ -256,9 +257,7 @@ def _voxtral_from_inputs(
     *,
     max_new_tokens: int,
 ) -> str:
-    generated = model.generate(
-        **inputs, do_sample=False, max_new_tokens=max_new_tokens
-    )
+    generated = model.generate(**inputs, do_sample=False, max_new_tokens=max_new_tokens)
     prompt_length = inputs.input_ids.shape[1]
     decoded = processor.batch_decode(
         generated[:, prompt_length:], skip_special_tokens=True
@@ -332,6 +331,7 @@ def main(argv: list[str] | None = None) -> int:
     import transformers
 
     from trec_video_2026.vqa_benchmark import source_fingerprint
+
     args = parse_args(argv)
     payload = json.load(sys.stdin)
     is_batch = isinstance(payload, list)
@@ -368,12 +368,10 @@ def main(argv: list[str] | None = None) -> int:
                 dtype=torch.bfloat16,
             )
             processor = None
-        device, precision = validate_rocm_bfloat16(
-            _model_with_parameters(model), torch
-        )
+        device, precision = validate_rocm_bfloat16(_model_with_parameters(model), torch)
         torch.cuda.synchronize()
         load_seconds = time.monotonic() - loaded_at
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - protocol returns structured failures
         results = [
             {
                 **_base_result(
@@ -446,10 +444,8 @@ def main(argv: list[str] | None = None) -> int:
                     result["quality"] = audio_evidence_quality(
                         text, duration_seconds=duration
                     )
-            finalize_result_metrics(
-                result, started=started, torch_module=torch
-            )
-        except Exception as error:
+            finalize_result_metrics(result, started=started, torch_module=torch)
+        except Exception as error:  # noqa: BLE001 - preserve per-request failures
             result = _base_result(
                 request,
                 args=args,

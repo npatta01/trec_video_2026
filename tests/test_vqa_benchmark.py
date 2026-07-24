@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import subprocess
@@ -8,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-import trec_video_2026.vqa_benchmark as vqa_benchmark
+from trec_video_2026 import vqa_benchmark
 from trec_video_2026.vqa_benchmark import (
     EvidenceParameters,
     SourceFingerprint,
@@ -23,11 +24,14 @@ from trec_video_2026.vqa_benchmark import (
     source_fingerprint,
 )
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATASET_ROOT = REPO_ROOT / "data"
 GATE_CONFIG = REPO_ROOT / "configs/vqa/three_video_gate.json"
 NATIVE_AUDIO_CONFIG = REPO_ROOT / "configs/vqa/native_audio_benchmark_30.json"
+FAILURE_PANEL_CONFIG = REPO_ROOT / "configs/vqa/failure_panel_12.json"
+FAILURE_PANEL_INFERENCE_CONFIG = (
+    REPO_ROOT / "configs/vqa/failure_panel_12_inference.json"
+)
 
 FROZEN_IDS = [
     "LKiaCf1QZFw",
@@ -80,6 +84,20 @@ STRATA = {
     "Spatial, OCR, and color",
     "Visual controls",
 }
+FAILURE_PANEL_IDS = [
+    "NN7G28sBOlY",
+    "NUmb2P3Bzu8",
+    "IRTTtnSRTyY",
+    "IWSPAfCKtV8",
+    "MdMKHhFFqJQ",
+    "OzNdzgQi1CA",
+    "CH8Dp7EgW4I",
+    "EtNOkUJd5w8",
+    "Gp4LVTn3YbY",
+    "KgOvCPOX-Ms",
+    "EMI_anpHII4",
+    "LusRurRrmf0",
+]
 
 
 def test_fixed_manifest_resolves_annotations_and_media_beneath_dataset():
@@ -108,6 +126,40 @@ def test_native_audio_manifest_freezes_version_ids_strata_and_gate():
     assert all(
         sum(item.category == category for item in manifest.gate_examples) == 2
         for category in STRATA
+    )
+
+
+def test_failure_panel_manifests_freeze_label_free_inference_identity():
+    panel_payload = json.loads(FAILURE_PANEL_CONFIG.read_text(encoding="utf-8"))
+    inference_payload = json.loads(
+        FAILURE_PANEL_INFERENCE_CONFIG.read_text(encoding="utf-8")
+    )
+    panel = load_manifest(FAILURE_PANEL_CONFIG, DATASET_ROOT)
+    inference = load_manifest(FAILURE_PANEL_INFERENCE_CONFIG, DATASET_ROOT)
+
+    assert [example.video_id for example in panel.examples] == FAILURE_PANEL_IDS
+    assert [example.video_id for example in inference.examples] == FAILURE_PANEL_IDS
+    assert all(example.annotation_path is None for example in inference.examples)
+    assert all(
+        example.media_path.is_relative_to(DATASET_ROOT.resolve())
+        for example in (*panel.examples, *inference.examples)
+    )
+    assert all(example.media_path.is_file() for example in inference.examples)
+    assert all(
+        forbidden not in key.lower()
+        for example in inference_payload["examples"]
+        for key in example
+        for forbidden in ("annotation", "reference", "answer")
+    )
+    assert [
+        {key: value for key, value in example.items() if key != "annotation"}
+        for example in panel_payload["examples"]
+    ] == inference_payload["examples"]
+    assert hashlib.sha256(FAILURE_PANEL_CONFIG.read_bytes()).hexdigest() == (
+        "ad76ec57b964bf391f763e7f82b1671475cddaa90814727d9c40ee7c6310ccbd"
+    )
+    assert hashlib.sha256(FAILURE_PANEL_INFERENCE_CONFIG.read_bytes()).hexdigest() == (
+        "d2c5515b8c7398f326931e2f993f3fd6eac8e70d9ef01d1a1bd4afcf3f6792e8"
     )
 
 

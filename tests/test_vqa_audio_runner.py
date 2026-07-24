@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
 import json
+from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -36,7 +37,9 @@ def audio_request(tmp_path: Path, *, mode: str = "transcription") -> dict:
     return request
 
 
-def test_request_identity_copies_only_label_free_protocol_fields(tmp_path: Path) -> None:
+def test_request_identity_copies_only_label_free_protocol_fields(
+    tmp_path: Path,
+) -> None:
     request = audio_request(tmp_path)
     request.update({"reference_answer": "mumble", "correct_answer": "mumble"})
 
@@ -226,7 +229,10 @@ class QwenSegment:
 class QwenResult:
     text = " Bonjour le monde "
     language = "French"
-    time_stamps = [QwenSegment(0.0, 1.25, "Bonjour"), QwenSegment(1.25, 2.0, "le monde")]
+    time_stamps: ClassVar[list[QwenSegment]] = [
+        QwenSegment(0.0, 1.25, "Bonjour"),
+        QwenSegment(1.25, 2.0, "le monde"),
+    ]
 
 
 def test_qwen_result_retains_language_text_and_timestamp_segments() -> None:
@@ -235,9 +241,7 @@ def test_qwen_result_retains_language_text_and_timestamp_segments() -> None:
     assert result == {
         "text": "Bonjour le monde",
         "language": "French",
-        "timestamped_text": (
-            "[00:00:00.000] Bonjour\n[00:00:01.250] le monde"
-        ),
+        "timestamped_text": ("[00:00:00.000] Bonjour\n[00:00:01.250] le monde"),
         "chunks": [
             {"start": 0.0, "end": 1.25, "text": "Bonjour"},
             {"start": 1.25, "end": 2.0, "text": "le monde"},
@@ -276,7 +280,7 @@ def test_qwen_transcription_uses_auto_language_and_no_sampling_surface(
 
 
 class FakeQwenLoader:
-    calls = []
+    calls: ClassVar[list] = []
 
     @classmethod
     def from_pretrained(cls, model_path, **kwargs):
@@ -309,6 +313,7 @@ def test_qwen_loader_binds_model_and_processor_to_one_immutable_snapshot() -> No
                 "device_map": "cuda:0",
                 "max_inference_batch_size": 1,
                 "max_new_tokens": 256,
+                "attn_implementation": "sdpa",
             },
         )
     ]

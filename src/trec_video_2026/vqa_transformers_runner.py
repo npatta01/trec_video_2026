@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import argparse
+import json
 import os
 import sys
 import time
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from trec_video_2026.vqa_models import (
     build_controlled_messages,
@@ -189,6 +190,43 @@ def validate_rocm_bfloat16(
     return "cuda:0 (ROCm)", "bfloat16", attestation
 
 
+def validate_bfloat16_accelerator(
+    model: Any, torch_module: Any
+) -> tuple[str, str, dict[str, Any]]:
+    """Attest BF16 placement on either a ROCm or NVIDIA CUDA accelerator."""
+
+    torch_hip = getattr(torch_module.version, "hip", None)
+    if torch_hip:
+        return validate_rocm_bfloat16(model, torch_module)
+    torch_cuda = getattr(torch_module.version, "cuda", None)
+    if not torch_cuda:
+        raise RuntimeError("PyTorch runtime is neither ROCm nor NVIDIA CUDA-enabled")
+    if not torch_module.cuda.is_available():
+        raise RuntimeError("CUDA-compatible accelerator is unavailable")
+    parameters = list(model.parameters())
+    buffers = list(getattr(model, "buffers", lambda: ())())
+    if not parameters:
+        raise RuntimeError("Loaded model has no parameters to attest")
+    if any(str(parameter.device) != "cuda:0" for parameter in parameters):
+        raise RuntimeError("Loaded model parameters are not all on cuda:0")
+    if any(parameter.dtype != torch_module.bfloat16 for parameter in parameters):
+        raise RuntimeError("Loaded model parameters are not bfloat16")
+    if any(str(buffer.device) != "cuda:0" for buffer in buffers):
+        raise RuntimeError("Loaded model buffers are not all on cuda:0")
+    attestation = {
+        "parameter_tensor_count": len(parameters),
+        "parameter_devices": _tensor_counts(parameters, "device"),
+        "parameter_dtypes": _tensor_counts(parameters, "dtype"),
+        "buffer_tensor_count": len(buffers),
+        "buffer_devices": _tensor_counts(buffers, "device"),
+        "buffer_dtypes": _tensor_counts(buffers, "dtype"),
+        "accelerator_backend": "nvidia-cuda",
+        "torch_cuda": str(torch_cuda),
+        "torch_hip": None,
+    }
+    return "cuda:0 (NVIDIA CUDA)", "bfloat16", attestation
+
+
 def generate_answer(
     *,
     processor: Any,
@@ -284,7 +322,9 @@ def main(argv: list[str] | None = None) -> int:
             device_map="cuda:0",
             attn_implementation="sdpa",
         )
-        device, precision, runtime_attestation = validate_rocm_bfloat16(model, torch)
+        device, precision, runtime_attestation = validate_bfloat16_accelerator(
+            model, torch
+        )
         load_seconds = time.monotonic() - load_started
         results = []
         for request in requests:
@@ -317,7 +357,7 @@ def main(argv: list[str] | None = None) -> int:
                     precision=precision,
                     runtime_attestation=runtime_attestation,
                 )
-            except Exception as error:
+            except Exception as error:  # noqa: BLE001 - preserve per-request failures
                 result = _error_result(
                     error=error,
                     started=started,
@@ -331,7 +371,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             result["model_load_seconds"] = load_seconds
             results.append(attach_request_identity(result, request))
-    except Exception as error:  # Runner must return structured model/runtime errors.
+    except Exception as error:  # noqa: BLE001 - structured runtime failures
         results = [
             attach_request_identity(
                 _error_result(

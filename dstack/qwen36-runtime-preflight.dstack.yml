@@ -1,0 +1,38 @@
+type: task
+name: qwen36-runtime-preflight-20260724-a10
+
+# Registry layer audit: apt provides /usr/bin/python3. The later /usr/local/bin
+# layer contains pip/ipython launchers but no Python executable.
+image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+entrypoint: /bin/bash -c
+shell: bash
+working_dir: /dstack/run
+
+env:
+  - PYTHON_BIN=/usr/bin/python3
+  - OUTPUT_DIR=/dstack/output
+  - VQA_RUNTIME_IMAGE=docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+
+files:
+  - ../scripts/run_failure_panel_dstack.sh:/dstack/run/scripts/run_failure_panel_dstack.sh
+  - ../configs/vqa/qwen36_a4_runtime_requirements.txt:/dstack/run/configs/vqa/qwen36_a4_runtime_requirements.txt
+  - ../configs/vqa/qwen36_a4_runtime_lock.txt:/dstack/run/configs/vqa/qwen36_a4_runtime_lock.txt
+
+commands:
+  - |
+    set -euo pipefail
+    exec bash /dstack/run/scripts/run_failure_panel_dstack.sh bootstrap-transformers
+
+resources:
+  gpu: RTXPRO6000WS,A100,H100,H200,B200:1:80GB..
+  cpu: 16..
+  memory: 128GB..
+  disk: 180GB
+
+backends: [runpod, vastai]
+spot_policy: on-demand
+max_price: 4.00
+max_duration: 30m
+retry:
+  on_events: [no-capacity]
+  duration: 10m

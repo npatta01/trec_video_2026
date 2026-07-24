@@ -1,0 +1,53 @@
+type: task
+name: qwen36-failure-panel-20260724-a10
+
+image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+entrypoint: /bin/bash -c
+shell: bash
+working_dir: /dstack/run
+
+env:
+  - HF_TOKEN=${{ secrets.hf_token }}
+  - EXPERIMENT_RUN_NAME=qwen36-failure-panel-20260724-a10
+  - MODEL_ID=Qwen/Qwen3.6-35B-A3B
+  - MODEL_REVISION=995ad96eacd98c81ed38be0c5b274b04031597b0
+  - VQA_RUNTIME_IMAGE=docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+  - EXPECTED_PANEL_SHA256=d2c5515b8c7398f326931e2f993f3fd6eac8e70d9ef01d1a1bd4afcf3f6792e8
+  - HF_REMOTE_ROOT=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments
+  - EVIDENCE_ARTIFACT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/artifacts/failure-panel-12-frames-d2c5515b8c73
+  - PYTHON_BIN=/usr/bin/python3
+  - PYTHONPATH=/dstack/run/src
+  - INPUT_REQUESTS=/dstack/input/requests.json
+  - PANEL_MANIFEST=/dstack/input/failure_panel_12_inference.json
+  - EXPECTED_EVIDENCE_ROOT=/dstack/input/evidence
+  - OUTPUT_DIR=/dstack/output
+
+files:
+  - ../scripts/run_failure_panel_dstack.sh:/dstack/run/scripts/run_failure_panel_dstack.sh
+  - ../src/trec_video_2026:/dstack/run/src/trec_video_2026
+  - ../configs/vqa/failure_panel_12_inference.json:/dstack/input/failure_panel_12_inference.json
+  - ../configs/vqa/qwen36_a4_runtime_requirements.txt:/dstack/run/configs/vqa/qwen36_a4_runtime_requirements.txt
+  - ../configs/vqa/qwen36_a4_runtime_lock.txt:/dstack/run/configs/vqa/qwen36_a4_runtime_lock.txt
+  - ../data/vqa/benchmarks/followups/failure-panel-2026-07-24/dstack-input/requests.json:/dstack/input/requests.json
+
+commands:
+  - |
+    set -euo pipefail
+    bash /dstack/run/scripts/run_failure_panel_dstack.sh bootstrap-transformers
+    bash /dstack/run/scripts/run_failure_panel_dstack.sh fetch-evidence
+    bash /dstack/run/scripts/run_failure_panel_dstack.sh --preflight
+    exec bash /dstack/run/scripts/run_failure_panel_dstack.sh run
+
+resources:
+  gpu: RTXPRO6000WS,A100,H100,H200,B200:1:80GB..
+  cpu: 16..
+  memory: 192GB..
+  disk: 180GB
+
+backends: [runpod, vastai]
+spot_policy: on-demand
+max_price: 4.00
+max_duration: 4h
+retry:
+  on_events: [no-capacity]
+  duration: 30m

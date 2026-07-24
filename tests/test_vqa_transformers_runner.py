@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -142,7 +143,7 @@ def test_legacy_optional_processor_shim_is_scoped_and_restored() -> None:
     original_init = FakeMixin.__init__
 
     class RemoteProcessor(FakeMixin):
-        optional_attributes = ["image_use_col_tokens"]
+        optional_attributes: ClassVar[list[str]] = ["image_use_col_tokens"]
 
         def __init__(self, component, image_use_col_tokens=True):
             super().__init__(component, image_use_col_tokens=image_use_col_tokens)
@@ -277,6 +278,72 @@ def test_qwen_runtime_attestation_rejects_cuda_build_without_hip() -> None:
 
     with pytest.raises(RuntimeError, match="ROCm"):
         transformers_runner.validate_rocm_bfloat16(Model(), Torch())
+
+
+def test_accelerator_attestation_supports_nvidia_bfloat16_without_changing_rocm() -> (
+    None
+):
+    class Tensor:
+        def __init__(self, dtype: str = "bf16") -> None:
+            self.device = type(
+                "Device",
+                (),
+                {"__str__": lambda _self: "cuda:0"},
+            )()
+            self.dtype = dtype
+
+    class Model:
+        parameters = staticmethod(lambda: iter([Tensor(), Tensor()]))
+        buffers = staticmethod(lambda: iter([Tensor("float32")]))
+
+    class NvidiaTorch:
+        bfloat16 = "bf16"
+        version = type("Version", (), {"hip": None, "cuda": "12.9"})()
+        cuda = type("Cuda", (), {"is_available": staticmethod(lambda: True)})()
+
+    class RocmTorch:
+        bfloat16 = "bf16"
+        version = type("Version", (), {"hip": "6.4", "cuda": None})()
+        cuda = type("Cuda", (), {"is_available": staticmethod(lambda: True)})()
+
+    assert transformers_runner.validate_bfloat16_accelerator(
+        Model(), NvidiaTorch()
+    ) == (
+        "cuda:0 (NVIDIA CUDA)",
+        "bfloat16",
+        {
+            "parameter_tensor_count": 2,
+            "parameter_devices": {"cuda:0": 2},
+            "parameter_dtypes": {"bf16": 2},
+            "buffer_tensor_count": 1,
+            "buffer_devices": {"cuda:0": 1},
+            "buffer_dtypes": {"float32": 1},
+            "accelerator_backend": "nvidia-cuda",
+            "torch_cuda": "12.9",
+            "torch_hip": None,
+        },
+    )
+    assert (
+        transformers_runner.validate_bfloat16_accelerator(Model(), RocmTorch())[0]
+        == "cuda:0 (ROCm)"
+    )
+
+
+def test_accelerator_attestation_rejects_build_without_rocm_or_cuda() -> None:
+    class Parameter:
+        device = type("Device", (), {"__str__": lambda _self: "cuda:0"})()
+        dtype = "bf16"
+
+    class Model:
+        parameters = staticmethod(lambda: iter([Parameter()]))
+
+    class Torch:
+        bfloat16 = "bf16"
+        version = type("Version", (), {"hip": None, "cuda": None})()
+        cuda = type("Cuda", (), {"is_available": staticmethod(lambda: True)})()
+
+    with pytest.raises(RuntimeError, match="ROCm nor NVIDIA CUDA"):
+        transformers_runner.validate_bfloat16_accelerator(Model(), Torch())
 
 
 def test_qwen_runtime_attestation_allows_fp32_cuda_rotary_buffers() -> None:
