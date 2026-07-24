@@ -35,7 +35,7 @@ vision/audio request and first forward for each row.
 - [x] Gemma three-row run and verified promote decision
 - [x] Sanitized findings and artifact hashes
 - [x] Final verification and independent review
-- [ ] Push, issue comment, and draft PR
+- [x] Push, issue comment, and draft PR
 
 ## Verification evidence
 
@@ -51,4 +51,4 @@ vision/audio request and first forward for each row.
 
 ## Next action
 
-Push the branch, comment on issue #6, and open a draft PR.
+Await review and merge of draft PR #11.
