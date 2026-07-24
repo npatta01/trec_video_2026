@@ -34,20 +34,21 @@ vision/audio request and first forward for each row.
 - [x] Phi three-row run and verified stop decision
 - [x] Gemma three-row run and verified promote decision
 - [x] Sanitized findings and artifact hashes
-- [ ] Final verification, independent review, push, issue comment, draft PR
+- [x] Final verification and independent review
+- [ ] Push, issue comment, and draft PR
 
 ## Verification evidence
 
-- Independent pre-run review: no remaining Critical or Important findings at
-  `cd6ea74`.
+- Independent post-run review: ready to merge with no Critical or Important
+  findings at `413d13b`.
 - Phi predictions:
   `6a1ee0d5ea29d150f871f7942c6377643ad6a0d86b4df0953a339d7e6c890478`
 - Gemma predictions:
   `9797c14694bf99a438a76eba27f64fd336cae06526e11d8d2faa99021423ef00`
-- Full test and formatting evidence will be refreshed after the findings
-  commit and before the branch is pushed.
+- Fresh full verification: 166 tests passed; Ruff, relevant format checks,
+  shell syntax, diff checks, deterministic contract regeneration, and
+  recomputed promotion decisions passed.
 
 ## Next action
 
-Run fresh verification, obtain a post-run review of the runtime fixes and
-findings, then push the branch, comment on issue #6, and open a draft PR.
+Push the branch, comment on issue #6, and open a draft PR.
