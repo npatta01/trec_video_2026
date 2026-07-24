@@ -82,7 +82,7 @@ resources:
 
 backends: [runpod, vastai]
 spot_policy: on-demand
-max_price: 4.00
+max_price: 4.50
 max_duration: 2h
 retry:
   on_events: [no-capacity]

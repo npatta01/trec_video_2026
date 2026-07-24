@@ -48,9 +48,9 @@ reproducibility and provenance, and make an honest expand/stop decision.
 - CPU: at least 16 cores
 - Host RAM: at least 192 GB
 - Disk: 200 GB
-- Price cap: $4.00/hour
+- Price cap: $4.50/hour
 - Duration cap: 2 hours
-- Worst-case cost cap: $8.00
+- Worst-case cost cap: $9.00
 
 ## Status
 
@@ -63,14 +63,14 @@ reproducibility and provenance, and make an honest expand/stop decision.
 - [x] Exact dstack plan previewed.
 - [x] Stopped `a1` provisioning attempt recorded under ignored canonical data.
 - [x] Future immutable run identity advanced to `a2`.
-- [ ] Authorized detached compatibility run completed.
-- [ ] Remote artifacts downloaded and hash-verified.
+- [x] Authorized detached compatibility run completed.
+- [x] Remote artifacts downloaded and hash-verified.
 - [x] Static findings independently reviewed.
 - [x] Issue updated and stacked draft PR #14 opened.
 
 ## Current evidence and blocker
 
-The $4.00/hour plan validated but found no offer inside the full resource
+The original $4.00/hour plan validated but found no offer inside the full resource
 envelope. Two Vast.ai H200 offers at $3.9525/hour have only 48 GB host RAM and
 100 GB disk. Four physically distinct RunPod H200 offers satisfy the full
 resource envelope at $4.39/hour.
@@ -91,13 +91,31 @@ The sanitized allowlisted record is stored at
 `data/vqa/benchmarks/qwen3-omni-compatibility-3/qwen3-omni-compatibility-3-20260724-a1/dstack-run.json`
 with SHA-256
 `d4b704d703d53f06cabf00f483e19cbe8306caccad584b225f0bf0b6daf86efc`.
-The private HF `a1` prefix remains empty. The tracked configuration is back at
-the authorized $4.00/hour envelope and reserves `a2` for any future approved
-attempt.
+The private HF `a1` prefix remains empty. The user subsequently authorized a
+$4.50/hour price cap with a hard total envelope below $10. The tracked
+configuration reserves `a2` for that single approved attempt.
+
+Run `a2` completed on a RunPod H200 at $4.39/hour:
+
+- dstack ID: `7e8852bd-d601-46ba-9fe1-c8df85077452`
+- status/reason: `done` / `all_jobs_done`
+- elapsed: 245.227392 seconds
+- exact cost: $0.2990
+- combined `a1` + `a2` spend: $0.4834
+- remote artifacts: eight files, downloaded and checksum-verified
+- automatic compatibility gate: **stop** on all three roles
+- failure: `Input type (float) and bias type (c10::BFloat16) should be the same`
+- semantic gate: not evaluated because no answer was generated
+
+The preflight passed, but the executed runner transferred inputs to the device
+without applying the BF16 model dtype. All rows failed in `generation` before
+joint visual/audio first-forward attestation could complete. This is an
+inconclusive probe input-dtype failure, not evidence of Qwen incompatibility.
+The runner is corrected to use the official device-plus-dtype transfer, but
+that correction was not rerun. No expansion or resubmission is authorized.
 
 ## Next action
 
-Obtain explicit approval before raising the cap to $4.50/hour (2-hour hard
-maximum: $9.00). If approved, re-preview immutable run `a2` and submit once
-only if at least two full-resource offers remain. Otherwise stop without
-evaluating compatibility or the semantic promotion gate.
+Stop and report the inconclusive probe with its automatic compatibility gate.
+Preserve `a2` as immutable. A corrected run requires a new issue decision,
+immutable identity, and explicit cost authorization.

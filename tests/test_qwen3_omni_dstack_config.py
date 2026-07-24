@@ -55,7 +55,7 @@ def test_dstack_task_has_fixed_resource_and_cost_envelope():
     assert "name: [H100, H200, B200, RTXPRO6000WS]" in text
     assert "backends: [runpod, vastai]" in text
     assert "spot_policy: on-demand" in text
-    assert "max_price: 4.00" in text
+    assert "max_price: 4.50" in text
     assert "max_duration: 2h" in text
     assert "on_events: [no-capacity]" in text
     assert "duration: 30m" in text
@@ -184,7 +184,7 @@ def test_generation_policy_uses_checkpoint_config_with_bounded_seeded_override()
     assert "torch.manual_seed(GENERATION_SEED)" in source
     assert "do_sample=True" in source
     assert "do_sample=False" not in source
-    assert ".to(model.dtype)" not in source
+    assert "inputs.to(device).to(model.dtype)" in source
 
 
 def test_panel_identity_fails_closed_on_hash_or_video_mismatch():

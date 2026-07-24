@@ -359,7 +359,7 @@ def _generate_one(
         raise ProbeStageError("processor", error) from error
     try:
         device = next(model.parameters()).device
-        inputs = inputs.to(device)
+        inputs = inputs.to(device).to(model.dtype)
     except Exception as error:
         raise ProbeStageError("device_transfer", error) from error
     try:
