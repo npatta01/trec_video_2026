@@ -1,0 +1,53 @@
+# Issue #6: non-Qwen omni compatibility
+
+## Objective
+
+Probe Phi-4-multimodal-instruct and Gemma 3n E4B-it on the same frozen
+three-video lexical/prosody/non-speech panel, requiring a single combined
+vision/audio request and first forward for each row.
+
+## Scope
+
+- Freeze and validate a shared ignored three-row contract.
+- Implement fail-closed, model-specific ROCm BF16 runners.
+- Record model/runtime revisions, processed-input hashes, first-forward keys,
+  runtime, peak memory, parse status, and promotion decision.
+- Keep datasets, model weights, predictions, and raw logs out of Git.
+- Publish only a branch, draft PR, sanitized findings, and artifact hashes.
+
+## Decisions
+
+- Contract canonical SHA-256:
+  `b6fa0c299cd3efafb2dec092ba5d7037d08b0a7eb3fc859b46358158b8b9725b`
+- Phi uses its declared Transformers 4.48.2 runtime and ROCm AOTriton SDPA.
+- Gemma uses Transformers `5.15.0.dev0` with pinned `timm==1.0.28`.
+- Promotion is fail-closed and requires exactly three unique passed rows.
+- Phi stops because all three outputs failed the requested JSON parse contract.
+- Gemma promotes because all three rows satisfied every compatibility gate.
+
+## Status
+
+- [x] Isolated worktree and baseline verification
+- [x] Frozen label-blind three-row contract
+- [x] Joint-input runner and attestation gate
+- [x] Pinned rootless Podman ROCm runtimes
+- [x] Phi three-row run and verified stop decision
+- [x] Gemma three-row run and verified promote decision
+- [x] Sanitized findings and artifact hashes
+- [ ] Final verification, independent review, push, issue comment, draft PR
+
+## Verification evidence
+
+- Independent pre-run review: no remaining Critical or Important findings at
+  `cd6ea74`.
+- Phi predictions:
+  `6a1ee0d5ea29d150f871f7942c6377643ad6a0d86b4df0953a339d7e6c890478`
+- Gemma predictions:
+  `9797c14694bf99a438a76eba27f64fd336cae06526e11d8d2faa99021423ef00`
+- Full test and formatting evidence will be refreshed after the findings
+  commit and before the branch is pushed.
+
+## Next action
+
+Run fresh verification, obtain a post-run review of the runtime fixes and
+findings, then push the branch, comment on issue #6, and open a draft PR.
