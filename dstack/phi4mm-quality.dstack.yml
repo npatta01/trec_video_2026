@@ -11,6 +11,7 @@ env:
   - HF_HUB_DISABLE_TELEMETRY=1
   - PYTHON_BIN=/opt/conda/bin/python
   - PYTHONPATH=/dstack/run/src
+  - MODEL_KEY=phi4mm
   - EXPERIMENT_RUN_ID=phi4mm-cuda-quality-3-20260724-a4
   - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/phi4mm-cuda-quality-3-20260724-a4
   - RUNTIME_IMAGE=docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755

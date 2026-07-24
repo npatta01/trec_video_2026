@@ -1,18 +1,41 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly EXPECTED_RUN_ID="phi4mm-cuda-quality-3-20260724-a4"
-readonly EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/${EXPECTED_RUN_ID}"
 readonly EXPECTED_RUNTIME_IMAGE="docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755"
 readonly EXPECTED_RUNTIME_IMAGE_DIGEST="sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755"
-readonly EXPECTED_MODEL_ID="microsoft/Phi-4-multimodal-instruct"
-readonly EXPECTED_MODEL_REVISION="93f923e1a7727d1c4f446756212d9d3e8fcc5d81"
 readonly EXPECTED_CONTRACT_SHA256="b6fa0c299cd3efafb2dec092ba5d7037d08b0a7eb3fc859b46358158b8b9725b"
 readonly UV_VERSION="0.11.3"
 readonly HF_CLI_VERSION="1.24.0"
-readonly TRANSFORMERS_VERSION="4.48.2"
+readonly PHI_TRANSFORMERS_VERSION="4.48.2"
+readonly GEMMA_TRANSFORMERS_VERSION="5.14.1"
 readonly SCIPY_VERSION="1.15.1"
+# Transformers 4.53.2's timm<=1.0.11 optional metadata predates the
+# MobileNetV5 encoder required by this Gemma snapshot. These pins match the
+# compatible package family already exercised by the frozen ROCm probe.
+readonly TIMM_VERSION="1.0.28"
+readonly LIBROSA_VERSION="0.11.0"
 readonly SAFE_OUTPUT_DIR="/dstack/output"
+
+MODEL_KEY="${MODEL_KEY:-phi4mm}"
+case "$MODEL_KEY" in
+  phi4mm)
+    readonly EXPECTED_RUN_ID="phi4mm-cuda-quality-3-20260724-a4"
+    readonly EXPECTED_MODEL_ID="microsoft/Phi-4-multimodal-instruct"
+    readonly EXPECTED_MODEL_REVISION="93f923e1a7727d1c4f446756212d9d3e8fcc5d81"
+    readonly TRANSFORMERS_VERSION="$PHI_TRANSFORMERS_VERSION"
+    ;;
+  gemma3n)
+    readonly EXPECTED_RUN_ID="gemma3n-cuda-quality-3-20260724-a1"
+    readonly EXPECTED_MODEL_ID="google/gemma-3n-E4B-it"
+    readonly EXPECTED_MODEL_REVISION="c1221e9c62e34a43ab7ffacd1be0ea71f126ef10"
+    readonly TRANSFORMERS_VERSION="$GEMMA_TRANSFORMERS_VERSION"
+    ;;
+  *)
+    echo "error: unexpected model key" >&2
+    exit 2
+    ;;
+esac
+readonly EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/${EXPECTED_RUN_ID}"
 
 HF_ACCESS_TOKEN="${HF_TOKEN:-}"
 readonly HF_ACCESS_TOKEN
@@ -66,7 +89,7 @@ bootstrap_artifact_cli() {
 }
 
 bootstrap_runtime() {
-  "$PYTHON_BIN" -m pip install --no-cache-dir --only-binary=:all: \
+  local runtime_packages=(
     "accelerate==1.3.0" \
     "backoff==2.2.1" \
     "peft==0.13.2" \
@@ -75,13 +98,28 @@ bootstrap_runtime() {
     "soundfile==0.13.1" \
     "pillow==11.1.0" \
     "torchvision==0.20.1"
-  "$PYTHON_BIN" - <<'PY'
+  )
+  if [[ "$MODEL_KEY" == "gemma3n" ]]; then
+    runtime_packages+=(
+      "timm==$TIMM_VERSION"
+      "librosa==$LIBROSA_VERSION"
+    )
+  fi
+  "$PYTHON_BIN" -m pip install --no-cache-dir --only-binary=:all: \
+    "${runtime_packages[@]}"
+  "$PYTHON_BIN" - "$MODEL_KEY" "$TRANSFORMERS_VERSION" <<'PY'
 import importlib.metadata
+import sys
 import torch
 import transformers
 
-assert importlib.metadata.version("transformers") == "4.48.2"
+model_key = sys.argv[1]
+expected_transformers = sys.argv[2]
+assert importlib.metadata.version("transformers") == expected_transformers
 assert importlib.metadata.version("scipy") == "1.15.1"
+if model_key == "gemma3n":
+    assert importlib.metadata.version("timm") == "1.0.28"
+    assert importlib.metadata.version("librosa") == "0.11.0"
 assert torch.cuda.is_available(), "NVIDIA CUDA accelerator is unavailable"
 assert torch.version.hip is None, "ROCm runtime is not permitted for this run"
 assert torch.version.cuda, "CUDA runtime version is missing"
@@ -154,6 +192,58 @@ download_model() {
 }
 
 preflight_model_import() {
+  if [[ "$MODEL_KEY" == "gemma3n" ]]; then
+    env -u HF_TOKEN "$PYTHON_BIN" - \
+      "$MODEL_DIR" \
+      "$CONTRACT_PATH" \
+      "$DATA_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+import timm
+from transformers import AutoProcessor, Gemma3nForConditionalGeneration
+from trec_video_2026.vqa_experiments.omni_contract import (
+    validate_inference_evidence,
+)
+from trec_video_2026.vqa_experiments.omni_probe import resolve_example_paths
+from trec_video_2026.vqa_experiments.omni_runtime import gemma_messages
+
+model_dir = Path(sys.argv[1])
+contract_path = Path(sys.argv[2])
+data_root = Path(sys.argv[3])
+if not timm.is_model("mobilenetv5_300m_enc"):
+    raise ValueError("timm lacks the Gemma 3n MobileNetV5 encoder")
+processor = AutoProcessor.from_pretrained(
+    model_dir,
+    local_files_only=True,
+)
+contract = json.loads(contract_path.read_text(encoding="utf-8"))
+validate_inference_evidence(contract, data_root, verify_files=True)
+example = resolve_example_paths(contract["examples"][0], data_root)
+processed = processor.apply_chat_template(
+    gemma_messages(example),
+    add_generation_prompt=True,
+    tokenize=True,
+    return_dict=True,
+    return_tensors="pt",
+)
+for required_key in ("input_features", "pixel_values"):
+    if required_key not in processed:
+        raise ValueError(f"Gemma preflight omitted {required_key}")
+print(
+    json.dumps(
+        {
+            "model_class": Gemma3nForConditionalGeneration.__name__,
+            "processor_class": processor.__class__.__name__,
+            "preflight_input_keys": sorted(processed),
+        },
+        sort_keys=True,
+    )
+)
+PY
+    return
+  fi
   env -u HF_TOKEN "$PYTHON_BIN" - "$MODEL_DIR" <<'PY'
 import json
 import sys
@@ -254,7 +344,7 @@ run_stage() {
 
 run_inference() {
   env -u HF_TOKEN "$PYTHON_BIN" -m trec_video_2026.vqa_experiments.omni_probe \
-    --model phi4mm \
+    --model "$MODEL_KEY" \
     --model-path "$MODEL_DIR" \
     --contract "$CONTRACT_PATH" \
     --data-root "$DATA_ROOT" \

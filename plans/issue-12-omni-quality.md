@@ -39,13 +39,16 @@ screening rule for a tiny diagnostic panel, not a leaderboard estimate.
 
 - Image:
   `docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755`
-- Model revision:
-  `93f923e1a7727d1c4f446756212d9d3e8fcc5d81`
-- CUDA 12.4 / PyTorch 2.5.1 / Transformers 4.48.2 / BF16
-- One on-demand NVIDIA A100, H100, or H200 with at least 80 GB VRAM
+- Phi model revision:
+  `93f923e1a7727d1c4f446756212d9d3e8fcc5d81`; Transformers 4.48.2
+- Gemma model revision:
+  `c1221e9c62e34a43ab7ffacd1be0ea71f126ef10`; Transformers 5.14.1,
+  timm 1.0.28, librosa 0.11.0
+- CUDA 12.4 / PyTorch 2.5.1 / BF16
+- One on-demand NVIDIA GPU from the model-specific closed pool
 - RunPod or Vast.ai only; no ports
-- Price cap: $2.00/hour
-- Duration cap: one hour; worst-case cost cap: $2.00 per submitted run
+- Price cap: Phi $2.00/hour; Gemma $1.50/hour
+- Duration cap: one hour per submitted run
 - Additional issue #12 CUDA authorization: `$10.00` combined cap for Phi and
   Gemma after the first three attempts; stop and ask before exceeding it.
 
@@ -66,7 +69,8 @@ screening rule for a tiny diagnostic panel, not a leaderboard estimate.
 - [x] Phi `a4` reviewer blockers fixed and independent re-review passed
 - [x] Corrected Phi preview: five eligible RunPod A100 offers,
   `$1.39`–`$1.49`/hour
-- [ ] Submit and verify Phi `a4`
+- [x] Submit and verify Phi `a4`
+- [x] Freeze and independently review the corrected Gemma CUDA source
 - [ ] Submit and verify Gemma CUDA three-row comparison
 
 ## Publication
@@ -87,15 +91,22 @@ screening rule for a tiny diagnostic panel, not a leaderboard estimate.
 - `phi4mm-cuda-quality-3-20260724-a3`: the pinned model downloaded and the
   NVIDIA A100/CUDA 12.4 runtime attested, but model loading stopped before
   inference because the runtime omitted `scipy`; cost `$0.0484`.
+- `phi4mm-cuda-quality-3-20260724-a4`: succeeded on a RunPod
+  A100-SXM4-80GB at `$1.49`/hour; cost `$0.0951`. All three rows retained
+  joint first-forward audio/vision attestation. Blinded adjudication was
+  `0 correct / 2 partial / 1 wrong`, so Phi failed the frozen quality gate.
+  Prediction SHA-256:
+  `f935265e4c15572d36e500ea2097ec83eebe88bc811a9d919cd805c27982b27d`.
 
-All three stopped runs synced immutable, checksummed failure artifacts to their
-private run-specific HF Bucket prefixes. The price cap, provider set, spot
-policy, GPU envelope, and model/image revisions were never broadened. Total
-billed cost was `$0.1571`.
+All four runs synced immutable, checksummed artifacts to their private
+run-specific HF Bucket prefixes. The price cap, provider set, spot policy, GPU
+envelope, and model/image revisions were never broadened. Total Phi billed
+cost was `$0.2522`.
 
 ## Next action
 
-Submit the reviewed immutable Phi `a4` once under the same `$2.00/hour` and
-one-hour caps. Download and verify its private artifacts before constructing
-the separate Gemma CUDA three-row run. Expansion remains stopped unless new
-coordinator evidence explicitly revises the frozen gate.
+Submit the independently reviewed immutable Gemma `a1` once under the
+`$1.50/hour` and one-hour caps. Download and checksum-verify its private
+artifacts, adjudicate the frozen three rows, and record the matched comparison.
+Expansion remains stopped unless new coordinator evidence explicitly revises
+the frozen gate.

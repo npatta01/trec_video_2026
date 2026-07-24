@@ -1,0 +1,92 @@
+type: task
+name: gemma3n-cuda-quality-3-20260724-a1
+
+image: docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
+entrypoint: /bin/bash -c
+shell: bash
+working_dir: /dstack/run
+
+env:
+  - HF_TOKEN=${{ secrets.hf_token }}
+  - HF_HUB_DISABLE_TELEMETRY=1
+  - PYTHON_BIN=/opt/conda/bin/python
+  - PYTHONPATH=/dstack/run/src
+  - MODEL_KEY=gemma3n
+  - EXPERIMENT_RUN_ID=gemma3n-cuda-quality-3-20260724-a1
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/gemma3n-cuda-quality-3-20260724-a1
+  - RUNTIME_IMAGE=docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
+  - RUNTIME_IMAGE_DIGEST=sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
+  - MODEL_ID=google/gemma-3n-E4B-it
+  - MODEL_REVISION=c1221e9c62e34a43ab7ffacd1be0ea71f126ef10
+  - EXPECTED_CONTRACT=b6fa0c299cd3efafb2dec092ba5d7037d08b0a7eb3fc859b46358158b8b9725b
+  - CONTRACT_PATH=/dstack/input/contract.json
+  - DATA_ROOT=/dstack/input
+  - MODEL_DIR=/dstack/model
+  - OUTPUT_DIR=/dstack/output
+
+files:
+  - ../scripts/run-phi4mm-cuda-dstack.sh:/dstack/run/scripts/run-phi4mm-cuda-dstack.sh
+  - ../src/trec_video_2026:/dstack/run/src/trec_video_2026
+  - ../data/vqa/benchmarks/omni-compatibility-3/contract.json:/dstack/input/contract.json
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-01.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-01.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-02.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-02.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-03.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-03.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-04.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-04.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-05.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-05.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-06.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-06.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-07.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-07.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-08.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-08.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-09.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-09.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-10.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-10.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-11.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-11.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-12.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-12.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-01.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-01.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-02.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-02.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-03.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-03.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-04.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-04.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-05.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-05.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-06.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-06.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-07.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-07.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-08.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-08.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-09.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-09.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-10.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-10.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-11.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-11.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-12.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-12.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-01.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-01.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-02.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-02.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-03.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-03.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-04.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-04.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-05.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-05.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-06.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-06.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-07.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-07.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-08.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-08.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-09.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-09.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-10.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-10.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-11.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-11.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-12.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-12.png
+  - ../data/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/NN7G28sBOlY.wav:/dstack/input/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/NN7G28sBOlY.wav
+  - ../data/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/NUmb2P3Bzu8.wav:/dstack/input/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/NUmb2P3Bzu8.wav
+  - ../data/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/NkXPPJoZ-h8.wav:/dstack/input/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/NkXPPJoZ-h8.wav
+
+commands:
+  - |
+    set -euo pipefail
+    exec bash /dstack/run/scripts/run-phi4mm-cuda-dstack.sh run
+
+resources:
+  gpu:
+    vendor: nvidia
+    name: [A40, L40, L40S, RTX6000Ada, A100, H100, H200]
+    count: 1
+    memory: 40GB..
+  cpu: 8..
+  memory: 64GB..
+  disk: 100GB
+
+backends: [runpod, vastai]
+spot_policy: on-demand
+max_price: 1.50
+max_duration: 1h
+retry:
+  on_events: [no-capacity]
+  duration: 20m

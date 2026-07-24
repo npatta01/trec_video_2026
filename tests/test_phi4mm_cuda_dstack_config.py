@@ -38,6 +38,7 @@ def test_phi4mm_dstack_runtime_is_immutable_and_bounded():
     text = CONFIG.read_text(encoding="utf-8")
 
     assert f"image: {IMAGE}" in text
+    assert "MODEL_KEY=phi4mm" in text
     assert MODEL_REVISION in text
     assert CONTRACT_SHA256 in text
     assert ":latest" not in text
