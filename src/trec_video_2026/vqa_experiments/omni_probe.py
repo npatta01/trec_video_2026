@@ -12,6 +12,8 @@ import contextlib
 import hashlib
 import json
 import platform
+import re
+import sys
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -45,24 +47,26 @@ MODEL_SPECS = {
     "phi4mm": ModelSpec(
         model_id="microsoft/Phi-4-multimodal-instruct",
         revision="93f923e1a7727d1c4f446756212d9d3e8fcc5d81",
-        vision_input_keys=frozenset(
-            {"input_image_embeds", "image_sizes", "image_attention_mask"}
-        ),
-        audio_input_keys=frozenset(
-            {
-                "input_audio_embeds",
-                "audio_embed_sizes",
-                "audio_attention_mask",
-            }
-        ),
+        vision_input_keys=frozenset({"input_image_embeds"}),
+        audio_input_keys=frozenset({"input_audio_embeds"}),
     ),
     "gemma3n": ModelSpec(
         model_id="google/gemma-3n-E4B-it",
         revision="c1221e9c62e34a43ab7ffacd1be0ea71f126ef10",
         vision_input_keys=frozenset({"pixel_values"}),
-        audio_input_keys=frozenset({"input_features", "input_features_mask"}),
+        audio_input_keys=frozenset({"input_features"}),
     ),
 }
+RUN_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
+
+
+def validate_run_id(run_id: str) -> str:
+    if not RUN_ID_PATTERN.fullmatch(run_id):
+        raise ValueError(
+            "run-id must contain only ASCII letters, digits, dots, underscores, "
+            "or hyphens and must start with a letter or digit"
+        )
+    return run_id
 
 
 def resolve_example_paths(example: dict[str, Any], data_root: Path) -> dict[str, Any]:
@@ -81,19 +85,21 @@ def _file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _device_description(torch: Any) -> str:
+def _device_description(torch: Any | None) -> str:
+    if torch is None:
+        return "unknown (PyTorch import failed)"
     if not torch.cuda.is_available():
         return "cpu (ROCm accelerator unavailable)"
     hip = torch.version.hip or "unknown"
     return f"cuda:0 (ROCm {hip}; {torch.cuda.get_device_name(0)})"
 
 
-def _runtime_versions(torch: Any, transformers: Any) -> dict[str, str]:
+def _runtime_versions(torch: Any | None, transformers: Any | None) -> dict[str, str]:
     return {
         "python": platform.python_version(),
-        "torch": torch.__version__,
-        "transformers": transformers.__version__,
-        "rocm": str(torch.version.hip),
+        "torch": getattr(torch, "__version__", "unavailable"),
+        "transformers": getattr(transformers, "__version__", "unavailable"),
+        "rocm": str(getattr(getattr(torch, "version", None), "hip", "unavailable")),
     }
 
 
@@ -203,8 +209,6 @@ def _generate_one(
         first_forward_input_keys=captures[0],
         vision_input_keys=set(spec.vision_input_keys),
         audio_input_keys=set(spec.audio_input_keys),
-        vision_element_count=len(example["frame_paths"]),
-        audio_element_count=1,
     )
     response_tokens = generated[:, input_length:]
     raw_output = processor.batch_decode(
@@ -225,11 +229,21 @@ def run_probe(
     runtime_image: str,
     runtime_image_digest: str,
     run_id: str,
+    expected_contract_sha256: str,
 ) -> dict[str, Any]:
+    validate_run_id(run_id)
     spec = MODEL_SPECS[model_key]
     contract = json.loads(contract_path.read_text(encoding="utf-8"))
     validate_contract(contract, data_root, verify_files=True)
+    actual_contract_sha256 = contract_sha256(contract)
+    if actual_contract_sha256 != expected_contract_sha256:
+        raise ValueError(
+            "frozen contract digest mismatch: "
+            f"expected {expected_contract_sha256}, got {actual_contract_sha256}"
+        )
     output_dir.mkdir(parents=True, exist_ok=True)
+    if any(output_dir.iterdir()):
+        raise FileExistsError(f"output directory is not empty: {output_dir}")
     predictions_path = output_dir / "predictions.jsonl"
     predictions: list[dict[str, Any]] = []
 
@@ -243,15 +257,16 @@ def run_probe(
     # Every dependency, device, and model-load failure must become an attested
     # result row rather than aborting before the three-row gate is recorded.
     except Exception as load_error:  # noqa: BLE001
-        import torch
-        import transformers
-
         model_load_seconds = time.perf_counter() - load_started
+        torch = sys.modules.get("torch")
+        transformers = sys.modules.get("transformers")
         device = _device_description(torch)
         versions = _runtime_versions(torch, transformers)
         runner_hash = _file_sha256(Path(__file__))
         peak = (
-            int(torch.cuda.max_memory_allocated()) if torch.cuda.is_available() else 0
+            int(torch.cuda.max_memory_allocated())
+            if torch is not None and torch.cuda.is_available()
+            else 0
         )
         for example in contract["examples"]:
             record = build_runtime_failure_record(
@@ -266,6 +281,7 @@ def run_probe(
                 elapsed_seconds=model_load_seconds,
                 peak_memory_bytes=peak,
                 error=load_error,
+                input_contract_error=False,
             )
             record.update(
                 {
@@ -323,6 +339,7 @@ def run_probe(
                     elapsed_seconds=elapsed,
                     peak_memory_bytes=peak,
                     error=error,
+                    input_contract_error=True,
                 )
             record.update(
                 {
@@ -349,7 +366,7 @@ def run_probe(
         "model_revision": spec.revision,
         "runtime_image": runtime_image,
         "runtime_image_digest": runtime_image_digest,
-        "contract_sha256": contract_sha256(contract),
+        "contract_sha256": actual_contract_sha256,
         "predictions_sha256": _file_sha256(predictions_path),
         "promotion": promotion_decision(contract, predictions),
         "rows": len(predictions),
@@ -373,6 +390,7 @@ def main() -> int:
     parser.add_argument("--runtime-image", required=True)
     parser.add_argument("--runtime-image-digest", required=True)
     parser.add_argument("--run-id", required=True)
+    parser.add_argument("--expected-contract-sha256", required=True)
     args = parser.parse_args()
     summary = run_probe(
         model_key=args.model,
@@ -383,9 +401,10 @@ def main() -> int:
         runtime_image=args.runtime_image,
         runtime_image_digest=args.runtime_image_digest,
         run_id=args.run_id,
+        expected_contract_sha256=args.expected_contract_sha256,
     )
     print(json.dumps(summary, sort_keys=True))
-    return 0 if summary["rows"] == 3 else 1
+    return 0 if summary["promotion"]["decision"] == "promote" else 1
 
 
 if __name__ == "__main__":

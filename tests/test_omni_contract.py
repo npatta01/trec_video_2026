@@ -81,6 +81,11 @@ def _valid_prediction(example: dict) -> dict:
                 "pixel_values",
                 "input_features",
             ],
+            "first_forward_input_keys": [
+                "input_ids",
+                "pixel_values",
+                "input_features",
+            ],
             "vision_input_keys": ["pixel_values"],
             "audio_input_keys": ["input_features"],
             "vision_element_count": 12,
@@ -186,3 +191,40 @@ def test_promotion_requires_all_three_joint_rows(tmp_path: Path):
     decision = promotion_decision(contract, predictions)
     assert decision["decision"] == "stop"
     assert "prosody" in decision["failed_roles"]
+
+
+def test_prediction_rejects_failed_or_unknown_status(tmp_path: Path):
+    _write_panel_fixture(tmp_path)
+    example = build_compatibility_contract(tmp_path)["examples"][0]
+    for status in ("failed", "unknown"):
+        prediction = _valid_prediction(example)
+        prediction["status"] = status
+
+        with pytest.raises(ValueError, match="status must be passed"):
+            validate_prediction(prediction, example)
+
+
+def test_prediction_requires_first_forward_key_evidence(tmp_path: Path):
+    _write_panel_fixture(tmp_path)
+    example = build_compatibility_contract(tmp_path)["examples"][0]
+    prediction = _valid_prediction(example)
+    prediction["modality_attestation"]["first_forward_input_keys"] = ["input_ids"]
+
+    with pytest.raises(ValueError, match="first forward"):
+        validate_prediction(prediction, example)
+
+
+def test_promotion_rejects_failed_rows_and_duplicate_roles(tmp_path: Path):
+    _write_panel_fixture(tmp_path)
+    contract = build_compatibility_contract(tmp_path)
+    failed = [_valid_prediction(row) for row in contract["examples"]]
+    for row in failed:
+        row["status"] = "failed"
+        row["output_parse_status"] = "not_attempted"
+    assert promotion_decision(contract, failed)["decision"] == "stop"
+
+    predictions = [_valid_prediction(row) for row in contract["examples"]]
+    predictions[2] = copy.deepcopy(predictions[1])
+    decision = promotion_decision(contract, predictions)
+    assert decision["decision"] == "stop"
+    assert "duplicate result" in decision["reasons"]["prosody"]

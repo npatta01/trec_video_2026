@@ -66,21 +66,35 @@ def _inputs_sha256(inputs: dict[str, Any], keys: set[str]) -> str:
     return digest.hexdigest()
 
 
+def _leading_element_count(value: Any) -> int:
+    shape = getattr(value, "shape", None)
+    if shape is not None and len(shape):
+        count = int(shape[0])
+    else:
+        try:
+            count = len(value)
+        except TypeError as error:
+            raise TypeError(
+                "modality input has no leading element dimension"
+            ) from error
+    if count < 1:
+        raise ValueError("modality input must contain at least one element")
+    return count
+
+
 def attest_generation_inputs(
     processor_inputs: dict[str, Any],
     *,
     first_forward_input_keys: set[str],
     vision_input_keys: set[str],
     audio_input_keys: set[str],
-    vision_element_count: int,
-    audio_element_count: int,
 ) -> dict[str, Any]:
     """Attest that processed image and audio tensors reach one first forward."""
 
     available = {key for key, value in processor_inputs.items() if value is not None}
     used_vision = available & vision_input_keys
     used_audio = available & audio_input_keys
-    if not used_vision or not used_audio:
+    if len(used_vision) != 1 or len(used_audio) != 1:
         raise ValueError("processor inputs must contain both vision and audio")
     if not used_vision.issubset(first_forward_input_keys) or not (
         used_audio.issubset(first_forward_input_keys)
@@ -94,8 +108,12 @@ def attest_generation_inputs(
         "first_forward_input_keys": sorted(first_forward_input_keys),
         "vision_input_keys": sorted(used_vision),
         "audio_input_keys": sorted(used_audio),
-        "vision_element_count": vision_element_count,
-        "audio_element_count": audio_element_count,
+        "vision_element_count": _leading_element_count(
+            processor_inputs[next(iter(used_vision))]
+        ),
+        "audio_element_count": _leading_element_count(
+            processor_inputs[next(iter(used_audio))]
+        ),
         "vision_input_sha256": _inputs_sha256(processor_inputs, used_vision),
         "audio_input_sha256": _inputs_sha256(processor_inputs, used_audio),
     }
@@ -169,6 +187,7 @@ def build_runtime_failure_record(
     elapsed_seconds: float,
     peak_memory_bytes: int,
     error: Exception,
+    input_contract_error: bool,
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -186,7 +205,7 @@ def build_runtime_failure_record(
         "status": "failed",
         "raw_output": "",
         "output_parse_status": "not_attempted",
-        "input_contract_error": False,
+        "input_contract_error": input_contract_error,
         "error_type": type(error).__name__,
         "error_message": str(error),
         "modality_attestation": {
@@ -197,8 +216,8 @@ def build_runtime_failure_record(
             "first_forward_input_keys": [],
             "vision_input_keys": [],
             "audio_input_keys": [],
-            "vision_element_count": 12,
-            "audio_element_count": 1,
+            "vision_element_count": 0,
+            "audio_element_count": 0,
             "vision_input_sha256": None,
             "audio_input_sha256": None,
         },

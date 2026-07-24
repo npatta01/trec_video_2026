@@ -27,6 +27,17 @@ def test_runner_mounts_inputs_and_cache_read_only():
     assert "${OUTPUT_DIR}:/output:rw" in text
 
 
+def test_runner_enforces_frozen_contract_and_new_safe_output_dir():
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert "b6fa0c299cd3efafb2dec092ba5d7037d08b0a7eb3fc859b46358158b8b9725b" in text
+    assert "${CONTRACT_REL}.sha256" in text
+    assert "--expected-contract-sha256" in text
+    assert "RUN_ID" in text and "must contain only" in text
+    assert 'mkdir "${OUTPUT_DIR}"' in text
+    assert 'mkdir -p "${OUTPUT_DIR}"' not in text
+
+
 def test_runtime_image_derives_from_pinned_rocm_base():
     text = CONTAINERFILE.read_text(encoding="utf-8")
 

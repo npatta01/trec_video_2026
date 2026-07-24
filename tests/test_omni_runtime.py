@@ -56,13 +56,13 @@ def test_attestation_requires_both_modalities_in_first_forward():
         first_forward_input_keys={"pixel_values", "input_features", "input_ids"},
         vision_input_keys={"pixel_values"},
         audio_input_keys={"input_features"},
-        vision_element_count=12,
-        audio_element_count=1,
     )
 
     assert attestation["same_request"] is True
     assert attestation["same_forward_pass"] is True
     assert attestation["generation_call_count"] == 1
+    assert attestation["vision_element_count"] == 2
+    assert attestation["audio_element_count"] == 2
     assert attestation["vision_input_sha256"] != attestation["audio_input_sha256"]
 
 
@@ -76,8 +76,6 @@ def test_attestation_rejects_separate_modality_forwards():
             first_forward_input_keys={"pixel_values"},
             vision_input_keys={"pixel_values"},
             audio_input_keys={"input_features"},
-            vision_element_count=12,
-            audio_element_count=1,
         )
 
 
@@ -122,10 +120,11 @@ def test_runtime_failure_record_preserves_attempt_attestation():
         elapsed_seconds=2.0,
         peak_memory_bytes=100,
         error=RuntimeError("verified ROCm failure"),
+        input_contract_error=True,
     )
 
     assert record["status"] == "failed"
     assert record["error_type"] == "RuntimeError"
-    assert record["input_contract_error"] is False
+    assert record["input_contract_error"] is True
     assert record["modality_attestation"]["same_request"] is False
     assert record["modality_attestation"]["generation_call_count"] == 0

@@ -339,59 +339,85 @@ def validate_prediction(
     ):
         raise ValueError("peak_memory_bytes must be a non-negative integer")
 
-    if prediction["status"] == "passed":
-        if prediction["output_parse_status"] != "passed":
-            raise ValueError("passed prediction must have parsed output")
-        if prediction.get("parsed_output") != parse_prediction(
-            prediction["raw_output"]
-        ):
-            raise ValueError("parsed_output does not match raw_output")
-        if prediction["input_contract_error"] is not False:
-            raise ValueError("passed prediction cannot have an input contract error")
-        attestation = prediction["modality_attestation"]
-        if not attestation.get("same_request"):
-            raise ValueError("vision and audio must be in the same request")
-        if not attestation.get("same_forward_pass"):
-            raise ValueError("vision and audio must be in the same forward pass")
-        if attestation.get("generation_call_count") != 1:
-            raise ValueError("exactly one joint generation call is required")
-        if attestation.get("vision_element_count", 0) != 12:
-            raise ValueError("vision_element_count must be 12")
-        if attestation.get("audio_element_count", 0) != 1:
-            raise ValueError("audio_element_count must be 1")
-        for field in ("vision_input_sha256", "audio_input_sha256"):
-            if not _is_sha256(attestation.get(field)):
-                raise ValueError(f"{field} must attest the processed input")
-        generation_keys = set(attestation.get("generation_input_keys", []))
-        vision_keys = set(attestation.get("vision_input_keys", []))
-        audio_keys = set(attestation.get("audio_input_keys", []))
-        if not vision_keys or not vision_keys.issubset(generation_keys):
-            raise ValueError("vision inputs must be present in generation inputs")
-        if not audio_keys or not audio_keys.issubset(generation_keys):
-            raise ValueError("audio inputs must be present in generation inputs")
+    if prediction["status"] != "passed":
+        raise ValueError("status must be passed for promotion")
+    if prediction["output_parse_status"] != "passed":
+        raise ValueError("passed prediction must have parsed output")
+    if prediction.get("parsed_output") != parse_prediction(prediction["raw_output"]):
+        raise ValueError("parsed_output does not match raw_output")
+    if prediction["input_contract_error"] is not False:
+        raise ValueError("passed prediction cannot have an input contract error")
+    attestation = prediction["modality_attestation"]
+    if not isinstance(attestation, dict):
+        raise ValueError("modality_attestation must be an object")
+    if not attestation.get("same_request"):
+        raise ValueError("vision and audio must be in the same request")
+    if not attestation.get("same_forward_pass"):
+        raise ValueError("vision and audio must be in the same forward pass")
+    if attestation.get("generation_call_count") != 1:
+        raise ValueError("exactly one joint generation call is required")
+    if attestation.get("vision_element_count", 0) != 12:
+        raise ValueError("vision_element_count must be 12")
+    if attestation.get("audio_element_count", 0) != 1:
+        raise ValueError("audio_element_count must be 1")
+    for field in ("vision_input_sha256", "audio_input_sha256"):
+        if not _is_sha256(attestation.get(field)):
+            raise ValueError(f"{field} must attest the processed input")
+    generation_keys = set(attestation.get("generation_input_keys", []))
+    first_forward_keys = set(attestation.get("first_forward_input_keys", []))
+    vision_keys = set(attestation.get("vision_input_keys", []))
+    audio_keys = set(attestation.get("audio_input_keys", []))
+    if not vision_keys or not vision_keys.issubset(generation_keys):
+        raise ValueError("vision inputs must be present in generation inputs")
+    if not audio_keys or not audio_keys.issubset(generation_keys):
+        raise ValueError("audio inputs must be present in generation inputs")
+    if not vision_keys.issubset(first_forward_keys):
+        raise ValueError("vision inputs must be present in the first forward")
+    if not audio_keys.issubset(first_forward_keys):
+        raise ValueError("audio inputs must be present in the first forward")
 
 
 def promotion_decision(
     contract: dict[str, Any], predictions: Sequence[dict[str, Any]]
 ) -> dict[str, Any]:
     expected_by_role = {row["operational_tag"]: row for row in contract["examples"]}
-    rows_by_role = {row.get("operational_tag"): row for row in predictions}
     failed_roles: list[str] = []
     reasons: dict[str, str] = {}
+    rows_by_role: dict[str, list[dict[str, Any]]] = {}
+    for row in predictions:
+        role = row.get("operational_tag")
+        if isinstance(role, str):
+            rows_by_role.setdefault(role, []).append(row)
+        else:
+            failed_roles.append("_panel")
+            reasons["_panel"] = "result has no valid operational_tag"
+    if len(predictions) != len(REQUIRED_ROLES):
+        failed_roles.append("_panel")
+        reasons["_panel"] = (
+            f"expected exactly {len(REQUIRED_ROLES)} results, got {len(predictions)}"
+        )
+    unexpected = sorted(set(rows_by_role) - set(REQUIRED_ROLES))
+    if unexpected:
+        failed_roles.append("_panel")
+        reasons["_panel"] = f"unexpected result roles: {', '.join(unexpected)}"
     for role in REQUIRED_ROLES:
-        prediction = rows_by_role.get(role)
-        if prediction is None:
+        role_rows = rows_by_role.get(role, [])
+        if not role_rows:
             failed_roles.append(role)
             reasons[role] = "missing result"
             continue
+        if len(role_rows) != 1:
+            failed_roles.append(role)
+            reasons[role] = f"duplicate result: got {len(role_rows)} rows"
+            continue
         try:
-            validate_prediction(prediction, expected_by_role[role])
+            validate_prediction(role_rows[0], expected_by_role[role])
         except ValueError as error:
             failed_roles.append(role)
             reasons[role] = str(error)
     return {
         "decision": "promote" if not failed_roles else "stop",
-        "failed_roles": failed_roles,
+        "failed_roles": list(dict.fromkeys(failed_roles)),
         "reasons": reasons,
     }
 
