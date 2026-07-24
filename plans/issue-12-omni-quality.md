@@ -12,13 +12,16 @@ empty/malformed structured output.
 - Base dependency: draft PR #11 / `codex/issue-6-nonqwen-omni`
 - Contract:
   `data/vqa/benchmarks/omni-compatibility-3/contract.json`
-- Canonical contract SHA-256:
+- Canonical normalized-JSON contract SHA-256:
   `b6fa0c299cd3efafb2dec092ba5d7037d08b0a7eb3fc859b46358158b8b9725b`
+- Raw `contract.json` file SHA-256:
+  `dfd2d765e0dc0947e81e0387e09b88a0b75221a91571f43ae9812fdd66151309`
 - Existing Gemma prediction SHA-256:
   `9797c14694bf99a438a76eba27f64fd336cae06526e11d8d2faa99021423ef00`
 - Existing Phi ROCm prediction SHA-256:
   `6a1ee0d5ea29d150f871f7942c6377643ad6a0d86b4df0953a339d7e6c890478`
-- Labels remain unavailable until model outputs are frozen.
+- Original outputs were normalized label-blind. CUDA outputs were frozen and
+  checksum-verified before same-rubric scoring, but were not newly blinded.
 - No dataset contents, model weights, predictions, or raw logs are tracked.
 
 ## Frozen quality gate
@@ -29,8 +32,8 @@ passes the three-row semantic gate only if:
 1. all three rows retain exact-request and joint first-forward audio/vision
    attestation;
 2. all three normalized answers are non-empty and scoreable;
-3. blinded adjudication yields zero `wrong` rows and at least two `correct`
-   rows.
+3. answer-only, same-rubric adjudication yields zero `wrong` rows and at least
+   two `correct` rows.
 
 The 10–30 row expansion occurs only if both Gemma and Phi pass. This is a
 screening rule for a tiny diagnostic panel, not a leaderboard estimate.
@@ -72,7 +75,8 @@ screening rule for a tiny diagnostic panel, not a leaderboard estimate.
 - [x] Submit and verify Phi `a4`
 - [x] Freeze and independently review the corrected Gemma CUDA source
 - [x] Submit and checksum-verify Gemma `a1` failure evidence
-- [ ] Submit and verify corrected Gemma CUDA three-row comparison
+- [x] Submit and verify corrected Gemma CUDA three-row comparison
+- [x] Record final matched comparison, costs, and stop decision
 
 ## Publication
 
@@ -94,7 +98,7 @@ screening rule for a tiny diagnostic panel, not a leaderboard estimate.
   inference because the runtime omitted `scipy`; cost `$0.0484`.
 - `phi4mm-cuda-quality-3-20260724-a4`: succeeded on a RunPod
   A100-SXM4-80GB at `$1.49`/hour; cost `$0.0951`. All three rows retained
-  joint first-forward audio/vision attestation. Blinded adjudication was
+  joint first-forward audio/vision attestation. Same-rubric adjudication was
   `0 correct / 2 partial / 1 wrong`, so Phi failed the frozen quality gate.
   Prediction SHA-256:
   `f935265e4c15572d36e500ea2097ec83eebe88bc811a9d919cd805c27982b27d`.
@@ -105,18 +109,22 @@ screening rule for a tiny diagnostic panel, not a leaderboard estimate.
   Non-speech sound stopped naturally at 39 tokens and passed. The checksummed
   evidence isolates output length as the failure; no prompt, model, media, or
   modality-attestation failure occurred.
+- `gemma3n-cuda-quality-3-20260724-a2`: succeeded on a RunPod L40S 48 GB at
+  `$0.99`/hour; cost `$0.0690`. All three rows retained joint first-forward
+  audio/vision attestation. Same-rubric adjudication was
+  `1 correct / 1 partial / 1 wrong`, so Gemma failed the frozen quality gate.
+  Prediction SHA-256:
+  `d82e4e70959a0df1e50cdf2146afb05d8d3d40033b6454b4313060b38f5c65b3`.
 
-All four runs synced immutable, checksummed artifacts to their private
-run-specific HF Bucket prefixes. The price cap, provider set, spot policy, GPU
-envelope, and model/image revisions were never broadened. Total Phi billed
-cost was `$0.2522`.
+All four Phi runs and both Gemma runs synced immutable, checksummed artifacts
+to their private run-specific HF Bucket prefixes. The price cap, provider set,
+spot policy, GPU envelope, and model/image revisions were never broadened.
+Total Phi billed cost was `$0.2522`.
 
-## Next action
+## Outcome
 
-After independent review, submit immutable Gemma `a2` once under the
-`$1.50/hour` and one-hour caps. The only inference change is increasing
-Gemma's maximum generated tokens from 160 to 320; decoding remains greedy and
-the prompt, model revision, and exact media remain frozen. Download and
-checksum-verify its private artifacts, adjudicate the three rows, and record
-the matched comparison. Expansion remains stopped unless new coordinator
-evidence explicitly revises the frozen gate.
+Both CUDA comparisons are complete and checksum-verified. Phi scored
+`0 correct / 2 partial / 1 wrong`; Gemma scored
+`1 correct / 1 partial / 1 wrong`. Both fail the frozen gate, so the 10–30 row
+expansion remains stopped. Total billed cost was `$0.3837`, including `$0.2266`
+against the additional `$10.00` authorization.
