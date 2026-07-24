@@ -207,13 +207,17 @@ def _generate_one(
             else _processor_inputs_gemma(processor, example)
         )
         processor_inputs = dict(inputs)
+        input_length = inputs["input_ids"].shape[1]
+    except Exception as error:
+        raise ProbeStageError("processor", error) from error
+
+    try:
         if model_key == "gemma3n":
             inputs = inputs.to("cuda:0", dtype=torch.bfloat16)
         else:
             inputs = inputs.to("cuda:0")
-        input_length = inputs["input_ids"].shape[1]
     except Exception as error:
-        raise ProbeStageError("processor", error) from error
+        raise ProbeStageError("device_transfer", error) from error
 
     try:
         with torch.inference_mode(), _capture_first_forward(model) as captures:

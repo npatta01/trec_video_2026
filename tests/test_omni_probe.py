@@ -1,10 +1,13 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from trec_video_2026.vqa_experiments import omni_probe
 from trec_video_2026.vqa_experiments.omni_probe import (
     MODEL_SPECS,
     ProbeStageError,
+    _generate_one,
     classify_probe_failure,
     resolve_example_paths,
     validate_run_id,
@@ -60,6 +63,7 @@ def test_run_id_rejects_path_escape_and_empty_values():
 
 def test_probe_failure_classification_distinguishes_contract_and_backend():
     processor = ProbeStageError("processor", ValueError("bad multimodal request"))
+    transfer = ProbeStageError("device_transfer", RuntimeError("HIP out of memory"))
     generation = ProbeStageError("generation", RuntimeError("HIP out of memory"))
 
     assert classify_probe_failure(processor) == (
@@ -72,5 +76,31 @@ def test_probe_failure_classification_distinguishes_contract_and_backend():
         "generation",
         None,
     )
+    assert classify_probe_failure(transfer) == (
+        transfer.original_error,
+        "device_transfer",
+        None,
+    )
     internal = RuntimeError("unexpected")
     assert classify_probe_failure(internal) == (internal, "internal", None)
+
+
+def test_generate_one_labels_device_transfer_failure_separately(monkeypatch):
+    class FakeInputs(dict):
+        def to(self, *_args, **_kwargs):
+            raise RuntimeError("HIP out of memory")
+
+    inputs = FakeInputs(input_ids=SimpleNamespace(shape=(1, 3)))
+    monkeypatch.setattr(omni_probe, "_processor_inputs_gemma", lambda *_args: inputs)
+
+    with pytest.raises(ProbeStageError) as captured:
+        _generate_one(
+            model_key="gemma3n",
+            spec=MODEL_SPECS["gemma3n"],
+            processor=object(),
+            model=object(),
+            torch=object(),
+            example={},
+        )
+
+    assert captured.value.stage == "device_transfer"
