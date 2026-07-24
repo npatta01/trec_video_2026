@@ -71,7 +71,8 @@ screening rule for a tiny diagnostic panel, not a leaderboard estimate.
   `$1.39`–`$1.49`/hour
 - [x] Submit and verify Phi `a4`
 - [x] Freeze and independently review the corrected Gemma CUDA source
-- [ ] Submit and verify Gemma CUDA three-row comparison
+- [x] Submit and checksum-verify Gemma `a1` failure evidence
+- [ ] Submit and verify corrected Gemma CUDA three-row comparison
 
 ## Publication
 
@@ -97,6 +98,13 @@ screening rule for a tiny diagnostic panel, not a leaderboard estimate.
   `0 correct / 2 partial / 1 wrong`, so Phi failed the frozen quality gate.
   Prediction SHA-256:
   `f935265e4c15572d36e500ea2097ec83eebe88bc811a9d919cd805c27982b27d`.
+- `gemma3n-cuda-quality-3-20260724-a1`: all three joint CUDA forwards ran
+  successfully on a RunPod L40S 48 GB at `$0.99`/hour; cost `$0.0625`.
+  Lexical and prosody generation each reached the exact 160-token ceiling and
+  stopped mid-JSON, so the fail-closed parser correctly rejected both rows.
+  Non-speech sound stopped naturally at 39 tokens and passed. The checksummed
+  evidence isolates output length as the failure; no prompt, model, media, or
+  modality-attestation failure occurred.
 
 All four runs synced immutable, checksummed artifacts to their private
 run-specific HF Bucket prefixes. The price cap, provider set, spot policy, GPU
@@ -105,8 +113,10 @@ cost was `$0.2522`.
 
 ## Next action
 
-Submit the independently reviewed immutable Gemma `a1` once under the
-`$1.50/hour` and one-hour caps. Download and checksum-verify its private
-artifacts, adjudicate the frozen three rows, and record the matched comparison.
-Expansion remains stopped unless new coordinator evidence explicitly revises
-the frozen gate.
+After independent review, submit immutable Gemma `a2` once under the
+`$1.50/hour` and one-hour caps. The only inference change is increasing
+Gemma's maximum generated tokens from 160 to 320; decoding remains greedy and
+the prompt, model revision, and exact media remain frozen. Download and
+checksum-verify its private artifacts, adjudicate the three rows, and record
+the matched comparison. Expansion remains stopped unless new coordinator
+evidence explicitly revises the frozen gate.

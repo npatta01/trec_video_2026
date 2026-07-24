@@ -8,6 +8,7 @@ import pytest
 
 from trec_video_2026.vqa_experiments import omni_probe
 from trec_video_2026.vqa_experiments.omni_probe import (
+    MAX_NEW_TOKENS,
     MODEL_SPECS,
     ProbeStageError,
     _device_description,
@@ -18,6 +19,10 @@ from trec_video_2026.vqa_experiments.omni_probe import (
     resolve_example_paths,
     validate_run_id,
 )
+
+
+def test_gemma_generation_budget_allows_completed_structured_output():
+    assert MAX_NEW_TOKENS == {"phi4mm": 160, "gemma3n": 320}
 
 
 def test_model_specs_pin_hub_revisions_and_joint_input_keys():

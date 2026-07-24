@@ -25,7 +25,7 @@ case "$MODEL_KEY" in
     readonly TRANSFORMERS_VERSION="$PHI_TRANSFORMERS_VERSION"
     ;;
   gemma3n)
-    readonly EXPECTED_RUN_ID="gemma3n-cuda-quality-3-20260724-a1"
+    readonly EXPECTED_RUN_ID="gemma3n-cuda-quality-3-20260724-a2"
     readonly EXPECTED_MODEL_ID="google/gemma-3n-E4B-it"
     readonly EXPECTED_MODEL_REVISION="c1221e9c62e34a43ab7ffacd1be0ea71f126ef10"
     readonly TRANSFORMERS_VERSION="$GEMMA_TRANSFORMERS_VERSION"

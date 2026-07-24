@@ -10,7 +10,7 @@ IMAGE = (
     "sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755"
 )
 CONTRACT_SHA256 = "b6fa0c299cd3efafb2dec092ba5d7037d08b0a7eb3fc859b46358158b8b9725b"
-RUN_ID = "gemma3n-cuda-quality-3-20260724-a1"
+RUN_ID = "gemma3n-cuda-quality-3-20260724-a2"
 
 
 def test_gemma3n_dstack_runtime_is_immutable_and_bounded():

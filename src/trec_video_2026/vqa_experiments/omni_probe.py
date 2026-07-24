@@ -57,6 +57,7 @@ MODEL_SPECS = {
         audio_input_keys=frozenset({"input_features"}),
     ),
 }
+MAX_NEW_TOKENS = {"phi4mm": 160, "gemma3n": 320}
 RUN_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 
 
@@ -230,7 +231,7 @@ def _generate_one(
         with torch.inference_mode(), _capture_first_forward(model) as captures:
             generated = model.generate(
                 **inputs,
-                max_new_tokens=160,
+                max_new_tokens=MAX_NEW_TOKENS[model_key],
                 do_sample=False,
             )
     except Exception as error:
