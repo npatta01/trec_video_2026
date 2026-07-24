@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -256,6 +257,33 @@ def validate_contract(
                     )
 
 
+def validate_inference_evidence(
+    contract: dict[str, Any], data_root: Path, *, verify_files: bool = True
+) -> None:
+    """Validate only the evidence actually consumed by sampled-AV inference."""
+
+    validate_contract(contract, data_root, verify_files=False)
+    if not verify_files:
+        return
+    for row in contract["examples"]:
+        video_id = row["video_id"]
+        path_hash_pairs = [
+            ("audio_path", row["audio_path"], row["audio_sha256"]),
+            *[
+                ("frame_paths", path, digest)
+                for path, digest in zip(
+                    row["frame_paths"], row["frame_sha256s"], strict=True
+                )
+            ],
+        ]
+        for field, relative, expected_hash in path_hash_pairs:
+            path = _resolve_relative(data_root, relative, field)
+            if not path.is_file():
+                raise ValueError(f"{video_id}: missing {field}: {relative}")
+            if _sha256_file(path) != expected_hash:
+                raise ValueError(f"{video_id}: {field} hash does not match {relative}")
+
+
 def contract_sha256(contract: dict[str, Any]) -> str:
     return hashlib.sha256(_canonical_json(contract)).hexdigest()
 
@@ -285,6 +313,53 @@ def parse_prediction(raw_output: str) -> dict[str, str]:
     if not isinstance(evidence, str) or not evidence.strip():
         raise ValueError("prediction evidence must be non-empty text")
     return {"answer": answer.strip(), "evidence": evidence.strip()}
+
+
+def normalize_prediction_output(raw_output: str) -> dict[str, str | None]:
+    """Normalize structured or plain-text model output without inventing content.
+
+    JSON-shaped output remains subject to the strict compatibility parser. This
+    prevents a truncated or malformed object from being reclassified as a
+    semantic answer merely because it contains non-whitespace characters.
+    """
+
+    text = raw_output.strip()
+    if not text:
+        raise ValueError("prediction answer must be non-empty text")
+    answer = re.sub(r"(?is)^answer\s*:\s*", "", text, count=1).strip()
+    if not answer:
+        raise ValueError("prediction answer must be non-empty text")
+    if answer.startswith("```"):
+        lines = answer.splitlines()
+        opening = lines[0].strip().lower()
+        if (
+            opening not in ("```", "```text", "```json")
+            or len(lines) < 3
+            or lines[-1].strip() != "```"
+        ):
+            raise ValueError("prediction has a malformed or unsupported fence")
+        if opening == "```json":
+            parsed = parse_prediction(answer)
+            return {
+                "answer": parsed["answer"],
+                "evidence": parsed["evidence"],
+                "output_format": "json",
+            }
+        answer = "\n".join(lines[1:-1]).strip()
+        if not answer:
+            raise ValueError("prediction answer must be non-empty text")
+    if answer.startswith(("{", "[")):
+        parsed = parse_prediction(answer)
+        return {
+            "answer": parsed["answer"],
+            "evidence": parsed["evidence"],
+            "output_format": "json",
+        }
+    return {
+        "answer": answer,
+        "evidence": None,
+        "output_format": "plain_text",
+    }
 
 
 def validate_prediction(
@@ -343,7 +418,17 @@ def validate_prediction(
         raise ValueError("status must be passed for promotion")
     if prediction["output_parse_status"] != "passed":
         raise ValueError("passed prediction must have parsed output")
-    if prediction.get("parsed_output") != parse_prediction(prediction["raw_output"]):
+    normalized_output = normalize_prediction_output(prediction["raw_output"])
+    legacy_json_output = {
+        "answer": normalized_output["answer"],
+        "evidence": normalized_output["evidence"],
+    }
+    if prediction.get("parsed_output") not in (
+        normalized_output,
+        legacy_json_output
+        if normalized_output["output_format"] == "json"
+        else normalized_output,
+    ):
         raise ValueError("parsed_output does not match raw_output")
     if prediction["input_contract_error"] is not False:
         raise ValueError("passed prediction cannot have an input contract error")

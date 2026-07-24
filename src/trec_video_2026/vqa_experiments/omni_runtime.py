@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
-from .omni_contract import parse_prediction
+from .omni_contract import normalize_prediction_output
 
 OUTPUT_INSTRUCTION = (
     "Answer the question using the visual frames and the audio together. "
@@ -152,7 +152,7 @@ def build_prediction_record(
         "modality_attestation": modality_attestation,
     }
     try:
-        record["parsed_output"] = parse_prediction(raw_output)
+        record["parsed_output"] = normalize_prediction_output(raw_output)
     except ValueError as error:
         record.update(
             {

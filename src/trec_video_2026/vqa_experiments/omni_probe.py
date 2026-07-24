@@ -24,7 +24,7 @@ from .omni_contract import (
     contract_sha256,
     promotion_decision,
     request_sha256,
-    validate_contract,
+    validate_inference_evidence,
 )
 from .omni_runtime import (
     attest_generation_inputs,
@@ -106,16 +106,23 @@ def _device_description(torch: Any | None) -> str:
         return "unknown (PyTorch import failed)"
     if not torch.cuda.is_available():
         return "cpu (ROCm accelerator unavailable)"
-    hip = torch.version.hip or "unknown"
-    return f"cuda:0 (ROCm {hip}; {torch.cuda.get_device_name(0)})"
+    hip = torch.version.hip
+    if hip:
+        runtime = f"ROCm {hip}"
+    else:
+        runtime = f"NVIDIA CUDA {torch.version.cuda or 'unknown'}"
+    return f"cuda:0 ({runtime}; {torch.cuda.get_device_name(0)})"
 
 
-def _runtime_versions(torch: Any | None, transformers: Any | None) -> dict[str, str]:
+def _runtime_versions(
+    torch: Any | None, transformers: Any | None
+) -> dict[str, str | None]:
     return {
         "python": platform.python_version(),
         "torch": getattr(torch, "__version__", "unavailable"),
         "transformers": getattr(transformers, "__version__", "unavailable"),
-        "rocm": str(getattr(getattr(torch, "version", None), "hip", "unavailable")),
+        "rocm": getattr(getattr(torch, "version", None), "hip", None),
+        "cuda": getattr(getattr(torch, "version", None), "cuda", None),
     }
 
 
@@ -139,7 +146,7 @@ def _load_backend(model_key: str, model_path: Path) -> tuple[Any, Any, Any]:
     from transformers import AutoProcessor
 
     if not torch.cuda.is_available():
-        raise RuntimeError("ROCm accelerator is unavailable to PyTorch")
+        raise RuntimeError("CUDA-compatible accelerator is unavailable to PyTorch")
     processor = AutoProcessor.from_pretrained(
         model_path,
         trust_remote_code=model_key == "phi4mm",
@@ -267,7 +274,7 @@ def run_probe(
     validate_run_id(run_id)
     spec = MODEL_SPECS[model_key]
     contract = json.loads(contract_path.read_text(encoding="utf-8"))
-    validate_contract(contract, data_root, verify_files=True)
+    validate_inference_evidence(contract, data_root, verify_files=True)
     actual_contract_sha256 = contract_sha256(contract)
     if actual_contract_sha256 != expected_contract_sha256:
         raise ValueError(
