@@ -11,8 +11,8 @@ RUN_ID=${2:-"${MODEL_KEY}-$(date -u +%Y%m%dT%H%M%SZ)"}
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 DATA_ROOT=$(readlink -f "${REPO_ROOT}/data")
 HF_CACHE_ROOT=${HF_HUB_CACHE:-/home/npatta01/.cache/huggingface/hub}
-RUNTIME_IMAGE_DIGEST=sha256:5bbd6f039622f70ad53d62395f189b07dc8fe28e2336c8aa462081abee9b7aaa
-RUNTIME_IMAGE=localhost/trec-vqa-gate-gemma@sha256:5bbd6f039622f70ad53d62395f189b07dc8fe28e2336c8aa462081abee9b7aaa
+RUNTIME_IMAGE_DIGEST=sha256:cbda16214c953bcd2bd2a7bf65d26561ac406b0f1fbab2f719b25baab1d757f4
+RUNTIME_IMAGE=localhost/trec-vqa-omni-rocm@sha256:cbda16214c953bcd2bd2a7bf65d26561ac406b0f1fbab2f719b25baab1d757f4
 CONTRACT_REL=vqa/benchmarks/omni-compatibility-3/contract.json
 
 if [[ "${DATA_ROOT}" != "/home/npatta01/data/competitions/trec_video_2026/data" ]]; then
