@@ -58,7 +58,14 @@ screening rule for a tiny diagnostic panel, not a leaderboard estimate.
 - [x] CUDA Phi artifacts downloaded and checksum-verified
 - [x] Final matched comparison and promote/stop decision recorded
 - [x] Fresh verification and independent review
-- [ ] Draft PR and issue update
+- [x] Draft PR and issue update
+
+## Publication
+
+- Blocked draft PR:
+  <https://github.com/npatta01/trec_video_2026/pull/15>
+- Issue #12 update:
+  <https://github.com/npatta01/trec_video_2026/issues/12#issuecomment-5074164932>
 
 ## Execution history
 
@@ -79,8 +86,7 @@ billed cost was `$0.1571`.
 
 ## Next action
 
-Open a blocked draft PR with the semantic stop decision and request explicit
-authorization before a fourth paid attempt. If authorized, audit the pinned
-model's dependency closure, pin SciPy, add a local model-load regression check,
-and preview a new immutable `a4` run under the same caps. Expansion remains
-stopped because Gemma already failed the frozen gate.
+Wait for explicit authorization before a fourth paid attempt. If authorized,
+audit the pinned model's dependency closure, pin SciPy, add a local model-load
+regression check, and preview a new immutable `a4` run under the same caps.
+Expansion remains stopped because Gemma already failed the frozen gate.
