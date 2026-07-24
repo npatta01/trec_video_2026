@@ -26,10 +26,7 @@ def attach_request_identity(
 
     return {
         **result,
-        **{
-            field: request[field]
-            for field in ("run_id", "condition_id", "video_id")
-        },
+        **{field: request[field] for field in ("run_id", "condition_id", "video_id")},
     }
 
 
@@ -152,6 +149,21 @@ def select_auto_model_class(
     raise ValueError(f"Unsupported model class: {kind}")
 
 
+def validate_rocm_bfloat16(model: Any, torch_module: Any) -> tuple[str, str]:
+    """Attest the live PyTorch runtime and loaded model parameters."""
+
+    if not torch_module.cuda.is_available():
+        raise RuntimeError("CUDA-compatible accelerator is unavailable")
+    if not getattr(torch_module.version, "hip", None):
+        raise RuntimeError("PyTorch runtime is not ROCm-enabled")
+    parameter = next(model.parameters())
+    if parameter.device.type != "cuda":
+        raise RuntimeError("Loaded model is not on a CUDA-compatible accelerator")
+    if parameter.dtype != torch_module.bfloat16:
+        raise RuntimeError("Loaded model parameters are not bfloat16")
+    return f"{parameter.device} (ROCm)", "bfloat16"
+
+
 def generate_answer(
     *,
     processor: Any,
@@ -226,6 +238,8 @@ def main(argv: list[str] | None = None) -> int:
         register_legacy_default_rope(ROPE_INIT_FUNCTIONS)
     load_started = time.monotonic()
     torch.cuda.reset_peak_memory_stats()
+    device = "unverified"
+    precision = "unverified"
     try:
         processor = load_processor(AutoProcessor, model_id, revision)
         if args.model_class == "image-text":
@@ -244,6 +258,7 @@ def main(argv: list[str] | None = None) -> int:
             device_map="cuda:0",
             attn_implementation="sdpa",
         )
+        device, precision = validate_rocm_bfloat16(model, torch)
         load_seconds = time.monotonic() - load_started
         results = []
         for request in requests:
@@ -272,6 +287,8 @@ def main(argv: list[str] | None = None) -> int:
                     revision=revision,
                     runtime=f"transformers {transformers.__version__}; torch {torch.__version__}",
                     peak_memory=torch.cuda.max_memory_allocated(),
+                    device=device,
+                    precision=precision,
                 )
             except Exception as error:
                 result = _error_result(
@@ -281,6 +298,8 @@ def main(argv: list[str] | None = None) -> int:
                     revision=revision,
                     runtime=f"transformers {transformers.__version__}; torch {torch.__version__}",
                     peak_memory=torch.cuda.max_memory_allocated(),
+                    device=device,
+                    precision=precision,
                 )
             result["model_load_seconds"] = load_seconds
             results.append(attach_request_identity(result, request))
@@ -294,6 +313,8 @@ def main(argv: list[str] | None = None) -> int:
                     revision=revision,
                     runtime=f"transformers {transformers.__version__}; torch {torch.__version__}",
                     peak_memory=torch.cuda.max_memory_allocated(),
+                    device=device,
+                    precision=precision,
                 ),
                 request,
             )
@@ -311,13 +332,19 @@ def _error_result(
     revision: str,
     runtime: str,
     peak_memory: int,
+    device: str,
+    precision: str,
 ) -> dict[str, Any]:
     error_name = type(error).__name__
-    unsupported = error_name in {
-        "NotImplementedError",
-        "UnsupportedError",
-        "HIPError",
-    } or "not implemented for" in str(error).lower()
+    unsupported = (
+        error_name
+        in {
+            "NotImplementedError",
+            "UnsupportedError",
+            "HIPError",
+        }
+        or "not implemented for" in str(error).lower()
+    )
     return _result(
         status="unsupported" if unsupported else "failed",
         answer=None,
@@ -326,6 +353,8 @@ def _error_result(
         revision=revision,
         runtime=runtime,
         peak_memory=peak_memory,
+        device=device,
+        precision=precision,
         error=error,
     )
 
@@ -339,6 +368,8 @@ def _result(
     revision: str,
     runtime: str,
     peak_memory: int,
+    device: str,
+    precision: str,
     error: Exception | None = None,
 ) -> dict[str, Any]:
     message = str(error) if error else None
@@ -352,8 +383,8 @@ def _result(
         "model_revision": revision,
         "runtime": runtime,
         "runtime_image": os.environ.get("VQA_RUNTIME_IMAGE"),
-        "precision": "bfloat16",
-        "device": "cuda:0 (ROCm)",
+        "precision": precision,
+        "device": device,
         "peak_memory_bytes": peak_memory,
         "error_type": type(error).__name__ if error else None,
         "error_message": message,

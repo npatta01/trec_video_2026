@@ -130,6 +130,8 @@ def build_rocm_runner_command(
         path.resolve(strict=True) for path in (repo_root, dataset_root, hf_cache_root)
     )
     repo, dataset, cache = roots
+    media_root = (dataset / "vqa/2025/training/videos_original").resolve()
+    benchmark_root = (dataset / "vqa/benchmarks").resolve()
     runtime_image = condition.runtime_image or image
     command = [
         "podman",
@@ -146,7 +148,9 @@ def build_rocm_runner_command(
         "-v",
         f"{repo}:{repo}:ro",
         "-v",
-        f"{dataset}:{dataset}:ro",
+        f"{media_root}:{media_root}:ro",
+        "-v",
+        f"{benchmark_root}:{benchmark_root}:ro",
         "-v",
         f"{cache}:/root/.cache/huggingface:rw",
         "-w",

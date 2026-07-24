@@ -5,13 +5,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import secrets
 import subprocess
 import tempfile
+import time
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
-from statistics import fmean
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from trec_video_2026.vqa_benchmark import (
     EvidenceParameters,
@@ -55,9 +56,11 @@ from trec_video_2026.vqa_gate import (
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data"
-RUN = DATA / "vqa/benchmarks/runs/native-audio-benchmark-v1"
+RUN_ID = "native-audio-benchmark-v1"
+RUN = DATA / "vqa/benchmarks/runs" / RUN_ID
 EVIDENCE = DATA / "vqa/benchmarks/evidence"
-MANIFEST_PATH = ROOT / "configs/vqa/native_audio_benchmark_30.json"
+MANIFEST_PATH = ROOT / "configs/vqa/native_audio_benchmark_30_inference.json"
+REFERENCE_MANIFEST_PATH = ROOT / "configs/vqa/native_audio_benchmark_30.json"
 MODEL_CONFIG = ROOT / "configs/vqa/model_runs.json"
 PROMOTION_CONFIG = ROOT / "configs/vqa/native_audio_frozen30_promotions.json"
 HF_CACHE = Path("/home/npatta01/.cache/huggingface")
@@ -78,9 +81,27 @@ MAX_CONDITION_SECONDS = 45 * 60
 MAX_PEAK_BYTES = 32 * 1024**3
 
 
+def configure_run(run_id: str) -> None:
+    """Select an explicit immutable run namespace."""
+
+    if run_id not in {"native-audio-benchmark-v1", "native-audio-benchmark-v2"}:
+        raise ValueError("Unsupported frozen benchmark run ID")
+    global RUN_ID, RUN, ATTEMPTS, DECISIONS, ASR_ATTEMPTS
+    RUN_ID = run_id
+    RUN = DATA / "vqa/benchmarks/runs" / run_id
+    ATTEMPTS = RUN / "attempts.jsonl"
+    DECISIONS = RUN / "promotion-decisions.jsonl"
+    ASR_ATTEMPTS = RUN / "whisper-attempts.jsonl"
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Prepare, run, resume, and score the frozen 30 benchmark"
+    )
+    parser.add_argument(
+        "--run-id",
+        choices=("native-audio-benchmark-v1", "native-audio-benchmark-v2"),
+        default="native-audio-benchmark-v1",
     )
     subparsers = parser.add_subparsers(dest="action", required=True)
     subparsers.add_parser("prepare", help="CPU-only evidence/request preflight")
@@ -117,6 +138,96 @@ def _sha256(path: Path) -> str:
     return source_fingerprint(path).sha256
 
 
+def current_evidence_manifest_sha256(
+    requests: Sequence[Mapping[str, Any]],
+    *,
+    supplementary_sha256: str | None = None,
+) -> str:
+    """Recompute the complete ordered request/file evidence identity."""
+
+    evidence = [
+        {
+            "video_id": request.get("video_id"),
+            "request_sha256": canonical_request_sha256(request),
+            "evidence_identity_sha256": evidence_identity_sha256(request),
+        }
+        for request in requests
+    ]
+    return canonical_request_sha256(
+        {
+            "schema_version": 2,
+            "evidence": evidence,
+            "supplementary_sha256": supplementary_sha256,
+        }
+    )
+
+
+def audit_no_competing_benchmark_containers(
+    *,
+    run_command: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> None:
+    """Fail closed if another Podman VQA/GPU benchmark container is running."""
+
+    completed = run_command(
+        ["podman", "ps", "--format", "json"],
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError("Podman competing-process audit could not be completed")
+    try:
+        containers = json.loads(completed.stdout or "[]")
+    except json.JSONDecodeError as error:
+        raise RuntimeError(
+            "Podman competing-process audit returned invalid JSON"
+        ) from error
+    if not isinstance(containers, list):
+        raise RuntimeError("Podman competing-process audit returned invalid data")
+    competitors = []
+    for container in containers:
+        if not isinstance(container, Mapping):
+            raise RuntimeError("Podman competing-process audit returned invalid data")
+        names = container.get("Names", container.get("names", []))
+        if isinstance(names, str):
+            names = [names]
+        command = str(container.get("Command", container.get("command", "")))
+        if any(str(name).startswith("trec-vqa-") for name in names) or (
+            "trec_video_2026.vqa_" in command
+        ):
+            competitors.extend(str(name) for name in names)
+    if competitors:
+        raise RuntimeError(
+            "Refusing to overlap a competing benchmark container: "
+            + ", ".join(competitors)
+        )
+
+
+def measured_condition_wall_seconds(
+    attempts: Sequence[Mapping[str, Any]],
+) -> float:
+    """Sum one persisted outer-wall measurement per orchestration chunk."""
+
+    if not attempts:
+        return 0.0
+    chunks: dict[str, float] = {}
+    for row in attempts:
+        chunk_id = row.get("orchestration_chunk_id")
+        elapsed = row.get("outer_chunk_elapsed_seconds")
+        if (
+            not isinstance(chunk_id, str)
+            or not chunk_id
+            or not isinstance(elapsed, (int, float))
+            or elapsed < 0
+        ):
+            raise ValueError("Condition outer wall time is unmeasurable")
+        previous = chunks.setdefault(chunk_id, float(elapsed))
+        if previous != float(elapsed):
+            raise ValueError("Condition outer wall measurements conflict")
+    return sum(chunks.values())
+
+
 def attach_expected_runtime_image(
     result: Mapping[str, Any], expected_runtime_image: str
 ) -> dict[str, Any]:
@@ -145,7 +256,7 @@ def audit_whisper_requests(
         if set(row) != allowed:
             raise ValueError("Whisper request contains an unrecognized or label field")
         if (
-            row["run_id"] != "native-audio-benchmark-v1"
+            row["run_id"] != RUN_ID
             or row["condition_id"] != ASR_CONDITION
             or not isinstance(row["audio_path"], str)
         ):
@@ -339,7 +450,6 @@ def prepare() -> None:
         base = conditions[specification["base_condition_id"]]
         condition = replace(base, condition_id=specification["condition_id"])
         requests = []
-        condition_evidence = []
         for example in manifest.examples:
             frame_count = int(specification["frame_count"])
             evidence = build_frame_evidence(
@@ -362,7 +472,7 @@ def prepare() -> None:
             requests.append(
                 build_runner_request(
                     condition=condition,
-                    run_id="native-audio-benchmark-v1",
+                    run_id=RUN_ID,
                     video_id=example.video_id,
                     question=example.question,
                     frame_paths=tuple(frame.path for frame in evidence.frames),
@@ -371,15 +481,12 @@ def prepare() -> None:
                     media_path=example.media_path,
                 ).to_dict()
             )
-            condition_evidence.append(evidence_rows[(example.video_id, frame_count)])
         audit = audit_frozen_requests(
             requests,
             expected_video_ids=_expected_ids(),
             condition_id=condition.condition_id,
         )
-        audit["evidence_manifest_sha256"] = canonical_request_sha256(
-            {"evidence": condition_evidence}
-        )
+        audit["evidence_manifest_sha256"] = current_evidence_manifest_sha256(requests)
         _atomic_write(
             _request_path(condition.condition_id),
             json.dumps(requests, ensure_ascii=False, indent=2) + "\n",
@@ -394,7 +501,7 @@ def prepare() -> None:
         audio_fingerprint = source_fingerprint(audio_path)
         asr_requests.append(
             {
-                "run_id": "native-audio-benchmark-v1",
+                "run_id": RUN_ID,
                 "condition_id": ASR_CONDITION,
                 "video_id": example.video_id,
                 "audio_path": str(audio_path.resolve()),
@@ -419,7 +526,9 @@ def prepare() -> None:
         expected_sha256=whisper_request_set_sha256,
     )
     preflight = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "run_id": RUN_ID,
+        "inference_manifest_sha256": _sha256(MANIFEST_PATH),
         "manifest_version": manifest.manifest_version,
         "gate_selection_sha256": manifest.gate_selection_sha256,
         "ordered_video_ids": list(_expected_ids()),
@@ -467,6 +576,11 @@ def _asr_valid(request: Mapping[str, Any], row: Mapping[str, Any]) -> bool:
         and isinstance(row.get("quality"), Mapping)
         and isinstance(row.get("peak_memory_bytes"), int)
         and row["peak_memory_bytes"] >= 0
+        and isinstance(row.get("orchestration_chunk_id"), str)
+        and isinstance(row.get("outer_chunk_elapsed_seconds"), (int, float))
+        and row["outer_chunk_elapsed_seconds"] >= 0
+        and isinstance(row.get("outer_condition_elapsed_seconds"), (int, float))
+        and row["outer_condition_elapsed_seconds"] >= row["outer_chunk_elapsed_seconds"]
         and saved_request_matches(row, request)
         and row.get("error_type") is None
         and row.get("error_message") is None
@@ -476,7 +590,8 @@ def _asr_valid(request: Mapping[str, Any], row: Mapping[str, Any]) -> bool:
 def _whisper_command() -> list[str]:
     image = _json(RUN / "preflight.json")["whisper"]["runtime_image"]
     root = ROOT.resolve()
-    data = DATA.resolve()
+    media = (DATA / "vqa/2025/training/videos_original").resolve(strict=True)
+    benchmarks = (DATA / "vqa/benchmarks").resolve(strict=True)
     return [
         "podman",
         "run",
@@ -492,7 +607,9 @@ def _whisper_command() -> list[str]:
         "-v",
         f"{root}:{root}:ro",
         "-v",
-        f"{data}:{data}:ro",
+        f"{media}:{media}:ro",
+        "-v",
+        f"{benchmarks}:{benchmarks}:ro",
         "-v",
         f"{HF_CACHE}:/root/.cache/huggingface:rw",
         "-w",
@@ -517,6 +634,7 @@ def _whisper_command() -> list[str]:
 
 
 def run_whisper() -> None:
+    audit_no_competing_benchmark_containers()
     requests = _json(RUN / "whisper-requests.json")
     preflight = _json(RUN / "preflight.json")["whisper"]
     audit_whisper_requests(
@@ -527,6 +645,7 @@ def run_whisper() -> None:
     if _sha256(RUN / "whisper-requests.json") != preflight["requests_file_sha256"]:
         raise ValueError("Whisper request file does not match preflight SHA-256")
     attempts = _jsonl(ASR_ATTEMPTS)
+    prior_outer_seconds = measured_condition_wall_seconds(attempts)
     for request in requests:
         if any(
             row.get("status") == "passed"
@@ -542,9 +661,14 @@ def run_whisper() -> None:
     ]
     with SerialBenchmarkLock(RUN / "serial.lock", condition_id=ASR_CONDITION):
         for request in pending:
+            audit_no_competing_benchmark_containers()
             invocation, container_name = _prepare_invocation(
                 _whisper_command(), [request]
             )
+            chunk_id = container_name or (
+                f"whisper-{request['video_id']}-{secrets.token_hex(6)}"
+            )
+            outer_started = time.monotonic()
             try:
                 completed = subprocess.run(
                     invocation,
@@ -576,24 +700,49 @@ def run_whisper() -> None:
                     cleanup,
                 )
             else:
-                try:
-                    result = json.loads(completed.stdout)
-                except json.JSONDecodeError:
+                if completed.returncode != 0:
                     result = {
                         "status": "failed",
                         "text": None,
                         "elapsed_seconds": 0.0,
                         "model_id": ASR_MODEL,
                         "model_revision": ASR_REVISION,
-                        "runtime": "protocol",
+                        "runtime": "subprocess",
                         "device": "unknown",
                         "precision": "unknown",
                         "peak_memory_bytes": None,
                         "source_audio_sha256": _sha256(Path(request["audio_path"])),
                         "quality": None,
-                        "error_type": "RunnerProtocolError",
-                        "error_message": (completed.stderr or completed.stdout)[-4000:],
+                        "error_type": "RunnerProcessError",
+                        "error_message": (
+                            completed.stderr
+                            or completed.stdout
+                            or f"Whisper runner exited {completed.returncode}"
+                        )[-4000:],
                     }
+                else:
+                    try:
+                        result = json.loads(completed.stdout)
+                    except json.JSONDecodeError:
+                        result = {
+                            "status": "failed",
+                            "text": None,
+                            "elapsed_seconds": 0.0,
+                            "model_id": ASR_MODEL,
+                            "model_revision": ASR_REVISION,
+                            "runtime": "protocol",
+                            "device": "unknown",
+                            "precision": "unknown",
+                            "peak_memory_bytes": None,
+                            "source_audio_sha256": _sha256(Path(request["audio_path"])),
+                            "quality": None,
+                            "error_type": "RunnerProtocolError",
+                            "error_message": (completed.stderr or completed.stdout)[
+                                -4000:
+                            ],
+                        }
+            outer_elapsed = time.monotonic() - outer_started
+            outer_condition_elapsed = prior_outer_seconds + outer_elapsed
             try:
                 result = attach_expected_runtime_image(
                     result, preflight["runtime_image"]
@@ -613,8 +762,13 @@ def run_whisper() -> None:
                 "video_id": request["video_id"],
                 "request": request,
                 "request_sha256": canonical_request_sha256(request),
+                "orchestration_chunk_id": chunk_id,
+                "outer_chunk_elapsed_seconds": outer_elapsed,
+                "outer_condition_elapsed_seconds": outer_condition_elapsed,
             }
             append_attempt_rows(ASR_ATTEMPTS, [{**row, "answer": row.get("text")}])
+            attempts = _jsonl(ASR_ATTEMPTS)
+            prior_outer_seconds = measured_condition_wall_seconds(attempts)
             if not _asr_valid(request, row):
                 raise RuntimeError(
                     f"Whisper row failed validation: {request['video_id']}"
@@ -630,14 +784,14 @@ def run_whisper() -> None:
                 >= MAX_PEAK_BYTES
             ):
                 raise RuntimeError("Stop rule: Whisper peak reached 32 GiB")
-            if (
-                fmean(saved["elapsed_seconds"] for saved in valid_rows)
-                * EXPECTED_FROZEN_COUNT
-                > MAX_CONDITION_SECONDS
-            ):
+            projected_outer_seconds = (
+                prior_outer_seconds / len(valid_rows) * EXPECTED_FROZEN_COUNT
+            )
+            if projected_outer_seconds > MAX_CONDITION_SECONDS:
                 raise RuntimeError(
                     "Stop rule: projected Whisper duration exceeds 45 min"
                 )
+            audit_no_competing_benchmark_containers()
     print(json.dumps({"launched": len(pending), "skipped": 30 - len(pending)}))
 
 
@@ -701,8 +855,13 @@ def build_transcript_requests() -> None:
         expected_video_ids=_expected_ids(),
         condition_id=TRANSCRIPT_CONDITION,
     )
-    audit["evidence_manifest_sha256"] = canonical_request_sha256(
+    transcript_selection_sha256 = canonical_request_sha256(
         {"transcript_sources": selected_sources}
+    )
+    audit["transcript_selection_sha256"] = transcript_selection_sha256
+    audit["evidence_manifest_sha256"] = current_evidence_manifest_sha256(
+        requests,
+        supplementary_sha256=transcript_selection_sha256,
     )
     _atomic_write(
         _request_path(TRANSCRIPT_CONDITION),
@@ -732,28 +891,43 @@ def _condition_inputs(
     if condition_id not in promoted:
         raise ValueError(f"Condition is not promoted: {condition_id}")
     specification = promoted[condition_id]
+    preflight = _json(RUN / "preflight.json")
+    if (
+        preflight.get("schema_version") != 2
+        or preflight.get("run_id") != RUN_ID
+        or preflight.get("inference_manifest_sha256") != _sha256(MANIFEST_PATH)
+    ):
+        raise ValueError("Frozen run requires a current protocol-v2 preflight")
     requests = _json(_request_path(condition_id))
     audit = audit_frozen_requests(
         requests,
         expected_video_ids=_expected_ids(),
         condition_id=condition_id,
     )
-    preflight_audit = _json(RUN / "preflight.json")["condition_audits"][condition_id]
+    preflight_audit = preflight["condition_audits"][condition_id]
     if audit["request_set_sha256"] != preflight_audit["request_set_sha256"]:
         raise ValueError("Current request set does not match preflight")
     if condition_id == TRANSCRIPT_CONDITION:
         validate_transcript_sources(
             RUN / "transcript-sources.json",
-            expected_artifact_sha256=_json(RUN / "preflight.json")[
-                "transcript_sources_sha256"
-            ],
-            expected_evidence_sha256=preflight_audit["evidence_manifest_sha256"],
+            expected_artifact_sha256=preflight["transcript_sources_sha256"],
+            expected_evidence_sha256=preflight_audit["transcript_selection_sha256"],
         )
+        supplementary_sha256 = preflight_audit["transcript_selection_sha256"]
+    else:
+        supplementary_sha256 = None
+    current_evidence_sha256 = current_evidence_manifest_sha256(
+        requests,
+        supplementary_sha256=supplementary_sha256,
+    )
+    if current_evidence_sha256 != preflight_audit["evidence_manifest_sha256"]:
+        raise ValueError("Current full evidence manifest does not match preflight")
     execution = FrozenExecution(
         condition_id=condition_id,
         model_id=specification["model_id"],
         model_revision=specification["model_revision"],
         runtime_image=specification["runtime_image"],
+        evidence_manifest_sha256=current_evidence_sha256,
     )
     return specification, requests, execution
 
@@ -781,6 +955,9 @@ def _validate_current_decision(
         "model_id": specification["model_id"],
         "model_revision": specification["model_revision"],
         "runtime_image": specification["runtime_image"],
+        "run_id": RUN_ID,
+        "protocol_version": 2,
+        "inference_manifest_sha256": _sha256(MANIFEST_PATH),
     }
     validate_decision_bindings(decision, expected)
 
@@ -860,6 +1037,9 @@ def authorize(condition_id: str) -> None:
             "model_id": specification["model_id"],
             "model_revision": specification["model_revision"],
             "runtime_image": specification["runtime_image"],
+            "run_id": RUN_ID,
+            "protocol_version": 2,
+            "inference_manifest_sha256": _sha256(MANIFEST_PATH),
         },
         attempts_path=ATTEMPTS,
     )
@@ -887,6 +1067,7 @@ def _runner_request(payload: Mapping[str, Any]) -> RunnerRequest:
 
 
 def run_condition(condition_id: str) -> None:
+    audit_no_competing_benchmark_containers()
     specification, requests, execution = _condition_inputs(condition_id)
     all_decisions = _validate_all_current_decisions()
     completed_counts = _completed_counts(all_decisions)
@@ -906,6 +1087,10 @@ def run_condition(condition_id: str) -> None:
     validate_launch_decision(decision)
     launch_sha256 = decision["launch_decision_sha256"]
     attempts = _jsonl(ATTEMPTS)
+    prior_condition_rows = [
+        row for row in attempts if row.get("condition_id") == condition_id
+    ]
+    prior_outer_seconds = measured_condition_wall_seconds(prior_condition_rows)
     for request in requests:
         for attempt in attempts:
             if (
@@ -947,14 +1132,19 @@ def run_condition(condition_id: str) -> None:
         offset = 0
         current = completed_before
         for target in targets:
+            audit_no_competing_benchmark_containers()
             chunk_size = target - current
             chunk = pending[offset : offset + chunk_size]
             offset += chunk_size
+            chunk_id = f"{RUN_ID}-{condition_id}-{target}-{secrets.token_hex(6)}"
+            outer_started = time.monotonic()
             results = invoke_runner_batch(
                 command,
                 [_runner_request(request) for request in chunk],
                 timeout_seconds=1800,
             )
+            outer_elapsed = time.monotonic() - outer_started
+            outer_condition_elapsed = prior_outer_seconds + outer_elapsed
             rows = [
                 {
                     **result,
@@ -966,10 +1156,14 @@ def run_condition(condition_id: str) -> None:
                     "launch_decision_sha256": launch_sha256,
                     "evidence_identity_sha256": evidence_identity_sha256(request),
                     "evidence_manifest_sha256": evidence_manifest_sha256,
+                    "orchestration_chunk_id": chunk_id,
+                    "outer_chunk_elapsed_seconds": outer_elapsed,
+                    "outer_condition_elapsed_seconds": outer_condition_elapsed,
                 }
                 for request, result in zip(chunk, results, strict=True)
             ]
             append_attempt_rows(ATTEMPTS, rows)
+            audit_no_competing_benchmark_containers()
             if any(
                 not validate_frozen_attempt(
                     request,
@@ -1000,18 +1194,15 @@ def run_condition(condition_id: str) -> None:
                 for row in condition_rows
                 if isinstance(row.get("peak_memory_bytes"), int)
             ]
-            elapsed = [
-                row["elapsed_seconds"]
-                for row in condition_rows
-                if row.get("status") == "passed"
-                and isinstance(row.get("elapsed_seconds"), (int, float))
-            ]
+            prior_outer_seconds = measured_condition_wall_seconds(condition_rows)
             if peaks and max(peaks) >= MAX_PEAK_BYTES:
                 raise RuntimeError("Stop rule: peak allocation reached 32 GiB")
-            if (
-                elapsed
-                and fmean(elapsed) * EXPECTED_FROZEN_COUNT > MAX_CONDITION_SECONDS
-            ):
+            projected_outer_seconds = (
+                prior_outer_seconds / valid_count * EXPECTED_FROZEN_COUNT
+                if valid_count
+                else float("inf")
+            )
+            if projected_outer_seconds > MAX_CONDITION_SECONDS:
                 raise RuntimeError("Stop rule: projected condition time exceeds 45 min")
             if valid_count != target:
                 raise RuntimeError("Stop rule: checkpoint row count is incomplete")
@@ -1022,6 +1213,8 @@ def run_condition(condition_id: str) -> None:
                         "condition_id": condition_id,
                         "checkpoint_valid_rows": valid_count,
                         "attempted_video_ids": attempted,
+                        "outer_condition_elapsed_seconds": prior_outer_seconds,
+                        "projected_outer_condition_seconds": projected_outer_seconds,
                     }
                 )
             )
@@ -1029,6 +1222,7 @@ def run_condition(condition_id: str) -> None:
 
 
 def score() -> None:
+    import nltk
     from nltk import word_tokenize
     from nltk.translate.meteor_score import meteor_score
 
@@ -1059,7 +1253,7 @@ def score() -> None:
 
     # Evaluation-only boundary: labels are loaded only after the selected,
     # label-free prediction artifact and checksum record both exist.
-    manifest = load_manifest(MANIFEST_PATH, DATA)
+    manifest = load_manifest(REFERENCE_MANIFEST_PATH, DATA)
     references = {
         item.video_id: item.reference_answer for item in load_references(manifest)
     }
@@ -1105,6 +1299,20 @@ def score() -> None:
             "expected_rows": EXPECTED_FROZEN_COUNT * len(promoted),
             "manifest_version": manifest.manifest_version,
             "gate_selection_sha256": manifest.gate_selection_sha256,
+            "scorer_runtime": {
+                "nltk_version": nltk.__version__,
+                "punkt_tab_english_tree_sha256": (
+                    "6073f4561d752e90f3b02bbb80a955100eb90b7f62c5fcfe17c86e8030909522"
+                ),
+                "wordnet_zip_sha256": (
+                    "6c4365b1018d44f39b284f9a5e44766548b18db9c436c9cfc1b7116230e35711"
+                ),
+                "runtime_image": os.environ.get("VQA_RUNTIME_IMAGE"),
+                "expected_runtime_image": (
+                    "localhost/trec-vqa-gate-qwen-omni@sha256:"
+                    "effff2801d7677aa4894a641adc5793d6e5072a8cec71817bf925574862c88de"
+                ),
+            },
         },
         **evaluation,
         "paired_comparisons": comparisons,
@@ -1118,12 +1326,22 @@ def score() -> None:
 
 def status() -> None:
     attempts = _jsonl(ATTEMPTS)
-    decisions = _validate_all_current_decisions()
+    protocol_error = None
+    try:
+        decisions = _validate_all_current_decisions()
+    except (KeyError, OSError, TypeError, ValueError) as error:
+        if RUN_ID != "native-audio-benchmark-v1":
+            raise
+        decisions = _jsonl(DECISIONS)
+        protocol_error = str(error)
     _, promoted = _promotions()
     payload = {
         "run_dir": str(RUN),
         "prepared": (RUN / "preflight.json").exists(),
         "whisper_valid_rows": 0,
+        "protocol_valid": protocol_error is None,
+        "protocol_error": protocol_error,
+        "historical_attempt_rows": len(attempts),
         "conditions": {},
     }
     if (RUN / "whisper-requests.json").exists():
@@ -1138,7 +1356,7 @@ def status() -> None:
             None,
         )
         valid = 0
-        if request_path.exists() and decision is not None:
+        if protocol_error is None and request_path.exists() and decision is not None:
             _, requests, execution = _condition_inputs(condition_id)
             valid = EXPECTED_FROZEN_COUNT - len(
                 pending_frozen_requests(
@@ -1159,6 +1377,7 @@ def status() -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    configure_run(args.run_id)
     if args.action == "prepare":
         prepare()
     elif args.action == "status":

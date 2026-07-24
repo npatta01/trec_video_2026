@@ -187,6 +187,39 @@ def test_manifest_loading_does_not_require_reference_values(tmp_path: Path):
         vqa_benchmark.load_references(manifest)
 
 
+def test_inference_manifest_loads_without_opening_annotation_files(
+    tmp_path: Path,
+) -> None:
+    dataset_root = tmp_path / "data"
+    media = dataset_root / "videos/example.mkv"
+    media.parent.mkdir(parents=True)
+    media.write_bytes(b"media")
+    manifest_path = tmp_path / "inference.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "gate_id": "gate",
+                "examples": [
+                    {
+                        "video_id": "example",
+                        "category": "activity",
+                        "question": "What happens?",
+                        "media": "videos/example.mkv",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    manifest = vqa_benchmark.load_manifest(manifest_path, dataset_root)
+
+    assert manifest.examples[0].annotation_path is None
+    with pytest.raises(ValueError, match="reference manifest"):
+        vqa_benchmark.load_references(manifest)
+
+
 def test_native_audio_gate_selection_hash_is_deterministic():
     manifest = load_manifest(NATIVE_AUDIO_CONFIG, DATASET_ROOT)
 
@@ -233,20 +266,28 @@ def test_native_audio_resolved_manifest_records_media_provenance():
     assert all(item["media"]["duration_seconds"] > 0 for item in resolved["examples"])
     assert all(item["media"]["has_video"] for item in resolved["examples"])
     assert all(item["media"]["has_audio"] for item in resolved["examples"])
-    assert all("video" in item["media"]["stream_types"] for item in resolved["examples"])
-    assert all("audio" in item["media"]["stream_types"] for item in resolved["examples"])
+    assert all(
+        "video" in item["media"]["stream_types"] for item in resolved["examples"]
+    )
+    assert all(
+        "audio" in item["media"]["stream_types"] for item in resolved["examples"]
+    )
     assert all(item["media"]["streams"] for item in resolved["examples"])
     six_channel = next(
         item for item in resolved["examples"] if item["video_id"] == "EtNOkUJd5w8"
     )
-    assert {
-        stream["codec_name"] for stream in six_channel["media"]["streams"]
-    } == {"vp9", "aac"}
-    assert next(
-        stream["channels"]
-        for stream in six_channel["media"]["streams"]
-        if stream["codec_type"] == "audio"
-    ) == 6
+    assert {stream["codec_name"] for stream in six_channel["media"]["streams"]} == {
+        "vp9",
+        "aac",
+    }
+    assert (
+        next(
+            stream["channels"]
+            for stream in six_channel["media"]["streams"]
+            if stream["codec_type"] == "audio"
+        )
+        == 6
+    )
 
 
 def test_resolved_manifest_rejects_destinations_outside_ignored_benchmark_data(
@@ -286,9 +327,7 @@ def test_inference_records_do_not_contain_reference_answers():
     manifest = load_manifest(GATE_CONFIG, DATASET_ROOT)
 
     inference = [asdict(record) for record in manifest.inference_examples]
-    references = [
-        asdict(record) for record in vqa_benchmark.load_references(manifest)
-    ]
+    references = [asdict(record) for record in vqa_benchmark.load_references(manifest)]
 
     assert all("reference" not in key for row in inference for key in row)
     assert all("answer" not in key for row in inference for key in row)
@@ -324,7 +363,9 @@ def test_fixed_media_has_video_and_audio_streams(video_id: str):
 
 
 def test_bin_midpoint_timestamps_cover_twelve_equal_bins():
-    assert bin_midpoint_timestamps(24.0) == tuple(float(value) for value in range(1, 24, 2))
+    assert bin_midpoint_timestamps(24.0) == tuple(
+        float(value) for value in range(1, 24, 2)
+    )
     assert bin_midpoint_timestamps(1.0, count=4) == (0.125, 0.375, 0.625, 0.875)
 
 
@@ -335,7 +376,10 @@ def test_source_fingerprint_changes_with_media_content(tmp_path: Path):
     media.write_bytes(b"second")
 
     assert source_fingerprint(media) != first
-    assert first.sha256 == "a7937b64b8caa58f03721bb6bacf5c78cb235febe0e70b1b84cd99541461a08e"
+    assert (
+        first.sha256
+        == "a7937b64b8caa58f03721bb6bacf5c78cb235febe0e70b1b84cd99541461a08e"
+    )
     assert first.size_bytes == 5
 
 

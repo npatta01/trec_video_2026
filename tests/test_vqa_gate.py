@@ -550,8 +550,13 @@ def test_rocm_command_mounts_only_required_roots(tmp_path: Path) -> None:
     repo_root = tmp_path / "repo"
     dataset_root = tmp_path / "dataset"
     cache_root = tmp_path / "cache"
-    for path in (repo_root, dataset_root, cache_root):
-        path.mkdir()
+    for path in (
+        repo_root,
+        dataset_root / "vqa/2025/training/videos_original",
+        dataset_root / "vqa/benchmarks",
+        cache_root,
+    ):
+        path.mkdir(parents=True)
     condition = Condition(
         condition_id="qwen",
         model_id="Qwen/example",
@@ -574,10 +579,12 @@ def test_rocm_command_mounts_only_required_roots(tmp_path: Path) -> None:
     assert "TRANSFORMERS_OFFLINE=1" in command
     assert "/dev/kfd" in joined and "/dev/dri" in joined
     assert str(repo_root.resolve()) + ":" + str(repo_root.resolve()) + ":ro" in command
-    assert (
-        str(dataset_root.resolve()) + ":" + str(dataset_root.resolve()) + ":ro"
-        in command
-    )
+    assert f"{dataset_root.resolve()}:{dataset_root.resolve()}:ro" not in command
+    assert all("annotations" not in item for item in command)
+    media_root = (dataset_root / "vqa/2025/training/videos_original").resolve()
+    benchmark_root = (dataset_root / "vqa/benchmarks").resolve()
+    assert f"{media_root}:{media_root}:ro" in command
+    assert f"{benchmark_root}:{benchmark_root}:ro" in command
     assert "/home/npatta01:/home/npatta01" not in joined
     assert condition.model_revision in command
     assert command[-1] == "32"

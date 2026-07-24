@@ -38,6 +38,7 @@ class FrozenExecution:
     model_id: str
     model_revision: str
     runtime_image: str
+    evidence_manifest_sha256: str
     device: str = "cuda:0 (ROCm)"
     precision: str = "bfloat16"
 
@@ -47,6 +48,7 @@ class FrozenExecution:
             "model_id",
             "model_revision",
             "runtime_image",
+            "evidence_manifest_sha256",
             "device",
             "precision",
         ):
@@ -354,6 +356,8 @@ def validate_frozen_attempt(
         and saved_request_matches(attempt, request)
         and attempt.get("launch_decision_sha256") == launch_decision_sha256
         and attempt.get("evidence_identity_sha256") == current_evidence
+        and attempt.get("evidence_manifest_sha256")
+        == execution.evidence_manifest_sha256
         and attempt.get("model_id") == execution.model_id
         and attempt.get("model_revision") == execution.model_revision
         and attempt.get("runtime_image") == execution.runtime_image
@@ -363,6 +367,13 @@ def validate_frozen_attempt(
         and attempt["elapsed_seconds"] >= 0
         and isinstance(attempt.get("peak_memory_bytes"), int)
         and attempt["peak_memory_bytes"] >= 0
+        and isinstance(attempt.get("orchestration_chunk_id"), str)
+        and bool(attempt["orchestration_chunk_id"])
+        and isinstance(attempt.get("outer_chunk_elapsed_seconds"), (int, float))
+        and attempt["outer_chunk_elapsed_seconds"] >= 0
+        and isinstance(attempt.get("outer_condition_elapsed_seconds"), (int, float))
+        and attempt["outer_condition_elapsed_seconds"]
+        >= attempt["outer_chunk_elapsed_seconds"]
         and attempt.get("error_type") is None
         and attempt.get("error_message") is None
     )

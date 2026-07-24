@@ -37,7 +37,7 @@ class ManifestExample:
     category: str
     question: str
     media_path: Path
-    annotation_path: Path
+    annotation_path: Path | None
     is_gate: bool = False
 
     @property
@@ -213,22 +213,29 @@ def load_manifest(config_path: Path, dataset_root: Path) -> BenchmarkManifest:
         if video_id in seen:
             raise ValueError(f"Duplicate video ID: {video_id}")
         seen.add(video_id)
-        annotation_path = _resolved_child(
-            dataset_root, _required_text(raw, "annotation"), "Annotation"
-        )
         media_path = _resolved_media(dataset_root, _required_text(raw, "media"))
-        annotation = json.loads(annotation_path.read_text(encoding="utf-8"))
-        if annotation.get("video_url", "").rsplit("=", 1)[-1] != video_id:
-            raise ValueError(f"Annotation video ID does not match {video_id}")
-        question = raw.get("question")
-        if question is None:
-            question = _required_text(annotation, "question")
-        else:
+        annotation_relative = raw.get("annotation")
+        if annotation_relative is None:
+            annotation_path = None
             question = _required_text(raw, "question")
-            if question != _required_text(annotation, "question"):
-                raise ValueError(
-                    f"Frozen question does not match annotation for {video_id}"
-                )
+        else:
+            if not isinstance(annotation_relative, str):
+                raise ValueError("annotation must be a string when present")
+            annotation_path = _resolved_child(
+                dataset_root, annotation_relative, "Annotation"
+            )
+            annotation = json.loads(annotation_path.read_text(encoding="utf-8"))
+            if annotation.get("video_url", "").rsplit("=", 1)[-1] != video_id:
+                raise ValueError(f"Annotation video ID does not match {video_id}")
+            question = raw.get("question")
+            if question is None:
+                question = _required_text(annotation, "question")
+            else:
+                question = _required_text(raw, "question")
+                if question != _required_text(annotation, "question"):
+                    raise ValueError(
+                        f"Frozen question does not match annotation for {video_id}"
+                    )
         examples.append(
             ManifestExample(
                 video_id=video_id,
@@ -276,6 +283,10 @@ def load_references(manifest: BenchmarkManifest) -> tuple[ReferenceAnswer, ...]:
     """Load evaluation labels explicitly, outside inference manifest loading."""
     references = []
     for example in manifest.examples:
+        if example.annotation_path is None:
+            raise ValueError(
+                "Labels require a separate reference manifest with annotations"
+            )
         annotation = json.loads(example.annotation_path.read_text(encoding="utf-8"))
         references.append(
             ReferenceAnswer(
@@ -309,12 +320,13 @@ def write_resolved_manifest(manifest: BenchmarkManifest, destination: Path) -> N
                 "category": example.category,
                 "question": example.question,
                 "is_gate": example.is_gate,
-                "annotation_path": str(example.annotation_path),
                 "media_path": str(example.media_path),
                 "source": asdict(source_fingerprint(example.media_path)),
                 "media": asdict(metadata),
             }
         )
+        if example.annotation_path is not None:
+            examples[-1]["annotation_path"] = str(example.annotation_path)
     payload = {
         "schema_version": manifest.schema_version,
         "manifest_version": manifest.manifest_version,
@@ -400,7 +412,9 @@ def probe_media(path: Path, runner=subprocess.run) -> MediaMetadata:
     )
 
 
-def bin_midpoint_timestamps(duration_seconds: float, count: int = 12) -> tuple[float, ...]:
+def bin_midpoint_timestamps(
+    duration_seconds: float, count: int = 12
+) -> tuple[float, ...]:
     if duration_seconds <= 0:
         raise ValueError("Duration must be positive")
     if count <= 0:
@@ -432,7 +446,9 @@ def load_cached_evidence(cache_dir: Path, expected_key: str) -> EvidenceRecord:
     try:
         payload = json.loads((cache_dir / "evidence.json").read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
-        raise StaleEvidenceError("Cached evidence metadata is missing or invalid") from error
+        raise StaleEvidenceError(
+            "Cached evidence metadata is missing or invalid"
+        ) from error
     if payload.get("cache_key") != expected_key:
         raise StaleEvidenceError("Cached evidence key does not match")
     try:

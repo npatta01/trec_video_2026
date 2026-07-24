@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+import trec_video_2026.vqa_transformers_runner as transformers_runner
 from trec_video_2026.vqa_transformers_runner import (
     MAX_PIXELS_PER_FRAME,
     MIN_PIXELS_PER_FRAME,
@@ -142,9 +145,7 @@ def test_legacy_optional_processor_shim_is_scoped_and_restored() -> None:
         optional_attributes = ["image_use_col_tokens"]
 
         def __init__(self, component, image_use_col_tokens=True):
-            super().__init__(
-                component, image_use_col_tokens=image_use_col_tokens
-            )
+            super().__init__(component, image_use_col_tokens=image_use_col_tokens)
 
     class FakeAutoProcessor:
         @staticmethod
@@ -193,7 +194,9 @@ def test_molmo_generation_receives_initial_cache_positions() -> None:
     marker = object()
 
     result = generation_compat_kwargs(
-        Model(), 17, arange=lambda length, device: calls.append((length, device)) or marker
+        Model(),
+        17,
+        arange=lambda length, device: calls.append((length, device)) or marker,
     )
 
     assert result == {"cache_position": marker}
@@ -202,7 +205,50 @@ def test_molmo_generation_receives_initial_cache_positions() -> None:
 
 def test_select_auto_model_class_supports_gemma_multimodal() -> None:
     assert select_auto_model_class("image-text", "image", "multimodal") == "image"
-    assert (
-        select_auto_model_class("multimodal", "image", "multimodal")
-        == "multimodal"
+    assert select_auto_model_class("multimodal", "image", "multimodal") == "multimodal"
+
+
+def test_qwen_runtime_attestation_uses_loaded_parameter_and_rocm_runtime() -> None:
+    class Device:
+        type = "cuda"
+
+        def __str__(self) -> str:
+            return "cuda:1"
+
+    class Parameter:
+        device = Device()
+        dtype = "bf16"
+
+    class Model:
+        @staticmethod
+        def parameters():
+            return iter([Parameter()])
+
+    class Torch:
+        bfloat16 = "bf16"
+        version = type("Version", (), {"hip": "6.4"})()
+        cuda = type("Cuda", (), {"is_available": staticmethod(lambda: True)})()
+
+    assert transformers_runner.validate_rocm_bfloat16(Model(), Torch()) == (
+        "cuda:1 (ROCm)",
+        "bfloat16",
     )
+
+
+def test_qwen_runtime_attestation_rejects_cuda_build_without_hip() -> None:
+    class Parameter:
+        device = type("Device", (), {"type": "cuda"})()
+        dtype = "bf16"
+
+    class Model:
+        @staticmethod
+        def parameters():
+            return iter([Parameter()])
+
+    class Torch:
+        bfloat16 = "bf16"
+        version = type("Version", (), {"hip": None})()
+        cuda = type("Cuda", (), {"is_available": staticmethod(lambda: True)})()
+
+    with pytest.raises(RuntimeError, match="ROCm"):
+        transformers_runner.validate_rocm_bfloat16(Model(), Torch())

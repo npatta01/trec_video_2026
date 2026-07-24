@@ -62,6 +62,7 @@ def execution() -> FrozenExecution:
         model_id="Qwen/Qwen3.5-4B",
         model_revision="a" * 40,
         runtime_image="local/image@sha256:" + "b" * 64,
+        evidence_manifest_sha256="c" * 64,
         device="cuda:0 (ROCm)",
         precision="bfloat16",
     )
@@ -78,6 +79,7 @@ def passed_attempt(request: dict, launch_sha256: str) -> dict:
         "request_sha256": canonical_request_sha256(request),
         "launch_decision_sha256": launch_sha256,
         "evidence_identity_sha256": evidence_identity_sha256(request),
+        "evidence_manifest_sha256": execution().evidence_manifest_sha256,
         "model_id": execution().model_id,
         "model_revision": execution().model_revision,
         "runtime_image": execution().runtime_image,
@@ -85,6 +87,9 @@ def passed_attempt(request: dict, launch_sha256: str) -> dict:
         "precision": execution().precision,
         "elapsed_seconds": 1.0,
         "peak_memory_bytes": 1,
+        "orchestration_chunk_id": "test-chunk",
+        "outer_chunk_elapsed_seconds": 2.0,
+        "outer_condition_elapsed_seconds": 2.0,
         "runtime": "test",
         "error_type": None,
         "error_message": None,
@@ -547,6 +552,9 @@ def test_whisper_timeout_uses_named_cleanup_and_appends_failure(
     monkeypatch.setattr(frozen_workflow, "ASR_ATTEMPTS", attempts)
     monkeypatch.setattr(frozen_workflow, "_expected_ids", lambda: FROZEN_IDS)
     monkeypatch.setattr(
+        frozen_workflow, "audit_no_competing_benchmark_containers", lambda: None
+    )
+    monkeypatch.setattr(
         frozen_workflow,
         "_whisper_command",
         lambda: ["podman", "run", "--rm", image, "runner"],
@@ -563,3 +571,167 @@ def test_whisper_timeout_uses_named_cleanup_and_appends_failure(
     assert row["container_name"]
     assert row["timeout_cleanup"]["verified"] is True
     assert row["timeout_cleanup"]["container_absent"] is True
+
+
+def test_frozen_workflow_uses_tracked_label_free_manifest() -> None:
+    assert frozen_workflow.MANIFEST_PATH.name.endswith("_inference.json")
+    payload = json.loads(frozen_workflow.MANIFEST_PATH.read_text(encoding="utf-8"))
+    assert all(
+        "annotation" not in row
+        and "reference" not in json.dumps(row).lower()
+        and "correct_answer" not in row
+        for row in payload["examples"]
+    )
+
+
+def test_explicit_v2_run_identity_uses_separate_directory_and_request_id() -> None:
+    frozen_workflow.configure_run("native-audio-benchmark-v2")
+
+    assert frozen_workflow.RUN.name == "native-audio-benchmark-v2"
+    assert frozen_workflow.RUN_ID == "native-audio-benchmark-v2"
+    assert frozen_workflow.ATTEMPTS.parent == frozen_workflow.RUN
+
+    frozen_workflow.configure_run("native-audio-benchmark-v1")
+
+
+def test_full_current_evidence_manifest_changes_with_any_evidence_byte(
+    tmp_path: Path,
+) -> None:
+    requests = [make_request(tmp_path, video_id) for video_id in FROZEN_IDS]
+    before = frozen_workflow.current_evidence_manifest_sha256(requests)
+
+    Path(requests[-1]["media_path"]).write_bytes(b"changed")
+
+    assert frozen_workflow.current_evidence_manifest_sha256(requests) != before
+
+
+def test_reusable_pass_binds_full_evidence_manifest(tmp_path: Path) -> None:
+    request = make_request(tmp_path, FROZEN_IDS[0])
+    launch_sha256 = "d" * 64
+    good = passed_attempt(request, launch_sha256)
+
+    assert validate_frozen_attempt(
+        request,
+        good,
+        execution=execution(),
+        launch_decision_sha256=launch_sha256,
+    )
+    assert not validate_frozen_attempt(
+        request,
+        {**good, "evidence_manifest_sha256": "0" * 64},
+        execution=execution(),
+        launch_decision_sha256=launch_sha256,
+    )
+
+
+def test_competing_podman_benchmark_audit_fails_closed() -> None:
+    completed = subprocess.CompletedProcess(
+        ["podman", "ps"],
+        0,
+        json.dumps(
+            [
+                {
+                    "Names": ["trec-vqa-other"],
+                    "Command": "python -m trec_video_2026.vqa_transformers_runner",
+                }
+            ]
+        ),
+        "",
+    )
+
+    with pytest.raises(RuntimeError, match="competing"):
+        frozen_workflow.audit_no_competing_benchmark_containers(
+            run_command=lambda *_args, **_kwargs: completed
+        )
+    with pytest.raises(RuntimeError, match="audit"):
+        frozen_workflow.audit_no_competing_benchmark_containers(
+            run_command=lambda *_args, **_kwargs: subprocess.CompletedProcess(
+                ["podman", "ps"], 125, "", "unavailable"
+            )
+        )
+
+
+def test_condition_wall_time_requires_measured_unique_outer_chunks() -> None:
+    attempts = [
+        {
+            "orchestration_chunk_id": "chunk-a",
+            "outer_chunk_elapsed_seconds": 10.0,
+        },
+        {
+            "orchestration_chunk_id": "chunk-a",
+            "outer_chunk_elapsed_seconds": 10.0,
+        },
+        {
+            "orchestration_chunk_id": "chunk-b",
+            "outer_chunk_elapsed_seconds": 20.0,
+        },
+    ]
+
+    assert frozen_workflow.measured_condition_wall_seconds(attempts) == 30.0
+    with pytest.raises(ValueError, match="unmeasurable"):
+        frozen_workflow.measured_condition_wall_seconds([{"elapsed_seconds": 1.0}])
+
+
+def test_whisper_nonzero_exit_appends_structured_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run = tmp_path / "run"
+    run.mkdir()
+    audio = run / "audio.wav"
+    audio.write_bytes(b"audio")
+    requests = [
+        {
+            "run_id": "native-audio-benchmark-v1",
+            "condition_id": frozen_workflow.ASR_CONDITION,
+            "video_id": video_id,
+            "audio_path": str(audio),
+        }
+        for video_id in FROZEN_IDS
+    ]
+    request_path = run / "whisper-requests.json"
+    request_path.write_text(json.dumps(requests), encoding="utf-8")
+    image = "local/image@sha256:" + "a" * 64
+    (run / "preflight.json").write_text(
+        json.dumps(
+            {
+                "whisper": {
+                    "runtime_image": image,
+                    "request_set_sha256": canonical_request_sha256(
+                        {"requests": requests}
+                    ),
+                    "requests_file_sha256": __import__("hashlib")
+                    .sha256(request_path.read_bytes())
+                    .hexdigest(),
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    attempts = run / "whisper-attempts.jsonl"
+
+    monkeypatch.setattr(frozen_workflow, "RUN", run)
+    monkeypatch.setattr(frozen_workflow, "ASR_ATTEMPTS", attempts)
+    monkeypatch.setattr(frozen_workflow, "_expected_ids", lambda: FROZEN_IDS)
+    monkeypatch.setattr(
+        frozen_workflow, "audit_no_competing_benchmark_containers", lambda: None
+    )
+    monkeypatch.setattr(
+        frozen_workflow,
+        "_whisper_command",
+        lambda: ["podman", "run", "--rm", image, "runner"],
+    )
+    monkeypatch.setattr(
+        frozen_workflow.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            ["podman", "run"], 7, "", "runner crashed"
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="failed validation"):
+        frozen_workflow.run_whisper()
+
+    row = json.loads(attempts.read_text().splitlines()[0])
+    assert row["status"] == "failed"
+    assert row["error_type"] == "RunnerProcessError"
+    assert "runner crashed" in row["error_message"]
