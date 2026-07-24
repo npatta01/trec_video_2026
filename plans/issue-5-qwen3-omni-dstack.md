@@ -66,7 +66,7 @@ reproducibility and provenance, and make an honest expand/stop decision.
 - [ ] Authorized detached compatibility run completed.
 - [ ] Remote artifacts downloaded and hash-verified.
 - [x] Static findings independently reviewed.
-- [ ] Issue updated and draft PR opened.
+- [x] Issue updated and stacked draft PR #14 opened.
 
 ## Current evidence and blocker
 
