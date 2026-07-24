@@ -8,7 +8,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from trec_video_2026.vqa_models import (
     build_controlled_messages,
@@ -149,23 +149,44 @@ def select_auto_model_class(
     raise ValueError(f"Unsupported model class: {kind}")
 
 
-def validate_rocm_bfloat16(model: Any, torch_module: Any) -> tuple[str, str]:
-    """Attest the live PyTorch runtime and loaded model parameters."""
+def _tensor_counts(tensors: list[Any], attribute: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for tensor in tensors:
+        value = str(getattr(tensor, attribute))
+        counts[value] = counts.get(value, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def validate_rocm_bfloat16(
+    model: Any, torch_module: Any
+) -> tuple[str, str, dict[str, Any]]:
+    """Attest BF16 parameters and accelerator-resident model buffers."""
 
     if not torch_module.cuda.is_available():
         raise RuntimeError("CUDA-compatible accelerator is unavailable")
-    if not getattr(torch_module.version, "hip", None):
+    torch_hip = getattr(torch_module.version, "hip", None)
+    if not torch_hip:
         raise RuntimeError("PyTorch runtime is not ROCm-enabled")
-    tensors = [*model.parameters(), *getattr(model, "buffers", lambda: ())()]
-    if not tensors:
-        raise RuntimeError("Loaded model has no parameters or buffers to attest")
-    if any(tensor.device.type != "cuda" for tensor in tensors):
-        raise RuntimeError(
-            "Loaded model parameters or buffers are not on the accelerator"
-        )
-    if any(tensor.dtype != torch_module.bfloat16 for tensor in tensors):
-        raise RuntimeError("Loaded model parameters or buffers are not bfloat16")
-    return f"{tensors[0].device} (ROCm)", "bfloat16"
+    parameters = list(model.parameters())
+    buffers = list(getattr(model, "buffers", lambda: ())())
+    if not parameters:
+        raise RuntimeError("Loaded model has no parameters to attest")
+    if any(parameter.device.type != "cuda" for parameter in parameters):
+        raise RuntimeError("Loaded model parameters are not on the accelerator")
+    if any(parameter.dtype != torch_module.bfloat16 for parameter in parameters):
+        raise RuntimeError("Loaded model parameters are not bfloat16")
+    if any(buffer.device.type != "cuda" for buffer in buffers):
+        raise RuntimeError("Loaded model buffers are not on the accelerator")
+    attestation = {
+        "parameter_tensor_count": len(parameters),
+        "parameter_devices": _tensor_counts(parameters, "device"),
+        "parameter_dtypes": _tensor_counts(parameters, "dtype"),
+        "buffer_tensor_count": len(buffers),
+        "buffer_devices": _tensor_counts(buffers, "device"),
+        "buffer_dtypes": _tensor_counts(buffers, "dtype"),
+        "torch_hip": str(torch_hip),
+    }
+    return f"{parameters[0].device} (ROCm)", "bfloat16", attestation
 
 
 def generate_answer(
@@ -244,6 +265,7 @@ def main(argv: list[str] | None = None) -> int:
     torch.cuda.reset_peak_memory_stats()
     device = "unverified"
     precision = "unverified"
+    runtime_attestation = None
     try:
         processor = load_processor(AutoProcessor, model_id, revision)
         if args.model_class == "image-text":
@@ -262,7 +284,7 @@ def main(argv: list[str] | None = None) -> int:
             device_map="cuda:0",
             attn_implementation="sdpa",
         )
-        device, precision = validate_rocm_bfloat16(model, torch)
+        device, precision, runtime_attestation = validate_rocm_bfloat16(model, torch)
         load_seconds = time.monotonic() - load_started
         results = []
         for request in requests:
@@ -293,6 +315,7 @@ def main(argv: list[str] | None = None) -> int:
                     peak_memory=torch.cuda.max_memory_allocated(),
                     device=device,
                     precision=precision,
+                    runtime_attestation=runtime_attestation,
                 )
             except Exception as error:
                 result = _error_result(
@@ -304,6 +327,7 @@ def main(argv: list[str] | None = None) -> int:
                     peak_memory=torch.cuda.max_memory_allocated(),
                     device=device,
                     precision=precision,
+                    runtime_attestation=runtime_attestation,
                 )
             result["model_load_seconds"] = load_seconds
             results.append(attach_request_identity(result, request))
@@ -319,6 +343,7 @@ def main(argv: list[str] | None = None) -> int:
                     peak_memory=torch.cuda.max_memory_allocated(),
                     device=device,
                     precision=precision,
+                    runtime_attestation=runtime_attestation,
                 ),
                 request,
             )
@@ -338,6 +363,7 @@ def _error_result(
     peak_memory: int,
     device: str,
     precision: str,
+    runtime_attestation: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     error_name = type(error).__name__
     unsupported = (
@@ -359,6 +385,7 @@ def _error_result(
         peak_memory=peak_memory,
         device=device,
         precision=precision,
+        runtime_attestation=runtime_attestation,
         error=error,
     )
 
@@ -374,6 +401,7 @@ def _result(
     peak_memory: int,
     device: str,
     precision: str,
+    runtime_attestation: Mapping[str, Any] | None,
     error: Exception | None = None,
 ) -> dict[str, Any]:
     message = str(error) if error else None
@@ -389,6 +417,9 @@ def _result(
         "runtime_image": os.environ.get("VQA_RUNTIME_IMAGE"),
         "precision": precision,
         "device": device,
+        "runtime_attestation": (
+            dict(runtime_attestation) if runtime_attestation is not None else None
+        ),
         "peak_memory_bytes": peak_memory,
         "error_type": type(error).__name__ if error else None,
         "error_message": message,

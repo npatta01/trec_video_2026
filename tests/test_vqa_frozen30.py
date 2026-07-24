@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from datetime import UTC, datetime
@@ -543,6 +544,80 @@ def test_decision_bindings_revalidate_every_current_field() -> None:
             validate_decision_bindings({**expected, key: "stale"}, expected)
 
 
+def test_condition_inputs_rejects_source_tree_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_tree = tmp_path / "src/trec_video_2026"
+    source_tree.mkdir(parents=True)
+    runner = source_tree / "runner.py"
+    runner.write_bytes(b"original\n")
+    source_digest = hashlib.sha256()
+    source_digest.update(b"runner.py\0")
+    source_digest.update(b"original\n")
+    source_digest.update(b"\0")
+    preflight_source_sha256 = source_digest.hexdigest()
+
+    run = tmp_path / "run"
+    requests_dir = run / "requests"
+    requests_dir.mkdir(parents=True)
+    manifest = tmp_path / "manifest.json"
+    manifest.write_bytes(b"manifest")
+    condition_id = "qwen35-4b-12f-frozen30"
+    requests = [{"video_id": "video"}]
+    (requests_dir / f"{condition_id}.json").write_text(
+        json.dumps(requests), encoding="utf-8"
+    )
+    (run / "preflight.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "run_id": frozen_workflow.RUN_ID,
+                "inference_manifest_sha256": hashlib.sha256(
+                    manifest.read_bytes()
+                ).hexdigest(),
+                "source_tree_sha256": preflight_source_sha256,
+                "condition_audits": {
+                    condition_id: {
+                        "request_set_sha256": "request-sha",
+                        "evidence_manifest_sha256": "evidence-sha",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    specification = {
+        "condition_id": condition_id,
+        "model_id": "model",
+        "model_revision": "a" * 40,
+        "runtime_image": "image@sha256:" + "b" * 64,
+    }
+    monkeypatch.setattr(frozen_workflow, "SOURCE_TREE", source_tree, raising=False)
+    monkeypatch.setattr(frozen_workflow, "RUN", run)
+    monkeypatch.setattr(frozen_workflow, "MANIFEST_PATH", manifest)
+    monkeypatch.setattr(frozen_workflow, "_expected_ids", lambda: ("video",))
+    monkeypatch.setattr(
+        frozen_workflow,
+        "_promotions",
+        lambda: ({}, {condition_id: specification}),
+    )
+    monkeypatch.setattr(
+        frozen_workflow,
+        "audit_frozen_requests",
+        lambda *_args, **_kwargs: {"request_set_sha256": "request-sha"},
+    )
+    monkeypatch.setattr(
+        frozen_workflow,
+        "current_evidence_manifest_sha256",
+        lambda *_args, **_kwargs: "evidence-sha",
+    )
+
+    runner.write_bytes(b"mutated\n")
+
+    with pytest.raises(ValueError, match="source tree"):
+        frozen_workflow._condition_inputs(condition_id)
+
+
 def test_prepare_does_not_rewrite_authorized_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -583,6 +658,11 @@ def test_whisper_timeout_uses_named_cleanup_and_appends_failure(
     (run / "preflight.json").write_text(
         json.dumps(
             {
+                "source_tree_sha256": (
+                    frozen_workflow.canonical_source_tree_sha256(
+                        frozen_workflow.SOURCE_TREE
+                    )
+                ),
                 "whisper": {
                     "runtime_image": image,
                     "request_set_sha256": canonical_request_sha256(
@@ -591,7 +671,7 @@ def test_whisper_timeout_uses_named_cleanup_and_appends_failure(
                     "requests_file_sha256": __import__("hashlib")
                     .sha256(request_path.read_bytes())
                     .hexdigest(),
-                }
+                },
             }
         ),
         encoding="utf-8",
@@ -856,6 +936,11 @@ def test_whisper_nonzero_exit_appends_structured_failure(
     (run / "preflight.json").write_text(
         json.dumps(
             {
+                "source_tree_sha256": (
+                    frozen_workflow.canonical_source_tree_sha256(
+                        frozen_workflow.SOURCE_TREE
+                    )
+                ),
                 "whisper": {
                     "runtime_image": image,
                     "request_set_sha256": canonical_request_sha256(
@@ -864,7 +949,7 @@ def test_whisper_nonzero_exit_appends_structured_failure(
                     "requests_file_sha256": __import__("hashlib")
                     .sha256(request_path.read_bytes())
                     .hexdigest(),
-                }
+                },
             }
         ),
         encoding="utf-8",
