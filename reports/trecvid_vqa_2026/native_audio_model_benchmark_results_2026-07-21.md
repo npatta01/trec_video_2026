@@ -4,7 +4,7 @@ Date: 2026-07-24 UTC
 
 Status: **protocol-v2 inference and scoring complete**. The clean run contains
 120/120 valid VQA predictions and 30/30 valid Whisper executions. Final
-independent review of this report remains the last approval gate.
+independent review is complete.
 
 ## Technical summary
 

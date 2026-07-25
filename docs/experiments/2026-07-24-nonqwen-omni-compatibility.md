@@ -6,6 +6,10 @@ Issue: #6
 
 Decision: **promote Gemma 3n E4B-it; stop Phi-4-multimodal-instruct**
 
+> **Superseded decision:** This compatibility-only promotion was superseded by
+> the semantic-quality stop for both Gemma and Phi. See the current
+> [Project Status](../project-status/index.md).
+
 ## Scope and gate
 
 The probe used the shared, label-blind three-video panel at

@@ -1,5 +1,10 @@
 # Issue #7 automatic-transcript ablation
 
+> **Historical status:** The referenced PR is merged and this diagnostic is
+> complete. Whisper is routed through a quality gate rather than used globally;
+> the strict human-oracle tier remains deferred in open issue #19. See
+> [Project Status](../docs/project-status/index.md).
+
 ## Objective
 
 Measure the paired change from frozen frames-only evidence to the same frames

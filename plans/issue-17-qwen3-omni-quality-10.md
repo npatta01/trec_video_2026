@@ -1,5 +1,10 @@
 # Qwen3-Omni Stratified Quality-10 Implementation Plan
 
+> **Historical status:** The referenced PR is merged and this quality work is
+> complete. The final neutral run failed the strict output contract, leaving
+> Qwen3-Omni ineligible for promotion. See
+> [Project Status](../docs/project-status/index.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > `superpowers:subagent-driven-development` (recommended) or
 > `superpowers:executing-plans` to implement this plan task-by-task. Steps use

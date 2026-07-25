@@ -1,5 +1,9 @@
 # Issue #12: omni semantic quality correction
 
+> **Historical status:** The referenced PR is merged and this correction is
+> complete. Both Gemma and Phi failed the frozen semantic gate, so neither is
+> promoted or expanded. See [Project Status](../docs/project-status/index.md).
+
 ## Objective
 
 Separate joint audio/vision runtime compatibility from semantic answer quality
