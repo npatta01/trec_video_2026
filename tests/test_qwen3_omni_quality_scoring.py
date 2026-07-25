@@ -140,10 +140,49 @@ def test_score_run_keeps_hidden_reference_text_out_of_sanitized_result(
     )
 
 
-def test_numeric_words_are_equivalent_for_exact_match_and_token_f1():
-    """Catches regressing the documented 1/one numeric-equivalence rule."""
-    assert scoring.normalized_exact_match("1", "one") == 1.0
-    assert scoring.token_f1("1", "one") == 1.0
+def test_primary_metrics_preserve_frozen_scorer_digit_word_distinction():
+    """Catches changing the official repository scorer's normalization contract."""
+    assert scoring.normalized_exact_match("1", "one") == 0.0
+    assert scoring.token_f1("1", "one") == 0.0
+
+
+def test_numeric_equivalence_is_explicitly_secondary():
+    """Catches silently folding a useful digit-word diagnostic into primary scores."""
+    assert scoring.numeric_equivalent_exact_match("1", "one") == 1.0
+    assert scoring.numeric_equivalent_token_f1("1", "one") == 1.0
+
+
+def test_frozen_run_primary_aggregates_match_repository_scorer():
+    """Catches publishing diagnostic normalization as the benchmark's official score."""
+    result = scoring._default_score()
+
+    assert result["aggregate"]["frames-only"] == {
+        "correct": 5,
+        "partial": 1,
+        "wrong": 4,
+        "normalized_exact_match": 0.1,
+        "token_f1": pytest.approx(0.2162705547581275),
+    }
+    assert result["aggregate"]["frames-native-audio"] == {
+        "correct": 3,
+        "partial": 2,
+        "wrong": 5,
+        "normalized_exact_match": 0.1,
+        "token_f1": pytest.approx(0.2600178806700546),
+    }
+    assert result["aggregate"]["all_conditions"] == {
+        "correct": 8,
+        "partial": 3,
+        "wrong": 9,
+        "normalized_exact_match": 0.1,
+        "token_f1": pytest.approx(0.23814421771409104),
+    }
+    assert result["paired_deltas"]["audio_minus_frames"][
+        "normalized_exact_match"
+    ] == pytest.approx(0.0)
+    assert result["paired_deltas"]["audio_minus_frames"]["token_f1"] == (
+        pytest.approx(0.043747325911927105)
+    )
 
 
 def test_score_run_rejects_incomplete_or_unfrozen_artifacts(tmp_path: Path):

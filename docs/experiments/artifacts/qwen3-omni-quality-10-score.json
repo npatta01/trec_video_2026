@@ -2,9 +2,9 @@
   "aggregate": {
     "all_conditions": {
       "correct": 8,
-      "normalized_exact_match": 0.15,
+      "normalized_exact_match": 0.1,
       "partial": 3,
-      "token_f1": 0.28814421771409104,
+      "token_f1": 0.23814421771409103,
       "wrong": 9
     },
     "frames-native-audio": {
@@ -16,9 +16,9 @@
     },
     "frames-only": {
       "correct": 5,
-      "normalized_exact_match": 0.2,
+      "normalized_exact_match": 0.1,
       "partial": 1,
-      "token_f1": 0.3162705547581275,
+      "token_f1": 0.21627055475812748,
       "wrong": 4
     }
   },
@@ -34,6 +34,8 @@
       "operational_tag": "lexical_speech",
       "pair_index": 0,
       "reference_sha256": "314269f420a406c00ac1eb0db85369bedf5b24b7666d663fd4aa4365a5296afe",
+      "secondary_numeric_equivalent_exact_match": 1.0,
+      "secondary_numeric_equivalent_token_f1": 1.0,
       "token_f1": 1.0,
       "video_id": "Mi-NpnCBegw"
     },
@@ -48,6 +50,8 @@
       "operational_tag": "lexical_speech",
       "pair_index": 0,
       "reference_sha256": "314269f420a406c00ac1eb0db85369bedf5b24b7666d663fd4aa4365a5296afe",
+      "secondary_numeric_equivalent_exact_match": 1.0,
+      "secondary_numeric_equivalent_token_f1": 1.0,
       "token_f1": 1.0,
       "video_id": "Mi-NpnCBegw"
     },
@@ -62,6 +66,8 @@
       "operational_tag": "lexical_speech_prompt_repair",
       "pair_index": 1,
       "reference_sha256": "97165eaf9e43f013d3114abe560884cf32a0a73dff0fbef95e5c96639bca681c",
+      "secondary_numeric_equivalent_exact_match": 0.0,
+      "secondary_numeric_equivalent_token_f1": 0.0,
       "token_f1": 0.0,
       "video_id": "NN7G28sBOlY"
     },
@@ -76,6 +82,8 @@
       "operational_tag": "lexical_speech_prompt_repair",
       "pair_index": 1,
       "reference_sha256": "97165eaf9e43f013d3114abe560884cf32a0a73dff0fbef95e5c96639bca681c",
+      "secondary_numeric_equivalent_exact_match": 0.0,
+      "secondary_numeric_equivalent_token_f1": 0.0,
       "token_f1": 0.0,
       "video_id": "NN7G28sBOlY"
     },
@@ -90,6 +98,8 @@
       "operational_tag": "prosody",
       "pair_index": 2,
       "reference_sha256": "3dcde31edd24ed3a0a67f18a485e9d16965f35d916dc0cd35b9897c61c9fa0a0",
+      "secondary_numeric_equivalent_exact_match": 0.0,
+      "secondary_numeric_equivalent_token_f1": 0.16393442622950818,
       "token_f1": 0.16393442622950818,
       "video_id": "NUmb2P3Bzu8"
     },
@@ -104,6 +114,8 @@
       "operational_tag": "prosody",
       "pair_index": 2,
       "reference_sha256": "3dcde31edd24ed3a0a67f18a485e9d16965f35d916dc0cd35b9897c61c9fa0a0",
+      "secondary_numeric_equivalent_exact_match": 0.0,
+      "secondary_numeric_equivalent_token_f1": 0.2619047619047619,
       "token_f1": 0.2619047619047619,
       "video_id": "NUmb2P3Bzu8"
     },
@@ -118,6 +130,8 @@
       "operational_tag": "non_speech_sound",
       "pair_index": 3,
       "reference_sha256": "97fb74d10c4d7934cc168f8038e53f2ede7760faf39dd5f92db213009b9827f0",
+      "secondary_numeric_equivalent_exact_match": 0.0,
+      "secondary_numeric_equivalent_token_f1": 0.0,
       "token_f1": 0.0,
       "video_id": "NkXPPJoZ-h8"
     },
@@ -132,6 +146,8 @@
       "operational_tag": "non_speech_sound",
       "pair_index": 3,
       "reference_sha256": "97fb74d10c4d7934cc168f8038e53f2ede7760faf39dd5f92db213009b9827f0",
+      "secondary_numeric_equivalent_exact_match": 0.0,
+      "secondary_numeric_equivalent_token_f1": 0.3333333333333333,
       "token_f1": 0.3333333333333333,
       "video_id": "NkXPPJoZ-h8"
     },
@@ -146,6 +162,8 @@
       "operational_tag": "endpoint_sound",
       "pair_index": 4,
       "reference_sha256": "6c827477d8fde56a708b72c20a160c645b9846012569772908ef36c1a750dbb2",
+      "secondary_numeric_equivalent_exact_match": 0.0,
+      "secondary_numeric_equivalent_token_f1": 0.0,
       "token_f1": 0.0,
       "video_id": "IWSPAfCKtV8"
     },
@@ -160,6 +178,8 @@
       "operational_tag": "endpoint_sound",
       "pair_index": 4,
       "reference_sha256": "6c827477d8fde56a708b72c20a160c645b9846012569772908ef36c1a750dbb2",
+      "secondary_numeric_equivalent_exact_match": 0.0,
+      "secondary_numeric_equivalent_token_f1": 0.0,
       "token_f1": 0.0,
       "video_id": "IWSPAfCKtV8"
     },
@@ -174,6 +194,8 @@
       "operational_tag": "temporal_action",
       "pair_index": 5,
       "reference_sha256": "1f133cbdba53880dc228d845c16c387d96506fcd958d1f290c24c0290d96b0a7",
+      "secondary_numeric_equivalent_exact_match": 0.0,
+      "secondary_numeric_equivalent_token_f1": 0.13333333333333333,
       "token_f1": 0.13333333333333333,
       "video_id": "CH8Dp7EgW4I"
     },
@@ -188,6 +210,8 @@
       "operational_tag": "temporal_action",
       "pair_index": 5,
       "reference_sha256": "1f133cbdba53880dc228d845c16c387d96506fcd958d1f290c24c0290d96b0a7",
+      "secondary_numeric_equivalent_exact_match": 0.0,
+      "secondary_numeric_equivalent_token_f1": 0.26086956521739135,
       "token_f1": 0.26086956521739135,
       "video_id": "CH8Dp7EgW4I"
     },
@@ -202,6 +226,8 @@
       "operational_tag": "temporal_action",
       "pair_index": 6,
       "reference_sha256": "9398e869ace4344bd6f5a4f27ab19f706844e321e7d80be7949f56eb9516d14d",
+      "secondary_numeric_equivalent_exact_match": 0.0,
+      "secondary_numeric_equivalent_token_f1": 0.14285714285714285,
       "token_f1": 0.14285714285714285,
       "video_id": "EtNOkUJd5w8"
     },
@@ -216,6 +242,8 @@
       "operational_tag": "temporal_action",
       "pair_index": 6,
       "reference_sha256": "9398e869ace4344bd6f5a4f27ab19f706844e321e7d80be7949f56eb9516d14d",
+      "secondary_numeric_equivalent_exact_match": 0.0,
+      "secondary_numeric_equivalent_token_f1": 0.13043478260869568,
       "token_f1": 0.13043478260869568,
       "video_id": "EtNOkUJd5w8"
     },
@@ -230,6 +258,8 @@
       "operational_tag": "cross_modal_reaction",
       "pair_index": 7,
       "reference_sha256": "36c817041d2f758f45f81c43fe7a002b08b1c266b638d915e65ed462996ef860",
+      "secondary_numeric_equivalent_exact_match": 0.0,
+      "secondary_numeric_equivalent_token_f1": 0.3225806451612903,
       "token_f1": 0.3225806451612903,
       "video_id": "Gp4LVTn3YbY"
     },
@@ -244,6 +274,8 @@
       "operational_tag": "cross_modal_reaction",
       "pair_index": 7,
       "reference_sha256": "36c817041d2f758f45f81c43fe7a002b08b1c266b638d915e65ed462996ef860",
+      "secondary_numeric_equivalent_exact_match": 0.0,
+      "secondary_numeric_equivalent_token_f1": 0.25,
       "token_f1": 0.25,
       "video_id": "Gp4LVTn3YbY"
     },
@@ -258,6 +290,8 @@
       "operational_tag": "spatial_visual_control",
       "pair_index": 8,
       "reference_sha256": "2f972d70667aff038825003565662cad64a42853f84a4ade9d2d585a98cf6a9d",
+      "secondary_numeric_equivalent_exact_match": 0.0,
+      "secondary_numeric_equivalent_token_f1": 0.4,
       "token_f1": 0.4,
       "video_id": "EMI_anpHII4"
     },
@@ -272,6 +306,8 @@
       "operational_tag": "spatial_visual_control",
       "pair_index": 8,
       "reference_sha256": "2f972d70667aff038825003565662cad64a42853f84a4ade9d2d585a98cf6a9d",
+      "secondary_numeric_equivalent_exact_match": 0.0,
+      "secondary_numeric_equivalent_token_f1": 0.3636363636363636,
       "token_f1": 0.3636363636363636,
       "video_id": "EMI_anpHII4"
     },
@@ -282,11 +318,13 @@
       "condition_id": "frames-only",
       "judgment": "C",
       "judgment_reason": "Numeric answer is equivalent under the scorer rule.",
-      "normalized_exact_match": 1.0,
+      "normalized_exact_match": 0.0,
       "operational_tag": "counting_visual_control",
       "pair_index": 9,
       "reference_sha256": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
-      "token_f1": 1.0,
+      "secondary_numeric_equivalent_exact_match": 1.0,
+      "secondary_numeric_equivalent_token_f1": 1.0,
+      "token_f1": 0.0,
       "video_id": "LusRurRrmf0"
     },
     {
@@ -300,6 +338,8 @@
       "operational_tag": "counting_visual_control",
       "pair_index": 9,
       "reference_sha256": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+      "secondary_numeric_equivalent_exact_match": 0.0,
+      "secondary_numeric_equivalent_token_f1": 0.0,
       "token_f1": 0.0,
       "video_id": "LusRurRrmf0"
     }
@@ -318,8 +358,8 @@
         "P->P": 1,
         "W->W": 4
       },
-      "normalized_exact_match": -0.1,
-      "token_f1": -0.056252674088072885
+      "normalized_exact_match": 0.0,
+      "token_f1": 0.043747325911927114
     }
   },
   "predictions_sha256": "9804197489450f1a31836ff1b80c773261c3917bea350243a5c374c9d52c89a8",
@@ -328,14 +368,25 @@
   "run_id": "qwen3-omni-quality-10-20260725-a1",
   "schema_version": 1,
   "scorer": {
-    "metrics": [
+    "primary_metric_contract": {
+      "source": "src/trec_video_2026/vqa_evaluation.py",
+      "source_commit": "44d59446bcb26df292fb2094aadaf5b24b0b0208",
+      "source_sha256": "0cdd46df8347f3ba6e0986c9da349f6d89b41aa2ecfb15f637570a15f7480712"
+    },
+    "primary_metrics": [
       "normalized_exact_match",
       "token_f1"
     ],
-    "numeric_equivalence": {
-      "1": "one"
+    "secondary_diagnostics": {
+      "fields": [
+        "secondary_numeric_equivalent_exact_match",
+        "secondary_numeric_equivalent_token_f1"
+      ],
+      "numeric_equivalence": {
+        "1": "one"
+      }
     },
     "source": "src/trec_video_2026/vqa_experiments/qwen3_omni_quality_scoring.py",
-    "source_sha256": "0149125c1cb45e21aaaa2565956fafd5d88292af581d98e0778d4fd95afb8568"
+    "source_sha256": "65145375c8f49502ade4fd19a8b24acb3c76134b9f7961453b896220fcb731c1"
   }
 }

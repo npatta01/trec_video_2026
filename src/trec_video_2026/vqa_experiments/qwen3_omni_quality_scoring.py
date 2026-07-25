@@ -150,26 +150,30 @@ def _sha256_file(path: Path) -> str:
 
 
 def normalize_answer(answer: str) -> str:
-    """Normalize surface form while treating single-digit numbers as words."""
+    """Match the frozen repository scorer's punctuation/article normalization."""
     lowered = answer.lower()
     without_punctuation = "".join(
         character for character in lowered if character not in string.punctuation
     )
     tokens = [
-        _NUMBER_WORDS.get(token, token)
+        token
         for token in without_punctuation.split()
         if token not in {"a", "an", "the"}
     ]
     return " ".join(tokens)
 
 
+def _normalize_numeric_equivalent(answer: str) -> str:
+    return " ".join(
+        _NUMBER_WORDS.get(token, token) for token in normalize_answer(answer).split()
+    )
+
+
 def normalized_exact_match(prediction: str, reference: str) -> float:
     return float(normalize_answer(prediction) == normalize_answer(reference))
 
 
-def token_f1(prediction: str, reference: str) -> float:
-    prediction_tokens = normalize_answer(prediction).split()
-    reference_tokens = normalize_answer(reference).split()
+def _token_f1(prediction_tokens: list[str], reference_tokens: list[str]) -> float:
     if not prediction_tokens or not reference_tokens:
         return float(prediction_tokens == reference_tokens)
     overlap = sum((Counter(prediction_tokens) & Counter(reference_tokens)).values())
@@ -178,6 +182,28 @@ def token_f1(prediction: str, reference: str) -> float:
     precision = overlap / len(prediction_tokens)
     recall = overlap / len(reference_tokens)
     return 2 * precision * recall / (precision + recall)
+
+
+def token_f1(prediction: str, reference: str) -> float:
+    return _token_f1(
+        normalize_answer(prediction).split(), normalize_answer(reference).split()
+    )
+
+
+def numeric_equivalent_exact_match(prediction: str, reference: str) -> float:
+    """Return a secondary digit-word-equivalent exact-match diagnostic."""
+    return float(
+        _normalize_numeric_equivalent(prediction)
+        == _normalize_numeric_equivalent(reference)
+    )
+
+
+def numeric_equivalent_token_f1(prediction: str, reference: str) -> float:
+    """Return a secondary digit-word-equivalent token-F1 diagnostic."""
+    return _token_f1(
+        _normalize_numeric_equivalent(prediction).split(),
+        _normalize_numeric_equivalent(reference).split(),
+    )
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -372,6 +398,12 @@ def score_run(
                 "judgment_reason": manual["reason"],
                 "normalized_exact_match": normalized_exact_match(answer, reference),
                 "token_f1": token_f1(answer, reference),
+                "secondary_numeric_equivalent_exact_match": (
+                    numeric_equivalent_exact_match(answer, reference)
+                ),
+                "secondary_numeric_equivalent_token_f1": (
+                    numeric_equivalent_token_f1(answer, reference)
+                ),
             }
         )
 
@@ -390,8 +422,21 @@ def score_run(
         "scorer": {
             "source": SCORER_PATH,
             "source_sha256": _sha256_file(scorer_source_path),
-            "metrics": ["normalized_exact_match", "token_f1"],
-            "numeric_equivalence": {"1": "one"},
+            "primary_metrics": ["normalized_exact_match", "token_f1"],
+            "primary_metric_contract": {
+                "source": "src/trec_video_2026/vqa_evaluation.py",
+                "source_commit": "44d59446bcb26df292fb2094aadaf5b24b0b0208",
+                "source_sha256": (
+                    "0cdd46df8347f3ba6e0986c9da349f6d89b41aa2ecfb15f637570a15f7480712"
+                ),
+            },
+            "secondary_diagnostics": {
+                "fields": [
+                    "secondary_numeric_equivalent_exact_match",
+                    "secondary_numeric_equivalent_token_f1",
+                ],
+                "numeric_equivalence": {"1": "one"},
+            },
         },
         "manual_adjudication": {
             "rubric": "answer-only C/P/W",

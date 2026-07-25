@@ -4,10 +4,11 @@
 
 Do not promote Qwen3-Omni to a broader quality benchmark from this run. The
 immutable run completed successfully, but native audio produced no answer-only
-`W→P/C` or `P→C` improvement and made one visual control worse. More
-importantly, the inherited prompt makes the frames-only condition an impure
-visual baseline, so the observed paired difference must not be interpreted as
-a clean audio ablation.
+`W→P/C` or `P→C` improvement and made one visual control worse. The constant
+prompt means the pair does isolate adding audio under an audio-expecting
+instruction. However, that instruction mismatches the frames-only treatment
+context and induces unsupported evidence language, limiting the comparison's
+external validity as a visual-baseline benchmark.
 
 The working runner is preserved. A follow-up should rerun the paired panel
 with a neutral, modality-agnostic evidence instruction in both conditions;
@@ -25,7 +26,7 @@ the only intended condition difference should then be the audio element.
 - The sanitized score artifact binds every model answer to its condition,
   ignored annotation lookup path, and reference SHA-256; it contains no
   reference-answer text. It also records scorer SHA-256
-  `50a23e39417c1885efc8320fb4fdaf0360e8b7e2e13b0e18f4ea3fc10b03a4a9`.
+  `65145375c8f49502ade4fd19a8b24acb3c76134b9f7961453b896220fcb731c1`.
 - Frames-only attestation reported 12 visual elements and zero audio elements
   or audio tensors; audio-on reported the same 12 visual elements and one
   audio element. The unsupported audio-language issue below is therefore not
@@ -38,13 +39,15 @@ the only intended condition difference should then be the audio element.
 
 | Condition | C / P / W | Exact match | Mean token F1 |
 |---|---:|---:|---:|
-| Frames only | 5 / 1 / 4 | 0.2000 | 0.3163 |
+| Frames only | 5 / 1 / 4 | 0.1000 | 0.2163 |
 | Frames + native audio | 3 / 2 / 5 | 0.1000 | 0.2600 |
-| Audio minus frames | — | -0.1000 | -0.0563 |
+| Audio minus frames | — | 0.0000 | +0.0437 |
 
-The scorer treats the numeric forms `1` and `one` as equivalent. Full
-per-condition answers, metric values, annotation paths, reference hashes, and
-answer-only judgments are in the sanitized artifact:
+The official exact/F1 fields reproduce the frozen repository scorer and do not
+equate digit and number-word forms. Clearly named per-example secondary fields
+preserve that equivalence as a diagnostic only; they are not official metrics.
+Full per-condition answers, metric values, annotation paths, reference hashes,
+and answer-only judgments are in the sanitized artifact:
 [`qwen3-omni-quality-10-score.json`](artifacts/qwen3-omni-quality-10-score.json).
 
 ## Manual answer-only adjudication
@@ -76,8 +79,10 @@ The predeclared issue #17 promotion gate **fails**:
 - Audio-on did not achieve a qualifying audio-focused manual improvement.
 - One visual control regressed from `C` to `W` with audio on; the other stayed
   `C`.
-- No inference label-leakage or frozen-provenance failure was found, but the
-  prompt confound below prevents a clean causal interpretation.
+- No inference label-leakage or frozen-provenance failure was found. The prompt
+  mismatch below limits the intended visual-baseline interpretation, but does
+  not invalidate the within-run contrast of adding audio under the fixed
+  instruction.
 
 ## Limitations and follow-up
 
@@ -95,14 +100,17 @@ join. The references were already familiar from prior repository work; the
 manual categories are useful diagnostic evidence, not an independent blinded
 human evaluation.
 
-There is also a direct prompt confound. `omni_runtime.py` instructs every
-request to use visual frames “and the audio together” and to cite both kinds of
-cues, even when the quality runner disables audio. Several frames-only outputs
-then asserted audio support (including the prosody, non-speech, cross-modal,
-and craft rows). Their zero-audio tensor attestations rule out input modality
-leakage, but the language makes the `frames-only` answers an invalid clean
-visual-control baseline. A neutral prompt rerun is required before attributing
-any score difference to native audio.
+There is also a treatment-context prompt mismatch. `omni_runtime.py` instructs
+every request to use visual frames “and the audio together” and to cite both
+kinds of cues, even when the quality runner disables audio. Six audited
+frames-only rows relied on unavailable auditory evidence or claimed it:
+`NN7G28sBOlY`, `NUmb2P3Bzu8`, `NkXPPJoZ-h8`, `IWSPAfCKtV8`,
+`Gp4LVTn3YbY`, and `EMI_anpHII4`. Their zero-audio tensor attestations rule
+out input modality leakage. Because the instruction is constant, the paired
+run still isolates adding audio in this audio-expecting prompt context; the
+mismatch instead makes frames-only an unnatural visual baseline and limits
+generalization to a modality-neutral task. A neutral prompt rerun is required
+for that intended benchmark interpretation.
 
 No matched external baseline is quantified here: the available earlier runs
 do not share this frozen paired prompt/condition contract, so comparing their
