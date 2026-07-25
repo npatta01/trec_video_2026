@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import io
 import os
 import subprocess
+import tarfile
 from pathlib import Path
 
 RUN_ID = "qwen3-omni-quality-10-20260725-a1"
@@ -23,6 +25,14 @@ RUNNER = Path("scripts/run-qwen3-omni-quality-dstack.sh")
 COLLECTOR = Path("scripts/collect-qwen3-omni-quality-dstack.sh")
 COLLECTOR_LIB = Path("scripts/qwen3-omni-quality-collector-lib.sh")
 DSTACKIGNORE = Path(".dstackignore")
+MAX_MAPPED_SOURCE_ARCHIVE_BYTES = 2 * 1024 * 1024
+OVERSIZED_FRAME = (
+    "vqa/benchmarks/evidence/"
+    "0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/"
+    "frame-11.png"
+)
+CHUNK_DIRECTORY = "vqa/benchmarks/qwen3-omni-quality-10/transport/frame-11"
+CHUNK_NAMES = ("part-0000.bin", "part-0001.bin", "part-0002.bin")
 
 
 def _config() -> str:
@@ -46,6 +56,13 @@ def _contract_paths() -> set[str]:
     }
     assert len(paths) == 130
     return paths
+
+
+def _source_archive_size(path: Path) -> int:
+    archive = io.BytesIO()
+    with tarfile.open(fileobj=archive, mode="w") as tar:
+        tar.add(path, arcname=path.name)
+    return archive.tell()
 
 
 def test_dstack_archive_excludes_only_safe_non_runtime_directories() -> None:
@@ -79,7 +96,8 @@ def test_dstack_archive_excludes_only_safe_non_runtime_directories() -> None:
     assert CONFIG in required_files
     assert RUNNER in required_files
     assert CONTRACT in required_files
-    assert len({path for path in required_files if path.suffix == ".png"}) == 120
+    assert len({path for path in required_files if path.suffix == ".png"}) == 119
+    assert len({path for path in required_files if path.suffix == ".bin"}) == 3
     assert len({path for path in required_files if path.suffix == ".wav"}) == 10
     assert all(path.parts[0] not in ignored_roots for path in required_files)
 
@@ -110,25 +128,47 @@ def test_quality_config_is_immutable_and_bounded() -> None:
 def test_quality_config_maps_only_exact_contract_evidence() -> None:
     config = _config()
     mappings = _file_mappings(config)
-    evidence_mappings = [mapping for mapping in mappings if ".png:" in mapping or ".wav:" in mapping]
-    assert len([mapping for mapping in evidence_mappings if ".png:" in mapping]) == 120
-    assert len([mapping for mapping in evidence_mappings if ".wav:" in mapping]) == 10
-    expected = {
+    direct_evidence_mappings = [
+        mapping for mapping in mappings if ".png:" in mapping or ".wav:" in mapping
+    ]
+    chunk_mappings = [mapping for mapping in mappings if ".bin:" in mapping]
+    assert len([mapping for mapping in direct_evidence_mappings if ".png:" in mapping]) == 119
+    assert len([mapping for mapping in direct_evidence_mappings if ".wav:" in mapping]) == 10
+    assert len(chunk_mappings) == len(CHUNK_NAMES)
+    expected_direct = {
         f"../data/{relative_path}:/dstack/input/{relative_path}"
-        for relative_path in _contract_paths()
+        for relative_path in _contract_paths() - {OVERSIZED_FRAME}
     }
-    assert set(evidence_mappings) == expected
+    expected_chunks = {
+        f"../data/{CHUNK_DIRECTORY}/{name}:/dstack/input/.transport/frame-11/{name}"
+        for name in CHUNK_NAMES
+    }
+    assert set(direct_evidence_mappings) == expected_direct
+    assert set(chunk_mappings) == expected_chunks
     contract_mapping = (
         "../data/vqa/benchmarks/qwen3-omni-quality-10/contract.json:"
         "/dstack/input/contract.json"
     )
     assert all(
-        "../data/" not in mapping or mapping in expected | {contract_mapping}
+        "../data/" not in mapping
+        or mapping in expected_direct | expected_chunks | {contract_mapping}
         for mapping in mappings
     )
     assert contract_mapping in mappings
     assert "../src/trec_video_2026:/dstack/run/src/trec_video_2026" in mappings
     assert "../scripts/run-qwen3-omni-quality-dstack.sh:/dstack/run/scripts/run-qwen3-omni-quality-dstack.sh" in mappings
+
+    assert OVERSIZED_FRAME in _contract_paths()
+    assert len({path for path in _contract_paths() if path.endswith(".png")}) == 120
+    assert len({path for path in _contract_paths() if path.endswith(".wav")}) == 10
+
+
+def test_every_quality_mapping_source_archive_is_below_server_limit() -> None:
+    """Catches any single mapped source exceeding the server's 2 MiB cap."""
+    for mapping in _file_mappings(_config()):
+        source = Path(os.path.normpath(CONFIG.parent / mapping.split(":", 1)[0]))
+        assert source.exists(), source
+        assert _source_archive_size(source) < MAX_MAPPED_SOURCE_ARCHIVE_BYTES, source
 
 
 def test_quality_runner_binds_identity_and_preserves_workload_failure() -> None:
@@ -156,6 +196,11 @@ def test_quality_runner_binds_identity_and_preserves_workload_failure() -> None:
     assert "(( workload_rc == 0 )) || return \"$workload_rc\"" in runner
     assert "-m trec_video_2026.vqa_experiments.qwen3_omni_quality_dstack" in runner
     assert "exec bash" not in runner
+    assert "qwen3_omni_quality_transport reconstruct" in runner
+    assert '--contract "$CONTRACT_PATH"' in runner
+    assert runner.index("qwen3_omni_quality_transport reconstruct") < runner.index(
+        'chmod -R a-w "$DATA_ROOT"'
+    )
     assert "--delete" not in runner
 
 

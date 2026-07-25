@@ -21,6 +21,7 @@ EXPECTED_CONTRACT="${EXPECTED_CONTRACT:-}"
 CONTRACT_PATH="${CONTRACT_PATH:-/dstack/input/contract.json}"
 DATA_ROOT="${DATA_ROOT:-/dstack/input}"
 OUTPUT_DIR="${OUTPUT_DIR:-/dstack/output}"
+readonly TRANSPORT_CHUNK_DIR="/dstack/input/.transport/frame-11"
 
 die() {
   echo "error: $*" >&2
@@ -44,6 +45,15 @@ validate_environment() {
   [[ "$DATA_ROOT" == /dstack/input ]] || die "data root mismatch"
   [[ "$OUTPUT_DIR" == /dstack/output ]] || die "output path mismatch"
   [[ -f "$CONTRACT_PATH" ]] || die "contract is missing"
+}
+
+reconstruct_oversized_frame() {
+  "$PYTHON_BIN" -m \
+    trec_video_2026.vqa_experiments.qwen3_omni_quality_transport reconstruct \
+    --data-root "$DATA_ROOT" \
+    --chunk-directory "$TRANSPORT_CHUNK_DIR" \
+    --contract "$CONTRACT_PATH" \
+    || die "oversized frame reconstruction failed"
   chmod -R a-w "$DATA_ROOT"
   mkdir -p "$OUTPUT_DIR"
 }
@@ -144,6 +154,7 @@ finalize_and_sync() {
 
 run_probe() {
   validate_environment
+  reconstruct_oversized_frame
   bootstrap_uv
   hf_cli version
   hf_cli auth whoami

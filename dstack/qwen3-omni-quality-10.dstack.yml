@@ -139,7 +139,9 @@ files:
   - ../data/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-08.png:/dstack/input/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-08.png
   - ../data/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-09.png:/dstack/input/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-09.png
   - ../data/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-10.png:/dstack/input/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-10.png
-  - ../data/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-11.png:/dstack/input/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-11.png
+  - ../data/vqa/benchmarks/qwen3-omni-quality-10/transport/frame-11/part-0000.bin:/dstack/input/.transport/frame-11/part-0000.bin
+  - ../data/vqa/benchmarks/qwen3-omni-quality-10/transport/frame-11/part-0001.bin:/dstack/input/.transport/frame-11/part-0001.bin
+  - ../data/vqa/benchmarks/qwen3-omni-quality-10/transport/frame-11/part-0002.bin:/dstack/input/.transport/frame-11/part-0002.bin
   - ../data/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-12.png:/dstack/input/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-12.png
   - ../data/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/EMI_anpHII4.wav:/dstack/input/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/EMI_anpHII4.wav
   - ../data/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-01.png:/dstack/input/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-01.png
