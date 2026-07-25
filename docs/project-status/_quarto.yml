@@ -1,0 +1,30 @@
+project:
+  type: website
+  output-dir: ../../reports/project-status
+
+website:
+  title: "TRECVID 2026 VQA: Project Status"
+  navbar:
+    collapse-below: lg
+    left:
+      - href: index.qmd
+        text: Start Here
+      - href: experiment-ledger.qmd
+        text: Experiment Ledger
+      - href: code-map.qmd
+        text: Code Map and Gaps
+  page-footer:
+    left: "Repository evidence through 2026-07-25"
+    right: "Sanitized aggregates only"
+  search: false
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+    embed-resources: true
+    toc: true
+    toc-depth: 2
+    toc-title: On this page
+    code-copy: false
+    link-external-newwindow: true
