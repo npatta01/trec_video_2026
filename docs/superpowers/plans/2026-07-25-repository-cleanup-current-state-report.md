@@ -36,7 +36,7 @@ until the report is reviewed.
 
 - Create **Start Here**, **Experiment Ledger**, and **Code Map and Remaining
   Gaps** pages.
-- Include five accessible visuals: system pipeline, experiment timeline,
+- Include five accessible visuals: system pipeline, research-question map,
   decision map, recommended router, and repository map.
 - Give every visual meaningful alternative text, a caption, and a nearby
   list/table equivalent.
