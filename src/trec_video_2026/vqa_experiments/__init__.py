@@ -1,1 +1,1 @@
-"""Small, reproducible VQA experiment building blocks."""
+"""VQA experiment contracts, runners, and diagnostic tooling."""
