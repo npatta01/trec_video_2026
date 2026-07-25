@@ -157,8 +157,8 @@ Plain-text equivalent:
 - **Decision:** keep these as router-design seeds and stratification hints.
 - **Limitation:** lexical lower bounds overlap, omit paraphrases, and do not
   validate routing prevalence.
-- **Evidence:** [taxonomy audit][taxonomy] and the [evidence-routing plan from
-  closed issue #4][issue4-plan].
+- **Evidence:** [taxonomy audit][taxonomy], [closed issue #4][issue4], and its
+  restored [evidence-routing plan][issue4-plan].
 
 ### Directed temporal sampling
 
@@ -265,6 +265,7 @@ see [Code Map and Remaining Gaps](code-map.qmd#remaining-gaps).
 [semantic]: https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-omni-semantic-quality.md
 [qwen-compat]: https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-qwen3-omni-dstack-compatibility.md
 [omni-a2]: https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md
+[issue4]: https://github.com/npatta01/trec_video_2026/issues/4
 [issue4-plan]: https://github.com/npatta01/trec_video_2026/blob/main/docs/superpowers/plans/2026-07-24-evidence-routing-benchmark.md
 [issue5]: https://github.com/npatta01/trec_video_2026/issues/5
 [issue6]: https://github.com/npatta01/trec_video_2026/issues/6
