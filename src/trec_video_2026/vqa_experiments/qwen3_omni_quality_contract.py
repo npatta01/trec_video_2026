@@ -23,15 +23,16 @@ VIDEO_IDS = (
     "EMI_anpHII4",
     "LusRurRrmf0",
 )
-CONDITIONS = [
-    {"condition_id": "frames-only", "audio_enabled": False},
-    {"condition_id": "frames-native-audio", "audio_enabled": True},
-]
+CONDITION_SPECS = (
+    ("frames-only", False),
+    ("frames-native-audio", True),
+)
 FROZEN30_MANIFEST_PATH = "vqa/benchmarks/manifests/native_audio_benchmark_30.resolved.json"
 FROZEN12_REQUEST_PATH = (
     "vqa/benchmarks/runs/native-audio-benchmark-v2/requests/"
     "qwen35-4b-12f-frozen30.json"
 )
+FROZEN12_REQUEST_SHA256 = "310790e29283ab72ed764ae91a9f1dc6fa25056b7c37cff0b8c231b2eb3d01b1"
 NATIVE_AUDIO_DIRECTORY = "vqa/benchmarks/runs/native-audio-benchmark-v2/audio"
 HORSE_VIDEO_ID = "NN7G28sBOlY"
 HORSE_QUESTION = "What does the bystander answer when asked how old the horse is?"
@@ -39,6 +40,9 @@ HEX_DIGITS = frozenset("0123456789abcdef")
 FORBIDDEN_FIELD_NAMES = frozenset(
     {"correct_answer", "reference", "distractor", "transcript"}
 )
+# The pinned historical request carries transcript metadata. This builder never
+# accesses that field; all answer-bearing source keys remain forbidden.
+FORBIDDEN_SOURCE_FIELD_NAMES = FORBIDDEN_FIELD_NAMES - {"transcript"}
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -53,6 +57,17 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _sha256_bytes(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
+def _conditions() -> list[dict[str, Any]]:
+    return [
+        {"condition_id": condition_id, "audio_enabled": audio_enabled}
+        for condition_id, audio_enabled in CONDITION_SPECS
+    ]
 
 
 def _is_sha256(value: Any) -> bool:
@@ -72,7 +87,14 @@ def _resolve_relative(data_root: Path, value: Any, field: str) -> Path:
         or relative.parts[0] != "vqa"
     ):
         raise ValueError(f"{field} must be a safe data-root-relative path")
-    return data_root.joinpath(*relative.parts)
+    data_root = data_root.resolve()
+    candidate = data_root.joinpath(*relative.parts)
+    resolved = candidate.resolve(strict=False)
+    try:
+        resolved.relative_to(data_root)
+    except ValueError as error:
+        raise ValueError(f"{field} escapes data_root") from error
+    return resolved
 
 
 def _as_relative(data_root: Path, value: Any, field: str) -> str:
@@ -96,7 +118,10 @@ def _source_inputs(data_root: Path) -> list[dict[str, str]]:
 
 def _read_requests(data_root: Path) -> dict[str, Mapping[str, Any]]:
     request_path = _resolve_relative(data_root, FROZEN12_REQUEST_PATH, "request path")
-    parsed = json.loads(request_path.read_text(encoding="utf-8"))
+    request_bytes = request_path.read_bytes()
+    if _sha256_bytes(request_bytes) != FROZEN12_REQUEST_SHA256:
+        raise ValueError("frozen request hash does not match the approved source")
+    parsed = json.loads(request_bytes)
     if not isinstance(parsed, list):
         raise ValueError("frozen request file must contain a list")
 
@@ -104,6 +129,13 @@ def _read_requests(data_root: Path) -> dict[str, Mapping[str, Any]]:
     for request in parsed:
         if not isinstance(request, Mapping):
             raise ValueError("frozen request rows must be objects")
+        forbidden_keys = {
+            key.lower()
+            for key in request
+            if isinstance(key, str) and key.lower() in FORBIDDEN_SOURCE_FIELD_NAMES
+        }
+        if forbidden_keys:
+            raise ValueError("forbidden source row key")
         video_id = request.get("video_id")
         if video_id in VIDEO_IDS:
             if video_id in selected:
@@ -115,7 +147,7 @@ def _read_requests(data_root: Path) -> dict[str, Mapping[str, Any]]:
     return selected
 
 
-def _example_from_request(
+def _frozen_example_recipe(
     request: Mapping[str, Any], data_root: Path, video_id: str
 ) -> dict[str, Any]:
     question = request.get("question")
@@ -127,23 +159,38 @@ def _example_from_request(
         raise ValueError(f"{video_id}: frame_paths must contain 12 paths")
     if not isinstance(timestamps, list) or len(timestamps) != 12:
         raise ValueError(f"{video_id}: frame_timestamps must contain 12 values")
-
-    relative_frames = [
-        _as_relative(data_root, path, f"{video_id}: frame_paths")
-        for path in frame_paths
-    ]
-    audio_path = f"{NATIVE_AUDIO_DIRECTORY}/{video_id}.wav"
-    question = HORSE_QUESTION if video_id == HORSE_VIDEO_ID else question.strip()
     return {
-        "video_id": video_id,
-        "question": question,
-        "prompt_repair": video_id == HORSE_VIDEO_ID,
-        "frame_paths": relative_frames,
-        "frame_sha256s": [
-            _sha256_file(_resolve_relative(data_root, path, "frame_paths"))
-            for path in relative_frames
+        "question": HORSE_QUESTION if video_id == HORSE_VIDEO_ID else question.strip(),
+        "frame_paths": [
+            _as_relative(data_root, path, f"{video_id}: frame_paths")
+            for path in frame_paths
         ],
         "frame_timestamps": timestamps,
+    }
+
+
+def _frozen_recipes(data_root: Path) -> dict[str, dict[str, Any]]:
+    return {
+        video_id: _frozen_example_recipe(request, data_root, video_id)
+        for video_id, request in _read_requests(data_root).items()
+    }
+
+
+def _example_from_request(
+    request: Mapping[str, Any], data_root: Path, video_id: str
+) -> dict[str, Any]:
+    recipe = _frozen_example_recipe(request, data_root, video_id)
+    audio_path = f"{NATIVE_AUDIO_DIRECTORY}/{video_id}.wav"
+    return {
+        "video_id": video_id,
+        "question": recipe["question"],
+        "prompt_repair": video_id == HORSE_VIDEO_ID,
+        "frame_paths": recipe["frame_paths"],
+        "frame_sha256s": [
+            _sha256_file(_resolve_relative(data_root, path, "frame_paths"))
+            for path in recipe["frame_paths"]
+        ],
+        "frame_timestamps": recipe["frame_timestamps"],
         "audio_path": audio_path,
         "audio_sha256": _sha256_file(
             _resolve_relative(data_root, audio_path, "audio_path")
@@ -158,7 +205,7 @@ def build_contract(data_root: Path) -> dict[str, Any]:
     contract = {
         "schema_version": SCHEMA_VERSION,
         "panel_id": PANEL_ID,
-        "conditions": CONDITIONS,
+        "conditions": _conditions(),
         "source_inputs": _source_inputs(data_root),
         "examples": [
             _example_from_request(requests[video_id], data_root, video_id)
@@ -216,7 +263,7 @@ def validate_quality_contract(
         raise ValueError(f"schema_version must be {SCHEMA_VERSION}")
     if contract.get("panel_id") != PANEL_ID:
         raise ValueError(f"panel_id must be {PANEL_ID}")
-    if contract.get("conditions") != CONDITIONS:
+    if contract.get("conditions") != _conditions():
         raise ValueError("conditions must be the paired frames/audio conditions")
 
     source_inputs = contract.get("source_inputs")
@@ -227,6 +274,7 @@ def validate_quality_contract(
         raise ValueError("source_inputs must use the frozen manifest and request paths")
 
     data_root = data_root.resolve()
+    frozen_recipes = _frozen_recipes(data_root)
     for source in source_inputs:
         if not isinstance(source, Mapping) or set(source) != {"path", "sha256"}:
             raise ValueError("source input has an invalid schema")
@@ -266,6 +314,10 @@ def validate_quality_contract(
         if video_id == HORSE_VIDEO_ID and row["question"] != HORSE_QUESTION:
             raise ValueError(f"{video_id}: question must use the approved prompt repair")
 
+        frozen_recipe = frozen_recipes[video_id]
+        if row["question"] != frozen_recipe["question"]:
+            raise ValueError(f"{video_id}: question does not match frozen request question")
+
         frame_paths = row["frame_paths"]
         frame_hashes = row["frame_sha256s"]
         timestamps = row["frame_timestamps"]
@@ -279,6 +331,11 @@ def validate_quality_contract(
             or not all(isinstance(timestamp, (int, float)) for timestamp in timestamps)
         ):
             raise ValueError(f"{video_id}: frame_timestamps must contain 12 numbers")
+        if (
+            frame_paths != frozen_recipe["frame_paths"]
+            or timestamps != frozen_recipe["frame_timestamps"]
+        ):
+            raise ValueError(f"{video_id}: frozen request evidence does not match")
         for path, digest in zip(frame_paths, frame_hashes, strict=True):
             _validate_path_hash(
                 data_root,
