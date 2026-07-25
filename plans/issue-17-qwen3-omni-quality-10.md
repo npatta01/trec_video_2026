@@ -158,7 +158,7 @@ Commit:
   `_generate_one(..., audio_enabled: bool = True)`, and
   `run_quality_probe(...) -> dict[str, Any]`.
 
-- [ ] **Step 1: Add failing audio-off message and tensor-attestation tests**
+- [x] **Step 1: Add failing audio-off message and tensor-attestation tests**
 
 ```python
 def test_frames_only_message_and_attestation_omit_audio():
@@ -177,7 +177,7 @@ def test_frames_only_message_and_attestation_omit_audio():
     assert attestation["audio_input_keys"] == []
 ```
 
-- [ ] **Step 2: Run focused tests and verify failure**
+- [x] **Step 2: Run focused tests and verify failure**
 
 Run:
 
@@ -190,14 +190,14 @@ uv run pytest -q \
 Expected: failure because shared generation functions do not accept
 `audio_enabled`.
 
-- [ ] **Step 3: Generalize only the modality seam**
+- [x] **Step 3: Generalize only the modality seam**
 
 Keep `audio_enabled=True` as the compatibility default. With audio disabled,
 omit the message audio element and require audio tensors to be absent. With
 audio enabled, preserve the exact a4 requirements. Do not alter EOS, padding,
 sampling, seed, output normalization, model load, dtype, or strict parser.
 
-- [ ] **Step 4: Implement the paired quality runner**
+- [x] **Step 4: Implement the paired quality runner**
 
 For each example, run `frames-only` then `frames-native-audio`. Add
 `condition_id`, `audio_enabled`, `pair_index`, and condition-specific request
@@ -205,7 +205,7 @@ hash to every record. Stop after the first pair unless both canary calls pass
 the modality, EOS, and parsing contract. Continue writing predictions after
 every later call so failures remain durable.
 
-- [ ] **Step 5: Test compatibility defaults and paired failure behavior**
+- [x] **Step 5: Test compatibility defaults and paired failure behavior**
 
 Run:
 
@@ -217,7 +217,7 @@ uv run pytest -q \
 
 Expected: both the unchanged a4 compatibility suite and new quality suite pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Commit:
 `git commit -m "feat: add paired Qwen3 Omni quality runner"`
@@ -237,7 +237,7 @@ Commit:
 - Produces: one immutable private remote run and one ignored local artifact
   directory.
 
-- [ ] **Step 1: Write failing static configuration and wrapper tests**
+- [x] **Step 1: Write failing static configuration and wrapper tests**
 
 Assert the exact run ID/prefix, image/model revisions, 120 PNG mappings, 10 WAV
 mappings, no ports, two providers, on-demand policy, 90+ GB VRAM, 192+ GB RAM,
@@ -245,14 +245,14 @@ one-hour duration, `$4.50/hour` cap, bounded `no-capacity` retry, absolute
 interpreter, pinned `uv`/HF CLI, empty-prefix check, partial-failure
 finalization, foreground workload, and no `--delete`.
 
-- [ ] **Step 2: Run focused tests and verify failure**
+- [x] **Step 2: Run focused tests and verify failure**
 
 Run:
 `uv run pytest -q tests/test_qwen3_omni_quality_dstack_config.py`
 
 Expected: failure because the quality dstack files do not exist.
 
-- [ ] **Step 3: Implement the wrapper and config**
+- [x] **Step 3: Implement the wrapper and config**
 
 Use:
 
@@ -266,11 +266,13 @@ retry:
   duration: 30m
 ```
 
-Map only the runner source, contract, 120 exact PNGs, and 10 exact WAVs. Bind
-the verified `/usr/bin/python3`, keep Python foregrounded, sync partial results
-in finalization, and preserve workload failure over sync success.
+Map only the runner source, contract, 119 direct PNGs, three pinned transport
+chunks for the sole over-limit PNG, and 10 exact WAVs. Reconstruct the original
+PNG byte-for-byte before validation. Bind the verified `/usr/bin/python3`, keep
+Python foregrounded, sync partial results in finalization, and preserve
+workload failure over sync success.
 
-- [ ] **Step 4: Implement the collector**
+- [x] **Step 4: Implement the collector**
 
 Accept only `qwen3-omni-quality-10-20260725-a1`. Download the exact private
 prefix into
@@ -278,7 +280,7 @@ prefix into
 `SHA256SUMS`, sanitize only allowlisted dstack metadata, and write/verify a
 local artifact-hash manifest.
 
-- [ ] **Step 5: Run static verification and commit**
+- [x] **Step 5: Run static verification and commit**
 
 Run:
 
@@ -303,7 +305,7 @@ Commit:
 - Produces: reviewed commit, empty namespaces, acceptable declined preview, or
   an explicit blocker.
 
-- [ ] **Step 1: Run all cheap verification**
+- [x] **Step 1: Run all cheap verification**
 
 Run:
 
@@ -315,32 +317,33 @@ bash -n scripts/collect-qwen3-omni-quality-dstack.sh
 git diff --check
 ```
 
-- [ ] **Step 2: Verify data and secret boundaries**
+- [x] **Step 2: Verify data and secret boundaries**
 
 Confirm the worktree `data` symlink resolves to the canonical dataset, no
 dataset file is tracked, the contract is label-free, only intended input files
 are mapped, tracked files contain no token value, and both local/remote run
 prefixes are empty.
 
-- [ ] **Step 3: Obtain independent standards and specification review**
+- [x] **Step 3: Obtain independent standards and specification review**
 
 Reviewers must check the paired condition semantics, canary stop, a4
 non-regression, strict parsing, budget arithmetic, immutable paths, artifact
 durability, secret exposure, and test coverage. Fix all Critical or Important
 findings and re-review.
 
-- [ ] **Step 4: Preview without submission**
+- [x] **Step 4: Preview without submission**
 
 Run:
 
 ```bash
-echo "n" | dstack apply -f dstack/qwen3-omni-quality-10.dstack.yml
+echo "n" | dstack apply --no-repo \
+  -f dstack/qwen3-omni-quality-10.dstack.yml
 ```
 
 Do not submit if the server is unreachable, validation fails, no offers exist,
 or the output lacks at least two distinct eligible offers when practical.
 
-- [ ] **Step 5: Commit the reviewed pre-run state**
+- [x] **Step 5: Commit the reviewed pre-run state**
 
 Commit:
 `git commit -m "chore: freeze Qwen3 Omni quality run"`
@@ -362,7 +365,8 @@ Commit:
 Run:
 
 ```bash
-dstack apply -f dstack/qwen3-omni-quality-10.dstack.yml -y -d
+dstack apply --no-repo \
+  -f dstack/qwen3-omni-quality-10.dstack.yml -y -d
 ```
 
 - [ ] **Step 2: Verify the unique run and monitor**
@@ -456,9 +460,22 @@ cost, hashes, verification, report, and PR links.
   verified.
 - [x] Clean baseline: 187 tests passed.
 - [x] Design documented and committed.
-- [ ] Task 1 in progress.
+- [x] Task 1 complete: label-free contract digest
+  `df016767b1a072770149fdc06fa47dfe7f17930b6c3145af4e92f55d58f4ddeb`;
+  21 focused and 208 full tests passed; task review clean after two fix
+  rounds.
+- [x] Task 2 complete: paired runner; 24 focused and 211 full tests passed;
+  task review clean.
+- [x] Task 3 complete: bounded dstack task and collector; task review clean
+  after one fix round.
+- [x] Task 4 complete: 225 full tests, Ruff, Bash, and diff checks pass;
+  standards and specification reviews clean after four fix rounds. Declined
+  preview showed 7 eligible on-demand offers, including three distinct H200
+  offers at `$4.39/hour`; no run was submitted.
+- [ ] Task 5 ready.
 
 ## Next action
 
-Implement Task 1 test-first, generate the label-free ignored contract, and
-verify that it contains no annotations or other evaluation-only fields.
+Submit immutable run `qwen3-omni-quality-10-20260725-a1` exactly once with
+`--no-repo`, monitor it to terminal state, and collect checksum-verified
+private artifacts.
