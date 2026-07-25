@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -21,6 +22,7 @@ CONFIG = Path("dstack/qwen3-omni-quality-10.dstack.yml")
 RUNNER = Path("scripts/run-qwen3-omni-quality-dstack.sh")
 COLLECTOR = Path("scripts/collect-qwen3-omni-quality-dstack.sh")
 COLLECTOR_LIB = Path("scripts/qwen3-omni-quality-collector-lib.sh")
+DSTACKIGNORE = Path(".dstackignore")
 
 
 def _config() -> str:
@@ -44,6 +46,42 @@ def _contract_paths() -> set[str]:
     }
     assert len(paths) == 130
     return paths
+
+
+def test_dstack_archive_excludes_only_safe_non_runtime_directories() -> None:
+    """Catches rendered reports inflating the archive or runtime inputs being ignored."""
+    ignored_roots = {
+        line.removeprefix("/").removesuffix("/")
+        for line in DSTACKIGNORE.read_text(encoding="utf-8").splitlines()
+        if line and not line.startswith("#")
+    }
+    assert ignored_roots == {
+        ".agents",
+        ".ruff_cache",
+        ".superpowers",
+        "docs",
+        "plans",
+        "reports",
+        "tests",
+    }
+
+    required_paths = {
+        DSTACKIGNORE,
+        CONFIG,
+        RUNNER,
+        *Path("src/trec_video_2026").rglob("*"),
+    }
+    for mapping in _file_mappings(_config()):
+        source = mapping.split(":", 1)[0]
+        required_paths.add(Path(os.path.normpath(CONFIG.parent / source)))
+    required_files = {path for path in required_paths if path.is_file()}
+
+    assert CONFIG in required_files
+    assert RUNNER in required_files
+    assert CONTRACT in required_files
+    assert len({path for path in required_files if path.suffix == ".png"}) == 120
+    assert len({path for path in required_files if path.suffix == ".wav"}) == 10
+    assert all(path.parts[0] not in ignored_roots for path in required_files)
 
 
 def test_quality_config_is_immutable_and_bounded() -> None:
