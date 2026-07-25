@@ -42,3 +42,11 @@ The recovery branch is based on `origin/main` at `fb06b41`. Its clean baseline p
 Reviewed loose artifacts selected for inclusion are seven durable research reports and one provider-neutral, bounded GPU smoke test. Deliberate exclusions are duplicate/provider-specific scratch configurations, `notes.txt`, the stale unchecked evidence-routing umbrella plan, and colliding internal `.superpowers/sdd` reports containing raw-adjacent outputs and local paths.
 
 Remaining work is final combined verification, independent diff review, push, and pull-request creation.
+
+The final advisor review identified and resolved one label-isolation blocker:
+the omni compatibility launcher now mounts only `src/` instead of the full
+repository, so the recovered NIST reference-answer submodule is unreachable to
+inference code. Two non-blocking recovery caveats are documented explicitly:
+GPU cost ceilings belong on consuming tasks, and the model-specific historical
+Containerfiles require preservation of their exact host-local base image for
+bit-identical replay.

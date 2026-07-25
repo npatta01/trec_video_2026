@@ -57,8 +57,10 @@ contain no secrets:
 
 - A GPU fleet restricted to RunPod and Vast.ai.
 - A CPU fleet restricted to DigitalOcean and GCP.
-- Both fleets use `nodes: 0..1`, a short idle timeout, explicit maximum hourly
-  prices, and no provisioned minimum.
+- Both fleets use `nodes: 0..1`, a short idle timeout, and no provisioned
+  minimum. The CPU fleet has an explicit hourly limit; GPU price limits belong
+  on each consuming task so workloads can choose an appropriate accelerator
+  without silently inheriting an unsuitable fleet-wide ceiling.
 - A CPU network test checks one public YouTube URL without downloading media.
 - The full downloader remains a separate, explicitly authorized task.
 

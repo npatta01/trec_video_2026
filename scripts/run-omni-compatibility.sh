@@ -78,7 +78,7 @@ exec podman run --rm \
   -e TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 \
   -v "${DATA_ROOT}:/data:ro" \
   -v "${HF_CACHE_ROOT}:/cache:ro" \
-  -v "${REPO_ROOT}:/workspace:ro" \
+  -v "${REPO_ROOT}/src:/workspace/src:ro" \
   -v "${OUTPUT_DIR}:/output:rw" \
   "${RUNTIME_IMAGE}" \
   python -m trec_video_2026.vqa_experiments.omni_probe \
