@@ -116,7 +116,13 @@ def verify_uploaded_evidence(contract: dict[str, Any], data_root: Path) -> None:
                 )
 
 
-def build_messages(example: dict[str, Any], data_root: Path) -> list[dict[str, Any]]:
+def build_messages(
+    example: dict[str, Any],
+    data_root: Path,
+    *,
+    audio_enabled: bool = True,
+    output_instruction: str = OUTPUT_INSTRUCTION,
+) -> list[dict[str, Any]]:
     content: list[dict[str, str]] = [
         {
             "type": "image",
@@ -124,16 +130,17 @@ def build_messages(example: dict[str, Any], data_root: Path) -> list[dict[str, A
         }
         for relative in example["frame_paths"]
     ]
-    content.append(
-        {
-            "type": "audio",
-            "audio": str(_safe_input_path(data_root, example["audio_path"])),
-        }
-    )
+    if audio_enabled:
+        content.append(
+            {
+                "type": "audio",
+                "audio": str(_safe_input_path(data_root, example["audio_path"])),
+            }
+        )
     content.append(
         {
             "type": "text",
-            "text": f"{OUTPUT_INSTRUCTION}\nQuestion: {example['question']}",
+            "text": f"{output_instruction}\nQuestion: {example['question']}",
         }
     )
     return [{"role": "user", "content": content}]
@@ -217,25 +224,38 @@ def attest_qwen_inputs(
     processor_inputs: dict[str, Any],
     *,
     first_forward_input_keys: set[str],
+    audio_enabled: bool = True,
 ) -> dict[str, Any]:
-    """Attest processed visual and audio tensors in one first model forward."""
+    """Attest processed tensors for one condition-specific first model forward."""
 
     available = {key for key, value in processor_inputs.items() if value is not None}
-    missing = (VISION_INPUT_KEYS | AUDIO_INPUT_KEYS) - available
+    required = VISION_INPUT_KEYS | (AUDIO_INPUT_KEYS if audio_enabled else frozenset())
+    missing = required - available
     if missing:
-        raise ValueError(f"processor omitted joint modality inputs: {sorted(missing)}")
-    required = VISION_INPUT_KEYS | AUDIO_INPUT_KEYS
+        raise ValueError(f"processor omitted required modality inputs: {sorted(missing)}")
+    present_audio = AUDIO_INPUT_KEYS & available
+    if not audio_enabled and present_audio:
+        raise ValueError(
+            f"processor supplied audio tensors for frames-only request: {sorted(present_audio)}"
+        )
     missing_forward = required - first_forward_input_keys
     if missing_forward:
         raise ValueError(
-            f"first forward omitted joint modality inputs: {sorted(missing_forward)}"
+            f"first forward omitted required modality inputs: {sorted(missing_forward)}"
+        )
+    forwarded_audio = AUDIO_INPUT_KEYS & first_forward_input_keys
+    if not audio_enabled and forwarded_audio:
+        raise ValueError(
+            "first forward received audio tensors for frames-only request: "
+            f"{sorted(forwarded_audio)}"
         )
     image_shape = getattr(processor_inputs["image_grid_thw"], "shape", ())
-    audio_shape = getattr(processor_inputs["input_features"], "shape", ())
     if not image_shape or int(image_shape[0]) != 12:
         raise ValueError("processed request must contain exactly 12 visual elements")
-    if not audio_shape or int(audio_shape[0]) != 1:
-        raise ValueError("processed request must contain exactly one audio element")
+    if audio_enabled:
+        audio_shape = getattr(processor_inputs["input_features"], "shape", ())
+        if not audio_shape or int(audio_shape[0]) != 1:
+            raise ValueError("processed request must contain exactly one audio element")
     return {
         "same_request": True,
         "same_forward_pass": True,
@@ -243,11 +263,15 @@ def attest_qwen_inputs(
         "generation_input_keys": sorted(available),
         "first_forward_input_keys": sorted(first_forward_input_keys),
         "vision_input_keys": sorted(VISION_INPUT_KEYS),
-        "audio_input_keys": sorted(AUDIO_INPUT_KEYS),
+        "audio_input_keys": sorted(AUDIO_INPUT_KEYS) if audio_enabled else [],
         "vision_element_count": 12,
-        "audio_element_count": 1,
+        "audio_element_count": 1 if audio_enabled else 0,
         "vision_input_sha256": _inputs_sha256(processor_inputs, VISION_INPUT_KEYS),
-        "audio_input_sha256": _inputs_sha256(processor_inputs, AUDIO_INPUT_KEYS),
+        "audio_input_sha256": (
+            _inputs_sha256(processor_inputs, AUDIO_INPUT_KEYS)
+            if audio_enabled
+            else None
+        ),
     }
 
 
@@ -382,10 +406,17 @@ def _generate_one(
     model: Any,
     example: dict[str, Any],
     data_root: Path,
+    audio_enabled: bool = True,
+    output_instruction: str = OUTPUT_INSTRUCTION,
 ) -> tuple[str, dict[str, Any]]:
     try:
         inputs = processor.apply_chat_template(
-            build_messages(example, data_root),
+            build_messages(
+                example,
+                data_root,
+                audio_enabled=audio_enabled,
+                output_instruction=output_instruction,
+            ),
             add_generation_prompt=True,
             tokenize=True,
             return_dict=True,
@@ -423,6 +454,7 @@ def _generate_one(
         attestation = attest_qwen_inputs(
             processor_inputs,
             first_forward_input_keys=captures[0],
+            audio_enabled=audio_enabled,
         )
     except Exception as error:
         raise ProbeStageError("attestation", error) from error
