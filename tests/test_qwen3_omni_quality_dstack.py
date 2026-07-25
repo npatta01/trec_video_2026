@@ -1,4 +1,7 @@
 import json
+import shutil
+import sys
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -93,7 +96,7 @@ def _install_fakes(monkeypatch: pytest.MonkeyPatch, calls: list[tuple[str, bool]
 
     monkeypatch.setattr(
         quality_runner,
-        "validate_quality_contract",
+        "validate_uploaded_quality_contract",
         lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(
@@ -146,6 +149,17 @@ def test_quality_runner_writes_adjacent_condition_records_with_distinct_hashes(
     assert rows[0]["request_sha256"] != rows[1]["request_sha256"]
     assert summary["rows"] == 4
     assert summary["canary_passed"] is True
+    assert summary["succeeded"] is True
+    preflight = json.loads((tmp_path / "output" / "preflight.json").read_text())
+    assert preflight == {
+        "audio_files": 2,
+        "condition_ids": ["frames-only", "frames-native-audio"],
+        "frame_files": 24,
+        "quality_contract_sha256": quality_runner.quality_contract_sha256(_contract()),
+        "run_id": "test-run",
+        "schema_version": 1,
+        "video_count": 2,
+    }
 
 
 def test_quality_runner_stops_after_a_failed_canary_but_persists_both_rows(
@@ -178,3 +192,80 @@ def test_quality_runner_stops_after_a_failed_canary_but_persists_both_rows(
     assert len(rows) == 2
     assert rows[-1]["status"] == "failed"
     assert summary["canary_passed"] is False
+    assert summary["succeeded"] is False
+
+
+def test_quality_runner_cli_forwards_wrapper_arguments_and_fails_on_probe_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Catches a module entry point that drops wrapper arguments or masks failure."""
+    contract_path = tmp_path / "contract.json"
+    output_dir = tmp_path / "output"
+    observed: dict[str, object] = {}
+
+    def failed_probe(**kwargs: object) -> dict:
+        observed.update(kwargs)
+        return {"succeeded": False}
+
+    monkeypatch.setattr(quality_runner, "run_quality_probe", failed_probe)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "qwen3_omni_quality_dstack",
+            "--contract",
+            str(contract_path),
+            "--data-root",
+            str(tmp_path),
+            "--output-dir",
+            str(output_dir),
+            "--run-id",
+            "test-run",
+        ],
+    )
+
+    assert quality_runner.main() == 1
+    assert observed == {
+        "contract_path": contract_path,
+        "data_root": tmp_path,
+        "output_dir": output_dir,
+        "run_id": "test-run",
+    }
+
+
+def test_uploaded_contract_validation_needs_only_contract_bound_evidence(
+    tmp_path: Path,
+):
+    """Catches remote validation that reaches for unuploaded build-time inputs."""
+    from trec_video_2026.vqa_experiments.qwen3_omni_quality_contract import (
+        build_contract,
+        validate_uploaded_quality_contract,
+    )
+
+    contract = build_contract(Path("data"))
+    for example in contract["examples"]:
+        for relative_path in [*example["frame_paths"], example["audio_path"]]:
+            source = Path("data") / relative_path
+            destination = tmp_path / relative_path
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, destination)
+
+    validate_uploaded_quality_contract(contract, tmp_path, verify_files=True)
+
+
+def test_uploaded_contract_validation_rejects_a_video_bound_to_another_audio_file(
+    tmp_path: Path,
+):
+    """Catches a remote contract that swaps a valid WAV between fixed videos."""
+    from trec_video_2026.vqa_experiments.qwen3_omni_quality_contract import (
+        build_contract,
+        validate_uploaded_quality_contract,
+    )
+
+    contract = build_contract(Path("data"))
+    swapped = deepcopy(contract)
+    swapped["examples"][0]["audio_path"] = contract["examples"][1]["audio_path"]
+    swapped["examples"][0]["audio_sha256"] = contract["examples"][1]["audio_sha256"]
+
+    with pytest.raises(ValueError, match="audio_path does not match the fixed panel"):
+        validate_uploaded_quality_contract(swapped, tmp_path, verify_files=False)

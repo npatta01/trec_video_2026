@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import time
@@ -24,7 +25,7 @@ from .qwen3_omni_dstack import (
 )
 from .qwen3_omni_quality_contract import (
     quality_contract_sha256,
-    validate_quality_contract,
+    validate_uploaded_quality_contract,
 )
 
 
@@ -175,10 +176,15 @@ def _add_runtime_metadata(
     )
 
 
-def _reserved_output_paths(output_dir: Path) -> tuple[Path, Path, Path]:
+def _reserved_output_paths(output_dir: Path) -> tuple[Path, Path, Path, Path]:
     paths = tuple(
         output_dir / name
-        for name in ("predictions.jsonl", "summary.json", "manifest.json")
+        for name in (
+            "predictions.jsonl",
+            "summary.json",
+            "manifest.json",
+            "preflight.json",
+        )
     )
     if any(path.exists() for path in paths):
         existing = next(path for path in paths if path.exists())
@@ -186,15 +192,34 @@ def _reserved_output_paths(output_dir: Path) -> tuple[Path, Path, Path]:
     return paths
 
 
+def _preflight_record(contract: dict[str, Any], run_id: str) -> dict[str, Any]:
+    examples = contract["examples"]
+    return {
+        "schema_version": 1,
+        "run_id": run_id,
+        "quality_contract_sha256": quality_contract_sha256(contract),
+        "video_count": len(examples),
+        "frame_files": sum(len(example["frame_paths"]) for example in examples),
+        "audio_files": len(examples),
+        "condition_ids": [condition["condition_id"] for condition in contract["conditions"]],
+    }
+
+
 def run_quality_probe(
     *, contract_path: Path, data_root: Path, output_dir: Path, run_id: str
 ) -> dict[str, Any]:
     """Run adjacent condition pairs and stop after a failed first-pair canary."""
     contract = json.loads(contract_path.read_text(encoding="utf-8"))
-    validate_quality_contract(contract, data_root, verify_files=True)
-    contract_digest = quality_contract_sha256(contract)
+    validate_uploaded_quality_contract(contract, data_root, verify_files=True)
     output_dir.mkdir(parents=True, exist_ok=True)
-    predictions_path, summary_path, manifest_path = _reserved_output_paths(output_dir)
+    predictions_path, summary_path, manifest_path, preflight_path = _reserved_output_paths(
+        output_dir
+    )
+    preflight = _preflight_record(contract, run_id)
+    contract_digest = preflight["quality_contract_sha256"]
+    preflight_path.write_text(
+        json.dumps(preflight, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     conditions = contract["conditions"]
     predictions: list[dict[str, Any]] = []
     load_started = time.perf_counter()
@@ -294,6 +319,8 @@ def run_quality_probe(
         "runner_sha256": _sha256_file(Path(__file__)),
         "rows": len(predictions),
         "canary_passed": canary_passed,
+        "succeeded": len(predictions) == len(contract["examples"]) * len(conditions)
+        and all(_condition_passed(record) for record in predictions),
     }
     summary_path.write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -311,3 +338,24 @@ def run_quality_probe(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     return summary
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--contract", type=Path, required=True)
+    parser.add_argument("--data-root", type=Path, required=True)
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--run-id", required=True)
+    args = parser.parse_args()
+    summary = run_quality_probe(
+        contract_path=args.contract,
+        data_root=args.data_root,
+        output_dir=args.output_dir,
+        run_id=args.run_id,
+    )
+    print(json.dumps(summary, sort_keys=True))
+    return 0 if summary["succeeded"] else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

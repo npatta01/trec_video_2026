@@ -89,6 +89,20 @@ remote_prefix_is_empty() {
   [[ -z "$listing" || "$listing" == "[]" ]]
 }
 
+uploaded_contract_sha256() {
+  "$PYTHON_BIN" - "$CONTRACT_PATH" <<'PY'
+import hashlib
+import json
+import sys
+
+contract = json.loads(open(sys.argv[1], encoding="utf-8").read())
+canonical = json.dumps(
+    contract, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+).encode("utf-8")
+print(hashlib.sha256(canonical).hexdigest())
+PY
+}
+
 write_terminal_status() {
   local workload_rc="$1"
   "$PYTHON_BIN" - "$OUTPUT_DIR/terminal-status.json" "$workload_rc" <<'PY'
@@ -134,6 +148,11 @@ run_probe() {
   hf_cli version
   hf_cli auth whoami
   remote_prefix_is_empty || die "immutable remote run prefix already exists"
+  local actual_contract_sha256
+  actual_contract_sha256="$(uploaded_contract_sha256)" \
+    || die "could not calculate uploaded contract digest"
+  [[ "$actual_contract_sha256" == "$EXPECTED_CONTRACT_SHA256" ]] \
+    || die "uploaded contract digest does not match approved digest"
 
   set +e
   "$PYTHON_BIN" -m trec_video_2026.vqa_experiments.qwen3_omni_quality_dstack \

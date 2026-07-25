@@ -22,7 +22,9 @@ DATA_LINK="$REPO_ROOT/data"
 OUTPUT_DIR="$REPO_ROOT/data/vqa/benchmarks/qwen3-omni-quality-10/$RUN_ID"
 REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/$RUN_ID"
 [[ ! -e "$OUTPUT_DIR" ]] || { echo "error: refusing to overwrite $OUTPUT_DIR" >&2; exit 2; }
-mkdir -p "$OUTPUT_DIR"
+mkdir -p "$(dirname "$OUTPUT_DIR")"
+TEMP_OUTPUT_DIR="$(mktemp -d "${OUTPUT_DIR}.tmp.XXXXXX")"
+trap 'rm -rf "$TEMP_OUTPUT_DIR"' EXIT
 
 hf_cli() {
   "$UVX_BIN" --from "huggingface-hub==$HF_CLI_VERSION" hf "$@"
@@ -59,23 +61,25 @@ PY
 
 bootstrap_uv
 hf_cli buckets list "$REMOTE_URI" --format json >/dev/null
-hf_cli buckets sync "$REMOTE_URI" "$OUTPUT_DIR"
+hf_cli buckets sync "$REMOTE_URI" "$TEMP_OUTPUT_DIR"
 (
-  cd "$OUTPUT_DIR"
+  cd "$TEMP_OUTPUT_DIR"
   sha256sum -c SHA256SUMS
 )
 
 dstack run get "$RUN_ID" --json \
   | PYTHONPATH="$REPO_ROOT/src" "$PYTHON_BIN" -m trec_video_2026.vqa_experiments.dstack_metadata \
       --run-id "$RUN_ID" \
-      --output "$OUTPUT_DIR/dstack-run.json"
+      --output "$TEMP_OUTPUT_DIR/dstack-run.json"
 
 (
-  cd "$OUTPUT_DIR"
+  cd "$TEMP_OUTPUT_DIR"
   find . -type f ! -name artifact-hashes.sha256 -print0 \
     | sort -z \
     | xargs -0 sha256sum >artifact-hashes.sha256
   sha256sum -c artifact-hashes.sha256
 )
 
+mv "$TEMP_OUTPUT_DIR" "$OUTPUT_DIR"
+trap - EXIT
 echo "$OUTPUT_DIR"

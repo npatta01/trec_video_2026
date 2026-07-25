@@ -384,6 +384,106 @@ def validate_quality_contract(
         )
 
 
+def validate_uploaded_quality_contract(
+    contract: Mapping[str, Any], data_root: Path, *, verify_files: bool
+) -> None:
+    """Validate the frozen contract using only evidence uploaded with the task.
+
+    The local builder deliberately checks its frozen request and manifest recipes.
+    Those build-time inputs are not part of the remote task, so remote validation
+    instead verifies the pinned contract's schema and every mapped evidence file.
+    """
+    _reject_label_fields(contract)
+    if set(contract) != {
+        "schema_version",
+        "panel_id",
+        "conditions",
+        "source_inputs",
+        "examples",
+    }:
+        raise ValueError("contract has an invalid schema")
+    if contract.get("schema_version") != SCHEMA_VERSION:
+        raise ValueError(f"schema_version must be {SCHEMA_VERSION}")
+    if contract.get("panel_id") != PANEL_ID:
+        raise ValueError(f"panel_id must be {PANEL_ID}")
+    if contract.get("conditions") != _conditions():
+        raise ValueError("conditions must be the paired frames/audio conditions")
+
+    source_inputs = contract.get("source_inputs")
+    if not isinstance(source_inputs, list) or len(source_inputs) != 2:
+        raise ValueError("source_inputs must contain the frozen manifest and request")
+    source_paths = [item.get("path") if isinstance(item, Mapping) else None for item in source_inputs]
+    if source_paths != [FROZEN30_MANIFEST_PATH, FROZEN12_REQUEST_PATH]:
+        raise ValueError("source_inputs must use the frozen manifest and request paths")
+    for source in source_inputs:
+        if not isinstance(source, Mapping) or set(source) != {"path", "sha256"}:
+            raise ValueError("source input has an invalid schema")
+        if not _is_sha256(source["sha256"]):
+            raise ValueError("source input hash must be a SHA-256")
+
+    data_root = data_root.resolve()
+    examples = contract.get("examples")
+    if not isinstance(examples, list) or len(examples) != len(VIDEO_IDS):
+        raise ValueError("examples must contain exactly ten rows")
+    if [row.get("video_id") if isinstance(row, Mapping) else None for row in examples] != list(VIDEO_IDS):
+        raise ValueError("examples must use the fixed video order")
+
+    expected_fields = {
+        "video_id",
+        "question",
+        "prompt_repair",
+        "frame_paths",
+        "frame_sha256s",
+        "frame_timestamps",
+        "audio_path",
+        "audio_sha256",
+    }
+    for row in examples:
+        if not isinstance(row, Mapping) or set(row) != expected_fields:
+            raise ValueError("example has an invalid schema")
+        video_id = row["video_id"]
+        if not isinstance(row["question"], str) or not row["question"].strip():
+            raise ValueError(f"{video_id}: question is required")
+        if row["prompt_repair"] is not (video_id == HORSE_VIDEO_ID):
+            raise ValueError(f"{video_id}: prompt_repair does not match the fixed panel")
+        if video_id == HORSE_VIDEO_ID and row["question"] != HORSE_QUESTION:
+            raise ValueError(f"{video_id}: question must use the approved prompt repair")
+
+        frame_paths = row["frame_paths"]
+        frame_hashes = row["frame_sha256s"]
+        timestamps = row["frame_timestamps"]
+        if not isinstance(frame_paths, list) or len(frame_paths) != 12:
+            raise ValueError(f"{video_id}: frame_paths must contain 12 paths")
+        if not isinstance(frame_hashes, list) or len(frame_hashes) != 12:
+            raise ValueError(f"{video_id}: frame_sha256s must contain 12 hashes")
+        if (
+            not isinstance(timestamps, list)
+            or len(timestamps) != 12
+            or not all(isinstance(timestamp, (int, float)) for timestamp in timestamps)
+        ):
+            raise ValueError(f"{video_id}: frame_timestamps must contain 12 numbers")
+        for path, digest in zip(frame_paths, frame_hashes, strict=True):
+            _validate_path_hash(
+                data_root,
+                video_id,
+                "frame_paths",
+                path,
+                digest,
+                verify_files=verify_files,
+            )
+        expected_audio_path = f"{NATIVE_AUDIO_DIRECTORY}/{video_id}.wav"
+        if row["audio_path"] != expected_audio_path:
+            raise ValueError(f"{video_id}: audio_path does not match the fixed panel")
+        _validate_path_hash(
+            data_root,
+            video_id,
+            "audio_path",
+            row["audio_path"],
+            row["audio_sha256"],
+            verify_files=verify_files,
+        )
+
+
 def quality_contract_sha256(contract: Mapping[str, Any]) -> str:
     """Return the stable digest used to bind every paired run to this contract."""
     return hashlib.sha256(_canonical_json(contract)).hexdigest()

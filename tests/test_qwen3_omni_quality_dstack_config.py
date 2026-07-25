@@ -110,6 +110,8 @@ def test_quality_runner_binds_identity_and_preserves_workload_failure() -> None:
     assert '\n  uvx --from ' not in runner
     assert "remote_prefix_is_empty" in runner
     assert '[[ -z "$listing" || "$listing" == "[]" ]]' in runner
+    assert "actual_contract_sha256" in runner
+    assert '"$actual_contract_sha256" == "$EXPECTED_CONTRACT_SHA256"' in runner
     assert "finalize_and_sync \"$workload_rc\"" in runner
     assert "(( workload_rc == 0 )) || return \"$workload_rc\"" in runner
     assert "-m trec_video_2026.vqa_experiments.qwen3_omni_quality_dstack" in runner
@@ -135,4 +137,7 @@ def test_quality_collector_is_immutable_checksum_verified_and_sanitized() -> Non
     assert "dstack run get" in collector
     assert "trec_video_2026.vqa_experiments.dstack_metadata" in collector
     assert "artifact-hashes.sha256" in collector
+    assert 'mktemp -d "${OUTPUT_DIR}.tmp.XXXXXX"' in collector
+    assert 'mv "$TEMP_OUTPUT_DIR" "$OUTPUT_DIR"' in collector
+    assert 'trap \'rm -rf "$TEMP_OUTPUT_DIR"\' EXIT' in collector
     assert "--delete" not in collector
