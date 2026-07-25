@@ -443,7 +443,7 @@ git diff --check
 Fix all Critical or Important findings, rerun verification, and record a clean
 review result.
 
-- [ ] **Step 6: Commit, push, and open a draft PR**
+- [x] **Step 6: Commit, push, and open a draft PR**
 
 Commit:
 `git commit -m "docs: report Qwen3 Omni quality benchmark"`
@@ -508,8 +508,10 @@ runtime, decoding, or scoring.
 - [x] Task 7 complete: a2 strict result failed at 19/20; pinned post-hoc
   semantic diagnostic is `3C/3P/4W` frames-only versus `5C/2P/3W` audio-on;
   independent semantic and code reviews passed.
+- [x] Draft PR #18 opened against `codex/issue-5-qwen3-omni-dstack`.
 
 ## Next action
 
-Push the reviewed branch, open the draft PR, update issue #17, and hand off the
-canonical Markdown plus tailnet-only rendered HTML.
+Review draft PR #18. Before any broader benchmark, harden terminal JSON
+extraction or use constrained decoding and validate the correction with the
+single failed A2 sentinel row.
