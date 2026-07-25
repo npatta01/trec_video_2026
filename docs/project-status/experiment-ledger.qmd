@@ -51,6 +51,10 @@ same four paths in text and states the strongest evidence each path can support.
 | When is specialist evidence worth adding? | Speech and sound may help selected questions but can distract globally. | Route quality-gated Whisper to lexical speech; keep native audio experimental and the human-oracle tier blocked. | Selected diagnostics, including a ten-row transcript ablation. |
 | Should another multimodal model replace the baseline? | Larger and native-audio models might recover baseline failures. | None is promoted; Qwen3-Omni is promising but formally ineligible. | Failure-selected and three-/ten-row quality screens. |
 
+::: {.content-visible when-format="gfm"}
+<a name="trustworthy-experiments"></a>
+:::
+
 ## Can we run trustworthy experiments? {#trustworthy-experiments}
 
 **Why this mattered.** Before comparing models, the project needed private,
@@ -60,6 +64,10 @@ between compatibility and quality.
 **Current answer.** The repository can prepare and execute controlled local
 work, but operational readiness and compatibility do not establish answer
 quality.
+
+::: {.content-visible when-format="gfm"}
+<a name="field-guide"></a>
+:::
 
 ### July 12 field guide {#field-guide}
 
@@ -94,6 +102,10 @@ quality.
 - **Evidence:** [root operating boundary][readme], [download module][vqa-download],
   and [recovery PR #21][pr21].
 
+::: {.content-visible when-format="gfm"}
+<a name="compatibility-gate"></a>
+:::
+
 ### Three-video compatibility gate {#compatibility-gate}
 
 - **Why tested:** Before paying for larger panels, the project needed to learn
@@ -110,6 +122,10 @@ quality.
   sample.
 - **Evidence:** [three-video gate report][three-gate] and [recovered benchmark
   work in PR #21][pr21].
+
+::: {.content-visible when-format="gfm"}
+<a name="global-default"></a>
+:::
 
 ## What should every question start with? {#global-default}
 
@@ -171,6 +187,10 @@ frames and the tested temporal heuristics did not earn default status.
   `d4825b4530b181f1b4414552a80136e2f0e5a7ee64def23131d8c163acc458f1`
   and [closed issue #16][issue16].
 
+::: {.content-visible when-format="gfm"}
+<a name="specialist-evidence"></a>
+:::
+
 ## When is specialist evidence worth adding? {#specialist-evidence}
 
 **Why this mattered.** Some questions depend on speech, sound, spatial detail,
@@ -182,6 +202,10 @@ native audio only as a category-routed specialist; keep the independent
 human-oracle tier blocked until its provenance records exist. The
 [failure-selected native-audio result](#failure-panel) supplies the strongest
 current caution against a global switch.
+
+::: {.content-visible when-format="gfm"}
+<a name="audio-spatial-seamless"></a>
+:::
 
 ### Audio, spatial, and Seamless diagnostics {#audio-spatial-seamless}
 
@@ -247,6 +271,10 @@ current caution against a global switch.
 - **Evidence:** [transcript-evidence report][transcript], [open issue #19][issue19],
   and the reconciled [evidence-routing plan][issue4-plan].
 
+::: {.content-visible when-format="gfm"}
+<a name="model-promotion"></a>
+:::
+
 ## Should another multimodal model replace the baseline? {#model-promotion}
 
 **Why this mattered.** Larger or native-audio-capable models could potentially
@@ -256,6 +284,10 @@ quality.
 **Current answer.** None is promoted. Qwen3.6, Phi, and Gemma failed their
 relevant quality gates; Qwen3-Omni remains promising but formally ineligible
 after only 19 of 20 strict outputs completed.
+
+::: {.content-visible when-format="gfm"}
+<a name="failure-panel"></a>
+:::
 
 ### Failure-selected Qwen3.6 and audio panel {#failure-panel}
 
@@ -273,6 +305,10 @@ after only 19 of 20 strict outputs completed.
   cannot rank full-test systems.
 - **Evidence:** [failure-panel report][failure-panel] and [recovery PR #21][pr21].
 
+::: {.content-visible when-format="gfm"}
+<a name="phi-gemma-semantic-stop"></a>
+:::
+
 ### Phi and Gemma: compatibility, then semantic stop {#phi-gemma-semantic-stop}
 
 - **Why tested:** Joint audio/vision runtime compatibility left open the
@@ -289,6 +325,10 @@ after only 19 of 20 strict outputs completed.
 - **Evidence:** [compatibility report][nonqwen], [semantic correction][semantic],
   [closed issues #6][issue6] and [#12][issue12], plus [PR #11][pr11] and
   [PR #15][pr15].
+
+::: {.content-visible when-format="gfm"}
+<a name="qwen3-omni-quality"></a>
+:::
 
 ### Qwen3-Omni compatibility and quality-10 {#qwen3-omni-quality}
 
