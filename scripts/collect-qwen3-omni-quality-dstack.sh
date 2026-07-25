@@ -6,7 +6,7 @@ readonly EXPECTED_RUN_ID="qwen3-omni-quality-10-20260725-a1"
 readonly PYTHON_BIN="/usr/bin/python3"
 readonly UV_VERSION="0.11.3"
 readonly HF_CLI_VERSION="1.24.0"
-UVX_BIN=""
+UVX_LAUNCHER=""
 
 RUN_ID="${1:-}"
 [[ "$RUN_ID" == "$EXPECTED_RUN_ID" ]] \
@@ -27,40 +27,8 @@ mkdir -p "$(dirname "$OUTPUT_DIR")"
 TEMP_OUTPUT_DIR="$(mktemp -d "${OUTPUT_DIR}.tmp.XXXXXX")"
 trap 'rm -rf "$TEMP_OUTPUT_DIR"' EXIT
 
-hf_cli() {
-  "$UVX_BIN" --from "huggingface-hub==$HF_CLI_VERSION" hf "$@"
-}
-
-bootstrap_uv() {
-  [[ -x "$PYTHON_BIN" ]] || { echo "error: missing exact Python interpreter" >&2; exit 2; }
-  "$PYTHON_BIN" -m pip install --no-deps "uv==$UV_VERSION"
-  [[ "$("$PYTHON_BIN" -c \
-    'import importlib.metadata; print(importlib.metadata.version("uv"))')" == "$UV_VERSION" ]] \
-    || { echo "error: uv bootstrap attestation failed" >&2; exit 2; }
-  if ! UVX_BIN="$("$PYTHON_BIN" - <<'PY'
-import importlib.metadata
-import sysconfig
-from pathlib import Path
-
-distribution = importlib.metadata.distribution("uv")
-scripts_directory = Path(sysconfig.get_path("scripts")).resolve()
-uvx_path = (scripts_directory / "uvx").resolve()
-installed_paths = {
-    distribution.locate_file(path).resolve() for path in distribution.files or ()
-}
-if uvx_path not in installed_paths:
-    raise RuntimeError("pinned uv distribution does not own its uvx entry point")
-print(uvx_path)
-PY
-  )"; then
-    echo "error: could not resolve the pinned uvx entry point" >&2
-    exit 2
-  fi
-  [[ "$UVX_BIN" = /* && -x "$UVX_BIN" ]] \
-    || { echo "error: pinned uvx entry point is unavailable" >&2; exit 2; }
-}
-
-bootstrap_uv
+[[ -x "$PYTHON_BIN" ]] || { echo "error: missing exact Python interpreter" >&2; exit 2; }
+resolve_pinned_uvx
 hf_cli buckets list "$REMOTE_URI" --format json >/dev/null
 hf_cli buckets sync "$REMOTE_URI" "$TEMP_OUTPUT_DIR"
 (

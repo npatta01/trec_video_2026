@@ -206,18 +206,19 @@ def test_quality_runner_binds_identity_and_preserves_workload_failure() -> None:
 
 def test_quality_collector_is_immutable_checksum_verified_and_sanitized() -> None:
     collector = COLLECTOR.read_text(encoding="utf-8")
+    collector_lib = COLLECTOR_LIB.read_text(encoding="utf-8")
+    combined = collector + collector_lib
     assert f'readonly EXPECTED_RUN_ID="{RUN_ID}"' in collector
     assert 'readonly PYTHON_BIN="/usr/bin/python3"' in collector
-    assert '"uv==$UV_VERSION"' in collector
-    assert 'import importlib.metadata' in collector
-    assert 'sysconfig.get_path("scripts")' in collector
-    assert '"$UVX_BIN" --from "huggingface-hub==$HF_CLI_VERSION"' in collector
-    assert 'command -v uvx' not in collector
-    assert '\n  uvx --from ' not in collector
+    assert '"$PYTHON_BIN" -m pip' not in combined
+    assert "--break-system-packages" not in combined
+    assert "resolve_pinned_uvx" in collector
     assert "qwen3-omni-quality-10/$RUN_ID" in collector
     assert "experiments/$RUN_ID" in collector
     assert '[[ "$RUN_ID" == "$EXPECTED_RUN_ID" ]]' in collector
-    assert 'huggingface-hub==$HF_CLI_VERSION' in collector
+    assert 'huggingface-hub==$HF_CLI_VERSION' in combined
+    assert '"$UVX_LAUNCHER" --from "uv==$UV_VERSION" uvx "$@"' in collector_lib
+    assert "command -v uvx" in collector_lib
     assert "sha256sum -c SHA256SUMS" in collector
     assert "dstack run get" in collector
     assert "trec_video_2026.vqa_experiments.dstack_metadata" in collector
@@ -226,6 +227,62 @@ def test_quality_collector_is_immutable_checksum_verified_and_sanitized() -> Non
     assert 'publish_verified_output "$TEMP_OUTPUT_DIR" "$OUTPUT_DIR"' in collector
     assert 'trap \'rm -rf "$TEMP_OUTPUT_DIR"\' EXIT' in collector
     assert "--delete" not in collector
+
+
+def test_quality_collector_bootstrap_uses_pinned_inner_uvx_without_system_python(
+    tmp_path: Path,
+) -> None:
+    """Catches PEP 668-unsafe installation or launching HF with the outer uvx."""
+    launcher = tmp_path / "uvx"
+    log = tmp_path / "uvx.log"
+    launcher.write_text(
+        """#!/usr/bin/env bash
+printf '%s\\n' "$*" >>"$UVX_TEST_LOG"
+case "$*" in
+  "--from uv==0.11.3 uvx --version")
+    echo "uvx 0.11.3 (test-platform)"
+    ;;
+  "--from uv==0.11.3 uvx --from huggingface-hub==1.24.0 hf version")
+    echo "hf 1.24.0"
+    ;;
+  *)
+    exit 9
+    ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    launcher.chmod(0o755)
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            r'''
+set -euo pipefail
+source "$1"
+UV_VERSION="0.11.3"
+HF_CLI_VERSION="1.24.0"
+UVX_LAUNCHER=""
+resolve_pinned_uvx
+hf_cli version
+''',
+            "collector-bootstrap-test",
+            str(COLLECTOR_LIB.resolve()),
+        ],
+        env={
+            "PATH": f"{tmp_path}:/usr/bin:/bin",
+            "UVX_TEST_LOG": str(log),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert log.read_text(encoding="utf-8").splitlines() == [
+        "--from uv==0.11.3 uvx --version",
+        "--from uv==0.11.3 uvx --from huggingface-hub==1.24.0 hf version",
+    ]
 
 
 def test_quality_collector_publish_race_fails_without_nesting_or_leaking_temp(
