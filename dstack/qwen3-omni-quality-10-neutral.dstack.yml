@@ -1,0 +1,182 @@
+type: task
+name: qwen3-omni-quality-10-neutral-20260725-a2
+
+image: docker.io/qwenllm/qwen3-omni@sha256:71896cf6533abc610ac298f26289ff3a4ea4bd1fc835f370ece9e5c31e3181d8
+entrypoint: /bin/bash -c
+shell: bash
+working_dir: /dstack/run
+
+env:
+  - HF_TOKEN=${{ secrets.hf_token }}
+  - HF_HUB_DISABLE_TELEMETRY=1
+  - PYTHON_BIN=/usr/bin/python3
+  - PYTHONPATH=/dstack/run/src
+  - EXPERIMENT_RUN_ID=qwen3-omni-quality-10-neutral-20260725-a2
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen3-omni-quality-10-neutral-20260725-a2
+  - RUNTIME_IMAGE=docker.io/qwenllm/qwen3-omni@sha256:71896cf6533abc610ac298f26289ff3a4ea4bd1fc835f370ece9e5c31e3181d8
+  - MODEL_ID=Qwen/Qwen3-Omni-30B-A3B-Thinking
+  - MODEL_REVISION=2f443cfc4c54b14a815c0e2bb9a9d6cbcd9a748b
+  - EXPECTED_CONTRACT=df016767b1a072770149fdc06fa47dfe7f17930b6c3145af4e92f55d58f4ddeb
+  - CONTRACT_PATH=/dstack/input/contract.json
+  - DATA_ROOT=/dstack/input
+  - OUTPUT_DIR=/dstack/output
+
+files:
+  - ../scripts/run-qwen3-omni-quality-10-neutral-dstack.sh:/dstack/run/scripts/run-qwen3-omni-quality-10-neutral-dstack.sh
+  - ../src/trec_video_2026:/dstack/run/src/trec_video_2026
+  - ../data/vqa/benchmarks/qwen3-omni-quality-10/contract.json:/dstack/input/contract.json
+  - ../data/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-01.png:/dstack/input/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-01.png
+  - ../data/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-02.png:/dstack/input/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-02.png
+  - ../data/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-03.png:/dstack/input/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-03.png
+  - ../data/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-04.png:/dstack/input/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-04.png
+  - ../data/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-05.png:/dstack/input/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-05.png
+  - ../data/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-06.png:/dstack/input/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-06.png
+  - ../data/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-07.png:/dstack/input/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-07.png
+  - ../data/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-08.png:/dstack/input/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-08.png
+  - ../data/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-09.png:/dstack/input/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-09.png
+  - ../data/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-10.png:/dstack/input/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-10.png
+  - ../data/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-11.png:/dstack/input/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-11.png
+  - ../data/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-12.png:/dstack/input/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-12.png
+  - ../data/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/Mi-NpnCBegw.wav:/dstack/input/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/Mi-NpnCBegw.wav
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-01.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-01.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-02.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-02.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-03.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-03.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-04.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-04.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-05.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-05.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-06.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-06.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-07.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-07.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-08.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-08.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-09.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-09.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-10.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-10.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-11.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-11.png
+  - ../data/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-12.png:/dstack/input/vqa/benchmarks/evidence/58ccb3f134e01202658b5495112cc1985207b4e12c225a262dc82ed47531861a/frame-12.png
+  - ../data/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/NN7G28sBOlY.wav:/dstack/input/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/NN7G28sBOlY.wav
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-01.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-01.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-02.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-02.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-03.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-03.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-04.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-04.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-05.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-05.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-06.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-06.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-07.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-07.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-08.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-08.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-09.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-09.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-10.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-10.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-11.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-11.png
+  - ../data/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-12.png:/dstack/input/vqa/benchmarks/evidence/a3a26cce16ff883114ce4ec6f589fd9409917345048ead7ecc68568208ff22ee/frame-12.png
+  - ../data/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/NUmb2P3Bzu8.wav:/dstack/input/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/NUmb2P3Bzu8.wav
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-01.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-01.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-02.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-02.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-03.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-03.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-04.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-04.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-05.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-05.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-06.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-06.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-07.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-07.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-08.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-08.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-09.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-09.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-10.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-10.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-11.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-11.png
+  - ../data/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-12.png:/dstack/input/vqa/benchmarks/evidence/8a065fc8f32273d1f81b58cf8773fda8790d3953f8223c02dee3951f5a53d5b4/frame-12.png
+  - ../data/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/NkXPPJoZ-h8.wav:/dstack/input/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/NkXPPJoZ-h8.wav
+  - ../data/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-01.png:/dstack/input/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-01.png
+  - ../data/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-02.png:/dstack/input/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-02.png
+  - ../data/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-03.png:/dstack/input/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-03.png
+  - ../data/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-04.png:/dstack/input/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-04.png
+  - ../data/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-05.png:/dstack/input/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-05.png
+  - ../data/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-06.png:/dstack/input/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-06.png
+  - ../data/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-07.png:/dstack/input/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-07.png
+  - ../data/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-08.png:/dstack/input/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-08.png
+  - ../data/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-09.png:/dstack/input/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-09.png
+  - ../data/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-10.png:/dstack/input/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-10.png
+  - ../data/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-11.png:/dstack/input/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-11.png
+  - ../data/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-12.png:/dstack/input/vqa/benchmarks/evidence/df31634f2405223f62bd0f962c79fa242a479b7c5661c175491eb03be8cadbaa/frame-12.png
+  - ../data/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/IWSPAfCKtV8.wav:/dstack/input/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/IWSPAfCKtV8.wav
+  - ../data/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-01.png:/dstack/input/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-01.png
+  - ../data/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-02.png:/dstack/input/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-02.png
+  - ../data/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-03.png:/dstack/input/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-03.png
+  - ../data/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-04.png:/dstack/input/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-04.png
+  - ../data/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-05.png:/dstack/input/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-05.png
+  - ../data/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-06.png:/dstack/input/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-06.png
+  - ../data/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-07.png:/dstack/input/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-07.png
+  - ../data/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-08.png:/dstack/input/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-08.png
+  - ../data/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-09.png:/dstack/input/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-09.png
+  - ../data/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-10.png:/dstack/input/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-10.png
+  - ../data/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-11.png:/dstack/input/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-11.png
+  - ../data/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-12.png:/dstack/input/vqa/benchmarks/evidence/91ad36a35a0f0fc785ff6d4002f6e7c70b40481efcf6a74553feae2d6b5f15e0/frame-12.png
+  - ../data/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/CH8Dp7EgW4I.wav:/dstack/input/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/CH8Dp7EgW4I.wav
+  - ../data/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-01.png:/dstack/input/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-01.png
+  - ../data/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-02.png:/dstack/input/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-02.png
+  - ../data/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-03.png:/dstack/input/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-03.png
+  - ../data/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-04.png:/dstack/input/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-04.png
+  - ../data/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-05.png:/dstack/input/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-05.png
+  - ../data/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-06.png:/dstack/input/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-06.png
+  - ../data/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-07.png:/dstack/input/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-07.png
+  - ../data/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-08.png:/dstack/input/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-08.png
+  - ../data/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-09.png:/dstack/input/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-09.png
+  - ../data/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-10.png:/dstack/input/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-10.png
+  - ../data/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-11.png:/dstack/input/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-11.png
+  - ../data/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-12.png:/dstack/input/vqa/benchmarks/evidence/692901b776ead521abdfc568f49feb84d683dbb6bef3996e126f21bcfcc71e9c/frame-12.png
+  - ../data/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/EtNOkUJd5w8.wav:/dstack/input/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/EtNOkUJd5w8.wav
+  - ../data/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-01.png:/dstack/input/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-01.png
+  - ../data/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-02.png:/dstack/input/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-02.png
+  - ../data/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-03.png:/dstack/input/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-03.png
+  - ../data/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-04.png:/dstack/input/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-04.png
+  - ../data/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-05.png:/dstack/input/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-05.png
+  - ../data/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-06.png:/dstack/input/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-06.png
+  - ../data/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-07.png:/dstack/input/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-07.png
+  - ../data/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-08.png:/dstack/input/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-08.png
+  - ../data/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-09.png:/dstack/input/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-09.png
+  - ../data/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-10.png:/dstack/input/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-10.png
+  - ../data/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-11.png:/dstack/input/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-11.png
+  - ../data/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-12.png:/dstack/input/vqa/benchmarks/evidence/15fc45fae91463266c668695ca956426d3c2af7ca2b50572bb80293d6cfb55c0/frame-12.png
+  - ../data/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/Gp4LVTn3YbY.wav:/dstack/input/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/Gp4LVTn3YbY.wav
+  - ../data/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-01.png:/dstack/input/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-01.png
+  - ../data/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-02.png:/dstack/input/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-02.png
+  - ../data/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-03.png:/dstack/input/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-03.png
+  - ../data/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-04.png:/dstack/input/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-04.png
+  - ../data/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-05.png:/dstack/input/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-05.png
+  - ../data/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-06.png:/dstack/input/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-06.png
+  - ../data/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-07.png:/dstack/input/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-07.png
+  - ../data/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-08.png:/dstack/input/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-08.png
+  - ../data/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-09.png:/dstack/input/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-09.png
+  - ../data/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-10.png:/dstack/input/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-10.png
+  - ../data/vqa/benchmarks/qwen3-omni-quality-10/transport/frame-11/part-0000.bin:/dstack/input/.transport/frame-11/part-0000.bin
+  - ../data/vqa/benchmarks/qwen3-omni-quality-10/transport/frame-11/part-0001.bin:/dstack/input/.transport/frame-11/part-0001.bin
+  - ../data/vqa/benchmarks/qwen3-omni-quality-10/transport/frame-11/part-0002.bin:/dstack/input/.transport/frame-11/part-0002.bin
+  - ../data/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-12.png:/dstack/input/vqa/benchmarks/evidence/0b20cdcb075f8a2fcd3640a0a40356146796859051c4c203b9acb8c051ed68a6/frame-12.png
+  - ../data/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/EMI_anpHII4.wav:/dstack/input/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/EMI_anpHII4.wav
+  - ../data/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-01.png:/dstack/input/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-01.png
+  - ../data/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-02.png:/dstack/input/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-02.png
+  - ../data/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-03.png:/dstack/input/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-03.png
+  - ../data/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-04.png:/dstack/input/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-04.png
+  - ../data/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-05.png:/dstack/input/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-05.png
+  - ../data/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-06.png:/dstack/input/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-06.png
+  - ../data/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-07.png:/dstack/input/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-07.png
+  - ../data/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-08.png:/dstack/input/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-08.png
+  - ../data/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-09.png:/dstack/input/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-09.png
+  - ../data/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-10.png:/dstack/input/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-10.png
+  - ../data/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-11.png:/dstack/input/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-11.png
+  - ../data/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-12.png:/dstack/input/vqa/benchmarks/evidence/4c7a9680e7c03ebc08285ae0837914b2384e02a7455c9e9103319367043a2774/frame-12.png
+  - ../data/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/LusRurRrmf0.wav:/dstack/input/vqa/benchmarks/runs/native-audio-benchmark-v2/audio/LusRurRrmf0.wav
+
+commands:
+  - |
+    set -euo pipefail
+    exec bash /dstack/run/scripts/run-qwen3-omni-quality-10-neutral-dstack.sh run
+
+resources:
+  gpu:
+    vendor: nvidia
+    name: [H100, H200, B200, RTXPRO6000WS]
+    count: 1
+    memory: 90GB..
+  cpu: 16..
+  memory: 192GB..
+  disk: 200GB
+
+backends: [runpod, vastai]
+spot_policy: on-demand
+max_price: 4.50
+max_duration: 1h
+retry:
+  on_events: [no-capacity]
+  duration: 30m
