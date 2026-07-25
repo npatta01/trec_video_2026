@@ -1,19 +1,154 @@
-# Qwen3-Omni paired quality-10 result
+# Qwen3-Omni native-audio benchmark: where it helped and where it failed
 
-## Decision
+## Technical summary
 
-Do not promote Qwen3-Omni to a broader quality benchmark. The immutable A1 run
-completed successfully, but native audio produced no answer-only `W→P/C` or
-`P→C` improvement and made one visual control worse. Its constant
-audio-expecting prompt isolates adding audio within that instruction context,
-but mismatches the frames-only treatment context.
+Qwen3-Omni is an open, natively multimodal mixture-of-experts model from the
+Qwen team. We tested the
+[`Qwen3-Omni-30B-A3B-Thinking`](https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Thinking)
+checkpoint: a roughly 30-billion-parameter model that activates about
+3 billion parameters per token, accepts text, images, audio, and video, and
+returns text with an explicit reasoning stage. Unlike our
+Qwen3.5-4B + Whisper baseline, it can consume the waveform directly instead
+of receiving only an ASR transcript. The official
+[Qwen3-Omni repository](https://github.com/QwenLM/Qwen3-Omni) describes the
+family as a native audio-visual model rather than a VLM with an external
+speech recognizer attached.
 
-The neutral-prompt A2 correction improves the post-hoc audio-on manual result
-to `5C/2P/3W`, helps the temporal dance row, and removes the counting-control
-regression. It nevertheless remains strictly failed and ineligible: exactly
-one audio-on row returned its complete JSON answer inside a Markdown fence, so
-only 19/20 records passed the unchanged parser. The scorer recovers that exact
-pinned output solely for a clearly labeled semantic diagnostic.
+Our experiment did **not** feed Qwen3-Omni a continuous video stream. Each
+question used 12 uniformly sampled frames; the treatment arm added the
+video's native WAV audio. This is therefore a clean test of whether native
+audio helps the same frame-based visual evidence, not a complete test of the
+model's native-video capability.
+
+The clearest result comes from the neutral-prompt A2 run:
+
+| Neutral A2 condition | Correct / partial / wrong | Exact match | Token F1 |
+|---|---:|---:|---:|
+| 12 frames only | 3 / 3 / 4 | 0.1000 | **0.2295** |
+| Same 12 frames + native audio | **5 / 2 / 3** | 0.1000 | 0.2204 |
+| Audio minus frames | +2 / -1 / -1 | 0.0000 | -0.0091 |
+
+The audio-on arm produced three semantically better answers: prosody `P→C`,
+non-speech sound `P→C`, and a dance-after-shove action `W→P`. Both visual
+controls remained correct. Audio did **not** fix the difficult French reply, the
+end-of-video bell, another preceding-action question, or the incomplete sour
+reaction. The official lexical-overlap F1 decreased slightly even though the
+manual answer-quality categories improved, because the model often used
+different wording from the short references.
+
+**Decision:** keep Qwen3-Omni as a promising native-audio candidate, especially
+for prosody and non-speech sound. Do not call it the new overall baseline yet.
+The panel has only ten deliberately difficult videos, and A2 is formally
+ineligible because one otherwise valid answer was wrapped in a Markdown JSON
+fence: 19/20 outputs passed the unchanged strict parser.
+
+## What model and input did we actually test?
+
+| Component | This experiment |
+|---|---|
+| Checkpoint | `Qwen/Qwen3-Omni-30B-A3B-Thinking` |
+| Model type | Multimodal mixture-of-experts “Thinking” model |
+| Supported model inputs | Text, images, audio, and video |
+| Inputs used here | Question + 12 sampled frames, with or without one WAV |
+| Output used here | Short text answer and evidence in strict terminal JSON |
+| Comparison being isolated | Same model and frames; native audio off vs on |
+| Compute | One NVIDIA H200, BF16, CUDA |
+
+The model is substantially larger than the 4B baseline, but the
+mixture-of-experts design activates only part of it for each token. “Omni”
+means it has native encoders and joint training for multiple modalities; it
+does not mean that every kind of video question will automatically be solved.
+Frame coverage, spatial detail, exact music recognition, output formatting,
+and reasoning can still fail independently.
+
+## Native audio helped sound character and vocal delivery, not every audio question
+
+The following table is the most useful view of A2. `C`, `P`, and `W` mean
+correct, partially correct, and wrong under the repository's answer-only
+manual rubric.
+
+| Question role | Frames | Frames + native audio | What changed |
+|---|---:|---:|---|
+| Spoken final synonym | C | C | Already solved visually/contextually; audio added nothing. |
+| French reply about horse age | W | W | Both answered with a year instead of the bystander's reply. Native audio did not recover the requested proposition. |
+| Emotional/prosodic change | P | **C** | Audio added the forceful tone that frames alone could not establish. |
+| Cat vocalization | P | **C** | Audio distinguished a high-pitched scream-like sound from generic meowing. |
+| Sound at the end | W | W | Audio hallucinated a song/chord instead of identifying the requested bell. |
+| Action after a shove | W | **P** | The audio-on answer included dance-like movement, but still did not name the dance. |
+| Action before placing balls | W | W | Both described an unrelated event; this remains a temporal-evidence failure. |
+| Reaction after sour food | P | P | Neither answer recovered the complete verbal reaction. |
+| Small ornament control | C | C | Native audio did not damage the spatial visual answer. |
+| Face-mask count control | C | C | Native audio did not damage counting. |
+
+This pattern supports a specialist interpretation:
+
+- **Better:** vocal intensity/prosody and the character of a non-speech sound.
+- **Sometimes helpful:** action questions where audio provides an indirect
+  temporal cue, although the improvement was only partial.
+- **Still weak:** exact spoken propositions in another language, exact
+  endpoint sounds, and actions missing from the sampled frames.
+- **No measured harm to visual controls in A2:** both control answers stayed
+  correct.
+
+## Comparison with our Qwen3.5-4B + Whisper benchmark
+
+Our strongest completed 30-video baseline is Qwen3.5-4B with 12 frames plus a
+quality-gated Whisper large-v3 transcript. Across its full frozen-30 panel it
+scored `0.3667` exact match and `0.5068` token F1. Those numbers must **not** be
+compared directly with Qwen3-Omni's ten-row aggregate: the Qwen3-Omni panel was
+selected from difficult failures and is not the same cohort.
+
+Only three Qwen3-Omni examples have an existing matched, manually adjudicated
+Qwen3.5 + Whisper result. On that shared subset:
+
+| System on the same three videos | Audio representation | C / P / W | Exact | Mean token F1 |
+|---|---|---:|---:|---:|
+| Qwen3.5-4B, 12 frames + Whisper large-v3 | ASR transcript text | 1 / 1 / 1 | 0.0000 | **0.2333** |
+| Qwen3-Omni, 12 frames + native audio | Waveform consumed by the model | **2 / 0 / 1** | 0.0000 | 0.1531 |
+
+The frozen-30 aggregate comes from
+`data/vqa/benchmarks/runs/native-audio-benchmark-v2/evaluation.json`
+(SHA-256
+`f610dbd3d468f3b72074c7ace38dec95176c7f47fa213b5ce374d0a9429ad9c0`).
+The shared three-row Qwen3.5 + Whisper judgments and metrics are documented in
+the earlier
+[`Qwen3-Omni compatibility report`](2026-07-24-qwen3-omni-dstack-compatibility.md);
+the Qwen3-Omni A2 values reproduce the sanitized score artifact linked below.
+
+The three shared rows are the French horse reply, emotional prosody, and the
+cat sound. Both systems missed the horse reply. Qwen3-Omni was manually
+correct on prosody and the scream-like cat sound, while Qwen3.5 + Whisper was
+correct on prosody and only partial on the cat sound. This is exactly where
+native audio should have an advantage: Whisper converts speech into words but
+does not faithfully preserve vocal intensity or classify arbitrary
+non-speech sounds.
+
+The lower Qwen3-Omni token F1 on those same rows is not evidence that it was
+semantically worse. Its longer paraphrases overlapped the short references
+less literally. Conversely, the `2C/0P/1W` manual result is only three
+examples and cannot establish general superiority. The defensible conclusion
+is narrower: **Qwen3-Omni shows a useful native-audio signal on prosody and
+sound character, while Qwen3.5 + Whisper remains the stronger validated
+whole-panel baseline.**
+
+## Why A1 and A2 tell different stories
+
+The first immutable run, A1, completed successfully but used a prompt that
+explicitly told both conditions to use audio—even when the frames-only arm
+contained no audio tensors. It produced unsupported audio claims and a visual
+counting regression. A1 therefore measures adding audio under an unnatural
+audio-expecting prompt:
+
+| A1 condition | C / P / W | Exact match | Mean token F1 |
+|---|---:|---:|---:|
+| Frames only | 5 / 1 / 4 | 0.1000 | 0.2163 |
+| Frames + native audio | 3 / 2 / 5 | 0.1000 | 0.2600 |
+
+A2 corrected only the instruction: both arms received the same
+modality-neutral prompt, while the model, frames, audio, decoding, ordering,
+and scoring stayed fixed. That makes A2 the better semantic comparison.
+However, its one fenced-JSON response means it remains a diagnostic rather
+than a strict promotion result.
 
 ## Verified facts
 
@@ -36,7 +171,7 @@ pinned output solely for a clearly labeled semantic diagnostic.
   at `$4.39/hour` on on-demand RunPod. Cumulative Qwen spend is
   now `$2.6269 + $1.9609 + $1.7253 = $6.3131` after A2.
 
-## Sanitized automatic scores
+## A1 sanitized automatic scores
 
 | Condition | C / P / W | Exact match | Mean token F1 |
 |---|---:|---:|---:|
@@ -51,7 +186,7 @@ Full per-condition answers, metric values, annotation paths, reference hashes,
 and answer-only judgments are in the sanitized artifact:
 [`qwen3-omni-quality-10-score.json`](artifacts/qwen3-omni-quality-10-score.json).
 
-## Manual answer-only adjudication
+## A1 manual answer-only adjudication
 
 Judgments use `C` (correct), `P` (partial), and `W` (wrong). The short reasons
 describe the adjudication without reproducing reference text.
@@ -72,7 +207,7 @@ describe the adjudication without reproducing reference text.
 The paired manual transitions are `3 C→C`, `1 C→P`, `1 C→W`, `1 P→P`, and
 `4 W→W`. No audio-focused row improved from `W` to `P/C` or from `P` to `C`.
 
-## Gate result
+## A1 gate result
 
 The predeclared issue #17 promotion gate **fails**:
 
@@ -113,9 +248,10 @@ mismatch instead makes frames-only an unnatural visual baseline and limits
 generalization to a modality-neutral task. A neutral prompt rerun is required
 for that intended benchmark interpretation.
 
-No matched external baseline is quantified here: the available earlier runs
-do not share this frozen paired prompt/condition contract, so comparing their
-aggregate scores would add a second confound.
+The matched three-row baseline comparison above is intentionally separate
+from the ten-row aggregate. It uses shared videos and the same manual rubric,
+but the model prompts and audio representations are not identical, and the
+three-row overlap is too small for a ranking claim.
 
 ## Neutral-prompt A2 correction
 
@@ -149,3 +285,22 @@ See the full
 The A2 run cost `$1.7253` and took `1414.836509` seconds. Another one-hour
 `$4.50` run would put worst-case cumulative spend at `$10.8131`, above the
 authorized `$10` cap, so no full rerun is authorized.
+
+## Recommended next steps
+
+1. Fix terminal JSON handling with constrained decoding or a narrowly tested
+   parser correction, then rerun only the failed cat-sound sentinel as a cheap
+   validation of that fix. This cannot change immutable A2's 19/20 status.
+2. Formal strict promotion would require a fresh full 20-call paired run under
+   one frozen configuration. That run is not authorized within the current
+   worst-case budget.
+3. With new budget approval, run Qwen3-Omni on a matched slice of the
+   frozen-30 panel rather than another hand-picked failure panel. Preserve
+   separate speech, non-speech sound, temporal, spatial, and visual-control
+   strata.
+4. Compare three arms on exactly the same questions and evidence:
+   frames only, frames + Whisper transcript, and frames + native audio. This
+   would show whether waveform access adds value beyond better ASR.
+5. Keep specialist routes for failures the general omni model still misses:
+   temporal retrieval for unseen actions and audio retrieval/classification
+   for exact music or endpoint-sound questions.
