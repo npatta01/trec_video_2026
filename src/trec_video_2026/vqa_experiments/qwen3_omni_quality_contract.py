@@ -40,9 +40,27 @@ HEX_DIGITS = frozenset("0123456789abcdef")
 FORBIDDEN_FIELD_NAMES = frozenset(
     {"correct_answer", "reference", "distractor", "transcript"}
 )
-# The pinned historical request carries transcript metadata. This builder never
-# accesses that field; all answer-bearing source keys remain forbidden.
-FORBIDDEN_SOURCE_FIELD_NAMES = FORBIDDEN_FIELD_NAMES - {"transcript"}
+FROZEN_REQUEST_ROW_FIELDS = frozenset(
+    {
+        "run_id",
+        "condition_id",
+        "video_id",
+        "question",
+        "frame_descriptions",
+        "frame_paths",
+        "frame_timestamps",
+        "transcript",
+        "media_path",
+        "audio_path",
+        "audio_mode",
+    }
+)
+NULL_SOURCE_PLACEHOLDER_FIELDS = frozenset(
+    {"transcript", "frame_descriptions", "audio_path", "audio_mode"}
+)
+FORBIDDEN_SOURCE_FIELD_NAMES = frozenset(
+    {"correct_answer", "answer", "prior_answer", "prediction", "reference", "distractor"}
+)
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -68,6 +86,16 @@ def _conditions() -> list[dict[str, Any]]:
         {"condition_id": condition_id, "audio_enabled": audio_enabled}
         for condition_id, audio_enabled in CONDITION_SPECS
     ]
+
+
+def _is_forbidden_source_field_name(key: object) -> bool:
+    return (
+        isinstance(key, str)
+        and (
+            key.lower() in FORBIDDEN_SOURCE_FIELD_NAMES
+            or "score" in key.lower()
+        )
+    )
 
 
 def _is_sha256(value: Any) -> bool:
@@ -129,15 +157,16 @@ def _read_requests(data_root: Path) -> dict[str, Mapping[str, Any]]:
     for request in parsed:
         if not isinstance(request, Mapping):
             raise ValueError("frozen request rows must be objects")
-        forbidden_keys = {
-            key.lower()
-            for key in request
-            if isinstance(key, str) and key.lower() in FORBIDDEN_SOURCE_FIELD_NAMES
-        }
-        if forbidden_keys:
-            raise ValueError("forbidden source row key")
         video_id = request.get("video_id")
         if video_id in VIDEO_IDS:
+            if any(_is_forbidden_source_field_name(key) for key in request):
+                raise ValueError("forbidden source row key")
+            if set(request) != FROZEN_REQUEST_ROW_FIELDS:
+                raise ValueError("selected source row has an invalid schema")
+            if any(
+                request[field] is not None for field in NULL_SOURCE_PLACEHOLDER_FIELDS
+            ):
+                raise ValueError("selected source row has non-null placeholder metadata")
             if video_id in selected:
                 raise ValueError(f"duplicate frozen request for {video_id}")
             selected[video_id] = request

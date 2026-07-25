@@ -98,28 +98,71 @@ def test_request_reader_rejects_forbidden_row_key_before_selection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """Catches an otherwise selected source row carrying prohibited hidden data."""
-    request_path = tmp_path / quality_contract.FROZEN12_REQUEST_PATH
-    request_path.parent.mkdir(parents=True)
-    request_path.write_text(
-        json.dumps(
-            [
-                {
-                    "video_id": VIDEO_IDS[0],
-                    "question": "A harmless question?",
-                    "frame_paths": [],
-                    "frame_timestamps": [],
-                    "correct_answer": "forbidden test fixture value",
-                }
-            ]
-        ),
-        encoding="utf-8",
+    request_path = _write_selected_source_row(
+        tmp_path, monkeypatch, correct_answer="forbidden test fixture value"
     )
+
+    with pytest.raises(ValueError, match="forbidden source row key"):
+        quality_contract._read_requests(tmp_path)
+
+
+def _write_selected_source_row(
+    data_root: Path, monkeypatch: pytest.MonkeyPatch, **overrides: object
+) -> Path:
+    request_path = data_root / quality_contract.FROZEN12_REQUEST_PATH
+    request_path.parent.mkdir(parents=True)
+    row = {
+        "run_id": "test-run",
+        "condition_id": "frozen12",
+        "video_id": VIDEO_IDS[0],
+        "question": "A harmless question?",
+        "frame_descriptions": None,
+        "frame_paths": [],
+        "frame_timestamps": [],
+        "transcript": None,
+        "media_path": "/unused/media.mkv",
+        "audio_path": None,
+        "audio_mode": None,
+    }
+    row.update(overrides)
+    request_path.write_text(json.dumps([row]), encoding="utf-8")
     monkeypatch.setattr(
         quality_contract,
         "FROZEN12_REQUEST_SHA256",
         hashlib.sha256(request_path.read_bytes()).hexdigest(),
         raising=False,
     )
+    return request_path
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("transcript", "hidden text"),
+        ("frame_descriptions", ["hidden description"]),
+        ("audio_path", "/hidden/audio.wav"),
+        ("audio_mode", "native"),
+    ),
+)
+def test_request_reader_rejects_non_null_placeholder_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str, value: object
+):
+    """Catches hidden evidence placed into a null-only frozen source field."""
+    _write_selected_source_row(tmp_path, monkeypatch, **{field: value})
+
+    with pytest.raises(ValueError, match="null placeholder"):
+        quality_contract._read_requests(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "field",
+    ("answer", "prior_answer", "prediction", "reference", "distractor", "score_value"),
+)
+def test_request_reader_rejects_answer_and_score_like_source_keys(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str
+):
+    """Catches any answer, prediction, reference, or scoring value in a source row."""
+    _write_selected_source_row(tmp_path, monkeypatch, **{field: "hidden value"})
 
     with pytest.raises(ValueError, match="forbidden source row key"):
         quality_contract._read_requests(tmp_path)
