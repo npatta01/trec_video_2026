@@ -79,7 +79,7 @@ def test_attestation_rejects_separate_modality_forwards():
         )
 
 
-def test_prediction_record_marks_unparseable_output_failed():
+def test_prediction_record_marks_unparseable_structured_output_failed():
     record = build_prediction_record(
         example={
             "video_id": "example-video",
@@ -95,13 +95,66 @@ def test_prediction_record_marks_unparseable_output_failed():
         precision="bfloat16",
         elapsed_seconds=1.0,
         peak_memory_bytes=100,
-        raw_output="not json",
+        raw_output='{"answer": "not terminated"',
         modality_attestation={"same_request": True},
     )
 
     assert record["status"] == "failed"
     assert record["output_parse_status"] == "failed"
     assert record["error_type"] == "output_parse_error"
+
+
+def test_prediction_record_accepts_nonempty_plain_text_answer():
+    record = build_prediction_record(
+        example={
+            "video_id": "example-video",
+            "operational_tag": "non_speech_sound",
+            "question": "Question?",
+        },
+        request_digest="a" * 64,
+        model_id="example/model",
+        model_revision="b" * 40,
+        runtime_image_digest="sha256:" + "c" * 64,
+        run_id="run",
+        device="cuda:0 (NVIDIA CUDA)",
+        precision="bfloat16",
+        elapsed_seconds=1.0,
+        peak_memory_bytes=100,
+        raw_output="meow",
+        modality_attestation={"same_request": True},
+    )
+
+    assert record["status"] == "passed"
+    assert record["output_parse_status"] == "passed"
+    assert record["parsed_output"] == {
+        "answer": "meow",
+        "evidence": None,
+        "output_format": "plain_text",
+    }
+
+
+def test_prediction_record_rejects_empty_plain_text_answer():
+    record = build_prediction_record(
+        example={
+            "video_id": "example-video",
+            "operational_tag": "non_speech_sound",
+            "question": "Question?",
+        },
+        request_digest="a" * 64,
+        model_id="example/model",
+        model_revision="b" * 40,
+        runtime_image_digest="sha256:" + "c" * 64,
+        run_id="run",
+        device="cuda:0 (NVIDIA CUDA)",
+        precision="bfloat16",
+        elapsed_seconds=1.0,
+        peak_memory_bytes=100,
+        raw_output="answer: \n",
+        modality_attestation={"same_request": True},
+    )
+
+    assert record["status"] == "failed"
+    assert record["output_parse_status"] == "failed"
 
 
 def test_runtime_failure_record_preserves_attempt_attestation():

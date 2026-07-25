@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import sys
 from types import SimpleNamespace
 from types import ModuleType
@@ -7,14 +8,21 @@ import pytest
 
 from trec_video_2026.vqa_experiments import omni_probe
 from trec_video_2026.vqa_experiments.omni_probe import (
+    MAX_NEW_TOKENS,
     MODEL_SPECS,
     ProbeStageError,
+    _device_description,
     _generate_one,
     _load_backend,
+    _runtime_versions,
     classify_probe_failure,
     resolve_example_paths,
     validate_run_id,
 )
+
+
+def test_gemma_generation_budget_allows_completed_structured_output():
+    assert MAX_NEW_TOKENS == {"phi4mm": 160, "gemma3n": 320}
 
 
 def test_model_specs_pin_hub_revisions_and_joint_input_keys():
@@ -137,3 +145,79 @@ def test_phi_backend_does_not_require_gemma_class(monkeypatch, tmp_path):
     assert isinstance(processor, FakeModel)
     assert isinstance(model, FakeModel)
     assert FakeAuto.last_kwargs["_attn_implementation"] == "sdpa"
+
+
+def test_runtime_attestation_distinguishes_cuda_from_rocm():
+    cuda_torch = SimpleNamespace(
+        __version__="2.5.1",
+        cuda=SimpleNamespace(
+            is_available=lambda: True,
+            get_device_name=lambda _index: "NVIDIA A100-SXM4-80GB",
+        ),
+        version=SimpleNamespace(hip=None, cuda="12.4"),
+    )
+    transformers = SimpleNamespace(__version__="4.48.2")
+
+    assert _device_description(cuda_torch) == (
+        "cuda:0 (NVIDIA CUDA 12.4; NVIDIA A100-SXM4-80GB)"
+    )
+    assert _runtime_versions(cuda_torch, transformers) == {
+        "python": omni_probe.platform.python_version(),
+        "torch": "2.5.1",
+        "transformers": "4.48.2",
+        "rocm": None,
+        "cuda": "12.4",
+    }
+
+
+def test_run_probe_validates_only_uploaded_inference_evidence(
+    monkeypatch, tmp_path: Path
+):
+    examples = [
+        {
+            "video_id": f"video-{index}",
+            "operational_tag": role,
+            "question": "Question?",
+        }
+        for index, role in enumerate(
+            ("lexical_speech", "prosody", "non_speech_sound"), start=1
+        )
+    ]
+    contract = {"schema_version": 1, "examples": examples}
+    contract_path = tmp_path / "contract.json"
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+    calls = []
+    monkeypatch.setattr(
+        omni_probe,
+        "validate_inference_evidence",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        omni_probe,
+        "validate_contract",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("source-video validation must not run")
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        omni_probe,
+        "_load_backend",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("load stopped for test")),
+    )
+
+    summary = omni_probe.run_probe(
+        model_key="phi4mm",
+        model_path=tmp_path / "model",
+        contract_path=contract_path,
+        data_root=tmp_path,
+        output_dir=tmp_path / "output",
+        runtime_image="example/image",
+        runtime_image_digest="sha256:" + "a" * 64,
+        run_id="test-run",
+        expected_contract_sha256=omni_probe.contract_sha256(contract),
+    )
+
+    assert calls
+    assert summary["rows"] == 3

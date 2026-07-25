@@ -9,10 +9,12 @@ from trec_video_2026.vqa_experiments.omni_contract import (
     DEFAULT_PANEL,
     build_compatibility_contract,
     contract_sha256,
+    normalize_prediction_output,
     parse_prediction,
     promotion_decision,
     request_sha256,
     validate_contract,
+    validate_inference_evidence,
     validate_prediction,
 )
 
@@ -137,6 +139,20 @@ def test_contract_rejects_missing_modality_binding(tmp_path: Path):
         validate_contract(broken, tmp_path)
 
 
+def test_inference_evidence_does_not_require_unused_source_video(tmp_path: Path):
+    _write_panel_fixture(tmp_path)
+    contract = build_compatibility_contract(tmp_path)
+    for row in contract["examples"]:
+        (tmp_path / row["media_path"]).unlink()
+
+    validate_inference_evidence(contract, tmp_path, verify_files=True)
+
+    missing_frame = tmp_path / contract["examples"][0]["frame_paths"][0]
+    missing_frame.unlink()
+    with pytest.raises(ValueError, match="missing frame_paths"):
+        validate_inference_evidence(contract, tmp_path, verify_files=True)
+
+
 def test_prediction_requires_joint_modality_forward(tmp_path: Path):
     _write_panel_fixture(tmp_path)
     example = build_compatibility_contract(tmp_path)["examples"][0]
@@ -178,6 +194,50 @@ def test_parse_prediction_accepts_fenced_json():
 def test_parse_prediction_rejects_plain_text():
     with pytest.raises(ValueError, match="JSON object"):
         parse_prediction("probably a cat")
+
+
+def test_normalize_prediction_output_accepts_nonempty_plain_text():
+    assert normalize_prediction_output("  answer: probably a cat  ") == {
+        "answer": "probably a cat",
+        "evidence": None,
+        "output_format": "plain_text",
+    }
+
+
+def test_normalize_prediction_output_accepts_plain_text_fence():
+    assert normalize_prediction_output("```text\nmeow\n```") == {
+        "answer": "meow",
+        "evidence": None,
+        "output_format": "plain_text",
+    }
+
+
+@pytest.mark.parametrize(
+    "raw_output",
+    [
+        "",
+        " \n\t ",
+        "answer: ",
+        '{"answer": "unterminated"',
+        'answer: {"answer": "unterminated"',
+        "```json\nnot valid json\n```",
+        '```text\n{"answer": "unterminated"\n```',
+        "```text\nmeow",
+    ],
+)
+def test_normalize_prediction_output_fails_closed(raw_output: str):
+    with pytest.raises(ValueError):
+        normalize_prediction_output(raw_output)
+
+
+def test_normalize_prediction_output_preserves_structured_json():
+    assert normalize_prediction_output(
+        '{"answer":"a cat","evidence":"heard a scream"}'
+    ) == {
+        "answer": "a cat",
+        "evidence": "heard a scream",
+        "output_format": "json",
+    }
 
 
 def test_promotion_requires_all_three_joint_rows(tmp_path: Path):
