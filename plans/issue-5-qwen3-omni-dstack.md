@@ -79,7 +79,9 @@ reproducibility and provenance, and make an honest expand/stop decision.
   test-first.
 - [x] `a4` private artifact prefix verified empty and qualifying H200 offers
   previewed.
-- [ ] Corrected immutable `a4` run completed, scored, and added to PR #14.
+- [x] Corrected immutable `a4` run completed and checksum-verified.
+- [x] `a4` label-free inference output frozen before post-run scoring.
+- [x] Final `a4` findings independently reviewed and prepared for PR #14.
 
 ## Current evidence and blocker
 
@@ -151,10 +153,32 @@ and generation configs leave their corresponding IDs null. The `a3` runner did
 not pass tokenizer termination IDs, and every row exhausted the 2,048-token
 limit after generating at least one valid-looking JSON candidate.
 
+Run `a4` completed on a RunPod H200:
+
+- dstack ID: `0f68deb4-6f5a-43ce-8d29-803dc5eda2c4`
+- status/reason: `done` / `all_jobs_done`
+- elapsed: 424.297452 seconds
+- exact `a4` cost: $0.5174
+- cumulative `a1`–`a4` spend: $2.6269
+- remote artifacts: eight files, downloaded and checksum-verified
+- joint visual/audio input contract: passed on all three rows
+- EOS termination and strict JSON parsing: passed on all three rows
+- automatic compatibility gate: **promote**
+- semantic result: `1C/1P/1W`, exact match `0.0000`, mean token F1 `0.1984`
+- existing issue-12 screen applied for comparability: **would fail**
+- issue #5 promotion gate: **incomplete** because the panel has no visual
+  control
+
+The lexical row is confounded by a declarative benchmark prompt, which Qwen
+interpreted as a truth-verification statement and answered `True`. It remains
+wrong against the official answer. The prosody answer is correct and the cat
+sound answer partial. This panel establishes working native audio/vision
+inference, but it is too small, prompt-confounded, and lacks the visual control
+required by issue #5 to establish a new best baseline.
+
 ## Next action
 
-Submit exactly one immutable `a4` run with explicit tokenizer EOS/padding IDs.
-Keep the strict terminal-JSON parser unchanged. Require actual EOS termination
-and record termination evidence. If output conformance passes, perform
-label-isolated semantic scoring on the frozen three rows; otherwise stop with
-the new failure evidence. Update draft PR #14 with the result.
+Preserve this compatibility result in draft PR #14 and define a separate,
+broader stratified native-audio quality benchmark with explicit
+question-shaped prompts and matched visual controls before spending more of
+the Qwen cap.

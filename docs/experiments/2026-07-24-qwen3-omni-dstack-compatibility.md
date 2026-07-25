@@ -4,7 +4,8 @@ Date: 2026-07-24
 
 Issue: #5
 
-Decision: **stop; joint input contract passed but output conformance failed**
+Decision: **runtime-compatible; retain for a broader, question-shaped quality
+benchmark, but do not claim semantic promotion from this three-row panel**
 
 ## Scope and gate
 
@@ -244,6 +245,10 @@ Both checksum layers passed. Key hashes:
 - The allowlisted metadata projection reproduced the saved `a1` record from
   the live terminal dstack response.
 - Independent static review found no remaining Critical or Important findings.
+- After collecting `a4`, the repository suite passed with 187 tests; Ruff,
+  shell syntax, and `git diff --check` also passed.
+- `a4` ended on the configured EOS and passed strict JSON parsing on all three
+  rows; the downloaded eight-file artifact set passed both checksum layers.
 
 ## Authorized `a4` termination correction
 
@@ -264,9 +269,110 @@ cap, the worst-case new cost is `$3.375`; with `$2.1095` already spent, the
 worst-case cumulative Qwen spend is `$5.4845`, below the authorized hard total
 of `$10`.
 
-Next action: submit `qwen3-omni-compatibility-3-20260724-a4` exactly once,
-verify its private artifacts, then score the frozen three rows only if output
-conformance succeeds.
+## Completed `a4` result
+
+Run `qwen3-omni-compatibility-3-20260724-a4` completed on a RunPod H200. The
+explicit tokenizer termination IDs corrected the `a3` output-conformance
+failure without relaxing the parser:
+
+- all three rows supplied 12 frames and one native-audio input in the same
+  request and same first model forward;
+- all three used exactly one generation call;
+- all three ended on `<|im_end|>` (token ID `151645`);
+- all three returned one terminal JSON object accepted by the unchanged strict
+  parser.
+
+| Role | New tokens | EOS | Answer |
+|---|---:|---:|---|
+| lexical speech | 295 | yes | `True` |
+| prosody | 507 | yes | Intense expression, forceful/raised voice, emphatic gestures |
+| non-speech sound | 274 | yes | A cat meowing or yowling |
+
+The automatic compatibility decision is therefore **promote (3/3)**. This
+means the pinned model/runtime can jointly consume the frozen visual and audio
+evidence and produce contract-valid outputs. It is not by itself a semantic
+quality result.
+
+### Label-isolated inference and post-run scoring
+
+Reference labels were excluded from inference requests, and predictions were
+frozen before the post-run label join and scoring. The same references had
+already been used in earlier failure-panel and Gemma/Phi analysis, so this is
+not a newly blinded evaluation. Exact match and token F1 use the repository's
+frozen `vqa_evaluation.py` implementation at commit
+`44d59446bcb26df292fb2094aadaf5b24b0b0208` (source SHA-256
+`0cdd46df8347f3ba6e0986c9da349f6d89b41aa2ecfb15f637570a15f7480712`).
+The exact answers, reference hashes and ignored annotation paths, metrics, and
+scorer provenance are preserved in
+`docs/experiments/artifacts/qwen3-omni-a4-semantic-score.json`. Running
+`uv run python scripts/verify_qwen3_omni_a4_semantic_score.py` joins the
+references from the ignored shared dataset, verifies their hashes, and
+reproduces the scores. Manual judgments use the existing `C` (correct), `P`
+(partial), and `W` (wrong) rubric from the matched Gemma/Phi comparison.
+
+| Role | Reference meaning | Qwen3-Omni answer | Judgment | Token F1 |
+|---|---|---|---:|---:|
+| lexical speech | The bystander says she does not know | `True` | W | 0.0000 |
+| prosody | Faster, louder, emphatic speech and forceful gestures | Raised/forceful voice, intense expression, emphatic gestures | C | 0.2619 |
+| non-speech sound | A cat screaming | A cat meowing or yowling | P | 0.3333 |
+
+Aggregate: `1C/1P/1W`, normalized exact match `0.0000`, mean token F1
+`0.1984`. Applying issue #12's predeclared Gemma/Phi screen for comparability
+(zero wrong and at least two correct), Qwen would fail that screen. This
+threshold was not separately preregistered for Qwen issue #5.
+
+Issue #5's own promotion gate remains **incomplete**, not failed: it requires a
+material improvement on an audio-focused row without a visual-control
+regression, but this compatibility panel has no visual-control row. The
+prosody answer is a material audio-focused success; a matched visual control
+is still required before Qwen can pass or fail its actual promotion gate.
+
+The lexical row is also a benchmark-design confound. Its text is a declarative
+description—“A woman ... asks a bystander how old the horse is.”—rather than
+an explicit question such as “What does the bystander answer?” Qwen's `True`
+is a natural truth-verification reading of that wording, but it still does not
+match the official answer and is scored wrong. A future quality run should use
+question-shaped prompts and keep any prompt repair explicitly separated from
+the frozen benchmark result.
+
+On the same tiny panel, Qwen3-Omni's `1C/1P/1W` ties Gemma CUDA and
+Qwen3.5-4B+Whisper by manual category count, while its mean token F1 (`0.1984`)
+is below the latter (`0.2333`). Those three examples are a compatibility
+screen, not enough evidence to rank systems. Qwen should therefore be retained
+for a broader stratified native-audio quality benchmark that includes matched
+visual controls, not declared the new best baseline yet.
+
+### `a4` runtime, cost, and provenance
+
+| Field | Terminal value |
+|---|---|
+| dstack ID | `0f68deb4-6f5a-43ce-8d29-803dc5eda2c4` |
+| Status / reason | `done` / `all_jobs_done` |
+| Submitted / finished | `2026-07-25T00:48:11.465201Z` / `2026-07-25T00:55:15.762653Z` |
+| Total elapsed | 424.297452 seconds |
+| Backend / region | RunPod / `CA-MTL-3` |
+| Exact offer | on-demand NVIDIA H200, 141 GiB VRAM, `$4.39/hour` |
+| Host allocation | 22 CPUs, 221 GiB RAM, 200 GiB disk |
+| Exit status | 0 |
+| Exact `a4` cost | `$0.5174` |
+| Cumulative `a1`–`a4` spend | `$2.6269` |
+
+The private immutable HF prefix contains exactly eight files. Both remote and
+local checksum layers passed. Key hashes:
+
+- predictions:
+  `3deaa7296fb737de1f832fba4cb187c0112ea2a62f45aafcf1198dfe37b19451`
+- summary:
+  `98797e4075edba97f09d912b362ebaac38d41f106a8e7f8fa862120341cfbe2a`
+- sanitized dstack record:
+  `8588b5442f0ea708f80e94bea066f6c195938cf02e2c91c4618dc1753361bd5e`
+- local artifact manifest:
+  `aeacc5e0ca2c06cf143ce19e54af5853846f560a1a38e4a6f80a8a45148c5b70`
+
+No raw logs, raw inference predictions, media, model weights, credentials, or
+dataset files are committed. The tracked scored artifact contains only the
+three exact model answers, annotation lookup paths and reference hashes,
+metrics, judgments, and provenance required to reproduce this report.
 
 ## References
 

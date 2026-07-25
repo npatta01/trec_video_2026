@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "run_id": "qwen3-omni-compatibility-3-20260724-a4",
+  "predictions_sha256": "3deaa7296fb737de1f832fba4cb187c0112ea2a62f45aafcf1198dfe37b19451",
+  "reference_hash_contract": "SHA-256 of the exact UTF-8 correct_answer string without a trailing newline",
+  "scorer": {
+    "source": "src/trec_video_2026/vqa_evaluation.py",
+    "source_commit": "44d59446bcb26df292fb2094aadaf5b24b0b0208",
+    "source_sha256": "0cdd46df8347f3ba6e0986c9da349f6d89b41aa2ecfb15f637570a15f7480712",
+    "metrics": [
+      "normalized_exact_match",
+      "token_f1"
+    ]
+  },
+  "manual_rubric_source": {
+    "report": "docs/experiments/2026-07-24-omni-semantic-quality.md",
+    "source_commit": "ad34cf999636049f602b278ae8097562929fc9ba"
+  },
+  "examples": [
+    {
+      "video_id": "NN7G28sBOlY",
+      "operational_tag": "lexical_speech",
+      "answer": "True",
+      "annotation_path": "data/vqa/2025/training/annotations/NN7G28sBOlY.json",
+      "reference_sha256": "97165eaf9e43f013d3114abe560884cf32a0a73dff0fbef95e5c96639bca681c",
+      "judgment": "W",
+      "normalized_exact_match": 0.0,
+      "token_f1": 0.0
+    },
+    {
+      "video_id": "NUmb2P3Bzu8",
+      "operational_tag": "prosody",
+      "answer": "The speaker is getting emotional due to his intense facial expressions, forceful tone of voice, and emphatic hand gestures. His brow is furrowed, his eyes are wide, and he raises his hand frequently while speaking, which visually indicates agitation. This is reinforced by his raised, passionate voice and critical language as he expresses frustration about children asking for inheritance while their parents are still alive.",
+      "annotation_path": "data/vqa/2025/training/annotations/NUmb2P3Bzu8.json",
+      "reference_sha256": "3dcde31edd24ed3a0a67f18a485e9d16965f35d916dc0cd35b9897c61c9fa0a0",
+      "judgment": "C",
+      "normalized_exact_match": 0.0,
+      "token_f1": 0.2619047619047619
+    },
+    {
+      "video_id": "NkXPPJoZ-h8",
+      "operational_tag": "non_speech_sound",
+      "answer": "A cat meowing or yowling",
+      "annotation_path": "data/vqa/2025/training/annotations/NkXPPJoZ-h8.json",
+      "reference_sha256": "97fb74d10c4d7934cc168f8038e53f2ede7760faf39dd5f92db213009b9827f0",
+      "judgment": "P",
+      "normalized_exact_match": 0.0,
+      "token_f1": 0.3333333333333333
+    }
+  ],
+  "aggregate": {
+    "correct": 1,
+    "partial": 1,
+    "wrong": 1,
+    "normalized_exact_match": 0.0,
+    "token_f1": 0.1984126984126984
+  }
+}
