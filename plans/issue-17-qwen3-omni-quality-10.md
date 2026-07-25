@@ -474,9 +474,10 @@ runtime, decoding, or scoring.
   independent specification/standards review.
 - [x] Decline a preview and require at least two eligible on-demand offers
   when practical.
-- [ ] Submit a2 exactly once with `--no-repo`; retain the first pair as the
-  hard canary, collect checksum-verified artifacts, and verify 20 valid calls.
-- [ ] Score with the same frozen repository metric and answer-only C/P/W
+- [x] Submit a2 exactly once with `--no-repo`; the canary passed and artifacts
+  were checksum-verified, but strict completion failed at 19/20 because one
+  answer used a terminal Markdown JSON fence.
+- [x] Score with the same frozen repository metric and answer-only C/P/W
   rubric, compare a2 against a1, update the report, and re-review.
 
 ## Current status
@@ -504,9 +505,11 @@ runtime, decoding, or scoring.
   checksum-verified private artifacts collected.
 - [x] Task 6 scoring/report complete and independently reviewed; a1 promotion
   gate failed.
-- [ ] Task 7 neutral-prompt correction in progress.
+- [x] Task 7 complete: a2 strict result failed at 19/20; pinned post-hoc
+  semantic diagnostic is `3C/3P/4W` frames-only versus `5C/2P/3W` audio-on;
+  independent semantic and code reviews passed.
 
 ## Next action
 
-Implement and preflight the neutral-prompt a2 correction without changing the
-frozen panel, evidence, model, decoding, or `$10` cumulative cap.
+Push the reviewed branch, open the draft PR, update issue #17, and hand off the
+canonical Markdown plus tailnet-only rendered HTML.
