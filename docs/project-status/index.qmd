@@ -39,6 +39,8 @@ panel][failure-panel] shows why native audio remains a specialist.
 %%| fig-cap: "Recommended evidence router: keep the 12-frame Qwen baseline, use Whisper only for quality-gated lexical speech, and reserve native audio for specialist evaluation."
 %%| fig-alt: "Flowchart. Every question starts with Qwen3.5-4B and 12 uniform frames. A lexical-speech question with accepted Whisper output adds a transcript. A prosody or non-speech question may enter a native-audio specialist experiment. All other questions stay on the frame-only baseline."
 flowchart TD
+  accTitle: Recommended evidence router
+  accDescr: Start with Qwen and 12 uniform frames, add accepted Whisper text only for lexical speech, and reserve native audio for specialist experiments.
   Q[Question] --> B[Qwen3.5-4B<br/>12 uniform frames]
   Q --> R{Special evidence route?}
   R -->|Lexical speech| G{Whisper quality passes?}
@@ -47,6 +49,12 @@ flowchart TD
   R -->|Prosody or non-speech| A[Native-audio specialist<br/>candidate only]
   R -->|No| B
 ```
+
+::: {.content-visible when-format="gfm"}
+**Figure caption:** Recommended evidence router: keep the 12-frame Qwen
+baseline, use Whisper only for quality-gated lexical speech, and reserve native
+audio for specialist evaluation.
+:::
 
 Plain-text equivalent:
 
@@ -65,6 +73,8 @@ Plain-text equivalent:
 %%| fig-cap: "Current decision map separating defaults, routed candidates, stopped approaches, and an ineligible but promising model."
 %%| fig-alt: "Decision tree. Qwen with 12 uniform frames is the current default. MiniCPM audio-off is the fast alternate. Quality-gated Whisper and native audio are routed candidates. Global 24 frames, directed sampling, dense bursts, Qwen3.6, Gemma, and Phi are stopped as defaults. Qwen3-Omni is promising but ineligible after 19 of 20 strict outputs passed."
 flowchart TD
+  accTitle: Current project decisions
+  accDescr: Qwen with 12 frames is the default, MiniCPM audio-off is the fast alternate, speech and native audio are routed candidates, and stopped approaches are not defaults.
   E[Current evidence] --> D[Use now]
   E --> R[Route or study]
   E --> S[Do not default]
@@ -75,6 +85,11 @@ flowchart TD
   R --> O[Qwen3-Omni<br/>promising, ineligible]
   S --> X[Global 24f; directed; bursts;<br/>Qwen3.6; Gemma; Phi]
 ```
+
+::: {.content-visible when-format="gfm"}
+**Figure caption:** Current decision map separating defaults, routed candidates,
+stopped approaches, and an ineligible but promising model.
+:::
 
 | Status | Systems or routes | Meaning now |
 |---|---|---|

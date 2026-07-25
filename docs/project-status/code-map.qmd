@@ -21,11 +21,18 @@ Ledger](experiment-ledger.qmd) to understand why it was chosen.
 %%| fig-cap: "The repository pipeline from source-video acquisition through sanitized reports."
 %%| fig-alt: "Top-to-bottom pipeline. Acquisition passes local media into label-blind evidence preparation. Prepared requests go to isolated model-family inference. Frozen predictions move across a label boundary into scoring. Only sanitized aggregate findings are committed to reports."
 flowchart TD
+  accTitle: Project system pipeline
+  accDescr: Acquisition feeds evidence preparation, inference, scoring after predictions freeze, and sanitized aggregate reports.
   A[Acquisition<br/>resumable local media] --> P[Evidence preparation<br/>frames, manifests, requests]
   P --> I[Inference<br/>isolated family adapters]
   I --> S[Scoring<br/>labels joined after freeze]
   S --> R[Reports<br/>sanitized aggregates]
 ```
+
+::: {.content-visible when-format="gfm"}
+**Figure caption:** The repository pipeline from source-video acquisition through
+sanitized reports.
+:::
 
 | Stage | Main tracked code | Boundary |
 |---|---|---|
@@ -76,6 +83,8 @@ runners import heavy dependencies only inside their pinned execution runtime.
 %%| fig-cap: "Repository map showing the tracked newcomer entry points and the ignored local-data boundary."
 %%| fig-alt: "Tree diagram. The repository root contains pyproject and README entry points; source modules; configs and scripts; tests; dated experiment documentation and reports; and an ignored local data directory that must never be committed or linked from the report."
 flowchart TD
+  accTitle: Repository map
+  accDescr: The repository has newcomer entry points, source modules, operations files, tests, sanitized evidence, and an ignored local-data boundary.
   ROOT[Repository root] --> ENTRY[README + pyproject<br/>start and commands]
   ROOT --> SRC[src/trec_video_2026<br/>CLIs, modules, adapters]
   ROOT --> OPS[configs + scripts<br/>frozen inputs and helpers]
@@ -83,6 +92,11 @@ flowchart TD
   ROOT --> TESTS[tests<br/>contracts and tooling]
   ROOT --> LOCAL[data<br/>ignored local boundary]
 ```
+
+::: {.content-visible when-format="gfm"}
+**Figure caption:** Repository map showing the tracked newcomer entry points and
+the ignored local-data boundary.
+:::
 
 | Path | Read it when… | Caution |
 |---|---|---|

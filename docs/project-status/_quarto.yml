@@ -1,6 +1,8 @@
 project:
   type: website
   output-dir: ../../reports/project-status
+  render:
+    - "*.qmd"
 
 website:
   title: "TRECVID 2026 VQA: Project Status"
@@ -27,4 +29,3 @@ format:
     toc-depth: 2
     toc-title: On this page
     code-copy: false
-    link-external-newwindow: true

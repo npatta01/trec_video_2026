@@ -20,11 +20,18 @@ to find the implementation behind each workflow.
 %%| fig-cap: "Experiment timeline from the July 12 field guide through the July 25 Qwen3-Omni strict quality result."
 %%| fig-alt: "Left-to-right timeline. July 12 established a field guide. July 20 completed data readiness and a three-video gate. July 21 ran audio, spatial, Seamless, and frozen-30 work. July 24 added transcript, failure, taxonomy, temporal, dense-burst, Phi, Gemma, and Qwen3-Omni diagnostics. July 25 completed the strict Qwen3-Omni quality run while the human-oracle tier remained blocked."
 flowchart LR
+  accTitle: Experiment timeline
+  accDescr: The project moved from a July 12 field guide through readiness, matched benchmarks, routing probes, and the July 25 Qwen3-Omni strict quality result.
   J12[Jul 12<br/>field guide] --> J20[Jul 20<br/>readiness + gate]
   J20 --> J21[Jul 21<br/>audio + frozen-30]
   J21 --> J24[Jul 24<br/>routing + model probes]
   J24 --> J25[Jul 25<br/>Omni quality]
 ```
+
+::: {.content-visible when-format="gfm"}
+**Figure caption:** Experiment timeline from the July 12 field guide through the
+July 25 Qwen3-Omni strict quality result.
+:::
 
 Plain-text equivalent:
 

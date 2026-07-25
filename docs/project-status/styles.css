@@ -90,6 +90,11 @@ code {
   overflow-wrap: anywhere;
 }
 
+:not(pre) > code {
+  white-space: normal;
+  word-break: normal;
+}
+
 @media (max-width: 767px) {
   body {
     font-size: 0.98rem;
@@ -108,7 +113,11 @@ code {
   }
 
   table {
+    display: block;
     font-size: 0.88rem;
+    max-width: 100%;
+    overflow-x: auto;
+    width: 100%;
   }
 
   .table-responsive,

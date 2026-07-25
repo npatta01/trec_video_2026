@@ -3,8 +3,9 @@
 **Objective:** Make the repository understandable to a newcomer without
 reorganizing or rerunning the experiment system.
 
-**Status:** In progress on `codex/repository-cleanup-report`, based on
-`origin/main@814e554`.
+**Status:** Complete on `codex/repository-cleanup-report`, based on
+`origin/main@814e554`. GitHub issue creation remains intentionally deferred
+until the report is reviewed.
 
 ## Scope and decisions
 
@@ -55,8 +56,42 @@ reorganizing or rerunning the experiment system.
 
 ## Verification evidence
 
-- Pending.
+- Before the fast-forward, all four loose files were preserved in named stash
+  `pre-cleanup backup 2026-07-25` (`399280bfdd4f521bc4d220276f3d6cc42f701de7`).
+  The checkout then fast-forwarded to `origin/main@814e554`; only the
+  evidence-routing plan was restored. Detached worktrees were not changed.
+- Quarto 1.9.38 rendered all three QMD sources to sibling GitHub-Flavored
+  Markdown and to three self-contained HTML pages under
+  `reports/project-status/`. The final HTML render processed exactly three QMD
+  files.
+- Headless Chrome loaded all three final pages at 1440 and 390 CSS pixels. Each
+  page had one H1, working local navigation and landmarks, no page-wide
+  horizontal overflow, no forced-new-window links, and no external runtime
+  resources. The five Mermaid SVGs each had a visible caption plus a native
+  accessible title and description; each also has an adjacent list or table
+  equivalent in the QMD/HTML and a visible caption in generated Markdown.
+- Six representative desktop/phone screenshots were inspected for readable
+  text, responsive navigation, tables, captions, and diagrams. Long inline
+  code wraps without creating page-wide overflow; wide tables scroll within
+  their own container at phone width.
+- A bounded link check covered 21 changed Markdown/QMD documents and 90
+  repository-relative links, with zero missing files or anchors.
+- A bounded privacy scan covered the three QMD sources, three generated
+  Markdown files, and three HTML pages, with zero findings for local home
+  paths, private bucket URIs, credentials, YouTube watch links, structured raw
+  records, or media/log/data links.
+- `git diff --check` passes. A narrow `.gitattributes` rule marks only the
+  self-contained HTML outputs as generated and excludes Quarto's embedded
+  vendor-code whitespace from that diagnostic. No `data/` path is staged.
+- The published directory contains exactly the three sanitized HTML files.
+  Their hashes match the repository outputs. The live start page returned HTTP
+  200 and matched the repository SHA-256 exactly. `tailscale funnel status`
+  reported the portal as `tailnet only`; no Funnel/public listener is enabled.
+- No application tests, custom test suite, CI, schema validator, dataset read,
+  or GitHub issue mutation was performed for this documentation-only change.
 
 ## Next action
 
-Complete Task 1, then render the report before doing any portal copy.
+Review the current-state report. After that review, convert the documentation,
+engineering, and research gaps into scoped GitHub issues without reopening
+superseded experiment directions.

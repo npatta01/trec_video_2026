@@ -1,0 +1,316 @@
+# Experiment Ledger
+
+
+<div class="lead">
+
+The experiments narrowed the project toward a simple visual baseline
+with specialist evidence routes. The strongest general comparison is
+frozen-30; the smaller panels explain failures, compatibility, or
+routing and must not be read as 2026 accuracy estimates.
+
+</div>
+
+Use [Start Here](index.qmd) for the current recommendation and the [Code
+Map](code-map.qmd) to find the implementation behind each workflow.
+
+## Timeline
+
+``` mermaid
+flowchart LR
+  accTitle: Experiment timeline
+  accDescr: The project moved from a July 12 field guide through readiness, matched benchmarks, routing probes, and the July 25 Qwen3-Omni strict quality result.
+  J12[Jul 12<br/>field guide] --> J20[Jul 20<br/>readiness + gate]
+  J20 --> J21[Jul 21<br/>audio + frozen-30]
+  J21 --> J24[Jul 24<br/>routing + model probes]
+  J24 --> J25[Jul 25<br/>Omni quality]
+```
+
+**Figure caption:** Experiment timeline from the July 12 field guide
+through the July 25 Qwen3-Omni strict quality result.
+
+Plain-text equivalent:
+
+1.  **July 12:** the field guide framed the problem and candidate
+    architecture.
+2.  **July 20:** dataset readiness and the three-video compatibility
+    gate made controlled local runs practical.
+3.  **July 21–24:** targeted audio/spatial work and protocol-v2
+    frozen-30 established the baseline; transcript, failure, taxonomy,
+    temporal, and model panels tested narrower routes.
+4.  **July 25:** Qwen3-Omni produced encouraging diagnostic quality but
+    failed the strict 20-output contract; the independent human-oracle
+    tier stayed blocked.
+
+## Chronological ledger
+
+### July 12 field guide
+
+- **Tried:** synthesized the prior TRECVID landscape, open-model
+  options, scoring constraints, and a staged evidence-first
+  architecture.
+- **Panel:** literature and prior-team evidence, not a local benchmark.
+- **Learned:** the project needed observable, matched evidence before
+  complex routing or training.
+- **Decision:** keep the [field
+  guide](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/report.html)
+  as background orientation, not current experiment status.
+- **Limitation:** it predates every local result in this ledger and
+  cannot pick today’s baseline.
+- **Evidence:** [field guide source
+  notes](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/source_notes.md)
+  and the later [repository recovery PR
+  \#21](https://github.com/npatta01/trec_video_2026/pull/21).
+
+### Data readiness
+
+- **Tried:** built resumable acquisition, source validation, shared-data
+  linking, and label-isolated preparation seams.
+- **Panel:** operational readiness, not answer-quality evaluation.
+- **Learned:** the repository can prepare and audit local evidence
+  without committing the competition dataset, media, transcripts,
+  predictions, or logs.
+- **Decision:** keep one ignored shared dataset and run preflight before
+  inference; do not start a large acquisition or benchmark merely to
+  inspect the repository.
+- **Limitation:** readiness proves neither video availability for every
+  future row nor 2026 answer quality.
+- **Evidence:** [root operating
+  boundary](https://github.com/npatta01/trec_video_2026/blob/main/README.md),
+  [download
+  module](https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_download.py),
+  and [recovery PR
+  \#21](https://github.com/npatta01/trec_video_2026/pull/21).
+
+### Three-video compatibility gate
+
+- **Tried:** ran Qwen3.5, Molmo2, InternVL, MiniCPM-o, and Gemma through
+  a common small gate on the local AMD/ROCm host.
+- **Panel:** three deliberately different labeled 2025 examples.
+- **Learned:** the family adapters could be made reproducible, but the
+  panel was too small for model ranking; MiniCPM’s initial
+  selected-frame native-audio path also exposed a speech-row
+  tensor-shape failure.
+- **Decision:** retain Qwen3.5-4B with 12 uniform frames as the
+  practical baseline and expand only through controlled workflows.
+- **Limitation:** **compatibility-only**; not a statistical accuracy
+  sample.
+- **Evidence:** [three-video gate
+  report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md)
+  and [recovered benchmark work in PR
+  \#21](https://github.com/npatta01/trec_video_2026/pull/21).
+
+### Audio, spatial, and Seamless diagnostics
+
+- **Tried:** added full Whisper large-v3 translation, question-guided
+  spatial crops, and a SeamlessM4T-v2 translation on selected failures.
+- **Panel:** two audio/spatial failures, then one speech failure.
+- **Learned:** the transcript could change Qwen’s answer and the crop
+  could add pixels without making either answer correct; Seamless output
+  was incomplete and the downstream answer remained wrong.
+- **Decision:** stop these particular escalations; keep 12 frames as the
+  simple baseline and require better routing evidence.
+- **Limitation:** targeted **diagnostics**, not accuracy estimates;
+  manual crops were not scale-ready.
+- **Evidence:** [audio/spatial
+  report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/audio_spatial_followup_results_2026-07-21.md),
+  [Seamless
+  report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/seamless_audio_followup_results_2026-07-21.md),
+  and [recovery PR
+  \#21](https://github.com/npatta01/trec_video_2026/pull/21).
+
+### Frozen-30 protocol v2
+
+- **Tried:** four matched VQA arms across 30 rows: Qwen3.5-4B with 12
+  uniform frames, Qwen with 24 uniform frames, MiniCPM-o 4.5 with audio
+  disabled, and Qwen 12 plus quality-gated Whisper large-v3.
+- **Panel:** 30 labeled 2025 training examples, balanced across five
+  declared strata. The clean run produced **120 valid predictions** and
+  **30 valid Whisper executions**.
+- **Learned:** Qwen12+Whisper led exact match at **11/30** and token F1
+  at **0.506795**. MiniCPM audio-off led METEOR at **0.374089** and had
+  the fastest outer wall. Global Qwen24 added **no exact answers**
+  versus Qwen12.
+- **Decision:** use Qwen12 as the accuracy baseline, MiniCPM audio-off
+  as the fast alternate, and Whisper only through a separately reported
+  route.
+- **Limitation:** this is the strongest **verified** repository
+  comparison, but it is descriptive model selection on 2025 training
+  data—not a 2026 estimate.
+- **Evidence:** [protocol-v2
+  report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md)
+  and [recovered benchmark work in PR
+  \#21](https://github.com/npatta01/trec_video_2026/pull/21).
+
+### Automatic-transcript ablation
+
+- **Tried:** compared identical 12-frame Qwen requests with and without
+  a label-blind, quality-accepted Whisper large-v3 transcript.
+- **Panel:** ten selected lexical-speech rows; all 20 predictions were
+  frozen before scoring.
+- **Learned:** manual accuracy rose from **4/10 to 7/10**, with **three
+  rescues** and **no observed degradation**.
+- **Decision:** retain quality-gated Whisper on lexical-speech routes
+  and work next on transcript grounding plus non-lexical-vocalization
+  rejection.
+- **Limitation:** a selected ten-row diagnostic does not validate
+  routing prevalence or global transcript use.
+- **Evidence:** [automatic-transcript
+  report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md),
+  [closed issue
+  \#7](https://github.com/npatta01/trec_video_2026/issues/7), and [PR
+  \#9](https://github.com/npatta01/trec_video_2026/pull/9).
+
+### Failure-selected Qwen3.6 and audio panel
+
+- **Tried:** compared Qwen12, Qwen24, Qwen+Whisper, Qwen3.6-35B-A3B, and
+  MiniCPM audio-off/audio-on paths on known failures.
+- **Panel:** **12 deliberately selected failures**, explicitly not an
+  accuracy sample.
+- **Learned:** Qwen24 and MiniCPM audio-off each scored **4C/4P/4W**;
+  Qwen3.6 scored **3C/2P/7W**. Native audio helped some prosody and
+  sound rows but harmed some temporal reasoning.
+- **Decision:** do not promote Qwen3.6 or a global audio switch; retain
+  a small, category-routed ensemble idea.
+- **Limitation:** failure selection inflates the value of recovery
+  behavior and cannot rank full-test systems.
+- **Evidence:** [failure-panel
+  report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md)
+  and [recovery PR
+  \#21](https://github.com/npatta01/trec_video_2026/pull/21).
+
+### Taxonomy audit
+
+- **Tried:** audited prior systems and prompt wording to estimate which
+  evidence routes might matter.
+- **Panel:** **481 training questions** plus primary prior-system
+  documentation.
+- **Learned:** conservative lexical lower bounds found **71 counting**,
+  **22 spoken-language**, **20 sound/music**, and **15 visible-text**
+  prompts.
+- **Decision:** keep these as router-design seeds and stratification
+  hints.
+- **Limitation:** lexical lower bounds overlap, omit paraphrases, and do
+  not validate routing prevalence.
+- **Evidence:** [taxonomy
+  audit](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/taxonomy_prior_art_and_open_omni_models_2026-07-24.md),
+  [closed issue
+  \#4](https://github.com/npatta01/trec_video_2026/issues/4), and its
+  restored [evidence-routing
+  plan](https://github.com/npatta01/trec_video_2026/blob/main/docs/superpowers/plans/2026-07-24-evidence-routing-benchmark.md).
+
+### Directed temporal sampling
+
+- **Tried:** replaced part of a 12-frame uniform sequence with
+  question-directed temporal evidence while holding model and pixel
+  bounds fixed.
+- **Panel:** ten temporal rows.
+- **Learned:** directed 12 **tied uniform 12** and **trailed uniform
+  24** in blinded C/P/W adjudication.
+- **Decision:** stop the heuristic; it did not pass either promotion
+  condition.
+- **Limitation:** a small temporal diagnostic can reject this
+  implementation, not every possible learned or question-directed
+  selector.
+- **Evidence:** [temporal
+  report](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/temporal-sampling-issue-8.md),
+  [closed issue
+  \#8](https://github.com/npatta01/trec_video_2026/issues/8), its
+  [conclusion audit in closed issue
+  \#13](https://github.com/npatta01/trec_video_2026/issues/13), and [PR
+  \#10](https://github.com/npatta01/trec_video_2026/pull/10).
+
+### Dense-burst sampling
+
+- **Tried:** compared uniform-24 against dense-burst-12 under a narrow
+  temporal hypothesis.
+- **Panel:** **two rows only**.
+- **Learned:** uniform-24 was **2C/0P/0W** while dense-burst-12 was
+  **0C/1P/1W**, comprising one **C→P** and one **C→W** regression.
+- **Decision:** stop dense-burst-12; do not generalize from or expand
+  the losing heuristic without a new design.
+- **Limitation:** the panel is too small for prevalence or effect-size
+  claims. No row identifiers, answers, predictions, paths, or raw
+  artifacts are part of this report.
+- **Evidence:** aggregate source digest
+  `d4825b4530b181f1b4414552a80136e2f0e5a7ee64def23131d8c163acc458f1` and
+  [closed issue
+  \#16](https://github.com/npatta01/trec_video_2026/issues/16).
+
+### Phi and Gemma: compatibility, then semantic stop
+
+- **Tried:** ran joint vision/audio contracts on
+  Phi-4-multimodal-instruct and Gemma 3n, then corrected platform/output
+  confounds and applied a predeclared answer-quality screen.
+- **Panel:** three selected audio roles.
+- **Learned:** compatibility and semantic quality separated cleanly. On
+  the semantic gate, Gemma scored **1C/1P/1W** and Phi **0C/2P/1W**.
+- **Decision:** neither model was promoted beyond three rows.
+- **Limitation:** the counts are a semantic screen, not a general
+  leaderboard; the earlier Gemma compatibility promotion is superseded.
+- **Evidence:** [compatibility
+  report](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-nonqwen-omni-compatibility.md),
+  [semantic
+  correction](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-omni-semantic-quality.md),
+  [closed issues
+  \#6](https://github.com/npatta01/trec_video_2026/issues/6) and
+  [\#12](https://github.com/npatta01/trec_video_2026/issues/12), plus
+  [PR \#11](https://github.com/npatta01/trec_video_2026/pull/11) and [PR
+  \#15](https://github.com/npatta01/trec_video_2026/pull/15).
+
+### Qwen3-Omni compatibility and quality-10
+
+- **Tried:** repaired the joint runtime/output contract, then compared
+  12-frame frames-only and native-audio conditions on a ten-video
+  neutral quality panel.
+- **Panel:** three-row compatibility screen, then ten matched pairs.
+- **Learned:** the final three-row compatibility run passed the
+  runtime/output contract and scored **1C/1P/1W**; that made it a
+  candidate, not a baseline. In neutral A2, a post-hoc answer-only
+  diagnostic changed frames-only **3C/3P/4W** to audio-on **5C/2P/3W**.
+- **Decision:** promising, but formally ineligible: the unchanged strict
+  A2 run completed only **19/20** outputs.
+- **Limitation:** the recovered answer is diagnostic only, one reviewer
+  was not blinded, and 2026 answer quality remains unknown.
+- **Evidence:** [compatibility
+  report](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-qwen3-omni-dstack-compatibility.md),
+  [neutral A2
+  report](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md),
+  [closed issues
+  \#5](https://github.com/npatta01/trec_video_2026/issues/5) and
+  [\#17](https://github.com/npatta01/trec_video_2026/issues/17), [PR
+  \#14](https://github.com/npatta01/trec_video_2026/pull/14), [PR
+  \#18](https://github.com/npatta01/trec_video_2026/pull/18), and
+  recovery [PR
+  \#20](https://github.com/npatta01/trec_video_2026/pull/20).
+
+### Human-oracle tier
+
+- **Tried:** specified a separate provenance tier for independently
+  created and reviewed human transcripts; automatic ASR, uploader
+  captions, and dataset prompts were explicitly kept out of that tier.
+- **Panel:** none—the strict tier did not run.
+- **Learned:** the required independent transcriber/reviewer records do
+  not yet exist.
+- **Decision:** keep the human-oracle tier **blocked** in [open issue
+  \#19](https://github.com/npatta01/trec_video_2026/issues/19).
+- **Limitation:** there is no oracle result to compare or cite.
+- **Evidence:** [transcript-evidence
+  report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md),
+  [open issue
+  \#19](https://github.com/npatta01/trec_video_2026/issues/19), and the
+  reconciled [evidence-routing
+  plan](https://github.com/npatta01/trec_video_2026/blob/main/docs/superpowers/plans/2026-07-24-evidence-routing-benchmark.md).
+
+## What superseded what
+
+| Earlier statement or result | Superseding evidence | Current interpretation |
+|----|----|----|
+| July 12 architecture priorities | Executed panels through July 25 | Background field guide only; use this ledger for current status. |
+| Failure panel favored global Qwen24 | Frozen-30 protocol v2 | Qwen12 is the global default; 24 frames added no exact answers. |
+| Whisper as a broad additional modality | Frozen-30 plus automatic-transcript ablation | Route only to quality-gated lexical speech. |
+| Initial Gemma compatibility promotion | Phi/Gemma semantic gate | Stop both at three rows; compatibility is not quality. |
+| Qwen3-Omni compatibility success | Neutral quality-10 A2 | Promising but ineligible after 19/20 strict outputs. |
+| Directed and dense temporal heuristics | Their matched diagnostic panels | Stop both implementations. |
+
+The next work should close the gaps rather than repeat a superseded
+default; see [Code Map and Remaining Gaps](code-map.qmd#remaining-gaps).
