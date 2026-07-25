@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "manifest_version": "trecvid-native-audio-2026-07-21-v1",
+  "gate_id": "native-audio-ten-video-gate",
+  "gate_marker": "compatibility",
+  "gate_selection_sha256": "099dedfa4d74aa7ed1c135a013c8b342a62e422a6692934507c94839a2803f69",
+  "gate_ids": [
+    "Mi-NpnCBegw",
+    "NN7G28sBOlY",
+    "Jc_vZjKwtvg",
+    "NkXPPJoZ-h8",
+    "EtNOkUJd5w8",
+    "PcDuz7j9LL8",
+    "Jc2BdtyAF48",
+    "HyOKrz1C4zU",
+    "EMI_anpHII4",
+    "IGL7j9-JRG4"
+  ],
+  "examples": [
+    {
+      "video_id": "LKiaCf1QZFw",
+      "category": "Dialogue and speech",
+      "question": "What does this woman say at the end of the video?",
+      "annotation": "vqa/2025/training/annotations/LKiaCf1QZFw.json",
+      "media": "vqa/2025/training/videos_original/LKiaCf1QZFw"
+    },
+    {
+      "video_id": "Ie-KCtcZ7uc",
+      "category": "Dialogue and speech",
+      "question": "What is the first question asked of these young men driving away in a Bentley Bentayga?",
+      "annotation": "vqa/2025/training/annotations/Ie-KCtcZ7uc.json",
+      "media": "vqa/2025/training/videos_original/Ie-KCtcZ7uc"
+    },
+    {
+      "video_id": "J1CS47pBX_M",
+      "category": "Dialogue and speech",
+      "question": "What is the first thing that is said in this video?",
+      "annotation": "vqa/2025/training/annotations/J1CS47pBX_M.json",
+      "media": "vqa/2025/training/videos_original/J1CS47pBX_M"
+    },
+    {
+      "video_id": "Mi-NpnCBegw",
+      "category": "Dialogue and speech",
+      "question": "What word does the actor demonstrate as the last synonym of \"say\"?",
+      "annotation": "vqa/2025/training/annotations/Mi-NpnCBegw.json",
+      "media": "vqa/2025/training/videos_original/Mi-NpnCBegw"
+    },
+    {
+      "video_id": "NN7G28sBOlY",
+      "category": "Dialogue and speech",
+      "question": "A woman pets the nose of a white horse and asks a bystander how old the horse is.",
+      "annotation": "vqa/2025/training/annotations/NN7G28sBOlY.json",
+      "media": "vqa/2025/training/videos_original/NN7G28sBOlY"
+    },
+    {
+      "video_id": "NUmb2P3Bzu8",
+      "category": "Dialogue and speech",
+      "question": "How can you tell that the speaker is getting emotional about the topic?",
+      "annotation": "vqa/2025/training/annotations/NUmb2P3Bzu8.json",
+      "media": "vqa/2025/training/videos_original/NUmb2P3Bzu8"
+    },
+    {
+      "video_id": "IRTTtnSRTyY",
+      "category": "Non-speech sound and music",
+      "question": "How would you describe the sound being made in this video?",
+      "annotation": "vqa/2025/training/annotations/IRTTtnSRTyY.json",
+      "media": "vqa/2025/training/videos_original/IRTTtnSRTyY"
+    },
+    {
+      "video_id": "IWSPAfCKtV8",
+      "category": "Non-speech sound and music",
+      "question": "What is the sound at the end of the video?",
+      "annotation": "vqa/2025/training/annotations/IWSPAfCKtV8.json",
+      "media": "vqa/2025/training/videos_original/IWSPAfCKtV8"
+    },
+    {
+      "video_id": "Jc_vZjKwtvg",
+      "category": "Non-speech sound and music",
+      "question": "What song is being played in this video?",
+      "annotation": "vqa/2025/training/annotations/Jc_vZjKwtvg.json",
+      "media": "vqa/2025/training/videos_original/Jc_vZjKwtvg"
+    },
+    {
+      "video_id": "MdMKHhFFqJQ",
+      "category": "Non-speech sound and music",
+      "question": "What kind of instrument is heard during this video?",
+      "annotation": "vqa/2025/training/annotations/MdMKHhFFqJQ.json",
+      "media": "vqa/2025/training/videos_original/MdMKHhFFqJQ"
+    },
+    {
+      "video_id": "NkXPPJoZ-h8",
+      "category": "Non-speech sound and music",
+      "question": "Based on the video, what sound is heard?",
+      "annotation": "vqa/2025/training/annotations/NkXPPJoZ-h8.json",
+      "media": "vqa/2025/training/videos_original/NkXPPJoZ-h8"
+    },
+    {
+      "video_id": "OzNdzgQi1CA",
+      "category": "Non-speech sound and music",
+      "question": "What is the musical piece being played in the background?",
+      "annotation": "vqa/2025/training/annotations/OzNdzgQi1CA.json",
+      "media": "vqa/2025/training/videos_original/OzNdzgQi1CA"
+    },
+    {
+      "video_id": "CH8Dp7EgW4I",
+      "category": "Temporal and action",
+      "question": "What does the smaller boy do after another boy shoves him?",
+      "annotation": "vqa/2025/training/annotations/CH8Dp7EgW4I.json",
+      "media": "vqa/2025/training/videos_original/CH8Dp7EgW4I"
+    },
+    {
+      "video_id": "EtNOkUJd5w8",
+      "category": "Temporal and action",
+      "question": "What did the man do before he put little orange balls in the basket?",
+      "annotation": "vqa/2025/training/annotations/EtNOkUJd5w8.json",
+      "media": "vqa/2025/training/videos_original/EtNOkUJd5w8"
+    },
+    {
+      "video_id": "Gp4LVTn3YbY",
+      "category": "Temporal and action",
+      "question": "What happens after the woman puts the wafer in her mouth?",
+      "annotation": "vqa/2025/training/annotations/Gp4LVTn3YbY.json",
+      "media": "vqa/2025/training/videos_original/Gp4LVTn3YbY"
+    },
+    {
+      "video_id": "KgOvCPOX-Ms",
+      "category": "Temporal and action",
+      "question": "What happens to the two people by the end of the video.",
+      "annotation": "vqa/2025/training/annotations/KgOvCPOX-Ms.json",
+      "media": "vqa/2025/training/videos_original/KgOvCPOX-Ms"
+    },
+    {
+      "video_id": "PcDuz7j9LL8",
+      "category": "Temporal and action",
+      "question": "What does the man do after using a machine to dispense a cleaning solution and scrub his driveway?",
+      "annotation": "vqa/2025/training/annotations/PcDuz7j9LL8.json",
+      "media": "vqa/2025/training/videos_original/PcDuz7j9LL8"
+    },
+    {
+      "video_id": "C4j3Pp79KSg",
+      "category": "Temporal and action",
+      "question": "What does a woman riding in a wheelchair do when she reaches the corner?",
+      "annotation": "vqa/2025/training/annotations/C4j3Pp79KSg.json",
+      "media": "vqa/2025/training/videos_original/C4j3Pp79KSg"
+    },
+    {
+      "video_id": "Hw0bRvn1ZIo",
+      "category": "Spatial, OCR, and color",
+      "question": "After \"Jiu Jitsu\" what text is displayed to describe this instructive video?",
+      "annotation": "vqa/2025/training/annotations/Hw0bRvn1ZIo.json",
+      "media": "vqa/2025/training/videos_original/Hw0bRvn1ZIo"
+    },
+    {
+      "video_id": "J-sG9vePDmI",
+      "category": "Spatial, OCR, and color",
+      "question": "What does the displayed text say at the beginning?",
+      "annotation": "vqa/2025/training/annotations/J-sG9vePDmI.json",
+      "media": "vqa/2025/training/videos_original/J-sG9vePDmI"
+    },
+    {
+      "video_id": "Jc2BdtyAF48",
+      "category": "Spatial, OCR, and color",
+      "question": "What does the displayed text say?",
+      "annotation": "vqa/2025/training/annotations/Jc2BdtyAF48.json",
+      "media": "vqa/2025/training/videos_original/Jc2BdtyAF48"
+    },
+    {
+      "video_id": "HyOKrz1C4zU",
+      "category": "Spatial, OCR, and color",
+      "question": "What colors are the fruits being harvested?",
+      "annotation": "vqa/2025/training/annotations/HyOKrz1C4zU.json",
+      "media": "vqa/2025/training/videos_original/HyOKrz1C4zU"
+    },
+    {
+      "video_id": "Msbpqv5aOxk",
+      "category": "Spatial, OCR, and color",
+      "question": "What is written on the back of the man's hand?",
+      "annotation": "vqa/2025/training/annotations/Msbpqv5aOxk.json",
+      "media": "vqa/2025/training/videos_original/Msbpqv5aOxk"
+    },
+    {
+      "video_id": "JOClNGH6yL8",
+      "category": "Spatial, OCR, and color",
+      "question": "What color is the woman's top?",
+      "annotation": "vqa/2025/training/annotations/JOClNGH6yL8.json",
+      "media": "vqa/2025/training/videos_original/JOClNGH6yL8"
+    },
+    {
+      "video_id": "EMI_anpHII4",
+      "category": "Visual controls",
+      "question": "What does the hand make?",
+      "annotation": "vqa/2025/training/annotations/EMI_anpHII4.json",
+      "media": "vqa/2025/training/videos_original/EMI_anpHII4"
+    },
+    {
+      "video_id": "IGL7j9-JRG4",
+      "category": "Visual controls",
+      "question": "what is the heart made of?",
+      "annotation": "vqa/2025/training/annotations/IGL7j9-JRG4.json",
+      "media": "vqa/2025/training/videos_original/IGL7j9-JRG4"
+    },
+    {
+      "video_id": "JSOh_pKFq84",
+      "category": "Visual controls",
+      "question": "What tool is this woman using to pick up the bean?",
+      "annotation": "vqa/2025/training/annotations/JSOh_pKFq84.json",
+      "media": "vqa/2025/training/videos_original/JSOh_pKFq84"
+    },
+    {
+      "video_id": "QFljXc4WpFA",
+      "category": "Visual controls",
+      "question": "What two weapons are visible on the two men of authority?",
+      "annotation": "vqa/2025/training/annotations/QFljXc4WpFA.json",
+      "media": "vqa/2025/training/videos_original/QFljXc4WpFA"
+    },
+    {
+      "video_id": "PiIrinu42DQ",
+      "category": "Visual controls",
+      "question": "what tool is the person using?",
+      "annotation": "vqa/2025/training/annotations/PiIrinu42DQ.json",
+      "media": "vqa/2025/training/videos_original/PiIrinu42DQ"
+    },
+    {
+      "video_id": "LusRurRrmf0",
+      "category": "Visual controls",
+      "question": "how many face masks do we see?",
+      "annotation": "vqa/2025/training/annotations/LusRurRrmf0.json",
+      "media": "vqa/2025/training/videos_original/LusRurRrmf0"
+    }
+  ]
+}

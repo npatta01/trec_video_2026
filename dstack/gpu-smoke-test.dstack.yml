@@ -1,0 +1,12 @@
+type: task
+name: gpu-smoke-test
+python: "3.12"
+commands:
+  - nvidia-smi
+max_duration: 5m
+max_price: 0.20
+fleets:
+  - gpu-marketplace
+resources:
+  gpu: 16GB..
+  disk: 100GB..

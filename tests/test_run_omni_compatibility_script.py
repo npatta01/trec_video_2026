@@ -24,12 +24,27 @@ def test_runner_pins_image_and_disables_network():
     assert "--publish" not in text
 
 
-def test_runner_mounts_inputs_and_cache_read_only():
+def test_runner_mounts_only_inference_source_inputs_and_cache():
     text = SCRIPT.read_text(encoding="utf-8")
 
-    assert "${DATA_ROOT}:/data:ro" in text
+    assert "${DATA_ROOT}:/data:ro" not in text
+    assert "${DATA_ROOT}/${CONTRACT_REL}:/contract.json:ro" in text
+    assert (
+        "${DATA_ROOT}/vqa/2025/training/videos_original:"
+        "/data/vqa/2025/training/videos_original:ro"
+    ) in text
+    assert (
+        "${DATA_ROOT}/vqa/benchmarks/runs/native-audio-benchmark-v2/audio:"
+        "/data/vqa/benchmarks/runs/native-audio-benchmark-v2/audio:ro"
+    ) in text
+    assert (
+        "${DATA_ROOT}/vqa/benchmarks/evidence:"
+        "/data/vqa/benchmarks/evidence:ro"
+    ) in text
     assert "${HF_CACHE_ROOT}:/cache:ro" in text
-    assert "${REPO_ROOT}:/workspace:ro" in text
+    assert "${REPO_ROOT}/src:/workspace/src:ro" in text
+    assert "${REPO_ROOT}:/workspace:ro" not in text
+    assert "external/nist-vqa" not in text
     assert "${OUTPUT_DIR}:/output:rw" in text
 
 

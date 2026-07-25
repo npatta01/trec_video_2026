@@ -13,6 +13,8 @@ dependencies = [
 
 [project.scripts]
 vqa-download = "trec_video_2026.vqa_download:main"
+vqa-frozen30 = "trec_video_2026.vqa_frozen30_workflow:main"
+vqa-gate = "trec_video_2026.vqa_gate:main"
 youtube-dataset-download = "trec_video_2026.youtube_dataset:main"
 
 [build-system]
@@ -23,3 +25,6 @@ build-backend = "uv_build"
 dev = [
     "pytest>=9.1.1",
 ]
+
+[tool.ruff]
+extend-exclude = ["external/nist-vqa"]

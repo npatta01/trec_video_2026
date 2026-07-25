@@ -1,0 +1,18 @@
+FROM localhost/trec-vqa-gate-rocm@sha256:510e4ca0a165b60a50abf3a1f24545b8f4bd561f9643f0295e7d82212fe801d5
+
+# Qwen's official native video/audio preprocessing helper. The inherited
+# Transformers build contains Qwen2.5-Omni and runs on the pinned ROCm base.
+RUN python -m pip install --no-cache-dir \
+    "qwen-omni-utils[decord]==0.0.9" \
+    "imageio-ffmpeg==0.6.0"
+
+# qwen-omni-utils invokes ffmpeg through audioread for a video's audio track.
+RUN python -c "from pathlib import Path; from imageio_ffmpeg import get_ffmpeg_exe; Path('/usr/local/bin/ffmpeg').symlink_to(get_ffmpeg_exe())"
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    NLTK_DATA=/opt/nltk_data \
+    FORCE_QWENVL_VIDEO_READER=decord
+
+WORKDIR /workspace

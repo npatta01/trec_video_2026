@@ -1,0 +1,11 @@
+type: fleet
+name: cpu-exit
+nodes: 0..1
+idle_duration: 1m
+backends: [digitalocean, gcp]
+spot_policy: auto
+max_price: 0.02
+resources:
+  cpu: 1..2
+  memory: 512MB..4GB
+  disk: 10GB..25GB
