@@ -6,7 +6,7 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
-<meta name="description" content="A chronological record of what was tried, what each panel can support, and what decision followed.">
+<meta name="description" content="A research-question-organized record of what was tried, what each panel can support, and what decision followed, with a compact chronological index.">
 
 <title>Experiment Ledger – TRECVID VQA Status</title>
 <style>
@@ -5768,9 +5768,13 @@ transition: none !important;
     <h2 id="toc-title">On this page</h2>
    
   <ul class="collapse">
-  <li><a href="#timeline" id="toc-timeline" class="nav-link active" data-scroll-target="#timeline">Timeline</a></li>
-  <li><a href="#chronological-ledger" id="toc-chronological-ledger" class="nav-link" data-scroll-target="#chronological-ledger">Chronological ledger</a></li>
+  <li><a href="#research-questions" id="toc-research-questions" class="nav-link active" data-scroll-target="#research-questions">Research questions</a></li>
+  <li><a href="#trustworthy-experiments" id="toc-trustworthy-experiments" class="nav-link" data-scroll-target="#trustworthy-experiments">Can we run trustworthy experiments?</a></li>
+  <li><a href="#global-default" id="toc-global-default" class="nav-link" data-scroll-target="#global-default">What should every question start with?</a></li>
+  <li><a href="#specialist-evidence" id="toc-specialist-evidence" class="nav-link" data-scroll-target="#specialist-evidence">When is specialist evidence worth adding?</a></li>
+  <li><a href="#model-promotion" id="toc-model-promotion" class="nav-link" data-scroll-target="#model-promotion">Should another multimodal model replace the baseline?</a></li>
   <li><a href="#what-superseded-what" id="toc-what-superseded-what" class="nav-link" data-scroll-target="#what-superseded-what">What superseded what</a></li>
+  <li><a href="#chronology-index" id="toc-chronology-index" class="nav-link" data-scroll-target="#chronology-index">Chronology index</a></li>
   </ul>
 </nav>
     </div>
@@ -5784,7 +5788,7 @@ transition: none !important;
 
 <div>
   <div class="description">
-    A chronological record of what was tried, what each panel can support, and what decision followed.
+    A research-question-organized record of what was tried, what each panel can support, and what decision followed, with a compact chronological index.
   </div>
 </div>
 
@@ -5805,182 +5809,227 @@ transition: none !important;
 <p>The experiments narrowed the project toward a simple visual baseline with specialist evidence routes. The strongest general comparison is frozen-30; the smaller panels explain failures, compatibility, or routing and must not be read as 2026 accuracy estimates.</p>
 </div>
 <p>Use <a href="./index.html">Start Here</a> for the current recommendation and the <a href="./code-map.html">Code Map</a> to find the implementation behind each workflow.</p>
-<section id="timeline" class="level2">
-<h2 class="anchored" data-anchor-id="timeline">Timeline</h2>
+<section id="research-questions" class="level2">
+<h2 class="anchored" data-anchor-id="research-questions">Research questions</h2>
+<p>Read this page by research question to understand why the project ran each experiment and what decision followed. Use the chronology index at the end only when you need the date-ordered audit trail.</p>
 <div class="cell" data-layout-align="default">
 <div class="cell-output-display">
 <div id="fig-experiment-timeline" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-experiment-timeline-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div>
-<pre class="mermaid mermaid-js" data-label="fig-experiment-timeline">flowchart LR
-  accTitle: Experiment timeline
-  accDescr: The project moved from a July 12 field guide through readiness, matched benchmarks, routing probes, and the July 25 Qwen3-Omni strict quality result.
-  J12[Jul 12&lt;br/&gt;field guide] --&gt; J20[Jul 20&lt;br/&gt;readiness + gate]
-  J20 --&gt; J21[Jul 21&lt;br/&gt;audio + frozen-30]
-  J21 --&gt; J24[Jul 24&lt;br/&gt;routing + model probes]
-  J24 --&gt; J25[Jul 25&lt;br/&gt;Omni quality]
+<pre class="mermaid mermaid-js" data-label="fig-experiment-timeline">flowchart TD
+  accTitle: Research-question map
+  accDescr: Four research questions led to the current baseline, specialist routes, stopped alternatives, and open candidates.
+  P[Project decisions] --&gt; T{Can experiments be trusted?}
+  T --&gt; TR[Reproducible execution&lt;br/&gt;quality still separate]
+  P --&gt; B{What should every question start with?}
+  B --&gt; BR[Qwen3.5-4B + 12 frames&lt;br/&gt;MiniCPM audio-off for speed]
+  P --&gt; S{When is specialist evidence useful?}
+  S --&gt; SR[Routed Whisper&lt;br/&gt;native audio remains experimental]
+  P --&gt; M{Should another model replace the baseline?}
+  M --&gt; MR[No promotion yet&lt;br/&gt;Qwen3-Omni remains ineligible]
 </pre>
 </div>
 </div>
 <figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-experiment-timeline-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure 1: Experiment timeline from the July 12 field guide through the July 25 Qwen3-Omni strict quality result.
+Figure 1: Research-question map showing how foundation, baseline, specialist-evidence, and model-promotion experiments led to the current system.
 </figcaption>
 </figure>
 </div>
 </div>
 </div>
-<p>Plain-text equivalent:</p>
-<ol type="1">
-<li><strong>July 12:</strong> the field guide framed the problem and candidate architecture.</li>
-<li><strong>July 20:</strong> dataset readiness and the three-video compatibility gate made controlled local runs practical.</li>
-<li><strong>July 21–24:</strong> targeted audio/spatial work and protocol-v2 frozen-30 established the baseline; transcript, failure, taxonomy, temporal, and model panels tested narrower routes.</li>
-<li><strong>July 25:</strong> Qwen3-Omni produced encouraging diagnostic quality but failed the strict 20-output contract; the independent human-oracle tier stayed blocked.</li>
-</ol>
+<p>The map is a decision index, not an evidence ranking. The table below gives the same four paths in text and states the strongest evidence each path can support.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Research question</th>
+<th>Why it was tested</th>
+<th>Current answer</th>
+<th>Evidence strength</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Can we run trustworthy experiments?</td>
+<td>Model comparisons require private, reproducible, label-isolated execution.</td>
+<td>The repository can run controlled work; readiness and compatibility do not establish answer quality.</td>
+<td>Operational checks and a three-row compatibility panel.</td>
+</tr>
+<tr class="even">
+<td>What should every question start with?</td>
+<td>The project needed a simple default before adding specialists.</td>
+<td>Qwen3.5-4B with 12 frames is the accuracy baseline; MiniCPM-o audio-off is the fast alternate.</td>
+<td>Matched frozen-30 plus narrower temporal diagnostics.</td>
+</tr>
+<tr class="odd">
+<td>When is specialist evidence worth adding?</td>
+<td>Speech and sound may help selected questions but can distract globally.</td>
+<td>Route quality-gated Whisper to lexical speech; keep native audio experimental and the human-oracle tier blocked.</td>
+<td>Selected diagnostics, including a ten-row transcript ablation.</td>
+</tr>
+<tr class="even">
+<td>Should another multimodal model replace the baseline?</td>
+<td>Larger and native-audio models might recover baseline failures.</td>
+<td>None is promoted; Qwen3-Omni is promising but formally ineligible.</td>
+<td>Failure-selected and three-/ten-row quality screens.</td>
+</tr>
+</tbody>
+</table>
 </section>
-<section id="chronological-ledger" class="level2">
-<h2 class="anchored" data-anchor-id="chronological-ledger">Chronological ledger</h2>
-<section id="july-12-field-guide" class="level3">
-<h3 class="anchored" data-anchor-id="july-12-field-guide">July 12 field guide</h3>
+<section id="trustworthy-experiments" class="level2">
+<h2 class="anchored" data-anchor-id="trustworthy-experiments">Can we run trustworthy experiments?</h2>
+<p><strong>Why this mattered.</strong> Before comparing models, the project needed private, reproducible acquisition, label isolation, runnable adapters, and a clear line between compatibility and quality.</p>
+<p><strong>Current answer.</strong> The repository can prepare and execute controlled local work, but operational readiness and compatibility do not establish answer quality.</p>
+<section id="field-guide" class="level3">
+<h3 class="anchored" data-anchor-id="field-guide">July 12 field guide</h3>
 <ul>
-<li><strong>Tried:</strong> synthesized the prior TRECVID landscape, open-model options, scoring constraints, and a staged evidence-first architecture.</li>
-<li><strong>Panel:</strong> literature and prior-team evidence, not a local benchmark.</li>
-<li><strong>Learned:</strong> the project needed observable, matched evidence before complex routing or training.</li>
-<li><strong>Decision:</strong> keep the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/report.html">field guide</a> as background orientation, not current experiment status.</li>
-<li><strong>Limitation:</strong> it predates every local result in this ledger and cannot pick today’s baseline.</li>
+<li><strong>Why tested:</strong> The repository began with candidate architectures and prior work but lacked local executed evidence to choose among them.</li>
+<li><strong>Test and panel:</strong> Synthesized the prior TRECVID landscape, open-model options, scoring constraints, and a staged evidence-first architecture from literature and prior-team evidence, not a local benchmark.</li>
+<li><strong>Result → decision:</strong> The project needed observable, matched evidence before complex routing or training. Keep the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/report.html">field guide</a> as background orientation, not current experiment status.</li>
+<li><strong>Boundary:</strong> It predates every local result in this ledger and cannot pick today’s baseline.</li>
 <li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/source_notes.md">field guide source notes</a> and the later <a href="https://github.com/npatta01/trec_video_2026/pull/21">repository recovery PR #21</a>.</li>
 </ul>
 </section>
 <section id="data-readiness" class="level3">
 <h3 class="anchored" data-anchor-id="data-readiness">Data readiness</h3>
 <ul>
-<li><strong>Tried:</strong> built resumable acquisition, source validation, shared-data linking, and label-isolated preparation seams.</li>
-<li><strong>Panel:</strong> operational readiness, not answer-quality evaluation.</li>
-<li><strong>Learned:</strong> the repository can prepare and audit local evidence without committing the competition dataset, media, transcripts, predictions, or logs.</li>
-<li><strong>Decision:</strong> keep one ignored shared dataset and run preflight before inference; do not start a large acquisition or benchmark merely to inspect the repository.</li>
-<li><strong>Limitation:</strong> readiness proves neither video availability for every future row nor 2026 answer quality.</li>
+<li><strong>Why tested:</strong> Controlled inference required resumable acquisition, source validation, shared-data linking, and label isolation without committing private artifacts.</li>
+<li><strong>Test and panel:</strong> Built resumable acquisition, source validation, shared-data linking, and label-isolated preparation seams as operational readiness, not answer-quality evaluation.</li>
+<li><strong>Result → decision:</strong> The repository can prepare and audit local evidence without committing the competition dataset, media, transcripts, predictions, or logs. Keep one ignored shared dataset and run preflight before inference; do not start a large acquisition or benchmark merely to inspect the repository.</li>
+<li><strong>Boundary:</strong> Readiness proves neither video availability for every future row nor 2026 answer quality.</li>
 <li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/README.md">root operating boundary</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_download.py">download module</a>, and <a href="https://github.com/npatta01/trec_video_2026/pull/21">recovery PR #21</a>.</li>
 </ul>
 </section>
-<section id="three-video-compatibility-gate" class="level3">
-<h3 class="anchored" data-anchor-id="three-video-compatibility-gate">Three-video compatibility gate</h3>
+<section id="compatibility-gate" class="level3">
+<h3 class="anchored" data-anchor-id="compatibility-gate">Three-video compatibility gate</h3>
 <ul>
-<li><strong>Tried:</strong> ran Qwen3.5, Molmo2, InternVL, MiniCPM-o, and Gemma through a common small gate on the local AMD/ROCm host.</li>
-<li><strong>Panel:</strong> three deliberately different labeled 2025 examples.</li>
-<li><strong>Learned:</strong> the family adapters could be made reproducible, but the panel was too small for model ranking; MiniCPM’s initial selected-frame native-audio path also exposed a speech-row tensor-shape failure.</li>
-<li><strong>Decision:</strong> retain Qwen3.5-4B with 12 uniform frames as the practical baseline and expand only through controlled workflows.</li>
-<li><strong>Limitation:</strong> <strong>compatibility-only</strong>; not a statistical accuracy sample.</li>
+<li><strong>Why tested:</strong> Before paying for larger panels, the project needed to learn which model-family adapters could execute reproducibly on the local AMD/ROCm host.</li>
+<li><strong>Test and panel:</strong> Ran Qwen3.5, Molmo2, InternVL, MiniCPM-o, and Gemma through a common gate on three deliberately different labeled 2025 examples.</li>
+<li><strong>Result → decision:</strong> The family adapters could be made reproducible, but the panel was too small for model ranking; MiniCPM’s initial selected-frame native-audio path also exposed a speech-row tensor-shape failure. Retain Qwen3.5-4B with 12 uniform frames as the practical baseline and expand only through controlled workflows.</li>
+<li><strong>Boundary:</strong> This is <strong>compatibility-only</strong>, not a statistical accuracy sample.</li>
 <li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md">three-video gate report</a> and <a href="https://github.com/npatta01/trec_video_2026/pull/21">recovered benchmark work in PR #21</a>.</li>
 </ul>
 </section>
-<section id="audio-spatial-and-seamless-diagnostics" class="level3">
-<h3 class="anchored" data-anchor-id="audio-spatial-and-seamless-diagnostics">Audio, spatial, and Seamless diagnostics</h3>
-<ul>
-<li><strong>Tried:</strong> added full Whisper large-v3 translation, question-guided spatial crops, and a SeamlessM4T-v2 translation on selected failures.</li>
-<li><strong>Panel:</strong> two audio/spatial failures, then one speech failure.</li>
-<li><strong>Learned:</strong> the transcript could change Qwen’s answer and the crop could add pixels without making either answer correct; Seamless output was incomplete and the downstream answer remained wrong.</li>
-<li><strong>Decision:</strong> stop these particular escalations; keep 12 frames as the simple baseline and require better routing evidence.</li>
-<li><strong>Limitation:</strong> targeted <strong>diagnostics</strong>, not accuracy estimates; manual crops were not scale-ready.</li>
-<li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/audio_spatial_followup_results_2026-07-21.md">audio/spatial report</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/seamless_audio_followup_results_2026-07-21.md">Seamless report</a>, and <a href="https://github.com/npatta01/trec_video_2026/pull/21">recovery PR #21</a>.</li>
-</ul>
 </section>
+<section id="global-default" class="level2">
+<h2 class="anchored" data-anchor-id="global-default">What should every question start with?</h2>
+<p><strong>Why this mattered.</strong> The project needed a simple global baseline before adding routing, more frames, or specialist models.</p>
+<p><strong>Current answer.</strong> Qwen3.5-4B with 12 uniform frames remains the global accuracy baseline; MiniCPM-o 4.5 audio-off is the fast alternate. Global 24 frames and the tested temporal heuristics did not earn default status.</p>
 <section id="frozen-30-protocol-v2" class="level3">
 <h3 class="anchored" data-anchor-id="frozen-30-protocol-v2">Frozen-30 protocol v2</h3>
 <ul>
-<li><strong>Tried:</strong> four matched VQA arms across 30 rows: Qwen3.5-4B with 12 uniform frames, Qwen with 24 uniform frames, MiniCPM-o 4.5 with audio disabled, and Qwen 12 plus quality-gated Whisper large-v3.</li>
-<li><strong>Panel:</strong> 30 labeled 2025 training examples, balanced across five declared strata. The clean run produced <strong>120 valid predictions</strong> and <strong>30 valid Whisper executions</strong>.</li>
-<li><strong>Learned:</strong> Qwen12+Whisper led exact match at <strong>11/30</strong> and token F1 at <strong>0.506795</strong>. MiniCPM audio-off led METEOR at <strong>0.374089</strong> and had the fastest outer wall. Global Qwen24 added <strong>no exact answers</strong> versus Qwen12.</li>
-<li><strong>Decision:</strong> use Qwen12 as the accuracy baseline, MiniCPM audio-off as the fast alternate, and Whisper only through a separately reported route.</li>
-<li><strong>Limitation:</strong> this is the strongest <strong>verified</strong> repository comparison, but it is descriptive model selection on 2025 training data—not a 2026 estimate.</li>
+<li><strong>Why tested:</strong> The three-video gate established runnable adapters but was too small to choose a default; the project needed a matched comparison of model, frame-budget, and transcript conditions.</li>
+<li><strong>Test and panel:</strong> Four matched VQA arms across 30 labeled 2025 training examples balanced across five declared strata; 120 valid predictions and 30 valid Whisper executions.</li>
+<li><strong>Result → decision:</strong> Qwen12+Whisper led exact match at 11/30 and token F1 at 0.506795; MiniCPM audio-off led METEOR at 0.374089 and outer-wall speed; Qwen24 added no exact answers over Qwen12. Keep Qwen12 as the accuracy baseline, MiniCPM audio-off as the fast alternate, and Whisper as a separately reported route.</li>
+<li><strong>Boundary:</strong> This is the strongest verified repository comparison, but it is descriptive model selection on 2025 training data—not a 2026 estimate.</li>
 <li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">protocol-v2 report</a> and <a href="https://github.com/npatta01/trec_video_2026/pull/21">recovered benchmark work in PR #21</a>.</li>
-</ul>
-</section>
-<section id="automatic-transcript-ablation" class="level3">
-<h3 class="anchored" data-anchor-id="automatic-transcript-ablation">Automatic-transcript ablation</h3>
-<ul>
-<li><strong>Tried:</strong> compared identical 12-frame Qwen requests with and without a label-blind, quality-accepted Whisper large-v3 transcript.</li>
-<li><strong>Panel:</strong> ten selected lexical-speech rows; all 20 predictions were frozen before scoring.</li>
-<li><strong>Learned:</strong> manual accuracy rose from <strong>4/10 to 7/10</strong>, with <strong>three rescues</strong> and <strong>no observed degradation</strong>.</li>
-<li><strong>Decision:</strong> retain quality-gated Whisper on lexical-speech routes and work next on transcript grounding plus non-lexical-vocalization rejection.</li>
-<li><strong>Limitation:</strong> a selected ten-row diagnostic does not validate routing prevalence or global transcript use.</li>
-<li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md">automatic-transcript report</a>, <a href="https://github.com/npatta01/trec_video_2026/issues/7">closed issue #7</a>, and <a href="https://github.com/npatta01/trec_video_2026/pull/9">PR #9</a>.</li>
-</ul>
-</section>
-<section id="failure-selected-qwen3.6-and-audio-panel" class="level3">
-<h3 class="anchored" data-anchor-id="failure-selected-qwen3.6-and-audio-panel">Failure-selected Qwen3.6 and audio panel</h3>
-<ul>
-<li><strong>Tried:</strong> compared Qwen12, Qwen24, Qwen+Whisper, Qwen3.6-35B-A3B, and MiniCPM audio-off/audio-on paths on known failures.</li>
-<li><strong>Panel:</strong> <strong>12 deliberately selected failures</strong>, explicitly not an accuracy sample.</li>
-<li><strong>Learned:</strong> Qwen24 and MiniCPM audio-off each scored <strong>4C/4P/4W</strong>; Qwen3.6 scored <strong>3C/2P/7W</strong>. Native audio helped some prosody and sound rows but harmed some temporal reasoning.</li>
-<li><strong>Decision:</strong> do not promote Qwen3.6 or a global audio switch; retain a small, category-routed ensemble idea.</li>
-<li><strong>Limitation:</strong> failure selection inflates the value of recovery behavior and cannot rank full-test systems.</li>
-<li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md">failure-panel report</a> and <a href="https://github.com/npatta01/trec_video_2026/pull/21">recovery PR #21</a>.</li>
-</ul>
-</section>
-<section id="taxonomy-audit" class="level3">
-<h3 class="anchored" data-anchor-id="taxonomy-audit">Taxonomy audit</h3>
-<ul>
-<li><strong>Tried:</strong> audited prior systems and prompt wording to estimate which evidence routes might matter.</li>
-<li><strong>Panel:</strong> <strong>481 training questions</strong> plus primary prior-system documentation.</li>
-<li><strong>Learned:</strong> conservative lexical lower bounds found <strong>71 counting</strong>, <strong>22 spoken-language</strong>, <strong>20 sound/music</strong>, and <strong>15 visible-text</strong> prompts.</li>
-<li><strong>Decision:</strong> keep these as router-design seeds and stratification hints.</li>
-<li><strong>Limitation:</strong> lexical lower bounds overlap, omit paraphrases, and do not validate routing prevalence.</li>
-<li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/taxonomy_prior_art_and_open_omni_models_2026-07-24.md">taxonomy audit</a>, <a href="https://github.com/npatta01/trec_video_2026/issues/4">closed issue #4</a>, and its restored <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/superpowers/plans/2026-07-24-evidence-routing-benchmark.md">evidence-routing plan</a>.</li>
 </ul>
 </section>
 <section id="directed-temporal-sampling" class="level3">
 <h3 class="anchored" data-anchor-id="directed-temporal-sampling">Directed temporal sampling</h3>
 <ul>
-<li><strong>Tried:</strong> replaced part of a 12-frame uniform sequence with question-directed temporal evidence while holding model and pixel bounds fixed.</li>
-<li><strong>Panel:</strong> ten temporal rows.</li>
-<li><strong>Learned:</strong> directed 12 <strong>tied uniform 12</strong> and <strong>trailed uniform 24</strong> in blinded C/P/W adjudication.</li>
-<li><strong>Decision:</strong> stop the heuristic; it did not pass either promotion condition.</li>
-<li><strong>Limitation:</strong> a small temporal diagnostic can reject this implementation, not every possible learned or question-directed selector.</li>
+<li><strong>Why tested:</strong> Global frame increases were costly and inconclusive, so the project tested whether reallocating a fixed 12-frame budget toward question-relevant time spans could help.</li>
+<li><strong>Test and panel:</strong> Replaced part of a 12-frame uniform sequence with question-directed temporal evidence while holding model and pixel bounds fixed, across ten temporal rows.</li>
+<li><strong>Result → decision:</strong> Directed 12 tied uniform 12 and trailed uniform 24 in blinded C/P/W adjudication. Stop the heuristic; it did not pass either promotion condition.</li>
+<li><strong>Boundary:</strong> A small temporal diagnostic can reject this implementation, not every possible learned or question-directed selector.</li>
 <li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/temporal-sampling-issue-8.md">temporal report</a>, <a href="https://github.com/npatta01/trec_video_2026/issues/8">closed issue #8</a>, its <a href="https://github.com/npatta01/trec_video_2026/issues/13">conclusion audit in closed issue #13</a>, and <a href="https://github.com/npatta01/trec_video_2026/pull/10">PR #10</a>.</li>
 </ul>
 </section>
 <section id="dense-burst-sampling" class="level3">
 <h3 class="anchored" data-anchor-id="dense-burst-sampling">Dense-burst sampling</h3>
 <ul>
-<li><strong>Tried:</strong> compared uniform-24 against dense-burst-12 under a narrow temporal hypothesis.</li>
-<li><strong>Panel:</strong> <strong>two rows only</strong>.</li>
-<li><strong>Learned:</strong> uniform-24 was <strong>2C/0P/0W</strong> while dense-burst-12 was <strong>0C/1P/1W</strong>, comprising one <strong>C→P</strong> and one <strong>C→W</strong> regression.</li>
-<li><strong>Decision:</strong> stop dense-burst-12; do not generalize from or expand the losing heuristic without a new design.</li>
-<li><strong>Limitation:</strong> the panel is too small for prevalence or effect-size claims. No row identifiers, answers, predictions, paths, or raw artifacts are part of this report.</li>
-<li><strong>Evidence:</strong> aggregate source digest <code>d4825b4530b181f1b4414552a80136e2f0e5a7ee64def23131d8c163acc458f1</code> and <a href="https://github.com/npatta01/trec_video_2026/issues/16">closed issue #16</a>.</li>
+<li><strong>Why tested:</strong> A narrower temporal hypothesis asked whether a dense local burst could beat a broader uniform-24 view on rows requiring short-lived evidence.</li>
+<li><strong>Test and panel:</strong> Compared uniform-24 against dense-burst-12 under that narrow temporal hypothesis on two rows only.</li>
+<li><strong>Result → decision:</strong> Uniform-24 was 2C/0P/0W while dense-burst-12 was 0C/1P/1W, comprising one C→P and one C→W regression. Stop dense-burst-12; do not generalize from or expand the losing heuristic without a new design.</li>
+<li><strong>Boundary:</strong> The panel is too small for prevalence or effect-size claims. No row identifiers, answers, predictions, paths, or raw artifacts are part of this report.</li>
+<li><strong>Evidence:</strong> Aggregate source digest <code>d4825b4530b181f1b4414552a80136e2f0e5a7ee64def23131d8c163acc458f1</code> and <a href="https://github.com/npatta01/trec_video_2026/issues/16">closed issue #16</a>.</li>
 </ul>
 </section>
-<section id="phi-and-gemma-compatibility-then-semantic-stop" class="level3">
-<h3 class="anchored" data-anchor-id="phi-and-gemma-compatibility-then-semantic-stop">Phi and Gemma: compatibility, then semantic stop</h3>
+</section>
+<section id="specialist-evidence" class="level2">
+<h2 class="anchored" data-anchor-id="specialist-evidence">When is specialist evidence worth adding?</h2>
+<p><strong>Why this mattered.</strong> Some questions depend on speech, sound, spatial detail, or evidence provenance, but adding every modality globally can distract the model or waste compute.</p>
+<p><strong>Current answer.</strong> Retain quality-gated Whisper for lexical speech; study native audio only as a category-routed specialist; keep the independent human-oracle tier blocked until its provenance records exist. The <a href="#failure-panel">failure-selected native-audio result</a> supplies the strongest current caution against a global switch.</p>
+<section id="audio-spatial-seamless" class="level3">
+<h3 class="anchored" data-anchor-id="audio-spatial-seamless">Audio, spatial, and Seamless diagnostics</h3>
 <ul>
-<li><strong>Tried:</strong> ran joint vision/audio contracts on Phi-4-multimodal-instruct and Gemma 3n, then corrected platform/output confounds and applied a predeclared answer-quality screen.</li>
-<li><strong>Panel:</strong> three selected audio roles.</li>
-<li><strong>Learned:</strong> compatibility and semantic quality separated cleanly. On the semantic gate, Gemma scored <strong>1C/1P/1W</strong> and Phi <strong>0C/2P/1W</strong>.</li>
-<li><strong>Decision:</strong> neither model was promoted beyond three rows.</li>
-<li><strong>Limitation:</strong> the counts are a semantic screen, not a general leaderboard; the earlier Gemma compatibility promotion is superseded.</li>
-<li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-nonqwen-omni-compatibility.md">compatibility report</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-omni-semantic-quality.md">semantic correction</a>, <a href="https://github.com/npatta01/trec_video_2026/issues/6">closed issues #6</a> and <a href="https://github.com/npatta01/trec_video_2026/issues/12">#12</a>, plus <a href="https://github.com/npatta01/trec_video_2026/pull/11">PR #11</a> and <a href="https://github.com/npatta01/trec_video_2026/pull/15">PR #15</a>.</li>
+<li><strong>Why tested:</strong> Early baseline failures suggested missing speech or spatial detail, so the project tested the simplest transcript, crop, and translation escalations before designing a router.</li>
+<li><strong>Test and panel:</strong> Added full Whisper large-v3 translation, question-guided spatial crops, and a SeamlessM4T-v2 translation on two audio/spatial failures, then one speech failure.</li>
+<li><strong>Result → decision:</strong> The transcript could change Qwen’s answer and the crop could add pixels without making either answer correct; Seamless output was incomplete and the downstream answer remained wrong. Stop these particular escalations, keep 12 frames as the simple baseline, and require better routing evidence.</li>
+<li><strong>Boundary:</strong> These are targeted <strong>diagnostics</strong>, not accuracy estimates; manual crops were not scale-ready.</li>
+<li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/audio_spatial_followup_results_2026-07-21.md">audio/spatial report</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/seamless_audio_followup_results_2026-07-21.md">Seamless report</a>, and <a href="https://github.com/npatta01/trec_video_2026/pull/21">recovery PR #21</a>.</li>
 </ul>
 </section>
-<section id="qwen3-omni-compatibility-and-quality-10" class="level3">
-<h3 class="anchored" data-anchor-id="qwen3-omni-compatibility-and-quality-10">Qwen3-Omni compatibility and quality-10</h3>
+<section id="automatic-transcript-ablation" class="level3">
+<h3 class="anchored" data-anchor-id="automatic-transcript-ablation">Automatic-transcript ablation</h3>
 <ul>
-<li><strong>Tried:</strong> repaired the joint runtime/output contract, then compared 12-frame frames-only and native-audio conditions on a ten-video neutral quality panel.</li>
-<li><strong>Panel:</strong> three-row compatibility screen, then ten matched pairs.</li>
-<li><strong>Learned:</strong> the final three-row compatibility run passed the runtime/output contract and scored <strong>1C/1P/1W</strong>; that made it a candidate, not a baseline. In neutral A2, a post-hoc answer-only diagnostic changed frames-only <strong>3C/3P/4W</strong> to audio-on <strong>5C/2P/3W</strong>.</li>
-<li><strong>Decision:</strong> promising, but formally ineligible: the unchanged strict A2 run completed only <strong>19/20</strong> outputs.</li>
-<li><strong>Limitation:</strong> the recovered answer is diagnostic only, one reviewer was not blinded, and 2026 answer quality remains unknown.</li>
-<li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-qwen3-omni-dstack-compatibility.md">compatibility report</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md">neutral A2 report</a>, <a href="https://github.com/npatta01/trec_video_2026/issues/5">closed issues #5</a> and <a href="https://github.com/npatta01/trec_video_2026/issues/17">#17</a>, <a href="https://github.com/npatta01/trec_video_2026/pull/14">PR #14</a>, <a href="https://github.com/npatta01/trec_video_2026/pull/18">PR #18</a>, and recovery <a href="https://github.com/npatta01/trec_video_2026/pull/20">PR #20</a>.</li>
+<li><strong>Why tested:</strong> A transcript had changed an answer in an early diagnostic, but the project needed a matched, label-blind test to learn whether accepted ASR reliably helps lexical-speech rows.</li>
+<li><strong>Test and panel:</strong> Compared identical 12-frame Qwen requests with and without a label-blind, quality-accepted Whisper large-v3 transcript across ten selected lexical-speech rows; all 20 predictions were frozen before scoring.</li>
+<li><strong>Result → decision:</strong> Manual accuracy rose from 4/10 to 7/10, with three rescues and no observed degradation. Retain quality-gated Whisper on lexical-speech routes and work next on transcript grounding plus non-lexical-vocalization rejection.</li>
+<li><strong>Boundary:</strong> A selected ten-row diagnostic does not validate routing prevalence or global transcript use.</li>
+<li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md">automatic-transcript report</a>, <a href="https://github.com/npatta01/trec_video_2026/issues/7">closed issue #7</a>, and <a href="https://github.com/npatta01/trec_video_2026/pull/9">PR #9</a>.</li>
+</ul>
+</section>
+<section id="taxonomy-audit" class="level3">
+<h3 class="anchored" data-anchor-id="taxonomy-audit">Taxonomy audit</h3>
+<ul>
+<li><strong>Why tested:</strong> Specialist routing needed evidence about which question types exist before the project could justify route categories or stratified follow-ups.</li>
+<li><strong>Test and panel:</strong> Audited prior systems and prompt wording across 481 training questions plus primary prior-system documentation.</li>
+<li><strong>Result → decision:</strong> Conservative lexical lower bounds found 71 counting, 22 spoken-language, 20 sound/music, and 15 visible-text prompts. Keep these as router-design seeds and stratification hints.</li>
+<li><strong>Boundary:</strong> Lexical lower bounds overlap, omit paraphrases, and do not validate routing prevalence.</li>
+<li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/taxonomy_prior_art_and_open_omni_models_2026-07-24.md">taxonomy audit</a>, <a href="https://github.com/npatta01/trec_video_2026/issues/4">closed issue #4</a>, and its restored <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/superpowers/plans/2026-07-24-evidence-routing-benchmark.md">evidence-routing plan</a>.</li>
 </ul>
 </section>
 <section id="human-oracle-tier" class="level3">
 <h3 class="anchored" data-anchor-id="human-oracle-tier">Human-oracle tier</h3>
 <ul>
-<li><strong>Tried:</strong> specified a separate provenance tier for independently created and reviewed human transcripts; automatic ASR, uploader captions, and dataset prompts were explicitly kept out of that tier.</li>
-<li><strong>Panel:</strong> none—the strict tier did not run.</li>
-<li><strong>Learned:</strong> the required independent transcriber/reviewer records do not yet exist.</li>
-<li><strong>Decision:</strong> keep the human-oracle tier <strong>blocked</strong> in <a href="https://github.com/npatta01/trec_video_2026/issues/19">open issue #19</a>.</li>
-<li><strong>Limitation:</strong> there is no oracle result to compare or cite.</li>
+<li><strong>Why tested:</strong> Automatic ASR gains do not establish the value of an independently produced transcript, so the project specified a provenance-clean upper-bound tier.</li>
+<li><strong>Test and panel:</strong> Specified a separate tier for independently created and reviewed human transcripts; automatic ASR, uploader captions, and dataset prompts were explicitly kept out; none—the strict tier did not run.</li>
+<li><strong>Result → decision:</strong> The required independent transcriber/reviewer records do not yet exist. Keep the human-oracle tier <strong>blocked</strong> in <a href="https://github.com/npatta01/trec_video_2026/issues/19">open issue #19</a>.</li>
+<li><strong>Boundary:</strong> There is no oracle result to compare or cite.</li>
 <li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md">transcript-evidence report</a>, <a href="https://github.com/npatta01/trec_video_2026/issues/19">open issue #19</a>, and the reconciled <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/superpowers/plans/2026-07-24-evidence-routing-benchmark.md">evidence-routing plan</a>.</li>
+</ul>
+</section>
+</section>
+<section id="model-promotion" class="level2">
+<h2 class="anchored" data-anchor-id="model-promotion">Should another multimodal model replace the baseline?</h2>
+<p><strong>Why this mattered.</strong> Larger or native-audio-capable models could potentially recover baseline failures, but runtime success is not evidence of semantic quality.</p>
+<p><strong>Current answer.</strong> None is promoted. Qwen3.6, Phi, and Gemma failed their relevant quality gates; Qwen3-Omni remains promising but formally ineligible after only 19 of 20 strict outputs completed.</p>
+<section id="failure-panel" class="level3">
+<h3 class="anchored" data-anchor-id="failure-panel">Failure-selected Qwen3.6 and audio panel</h3>
+<ul>
+<li><strong>Why tested:</strong> Known baseline failures created a diagnostic opportunity to test whether a larger Qwen model or native audio could recover cases that the global baseline missed.</li>
+<li><strong>Test and panel:</strong> Compared Qwen12, Qwen24, Qwen+Whisper, Qwen3.6-35B-A3B, and MiniCPM audio-off/audio-on paths on 12 deliberately selected failures, explicitly not an accuracy sample.</li>
+<li><strong>Result → decision:</strong> Qwen24 and MiniCPM audio-off each scored 4C/4P/4W; Qwen3.6 scored 3C/2P/7W. Native audio helped some prosody and sound rows but harmed some temporal reasoning. Do not promote Qwen3.6 or a global audio switch; retain a small, category-routed ensemble idea.</li>
+<li><strong>Boundary:</strong> Failure selection inflates the value of recovery behavior and cannot rank full-test systems.</li>
+<li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md">failure-panel report</a> and <a href="https://github.com/npatta01/trec_video_2026/pull/21">recovery PR #21</a>.</li>
+</ul>
+</section>
+<section id="phi-gemma-semantic-stop" class="level3">
+<h3 class="anchored" data-anchor-id="phi-gemma-semantic-stop">Phi and Gemma: compatibility, then semantic stop</h3>
+<ul>
+<li><strong>Why tested:</strong> Joint audio/vision runtime compatibility left open the separate question of whether Phi and Gemma produced semantically useful answers.</li>
+<li><strong>Test and panel:</strong> Ran joint vision/audio contracts on Phi-4-multimodal-instruct and Gemma 3n, then corrected platform/output confounds and applied a predeclared answer-quality screen across three selected audio roles.</li>
+<li><strong>Result → decision:</strong> Compatibility and semantic quality separated cleanly. On the semantic gate, Gemma scored 1C/1P/1W and Phi 0C/2P/1W. Neither model was promoted beyond three rows.</li>
+<li><strong>Boundary:</strong> The counts are a semantic screen, not a general leaderboard; the earlier Gemma compatibility promotion is superseded.</li>
+<li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-nonqwen-omni-compatibility.md">compatibility report</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-omni-semantic-quality.md">semantic correction</a>, <a href="https://github.com/npatta01/trec_video_2026/issues/6">closed issues #6</a> and <a href="https://github.com/npatta01/trec_video_2026/issues/12">#12</a>, plus <a href="https://github.com/npatta01/trec_video_2026/pull/11">PR #11</a> and <a href="https://github.com/npatta01/trec_video_2026/pull/15">PR #15</a>.</li>
+</ul>
+</section>
+<section id="qwen3-omni-quality" class="level3">
+<h3 class="anchored" data-anchor-id="qwen3-omni-quality">Qwen3-Omni compatibility and quality-10</h3>
+<ul>
+<li><strong>Why tested:</strong> Qwen3-Omni’s repaired joint runtime made it a candidate, but promotion required a neutral matched quality panel and a complete strict-output contract.</li>
+<li><strong>Test and panel:</strong> Repaired the joint runtime/output contract, then compared 12-frame frames-only and native-audio conditions on a three-row compatibility screen and ten matched neutral-quality pairs.</li>
+<li><strong>Result → decision:</strong> The final compatibility run passed the runtime/output contract and scored 1C/1P/1W; that made it a candidate, not a baseline. In neutral A2, a post-hoc answer-only diagnostic changed frames-only 3C/3P/4W to audio-on 5C/2P/3W. It remains promising but formally ineligible: the unchanged strict A2 run completed only 19/20 outputs.</li>
+<li><strong>Boundary:</strong> The recovered answer is diagnostic only, one reviewer was not blinded, and 2026 answer quality remains unknown.</li>
+<li><strong>Evidence:</strong> <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-qwen3-omni-dstack-compatibility.md">compatibility report</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md">neutral A2 report</a>, <a href="https://github.com/npatta01/trec_video_2026/issues/5">closed issues #5</a> and <a href="https://github.com/npatta01/trec_video_2026/issues/17">#17</a>, <a href="https://github.com/npatta01/trec_video_2026/pull/14">PR #14</a>, <a href="https://github.com/npatta01/trec_video_2026/pull/18">PR #18</a>, and recovery <a href="https://github.com/npatta01/trec_video_2026/pull/20">PR #20</a>.</li>
 </ul>
 </section>
 </section>
@@ -6033,6 +6082,45 @@ Figure 1: Experiment timeline from the July 12 field guide through the July 25 
 </tbody>
 </table>
 <p>The next work should close the gaps rather than repeat a superseded default; see <a href="./code-map.html#remaining-gaps">Code Map and Remaining Gaps</a>.</p>
+</section>
+<section id="chronology-index" class="level2">
+<h2 class="anchored" data-anchor-id="chronology-index">Chronology index</h2>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Date</th>
+<th>Milestone</th>
+<th>Research questions</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>July 12</td>
+<td>Field guide</td>
+<td><a href="#trustworthy-experiments">Trustworthy experiments</a></td>
+</tr>
+<tr class="even">
+<td>July 20</td>
+<td>Data readiness and compatibility gate</td>
+<td><a href="#trustworthy-experiments">Trustworthy experiments</a></td>
+</tr>
+<tr class="odd">
+<td>July 21</td>
+<td>Audio/spatial diagnostics and frozen-30</td>
+<td><a href="#global-default">Global default</a>; <a href="#specialist-evidence">specialist evidence</a></td>
+</tr>
+<tr class="even">
+<td>July 24</td>
+<td>Routing, temporal, and model-promotion diagnostics</td>
+<td><a href="#global-default">Global default</a>; <a href="#specialist-evidence">specialist evidence</a>; <a href="#model-promotion">model promotion</a></td>
+</tr>
+<tr class="odd">
+<td>July 25</td>
+<td>Strict Qwen3-Omni quality result</td>
+<td><a href="#model-promotion">Model promotion</a></td>
+</tr>
+</tbody>
+</table>
 
 
 </section>
