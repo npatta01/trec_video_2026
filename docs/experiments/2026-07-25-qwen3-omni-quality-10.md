@@ -2,17 +2,18 @@
 
 ## Decision
 
-Do not promote Qwen3-Omni to a broader quality benchmark from this run. The
-immutable run completed successfully, but native audio produced no answer-only
-`W→P/C` or `P→C` improvement and made one visual control worse. The constant
-prompt means the pair does isolate adding audio under an audio-expecting
-instruction. However, that instruction mismatches the frames-only treatment
-context and induces unsupported evidence language, limiting the comparison's
-external validity as a visual-baseline benchmark.
+Do not promote Qwen3-Omni to a broader quality benchmark. The immutable A1 run
+completed successfully, but native audio produced no answer-only `W→P/C` or
+`P→C` improvement and made one visual control worse. Its constant
+audio-expecting prompt isolates adding audio within that instruction context,
+but mismatches the frames-only treatment context.
 
-The working runner is preserved. A follow-up should rerun the paired panel
-with a neutral, modality-agnostic evidence instruction in both conditions;
-the only intended condition difference should then be the audio element.
+The neutral-prompt A2 correction improves the post-hoc audio-on manual result
+to `5C/2P/3W`, helps the temporal dance row, and removes the counting-control
+regression. It nevertheless remains strictly failed and ineligible: exactly
+one audio-on row returned its complete JSON answer inside a Markdown fence, so
+only 19/20 records passed the unchanged parser. The scorer recovers that exact
+pinned output solely for a clearly labeled semantic diagnostic.
 
 ## Verified facts
 
@@ -31,9 +32,9 @@ the only intended condition difference should then be the audio element.
   or audio tensors; audio-on reported the same 12 visual elements and one
   audio element. The unsupported audio-language issue below is therefore not
   evidence of modality leakage.
-- The H200 run was `1608.033806` seconds wall-clock, cost `$1.9609`, and ran
+- The A1 H200 run was `1608.033806` seconds wall-clock, cost `$1.9609`, and ran
   at `$4.39/hour` on on-demand RunPod. Cumulative Qwen spend is
-  `$2.6269 + $1.9609 = $4.5878`.
+  now `$2.6269 + $1.9609 + $1.7253 = $6.3131` after A2.
 
 ## Sanitized automatic scores
 
@@ -115,3 +116,36 @@ for that intended benchmark interpretation.
 No matched external baseline is quantified here: the available earlier runs
 do not share this frozen paired prompt/condition contract, so comparing their
 aggregate scores would add a second confound.
+
+## Neutral-prompt A2 correction
+
+A2 used the same evidence, model, decoding, paired ordering, and conditions
+with one modality-agnostic instruction in both arms. Its prediction SHA-256 is
+`48f411538ba4e7118a08d9da5d4917f08bbf06f9694211e355c4d80ad678be08`;
+its instruction SHA-256 is
+`44b83ed11a2b9b8a62584302b126fb8eec13b03c55acb57d08b146f41c5e09a6`.
+
+The strict result is failed and ineligible: the canary passed, 19 rows passed
+strict parsing, and the `NkXPPJoZ-h8` audio-on row ended correctly but wrapped
+its terminal JSON in a Markdown fence. A fail-closed post-hoc scorer recovers
+only that exact identity and raw-output hash for semantic diagnosis; it does
+not weaken A1's complete-run refusal or alter A2's terminal result.
+
+| A2 diagnostic | C / P / W | Exact | Token F1 |
+|---|---:|---:|---:|
+| Frames only | 3 / 3 / 4 | 0.1000 | 0.2295 |
+| Frames + native audio | 5 / 2 / 3 | 0.1000 | 0.2204 |
+| Audio minus frames | — | 0.0000 | -0.0091 |
+
+Manual transitions include prosody `P→C`, non-speech sound `P→C`, and temporal
+dance `W→P`; both visual controls remain `C`. The neutral prompt reduces A1's
+six audited frames-only unsupported auditory claims to one clear case:
+`NkXPPJoZ-h8` still cites audio despite zero audio inputs. Thus the prompt fix
+reduces, but does not eliminate, unsupported evidence language.
+
+See the full
+[`neutral A2 report`](2026-07-25-qwen3-omni-quality-10-neutral-a2.md) and
+[`sanitized A2 score artifact`](artifacts/qwen3-omni-quality-10-neutral-a2-score.json).
+The A2 run cost `$1.7253` and took `1414.836509` seconds. Another one-hour
+`$4.50` run would put worst-case cumulative spend at `$10.8131`, above the
+authorized `$10` cap, so no full rerun is authorized.
