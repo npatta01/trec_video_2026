@@ -11,8 +11,8 @@ only, and there is no general `vqa-score` command.
 
 </div>
 
-Use [Start Here](index.qmd) to choose a baseline and the [Experiment
-Ledger](experiment-ledger.qmd) to understand why it was chosen.
+Use [Start Here](index.md) to choose a baseline and the [Experiment
+Ledger](experiment-ledger.md) to understand why it was chosen.
 
 ## System pipeline
 
@@ -155,6 +155,6 @@ scope them before implementation.
   \#19](https://github.com/npatta01/trec_video_2026/issues/19).
 
 The current safe next action is therefore determined by the question:
-use the [Experiment Ledger](experiment-ledger.qmd) for a research
+use the [Experiment Ledger](experiment-ledger.md) for a research
 decision, or begin at the supported-command table above for a code
 change.

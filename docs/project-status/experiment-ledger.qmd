@@ -10,7 +10,7 @@ the smaller panels explain failures, compatibility, or routing and must not be
 read as 2026 accuracy estimates.
 :::
 
-Use [Start Here](index.qmd) for the current recommendation and the [Code Map](code-map.qmd)
+Use [Start Here](index.{{< meta report-ext >}}) for the current recommendation and the [Code Map](code-map.{{< meta report-ext >}})
 to find the implementation behind each workflow.
 
 ## Timeline
@@ -254,7 +254,7 @@ Plain-text equivalent:
 | Directed and dense temporal heuristics | Their matched diagnostic panels | Stop both implementations. |
 
 The next work should close the gaps rather than repeat a superseded default;
-see [Code Map and Remaining Gaps](code-map.qmd#remaining-gaps).
+see [Code Map and Remaining Gaps](code-map.{{< meta report-ext >}}#remaining-gaps).
 
 [field-guide]: https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/report.html
 [field-notes]: https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/source_notes.md

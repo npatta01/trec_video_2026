@@ -121,7 +121,7 @@ and [PR \#18](https://github.com/npatta01/trec_video_2026/pull/18).
   and sound cases while harming some temporal cases.
 
 Follow the experiments and their limitations in the [Experiment
-Ledger](experiment-ledger.qmd).
+Ledger](experiment-ledger.md).
 
 ## Choose a reading path
 
@@ -129,7 +129,7 @@ Ledger](experiment-ledger.qmd).
 
 1.  Read **Current technical default** and **Recommended router** above.
 2.  Scan the four supported commands in the [Code
-    Map](code-map.qmd#supported-commands).
+    Map](code-map.md#supported-commands).
 3.  Before any substantial benchmark, read the repository [privacy and
     shared-data
     boundary](https://github.com/npatta01/trec_video_2026/blob/main/README.md).
@@ -138,20 +138,20 @@ Ledger](experiment-ledger.qmd).
 
 1.  Complete the five-minute path.
 2.  Read the [frozen-30
-    entry](experiment-ledger.qmd#frozen-30-protocol-v2) and
+    entry](experiment-ledger.md#frozen-30-protocol-v2) and
     [automatic-transcript
-    entry](experiment-ledger.qmd#automatic-transcript-ablation).
+    entry](experiment-ledger.md#automatic-transcript-ablation).
 3.  Scan the [supersession
-    table](experiment-ledger.qmd#what-superseded-what), then review
-    [Remaining gaps](code-map.qmd#remaining-gaps).
+    table](experiment-ledger.md#what-superseded-what), then review
+    [Remaining gaps](code-map.md#remaining-gaps).
 
 ### Thirty minutes: trace evidence to code
 
 1.  Complete the fifteen-minute path.
-2.  Read the full [Experiment Ledger](experiment-ledger.qmd).
+2.  Read the full [Experiment Ledger](experiment-ledger.md).
 3.  Walk the acquisition-to-report [system
-    pipeline](code-map.qmd#system-pipeline) and [repository
-    map](code-map.qmd#repository-map).
+    pipeline](code-map.md#system-pipeline) and [repository
+    map](code-map.md#repository-map).
 4.  Open the linked tracked reports or source modules for the decision
     you plan to revisit.
 
@@ -169,4 +169,4 @@ Ledger](experiment-ledger.qmd).
 These categories prevent a clean runtime probe, an interesting failure
 panel, or a post-hoc diagnostic from being reported as a baseline win.
 For exact panels and decisions, continue to the [Experiment
-Ledger](experiment-ledger.qmd).
+Ledger](experiment-ledger.md).

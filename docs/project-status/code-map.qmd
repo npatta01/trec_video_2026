@@ -11,8 +11,8 @@ workflow**; `vqa-gate` currently exposes preflight only, and there is no general
 `vqa-score` command.
 :::
 
-Use [Start Here](index.qmd) to choose a baseline and the [Experiment
-Ledger](experiment-ledger.qmd) to understand why it was chosen.
+Use [Start Here](index.{{< meta report-ext >}}) to choose a baseline and the [Experiment
+Ledger](experiment-ledger.{{< meta report-ext >}}) to understand why it was chosen.
 
 ## System pipeline
 
@@ -155,7 +155,7 @@ them before implementation.
   transcriber/reviewer provenance exists; track it in [open issue #19][issue19].
 
 The current safe next action is therefore determined by the question: use the
-[Experiment Ledger](experiment-ledger.qmd) for a research decision, or begin at
+[Experiment Ledger](experiment-ledger.{{< meta report-ext >}}) for a research decision, or begin at
 the supported-command table above for a code change.
 
 [readme]: https://github.com/npatta01/trec_video_2026/blob/main/README.md

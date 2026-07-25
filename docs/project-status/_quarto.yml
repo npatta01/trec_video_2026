@@ -25,7 +25,12 @@ format:
     theme: cosmo
     css: styles.css
     embed-resources: true
+    metadata:
+      report-ext: qmd
     toc: true
     toc-depth: 2
     toc-title: On this page
     code-copy: false
+  gfm:
+    metadata:
+      report-ext: md

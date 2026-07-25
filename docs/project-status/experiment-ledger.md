@@ -10,8 +10,8 @@ routing and must not be read as 2026 accuracy estimates.
 
 </div>
 
-Use [Start Here](index.qmd) for the current recommendation and the [Code
-Map](code-map.qmd) to find the implementation behind each workflow.
+Use [Start Here](index.md) for the current recommendation and the [Code
+Map](code-map.md) to find the implementation behind each workflow.
 
 ## Timeline
 
@@ -313,4 +313,4 @@ Plain-text equivalent:
 | Directed and dense temporal heuristics | Their matched diagnostic panels | Stop both implementations. |
 
 The next work should close the gaps rather than repeat a superseded
-default; see [Code Map and Remaining Gaps](code-map.qmd#remaining-gaps).
+default; see [Code Map and Remaining Gaps](code-map.md#remaining-gaps).
