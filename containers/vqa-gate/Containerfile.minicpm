@@ -1,0 +1,18 @@
+FROM localhost/trec-vqa-gate-rocm@sha256:510e4ca0a165b60a50abf3a1f24545b8f4bd561f9643f0295e7d82212fe801d5
+
+# MiniCPM-o 4.5 explicitly requires Transformers 4.51.0. The ROCm base has
+# newer PyTorch than its tested range; the gate records whether that works.
+RUN python -m pip install --no-cache-dir \
+    "transformers==4.51.0" \
+    "minicpmo-utils==1.0.6"
+
+# pkg_resources was removed from the newer setuptools in the ROCm base, but
+# MiniCPM's custom audio code still imports it.
+RUN python -m pip install --no-cache-dir "setuptools==80.9.0"
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    NLTK_DATA=/opt/nltk_data
+
+WORKDIR /workspace

@@ -1,0 +1,10 @@
+FROM localhost/trec-vqa-gate-rocm@sha256:510e4ca0a165b60a50abf3a1f24545b8f4bd561f9643f0295e7d82212fe801d5
+
+RUN python -m pip install --no-cache-dir "tiktoken==0.13.0"
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    NLTK_DATA=/opt/nltk_data
+
+WORKDIR /workspace

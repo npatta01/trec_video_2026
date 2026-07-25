@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "manifest_version": "trecvid-native-audio-2026-07-21-v1",
+  "gate_selection_sha256": "099dedfa4d74aa7ed1c135a013c8b342a62e422a6692934507c94839a2803f69",
+  "recorded_at_utc": "2026-07-24T00:28:27Z",
+  "recorded_before_any_frozen30_attempt": true,
+  "promotion_rules": {
+    "minimum_scoreable_rate": 0.9,
+    "maximum_projected_condition_minutes": 45,
+    "maximum_peak_memory_bytes": 34359738368,
+    "paired_minimum_token_f1_delta": 0.1,
+    "paired_minimum_meteor_delta": 0.05,
+    "redundant_token_f1_distance": 0.01,
+    "redundant_meteor_distance": 0.03,
+    "allowed_paths": [
+      "quality-leader",
+      "exclusive-exact-complement",
+      "paired-evidence-benefit",
+      "predeclared-diagnostic"
+    ]
+  },
+  "promoted_conditions": [
+    {
+      "condition_id": "qwen35-4b-12f-frozen30",
+      "base_condition_id": "qwen35-4b-12f",
+      "decision": "promote",
+      "promotion_path": "predeclared-diagnostic",
+      "rationale": "Required matched visual-only control for both the 12-vs-24-frame and Whisper transcript comparisons.",
+      "model_id": "Qwen/Qwen3.5-4B",
+      "model_revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+      "runtime_image": "localhost/trec-vqa-gate-rocm@sha256:510e4ca0a165b60a50abf3a1f24545b8f4bd561f9643f0295e7d82212fe801d5",
+      "frame_count": 12,
+      "transcript_source": null
+    },
+    {
+      "condition_id": "qwen35-4b-24f-frozen30",
+      "base_condition_id": "qwen35-4b-24f",
+      "decision": "promote",
+      "promotion_path": "predeclared-diagnostic",
+      "rationale": "Strongest controlled sampled-frame baseline and required temporal-coverage treatment.",
+      "model_id": "Qwen/Qwen3.5-4B",
+      "model_revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+      "runtime_image": "localhost/trec-vqa-gate-rocm@sha256:510e4ca0a165b60a50abf3a1f24545b8f4bd561f9643f0295e7d82212fe801d5",
+      "frame_count": 24,
+      "transcript_source": null
+    },
+    {
+      "condition_id": "minicpmo45-native-video-audio-off-frozen30",
+      "base_condition_id": "minicpmo45-native-video-audio-off",
+      "decision": "promote",
+      "promotion_path": "quality-leader",
+      "rationale": "Leads the ten-video gate on token F1 and METEOR while tying the best exact match at practical local cost.",
+      "model_id": "openbmb/MiniCPM-o-4_5",
+      "model_revision": "1f761131fa83f5ed3cd6f2f22b225c4501d154fa",
+      "runtime_image": "localhost/trec-vqa-gate-minicpm@sha256:9fd8ffb14c39440b6a036781315558ae5ac6e93893582fff8d9eceaf8ec7a12a",
+      "frame_count": 12,
+      "audio_mode": "audio-off",
+      "transcript_source": null
+    },
+    {
+      "condition_id": "qwen35-4b-12f-whisper-large-v3-frozen30",
+      "base_condition_id": "qwen35-4b-12f",
+      "decision": "promote",
+      "promotion_path": "paired-evidence-benefit",
+      "rationale": "On the four audio gate rows, exact match tied while token F1 improved by 0.250 and METEOR improved by 0.182.",
+      "model_id": "Qwen/Qwen3.5-4B",
+      "model_revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+      "runtime_image": "localhost/trec-vqa-gate-rocm@sha256:510e4ca0a165b60a50abf3a1f24545b8f4bd561f9643f0295e7d82212fe801d5",
+      "frame_count": 12,
+      "transcript_source": {
+        "condition_id": "whisper-large-v3-bf16-frozen30",
+        "model_id": "openai/whisper-large-v3",
+        "model_revision": "06f233fe06e710322aca913c1bc4249a0d71fce1",
+        "runtime_image": "localhost/trec-vqa-gate-rocm@sha256:510e4ca0a165b60a50abf3a1f24545b8f4bd561f9643f0295e7d82212fe801d5",
+        "quality_policy": "trec_video_2026.vqa_whisper.transcript_quality",
+        "accepted_text": "timestamped_text-or-text",
+        "rejected_text": null
+      }
+    }
+  ],
+  "stopped_conditions": [
+    {"condition_id": "qwen35-9b-12f", "reason": "redundant-with-qwen35-4b-24f"},
+    {"condition_id": "gemma4-12b-12f", "reason": "below-leaders-no-complement"},
+    {"condition_id": "internvl35-4b-12f", "reason": "below-leaders-no-complement"},
+    {"condition_id": "molmo2-4b-12f", "reason": "below-leaders-no-complement"},
+    {"condition_id": "minicpmo45-native-video-audio-on", "reason": "negative-paired-f1-and-meteor"},
+    {"condition_id": "qwen25-omni-3b-native-video-audio-off", "reason": "exceeds-cost-and-memory-bounds"},
+    {"condition_id": "qwen25-omni-3b-native-video-audio-on", "reason": "no-reliable-audio-benefit-and-exceeds-bounds"},
+    {"condition_id": "qwen25-omni-7b-pair", "reason": "no-probe-quality-signal"},
+    {"condition_id": "whisper-large-v3-turbo", "reason": "inferior-paired-transcript-gain"},
+    {"condition_id": "seamless-m4t-v2-large", "reason": "inferior-paired-transcript-gain"},
+    {"condition_id": "voxtral-and-qwen3-asr-paths", "reason": "no-downstream-gain-and-incomplete-audio-row"}
+  ]
+}

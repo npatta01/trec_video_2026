@@ -1,0 +1,1769 @@
+"""CLI for the serial, resumable native-audio frozen-30 benchmark."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import secrets
+import subprocess
+import tempfile
+import time
+from dataclasses import replace
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, Callable, Mapping, Sequence
+
+from trec_video_2026.vqa_benchmark import (
+    EvidenceParameters,
+    build_frame_evidence,
+    load_manifest,
+    load_references,
+    source_fingerprint,
+    write_resolved_manifest,
+)
+from trec_video_2026.vqa_evaluation import (
+    evaluate_saved_predictions,
+    summarize_paired_conditions,
+)
+from trec_video_2026.vqa_frozen30 import (
+    EXPECTED_FROZEN_COUNT,
+    FrozenExecution,
+    SerialBenchmarkLock,
+    append_attempt_rows,
+    append_launch_decision,
+    audit_frozen_requests,
+    evidence_identity_sha256,
+    pending_frozen_requests,
+    select_complete_frozen_rows,
+    validate_decision_bindings,
+    validate_frozen_attempt,
+    validate_launch_decision,
+)
+from trec_video_2026.vqa_gate import (
+    RunnerRequest,
+    build_rocm_runner_command,
+    build_runner_request,
+    canonical_request_sha256,
+    invoke_runner_batch,
+    load_conditions,
+    saved_request_matches,
+    _cleanup_timed_out_container,
+    _prepare_invocation,
+    _timeout_failure_with_cleanup,
+)
+
+
+ROOT = Path(__file__).resolve().parents[2]
+SOURCE_TREE = ROOT / "src/trec_video_2026"
+DATA = ROOT / "data"
+RUN_ID = "native-audio-benchmark-v2"
+RUN = DATA / "vqa/benchmarks/runs" / RUN_ID
+EVIDENCE = DATA / "vqa/benchmarks/evidence"
+MANIFEST_PATH = ROOT / "configs/vqa/native_audio_benchmark_30_inference.json"
+REFERENCE_MANIFEST_PATH = ROOT / "configs/vqa/native_audio_benchmark_30.json"
+MODEL_CONFIG = ROOT / "configs/vqa/model_runs.json"
+V1_PROMOTION_CONFIG = ROOT / "configs/vqa/native_audio_frozen30_promotions.json"
+V2_PROMOTION_CONFIG = ROOT / "configs/vqa/native_audio_frozen30_v2_decisions.json"
+PROMOTION_CONFIG = V2_PROMOTION_CONFIG
+HF_CACHE = Path("/home/npatta01/.cache/huggingface")
+ATTEMPTS = RUN / "attempts.jsonl"
+DECISIONS = RUN / "promotion-decisions.jsonl"
+ASR_ATTEMPTS = RUN / "whisper-attempts.jsonl"
+ASR_CONDITION = "whisper-large-v3-bf16-frozen30"
+ASR_MODEL = "openai/whisper-large-v3"
+ASR_REVISION = "06f233fe06e710322aca913c1bc4249a0d71fce1"
+TRANSCRIPT_CONDITION = "qwen35-4b-12f-whisper-large-v3-frozen30"
+PROMOTED_ORDER = (
+    "qwen35-4b-12f-frozen30",
+    "qwen35-4b-24f-frozen30",
+    "minicpmo45-native-video-audio-off-frozen30",
+    TRANSCRIPT_CONDITION,
+)
+MAX_CONDITION_SECONDS = 45 * 60
+MAX_PEAK_BYTES = 32 * 1024**3
+SCORER_IMAGE = (
+    "localhost/trec-vqa-gate-qwen-omni@sha256:"
+    "effff2801d7677aa4894a641adc5793d6e5072a8cec71817bf925574862c88de"
+)
+SCORER_NLTK_VERSION = "3.9.2"
+PUNKT_TREE_SHA256 = "6073f4561d752e90f3b02bbb80a955100eb90b7f62c5fcfe17c86e8030909522"
+WORDNET_ZIP_SHA256 = "6c4365b1018d44f39b284f9a5e44766548b18db9c436c9cfc1b7116230e35711"
+
+
+def configure_run(run_id: str) -> None:
+    """Select an explicit immutable run namespace."""
+
+    if run_id not in {"native-audio-benchmark-v1", "native-audio-benchmark-v2"}:
+        raise ValueError("Unsupported frozen benchmark run ID")
+    global RUN_ID, RUN, ATTEMPTS, DECISIONS, ASR_ATTEMPTS, PROMOTION_CONFIG
+    RUN_ID = run_id
+    RUN = DATA / "vqa/benchmarks/runs" / run_id
+    ATTEMPTS = RUN / "attempts.jsonl"
+    DECISIONS = RUN / "promotion-decisions.jsonl"
+    ASR_ATTEMPTS = RUN / "whisper-attempts.jsonl"
+    PROMOTION_CONFIG = (
+        V1_PROMOTION_CONFIG
+        if run_id == "native-audio-benchmark-v1"
+        else V2_PROMOTION_CONFIG
+    )
+
+
+def benchmark_lock_path() -> Path:
+    """Return the one host-global lock shared by every frozen run namespace."""
+
+    return DATA.resolve() / "vqa/benchmarks/.native-audio-benchmark.lock"
+
+
+def validate_cli_run_access(run_id: str, action: str) -> None:
+    """Keep the archival v1 namespace read-only from the CLI."""
+
+    if run_id == "native-audio-benchmark-v1" and action != "status":
+        raise ValueError(
+            "native-audio-benchmark-v1 is read-only; only status is allowed"
+        )
+
+
+def require_mutable_run() -> None:
+    """Reject imported mutation attempts against the archival v1 namespace."""
+
+    if RUN_ID == "native-audio-benchmark-v1":
+        raise ValueError("native-audio-benchmark-v1 is read-only")
+
+
+def _utc_timestamp(value: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (AttributeError, ValueError) as error:
+        raise ValueError("Launch timestamp must be ISO-8601 UTC") from error
+    if parsed.tzinfo is None or parsed.utcoffset() != UTC.utcoffset(parsed):
+        raise ValueError("Launch timestamp must be ISO-8601 UTC")
+    return parsed
+
+
+def validate_launch_timestamp_order(
+    config_recorded_at_utc: str,
+    authorization_recorded_at_utc: str | None,
+    *,
+    now: datetime,
+) -> None:
+    """Require configuration to predate authorization and current time."""
+
+    config_recorded = _utc_timestamp(config_recorded_at_utc)
+    if config_recorded >= now:
+        raise ValueError("Launch configuration timestamp is future or not yet elapsed")
+    if authorization_recorded_at_utc is None:
+        return
+    authorization_recorded = _utc_timestamp(authorization_recorded_at_utc)
+    if config_recorded >= authorization_recorded:
+        raise ValueError("Launch configuration must be recorded before authorization")
+    if authorization_recorded > now:
+        raise ValueError("Launch authorization timestamp is in the future")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Prepare, run, resume, and score the frozen 30 benchmark"
+    )
+    parser.add_argument(
+        "--run-id",
+        choices=("native-audio-benchmark-v1", "native-audio-benchmark-v2"),
+        default="native-audio-benchmark-v2",
+    )
+    subparsers = parser.add_subparsers(dest="action", required=True)
+    subparsers.add_parser("prepare", help="CPU-only evidence/request preflight")
+    subparsers.add_parser("status", help="Read-only progress and validity summary")
+    subparsers.add_parser(
+        "run-whisper", help="GPU: generate frozen transcript evidence"
+    )
+    subparsers.add_parser(
+        "build-transcript-requests",
+        help="CPU-only: bind validated ASR rows to downstream requests",
+    )
+    for action in ("authorize", "run"):
+        command = subparsers.add_parser(action)
+        command.add_argument("condition")
+    subparsers.add_parser("score", help="Score only after every promoted row validates")
+    return parser
+
+
+def _json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def _sha256(path: Path) -> str:
+    return source_fingerprint(path).sha256
+
+
+def current_evidence_manifest_sha256(
+    requests: Sequence[Mapping[str, Any]],
+    *,
+    supplementary_sha256: str | None = None,
+) -> str:
+    """Recompute the complete ordered request/file evidence identity."""
+
+    evidence = [
+        {
+            "video_id": request.get("video_id"),
+            "request_sha256": canonical_request_sha256(request),
+            "evidence_identity_sha256": evidence_identity_sha256(request),
+        }
+        for request in requests
+    ]
+    return canonical_request_sha256(
+        {
+            "schema_version": 2,
+            "evidence": evidence,
+            "supplementary_sha256": supplementary_sha256,
+        }
+    )
+
+
+def audit_no_competing_benchmark_containers(
+    *,
+    run_command: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+    kfd_command: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> None:
+    """Fail closed if another Podman VQA/GPU benchmark container is running."""
+
+    kfd = kfd_command(
+        ["fuser", "/dev/kfd"],
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    if kfd.returncode == 0:
+        pids = (kfd.stdout or kfd.stderr).strip()
+        raise RuntimeError(f"Refusing to overlap live KFD/ROCm PIDs: {pids}")
+    if kfd.returncode != 1:
+        raise RuntimeError("KFD/ROCm process audit could not be completed")
+    completed = run_command(
+        ["podman", "ps", "--format", "json"],
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError("Podman competing-process audit could not be completed")
+    try:
+        containers = json.loads(completed.stdout or "[]")
+    except json.JSONDecodeError as error:
+        raise RuntimeError(
+            "Podman competing-process audit returned invalid JSON"
+        ) from error
+    if not isinstance(containers, list):
+        raise RuntimeError("Podman competing-process audit returned invalid data")
+    competitors = []
+    generic_gpu_containers = []
+    for container in containers:
+        if not isinstance(container, Mapping):
+            raise RuntimeError("Podman competing-process audit returned invalid data")
+        names = container.get("Names", container.get("names", []))
+        if isinstance(names, str):
+            names = [names]
+        command = str(container.get("Command", container.get("command", "")))
+        if any(str(name).startswith("trec-vqa-") for name in names) or (
+            "trec_video_2026.vqa_" in command
+        ):
+            competitors.extend(str(name) for name in names)
+            continue
+        container_id = container.get("Id", container.get("ID"))
+        if not isinstance(container_id, str) or not container_id:
+            raise RuntimeError("Podman audit could not identify a running container")
+        inspected = run_command(
+            ["podman", "inspect", container_id],
+            text=True,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+        if inspected.returncode != 0:
+            raise RuntimeError("Podman GPU-device audit could not inspect a container")
+        try:
+            inspection = json.loads(inspected.stdout)
+        except json.JSONDecodeError as error:
+            raise RuntimeError(
+                "Podman GPU-device audit returned invalid JSON"
+            ) from error
+        serialized = json.dumps(inspection).lower()
+        if any(
+            marker in serialized
+            for marker in (
+                "/dev/kfd",
+                "/dev/dri/render",
+                "rocr_visible_devices",
+                "hip_visible_devices",
+                "nvidia_visible_devices",
+            )
+        ):
+            generic_gpu_containers.extend(str(name) for name in names)
+    if competitors:
+        raise RuntimeError(
+            "Refusing to overlap a competing benchmark container: "
+            + ", ".join(competitors)
+        )
+    if generic_gpu_containers:
+        raise RuntimeError(
+            "Refusing to overlap a generic GPU container: "
+            + ", ".join(generic_gpu_containers)
+        )
+
+
+def measured_condition_wall_seconds(
+    attempts: Sequence[Mapping[str, Any]],
+) -> float:
+    """Sum one persisted outer-wall measurement per orchestration chunk."""
+
+    if not attempts:
+        return 0.0
+    chunks: dict[str, float] = {}
+    for row in attempts:
+        chunk_id = row.get("orchestration_chunk_id")
+        elapsed = row.get("outer_chunk_elapsed_seconds")
+        if (
+            not isinstance(chunk_id, str)
+            or not chunk_id
+            or not isinstance(elapsed, (int, float))
+            or elapsed < 0
+        ):
+            raise ValueError("Condition outer wall time is unmeasurable")
+        previous = chunks.setdefault(chunk_id, float(elapsed))
+        if previous != float(elapsed):
+            raise ValueError("Condition outer wall measurements conflict")
+    return sum(chunks.values())
+
+
+def canonical_resource_tree_sha256(path: Path) -> str:
+    """Hash sorted relative paths and bytes with unambiguous separators."""
+
+    path = path.resolve(strict=True)
+    root = path if path.is_dir() else path.parent
+    files = sorted(item for item in path.rglob("*") if item.is_file())
+    if path.is_file():
+        files = [path]
+    if not files:
+        raise RuntimeError(f"Scorer resource contains no files: {path}")
+    digest = hashlib.sha256()
+    for file_path in files:
+        digest.update(str(file_path.relative_to(root)).encode())
+        digest.update(b"\0")
+        digest.update(file_path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def canonical_source_tree_sha256(path: Path) -> str:
+    """Hash canonical Python source paths and bytes, excluding generated bytecode."""
+
+    path = path.resolve(strict=True)
+    files = sorted(item for item in path.rglob("*.py") if item.is_file())
+    if not files:
+        raise RuntimeError(f"Source tree contains no files: {path}")
+    digest = hashlib.sha256()
+    for file_path in files:
+        digest.update(file_path.relative_to(path).as_posix().encode())
+        digest.update(b"\0")
+        digest.update(file_path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def validate_preflight_source_tree(preflight: Mapping[str, Any]) -> str:
+    """Fail closed when mounted runner/scorer source differs from preflight."""
+
+    expected = preflight.get("source_tree_sha256")
+    observed = canonical_source_tree_sha256(SOURCE_TREE)
+    if expected != observed:
+        raise ValueError("Current source tree does not match frozen preflight")
+    return observed
+
+
+def _runtime_source_manifest(source_tree_sha256: str) -> dict[str, Any]:
+    files = []
+    for source_path in sorted(SOURCE_TREE.rglob("*.py")):
+        relative = source_path.relative_to(SOURCE_TREE).as_posix()
+        payload = source_path.read_bytes()
+        files.append(
+            {
+                "path": f"trec_video_2026/{relative}",
+                "sha256": hashlib.sha256(payload).hexdigest(),
+                "size_bytes": len(payload),
+            }
+        )
+    return {
+        "schema_version": 1,
+        "source_tree_sha256": source_tree_sha256,
+        "files": files,
+    }
+
+
+def stage_runtime_source(source_tree_sha256: str) -> Path:
+    """Create or verify the pycache-free source snapshot used by containers."""
+
+    RUN.mkdir(parents=True, exist_ok=True)
+    runtime_root = RUN / "runtime-src"
+    package_root = runtime_root / "trec_video_2026"
+    manifest_payload = _runtime_source_manifest(source_tree_sha256)
+    if runtime_root.exists():
+        staged_files = sorted(
+            path.relative_to(runtime_root).as_posix()
+            for path in runtime_root.rglob("*")
+            if path.is_file()
+        )
+        expected_files = [row["path"] for row in manifest_payload["files"]]
+        if (
+            staged_files != expected_files
+            or canonical_source_tree_sha256(package_root) != source_tree_sha256
+        ):
+            raise ValueError("Existing staged runtime source differs; archive the run")
+    else:
+        with tempfile.TemporaryDirectory(prefix=".runtime-src-", dir=RUN) as temporary:
+            temporary_path = Path(temporary)
+            temporary_package = temporary_path / "trec_video_2026"
+            for row in manifest_payload["files"]:
+                relative = Path(str(row["path"])).relative_to("trec_video_2026")
+                destination = temporary_package / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_bytes((SOURCE_TREE / relative).read_bytes())
+            os.replace(temporary_path, runtime_root)
+    _atomic_write(
+        RUN / "runtime-source-manifest.json",
+        json.dumps(manifest_payload, ensure_ascii=False, indent=2) + "\n",
+    )
+    return runtime_root
+
+
+def validate_staged_runtime_source(preflight: Mapping[str, Any]) -> Path:
+    """Verify the exact pycache-free source snapshot immediately before use."""
+
+    runtime_root = (RUN / "runtime-src").resolve(strict=True)
+    package_root = runtime_root / "trec_video_2026"
+    manifest_path = RUN / "runtime-source-manifest.json"
+    if _sha256(manifest_path) != preflight.get("runtime_source_manifest_sha256"):
+        raise ValueError("Staged runtime source manifest does not match preflight")
+    manifest = _json(manifest_path)
+    if (
+        manifest.get("schema_version") != 1
+        or manifest.get("source_tree_sha256") != preflight.get("source_tree_sha256")
+        or not isinstance(manifest.get("files"), list)
+    ):
+        raise ValueError("Staged runtime source manifest is invalid")
+    expected_paths = []
+    for row in manifest["files"]:
+        if not isinstance(row, Mapping):
+            raise ValueError("Staged runtime source manifest entry is invalid")
+        relative = row.get("path")
+        if not isinstance(relative, str) or not relative.startswith("trec_video_2026/"):
+            raise ValueError("Staged runtime source manifest path is invalid")
+        file_path = runtime_root / relative
+        if (
+            not file_path.is_file()
+            or _sha256(file_path) != row.get("sha256")
+            or file_path.stat().st_size != row.get("size_bytes")
+        ):
+            raise ValueError("Staged runtime source file does not match manifest")
+        expected_paths.append(relative)
+    actual_paths = sorted(
+        path.relative_to(runtime_root).as_posix()
+        for path in runtime_root.rglob("*")
+        if path.is_file()
+    )
+    if actual_paths != sorted(expected_paths) or any(
+        path.name == "__pycache__" for path in runtime_root.rglob("*")
+    ):
+        raise ValueError("Staged runtime source contains unexpected files")
+    if canonical_source_tree_sha256(package_root) != preflight.get(
+        "source_tree_sha256"
+    ):
+        raise ValueError("Staged runtime source tree does not match preflight")
+    return runtime_root
+
+
+def invoke_runner_batch_with_source_guard(
+    command: Sequence[str],
+    requests: Sequence[RunnerRequest],
+    *,
+    timeout_seconds: float,
+    preflight: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Run one VQA batch between locked pre/post source attestations."""
+
+    validate_staged_runtime_source(preflight)
+    results = invoke_runner_batch(
+        command,
+        requests,
+        timeout_seconds=timeout_seconds,
+    )
+    validate_staged_runtime_source(preflight)
+    return results
+
+
+def validate_scorer_runtime(
+    nltk_module: Any,
+    environment: Mapping[str, str],
+    *,
+    expected_punkt_sha256: str = PUNKT_TREE_SHA256,
+    expected_wordnet_sha256: str = WORDNET_ZIP_SHA256,
+) -> dict[str, str]:
+    """Fail closed unless the live scoring runtime matches every pinned byte."""
+
+    image = environment.get("VQA_RUNTIME_IMAGE")
+    if image != SCORER_IMAGE:
+        raise RuntimeError("Scorer runtime image does not match the pinned digest")
+    version = getattr(nltk_module, "__version__", None)
+    if version != SCORER_NLTK_VERSION:
+        raise RuntimeError("Scorer NLTK version does not match the pinned version")
+    try:
+        punkt_path = Path(str(nltk_module.data.find("tokenizers/punkt_tab/english")))
+        wordnet_path = Path(str(nltk_module.data.find("corpora/wordnet.zip")))
+        punkt_sha256 = canonical_resource_tree_sha256(punkt_path)
+        wordnet_sha256 = canonical_resource_tree_sha256(wordnet_path)
+    except (LookupError, OSError, RuntimeError, ValueError) as error:
+        raise RuntimeError("Scorer resources could not be verified") from error
+    if punkt_sha256 != expected_punkt_sha256:
+        raise RuntimeError("Scorer punkt_tab/english bytes do not match")
+    if wordnet_sha256 != expected_wordnet_sha256:
+        raise RuntimeError("Scorer wordnet.zip bytes do not match")
+    return {
+        "runtime_image": image,
+        "nltk_version": version,
+        "punkt_tab_english_tree_sha256": punkt_sha256,
+        "wordnet_zip_sha256": wordnet_sha256,
+    }
+
+
+def attach_expected_runtime_image(
+    result: Mapping[str, Any], expected_runtime_image: str
+) -> dict[str, Any]:
+    """Bind a wrapper result to the exact image used by its Podman command."""
+
+    observed = result.get("runtime_image")
+    if observed is not None and observed != expected_runtime_image:
+        raise ValueError("Whisper result runtime image does not match command")
+    return {**dict(result), "runtime_image": expected_runtime_image}
+
+
+def audit_whisper_requests(
+    requests: Sequence[Mapping[str, Any]],
+    *,
+    expected_video_ids: Sequence[str],
+    expected_sha256: str,
+) -> None:
+    """Require the exact ordered, four-field, label-free Whisper request set."""
+
+    expected = list(expected_video_ids)
+    actual = [row.get("video_id") for row in requests]
+    if len(requests) != EXPECTED_FROZEN_COUNT or actual != expected:
+        raise ValueError("Whisper requests do not match the exact ordered panel")
+    allowed = {"run_id", "condition_id", "video_id", "audio_path"}
+    for row in requests:
+        if set(row) != allowed:
+            raise ValueError("Whisper request contains an unrecognized or label field")
+        if (
+            row["run_id"] != RUN_ID
+            or row["condition_id"] != ASR_CONDITION
+            or not isinstance(row["audio_path"], str)
+        ):
+            raise ValueError("Whisper request identity is invalid")
+    if canonical_request_sha256({"requests": list(requests)}) != expected_sha256:
+        raise ValueError("Whisper request set does not match preflight SHA-256")
+
+
+def checkpoint_chunks(total: int) -> tuple[int, ...]:
+    """Return chunks ending exactly at the required 3/10/20 checkpoints."""
+
+    if total != EXPECTED_FROZEN_COUNT:
+        raise ValueError("Frozen condition must contain exactly 30 rows")
+    return (3, 7, 10, 10)
+
+
+def assert_condition_transition(
+    condition_id: str,
+    *,
+    order: Sequence[str],
+    decisions: Sequence[Mapping[str, Any]],
+    completed_counts: Mapping[str, int],
+    action: str,
+) -> None:
+    """Enforce one authorize/run sequence across the promoted conditions."""
+
+    if condition_id not in order or action not in {"authorize", "run"}:
+        raise ValueError("Unknown condition transition")
+    authorized = [str(row.get("condition_id")) for row in decisions]
+    if authorized != list(order[: len(authorized)]):
+        raise ValueError("Launch decisions do not follow the promoted order")
+    index = order.index(condition_id)
+    if any(
+        completed_counts.get(prior, 0) != EXPECTED_FROZEN_COUNT
+        for prior in order[:index]
+    ):
+        raise ValueError("Every prior condition must complete before this transition")
+    if action == "authorize":
+        if condition_id in authorized:
+            return
+        if index != len(authorized):
+            raise ValueError("Only the next condition may be authorized")
+    else:
+        if condition_id not in authorized:
+            raise ValueError("Condition must be authorized before run")
+        next_incomplete = next(
+            (
+                item
+                for item in order
+                if item in authorized
+                and completed_counts.get(item, 0) != EXPECTED_FROZEN_COUNT
+            ),
+            None,
+        )
+        if next_incomplete != condition_id:
+            raise ValueError("Only the next condition may run")
+
+
+def freeze_selected_predictions(
+    selected_path: Path,
+    freeze_path: Path,
+    rows: Sequence[Mapping[str, Any]],
+) -> str:
+    """Write predictions and persist their checksum before label loading."""
+
+    selected_text = "".join(
+        json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n" for row in rows
+    )
+    _atomic_write(selected_path, selected_text)
+    digest = _sha256(selected_path)
+    _atomic_write(
+        freeze_path,
+        json.dumps(
+            {
+                "selected_prediction_sha256": digest,
+                "selected_rows": len(rows),
+            },
+            sort_keys=True,
+        )
+        + "\n",
+    )
+    return digest
+
+
+def validate_transcript_sources(
+    path: Path,
+    *,
+    expected_artifact_sha256: str,
+    expected_evidence_sha256: str,
+) -> None:
+    """Verify the external ASR selection artifact and its semantic identity."""
+
+    if _sha256(path) != expected_artifact_sha256:
+        raise ValueError("Transcript source artifact checksum does not match preflight")
+    selected_sources = _json(path)
+    if (
+        canonical_request_sha256({"transcript_sources": selected_sources})
+        != expected_evidence_sha256
+    ):
+        raise ValueError("Current transcript source selections do not match preflight")
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=path.parent, delete=False
+    ) as handle:
+        handle.write(text)
+        handle.flush()
+        os.fsync(handle.fileno())
+        temporary = Path(handle.name)
+    os.replace(temporary, path)
+
+
+def _promotions() -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    payload = _json(PROMOTION_CONFIG)
+    validate_launch_timestamp_order(
+        payload["recorded_at_utc"],
+        None,
+        now=datetime.now(UTC),
+    )
+    manifest = load_manifest(MANIFEST_PATH, DATA)
+    if (
+        payload["manifest_version"] != manifest.manifest_version
+        or payload["gate_selection_sha256"] != manifest.gate_selection_sha256
+        or payload["recorded_before_any_frozen30_attempt"] is not True
+    ):
+        raise ValueError("Promotion decisions do not match the frozen manifest")
+    decisions = payload.get("condition_decisions", payload.get("promoted_conditions"))
+    if not isinstance(decisions, list):
+        raise ValueError("Launch configuration has no condition decisions")
+    promoted = {item["condition_id"]: item for item in decisions}
+    return payload, promoted
+
+
+def _request_path(condition_id: str) -> Path:
+    return RUN / "requests" / f"{condition_id}.json"
+
+
+def _expected_ids() -> tuple[str, ...]:
+    return tuple(item.video_id for item in load_manifest(MANIFEST_PATH, DATA).examples)
+
+
+def _extract_audio(media_path: Path, destination: Path) -> None:
+    if destination.exists():
+        return
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        suffix=".wav", dir=destination.parent, delete=False
+    ) as handle:
+        temporary = Path(handle.name)
+    try:
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-v",
+                "error",
+                "-i",
+                str(media_path),
+                "-map",
+                "0:a:0",
+                "-vn",
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                "-c:a",
+                "pcm_s16le",
+                "-y",
+                str(temporary),
+            ],
+            check=True,
+        )
+        os.replace(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def prepare() -> None:
+    require_mutable_run()
+    if _jsonl(DECISIONS):
+        _validate_all_current_decisions()
+        print(json.dumps({"status": "already-authorized; prepare did not rewrite"}))
+        return
+    if ATTEMPTS.exists() and ATTEMPTS.stat().st_size:
+        raise ValueError("Cannot rebuild frozen requests after inference attempts")
+    if ASR_ATTEMPTS.exists() and ASR_ATTEMPTS.stat().st_size:
+        raise ValueError("Cannot rebuild frozen requests after Whisper attempts")
+    manifest = load_manifest(MANIFEST_PATH, DATA)
+    config = load_conditions(MODEL_CONFIG)
+    conditions = {item.condition_id: item for item in config.conditions}
+    promotion_payload, promoted = _promotions()
+    source_tree_sha256 = canonical_source_tree_sha256(SOURCE_TREE)
+    stage_runtime_source(source_tree_sha256)
+    write_resolved_manifest(manifest, RUN / "resolved-manifest.json")
+    audits: dict[str, Any] = {}
+    evidence_rows: dict[tuple[str, int], dict[str, Any]] = {}
+
+    for specification in promoted.values():
+        if specification["condition_id"] == TRANSCRIPT_CONDITION:
+            continue
+        base = conditions[specification["base_condition_id"]]
+        condition = replace(base, condition_id=specification["condition_id"])
+        requests = []
+        for example in manifest.examples:
+            frame_count = int(specification["frame_count"])
+            evidence = build_frame_evidence(
+                example.media_path,
+                EVIDENCE,
+                EvidenceParameters(frame_count=frame_count),
+            )
+            frames = [
+                {"path": str(frame.path), "sha256": frame.sha256}
+                for frame in evidence.frames
+            ]
+            evidence_rows[(example.video_id, frame_count)] = {
+                "video_id": example.video_id,
+                "frame_count": frame_count,
+                "cache_key": evidence.cache_key,
+                "source_sha256": evidence.source.sha256,
+                "frames": frames,
+                "timestamps_seconds": list(evidence.timestamps_seconds),
+            }
+            requests.append(
+                build_runner_request(
+                    condition=condition,
+                    run_id=RUN_ID,
+                    video_id=example.video_id,
+                    question=example.question,
+                    frame_paths=tuple(frame.path for frame in evidence.frames),
+                    frame_timestamps=evidence.timestamps_seconds,
+                    transcript=None,
+                    media_path=example.media_path,
+                ).to_dict()
+            )
+        audit = audit_frozen_requests(
+            requests,
+            expected_video_ids=_expected_ids(),
+            condition_id=condition.condition_id,
+        )
+        audit["evidence_manifest_sha256"] = current_evidence_manifest_sha256(requests)
+        _atomic_write(
+            _request_path(condition.condition_id),
+            json.dumps(requests, ensure_ascii=False, indent=2) + "\n",
+        )
+        audits[condition.condition_id] = audit
+
+    asr_requests = []
+    audio_audit = []
+    for example in manifest.examples:
+        audio_path = RUN / "audio" / f"{example.video_id}.wav"
+        _extract_audio(example.media_path, audio_path)
+        audio_fingerprint = source_fingerprint(audio_path)
+        asr_requests.append(
+            {
+                "run_id": RUN_ID,
+                "condition_id": ASR_CONDITION,
+                "video_id": example.video_id,
+                "audio_path": str(audio_path.resolve()),
+            }
+        )
+        audio_audit.append(
+            {
+                "video_id": example.video_id,
+                "path": str(audio_path.resolve()),
+                "sha256": audio_fingerprint.sha256,
+                "size_bytes": audio_fingerprint.size_bytes,
+            }
+        )
+    _atomic_write(
+        RUN / "whisper-requests.json",
+        json.dumps(asr_requests, ensure_ascii=False, indent=2) + "\n",
+    )
+    whisper_request_set_sha256 = canonical_request_sha256({"requests": asr_requests})
+    audit_whisper_requests(
+        asr_requests,
+        expected_video_ids=_expected_ids(),
+        expected_sha256=whisper_request_set_sha256,
+    )
+    preflight = {
+        "schema_version": 2,
+        "run_id": RUN_ID,
+        "inference_manifest_sha256": _sha256(MANIFEST_PATH),
+        "source_tree_sha256": source_tree_sha256,
+        "runtime_source_manifest_sha256": _sha256(RUN / "runtime-source-manifest.json"),
+        "manifest_version": manifest.manifest_version,
+        "gate_selection_sha256": manifest.gate_selection_sha256,
+        "ordered_video_ids": list(_expected_ids()),
+        "row_count_per_condition": EXPECTED_FROZEN_COUNT,
+        "references_loaded": False,
+        "promotion_config_sha256": _sha256(PROMOTION_CONFIG),
+        "promotion_recorded_at_utc": promotion_payload["recorded_at_utc"],
+        "condition_audits": audits,
+        "whisper": {
+            "condition_id": ASR_CONDITION,
+            "model_id": ASR_MODEL,
+            "model_revision": ASR_REVISION,
+            "runtime_image": config.runtime_image,
+            "request_set_sha256": whisper_request_set_sha256,
+            "requests_file_sha256": _sha256(RUN / "whisper-requests.json"),
+            "audio": audio_audit,
+        },
+    }
+    _atomic_write(
+        RUN / "preflight.json",
+        json.dumps(preflight, ensure_ascii=False, indent=2) + "\n",
+    )
+    print(json.dumps({"prepared_conditions": sorted(audits), "asr_rows": 30}))
+
+
+def _asr_valid(request: Mapping[str, Any], row: Mapping[str, Any]) -> bool:
+    try:
+        audio_sha256 = _sha256(Path(request["audio_path"]))
+    except (KeyError, OSError):
+        return False
+    return (
+        row.get("status") == "passed"
+        and row.get("run_id") == request.get("run_id")
+        and row.get("condition_id") == ASR_CONDITION
+        and row.get("video_id") == request.get("video_id")
+        and row.get("model_id") == ASR_MODEL
+        and row.get("model_revision") == ASR_REVISION
+        and row.get("runtime_image")
+        == _json(RUN / "preflight.json")["whisper"]["runtime_image"]
+        and row.get("device") == "cuda:0 (ROCm)"
+        and row.get("precision") == "bfloat16"
+        and row.get("source_audio_sha256") == audio_sha256
+        and isinstance(row.get("text"), str)
+        and bool(row["text"].strip())
+        and isinstance(row.get("quality"), Mapping)
+        and isinstance(row.get("peak_memory_bytes"), int)
+        and row["peak_memory_bytes"] >= 0
+        and isinstance(row.get("orchestration_chunk_id"), str)
+        and isinstance(row.get("outer_chunk_elapsed_seconds"), (int, float))
+        and row["outer_chunk_elapsed_seconds"] >= 0
+        and isinstance(row.get("outer_condition_elapsed_seconds"), (int, float))
+        and row["outer_condition_elapsed_seconds"] >= row["outer_chunk_elapsed_seconds"]
+        and saved_request_matches(row, request)
+        and row.get("error_type") is None
+        and row.get("error_message") is None
+    )
+
+
+def _whisper_command() -> list[str]:
+    image = _json(RUN / "preflight.json")["whisper"]["runtime_image"]
+    source = (RUN / "runtime-src").resolve(strict=True)
+    audio = (RUN / "audio").resolve(strict=True)
+    cache = HF_CACHE.resolve(strict=True)
+    return [
+        "podman",
+        "run",
+        "--rm",
+        "-i",
+        "--network=none",
+        "--device",
+        "/dev/kfd",
+        "--device",
+        "/dev/dri",
+        "--group-add",
+        "keep-groups",
+        "-v",
+        f"{source}:{source}:ro",
+        "-v",
+        f"{audio}:{audio}:ro",
+        "-v",
+        f"{cache}:/root/.cache/huggingface:rw",
+        "-w",
+        str(source),
+        "-e",
+        f"PYTHONPATH={source}",
+        "-e",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "-e",
+        "HF_HUB_OFFLINE=1",
+        "-e",
+        "TRANSFORMERS_OFFLINE=1",
+        "-e",
+        f"VQA_RUNTIME_IMAGE={image}",
+        image,
+        "python",
+        "-m",
+        "trec_video_2026.vqa_whisper",
+        "--model-id",
+        ASR_MODEL,
+        "--revision",
+        ASR_REVISION,
+    ]
+
+
+def run_whisper() -> None:
+    require_mutable_run()
+    full_preflight = _json(RUN / "preflight.json")
+    validate_preflight_source_tree(full_preflight)
+    validate_staged_runtime_source(full_preflight)
+    audit_no_competing_benchmark_containers()
+    requests = _json(RUN / "whisper-requests.json")
+    preflight = full_preflight["whisper"]
+    audit_whisper_requests(
+        requests,
+        expected_video_ids=_expected_ids(),
+        expected_sha256=preflight["request_set_sha256"],
+    )
+    if _sha256(RUN / "whisper-requests.json") != preflight["requests_file_sha256"]:
+        raise ValueError("Whisper request file does not match preflight SHA-256")
+    attempts = _jsonl(ASR_ATTEMPTS)
+    prior_outer_seconds = measured_condition_wall_seconds(attempts)
+    for request in requests:
+        if any(
+            row.get("status") == "passed"
+            and row.get("video_id") == request["video_id"]
+            and not _asr_valid(request, row)
+            for row in attempts
+        ):
+            raise RuntimeError("Saved Whisper pass has invalid provenance")
+    pending = [
+        request
+        for request in requests
+        if not any(_asr_valid(request, row) for row in attempts)
+    ]
+    with SerialBenchmarkLock(benchmark_lock_path(), condition_id=ASR_CONDITION):
+        audit_no_competing_benchmark_containers()
+        for request in pending:
+            audit_no_competing_benchmark_containers()
+            invocation, container_name = _prepare_invocation(
+                _whisper_command(), [request]
+            )
+            chunk_id = container_name or (
+                f"whisper-{request['video_id']}-{secrets.token_hex(6)}"
+            )
+            outer_started = time.monotonic()
+            try:
+                validate_staged_runtime_source(full_preflight)
+                completed = subprocess.run(
+                    invocation,
+                    input=json.dumps(request),
+                    text=True,
+                    capture_output=True,
+                    timeout=900,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                cleanup = _cleanup_timed_out_container(container_name)
+                result = _timeout_failure_with_cleanup(
+                    {
+                        "status": "timed_out",
+                        "text": None,
+                        "elapsed_seconds": 900.0,
+                        "model_id": ASR_MODEL,
+                        "model_revision": ASR_REVISION,
+                        "runtime": "subprocess",
+                        "device": "unknown",
+                        "precision": "unknown",
+                        "peak_memory_bytes": None,
+                        "source_audio_sha256": _sha256(Path(request["audio_path"])),
+                        "quality": None,
+                        "error_type": "TimeoutExpired",
+                        "error_message": "Whisper runner exceeded 900 seconds",
+                    },
+                    container_name,
+                    cleanup,
+                )
+            else:
+                if completed.returncode != 0:
+                    result = {
+                        "status": "failed",
+                        "text": None,
+                        "elapsed_seconds": 0.0,
+                        "model_id": ASR_MODEL,
+                        "model_revision": ASR_REVISION,
+                        "runtime": "subprocess",
+                        "device": "unknown",
+                        "precision": "unknown",
+                        "peak_memory_bytes": None,
+                        "source_audio_sha256": _sha256(Path(request["audio_path"])),
+                        "quality": None,
+                        "error_type": "RunnerProcessError",
+                        "error_message": (
+                            completed.stderr
+                            or completed.stdout
+                            or f"Whisper runner exited {completed.returncode}"
+                        )[-4000:],
+                    }
+                else:
+                    try:
+                        result = json.loads(completed.stdout)
+                    except json.JSONDecodeError:
+                        result = {
+                            "status": "failed",
+                            "text": None,
+                            "elapsed_seconds": 0.0,
+                            "model_id": ASR_MODEL,
+                            "model_revision": ASR_REVISION,
+                            "runtime": "protocol",
+                            "device": "unknown",
+                            "precision": "unknown",
+                            "peak_memory_bytes": None,
+                            "source_audio_sha256": _sha256(Path(request["audio_path"])),
+                            "quality": None,
+                            "error_type": "RunnerProtocolError",
+                            "error_message": (completed.stderr or completed.stdout)[
+                                -4000:
+                            ],
+                        }
+            validate_staged_runtime_source(full_preflight)
+            outer_elapsed = time.monotonic() - outer_started
+            outer_condition_elapsed = prior_outer_seconds + outer_elapsed
+            try:
+                result = attach_expected_runtime_image(
+                    result, preflight["runtime_image"]
+                )
+            except ValueError as error:
+                result = {
+                    **dict(result),
+                    "status": "failed",
+                    "text": None,
+                    "error_type": type(error).__name__,
+                    "error_message": str(error),
+                }
+            row = {
+                **result,
+                "run_id": request["run_id"],
+                "condition_id": ASR_CONDITION,
+                "video_id": request["video_id"],
+                "request": request,
+                "request_sha256": canonical_request_sha256(request),
+                "orchestration_chunk_id": chunk_id,
+                "outer_chunk_elapsed_seconds": outer_elapsed,
+                "outer_condition_elapsed_seconds": outer_condition_elapsed,
+            }
+            append_attempt_rows(ASR_ATTEMPTS, [{**row, "answer": row.get("text")}])
+            attempts = _jsonl(ASR_ATTEMPTS)
+            prior_outer_seconds = measured_condition_wall_seconds(attempts)
+            if not _asr_valid(request, row):
+                raise RuntimeError(
+                    f"Whisper row failed validation: {request['video_id']}"
+                )
+            valid_rows = [
+                saved
+                for saved_request in requests
+                for saved in _jsonl(ASR_ATTEMPTS)
+                if _asr_valid(saved_request, saved)
+            ]
+            if (
+                max(saved["peak_memory_bytes"] for saved in valid_rows)
+                >= MAX_PEAK_BYTES
+            ):
+                raise RuntimeError("Stop rule: Whisper peak reached 32 GiB")
+            projected_outer_seconds = (
+                prior_outer_seconds / len(valid_rows) * EXPECTED_FROZEN_COUNT
+            )
+            if projected_outer_seconds > MAX_CONDITION_SECONDS:
+                raise RuntimeError(
+                    "Stop rule: projected Whisper duration exceeds 45 min"
+                )
+            audit_no_competing_benchmark_containers()
+    print(json.dumps({"launched": len(pending), "skipped": 30 - len(pending)}))
+
+
+def build_transcript_requests() -> None:
+    require_mutable_run()
+    full_preflight = _json(RUN / "preflight.json")
+    validate_preflight_source_tree(full_preflight)
+    validate_staged_runtime_source(full_preflight)
+    if ATTEMPTS.exists() and any(
+        row.get("condition_id") == TRANSCRIPT_CONDITION for row in _jsonl(ATTEMPTS)
+    ):
+        raise ValueError("Cannot rebuild transcript requests after condition attempts")
+    manifest = load_manifest(MANIFEST_PATH, DATA)
+    _, promoted = _promotions()
+    base_requests = _json(_request_path("qwen35-4b-12f-frozen30"))
+    asr_requests = _json(RUN / "whisper-requests.json")
+    manifest_ids = [example.video_id for example in manifest.examples]
+    if [row.get("video_id") for row in base_requests] != manifest_ids:
+        raise ValueError("Base requests do not match ordered manifest IDs")
+    preflight_whisper = _json(RUN / "preflight.json")["whisper"]
+    audit_whisper_requests(
+        asr_requests,
+        expected_video_ids=manifest_ids,
+        expected_sha256=preflight_whisper["request_set_sha256"],
+    )
+    if (
+        _sha256(RUN / "whisper-requests.json")
+        != preflight_whisper["requests_file_sha256"]
+    ):
+        raise ValueError("Whisper request file does not match preflight SHA-256")
+    if [row.get("video_id") for row in asr_requests] != manifest_ids:
+        raise ValueError("ASR requests do not match ordered manifest IDs")
+    asr_attempts = _jsonl(ASR_ATTEMPTS)
+    selected_sources = []
+    requests = []
+    for example, base, asr_request in zip(
+        manifest.examples, base_requests, asr_requests, strict=True
+    ):
+        matches = [row for row in asr_attempts if _asr_valid(asr_request, row)]
+        if not matches:
+            raise ValueError(f"Missing valid Whisper evidence: {example.video_id}")
+        source = matches[-1]
+        accepted = source["quality"]["status"] == "accepted"
+        transcript = (
+            source.get("timestamped_text") or source["text"] if accepted else None
+        )
+        requests.append(
+            {
+                **base,
+                "condition_id": TRANSCRIPT_CONDITION,
+                "transcript": transcript,
+            }
+        )
+        selected_sources.append(
+            {
+                "video_id": example.video_id,
+                "attempt_sha256": canonical_request_sha256(source),
+                "source_audio_sha256": source["source_audio_sha256"],
+                "quality": source["quality"],
+                "transcript_included": accepted,
+            }
+        )
+    audit = audit_frozen_requests(
+        requests,
+        expected_video_ids=_expected_ids(),
+        condition_id=TRANSCRIPT_CONDITION,
+    )
+    transcript_selection_sha256 = canonical_request_sha256(
+        {"transcript_sources": selected_sources}
+    )
+    audit["transcript_selection_sha256"] = transcript_selection_sha256
+    audit["evidence_manifest_sha256"] = current_evidence_manifest_sha256(
+        requests,
+        supplementary_sha256=transcript_selection_sha256,
+    )
+    _atomic_write(
+        _request_path(TRANSCRIPT_CONDITION),
+        json.dumps(requests, ensure_ascii=False, indent=2) + "\n",
+    )
+    _atomic_write(
+        RUN / "transcript-sources.json",
+        json.dumps(selected_sources, ensure_ascii=False, indent=2) + "\n",
+    )
+    preflight = _json(RUN / "preflight.json")
+    preflight["condition_audits"][TRANSCRIPT_CONDITION] = audit
+    preflight["transcript_sources_sha256"] = _sha256(RUN / "transcript-sources.json")
+    preflight["transcript_model_revision"] = promoted[TRANSCRIPT_CONDITION][
+        "transcript_source"
+    ]["model_revision"]
+    _atomic_write(
+        RUN / "preflight.json",
+        json.dumps(preflight, ensure_ascii=False, indent=2) + "\n",
+    )
+    print(json.dumps({"condition": TRANSCRIPT_CONDITION, "rows": 30}))
+
+
+def _condition_inputs(
+    condition_id: str,
+) -> tuple[dict[str, Any], list[dict[str, Any]], FrozenExecution]:
+    _, promoted = _promotions()
+    if condition_id not in promoted:
+        raise ValueError(f"Condition is not promoted: {condition_id}")
+    specification = promoted[condition_id]
+    preflight = _json(RUN / "preflight.json")
+    if (
+        preflight.get("schema_version") != 2
+        or preflight.get("run_id") != RUN_ID
+        or preflight.get("inference_manifest_sha256") != _sha256(MANIFEST_PATH)
+    ):
+        raise ValueError("Frozen run requires a current protocol-v2 preflight")
+    validate_preflight_source_tree(preflight)
+    validate_staged_runtime_source(preflight)
+    requests = _json(_request_path(condition_id))
+    audit = audit_frozen_requests(
+        requests,
+        expected_video_ids=_expected_ids(),
+        condition_id=condition_id,
+    )
+    preflight_audit = preflight["condition_audits"][condition_id]
+    if audit["request_set_sha256"] != preflight_audit["request_set_sha256"]:
+        raise ValueError("Current request set does not match preflight")
+    if condition_id == TRANSCRIPT_CONDITION:
+        validate_transcript_sources(
+            RUN / "transcript-sources.json",
+            expected_artifact_sha256=preflight["transcript_sources_sha256"],
+            expected_evidence_sha256=preflight_audit["transcript_selection_sha256"],
+        )
+        supplementary_sha256 = preflight_audit["transcript_selection_sha256"]
+    else:
+        supplementary_sha256 = None
+    current_evidence_sha256 = current_evidence_manifest_sha256(
+        requests,
+        supplementary_sha256=supplementary_sha256,
+    )
+    if current_evidence_sha256 != preflight_audit["evidence_manifest_sha256"]:
+        raise ValueError("Current full evidence manifest does not match preflight")
+    execution = FrozenExecution(
+        condition_id=condition_id,
+        model_id=specification["model_id"],
+        model_revision=specification["model_revision"],
+        runtime_image=specification["runtime_image"],
+        evidence_manifest_sha256=current_evidence_sha256,
+    )
+    return specification, requests, execution
+
+
+def _validate_current_decision(
+    decision: Mapping[str, Any],
+    specification: Mapping[str, Any],
+    audit: Mapping[str, Any],
+) -> None:
+    validate_launch_decision(decision)
+    promotion = _json(PROMOTION_CONFIG)
+    validate_launch_timestamp_order(
+        promotion["recorded_at_utc"],
+        decision.get("recorded_at_utc"),
+        now=datetime.now(UTC),
+    )
+    preflight = _json(RUN / "preflight.json")
+    source_tree_sha256 = validate_preflight_source_tree(preflight)
+    validate_staged_runtime_source(preflight)
+    preflight_audit = preflight["condition_audits"][specification["condition_id"]]
+    expected = {
+        "schema_version": 1,
+        "manifest_version": promotion["manifest_version"],
+        "gate_selection_sha256": promotion["gate_selection_sha256"],
+        "condition_id": specification["condition_id"],
+        "decision": specification["decision"],
+        "rationale": specification["rationale"],
+        "promotion_path": specification["promotion_path"],
+        "request_set_sha256": audit["request_set_sha256"],
+        "evidence_manifest_sha256": preflight_audit["evidence_manifest_sha256"],
+        "model_id": specification["model_id"],
+        "model_revision": specification["model_revision"],
+        "runtime_image": specification["runtime_image"],
+        "run_id": RUN_ID,
+        "protocol_version": 2,
+        "inference_manifest_sha256": _sha256(MANIFEST_PATH),
+        "source_tree_sha256": source_tree_sha256,
+        "runtime_source_manifest_sha256": preflight["runtime_source_manifest_sha256"],
+        "launch_config_recorded_at_utc": promotion["recorded_at_utc"],
+    }
+    validate_decision_bindings(decision, expected)
+
+
+def _validate_all_current_decisions() -> list[dict[str, Any]]:
+    decisions = _jsonl(DECISIONS)
+    _, promoted = _promotions()
+    if [row.get("condition_id") for row in decisions] != list(
+        PROMOTED_ORDER[: len(decisions)]
+    ):
+        raise ValueError("Launch decisions do not follow the exact promoted order")
+    for decision in decisions:
+        condition_id = str(decision["condition_id"])
+        specification, requests, _ = _condition_inputs(condition_id)
+        audit = audit_frozen_requests(
+            requests,
+            expected_video_ids=_expected_ids(),
+            condition_id=condition_id,
+        )
+        _validate_current_decision(decision, specification, audit)
+    return decisions
+
+
+def _completed_counts(decisions: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+    attempts = _jsonl(ATTEMPTS)
+    counts: dict[str, int] = {}
+    for decision in decisions:
+        condition_id = str(decision["condition_id"])
+        _, requests, execution = _condition_inputs(condition_id)
+        counts[condition_id] = EXPECTED_FROZEN_COUNT - len(
+            pending_frozen_requests(
+                requests,
+                attempts,
+                execution=execution,
+                launch_decision_sha256=str(decision["launch_decision_sha256"]),
+            )
+        )
+    return counts
+
+
+def authorize(condition_id: str) -> None:
+    require_mutable_run()
+    specification, requests, _ = _condition_inputs(condition_id)
+    audit = audit_frozen_requests(
+        requests,
+        expected_video_ids=_expected_ids(),
+        condition_id=condition_id,
+    )
+    decisions = _validate_all_current_decisions()
+    assert_condition_transition(
+        condition_id,
+        order=PROMOTED_ORDER,
+        decisions=decisions,
+        completed_counts=_completed_counts(decisions),
+        action="authorize",
+    )
+    existing = [row for row in decisions if row.get("condition_id") == condition_id]
+    if existing:
+        validate_launch_decision(existing[-1])
+        if existing[-1].get("request_set_sha256") != audit["request_set_sha256"]:
+            raise ValueError("Existing launch decision binds a different request set")
+        print(json.dumps(existing[-1], sort_keys=True))
+        return
+    full_preflight = _json(RUN / "preflight.json")
+    source_tree_sha256 = validate_preflight_source_tree(full_preflight)
+    validate_staged_runtime_source(full_preflight)
+    preflight = full_preflight["condition_audits"][condition_id]
+    recorded_at_utc = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    promotion = _json(PROMOTION_CONFIG)
+    validate_launch_timestamp_order(
+        promotion["recorded_at_utc"],
+        recorded_at_utc,
+        now=datetime.now(UTC),
+    )
+    decision = append_launch_decision(
+        DECISIONS,
+        {
+            "schema_version": 1,
+            "manifest_version": promotion["manifest_version"],
+            "gate_selection_sha256": promotion["gate_selection_sha256"],
+            "condition_id": condition_id,
+            "decision": specification["decision"],
+            "rationale": specification["rationale"],
+            "promotion_path": specification["promotion_path"],
+            "recorded_at_utc": recorded_at_utc,
+            "request_set_sha256": audit["request_set_sha256"],
+            "evidence_manifest_sha256": preflight["evidence_manifest_sha256"],
+            "model_id": specification["model_id"],
+            "model_revision": specification["model_revision"],
+            "runtime_image": specification["runtime_image"],
+            "run_id": RUN_ID,
+            "protocol_version": 2,
+            "inference_manifest_sha256": _sha256(MANIFEST_PATH),
+            "source_tree_sha256": source_tree_sha256,
+            "runtime_source_manifest_sha256": full_preflight[
+                "runtime_source_manifest_sha256"
+            ],
+            "launch_config_recorded_at_utc": promotion["recorded_at_utc"],
+        },
+        attempts_path=ATTEMPTS,
+    )
+    print(json.dumps(decision, sort_keys=True))
+
+
+def _runner_request(payload: Mapping[str, Any]) -> RunnerRequest:
+    return RunnerRequest(
+        run_id=payload["run_id"],
+        condition_id=payload["condition_id"],
+        video_id=payload["video_id"],
+        question=payload["question"],
+        frame_paths=tuple(Path(value) for value in payload["frame_paths"]),
+        frame_timestamps=tuple(payload["frame_timestamps"]),
+        frame_descriptions=(
+            tuple(payload["frame_descriptions"])
+            if payload["frame_descriptions"] is not None
+            else None
+        ),
+        transcript=payload["transcript"],
+        media_path=Path(payload["media_path"]) if payload["media_path"] else None,
+        audio_path=Path(payload["audio_path"]) if payload["audio_path"] else None,
+        audio_mode=payload.get("audio_mode"),
+    )
+
+
+def run_condition(condition_id: str) -> None:
+    require_mutable_run()
+    audit_no_competing_benchmark_containers()
+    specification, requests, execution = _condition_inputs(condition_id)
+    all_decisions = _validate_all_current_decisions()
+    completed_counts = _completed_counts(all_decisions)
+    assert_condition_transition(
+        condition_id,
+        order=PROMOTED_ORDER,
+        decisions=all_decisions,
+        completed_counts=completed_counts,
+        action="run",
+    )
+    decisions = [
+        row for row in all_decisions if row.get("condition_id") == condition_id
+    ]
+    if len(decisions) != 1:
+        raise ValueError("Exactly one pre-launch promotion decision is required")
+    decision = decisions[0]
+    validate_launch_decision(decision)
+    launch_sha256 = decision["launch_decision_sha256"]
+    attempts = _jsonl(ATTEMPTS)
+    prior_condition_rows = [
+        row for row in attempts if row.get("condition_id") == condition_id
+    ]
+    prior_outer_seconds = measured_condition_wall_seconds(prior_condition_rows)
+    for request in requests:
+        for attempt in attempts:
+            if (
+                attempt.get("condition_id") == condition_id
+                and attempt.get("video_id") == request.get("video_id")
+                and attempt.get("status") == "passed"
+                and not validate_frozen_attempt(
+                    request,
+                    attempt,
+                    execution=execution,
+                    launch_decision_sha256=launch_sha256,
+                )
+            ):
+                raise RuntimeError("Saved pass has invalid provenance; refusing retry")
+    pending = pending_frozen_requests(
+        requests,
+        attempts,
+        execution=execution,
+        launch_decision_sha256=launch_sha256,
+    )
+    config = load_conditions(MODEL_CONFIG)
+    base = next(
+        item
+        for item in config.conditions
+        if item.condition_id == specification["base_condition_id"]
+    )
+    condition = replace(base, condition_id=condition_id)
+    runtime_source = validate_staged_runtime_source(_json(RUN / "preflight.json"))
+    command = build_rocm_runner_command(
+        image=config.runtime_image,
+        repo_root=ROOT,
+        dataset_root=DATA,
+        hf_cache_root=HF_CACHE,
+        condition=condition,
+        source_root=runtime_source,
+    )
+    evidence_manifest_sha256 = decision["evidence_manifest_sha256"]
+    completed_before = EXPECTED_FROZEN_COUNT - len(pending)
+    targets = [target for target in (3, 10, 20, 30) if target > completed_before]
+    with SerialBenchmarkLock(benchmark_lock_path(), condition_id=condition_id):
+        audit_no_competing_benchmark_containers()
+        offset = 0
+        current = completed_before
+        for target in targets:
+            audit_no_competing_benchmark_containers()
+            chunk_size = target - current
+            chunk = pending[offset : offset + chunk_size]
+            offset += chunk_size
+            chunk_id = f"{RUN_ID}-{condition_id}-{target}-{secrets.token_hex(6)}"
+            outer_started = time.monotonic()
+            full_preflight = _json(RUN / "preflight.json")
+            results = invoke_runner_batch_with_source_guard(
+                command,
+                [_runner_request(request) for request in chunk],
+                timeout_seconds=1800,
+                preflight=full_preflight,
+            )
+            outer_elapsed = time.monotonic() - outer_started
+            outer_condition_elapsed = prior_outer_seconds + outer_elapsed
+            rows = [
+                {
+                    **result,
+                    "run_id": request["run_id"],
+                    "condition_id": request["condition_id"],
+                    "video_id": request["video_id"],
+                    "request": request,
+                    "request_sha256": canonical_request_sha256(request),
+                    "launch_decision_sha256": launch_sha256,
+                    "evidence_identity_sha256": evidence_identity_sha256(request),
+                    "evidence_manifest_sha256": evidence_manifest_sha256,
+                    "orchestration_chunk_id": chunk_id,
+                    "outer_chunk_elapsed_seconds": outer_elapsed,
+                    "outer_condition_elapsed_seconds": outer_condition_elapsed,
+                }
+                for request, result in zip(chunk, results, strict=True)
+            ]
+            append_attempt_rows(ATTEMPTS, rows)
+            audit_no_competing_benchmark_containers()
+            if any(
+                not validate_frozen_attempt(
+                    request,
+                    row,
+                    execution=execution,
+                    launch_decision_sha256=launch_sha256,
+                )
+                for request, row in zip(chunk, rows, strict=True)
+            ):
+                raise RuntimeError(
+                    "Stop rule: returned row failed exact provenance validation"
+                )
+            all_attempts = _jsonl(ATTEMPTS)
+            valid_count = EXPECTED_FROZEN_COUNT - len(
+                pending_frozen_requests(
+                    requests,
+                    all_attempts,
+                    execution=execution,
+                    launch_decision_sha256=launch_sha256,
+                )
+            )
+            condition_rows = [
+                row for row in all_attempts if row.get("condition_id") == condition_id
+            ]
+            attempted = len({row.get("video_id") for row in condition_rows})
+            peaks = [
+                row["peak_memory_bytes"]
+                for row in condition_rows
+                if isinstance(row.get("peak_memory_bytes"), int)
+            ]
+            prior_outer_seconds = measured_condition_wall_seconds(condition_rows)
+            if peaks and max(peaks) >= MAX_PEAK_BYTES:
+                raise RuntimeError("Stop rule: peak allocation reached 32 GiB")
+            projected_outer_seconds = (
+                prior_outer_seconds / valid_count * EXPECTED_FROZEN_COUNT
+                if valid_count
+                else float("inf")
+            )
+            if projected_outer_seconds > MAX_CONDITION_SECONDS:
+                raise RuntimeError("Stop rule: projected condition time exceeds 45 min")
+            if valid_count != target:
+                raise RuntimeError("Stop rule: checkpoint row count is incomplete")
+            current = valid_count
+            print(
+                json.dumps(
+                    {
+                        "condition_id": condition_id,
+                        "checkpoint_valid_rows": valid_count,
+                        "attempted_video_ids": attempted,
+                        "outer_condition_elapsed_seconds": prior_outer_seconds,
+                        "projected_outer_condition_seconds": projected_outer_seconds,
+                    }
+                )
+            )
+    print(json.dumps({"launched": len(pending), "skipped": 30 - len(pending)}))
+
+
+def score() -> None:
+    require_mutable_run()
+    full_preflight = _json(RUN / "preflight.json")
+    source_tree_sha256 = validate_preflight_source_tree(full_preflight)
+    validate_staged_runtime_source(full_preflight)
+    import nltk
+    from nltk import word_tokenize
+    from nltk.translate.meteor_score import meteor_score
+
+    scorer_runtime = validate_scorer_runtime(nltk, os.environ)
+    _, promoted = _promotions()
+    attempts = _jsonl(ATTEMPTS)
+    decisions = _validate_all_current_decisions()
+    if [row["condition_id"] for row in decisions] != list(PROMOTED_ORDER):
+        raise ValueError("Scoring requires all four ordered launch decisions")
+    selected = []
+    for condition_id in PROMOTED_ORDER:
+        _, requests, execution = _condition_inputs(condition_id)
+        decision = next(row for row in decisions if row["condition_id"] == condition_id)
+        validate_launch_decision(decision)
+        selected.extend(
+            select_complete_frozen_rows(
+                requests,
+                attempts,
+                execution=execution,
+                launch_decision_sha256=decision["launch_decision_sha256"],
+            )
+        )
+    selected_path = RUN / "selected-predictions.jsonl"
+    selected_prediction_sha256 = freeze_selected_predictions(
+        selected_path,
+        RUN / "selected-predictions-freeze.json",
+        selected,
+    )
+
+    # Evaluation-only boundary: labels are loaded only after the selected,
+    # label-free prediction artifact and checksum record both exist.
+    manifest = load_manifest(REFERENCE_MANIFEST_PATH, DATA)
+    references = {
+        item.video_id: item.reference_answer for item in load_references(manifest)
+    }
+    strata = {item.video_id: item.category for item in manifest.examples}
+    meteor_rows = []
+    for row in selected:
+        prediction = " ".join(row["answer"].strip().lower().split())
+        reference = " ".join(references[row["video_id"]].strip().lower().split())
+        meteor = float(
+            meteor_score([word_tokenize(reference)], word_tokenize(prediction))
+        )
+        meteor_rows.append({**row, "semantic_metrics": {"meteor": meteor}})
+    scored_path = RUN / "scored-predictions.jsonl"
+    _atomic_write(
+        scored_path,
+        "".join(
+            json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n"
+            for row in meteor_rows
+        ),
+    )
+    evaluation = evaluate_saved_predictions(
+        scored_path, references=references, strata=strata
+    )
+    examples = evaluation["examples"]
+    comparisons = {}
+    for baseline, treatment in (
+        ("qwen35-4b-12f-frozen30", "qwen35-4b-24f-frozen30"),
+        ("qwen35-4b-12f-frozen30", TRANSCRIPT_CONDITION),
+    ):
+        comparisons[f"{treatment}_vs_{baseline}"] = summarize_paired_conditions(
+            examples,
+            baseline_condition_id=baseline,
+            treatment_condition_id=treatment,
+            bootstrap_iterations=2000,
+            bootstrap_seed=20260724,
+        )
+    payload = {
+        "evaluation_boundary": {
+            "references_loaded_only_after_prediction_freeze": True,
+            "selected_prediction_sha256": selected_prediction_sha256,
+            "scored_prediction_sha256": _sha256(scored_path),
+            "selected_rows": len(selected),
+            "expected_rows": EXPECTED_FROZEN_COUNT * len(promoted),
+            "manifest_version": manifest.manifest_version,
+            "gate_selection_sha256": manifest.gate_selection_sha256,
+            "source_tree_sha256": source_tree_sha256,
+            "scorer_runtime": scorer_runtime,
+        },
+        **evaluation,
+        "paired_comparisons": comparisons,
+    }
+    _atomic_write(
+        RUN / "evaluation.json",
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+    )
+    print(json.dumps(payload["conditions"], sort_keys=True))
+
+
+def status() -> None:
+    attempts = _jsonl(ATTEMPTS)
+    protocol_error = None
+    try:
+        decisions = _validate_all_current_decisions()
+    except (KeyError, OSError, TypeError, ValueError) as error:
+        if RUN_ID != "native-audio-benchmark-v1":
+            raise
+        decisions = _jsonl(DECISIONS)
+        protocol_error = str(error)
+    _, promoted = _promotions()
+    payload = {
+        "run_dir": str(RUN),
+        "prepared": (RUN / "preflight.json").exists(),
+        "whisper_valid_rows": 0,
+        "protocol_valid": protocol_error is None,
+        "protocol_error": protocol_error,
+        "historical_attempt_rows": len(attempts),
+        "conditions": {},
+    }
+    if (RUN / "whisper-requests.json").exists():
+        payload["whisper_valid_rows"] = sum(
+            any(_asr_valid(request, row) for row in _jsonl(ASR_ATTEMPTS))
+            for request in _json(RUN / "whisper-requests.json")
+        )
+    for condition_id in promoted:
+        request_path = _request_path(condition_id)
+        decision = next(
+            (row for row in decisions if row.get("condition_id") == condition_id),
+            None,
+        )
+        valid = 0
+        if protocol_error is None and request_path.exists() and decision is not None:
+            _, requests, execution = _condition_inputs(condition_id)
+            valid = EXPECTED_FROZEN_COUNT - len(
+                pending_frozen_requests(
+                    requests,
+                    attempts,
+                    execution=execution,
+                    launch_decision_sha256=decision["launch_decision_sha256"],
+                )
+            )
+        payload["conditions"][condition_id] = {
+            "requests_prepared": request_path.exists(),
+            "authorized": decision is not None,
+            "valid_rows": valid,
+            "expected_rows": EXPECTED_FROZEN_COUNT,
+        }
+    print(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    validate_cli_run_access(args.run_id, args.action)
+    configure_run(args.run_id)
+    if args.action == "prepare":
+        prepare()
+    elif args.action == "status":
+        status()
+    elif args.action == "run-whisper":
+        run_whisper()
+    elif args.action == "build-transcript-requests":
+        build_transcript_requests()
+    elif args.action == "authorize":
+        authorize(args.condition)
+    elif args.action == "run":
+        run_condition(args.condition)
+    elif args.action == "score":
+        score()
+    else:
+        raise AssertionError(args.action)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

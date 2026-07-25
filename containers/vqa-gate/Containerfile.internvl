@@ -1,0 +1,10 @@
+FROM localhost/trec-vqa-gate-molmo@sha256:f5b655ab67cd62427819ac0992a626394f42cf786b4816132ae8610c47181fee
+
+RUN python -m pip install --no-cache-dir "timm==1.0.28"
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    NLTK_DATA=/opt/nltk_data
+
+WORKDIR /workspace
