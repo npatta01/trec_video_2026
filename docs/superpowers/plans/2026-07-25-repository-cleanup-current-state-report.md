@@ -72,8 +72,8 @@ until the report is reviewed.
   equivalent in the QMD/HTML and a visible caption in generated Markdown.
 - Six representative desktop/phone screenshots were inspected for readable
   text, responsive navigation, tables, captions, and diagrams. Long inline
-  code wraps without creating page-wide overflow; wide tables scroll within
-  their own container at phone width.
+  code wraps without creating page-wide overflow; tables retain native table
+  semantics, wrap long cell content, and fit within the phone viewport.
 - A bounded link check covered 21 changed Markdown/QMD documents and 90
   repository-relative links, with zero missing files or anchors.
 - A bounded privacy scan covered the three QMD sources, three generated
