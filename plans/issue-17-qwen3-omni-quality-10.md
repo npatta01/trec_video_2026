@@ -360,7 +360,7 @@ Commit:
 - Consumes: approved Task 4 preview.
 - Produces: terminal dstack record plus checksum-verified private artifacts.
 
-- [ ] **Step 1: Submit once**
+- [x] **Step 1: Submit once**
 
 Run:
 
@@ -369,18 +369,18 @@ dstack apply --no-repo \
   -f dstack/qwen3-omni-quality-10.dstack.yml -y -d
 ```
 
-- [ ] **Step 2: Verify the unique run and monitor**
+- [x] **Step 2: Verify the unique run and monitor**
 
 Use `dstack ps -v`, `dstack run get <run-id> --json` through an allowlisted
 projection, and normal `dstack logs`. Never print diagnostic secret-bearing
 environment output.
 
-- [ ] **Step 3: Collect after terminal state**
+- [x] **Step 3: Collect after terminal state**
 
 Run:
 `bash scripts/collect-qwen3-omni-quality-dstack.sh`
 
-- [ ] **Step 4: Verify artifact counts and hashes**
+- [x] **Step 4: Verify artifact counts and hashes**
 
 Require terminal status, workload return code, exact cost, 20 prediction
 records unless the canary stopped the run, remote file count, remote
@@ -405,28 +405,28 @@ contract digest.
 - Consumes: frozen ignored predictions and ignored annotations.
 - Produces: sanitized score artifact, report, reviewed branch, and draft PR.
 
-- [ ] **Step 1: Write failing scoring tests**
+- [x] **Step 1: Write failing scoring tests**
 
 Test prediction-hash binding, annotation-path/reference-hash binding, no
 reference text in tracked output, numeric equivalence for `1`/`one`, paired
 condition joins, aggregate exact/F1, C/P/W placeholders that must be filled
 from answer-only adjudication, and refusal to score incomplete/unfrozen input.
 
-- [ ] **Step 2: Implement and run the scorer after freeze**
+- [x] **Step 2: Implement and run the scorer after freeze**
 
 The scorer may read ignored annotations only in this phase. Store model
 answers, condition IDs, annotation lookup paths, reference hashes, numeric
 metrics, manual judgments, scorer source hash, and aggregate paired deltas.
 Never store reference text.
 
-- [ ] **Step 3: Write the evidence-backed report**
+- [x] **Step 3: Write the evidence-backed report**
 
 Separate verified facts, manual judgments, inferences, and unknowns. Disclose
 the horse prompt repair, temporal evidence-coverage limitations, small-panel
 size, any non-blinded adjudication, exact runtime/cost, and whether the
 predeclared issue #17 gate passed.
 
-- [ ] **Step 4: Reproduce scores and run final verification**
+- [x] **Step 4: Reproduce scores and run final verification**
 
 Run:
 
@@ -438,7 +438,7 @@ uv run ruff check .
 git diff --check
 ```
 
-- [ ] **Step 5: Obtain independent post-run findings and code review**
+- [x] **Step 5: Obtain independent post-run findings and code review**
 
 Fix all Critical or Important findings, rerun verification, and record a clean
 review result.
@@ -451,6 +451,33 @@ Commit:
 Push branch `codex/issue-17-qwen3-omni-quality-10` and open a draft PR based on
 `codex/issue-5-qwen3-omni-dstack`. Update issue #17 with the exact decision,
 cost, hashes, verification, report, and PR links.
+
+### Task 7: Neutral-prompt paired correction
+
+Repeat only the same frozen ten paired examples with one identical,
+modality-agnostic instruction in both conditions. This removes the a1
+audio-expecting treatment-context mismatch without changing evidence, model,
+runtime, decoding, or scoring.
+
+- Run ID: `qwen3-omni-quality-10-neutral-20260725-a2`
+- Private prefix:
+  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen3-omni-quality-10-neutral-20260725-a2`
+- Incremental worst-case spend: `$4.50`
+- Cumulative worst case: `$4.5878 + $4.50 = $9.0878`, below the approved
+  `$10` cap.
+
+- [x] Add a neutral instruction profile and tests proving both conditions use
+  identical text while only the audio element/tensors differ.
+- [x] Add immutable a2 dstack config/wrapper/collector coverage while
+  preserving the a1 configuration history and artifacts.
+- [x] Run the full suite, Ruff, Bash, diff, data/secret/namespace checks, and
+  independent specification/standards review.
+- [x] Decline a preview and require at least two eligible on-demand offers
+  when practical.
+- [ ] Submit a2 exactly once with `--no-repo`; retain the first pair as the
+  hard canary, collect checksum-verified artifacts, and verify 20 valid calls.
+- [ ] Score with the same frozen repository metric and answer-only C/P/W
+  rubric, compare a2 against a1, update the report, and re-review.
 
 ## Current status
 
@@ -472,10 +499,14 @@ cost, hashes, verification, report, and PR links.
   standards and specification reviews clean after four fix rounds. Declined
   preview showed 7 eligible on-demand offers, including three distinct H200
   offers at `$4.39/hour`; no run was submitted.
-- [ ] Task 5 ready.
+- [x] Task 5 complete: immutable run finished `done` with 20/20 valid calls
+  on one on-demand H200; cost `$1.9609`, elapsed `1608.033806` seconds;
+  checksum-verified private artifacts collected.
+- [x] Task 6 scoring/report complete and independently reviewed; a1 promotion
+  gate failed.
+- [ ] Task 7 neutral-prompt correction in progress.
 
 ## Next action
 
-Submit immutable run `qwen3-omni-quality-10-20260725-a1` exactly once with
-`--no-repo`, monitor it to terminal state, and collect checksum-verified
-private artifacts.
+Implement and preflight the neutral-prompt a2 correction without changing the
+frozen panel, evidence, model, decoding, or `$10` cumulative cap.
