@@ -1,3 +1,4 @@
+import hashlib
 import json
 import shutil
 import sys
@@ -7,6 +8,10 @@ from pathlib import Path
 import pytest
 
 import trec_video_2026.vqa_experiments.qwen3_omni_quality_dstack as quality_runner
+from trec_video_2026.vqa_experiments.qwen3_omni_dstack import build_messages
+from trec_video_2026.vqa_experiments.omni_runtime import (
+    NEUTRAL_OUTPUT_INSTRUCTION,
+)
 
 
 def _contract() -> dict:
@@ -71,6 +76,33 @@ def _runtime() -> dict:
         "gpu_name": "test GPU",
         "gpu_total_memory_bytes": 100,
     }
+
+
+def test_neutral_profile_keeps_pair_text_identical_and_changes_only_audio_element():
+    """Catches a neutral a2 prompt that leaks condition-specific modality language."""
+    example = _contract()["examples"][0]
+    data_root = Path("/dstack/input")
+
+    frames_only = build_messages(
+        example,
+        data_root,
+        audio_enabled=False,
+        output_instruction=NEUTRAL_OUTPUT_INSTRUCTION,
+    )[0]["content"]
+    audio_on = build_messages(
+        example,
+        data_root,
+        audio_enabled=True,
+        output_instruction=NEUTRAL_OUTPUT_INSTRUCTION,
+    )[0]["content"]
+
+    assert [item["type"] for item in frames_only] == ["image"] * 12 + ["text"]
+    assert [item["type"] for item in audio_on] == ["image"] * 12 + ["audio", "text"]
+    assert frames_only == [item for item in audio_on if item["type"] != "audio"]
+    neutral_lower = frames_only[-1]["text"].lower()
+    assert "audio" not in neutral_lower
+    assert "auditory" not in neutral_lower
+    assert "modality" not in neutral_lower
 
 
 def _install_fakes(monkeypatch: pytest.MonkeyPatch, calls: list[tuple[str, bool]]):
@@ -155,11 +187,52 @@ def test_quality_runner_writes_adjacent_condition_records_with_distinct_hashes(
         "audio_files": 2,
         "condition_ids": ["frames-only", "frames-native-audio"],
         "frame_files": 24,
+        "instruction_profile": "audio-expecting",
+        "instruction_sha256": "55c340c622c4b153cd9756b2c2070b88b2b7eb9a8772637130432ea2f1d2f676",
         "quality_contract_sha256": quality_runner.quality_contract_sha256(_contract()),
         "run_id": "test-run",
         "schema_version": 1,
         "video_count": 2,
     }
+
+
+def test_quality_runner_binds_neutral_profile_and_instruction_hash_to_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Catches an a2 result that cannot prove which instruction generated it."""
+    calls: list[tuple[str, bool]] = []
+    _install_fakes(monkeypatch, calls)
+    contract_path = tmp_path / "contract.json"
+    contract_path.write_text(json.dumps(_contract()), encoding="utf-8")
+    output_dir = tmp_path / "output"
+
+    summary = quality_runner.run_quality_probe(
+        contract_path=contract_path,
+        data_root=tmp_path,
+        output_dir=output_dir,
+        run_id="test-run",
+        instruction_profile="neutral",
+    )
+
+    instruction_sha256 = hashlib.sha256(
+        NEUTRAL_OUTPUT_INSTRUCTION.encode("utf-8")
+    ).hexdigest()
+    rows = [
+        json.loads(line)
+        for line in (output_dir / "predictions.jsonl").read_text().splitlines()
+    ]
+    preflight = json.loads((output_dir / "preflight.json").read_text())
+    manifest = json.loads((output_dir / "manifest.json").read_text())
+
+    assert {(row["instruction_profile"], row["instruction_sha256"]) for row in rows} == {
+        ("neutral", instruction_sha256)
+    }
+    assert preflight["instruction_profile"] == "neutral"
+    assert preflight["instruction_sha256"] == instruction_sha256
+    assert summary["instruction_profile"] == "neutral"
+    assert summary["instruction_sha256"] == instruction_sha256
+    assert manifest["inputs"]["instruction_profile"] == "neutral"
+    assert manifest["inputs"]["instruction_sha256"] == instruction_sha256
 
 
 def test_quality_runner_stops_after_a_failed_canary_but_persists_both_rows(
@@ -230,7 +303,41 @@ def test_quality_runner_cli_forwards_wrapper_arguments_and_fails_on_probe_failur
         "data_root": tmp_path,
         "output_dir": output_dir,
         "run_id": "test-run",
+        "instruction_profile": "audio-expecting",
     }
+
+
+def test_quality_runner_cli_selects_neutral_instruction_for_every_condition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Catches an a2 wrapper whose neutral profile is ignored by the runner."""
+    observed: dict[str, object] = {}
+
+    def failed_probe(**kwargs: object) -> dict:
+        observed.update(kwargs)
+        return {"succeeded": False}
+
+    monkeypatch.setattr(quality_runner, "run_quality_probe", failed_probe)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "qwen3_omni_quality_dstack",
+            "--contract",
+            str(tmp_path / "contract.json"),
+            "--data-root",
+            str(tmp_path),
+            "--output-dir",
+            str(tmp_path / "output"),
+            "--run-id",
+            "test-run",
+            "--instruction-profile",
+            "neutral",
+        ],
+    )
+
+    assert quality_runner.main() == 1
+    assert observed["instruction_profile"] == "neutral"
 
 
 def test_uploaded_contract_validation_needs_only_contract_bound_evidence(

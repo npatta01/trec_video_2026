@@ -117,7 +117,11 @@ def verify_uploaded_evidence(contract: dict[str, Any], data_root: Path) -> None:
 
 
 def build_messages(
-    example: dict[str, Any], data_root: Path, *, audio_enabled: bool = True
+    example: dict[str, Any],
+    data_root: Path,
+    *,
+    audio_enabled: bool = True,
+    output_instruction: str = OUTPUT_INSTRUCTION,
 ) -> list[dict[str, Any]]:
     content: list[dict[str, str]] = [
         {
@@ -136,7 +140,7 @@ def build_messages(
     content.append(
         {
             "type": "text",
-            "text": f"{OUTPUT_INSTRUCTION}\nQuestion: {example['question']}",
+            "text": f"{output_instruction}\nQuestion: {example['question']}",
         }
     )
     return [{"role": "user", "content": content}]
@@ -403,10 +407,16 @@ def _generate_one(
     example: dict[str, Any],
     data_root: Path,
     audio_enabled: bool = True,
+    output_instruction: str = OUTPUT_INSTRUCTION,
 ) -> tuple[str, dict[str, Any]]:
     try:
         inputs = processor.apply_chat_template(
-            build_messages(example, data_root, audio_enabled=audio_enabled),
+            build_messages(
+                example,
+                data_root,
+                audio_enabled=audio_enabled,
+                output_instruction=output_instruction,
+            ),
             add_generation_prompt=True,
             tokenize=True,
             return_dict=True,

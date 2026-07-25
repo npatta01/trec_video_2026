@@ -14,6 +14,26 @@ OUTPUT_INSTRUCTION = (
     "cues support the answer."
 )
 
+NEUTRAL_OUTPUT_INSTRUCTION = (
+    "Answer the question using the provided evidence. "
+    'Return only a JSON object with non-empty string fields "answer" and '
+    '"evidence". The evidence field must briefly state the cues supporting '
+    "the answer."
+)
+
+INSTRUCTION_PROFILES = {
+    "audio-expecting": OUTPUT_INSTRUCTION,
+    "neutral": NEUTRAL_OUTPUT_INSTRUCTION,
+}
+
+
+def instruction_for_profile(profile: str) -> str:
+    """Return one immutable instruction profile selected by a run wrapper."""
+    try:
+        return INSTRUCTION_PROFILES[profile]
+    except KeyError as error:
+        raise ValueError(f"unknown instruction profile: {profile}") from error
+
 
 def phi_prompt(example: dict[str, Any]) -> str:
     image_tokens = "".join(

@@ -10,6 +10,7 @@ import tarfile
 from pathlib import Path
 
 RUN_ID = "qwen3-omni-quality-10-20260725-a1"
+NEUTRAL_RUN_ID = "qwen3-omni-quality-10-neutral-20260725-a2"
 REMOTE_URI = (
     "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/" + RUN_ID
 )
@@ -24,6 +25,9 @@ CONFIG = Path("dstack/qwen3-omni-quality-10.dstack.yml")
 RUNNER = Path("scripts/run-qwen3-omni-quality-dstack.sh")
 COLLECTOR = Path("scripts/collect-qwen3-omni-quality-dstack.sh")
 COLLECTOR_LIB = Path("scripts/qwen3-omni-quality-collector-lib.sh")
+NEUTRAL_CONFIG = Path("dstack/qwen3-omni-quality-10-neutral.dstack.yml")
+NEUTRAL_RUNNER = Path("scripts/run-qwen3-omni-quality-10-neutral-dstack.sh")
+NEUTRAL_COLLECTOR = Path("scripts/collect-qwen3-omni-quality-10-neutral-dstack.sh")
 DSTACKIGNORE = Path(".dstackignore")
 MAX_MAPPED_SOURCE_ARCHIVE_BYTES = 2 * 1024 * 1024
 OVERSIZED_FRAME = (
@@ -325,3 +329,36 @@ trap - EXIT
     assert output.is_dir()
     assert not (output / temporary_output.name).exists()
     assert not temporary_output.exists()
+
+
+def test_neutral_a2_scaffolding_keeps_a1_immutable_and_binds_no_repo_submission():
+    """Catches an a2 configuration that can reuse a1 identity or its prompt profile."""
+    neutral_config = NEUTRAL_CONFIG.read_text(encoding="utf-8")
+    neutral_runner = NEUTRAL_RUNNER.read_text(encoding="utf-8")
+    neutral_collector = NEUTRAL_COLLECTOR.read_text(encoding="utf-8")
+    a1_config = CONFIG.read_text(encoding="utf-8")
+
+    neutral_uri = (
+        "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/"
+        + NEUTRAL_RUN_ID
+    )
+    assert f"name: {NEUTRAL_RUN_ID}" in neutral_config
+    assert f"EXPERIMENT_RUN_ID={NEUTRAL_RUN_ID}" in neutral_config
+    assert f"HF_REMOTE_URI={neutral_uri}" in neutral_config
+    assert f'readonly EXPECTED_RUN_ID="{NEUTRAL_RUN_ID}"' in neutral_runner
+    assert f'readonly EXPECTED_REMOTE_URI="{neutral_uri}"' in neutral_runner
+    assert f'readonly EXPECTED_RUN_ID="{NEUTRAL_RUN_ID}"' in neutral_collector
+    assert "--instruction-profile neutral" in neutral_runner
+    assert "max_price: 4.50" in neutral_config
+    assert "max_duration: 1h" in neutral_config
+    assert "qwen3_omni_quality_transport reconstruct" in neutral_runner
+    assert "sha256sum -c SHA256SUMS" in neutral_collector
+    assert "publish_verified_output" in neutral_collector
+    assert RUN_ID not in neutral_config + neutral_runner + neutral_collector
+    assert NEUTRAL_RUN_ID not in a1_config
+
+    normalized_a2 = neutral_config.replace(NEUTRAL_RUN_ID, RUN_ID).replace(
+        "run-qwen3-omni-quality-10-neutral-dstack.sh",
+        "run-qwen3-omni-quality-dstack.sh",
+    )
+    assert normalized_a2 == a1_config

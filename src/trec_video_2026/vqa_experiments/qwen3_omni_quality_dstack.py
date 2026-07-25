@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .omni_contract import parse_prediction
+from .omni_runtime import instruction_for_profile
 from .qwen3_omni_dstack import (
     AUDIO_INPUT_KEYS,
     MODEL_ID,
@@ -51,6 +52,8 @@ def _base_record(
     condition: dict[str, Any],
     pair_index: int,
     run_id: str,
+    instruction_profile: str,
+    instruction_sha256: str,
     runtime: dict[str, Any],
     elapsed_seconds: float,
     peak_memory_bytes: int,
@@ -63,6 +66,8 @@ def _base_record(
         "condition_id": condition["condition_id"],
         "audio_enabled": condition["audio_enabled"],
         "pair_index": pair_index,
+        "instruction_profile": instruction_profile,
+        "instruction_sha256": instruction_sha256,
         "model_id": MODEL_ID,
         "model_revision": MODEL_REVISION,
         "runtime_image_digest": RUNTIME_IMAGE_DIGEST,
@@ -192,11 +197,18 @@ def _reserved_output_paths(output_dir: Path) -> tuple[Path, Path, Path, Path]:
     return paths
 
 
-def _preflight_record(contract: dict[str, Any], run_id: str) -> dict[str, Any]:
+def _preflight_record(
+    contract: dict[str, Any],
+    run_id: str,
+    instruction_profile: str,
+    instruction_sha256: str,
+) -> dict[str, Any]:
     examples = contract["examples"]
     return {
         "schema_version": 1,
         "run_id": run_id,
+        "instruction_profile": instruction_profile,
+        "instruction_sha256": instruction_sha256,
         "quality_contract_sha256": quality_contract_sha256(contract),
         "video_count": len(examples),
         "frame_files": sum(len(example["frame_paths"]) for example in examples),
@@ -206,16 +218,27 @@ def _preflight_record(contract: dict[str, Any], run_id: str) -> dict[str, Any]:
 
 
 def run_quality_probe(
-    *, contract_path: Path, data_root: Path, output_dir: Path, run_id: str
+    *,
+    contract_path: Path,
+    data_root: Path,
+    output_dir: Path,
+    run_id: str,
+    instruction_profile: str = "audio-expecting",
 ) -> dict[str, Any]:
     """Run adjacent condition pairs and stop after a failed first-pair canary."""
+    output_instruction = instruction_for_profile(instruction_profile)
+    instruction_sha256 = hashlib.sha256(
+        output_instruction.encode("utf-8")
+    ).hexdigest()
     contract = json.loads(contract_path.read_text(encoding="utf-8"))
     validate_uploaded_quality_contract(contract, data_root, verify_files=True)
     output_dir.mkdir(parents=True, exist_ok=True)
     predictions_path, summary_path, manifest_path, preflight_path = _reserved_output_paths(
         output_dir
     )
-    preflight = _preflight_record(contract, run_id)
+    preflight = _preflight_record(
+        contract, run_id, instruction_profile, instruction_sha256
+    )
     contract_digest = preflight["quality_contract_sha256"]
     preflight_path.write_text(
         json.dumps(preflight, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -242,6 +265,8 @@ def run_quality_probe(
                 condition=condition,
                 pair_index=0,
                 run_id=run_id,
+                instruction_profile=instruction_profile,
+                instruction_sha256=instruction_sha256,
                 runtime=runtime,
                 elapsed_seconds=model_load_seconds,
                 peak_memory_bytes=_peak_memory(torch, "max_memory_allocated"),
@@ -267,12 +292,15 @@ def run_quality_probe(
                         example=example,
                         data_root=data_root,
                         audio_enabled=condition["audio_enabled"],
+                        output_instruction=output_instruction,
                     )
                     record = _prediction_record(
                         example=example,
                         condition=condition,
                         pair_index=pair_index,
                         run_id=run_id,
+                        instruction_profile=instruction_profile,
+                        instruction_sha256=instruction_sha256,
                         runtime=runtime,
                         elapsed_seconds=time.perf_counter() - started,
                         peak_memory_bytes=_peak_memory(torch, "max_memory_allocated"),
@@ -286,6 +314,8 @@ def run_quality_probe(
                         condition=condition,
                         pair_index=pair_index,
                         run_id=run_id,
+                        instruction_profile=instruction_profile,
+                        instruction_sha256=instruction_sha256,
                         runtime=runtime,
                         elapsed_seconds=time.perf_counter() - started,
                         peak_memory_bytes=_peak_memory(torch, "max_memory_allocated"),
@@ -310,6 +340,8 @@ def run_quality_probe(
     summary = {
         "schema_version": 1,
         "run_id": run_id,
+        "instruction_profile": instruction_profile,
+        "instruction_sha256": instruction_sha256,
         "model_id": MODEL_ID,
         "model_revision": MODEL_REVISION,
         "runtime_image": RUNTIME_IMAGE,
@@ -328,7 +360,11 @@ def run_quality_probe(
     manifest = {
         "schema_version": 1,
         "run_id": run_id,
-        "inputs": {"quality_contract_sha256": contract_digest},
+        "inputs": {
+            "quality_contract_sha256": contract_digest,
+            "instruction_profile": instruction_profile,
+            "instruction_sha256": instruction_sha256,
+        },
         "outputs": {
             "predictions.jsonl": _sha256_file(predictions_path),
             "summary.json": _sha256_file(summary_path),
@@ -346,12 +382,18 @@ def main() -> int:
     parser.add_argument("--data-root", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--run-id", required=True)
+    parser.add_argument(
+        "--instruction-profile",
+        choices=("audio-expecting", "neutral"),
+        default="audio-expecting",
+    )
     args = parser.parse_args()
     summary = run_quality_probe(
         contract_path=args.contract,
         data_root=args.data_root,
         output_dir=args.output_dir,
         run_id=args.run_id,
+        instruction_profile=args.instruction_profile,
     )
     print(json.dumps(summary, sort_keys=True))
     return 0 if summary["succeeded"] else 1
