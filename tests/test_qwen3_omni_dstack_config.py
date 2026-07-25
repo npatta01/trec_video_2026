@@ -164,6 +164,39 @@ def test_qwen_message_contains_all_frozen_modalities_in_one_turn():
     assert "JSON object" in content[-1]["text"]
 
 
+def test_frames_only_message_and_attestation_omit_audio():
+    """Catches an audio-off request that still sends an audio modality tensor."""
+    import array
+
+    class Tensor:
+        def __init__(self, values, shape):
+            self.values = array.array("f", values)
+            self.shape = shape
+
+        def tobytes(self):
+            return self.values.tobytes()
+
+    content = build_messages(
+        _example(), Path("/dstack/input"), audio_enabled=False
+    )[0]["content"]
+    frames_only_inputs = {
+        "pixel_values": Tensor([1.0, 2.0], (2,)),
+        "image_grid_thw": Tensor(range(36), (12, 3)),
+        "input_ids": Tensor([1.0, 2.0], (1, 2)),
+    }
+
+    attestation = attest_qwen_inputs(
+        frames_only_inputs,
+        first_forward_input_keys=set(frames_only_inputs),
+        audio_enabled=False,
+    )
+
+    assert [item["type"] for item in content].count("image") == 12
+    assert [item["type"] for item in content].count("audio") == 0
+    assert attestation["audio_element_count"] == 0
+    assert attestation["audio_input_keys"] == []
+
+
 def test_thinking_output_normalizes_only_a_terminal_json_object():
     raw = (
         "<think>I should inspect both modalities.</think>\n"
