@@ -98,7 +98,7 @@ def test_request_reader_rejects_forbidden_row_key_before_selection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """Catches an otherwise selected source row carrying prohibited hidden data."""
-    request_path = _write_selected_source_row(
+    _write_selected_source_row(
         tmp_path, monkeypatch, correct_answer="forbidden test fixture value"
     )
 
