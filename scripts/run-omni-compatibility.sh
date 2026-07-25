@@ -76,7 +76,10 @@ exec podman run --rm \
   -e TRANSFORMERS_OFFLINE=1 \
   -e PYTORCH_ALLOC_CONF=expandable_segments:True \
   -e TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 \
-  -v "${DATA_ROOT}:/data:ro" \
+  -v "${DATA_ROOT}/${CONTRACT_REL}:/contract.json:ro" \
+  -v "${DATA_ROOT}/vqa/2025/training/videos_original:/data/vqa/2025/training/videos_original:ro" \
+  -v "${DATA_ROOT}/vqa/benchmarks/runs/native-audio-benchmark-v2/audio:/data/vqa/benchmarks/runs/native-audio-benchmark-v2/audio:ro" \
+  -v "${DATA_ROOT}/vqa/benchmarks/evidence:/data/vqa/benchmarks/evidence:ro" \
   -v "${HF_CACHE_ROOT}:/cache:ro" \
   -v "${REPO_ROOT}/src:/workspace/src:ro" \
   -v "${OUTPUT_DIR}:/output:rw" \
@@ -84,7 +87,7 @@ exec podman run --rm \
   python -m trec_video_2026.vqa_experiments.omni_probe \
     --model "${MODEL_KEY}" \
     --model-path "/cache/${MODEL_SNAPSHOT}" \
-    --contract "/data/${CONTRACT_REL}" \
+    --contract /contract.json \
     --data-root /data \
     --output-dir /output \
     --runtime-image "${RUNTIME_IMAGE}" \

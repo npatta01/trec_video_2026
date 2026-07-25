@@ -45,8 +45,11 @@ Remaining work is final combined verification, independent diff review, push, an
 
 The final advisor review identified and resolved one label-isolation blocker:
 the omni compatibility launcher now mounts only `src/` instead of the full
-repository, so the recovered NIST reference-answer submodule is unreachable to
-inference code. Two non-blocking recovery caveats are documented explicitly:
+repository and mounts only the frozen contract plus its video, audio, and frame
+evidence roots instead of the full dataset. NIST and dataset reference answers
+are therefore unreachable to inference code. A real container mount canary
+verified that required evidence is readable while both label locations are
+absent. Two non-blocking recovery caveats are documented explicitly:
 GPU cost ceilings belong on consuming tasks, and the model-specific historical
 Containerfiles require preservation of their exact host-local base image for
 bit-identical replay.
