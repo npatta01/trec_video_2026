@@ -1,3 +1,5 @@
+import contextlib
+import json
 from pathlib import Path
 import re
 
@@ -6,14 +8,20 @@ import pytest
 from trec_video_2026.vqa_experiments.dstack_metadata import sanitize_dstack_run
 from trec_video_2026.vqa_experiments.qwen3_omni_dstack import (
     CONTRACT_SHA256,
+    EXPECTED_EOS_TOKEN_ID,
+    EXPECTED_PAD_TOKEN_ID,
     GENERATION_SEED,
     MAX_NEW_TOKENS,
     MODEL_ID,
     MODEL_REVISION,
+    ProbeStageError,
     RUNTIME_IMAGE,
     RUNTIME_IMAGE_DIGEST,
+    _generate_one,
+    _preserve_failure_attestation,
     attest_qwen_inputs,
     build_messages,
+    generation_special_token_ids,
     normalize_generation_output,
     validate_panel_identity,
 )
@@ -56,7 +64,7 @@ def test_dstack_task_has_fixed_resource_and_cost_envelope():
     assert "backends: [runpod, vastai]" in text
     assert "spot_policy: on-demand" in text
     assert "max_price: 4.50" in text
-    assert "max_duration: 2h" in text
+    assert "max_duration: 45m" in text
     assert "on_events: [no-capacity]" in text
     assert "duration: 30m" in text
 
@@ -114,10 +122,10 @@ def test_dstack_task_uploads_only_frozen_inputs_and_syncs_private_results():
     assert "HF_TOKEN=${{ secrets.hf_token }}" in text
     assert (
         "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
-        "experiments/qwen3-omni-compatibility-3-20260724-a3"
+        "experiments/qwen3-omni-compatibility-3-20260724-a4"
     ) in combined
-    assert "name: qwen3-omni-compatibility-3-20260724-a3" in text
-    assert 'readonly EXPECTED_RUN_ID="qwen3-omni-compatibility-3-20260724-a3"' in runner
+    assert "name: qwen3-omni-compatibility-3-20260724-a4" in text
+    assert 'readonly EXPECTED_RUN_ID="qwen3-omni-compatibility-3-20260724-a4"' in runner
     assert 'uvx --from "huggingface-hub==$HF_CLI_VERSION" hf "$@"' in runner
     assert "--break-system-packages" not in runner
     assert "hf_cli buckets sync" in runner
@@ -187,6 +195,242 @@ def test_generation_policy_uses_checkpoint_config_with_bounded_seeded_override()
     assert "do_sample=True" in source
     assert "do_sample=False" not in source
     assert "inputs.to(device).to(model.dtype)" in source
+
+
+def test_generation_policy_wires_tokenizer_termination_ids():
+    class Tokenizer:
+        eos_token_id = EXPECTED_EOS_TOKEN_ID
+        pad_token_id = EXPECTED_PAD_TOKEN_ID
+
+        @staticmethod
+        def convert_ids_to_tokens(value):
+            return {
+                EXPECTED_EOS_TOKEN_ID: "<|im_end|>",
+                EXPECTED_PAD_TOKEN_ID: "<|endoftext|>",
+            }[value]
+
+    class Processor:
+        tokenizer = Tokenizer()
+
+    assert generation_special_token_ids(Processor()) == {
+        "eos_token_id": EXPECTED_EOS_TOKEN_ID,
+        "pad_token_id": EXPECTED_PAD_TOKEN_ID,
+    }
+
+
+@pytest.mark.parametrize(
+    ("attribute", "value"),
+    [
+        ("eos_token_id", None),
+        ("eos_token_id", "151645"),
+        ("eos_token_id", 7),
+        ("pad_token_id", None),
+        ("pad_token_id", "151643"),
+        ("pad_token_id", 8),
+    ],
+)
+def test_generation_policy_rejects_missing_or_noninteger_termination_ids(
+    attribute, value
+):
+    class Tokenizer:
+        eos_token_id = EXPECTED_EOS_TOKEN_ID
+        pad_token_id = EXPECTED_PAD_TOKEN_ID
+
+        @staticmethod
+        def convert_ids_to_tokens(value):
+            return {
+                EXPECTED_EOS_TOKEN_ID: "<|im_end|>",
+                EXPECTED_PAD_TOKEN_ID: "<|endoftext|>",
+            }.get(value, "<wrong>")
+
+    class Processor:
+        tokenizer = Tokenizer()
+
+    setattr(Processor.tokenizer, attribute, value)
+    with pytest.raises(ValueError, match=attribute):
+        generation_special_token_ids(Processor())
+
+
+class _Batch(dict):
+    def to(self, *_args):
+        return self
+
+
+class _FakeTensor:
+    def __init__(self, values, shape):
+        self.values = list(values)
+        self.shape = shape
+
+    def tobytes(self):
+        return json.dumps(self.values).encode()
+
+
+class _FakeScalar:
+    def __init__(self, value):
+        self.value = value
+
+    def item(self):
+        return self.value
+
+
+class _FakeResponseTokens(_FakeTensor):
+    def __init__(self, values):
+        super().__init__(values, (1, len(values)))
+
+    def __getitem__(self, key):
+        row, column = key
+        assert row == 0
+        return _FakeScalar(self.values[column])
+
+
+class _FakeGenerated:
+    def __init__(self, values):
+        self.values = list(values)
+
+    def __getitem__(self, key):
+        rows, columns = key
+        assert rows == slice(None)
+        return _FakeResponseTokens(self.values[columns])
+
+
+class _FakeProcessor:
+    class Tokenizer:
+        eos_token_id = EXPECTED_EOS_TOKEN_ID
+        pad_token_id = EXPECTED_PAD_TOKEN_ID
+
+        @staticmethod
+        def convert_ids_to_tokens(value):
+            return {
+                EXPECTED_EOS_TOKEN_ID: "<|im_end|>",
+                EXPECTED_PAD_TOKEN_ID: "<|endoftext|>",
+            }[value]
+
+    tokenizer = Tokenizer()
+
+    def apply_chat_template(self, *_args, **_kwargs):
+        return _Batch(
+            {
+                "input_ids": _FakeTensor([10, 11], (1, 2)),
+                "pixel_values": _FakeTensor([1.0], (1,)),
+                "image_grid_thw": _FakeTensor([0] * 36, (12, 3)),
+                "input_features": _FakeTensor([0.0, 0.0], (1, 2)),
+                "feature_attention_mask": _FakeTensor([1, 1], (1, 2)),
+            }
+        )
+
+    @staticmethod
+    def batch_decode(*_args, **_kwargs):
+        return [
+            "<think>Inspect both modalities.</think>\n"
+            '{"answer":"cat yowl","evidence":"open mouth and loud vocalization"}'
+        ]
+
+
+class _FakeHandle:
+    @staticmethod
+    def remove():
+        return None
+
+
+class _FakeParameter:
+    device = "cuda:0"
+
+
+class _FakeModel:
+    dtype = "bfloat16"
+
+    def __init__(self, final_token=EXPECTED_EOS_TOKEN_ID):
+        self.final_token = final_token
+        self.generate_kwargs = None
+        self.forward_hook = None
+
+    def parameters(self):
+        yield _FakeParameter()
+
+    def register_forward_pre_hook(self, hook, *, with_kwargs):
+        assert with_kwargs is True
+        self.forward_hook = hook
+        return _FakeHandle()
+
+    def generate(self, **kwargs):
+        self.generate_kwargs = kwargs
+        assert self.forward_hook is not None
+        self.forward_hook(self, (), kwargs)
+        return _FakeGenerated([10, 11, 20, self.final_token])
+
+
+class _FakeCuda:
+    @staticmethod
+    def manual_seed_all(_seed):
+        return None
+
+
+class _FakeTorch:
+    cuda = _FakeCuda()
+
+    @staticmethod
+    def manual_seed(_seed):
+        return None
+
+    @staticmethod
+    def inference_mode():
+        return contextlib.nullcontext()
+
+
+def test_generate_one_forwards_and_attests_eos_termination():
+    model = _FakeModel()
+
+    output, attestation = _generate_one(
+        torch=_FakeTorch(),
+        processor=_FakeProcessor(),
+        model=model,
+        example=_example(),
+        data_root=Path("/dstack/input"),
+    )
+
+    assert model.generate_kwargs["eos_token_id"] == EXPECTED_EOS_TOKEN_ID
+    assert model.generate_kwargs["pad_token_id"] == EXPECTED_PAD_TOKEN_ID
+    assert attestation["generation"]["ended_with_eos"] is True
+    assert attestation["generation"]["generated_new_token_count"] == 2
+    assert attestation["generation"]["eos_token"] == "<|im_end|>"
+    assert attestation["generation"]["pad_token"] == "<|endoftext|>"
+    assert output == (
+        '{"answer": "cat yowl", '
+        '"evidence": "open mouth and loud vocalization"}'
+    )
+
+
+def test_generate_one_fails_closed_without_eos_termination():
+    with pytest.raises(
+        ProbeStageError, match="did not terminate with EOS"
+    ) as captured:
+        _generate_one(
+            torch=_FakeTorch(),
+            processor=_FakeProcessor(),
+            model=_FakeModel(final_token=42),
+            example=_example(),
+            data_root=Path("/dstack/input"),
+        )
+
+    record = {
+        "modality_attestation": {
+            "same_request": False,
+            "same_forward_pass": False,
+            "generation_call_count": 0,
+        }
+    }
+    _preserve_failure_attestation(record, captured.value)
+    attestation = record["modality_attestation"]
+    assert attestation["same_request"] is True
+    assert attestation["same_forward_pass"] is True
+    assert attestation["generation_call_count"] == 1
+    assert attestation["vision_element_count"] == 12
+    assert attestation["audio_element_count"] == 1
+    assert attestation["generation"]["ended_with_eos"] is False
+    assert attestation["generation"]["generated_new_token_count"] == 2
+    assert attestation["generation"]["final_generated_token_id"] == 42
+    assert attestation["generation"]["eos_token_id"] == EXPECTED_EOS_TOKEN_ID
+    assert attestation["generation"]["eos_token"] == "<|im_end|>"
 
 
 def test_panel_identity_fails_closed_on_hash_or_video_mismatch():

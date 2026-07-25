@@ -43,15 +43,26 @@ AUDIO_INPUT_KEYS = frozenset({"input_features", "feature_attention_mask"})
 MIN_GPU_MEMORY_BYTES = 80 * 1024**3
 MAX_NEW_TOKENS = 2048
 GENERATION_SEED = 20260724
+EXPECTED_EOS_TOKEN_ID = 151645
+EXPECTED_PAD_TOKEN_ID = 151643
+EXPECTED_EOS_TOKEN = "<|im_end|>"
+EXPECTED_PAD_TOKEN = "<|endoftext|>"
 
 
 class ProbeStageError(RuntimeError):
     """Preserve the boundary at which a compatibility attempt failed."""
 
-    def __init__(self, stage: str, original_error: Exception) -> None:
+    def __init__(
+        self,
+        stage: str,
+        original_error: Exception,
+        *,
+        modality_attestation: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(f"{stage}: {original_error}")
         self.stage = stage
         self.original_error = original_error
+        self.modality_attestation = modality_attestation
 
 
 def _sha256_file(path: Path) -> str:
@@ -126,6 +137,35 @@ def build_messages(example: dict[str, Any], data_root: Path) -> list[dict[str, A
         }
     )
     return [{"role": "user", "content": content}]
+
+
+def generation_special_token_ids(processor: Any) -> dict[str, int]:
+    """Resolve explicit termination IDs from the checkpoint tokenizer."""
+
+    tokenizer = getattr(processor, "tokenizer", None)
+    if tokenizer is None:
+        raise ValueError("processor has no tokenizer")
+    expected = {
+        "eos_token_id": (EXPECTED_EOS_TOKEN_ID, EXPECTED_EOS_TOKEN),
+        "pad_token_id": (EXPECTED_PAD_TOKEN_ID, EXPECTED_PAD_TOKEN),
+    }
+    result: dict[str, int] = {}
+    for attribute, (expected_id, expected_token) in expected.items():
+        value = getattr(tokenizer, attribute, None)
+        if type(value) is not int:
+            raise ValueError(f"tokenizer {attribute} must be an integer")
+        if value != expected_id:
+            raise ValueError(
+                f"tokenizer {attribute} must be {expected_id}, got {value}"
+            )
+        token = tokenizer.convert_ids_to_tokens(value)
+        if token != expected_token:
+            raise ValueError(
+                f"tokenizer {attribute} must resolve to {expected_token!r}, "
+                f"got {token!r}"
+            )
+        result[attribute] = value
+    return result
 
 
 def normalize_generation_output(raw_output: str) -> str:
@@ -355,6 +395,7 @@ def _generate_one(
         )
         processor_inputs = dict(inputs)
         input_length = int(inputs["input_ids"].shape[1])
+        special_token_ids = generation_special_token_ids(processor)
     except Exception as error:
         raise ProbeStageError("processor", error) from error
     try:
@@ -371,6 +412,7 @@ def _generate_one(
                 max_new_tokens=MAX_NEW_TOKENS,
                 do_sample=True,
                 use_audio_in_video=False,
+                **special_token_ids,
             )
     except Exception as error:
         raise ProbeStageError("generation", error) from error
@@ -386,6 +428,9 @@ def _generate_one(
         raise ProbeStageError("attestation", error) from error
     try:
         response_tokens = generated[:, input_length:]
+        generated_new_token_count = int(response_tokens.shape[1])
+        final_generated_token_id = int(response_tokens[0, -1].item())
+        ended_with_eos = final_generated_token_id == special_token_ids["eos_token_id"]
         raw_output = processor.batch_decode(
             response_tokens,
             skip_special_tokens=True,
@@ -393,13 +438,32 @@ def _generate_one(
         )[0]
     except Exception as error:
         raise ProbeStageError("decode", error) from error
-    attestation["generation"] = {
+    generation_attestation = {
         "checkpoint_generation_config": True,
         "do_sample": True,
         "max_new_tokens": MAX_NEW_TOKENS,
         "seed": GENERATION_SEED,
+        **special_token_ids,
+        "eos_token": EXPECTED_EOS_TOKEN,
+        "pad_token": EXPECTED_PAD_TOKEN,
+        "generated_new_token_count": generated_new_token_count,
+        "final_generated_token_id": final_generated_token_id,
+        "ended_with_eos": ended_with_eos,
         "raw_output_sha256": hashlib.sha256(raw_output.encode("utf-8")).hexdigest(),
     }
+    if not ended_with_eos:
+        error = RuntimeError(
+            "generation did not terminate with EOS: "
+            f"generated_new_token_count={generated_new_token_count}, "
+            f"final_generated_token_id={final_generated_token_id}"
+        )
+        attestation["generation"] = generation_attestation
+        raise ProbeStageError(
+            "termination",
+            error,
+            modality_attestation=attestation,
+        ) from error
+    attestation["generation"] = generation_attestation
     return normalize_generation_output(raw_output), attestation
 
 
@@ -408,6 +472,19 @@ def _failure_details(error: Exception) -> tuple[Exception, str, bool | None]:
         return error, "internal", None
     is_contract = error.stage in {"processor", "attestation"}
     return error.original_error, error.stage, True if is_contract else None
+
+
+def _preserve_failure_attestation(
+    record: dict[str, Any], error: Exception
+) -> dict[str, Any]:
+    """Retain proven modality and generation facts on a failed row."""
+
+    if (
+        isinstance(error, ProbeStageError)
+        and error.modality_attestation is not None
+    ):
+        record["modality_attestation"] = error.modality_attestation
+    return record
 
 
 def _write_predictions(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -520,6 +597,7 @@ def run_probe(
                     input_contract_error=input_contract_error,
                     failure_stage=stage,
                 )
+                _preserve_failure_attestation(record, error)
             audio_path = _safe_input_path(data_root, example["audio_path"])
             record.update(
                 {

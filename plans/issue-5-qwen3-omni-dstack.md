@@ -36,8 +36,11 @@ reproducibility and provenance, and make an honest expand/stop decision.
   a bounded 30-minute `no-capacity` retry.
 - Preserve the checkpoint's Thinking generation parameters, explicitly enable
   sampling, bound generation at 2,048 new tokens, and seed Torch with
-  `20260724`. Store only the normalized terminal answer object and a SHA-256 of
-  the unnormalized generation.
+  `20260724`. Explicitly pass the checkpoint tokenizer's `<|im_end|>` EOS and
+  `<|endoftext|>` padding IDs, fail closed unless generation ends on EOS, and
+  attest the configured IDs, token strings, generated-token count, and final
+  token. Store only the normalized terminal answer object and a SHA-256 of the
+  unnormalized generation.
 - Compatibility is not semantic scoring. Expansion still requires
   label-isolated adjudication showing an audio-row material improvement without
   a control or input-contract regression.
@@ -49,8 +52,10 @@ reproducibility and provenance, and make an honest expand/stop decision.
 - Host RAM: at least 192 GB
 - Disk: 200 GB
 - Price cap: $4.50/hour
-- Duration cap: 2 hours
-- Worst-case cost cap: $9.00
+- Duration cap for the authorized `a4` correction: 45 minutes
+- Worst-case `a4` cost cap: $3.375
+- Prior cumulative spend: $2.1095
+- Worst-case cumulative spend through `a4`: $5.4845
 
 ## Status
 
@@ -68,6 +73,13 @@ reproducibility and provenance, and make an honest expand/stop decision.
 - [x] Corrected immutable `a3` run completed and evaluated.
 - [x] Static findings independently reviewed.
 - [x] Issue updated and stacked draft PR #14 opened.
+- [x] User authorized an EOS-corrected `a4` rerun under the existing hard
+  cumulative cap below $10.
+- [x] EOS/padding wiring and fail-closed termination checks implemented
+  test-first.
+- [x] `a4` private artifact prefix verified empty and qualifying H200 offers
+  previewed.
+- [ ] Corrected immutable `a4` run completed, scored, and added to PR #14.
 
 ## Current evidence and blocker
 
@@ -131,10 +143,18 @@ Run `a3` completed on the same qualifying RunPod H200 envelope:
 - automatic compatibility gate: **stop**
 - semantic gate: not evaluated because no contract output succeeded
 
-No expansion or further submission is authorized.
+The user subsequently authorized testing Qwen3-Omni again because native
+audio-video question answering remains strategically important. The `a4`
+hypothesis is narrow: the pinned tokenizer defines `<|im_end|>` as EOS ID
+`151645` and `<|endoftext|>` as padding ID `151643`, while the checkpoint model
+and generation configs leave their corresponding IDs null. The `a3` runner did
+not pass tokenizer termination IDs, and every row exhausted the 2,048-token
+limit after generating at least one valid-looking JSON candidate.
 
 ## Next action
 
-Stop and report the output-conformance failure. Preserve `a3` as immutable. A
-future output-stopping or decoding change requires a new issue decision,
-immutable identity, and explicit cost authorization.
+Submit exactly one immutable `a4` run with explicit tokenizer EOS/padding IDs.
+Keep the strict terminal-JSON parser unchanged. Require actual EOS termination
+and record termination evidence. If output conformance passes, perform
+label-isolated semantic scoring on the frozen three rows; otherwise stop with
+the new failure evidence. Update draft PR #14 with the result.

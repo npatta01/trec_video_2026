@@ -245,11 +245,28 @@ Both checksum layers passed. Key hashes:
   the live terminal dstack response.
 - Independent static review found no remaining Critical or Important findings.
 
-## Next action
+## Authorized `a4` termination correction
 
-Stop. Preserve all three run identities as immutable. Do not retry or broaden
-beyond `a3`. A future output-stopping or decoding change requires a separate
-decision, immutable identity, and explicit cost authorization.
+The user authorized one additional immutable attempt after review of the `a3`
+output-conformance failure. The narrow hypothesis is that the tokenizer
+defines `<|im_end|>` as EOS ID `151645` and `<|endoftext|>` as padding ID
+`151643`, but neither ID is populated in the pinned checkpoint model or
+generation configuration and `a3` did not pass them explicitly.
+
+The `a4` runner therefore passes those exact tokenizer IDs to `generate`,
+verifies both token identities, and fails closed unless the generated sequence
+actually ends on EOS. Its artifacts record the token IDs and strings, generated
+token count, final token ID, and EOS-termination result. The strict
+terminal-JSON parser is unchanged.
+
+The duration cap is reduced to 45 minutes. At the unchanged `$4.50/hour` price
+cap, the worst-case new cost is `$3.375`; with `$2.1095` already spent, the
+worst-case cumulative Qwen spend is `$5.4845`, below the authorized hard total
+of `$10`.
+
+Next action: submit `qwen3-omni-compatibility-3-20260724-a4` exactly once,
+verify its private artifacts, then score the frozen three rows only if output
+conformance succeeds.
 
 ## References
 
