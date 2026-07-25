@@ -97,10 +97,17 @@ def test_quality_runner_binds_identity_and_preserves_workload_failure() -> None:
     assert f'readonly EXPECTED_REMOTE_URI="{REMOTE_URI}"' in runner
     assert IMAGE in runner
     assert MODEL_REVISION in runner
-    assert 'PYTHON_BIN="${PYTHON_BIN:-/usr/bin/python3}"' in runner
+    assert 'readonly PYTHON_BIN="/usr/bin/python3"' in runner
+    assert '${PYTHON_BIN:-' not in runner
     assert 'uv=="$UV_VERSION"' not in runner
     assert '"uv==$UV_VERSION"' in runner
     assert 'huggingface-hub==$HF_CLI_VERSION' in runner
+    assert 'import importlib.metadata' in runner
+    assert 'sysconfig.get_path("scripts")' in runner
+    assert 'UVX_BIN="$("$PYTHON_BIN" -' in runner
+    assert '"$UVX_BIN" --from "huggingface-hub==$HF_CLI_VERSION"' in runner
+    assert 'command -v uvx' not in runner
+    assert '\n  uvx --from ' not in runner
     assert "remote_prefix_is_empty" in runner
     assert '[[ -z "$listing" || "$listing" == "[]" ]]' in runner
     assert "finalize_and_sync \"$workload_rc\"" in runner
@@ -113,6 +120,13 @@ def test_quality_runner_binds_identity_and_preserves_workload_failure() -> None:
 def test_quality_collector_is_immutable_checksum_verified_and_sanitized() -> None:
     collector = COLLECTOR.read_text(encoding="utf-8")
     assert f'readonly EXPECTED_RUN_ID="{RUN_ID}"' in collector
+    assert 'readonly PYTHON_BIN="/usr/bin/python3"' in collector
+    assert '"uv==$UV_VERSION"' in collector
+    assert 'import importlib.metadata' in collector
+    assert 'sysconfig.get_path("scripts")' in collector
+    assert '"$UVX_BIN" --from "huggingface-hub==$HF_CLI_VERSION"' in collector
+    assert 'command -v uvx' not in collector
+    assert '\n  uvx --from ' not in collector
     assert "qwen3-omni-quality-10/$RUN_ID" in collector
     assert "experiments/$RUN_ID" in collector
     assert '[[ "$RUN_ID" == "$EXPECTED_RUN_ID" ]]' in collector

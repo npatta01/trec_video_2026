@@ -3,7 +3,10 @@ set -euo pipefail
 
 readonly EXPECTED_DATA_TARGET="/home/npatta01/data/competitions/trec_video_2026/data"
 readonly EXPECTED_RUN_ID="qwen3-omni-quality-10-20260725-a1"
+readonly PYTHON_BIN="/usr/bin/python3"
+readonly UV_VERSION="0.11.3"
 readonly HF_CLI_VERSION="1.24.0"
+UVX_BIN=""
 
 RUN_ID="${1:-}"
 [[ "$RUN_ID" == "$EXPECTED_RUN_ID" ]] \
@@ -22,9 +25,39 @@ REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/$RUN
 mkdir -p "$OUTPUT_DIR"
 
 hf_cli() {
-  uvx --from "huggingface-hub==$HF_CLI_VERSION" hf "$@"
+  "$UVX_BIN" --from "huggingface-hub==$HF_CLI_VERSION" hf "$@"
 }
 
+bootstrap_uv() {
+  [[ -x "$PYTHON_BIN" ]] || { echo "error: missing exact Python interpreter" >&2; exit 2; }
+  "$PYTHON_BIN" -m pip install --no-deps "uv==$UV_VERSION"
+  [[ "$("$PYTHON_BIN" -c \
+    'import importlib.metadata; print(importlib.metadata.version("uv"))')" == "$UV_VERSION" ]] \
+    || { echo "error: uv bootstrap attestation failed" >&2; exit 2; }
+  if ! UVX_BIN="$("$PYTHON_BIN" - <<'PY'
+import importlib.metadata
+import sysconfig
+from pathlib import Path
+
+distribution = importlib.metadata.distribution("uv")
+scripts_directory = Path(sysconfig.get_path("scripts")).resolve()
+uvx_path = (scripts_directory / "uvx").resolve()
+installed_paths = {
+    distribution.locate_file(path).resolve() for path in distribution.files or ()
+}
+if uvx_path not in installed_paths:
+    raise RuntimeError("pinned uv distribution does not own its uvx entry point")
+print(uvx_path)
+PY
+  )"; then
+    echo "error: could not resolve the pinned uvx entry point" >&2
+    exit 2
+  fi
+  [[ "$UVX_BIN" = /* && -x "$UVX_BIN" ]] \
+    || { echo "error: pinned uvx entry point is unavailable" >&2; exit 2; }
+}
+
+bootstrap_uv
 hf_cli buckets list "$REMOTE_URI" --format json >/dev/null
 hf_cli buckets sync "$REMOTE_URI" "$OUTPUT_DIR"
 (
@@ -33,7 +66,7 @@ hf_cli buckets sync "$REMOTE_URI" "$OUTPUT_DIR"
 )
 
 dstack run get "$RUN_ID" --json \
-  | uv run python -m trec_video_2026.vqa_experiments.dstack_metadata \
+  | PYTHONPATH="$REPO_ROOT/src" "$PYTHON_BIN" -m trec_video_2026.vqa_experiments.dstack_metadata \
       --run-id "$RUN_ID" \
       --output "$OUTPUT_DIR/dstack-run.json"
 

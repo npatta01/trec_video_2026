@@ -10,7 +10,8 @@ readonly EXPECTED_CONTRACT_SHA256="df016767b1a072770149fdc06fa47dfe7f17930b6c314
 readonly UV_VERSION="0.11.3"
 readonly HF_CLI_VERSION="1.24.0"
 
-PYTHON_BIN="${PYTHON_BIN:-/usr/bin/python3}"
+readonly PYTHON_BIN="/usr/bin/python3"
+UVX_BIN=""
 EXPERIMENT_RUN_ID="${EXPERIMENT_RUN_ID:-}"
 HF_REMOTE_URI="${HF_REMOTE_URI:-}"
 RUNTIME_IMAGE="${RUNTIME_IMAGE:-}"
@@ -52,11 +53,30 @@ bootstrap_uv() {
   [[ "$("$PYTHON_BIN" -c \
     'import importlib.metadata; print(importlib.metadata.version("uv"))')" == "$UV_VERSION" ]] \
     || die "uv bootstrap attestation failed"
-  command -v uvx >/dev/null || die "uvx is unavailable after bootstrap"
+  if ! UVX_BIN="$("$PYTHON_BIN" - <<'PY'
+import importlib.metadata
+import sysconfig
+from pathlib import Path
+
+distribution = importlib.metadata.distribution("uv")
+scripts_directory = Path(sysconfig.get_path("scripts")).resolve()
+uvx_path = (scripts_directory / "uvx").resolve()
+installed_paths = {
+    distribution.locate_file(path).resolve() for path in distribution.files or ()
+}
+if uvx_path not in installed_paths:
+    raise RuntimeError("pinned uv distribution does not own its uvx entry point")
+print(uvx_path)
+PY
+  )"; then
+    die "could not resolve the pinned uvx entry point"
+  fi
+  [[ "$UVX_BIN" = /* && -x "$UVX_BIN" ]] \
+    || die "pinned uvx entry point is unavailable"
 }
 
 hf_cli() {
-  uvx --from "huggingface-hub==$HF_CLI_VERSION" hf "$@"
+  "$UVX_BIN" --from "huggingface-hub==$HF_CLI_VERSION" hf "$@"
 }
 
 remote_prefix_is_empty() {
