@@ -37,4 +37,8 @@ Merge both detached histories with non-fast-forward merge commits. Resolve confl
 
 ## Current status
 
-The recovery branch is based on `origin/main` at `fb06b41`. Its clean baseline passes 137 tests and Ruff checks. Detached-history and loose-file audits are in progress.
+The recovery branch is based on `origin/main` at `fb06b41`. Its clean baseline passed 137 tests and Ruff checks. Both detached histories have been merged without textual conflicts. The combined benchmark history passes 706 tests, and the NIST submodule initializes at its pinned commit.
+
+Reviewed loose artifacts selected for inclusion are seven durable research reports and one provider-neutral, bounded GPU smoke test. Deliberate exclusions are duplicate/provider-specific scratch configurations, `notes.txt`, the stale unchecked evidence-routing umbrella plan, and colliding internal `.superpowers/sdd` reports containing raw-adjacent outputs and local paths.
+
+Remaining work is final combined verification, independent diff review, push, and pull-request creation.

@@ -242,16 +242,18 @@ def test_model_config_contains_frozen_matched_3b_pair() -> None:
 
 
 def test_container_provides_pinned_ffmpeg_for_native_video_audio_decode() -> None:
-    text = (
-        REPO_ROOT / "containers/vqa-gate/Containerfile.qwen-omni"
-    ).read_text(encoding="utf-8")
+    text = (REPO_ROOT / "containers/vqa-gate/Containerfile.qwen-omni").read_text(
+        encoding="utf-8"
+    )
 
     assert '"imageio-ffmpeg==0.6.0"' in text
     assert "get_ffmpeg_exe" in text
     assert "/usr/local/bin/ffmpeg" in text
 
 
-def test_empty_exception_messages_keep_actionable_repr_and_truthful_load_state() -> None:
+def test_empty_exception_messages_keep_actionable_repr_and_truthful_load_state() -> (
+    None
+):
     result = _error_result(
         type("NotInstalledError", (Exception,), {})(),
         0.0,
@@ -270,13 +272,22 @@ def test_empty_exception_messages_keep_actionable_repr_and_truthful_load_state()
 
 def passed_result(*, audio_enabled: bool = False) -> dict:
     return {
-        "status": "passed", "answer": "a bell", "elapsed_seconds": 1.0,
-        "model_id": "Qwen/Qwen2.5-Omni-3B", "model_revision": "f" * 40,
-        "runtime": "runtime", "precision": "bfloat16",
-        "device": "cuda:0 (ROCm)", "peak_memory_bytes": 1,
-        "error_type": None, "error_message": None, "native_video": True,
-        "native_audio": audio_enabled, "talker_disabled": True,
-        "return_audio": False, "transcript_included": False,
+        "status": "passed",
+        "answer": "a bell",
+        "elapsed_seconds": 1.0,
+        "model_id": "Qwen/Qwen2.5-Omni-3B",
+        "model_revision": "f" * 40,
+        "runtime": "runtime",
+        "precision": "bfloat16",
+        "device": "cuda:0 (ROCm)",
+        "peak_memory_bytes": 1,
+        "error_type": None,
+        "error_message": None,
+        "native_video": True,
+        "native_audio": audio_enabled,
+        "talker_disabled": True,
+        "return_audio": False,
+        "transcript_included": False,
     }
 
 
@@ -284,8 +295,9 @@ def test_resume_skips_only_an_exact_previously_passed_request() -> None:
     first = request(audio_mode="audio-off")
     second = request(audio_mode="audio-on")
     second["condition_id"] = "omni-audio-on"
-    attempt = build_validated_attempt(first, passed_result(),
-                                      expected_model_revision="f" * 40)
+    attempt = build_validated_attempt(
+        first, passed_result(), expected_model_revision="f" * 40
+    )
 
     assert select_pending_requests(
         [first, second], [attempt], expected_model_revision="f" * 40
@@ -322,15 +334,19 @@ def test_resume_revalidates_saved_success_provenance(mutation: dict) -> None:
 def test_attempt_validation_fails_closed_on_audio_or_accelerator_mismatch() -> None:
     payload = request(audio_mode="audio-on")
     with pytest.raises(ValueError, match="audio evidence mismatch"):
-        build_validated_attempt(payload, passed_result(audio_enabled=False),
-                                expected_model_revision="f" * 40)
+        build_validated_attempt(
+            payload,
+            passed_result(audio_enabled=False),
+            expected_model_revision="f" * 40,
+        )
     wrong_device = {**passed_result(audio_enabled=True), "device": "cpu"}
     with pytest.raises(ValueError, match="ROCm BF16"):
-        build_validated_attempt(payload, wrong_device,
-                                expected_model_revision="f" * 40)
+        build_validated_attempt(payload, wrong_device, expected_model_revision="f" * 40)
 
 
-def test_evaluation_selects_valid_pass_over_retries_and_latest_failure_otherwise() -> None:
+def test_evaluation_selects_valid_pass_over_retries_and_latest_failure_otherwise() -> (
+    None
+):
     off = request(audio_mode="audio-off")
     on = request(audio_mode="audio-on")
     on["condition_id"] = "omni-audio-on"
@@ -339,16 +355,22 @@ def test_evaluation_selects_valid_pass_over_retries_and_latest_failure_otherwise
     )
     corrupt = {**good, "device": "cpu"}
     old_failure = {
-        **good, "status": "failed", "answer": None, "device": "unknown",
+        **good,
+        "status": "failed",
+        "answer": None,
+        "device": "unknown",
         "precision": "unknown",
     }
     latest_on_failure = {
-        **old_failure, "condition_id": on["condition_id"],
-        "request": on, "request_sha256": canonical_request_sha256(on),
+        **old_failure,
+        "condition_id": on["condition_id"],
+        "request": on,
+        "request_sha256": canonical_request_sha256(on),
     }
 
     selected = select_evaluation_attempts(
-        [off, on], [old_failure, corrupt, good, latest_on_failure],
+        [off, on],
+        [old_failure, corrupt, good, latest_on_failure],
         expected_model_revision="f" * 40,
     )
 
@@ -372,8 +394,6 @@ def test_timeout_cleanup_requires_container_absence_or_stopped_state(
     expected: bool,
 ) -> None:
     assert (
-        timeout_cleanup_verified(
-            exists_returncode, inspect_returncode, running_state
-        )
+        timeout_cleanup_verified(exists_returncode, inspect_returncode, running_state)
         is expected
     )

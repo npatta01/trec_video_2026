@@ -147,9 +147,7 @@ def test_translate_text_is_deterministic_text_to_english_only() -> None:
 def test_decode_text_translation_uses_unified_model_text_tokens() -> None:
     processor = FakeProcessor()
 
-    assert decode_text_translation(processor, [[[11, 12, 3]]]) == (
-        "Where is the bag?"
-    )
+    assert decode_text_translation(processor, [[[11, 12, 3]]]) == ("Where is the bag?")
     assert processor.decode_args == ([11, 12, 3],)
 
 

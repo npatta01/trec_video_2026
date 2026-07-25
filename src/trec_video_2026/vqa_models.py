@@ -36,9 +36,7 @@ def build_controlled_messages(
             )
         )
     )
-    ordered = sorted(
-        zip(frame_timestamps, frame_paths, descriptions, strict=True)
-    )
+    ordered = sorted(zip(frame_timestamps, frame_paths, descriptions, strict=True))
     content: list[dict[str, str]] = []
     for _, frame_path, description in ordered:
         content.append({"type": "text", "text": description})

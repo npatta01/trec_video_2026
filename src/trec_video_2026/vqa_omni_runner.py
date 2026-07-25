@@ -89,9 +89,7 @@ def select_evaluation_attempts(
             expected_model_revision=expected_model_revision,
         )
 
-    return select_results_for_requests(
-        requests, attempts, validate_pass=validate_pass
-    )
+    return select_results_for_requests(requests, attempts, validate_pass=validate_pass)
 
 
 def build_validated_attempt(
@@ -115,10 +113,7 @@ def build_validated_attempt(
         or validated.get("native_audio") is not expected_audio
     ):
         raise ValueError("Qwen Omni audio evidence mismatch")
-    if (
-        validated["device"] != "cuda:0 (ROCm)"
-        or validated["precision"] != "bfloat16"
-    ):
+    if validated["device"] != "cuda:0 (ROCm)" or validated["precision"] != "bfloat16":
         raise ValueError("Qwen Omni result is not verified ROCm BF16")
     if (
         validated.get("talker_disabled") is not True
@@ -453,11 +448,15 @@ def _error_result(
     message = str(error) or repr(error)
     if len(message) > 4_000:
         message = message[:3_999] + "…"
-    unsupported = type(error).__name__ in {
-        "NotImplementedError",
-        "UnsupportedError",
-        "HIPError",
-    } or "hip error" in message.lower()
+    unsupported = (
+        type(error).__name__
+        in {
+            "NotImplementedError",
+            "UnsupportedError",
+            "HIPError",
+        }
+        or "hip error" in message.lower()
+    )
     return _result(
         "unsupported" if unsupported else "failed",
         None,

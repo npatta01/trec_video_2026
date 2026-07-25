@@ -152,9 +152,7 @@ def prepare_text_inputs(
         raise ValueError("Translation source text cannot be empty")
     if not source_language.strip():
         raise ValueError("Translation source language cannot be empty")
-    inputs = processor(
-        text=text, src_lang=source_language, return_tensors="pt"
-    )
+    inputs = processor(text=text, src_lang=source_language, return_tensors="pt")
     return inputs.to(device=device)
 
 
