@@ -43,7 +43,7 @@ Install the locked environment once with `uv sync`, then use `uv run`:
 | --- | --- | --- |
 | `vqa-download` | Prepare, monitor, or resume VQA media acquisition. | `uv run vqa-download status` |
 | `vqa-frozen30` | Run the frozen-30 benchmark workflow. | `uv run vqa-frozen30 --help` |
-| `vqa-gate` | Run the small compatibility/quality gate. | `uv run vqa-gate --help` |
+| `vqa-gate` | Preflight the small compatibility/quality gate. | `uv run vqa-gate --help` |
 | `youtube-dataset-download` | Run the general YouTube-ID downloader. | `uv run youtube-dataset-download --help` |
 
 The download commands can create or resume ignored local runtime state. Do not

@@ -5,7 +5,7 @@ project:
     - "*.qmd"
 
 website:
-  title: "TRECVID 2026 VQA: Project Status"
+  title: "TRECVID VQA Status"
   navbar:
     collapse-below: lg
     left:
@@ -25,6 +25,7 @@ format:
     theme: cosmo
     css: styles.css
     embed-resources: true
+    format-links: false
     metadata:
       report-ext: qmd
     toc: true
