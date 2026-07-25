@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 RUN_ID = "qwen3-omni-quality-10-20260725-a1"
@@ -19,6 +20,7 @@ CONTRACT = Path("data/vqa/benchmarks/qwen3-omni-quality-10/contract.json")
 CONFIG = Path("dstack/qwen3-omni-quality-10.dstack.yml")
 RUNNER = Path("scripts/run-qwen3-omni-quality-dstack.sh")
 COLLECTOR = Path("scripts/collect-qwen3-omni-quality-dstack.sh")
+COLLECTOR_LIB = Path("scripts/qwen3-omni-quality-collector-lib.sh")
 
 
 def _config() -> str:
@@ -138,6 +140,48 @@ def test_quality_collector_is_immutable_checksum_verified_and_sanitized() -> Non
     assert "trec_video_2026.vqa_experiments.dstack_metadata" in collector
     assert "artifact-hashes.sha256" in collector
     assert 'mktemp -d "${OUTPUT_DIR}.tmp.XXXXXX"' in collector
-    assert 'mv "$TEMP_OUTPUT_DIR" "$OUTPUT_DIR"' in collector
+    assert 'publish_verified_output "$TEMP_OUTPUT_DIR" "$OUTPUT_DIR"' in collector
     assert 'trap \'rm -rf "$TEMP_OUTPUT_DIR"\' EXIT' in collector
     assert "--delete" not in collector
+
+
+def test_quality_collector_publish_race_fails_without_nesting_or_leaking_temp(
+    tmp_path: Path,
+) -> None:
+    """Catches a concurrent destination creation being treated as publication."""
+    temporary_output = tmp_path / "run.tmp.ABC123"
+    output = tmp_path / "run"
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            r'''
+set -euo pipefail
+source "$1"
+TEMP_OUTPUT_DIR="$2"
+OUTPUT_DIR="$3"
+mkdir "$TEMP_OUTPUT_DIR"
+touch "$TEMP_OUTPUT_DIR/verified-artifact"
+trap 'rm -rf "$TEMP_OUTPUT_DIR"' EXIT
+mv() {
+  mkdir "$OUTPUT_DIR"
+  command mv "$@"
+}
+publish_verified_output "$TEMP_OUTPUT_DIR" "$OUTPUT_DIR"
+trap - EXIT
+''',
+            "collector-race-test",
+            str(COLLECTOR_LIB.resolve()),
+            str(temporary_output),
+            str(output),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "refusing to publish over existing output" in result.stderr
+    assert output.is_dir()
+    assert not (output / temporary_output.name).exists()
+    assert not temporary_output.exists()

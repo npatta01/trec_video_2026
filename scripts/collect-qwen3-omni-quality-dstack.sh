@@ -13,6 +13,7 @@ RUN_ID="${1:-}"
   || { echo "error: expected immutable run ID $EXPECTED_RUN_ID" >&2; exit 2; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/qwen3-omni-quality-collector-lib.sh"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DATA_LINK="$REPO_ROOT/data"
 [[ -L "$DATA_LINK" ]] || { echo "error: data must be a symlink" >&2; exit 2; }
@@ -80,6 +81,6 @@ dstack run get "$RUN_ID" --json \
   sha256sum -c artifact-hashes.sha256
 )
 
-mv "$TEMP_OUTPUT_DIR" "$OUTPUT_DIR"
+publish_verified_output "$TEMP_OUTPUT_DIR" "$OUTPUT_DIR"
 trap - EXIT
 echo "$OUTPUT_DIR"
