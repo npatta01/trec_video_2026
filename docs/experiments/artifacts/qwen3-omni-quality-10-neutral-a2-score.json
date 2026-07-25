@@ -1,0 +1,444 @@
+{
+  "aggregate": {
+    "all_conditions": {
+      "correct": 8,
+      "normalized_exact_match": 0.1,
+      "partial": 5,
+      "token_f1": 0.2249503955314572,
+      "wrong": 7
+    },
+    "frames-native-audio": {
+      "correct": 5,
+      "normalized_exact_match": 0.1,
+      "partial": 2,
+      "token_f1": 0.220422693837328,
+      "wrong": 3
+    },
+    "frames-only": {
+      "correct": 3,
+      "normalized_exact_match": 0.1,
+      "partial": 3,
+      "token_f1": 0.22947809722558646,
+      "wrong": 4
+    }
+  },
+  "comparison_to_a1": {
+    "a1_run_id": "qwen3-omni-quality-10-20260725-a1",
+    "a1_score_artifact_sha256": "a54e8773f8550f8eb30b43131292d201bd1a80a0f06a017cfa44e0ea83634084",
+    "all_conditions": {
+      "correct_delta": 0,
+      "normalized_exact_match_delta": 0.0,
+      "partial_delta": 2,
+      "token_f1_delta": -0.013193822182633819,
+      "wrong_delta": -2
+    },
+    "frames-native-audio": {
+      "correct_delta": 2,
+      "normalized_exact_match_delta": 0.0,
+      "partial_delta": 0,
+      "token_f1_delta": -0.039595186832726614,
+      "wrong_delta": -2
+    },
+    "frames-only": {
+      "correct_delta": -2,
+      "normalized_exact_match_delta": 0.0,
+      "partial_delta": 2,
+      "token_f1_delta": 0.013207542467458977,
+      "wrong_delta": 0
+    },
+    "judgment_transitions": {
+      "frames-native-audio": {
+        "C->C": 3,
+        "P->C": 1,
+        "P->P": 1,
+        "W->C": 1,
+        "W->P": 1,
+        "W->W": 3
+      },
+      "frames-only": {
+        "C->C": 3,
+        "C->P": 2,
+        "P->P": 1,
+        "W->W": 4
+      }
+    }
+  },
+  "examples": [
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/Mi-NpnCBegw.json",
+      "answer": "Mumble",
+      "audio_enabled": false,
+      "condition_id": "frames-only",
+      "diagnostic_recovery": null,
+      "judgment": "C",
+      "judgment_reason": "Matches the demonstrated final synonym.",
+      "normalized_exact_match": 1.0,
+      "operational_tag": "lexical_speech",
+      "pair_index": 0,
+      "reference_sha256": "314269f420a406c00ac1eb0db85369bedf5b24b7666d663fd4aa4365a5296afe",
+      "token_f1": 1.0,
+      "video_id": "Mi-NpnCBegw"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/Mi-NpnCBegw.json",
+      "answer": "Mumble",
+      "audio_enabled": true,
+      "condition_id": "frames-native-audio",
+      "diagnostic_recovery": null,
+      "judgment": "C",
+      "judgment_reason": "Matches the demonstrated final synonym.",
+      "normalized_exact_match": 1.0,
+      "operational_tag": "lexical_speech",
+      "pair_index": 0,
+      "reference_sha256": "314269f420a406c00ac1eb0db85369bedf5b24b7666d663fd4aa4365a5296afe",
+      "token_f1": 1.0,
+      "video_id": "Mi-NpnCBegw"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/NN7G28sBOlY.json",
+      "answer": "il est de 2012 !",
+      "audio_enabled": false,
+      "condition_id": "frames-only",
+      "diagnostic_recovery": null,
+      "judgment": "W",
+      "judgment_reason": "Answers a different proposition instead of the requested reply.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "lexical_speech_prompt_repair",
+      "pair_index": 1,
+      "reference_sha256": "97165eaf9e43f013d3114abe560884cf32a0a73dff0fbef95e5c96639bca681c",
+      "token_f1": 0.0,
+      "video_id": "NN7G28sBOlY"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/NN7G28sBOlY.json",
+      "answer": "2012",
+      "audio_enabled": true,
+      "condition_id": "frames-native-audio",
+      "diagnostic_recovery": null,
+      "judgment": "W",
+      "judgment_reason": "Answers a different proposition instead of the requested reply.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "lexical_speech_prompt_repair",
+      "pair_index": 1,
+      "reference_sha256": "97165eaf9e43f013d3114abe560884cf32a0a73dff0fbef95e5c96639bca681c",
+      "token_f1": 0.0,
+      "video_id": "NN7G28sBOlY"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/NUmb2P3Bzu8.json",
+      "answer": "The speaker shows emotional intensity through wide-open mouth, expressive facial expressions, and emphatic hand gestures such as raising hands and leaning forward.",
+      "audio_enabled": false,
+      "condition_id": "frames-only",
+      "diagnostic_recovery": null,
+      "judgment": "P",
+      "judgment_reason": "Captures visible intensity but omits the central vocal escalation.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "prosody",
+      "pair_index": 2,
+      "reference_sha256": "3dcde31edd24ed3a0a67f18a485e9d16965f35d916dc0cd35b9897c61c9fa0a0",
+      "token_f1": 0.24390243902439024,
+      "video_id": "NUmb2P3Bzu8"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/NUmb2P3Bzu8.json",
+      "answer": "The speaker's emotional state is evident from his tense facial expression, forceful tone of voice, and animated hand gestures while discussing the topic.",
+      "audio_enabled": true,
+      "condition_id": "frames-native-audio",
+      "diagnostic_recovery": null,
+      "judgment": "C",
+      "judgment_reason": "Identifies both vocal escalation and emphatic visible behavior.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "prosody",
+      "pair_index": 2,
+      "reference_sha256": "3dcde31edd24ed3a0a67f18a485e9d16965f35d916dc0cd35b9897c61c9fa0a0",
+      "token_f1": 0.2926829268292683,
+      "video_id": "NUmb2P3Bzu8"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/NkXPPJoZ-h8.json",
+      "answer": "Meowing",
+      "audio_enabled": false,
+      "condition_id": "frames-only",
+      "diagnostic_recovery": null,
+      "judgment": "P",
+      "judgment_reason": "Identifies the animal vocalization but not its specified form.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "non_speech_sound",
+      "pair_index": 3,
+      "reference_sha256": "97fb74d10c4d7934cc168f8038e53f2ede7760faf39dd5f92db213009b9827f0",
+      "token_f1": 0.0,
+      "video_id": "NkXPPJoZ-h8"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/NkXPPJoZ-h8.json",
+      "answer": "A cat meowing in a high-pitched, distorted manner that sounds like a scream.",
+      "audio_enabled": true,
+      "condition_id": "frames-native-audio",
+      "diagnostic_recovery": {
+        "policy": "pinned-terminal-fenced-json",
+        "raw_output_sha256": "0dbb246367b2abdd7e1810d39597acf2cab9326c453e54db3299d07dd719872a",
+        "recovered_answer_sha256": "dbe7926c0c3c23fe0a55260fc5d3776179f147923363b9f894cd00e4a6dfd2c6",
+        "recovered_json_sha256": "18840290aa53e7195b2348f6c7921f6df09159457323228a0df33ca2c9ab87ca"
+      },
+      "judgment": "C",
+      "judgment_reason": "Identifies the source and the scream-like character of the sound.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "non_speech_sound",
+      "pair_index": 3,
+      "reference_sha256": "97fb74d10c4d7934cc168f8038e53f2ede7760faf39dd5f92db213009b9827f0",
+      "token_f1": 0.16666666666666669,
+      "video_id": "NkXPPJoZ-h8"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/IWSPAfCKtV8.json",
+      "answer": "There is no sound specified or visible in the final frames of the video.",
+      "audio_enabled": false,
+      "condition_id": "frames-only",
+      "diagnostic_recovery": null,
+      "judgment": "W",
+      "judgment_reason": "Does not identify the requested end sound.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "endpoint_sound",
+      "pair_index": 4,
+      "reference_sha256": "6c827477d8fde56a708b72c20a160c645b9846012569772908ef36c1a750dbb2",
+      "token_f1": 0.0,
+      "video_id": "IWSPAfCKtV8"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/IWSPAfCKtV8.json",
+      "answer": "A musical chord from the song 'Spring' (\uc6b0\uc5f0\ud788 \ubd04).",
+      "audio_enabled": true,
+      "condition_id": "frames-native-audio",
+      "diagnostic_recovery": null,
+      "judgment": "W",
+      "judgment_reason": "Names a different end sound.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "endpoint_sound",
+      "pair_index": 4,
+      "reference_sha256": "6c827477d8fde56a708b72c20a160c645b9846012569772908ef36c1a750dbb2",
+      "token_f1": 0.0,
+      "video_id": "IWSPAfCKtV8"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/CH8Dp7EgW4I.json",
+      "answer": "He turns to look at the boy who shoved him.",
+      "audio_enabled": false,
+      "condition_id": "frames-only",
+      "diagnostic_recovery": null,
+      "judgment": "W",
+      "judgment_reason": "Describes an intervening look rather than the requested action.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "temporal_action",
+      "pair_index": 5,
+      "reference_sha256": "1f133cbdba53880dc228d845c16c387d96506fcd958d1f290c24c0290d96b0a7",
+      "token_f1": 0.23529411764705882,
+      "video_id": "CH8Dp7EgW4I"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/CH8Dp7EgW4I.json",
+      "answer": "He stands up straighter and raises his arms to the side while moving his body.",
+      "audio_enabled": true,
+      "condition_id": "frames-native-audio",
+      "diagnostic_recovery": null,
+      "judgment": "P",
+      "judgment_reason": "Describes dance-like body movement without identifying the dance.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "temporal_action",
+      "pair_index": 5,
+      "reference_sha256": "1f133cbdba53880dc228d845c16c387d96506fcd958d1f290c24c0290d96b0a7",
+      "token_f1": 0.09090909090909091,
+      "video_id": "CH8Dp7EgW4I"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/EtNOkUJd5w8.json",
+      "answer": "He released the basketball hoop net.",
+      "audio_enabled": false,
+      "condition_id": "frames-only",
+      "diagnostic_recovery": null,
+      "judgment": "W",
+      "judgment_reason": "Gives an unrelated preceding event.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "temporal_action",
+      "pair_index": 6,
+      "reference_sha256": "9398e869ace4344bd6f5a4f27ab19f706844e321e7d80be7949f56eb9516d14d",
+      "token_f1": 0.14285714285714285,
+      "video_id": "EtNOkUJd5w8"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/EtNOkUJd5w8.json",
+      "answer": "He released the basketball hoop net.",
+      "audio_enabled": true,
+      "condition_id": "frames-native-audio",
+      "diagnostic_recovery": null,
+      "judgment": "W",
+      "judgment_reason": "Gives an unrelated preceding event.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "temporal_action",
+      "pair_index": 6,
+      "reference_sha256": "9398e869ace4344bd6f5a4f27ab19f706844e321e7d80be7949f56eb9516d14d",
+      "token_f1": 0.14285714285714285,
+      "video_id": "EtNOkUJd5w8"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/Gp4LVTn3YbY.json",
+      "answer": "She makes a crunching sound and then reacts to the sour taste of the candy.",
+      "audio_enabled": false,
+      "condition_id": "frames-only",
+      "diagnostic_recovery": null,
+      "judgment": "P",
+      "judgment_reason": "Captures crunching and sourness but omits the verbal response.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "cross_modal_reaction",
+      "pair_index": 7,
+      "reference_sha256": "36c817041d2f758f45f81c43fe7a002b08b1c266b638d915e65ed462996ef860",
+      "token_f1": 0.2727272727272727,
+      "video_id": "Gp4LVTn3YbY"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/Gp4LVTn3YbY.json",
+      "answer": "She makes a crunching sound while saying 'so crunch!'",
+      "audio_enabled": true,
+      "condition_id": "frames-native-audio",
+      "diagnostic_recovery": null,
+      "judgment": "P",
+      "judgment_reason": "Captures crunching but omits the sour verbal reaction.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "cross_modal_reaction",
+      "pair_index": 7,
+      "reference_sha256": "36c817041d2f758f45f81c43fe7a002b08b1c266b638d915e65ed462996ef860",
+      "token_f1": 0.11111111111111112,
+      "video_id": "Gp4LVTn3YbY"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/EMI_anpHII4.json",
+      "answer": "A felt robin ornament",
+      "audio_enabled": false,
+      "condition_id": "frames-only",
+      "diagnostic_recovery": null,
+      "judgment": "C",
+      "judgment_reason": "Identifies an ornament type consistent with the target.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "spatial_visual_control",
+      "pair_index": 8,
+      "reference_sha256": "2f972d70667aff038825003565662cad64a42853f84a4ade9d2d585a98cf6a9d",
+      "token_f1": 0.4,
+      "video_id": "EMI_anpHII4"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/EMI_anpHII4.json",
+      "answer": "A felt robin ornament",
+      "audio_enabled": true,
+      "condition_id": "frames-native-audio",
+      "diagnostic_recovery": null,
+      "judgment": "C",
+      "judgment_reason": "Identifies an ornament type consistent with the target.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "spatial_visual_control",
+      "pair_index": 8,
+      "reference_sha256": "2f972d70667aff038825003565662cad64a42853f84a4ade9d2d585a98cf6a9d",
+      "token_f1": 0.4,
+      "video_id": "EMI_anpHII4"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/LusRurRrmf0.json",
+      "answer": "1",
+      "audio_enabled": false,
+      "condition_id": "frames-only",
+      "diagnostic_recovery": null,
+      "judgment": "C",
+      "judgment_reason": "Numeric answer is semantically equivalent to the target.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "counting_visual_control",
+      "pair_index": 9,
+      "reference_sha256": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+      "token_f1": 0.0,
+      "video_id": "LusRurRrmf0"
+    },
+    {
+      "annotation_path": "data/vqa/2025/training/annotations/LusRurRrmf0.json",
+      "answer": "1",
+      "audio_enabled": true,
+      "condition_id": "frames-native-audio",
+      "diagnostic_recovery": null,
+      "judgment": "C",
+      "judgment_reason": "Numeric answer is semantically equivalent to the target.",
+      "normalized_exact_match": 0.0,
+      "operational_tag": "counting_visual_control",
+      "pair_index": 9,
+      "reference_sha256": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+      "token_f1": 0.0,
+      "video_id": "LusRurRrmf0"
+    }
+  ],
+  "instruction_profile": "neutral",
+  "instruction_sha256": "44b83ed11a2b9b8a62584302b126fb8eec13b03c55acb57d08b146f41c5e09a6",
+  "manual_adjudication": {
+    "blinded": false,
+    "reviewer_count": 1,
+    "rubric": "answer-only C/P/W"
+  },
+  "paired_deltas": {
+    "audio_minus_frames": {
+      "judgment_transitions": {
+        "C->C": 3,
+        "P->C": 2,
+        "P->P": 1,
+        "W->P": 1,
+        "W->W": 3
+      },
+      "normalized_exact_match": 0.0,
+      "token_f1": -0.00905540338825848
+    }
+  },
+  "post_hoc_semantic_diagnostic": {
+    "eligible_for_strict_gate": false,
+    "qualifying_audio_improvements": [
+      "NUmb2P3Bzu8",
+      "NkXPPJoZ-h8",
+      "CH8Dp7EgW4I"
+    ],
+    "recovered_rows": 1,
+    "recovery": {
+      "policy": "pinned-terminal-fenced-json",
+      "raw_output_sha256": "0dbb246367b2abdd7e1810d39597acf2cab9326c453e54db3299d07dd719872a",
+      "recovered_answer_sha256": "dbe7926c0c3c23fe0a55260fc5d3776179f147923363b9f894cd00e4a6dfd2c6",
+      "recovered_json_sha256": "18840290aa53e7195b2348f6c7921f6df09159457323228a0df33ca2c9ab87ca"
+    },
+    "semantic_conditions_met": true,
+    "visual_control_regressions": []
+  },
+  "predictions_sha256": "48f411538ba4e7118a08d9da5d4917f08bbf06f9694211e355c4d80ad678be08",
+  "quality_contract_sha256": "df016767b1a072770149fdc06fa47dfe7f17930b6c3145af4e92f55d58f4ddeb",
+  "reference_hash_contract": "SHA-256 of exact UTF-8 correct_answer text without a trailing newline",
+  "run_id": "qwen3-omni-quality-10-neutral-20260725-a2",
+  "runtime": {
+    "cost_usd": 1.7253,
+    "cumulative_qwen_cost_usd": 6.3131,
+    "elapsed_seconds": 1414.836509,
+    "next_full_run_within_budget": false,
+    "next_full_run_worst_case_usd": 10.8131
+  },
+  "schema_version": 1,
+  "scorer": {
+    "primary_metric_contract": {
+      "source": "src/trec_video_2026/vqa_evaluation.py",
+      "source_commit": "44d59446bcb26df292fb2094aadaf5b24b0b0208",
+      "source_sha256": "0cdd46df8347f3ba6e0986c9da349f6d89b41aa2ecfb15f637570a15f7480712"
+    },
+    "primary_metrics": [
+      "normalized_exact_match",
+      "token_f1"
+    ],
+    "source": "src/trec_video_2026/vqa_experiments/qwen3_omni_quality_neutral_scoring.py",
+    "source_sha256": "73a3829f79cc8df6bfd89368288e6d6e085faad0b034150be89cefcd1105faf1"
+  },
+  "strict_result": {
+    "eligible": false,
+    "failed_condition_id": "frames-native-audio",
+    "failed_video_id": "NkXPPJoZ-h8",
+    "failure_type": "output_parse_error",
+    "run_succeeded": false,
+    "strict_failed_rows": 1,
+    "strict_passed_rows": 19
+  }
+}

@@ -1,0 +1,7 @@
+/.agents/
+/.ruff_cache/
+/.superpowers/
+/docs/
+/plans/
+/reports/
+/tests/
