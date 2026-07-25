@@ -1,1 +1,1 @@
-"""Label-isolated VQA diagnostic experiment tooling."""
+"""VQA experiment contracts, runners, and diagnostic tooling."""
