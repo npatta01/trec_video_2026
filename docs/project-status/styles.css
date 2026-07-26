@@ -46,6 +46,73 @@ h1 {
   max-width: 68ch;
 }
 
+.lifecycle-banner {
+  border: 1px solid var(--status-border);
+  border-left: 0.35rem solid var(--status-accent);
+  border-radius: 0.4rem;
+  background: var(--status-panel);
+  margin-block: 0.5rem 1.5rem;
+  padding: 0.8rem 1rem;
+}
+
+.lifecycle-banner p {
+  margin: 0;
+}
+
+.decision-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-block: 1rem;
+}
+
+.decision-item {
+  border: 1px solid var(--status-border);
+  border-top: 0.3rem solid var(--status-accent);
+  border-radius: 0.4rem;
+  background: var(--status-panel);
+  padding: 0.75rem;
+}
+
+.decision-item p {
+  margin-block: 0 0.35rem;
+}
+
+.status-breadcrumb {
+  color: var(--status-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-block: 0.25rem 1rem;
+}
+
+.trace-label {
+  color: var(--status-accent-dark);
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  margin-block: 0.5rem 1.25rem;
+  text-transform: uppercase;
+}
+
+.timestamp-storyboard {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-block: 1rem;
+}
+
+.timestamp-card {
+  border: 1px solid var(--status-border);
+  border-radius: 0.4rem;
+  background: var(--status-panel);
+  min-height: 6.5rem;
+  padding: 0.7rem;
+}
+
+.timestamp-card p {
+  margin: 0;
+}
+
 .theme-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -186,6 +253,15 @@ code {
 
   .theme-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .decision-strip,
+  .timestamp-storyboard {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .timestamp-card {
+    min-height: 0;
   }
 
   table {

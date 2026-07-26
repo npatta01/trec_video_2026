@@ -210,7 +210,7 @@ evidence clears both annotations and media for a real case.
 - Produces: the newcomer path and stable `worked-example` route linked by Tasks
   3–5.
 
-- [ ] **Step 1: Rewrite the Start Here opening**
+- [x] **Step 1: Rewrite the Start Here opening**
 
 Put these visible sections before model/metric detail:
 
@@ -226,7 +226,7 @@ Define VQA, frame budget, uniform sampling, ASR, lexical speech, frozen
 prediction, and label-blind at first use. Preserve the evidence boundary that
 2026 evaluation quality remains unknown.
 
-- [ ] **Step 2: Convert the current decisions to a compact decision strip**
+- [x] **Step 2: Convert the current decisions to a compact decision strip**
 
 Use text labels with short plain-language descriptions:
 
@@ -241,7 +241,7 @@ Do not default — global 24 frames and tested directed/burst heuristics
 Keep the full router diagram in a native disclosure titled `Expand the full
 evidence router`; retain its alt text, caption, and plain-text equivalent.
 
-- [ ] **Step 3: Author `worked-example.qmd`**
+- [x] **Step 3: Author `worked-example.qmd`**
 
 Use this exact section order:
 
@@ -265,13 +265,13 @@ publishable asset, show an optimized contact sheet/timeline with timestamps;
 otherwise show a timestamp timeline and text equivalent without pixel media.
 Never invent intermediate reasoning.
 
-- [ ] **Step 4: Add a compact newcomer glossary**
+- [x] **Step 4: Add a compact newcomer glossary**
 
 Define `C/P/W`, exact match, token F1, METEOR, panel, stratum, promotion gate,
 and protocol version. Place each definition near first use and keep a lookup
 table at the end of Start Here.
 
-- [ ] **Step 5: Render the two sources in an isolated temporary copy**
+- [x] **Step 5: Render the two sources in an isolated temporary copy**
 
 Run:
 
