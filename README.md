@@ -34,7 +34,9 @@ Choose the path that matches your goal:
 2. **Understand current experiment decisions:** begin with the
    [project-status pages](docs/project-status/index.md), then the frozen-30
    [benchmark results](reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
-3. **Understand historical context:** use the [report index](reports/trecvid_vqa_2026/README.md)
+3. **Add an experiment or result:** follow the
+   [experiment and result guide](docs/project-status/adding-experiments.md).
+4. **Understand historical context:** use the [report index](reports/trecvid_vqa_2026/README.md)
    and the [execution-plan index](plans/README.md). Historical checklists and
    earlier conclusions are records, not live work queues.
 

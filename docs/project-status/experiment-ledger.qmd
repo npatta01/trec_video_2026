@@ -171,6 +171,10 @@ did not support.
 
 <span id="what-to-investigate-next" class="legacy-fragment-alias" aria-hidden="true"></span>
 
+Before turning a branch into a run or result, use the
+[Adding Experiments and Results guide · Report page](adding-experiments.{{< meta report-ext >}})
+to declare its boundary and choose its primary theme.
+
 ## Branch-complete next-test queue
 
 These branches are independent choices; their numbering is for reference, not
