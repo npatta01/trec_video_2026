@@ -10,6 +10,11 @@ expert reviewers
 **Delivery:** GitHub-readable Markdown plus self-contained HTML on the existing
 private tailnet-only portal until the repository is intentionally made public
 
+**Approved refinement:** Integrate legacy experiment bookmarks into the six
+current research themes, add source-video and relevant-moment links without
+redistributing media, and provide a native light/dark presentation with
+text-labelled evidence states.
+
 ## Objective
 
 Turn the current status site into an approachable living research memory. A
@@ -91,6 +96,32 @@ navigation row on deep pages. Replace the large `Back to Research Themes`
 heading with a quiet breadcrumb. The worked example's primary breadcrumb parent
 is Start Here; the Failure Library and six theme pages belong to Research
 Themes.
+
+### Legacy experiment routing
+
+Earlier experiments are not a seventh research area. Group each one into its
+current thematic home:
+
+| Current theme | Earlier records grouped there |
+|---|---|
+| Experiment integrity and evaluation | Field guide, data readiness, compatibility gate, and Frozen-30 protocol integrity |
+| Visual and temporal evidence | Frame budgets, directed sampling, dense bursts, and spatial-crop diagnostics |
+| Speech and transcript evidence | Automatic-transcript ablation, Seamless, and human/reference transcript controls |
+| Native audio and sound | Audio-on/off, prosody, non-speech, and sound-event diagnostics |
+| Models and adaptation | Qwen3.6, Phi/Gemma, and Qwen3-Omni compatibility and quality screens |
+| Routing, fusion, and answer selection | Specialist routing, taxonomy, retrieval, evidence use, and answer selection |
+
+Remove the visible nineteen-row compatibility index. Preserve its existing
+fragment IDs as zero-height aliases inside the corresponding six theme cards on
+the hub, so an old `experiment-ledger.html#...` bookmark lands on a meaningful
+current destination. Generic former anchors such as the research-question map
+belong at the six-theme map itself. A record spanning themes receives one
+primary home and explicit related-theme links; it is not duplicated.
+
+Keep only cross-cutting supersession, chronology, and issue/PR history in a
+bottom-of-page **History and provenance** section. Make that section unlisted
+from the page contents and put its detailed tables in native disclosures. Do
+not create a separate legacy page or add redirect JavaScript.
 
 ## Progressive disclosure contract
 
@@ -178,13 +209,18 @@ The hub remains thematic and non-linear. It contains:
    ASR, human/reference transcript controls, routed native audio/sound, model
    repair/adaptation, and routing/fusion;
 6. status-vocabulary and result-interpretation guidance;
-7. collapsed supersession and chronology indexes.
+7. a collapsed, unlisted **History and provenance** appendix containing
+   supersession, chronology, and the issue/PR trail.
 
 The matrix is an index, not another prose ledger. Each cell contains a short
 status token and a link to the canonical theme-page record. Detailed findings
 remain owned by the theme pages. Shared one-line status content may live in a
 QMD include so Start Here and the hub cannot drift, but no separate structured
 data system is introduced.
+
+Legacy experiment aliases live on the six existing theme cards rather than in
+a second visible hierarchy. The theme page's **What has been tried** section is
+the canonical readable home for both current and earlier experiment records.
 
 ## Theme-page contract
 
@@ -224,12 +260,27 @@ source. Keep the first release to three to five carefully selected cases. Do
 not create per-case files or a schema framework until page size or contribution
 volume demonstrates the need.
 
-Each case uses a consistent QMD section template. Its visible card stays small:
+Each case uses a consistent QMD section template. Its visible content reads as
+one evidence trace:
+
+`source and question → evidence received → frozen prediction → grade → possible
+failure location → bug status → next falsifying test`
+
+The card stays compact:
 
 - **What failed** — the question or failure in plain language;
+- **Source media** — source ID, original-video link, relevant-moment link when a
+  trustworthy timestamp exists, and `external source; media not redistributed`;
+- **Evidence received** — frame policy/timestamps and transcript or native-audio
+  treatment, without reconstructing hidden reasoning;
 - **Change tried** — the intervention and matched control;
 - **Result** — prediction versus allowed expected-answer disclosure and grade;
-- **Diagnosis** — leading explanation plus competing explanation;
+- **Possible failure location** — acquisition/runtime, evidence
+  extraction/retrieval, gate/routing, fusion/evidence use, answer
+  selection/output contract, scoring/adjudication, or unknown;
+- **Diagnosis and bug status** — leading explanation plus competing explanation,
+  separately labelled as confirmed defect, audit gap, post-hoc diagnosis, open
+  hypothesis, or unknown;
 - **Limit** — what this selected case cannot establish;
 - **Next test** — the smallest falsifying comparison.
 
@@ -239,6 +290,7 @@ theme. Put the remaining reproducibility and provenance fields inside a native
 disclosure named **Evidence received, run details, grading, and provenance**:
 
 - question and why it is hard;
+- source URL, source availability, relevant interval, and media-rights status;
 - evidence configuration: model/revision, frame policy/count, audio/transcript
   treatment, prompt ID, and decoding settings where known;
 - what the model received: publishable contact sheet or timestamps, accepted
@@ -264,24 +316,41 @@ library, not prevalence or a leaderboard.
 The user intends the canonical Git report to become public after the
 competition, so the design supports real examples rather than a permanently
 private gallery. Publication intent does not itself grant redistribution
-rights. The report therefore fails closed:
+rights, and private/internal access does not automatically change that rights
+boundary. The report therefore uses a link-only media policy unless a later
+rights record clears redistribution:
 
 - no 2026 evaluation row, reference answer, frame, transcript, or prediction is
   admissible;
-- a 2025 training case may appear only when its annotations and media can be
-  redistributed under the project's rights record;
+- a verified 2025 training case may expose its already-tracked source ID, a
+  direct platform-hosted original-video URL, and a timestamped relevant-moment
+  URL; those links do not copy the video into the repository or report;
+- the visible question remains a verified paraphrase unless its annotation text
+  has a separate disclosure basis; expected answers and transcript excerpts
+  remain subject to their existing disclosure gates;
 - pixel media requires a recorded rights class, source/license, verifier, and
   verification date;
 - audio clips, generated audio previews, waveforms, and spectrogram derivatives
   require the same documented rights, provenance, verifier, and verification
   date; when unclear, use text-only timing or sound-event descriptions;
 - expected answers use `full`, `answer-class only`, or `withheld` disclosure;
-- ambiguous rights use a text-only timestamp/timeline or a self-recorded,
-  synthetic, public-domain, or otherwise cleared stand-in;
+- ambiguous rights use an outbound source link plus a text-only
+  timestamp/timeline, or a self-recorded, synthetic, public-domain, or otherwise
+  cleared stand-in;
 - raw videos and large contact sheets do not enter Git history; use optimized
   stills only when they materially aid understanding;
+- do not embed a YouTube player, remote thumbnail, or other runtime third-party
+  media request in the self-contained report;
 - self-contained HTML embeds included media, so the same rights gate applies to
   both source assets and rendered output.
+
+This is a conservative publication policy, not a legal conclusion that a small
+research contact sheet could never qualify as fair use. Fair use is
+fact-specific, and a private or noncommercial purpose is only one factor. Until
+the project records a redistribution basis, link to the source rather than copy
+its pixels. See the [U.S. Copyright Office fair-use
+overview](https://www.copyright.gov/fair-use/more-info.html) and [YouTube Terms
+of Service](https://uk.youtube.com/t/terms).
 
 The canonical public-safe rights attestation lives inside the media-bearing
 case's QMD section, under its provenance disclosure. It records: asset ID,
@@ -343,14 +412,41 @@ first three-to-five-case revision.
 
 ## Visual system
 
+### Light, dark, and status presentation
+
+Use Quarto's native dual-theme support with the same offline Cosmo foundation
+in both modes. Show the built-in light/dark selector, respect the reader's
+system preference, remember the explicit selection, and keep all required CSS
+and toggle assets inside the self-contained HTML. Use mode-specific page,
+surface, text, muted-text, border, link, focus, and Mermaid tokens; remove
+hard-coded white surfaces and dark-only diagram text.
+
+Use a restrained semantic status vocabulary, always with visible text and a
+non-color cue such as an outlined chip or left border:
+
+| Meaning | Visual family |
+|---|---|
+| **Use now / verified** | teal |
+| **Routed / informational** | blue |
+| **Diagnostic / experimental / open** | amber |
+| **Not promoted under the tested condition** | muted rose |
+| **Blocked / unknown / historical** | slate or violet |
+
+Color never distinguishes the six research themes themselves; theme identity
+comes from headings and links. In failure traces, use subtle field accents for
+evidence, observed result, diagnosis/uncertainty, limit/provenance, and next
+test without tinting entire cards. Provide a two-color keyboard focus ring,
+forced-colors support, minimum target sizing for disclosures and the theme
+toggle, and a light, ink-efficient print treatment.
+
 Use approximately five information-bearing visuals across the site, reusing
 existing figures where they remain canonical:
 
 1. **Current evidence router** — compact by default, expandable full diagram,
    with visible text equivalent.
 2. **One-answer storyboard** — question through freeze and grade.
-3. **What twelve frames means** — an authorized contact sheet or schematic
-   timestamp timeline.
+3. **What twelve frames means** — a schematic timestamp timeline by default,
+   with an authorized contact sheet only after rights clearance.
 4. **Anatomy of a failure** — retrieval versus evidence-use versus output or
    grading failure.
 5. **Research-theme state map** — non-linear theme cards or matrix, with no
@@ -379,18 +475,22 @@ communicated in text, never by color alone.
 Use lightweight documentation verification only:
 
 1. render every QMD to GitHub-readable Markdown and self-contained HTML;
-2. verify desktop and 390-pixel phone layouts, navigation, disclosure controls,
-   focus, readability, and horizontal overflow;
+2. verify desktop and 390-pixel phone layouts in light and dark modes,
+   navigation, the theme selector, disclosure controls, focus, readability, and
+   horizontal overflow;
 3. verify every visual has alt text, caption, and nearby text/table equivalent;
 4. verify every failure record contains the agreed visible fields and that no
    2026 evaluation row appears;
-5. inspect committed media rights records and generated HTML embedding;
-6. check repository-relative links and classify GitHub links as accessible,
+5. verify every selected failure case has a working original-video link,
+   relevant-moment link when supported, and an explicit link-only media status;
+6. inspect any committed media rights records and generated HTML embedding;
+7. check repository-relative links and classify GitHub links as accessible,
    authentication-required, or broken;
-7. run `git diff --check` and a brief secret/private-data scan over generated
+8. run `git diff --check` and a brief secret/private-data scan over generated
    outputs;
-8. compare source QMD, generated Markdown, local HTML, and live portal copies;
-9. confirm the Tailscale mapping remains tailnet-only.
+9. verify all legacy fragments resolve to their intended current theme card;
+10. compare source QMD, generated Markdown, local HTML, and live portal copies;
+11. confirm the Tailscale mapping remains tailnet-only.
 
 Do not run the application test suite and do not add a custom report test suite.
 
@@ -412,6 +512,11 @@ An expert can answer:
 - what evidence the model actually received and produced on a failure case;
 - what matched, label-blind experiment could falsify the current answer;
 - where the immutable evidence, decision history, and implementation live.
+
+A returning reader with an old deep link lands on the appropriate current
+research theme without reading a separate migration index. A failure-library
+reader can reach the original source and relevant moment without the repository
+redistributing video pixels.
 
 The report succeeds when both readers can reach those answers without scanning
 a chronology, following an unexplained login-wall link, or mistaking a narrow
