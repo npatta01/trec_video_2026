@@ -3,25 +3,32 @@ title: "Native Audio and Sound"
 description: "What matched audio-on/off diagnostics say about speech, prosody, sound events, music, and specialist routing."
 ---
 
-## Back to Research Themes
+<nav class="status-breadcrumb" aria-label="Breadcrumb">
+  <a href="index.{{< meta report-ext >}}">Start Here</a>
+  <span aria-hidden="true">/</span>
+  <a href="experiment-ledger.{{< meta report-ext >}}">Research Themes</a>
+  <span aria-hidden="true">/</span>
+  <span aria-current="page">Native Audio and Sound</span>
+</nav>
 
-Return to the [Research Themes and Experiment Ledger](experiment-ledger.{{< meta report-ext >}}).
+<nav class="theme-local-nav" aria-label="On this theme page">
+  <a href="#current-working-answer">Working answer</a>
+  <a href="#what-has-been-tried">Tried</a>
+  <a href="#known-failures-and-cases">Failures</a>
+  <a href="#cheapest-valid-next-experiments">Next tests</a>
+</nav>
 
-## Technical summary
-
-Native audio is not one capability. Words, vocal delivery, environmental sound,
-and identifying the title of a recording require different evidence. The current
-evidence does **not** support turning native audio on for every question. It
-does leave category-routed audio open: the clearest diagnostic improvements are
-in prosody and non-speech sound, while exact music-title questions remain a
-retrieval problem rather than a general-VLM guessing task.
-
-## Why this theme matters
+## New to this theme? {#why-this-theme-matters}
 
 An automatic transcript can preserve spoken words but loses tone, music,
 alarms, overlapping voices, and timing. A native-audio model can consume that
 signal, but it may also distract from a visual or temporal question. Treating
 all audio questions alike would hide that trade-off.
+
+For example, “what word was spoken?” may be served by ASR, while “did the voice
+sound angry?” needs prosody and “what made the popping sound?” needs
+non-speech audio. Exact music-title questions are different again: they may
+need fingerprint retrieval with abstention, not confident generation.
 
 ## Current working answer
 
@@ -30,6 +37,23 @@ path as the **Fast alternate**. Native audio is a **Routed candidate** for a
 declared prosody or non-speech-sound question, not a global switch. Exact music
 identification should abstain or use fingerprint/retrieval evidence rather than
 ask a general VLM to invent a title.
+
+::: {.theme-decision-strip aria-label="Native-audio decisions"}
+- **Use now:** the visual baseline; MiniCPM-o audio-off remains the fast alternate.
+- **Do not default:** native audio on every question or general-VLM music-title guesses.
+- **Still possible:** routed prosody, non-speech sound, fingerprinting, and repaired Omni audio.
+- **Next test:** a matched specialist panel with audio-off fallback and route-level non-regression.
+:::
+
+## Evidence at a glance
+
+- **Global result:** MiniCPM audio on tied exact match and reduced F1/METEOR on
+  its ten-row pre-v2 screen.
+- **Localized signal:** selected diagnostics improved some prosody and sound
+  cases while regressing temporal cases.
+- **Confirmed defect:** Qwen3-Omni's strict run completed only 19/20 outputs.
+- **Condition boundary:** these panels do not permanently reject routed native
+  audio or another audio-capable model.
 
 ## What has been tried
 
@@ -48,6 +72,8 @@ ask a general VLM to invent a title.
   MiniCPM version and 10-row gate.
 - **What it does not rule out:** a matched specialist route for prosody,
   non-speech sound, or another model/prompt/panel.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—this pre-v2
+  ten-row screen cannot estimate category-specific or global value.
 - **Reconsider when:** a stratified, audio-off/audio-on comparison meets a
   predeclared target-stratum gain and visual/temporal-control non-regression.
 
@@ -85,6 +111,8 @@ test rather than assuming it helps.
 - **What it does not rule out:** native audio for declared prosody or
   non-speech-sound strata, a different audio-capable model, or an audio route
   with abstention.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the panel was
+  selected from known failures and is not a prevalence sample.
 - **Reconsider when:** a representative matched panel shows a target-stratum
   gain while preserving visual-control and temporal performance.
 
@@ -115,6 +143,8 @@ See the [failure-panel report](https://github.com/npatta01/trec_video_2026/blob/
   native audio a new overall default from this ten-row diagnostic.
 - **What it does not rule out:** a repaired, complete, blinded Qwen3-Omni
   comparison, or a category route whose gate is met on a representative panel.
+- **Possible defect, audit gap, or uncertainty:** **Confirmed defect**—one
+  strict-parser output failed the predeclared completion contract.
 - **Reconsider when:** terminal-output handling passes a sentinel check and a
   fresh full paired run completes 20/20 under one frozen contract.
 
@@ -147,6 +177,8 @@ See the [quality-10 report](https://github.com/npatta01/trec_video_2026/blob/mai
   audio or asking the current general VLMs to guess an exact composition title.
 - **What it does not rule out:** an audio-event classifier, fingerprint lookup,
   or a provenance-safe music retrieval system that can abstain.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—six-row and
+  selected failure panels cannot establish catalog coverage or prevalence.
 - **Reconsider when:** a route names its evidence source, abstention behavior,
   and target-stratum control before a matched evaluation.
 
@@ -159,7 +191,14 @@ and [failure-panel report](https://github.com/npatta01/trec_video_2026/blob/main
 support this separation.
 </details>
 
-## What the evidence supports
+## Known failures and cases
+
+- [CASE-002 — Non-lexical event missed by transcript gate](failure-library.{{< meta report-ext >}}#case-002)
+  motivates a sound route rather than forcing non-lexical evidence through ASR.
+- [CASE-004 — Unsupported native-audio specificity](failure-library.{{< meta report-ext >}}#case-004)
+  shows why native sound needs grounded labels or abstention.
+
+### What the evidence supports
 
 - Speech text and native sound are complementary evidence types, not
   interchangeable routes.
@@ -172,7 +211,7 @@ support this separation.
 - Exact music-title questions require a retrieval-style hypothesis; no current
   general-VLM result validates confident title generation.
 
-## What it does not rule out
+### What it does not rule out
 
 - A negative global switch does not reject a quality-gated native-audio route.
 - The selected panels do not estimate how often prosody, sound, or music occur
@@ -182,7 +221,7 @@ support this separation.
 - Audio-event recognition is not established merely because a model generated
   a plausible sound label.
 
-## Possible bugs, confounds, and audit gaps
+### Confirmed defects, audit gaps, and uncertainties
 
 - **Uncertainty:** the MiniCPM and Omni audio findings are on pre-v2 or
   deliberately selected panels, not representative prevalence samples.
@@ -253,6 +292,17 @@ support this separation.
 - **Boundary on what a positive result would establish:** the retrieval route's
   performance on its indexed catalog and declared prevalence slice, not general
   music knowledge or value on a distribution with a different title frequency.
+
+## Method, result, validity risks, and evidence
+
+<details>
+<summary>How to audit this theme's records</summary>
+
+The visible summaries separate lexical speech, prosody, non-speech sound, and
+music retrieval. Open each record's native details block for model/panel
+conditions, source links, and validity risks. Selected gains never override a
+failed completion gate or establish a global audio-on policy.
+</details>
 
 ## Related themes
 

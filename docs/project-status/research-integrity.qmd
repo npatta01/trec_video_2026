@@ -3,24 +3,33 @@ title: "Experiment Integrity and Evaluation"
 description: "What makes a TRECVID VQA experiment interpretable, which protocol defects were confirmed, and what integrity work remains."
 ---
 
-## Back to Research Themes
+<nav class="status-breadcrumb" aria-label="Breadcrumb">
+  <a href="index.{{< meta report-ext >}}">Start Here</a>
+  <span aria-hidden="true">/</span>
+  <a href="experiment-ledger.{{< meta report-ext >}}">Research Themes</a>
+  <span aria-hidden="true">/</span>
+  <span aria-current="page">Experiment Integrity and Evaluation</span>
+</nav>
 
-Return to the [Research Themes and Experiment Ledger](experiment-ledger.{{< meta report-ext >}}).
+<nav class="theme-local-nav" aria-label="On this theme page">
+  <a href="#current-working-answer">Working answer</a>
+  <a href="#what-has-been-tried">Tried</a>
+  <a href="#known-failures-and-cases">Failures</a>
+  <a href="#cheapest-valid-next-experiments">Next tests</a>
+</nav>
 
-## Technical summary
-
-The repository has evidence that controlled, label-isolated execution can be
-reproducible, and frozen-30 protocol v2 is the strongest comparative protocol
-recorded here. That establishes that the resulting comparison is interpretable;
-it does **not** establish that the answers are good, that a compatibility gate
-ranks models, or that 2026 evaluation quality is known.
-
-## Why this theme matters
+## New to this theme? {#why-this-theme-matters}
 
 An answer comparison is useful only when its input evidence, model identity,
 label boundary, prediction freeze, and scoring procedure are all known. A run
 that completes can still be invalid for a comparative conclusion, and a small
 compatibility probe can still be valuable without estimating accuracy.
+
+For example, two model answers cannot be compared fairly if one was produced
+after the expected answer became visible. A **frozen prediction** is saved
+before that disclosure; **label-blind** inference prevents the answer or grade
+from selecting evidence. These terms use the definitions on [Start
+Here](index.{{< meta report-ext >}}#newcomer-glossary).
 
 ## Current working answer
 
@@ -28,6 +37,22 @@ Use frozen-30 protocol v2, not frozen-30 v1, for comparative conclusions. The
 three-video gate is evidence of portability and pipeline compatibility only.
 The current repository has useful tested seams, but a reusable integrity gate
 is **Open work**, not an existing supported CLI.
+
+::: {.theme-decision-strip aria-label="Integrity decisions"}
+- **Use now:** frozen-30 protocol v2 for matched comparisons.
+- **Do not default:** compatibility success as evidence of answer quality.
+- **Still possible:** a reusable end-to-end integrity gate and a later audited scorer.
+- **Next test:** deliberately invalid fixtures that must fail before model cost is incurred.
+:::
+
+## Evidence at a glance
+
+- **Strongest evidence:** 120 frozen VQA predictions and 30 Whisper executions
+  under protocol v2's separated freeze and scoring boundary.
+- **Confirmed defect:** frozen-30 v1 could not demonstrate label isolation.
+- **Audit gap:** no supported reusable `prepare → run → freeze → score → report`
+  command exists.
+- **Unknown:** answer quality on the 2026 evaluation set.
 
 ## What has been tried
 
@@ -50,6 +75,8 @@ is **Open work**, not an existing supported CLI.
   current baseline.
 - **What it does not rule out:** the field guide's architectural ideas under a
   later matched, label-isolated test.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the synthesis
+  predates local comparison evidence; no execution defect is claimed.
 - **Reconsider when:** a specific idea has a declared panel, controls, and
   current execution evidence.
 
@@ -75,6 +102,8 @@ frame policy. See the [field-guide source notes](https://github.com/npatta01/tre
 - **What this rules out now:** treating successful preparation as a quality or
   model-ranking result.
 - **What it does not rule out:** a later controlled answer-quality comparison.
+- **Possible defect, audit gap, or uncertainty:** **Audit gap**—preparation
+  success does not attest a complete general execution-to-scoring workflow.
 - **Reconsider when:** a label-isolated, frozen comparison is scored on a
   declared panel.
 
@@ -106,6 +135,8 @@ binds manifest identities and hashes; the shared data boundary remains local.
   portability check or scaling MiniCPM's observed speech-row failure.
 - **What it does not rule out:** a repaired adapter or a model's quality on a
   larger, representative controlled panel.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—three selected
+  rows measure portability, not general completion or quality.
 - **Reconsider when:** a complete matched quality panel passes the integrity
   gate with the repaired condition, if applicable.
 
@@ -139,6 +170,8 @@ documents an audited execution, not a general one-command workflow.
   conclusions.
 - **What it does not rule out:** a valid comparison under v2 or a later
   integrity-preserving protocol.
+- **Possible defect, audit gap, or uncertainty:** **Confirmed defect**—v1 could
+  not demonstrate label isolation; this does not transfer to v2.
 - **Reconsider when:** only if historical v1 evidence is explicitly discussed
   as an audit record rather than reused for a comparison.
 
@@ -170,6 +203,8 @@ the [protocol-v2 report](https://github.com/npatta01/trec_video_2026/blob/main/r
   official final 2026 score.
 - **What it does not rule out:** pinned historical-parity checks or a later
   audited authoritative 2026 evaluator.
+- **Possible defect, audit gap, or uncertainty:** **Audit gap**—final 2026
+  scoring authority and its audited interface were not available.
 - **Reconsider when:** NIST publishes updated scoring code and the project
   re-audits its interface, dependencies, and fixtures.
 
@@ -184,7 +219,13 @@ recommends a pinned external checkout/cache, local fixtures, and the validator
 as a final format gate.
 </details>
 
-## What the evidence supports
+## Known failures and cases
+
+The [Failure Library](failure-library.{{< meta report-ext >}}) shows why
+integrity records must distinguish frozen output from post-hoc diagnosis. Its
+selected cases are development evidence, not a held-out validation set.
+
+### What the evidence supports
 
 - A valid comparison needs a label-free inference phase, an immutable
   prediction freeze, and separately mounted evaluation references.
@@ -194,7 +235,7 @@ as a final format gate.
 - A pinned validator can check current 2026 AG submission shape; historical
   parity metrics need an explicitly quarantined context.
 
-## What it does not rule out
+### What it does not rule out
 
 - V2 does not prove 2026 evaluation quality, generalization beyond its 30
   labeled 2025 rows, or superiority under another model, prompt, or panel.
@@ -203,7 +244,7 @@ as a final format gate.
 - The scorer audit does not rule out a later authoritative 2026 evaluator;
   it requires re-audit when one is published.
 
-## Possible bugs, confounds, and audit gaps
+### Confirmed defects, audit gaps, and uncertainties
 
 - **Confirmed defect:** frozen-30 v1 could not demonstrate label isolation.
   It must not supply comparative conclusions.
@@ -257,6 +298,17 @@ as a final format gate.
   validator without relying on an unofficial score as 2026 authority.
 - **Boundary on what a positive result would establish:** it would establish a
   valid evaluation plan, not accuracy on the unlabeled 2026 set.
+
+## Method, result, validity risks, and evidence
+
+<details>
+<summary>How to audit this theme's records</summary>
+
+Each exact experiment heading above remains visible and carries the tested
+condition, observed result, current status, and reconsideration rule. Open its
+native details block for source links, method, and validity risks. Do not infer
+answer quality from data readiness, compatibility, or successful execution.
+</details>
 
 ## Related themes
 

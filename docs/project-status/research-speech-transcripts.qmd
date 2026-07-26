@@ -3,26 +3,34 @@ title: "Speech and Transcript Evidence"
 description: "What automatic, reference, multilingual, and human transcripts can contribute without confusing their provenance."
 ---
 
-## Back to Research Themes
+<nav class="status-breadcrumb" aria-label="Breadcrumb">
+  <a href="index.{{< meta report-ext >}}">Start Here</a>
+  <span aria-hidden="true">/</span>
+  <a href="experiment-ledger.{{< meta report-ext >}}">Research Themes</a>
+  <span aria-hidden="true">/</span>
+  <span aria-current="page">Speech and Transcript Evidence</span>
+</nav>
 
-Return to the [Research Themes and Experiment Ledger](experiment-ledger.{{< meta report-ext >}}).
+<nav class="theme-local-nav" aria-label="On this theme page">
+  <a href="#current-working-answer">Working answer</a>
+  <a href="#what-has-been-tried">Tried</a>
+  <a href="#known-failures-and-cases">Failures</a>
+  <a href="#cheapest-valid-next-experiments">Next tests</a>
+</nav>
 
-## Technical summary
-
-Quality-accepted Whisper large-v3 improved a selected ten-row lexical-speech
-ablation from `4/10` to `7/10`, with three rescues and no observed degradation.
-That supports a narrow lexical-speech route, not global transcript attachment
-or multilingual robustness. Transcript provenance must remain visible:
-automatic ASR, uploader captions, dataset recording-prompt references, and
-independently produced human transcripts answer different questions.
-
-## Why this theme matters
+## New to this theme? {#why-this-theme-matters}
 
 Speech evidence can resolve a visual ambiguity, but fluent text can still be
 wrong, incomplete, translated from the wrong source, or supplied with a
 misleading provenance label. A transcript comparison is interpretable only
 when it holds frames, model, prompt, and decoding fixed and records how each
 text was produced.
+
+For example, a question asking “what did the speaker say?” needs **lexical
+speech**—the words—not merely frames or tone of voice. **ASR** converts audio
+to timestamped text, but a plausible sentence can omit the needed phrase. An
+automatic transcript, uploader caption, dataset reference, and independently
+reviewed human transcript are therefore different evidence tiers.
 
 ## Current working answer
 
@@ -31,6 +39,24 @@ lexical-speech questions, with a matched frame-only control. Do not treat its
 acceptance rule as language recognition or fidelity. Keep the strict
 independently produced human-transcript tier **Blocked** until independent
 transcriber/reviewer records exist.
+
+::: {.theme-decision-strip aria-label="Transcript decisions"}
+- **Use now:** quality-accepted Whisper only for declared lexical-speech work, with a frame-only control.
+- **Do not default:** transcripts on every question or mechanical acceptance as proof of fidelity.
+- **Still possible:** alternative ASR, grounded spans, dataset-reference controls, and a valid human upper bound.
+- **Next test:** a matched, source-language-aware ASR panel plus independent transcript controls.
+:::
+
+## Evidence at a glance
+
+- **Selected diagnostic:** accepted Whisper improved 4/10 to 7/10 on ten
+  lexical-speech rows; this is not a prevalence estimate.
+- **Failure mechanisms:** text can miss non-lexical events or contain the right
+  token without changing the answer.
+- **Blocked:** a human-transcript upper bound lacks independent producer and
+  reviewer provenance.
+- **Condition boundary:** a one-row Seamless result does not reject alternative
+  or multilingual ASR families.
 
 ## What has been tried
 
@@ -94,6 +120,8 @@ and its [frozen ablation plan](https://github.com/npatta01/trec_video_2026/blob/
   fidelity from the completed mixed frozen-30 route.
 - **What it does not rule out:** benefit for a declared language, dialect, or
   translation condition under human-referenced evaluation.
+- **Possible defect, audit gap, or uncertainty:** **Audit gap**—the completed
+  panel lacks source-language and independently reviewed transcript references.
 - **Reconsider when:** a source-language-stratified panel with independent
   transcript and translation references completes under matched controls.
 
@@ -124,6 +152,8 @@ and [frozen-30 report](https://github.com/npatta01/trec_video_2026/blob/main/rep
   speech route on that one controlled example.
 - **What it does not rule out:** another language, model revision, panel, or
   independently verified translation route.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—one example
+  cannot estimate alternative-ASR fidelity or downstream value.
 - **Reconsider when:** a matched, independently reviewable multilingual panel
   shows faithful evidence and a predeclared downstream improvement.
 
@@ -151,6 +181,8 @@ See the [Seamless follow-up](https://github.com/npatta01/trec_video_2026/blob/ma
   TRECVID human oracle or reporting it as an effectiveness result.
 - **What it does not rule out:** a provenance-labeled, small external control
   that compares automatic ASR and dataset reference text.
+- **Possible defect, audit gap, or uncertainty:** **Audit gap**—the design has
+  not run and the dataset reference is not independent human transcription.
 - **Reconsider when:** the declared three-condition protocol runs with frozen
   predictions, exact provenance, and no claim beyond its small panel.
 
@@ -177,6 +209,8 @@ also specifies identical frames/model/prompt/decoding across conditions.
   or ASR agreement as a strict human-transcript upper bound.
 - **What it does not rule out:** a valid independent human-transcript upper
   bound once its named provenance prerequisites exist.
+- **Possible defect, audit gap, or uncertainty:** **Audit gap**—independent
+  transcriber and reviewer provenance records are missing.
 - **Reconsider when:** independent transcriber and reviewer records, a
   label-blind protocol, and matched downstream controls are complete.
 
@@ -190,7 +224,14 @@ loaded only after prediction freeze. There is no oracle result to compare or
 cite.
 </details>
 
-## What the evidence supports
+## Known failures and cases
+
+- [CASE-002 — Non-lexical event missed by transcript gate](failure-library.{{< meta report-ext >}}#case-002)
+  shows that accepted text can be irrelevant to a requested vocal sound.
+- [CASE-003 — Retrieved token unused by answerer](failure-library.{{< meta report-ext >}}#case-003)
+  shows that a needed word can be present while the answer remains wrong.
+
+### What the evidence supports
 
 - On the selected ten lexical-speech rows, accepted Whisper changed manual
   accuracy from 4/10 to 7/10, with three rescues and no observed degradation.
@@ -201,7 +242,7 @@ cite.
 - Dataset recording-prompt references can be a separately labeled control, not
   a TRECVID human-oracle result.
 
-## What it does not rule out
+### What it does not rule out
 
 - The ten-row ablation does not establish global transcript use, route
   prevalence, multilingual effectiveness, or effects on non-lexical sound.
@@ -212,7 +253,7 @@ cite.
 - The blocked human tier does not imply a zero upper bound; it means no valid
   upper-bound evidence exists yet.
 
-## Possible bugs, confounds, and audit gaps
+### Confirmed defects, audit gaps, and uncertainties
 
 - **Uncertainty:** selected lexical-speech rows are diagnostic rather than a
   prevalence or global-accuracy sample.
@@ -284,6 +325,18 @@ cite.
   current accepted Whisper.
 - **Boundary on what a positive result would establish:** it would support the
   tested ASR on that frozen stratum, not multilingual robustness everywhere.
+
+## Method, result, validity risks, and evidence
+
+<details>
+<summary>How to audit this theme's records</summary>
+
+The visible record summaries keep provenance tier, panel, observed result,
+condition boundary, and reconsideration rule outside disclosures. Open each
+native details block for source links and validity risks. Never rename ASR,
+uploader captions, or dataset recording prompts as independently reviewed
+human transcripts.
+</details>
 
 ## Related themes
 

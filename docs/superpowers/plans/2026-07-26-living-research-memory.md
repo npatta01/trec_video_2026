@@ -374,7 +374,7 @@ and every media-bearing case has the complete rights attestation.
 - Consumes: Task 3 case anchors and Task 2 definitions.
 - Produces: a non-linear hub plus six consistent newcomer-to-expert theme pages.
 
-- [ ] **Step 1: Update the hub without creating another ledger**
+- [x] **Step 1: Update the hub without creating another ledger**
 
 Keep the six independent theme cards. Add a compact matrix with columns:
 
@@ -385,14 +385,14 @@ Theme | Why it matters | Tried | Learned now | Still open | Next falsifying test
 Use short status tokens plus theme-record anchors; do not duplicate detailed
 results. Add a three-case preview linked to the Failure Library.
 
-- [ ] **Step 2: Make every major research branch visible in the next-test queue**
+- [x] **Step 2: Make every major research branch visible in the next-test queue**
 
 Include one concise, linked item for smarter visual sampling/retrieval,
 alternative ASR, human/reference transcript controls, routed native
 audio/sound, repaired/specialist models or bottleneck-first adaptation, and
 routing/fusion/answer election.
 
-- [ ] **Step 3: Apply the layered theme contract**
+- [x] **Step 3: Apply the layered theme contract**
 
 On each of the six theme pages, use this order:
 
@@ -412,7 +412,7 @@ Related themes
 Explain each theme's basic concept with one concrete example before metrics.
 Keep exact experiment headings and legacy anchors visible outside disclosures.
 
-- [ ] **Step 4: Preserve condition and audit boundaries**
+- [x] **Step 4: Preserve condition and audit boundaries**
 
 For every negative/incomplete record, confirm the visible summary includes:
 
@@ -426,7 +426,7 @@ Reconsider when
 Do not turn directed sampling, native audio, alternate models, or transcripts
 into permanent rejections.
 
-- [ ] **Step 5: Render all seven sources in a temporary copy**
+- [x] **Step 5: Render all seven sources in a temporary copy**
 
 Render the hub and six themes to GFM and HTML. Confirm each theme is
 understandable before opening methodology details, all legacy fragments land on
