@@ -3,8 +3,9 @@
 
 <nav class="status-breadcrumb" aria-label="Breadcrumb">
 
-<a href="index.md">Start Here</a> <span aria-hidden="true">/</span>
-<span aria-current="page">Failure Library</span>
+<a href="experiment-ledger.md">Research Themes</a>
+<span aria-hidden="true">/</span> <span aria-current="page">Failure
+Library</span>
 </nav>
 
 <div class="lead">
@@ -133,7 +134,7 @@ Evidence received, run details, grading, and provenance
 
 | Field | Recorded value |
 |----|----|
-| Evidence configuration | Frames only; frames plus automatic transcript |
+| Evidence configuration | `Qwen/Qwen3.5-4B` revision `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`; 12 frozen chronological frames (256²–512²/frame); greedy decoding; 32-token cap; seed `20260724`. Conditions: frames only versus the same frames plus an automatic transcript from `openai/whisper-large-v3` revision `06f233fe06e710322aca913c1bc4249a0d71fce1`; native audio absent. |
 | Selected timestamps, spans, or events | not recorded |
 | Model observation | Not recorded |
 | Project-generated frozen prediction | Frames only: `2012`; frames plus automatic transcript: `The horse is 22 years old.` |
@@ -145,7 +146,7 @@ Evidence received, run details, grading, and provenance
 | Adjudication provenance | Separate adjudicator not recorded |
 | Uncertainty | Post-hoc diagnosis; competing explanation remains viable; `n=1` selected development evidence |
 | Next comparison | Position-versus-explicitness comparison with evidence and answerer held fixed |
-| Immutable evidence links | not recorded |
+| Immutable evidence links | [Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md) |
 | Supersession | No row-level supersession; the broader transcript policy is quality-gated and routed, not global |
 
 </details>
@@ -239,7 +240,7 @@ Evidence received, run details, grading, and provenance
 
 | Field | Recorded value |
 |----|----|
-| Evidence configuration | Frames only; frames plus automatic transcript under the old generic gate |
+| Evidence configuration | `Qwen/Qwen3.5-4B` revision `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`; 12 frozen chronological frames (256²–512²/frame); greedy decoding; 32-token cap; seed `20260724`. Conditions: frames only versus the same frames plus an automatic transcript from `openai/whisper-large-v3` revision `06f233fe06e710322aca913c1bc4249a0d71fce1` under the old generic gate; native audio absent. |
 | Selected timestamps, spans, or events | not recorded |
 | Model observation | Not recorded |
 | Project-generated frozen prediction | Frames only: `No`; frames plus automatic transcript: `Thank you for watching!` |
@@ -251,7 +252,7 @@ Evidence received, run details, grading, and provenance
 | Adjudication provenance | Separate adjudicator not recorded |
 | Uncertainty | Post-hoc diagnosis; competing explanation remains viable; `n=1` selected development evidence |
 | Next comparison | Old generic text gate versus label-blind non-lexical route and frames-only control |
-| Immutable evidence links | not recorded |
+| Immutable evidence links | [Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md) |
 | Supersession | Old generic acceptance behavior is superseded by repaired quality gates; a dedicated non-lexical check remains open |
 
 </details>
@@ -346,7 +347,7 @@ Evidence received, run details, grading, and provenance
 
 | Field | Recorded value |
 |----|----|
-| Evidence configuration | Frames only; automatic transcript; uploader captions |
+| Evidence configuration | `Qwen/Qwen3.5-4B` revision `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`; 12 frozen chronological frames (256²–512²/frame); greedy decoding; 32-token cap; seed `20260724`. Three conditions: frames only; the same frames plus an automatic transcript from `openai/whisper-large-v3` revision `06f233fe06e710322aca913c1bc4249a0d71fce1`; and the same frames plus the verified uploader-caption reference. Native audio was absent. |
 | Selected timestamps, spans, or events | not recorded |
 | Model observation | Not recorded |
 | Project-generated frozen prediction | `Justice` in frames-only, automatic-transcript, and uploader-caption conditions |
@@ -358,7 +359,7 @@ Evidence received, run details, grading, and provenance
 | Adjudication provenance | Separate adjudication not recorded |
 | Uncertainty | Post-hoc diagnosis; competing explanation remains viable; `n=1` selected development evidence |
 | Next comparison | Current prompt versus label-blind final-token instruction and matched control |
-| Immutable evidence links | not recorded |
+| Immutable evidence links | [Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md) |
 | Supersession | No row-level supersession; uploader captions remain distinct provenance, not a human oracle |
 
 </details>
@@ -451,7 +452,7 @@ Evidence received, run details, grading, and provenance
 
 | Field | Recorded value |
 |----|----|
-| Evidence configuration | Audio off; native audio |
+| Evidence configuration | `openbmb/MiniCPM-o-4_5` revision `1f761131fa83f5ed3cd6f2f22b225c4501d154fa`; 12 frames. Conditions: audio off versus full 16-kHz native audio. |
 | Selected timestamps, spans, or events | not recorded |
 | Model observation | Not recorded |
 | Project-generated frozen prediction | Audio off: `Wedding bells`; native audio: `Wedding march music.` |
@@ -462,7 +463,7 @@ Evidence received, run details, grading, and provenance
 | Adjudication provenance | No adjudication process recorded |
 | Uncertainty | Post-hoc diagnosis; competing explanation remains viable; `n=1` selected development evidence |
 | Next comparison | Current prompt versus least-specific supported-label prompt, with audio-off control |
-| Immutable evidence links | not recorded |
+| Immutable evidence links | [Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md) |
 | Supersession | The old panel’s global 24-frame default is superseded by frozen-30’s global 12-frame default; this row still supports category-gated, not global, native audio |
 
 </details>

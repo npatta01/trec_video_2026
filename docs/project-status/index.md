@@ -101,6 +101,14 @@ test. It is a fully disclosed, project-authored synthetic teaching
 scenario—**not benchmark evidence and not an estimate of system
 accuracy**.
 
+## Learn from concrete failures
+
+The [Failure Library · Report page](failure-library.md) preserves four
+selected development cases as compact “what failed / what changed / what
+happened / what to test next” records. Use it to study failure
+mechanisms and competing explanations—not to estimate how often a
+failure occurs across the benchmark.
+
 ## Evidence behind the recommendation
 
 - **Accuracy baseline:** Qwen3.5-4B with 12 uniform frames.

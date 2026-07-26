@@ -43,7 +43,8 @@ budget** sampled uniformly across an invented 22-second clip. Uniform sampling
 means selecting evenly spaced timestamps, here every two seconds. The system
 does not receive the constructed expected answer or grade.
 
-::: {.timestamp-storyboard aria-label="Text-only timeline of twelve uniformly sampled timestamps"}
+::: {#timestamp-storyboard-figure .timestamp-figure role="figure" aria-labelledby="timestamp-storyboard-caption"}
+::: {.timestamp-storyboard}
 ::: {.timestamp-card}
 **00:00**
 Fictional scene note: lunch bag on a kitchen table.
@@ -92,6 +93,9 @@ Fictional scene note: table is empty.
 **00:22**
 Fictional scene note: end of constructed clip.
 :::
+:::
+
+<p id="timestamp-storyboard-caption" class="timestamp-caption"><strong>Figure 1.</strong> Text-only storyboard of the twelve uniformly sampled timestamps in the synthetic 22-second teaching clip.</p>
 :::
 
 **Text equivalent:** At 00:00 a lunch bag is on a kitchen table; a speaker

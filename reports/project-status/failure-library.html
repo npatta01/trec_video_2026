@@ -2637,6 +2637,11 @@ padding: 0.7rem;
 .timestamp-card p {
 margin: 0;
 }
+.timestamp-caption {
+color: var(--status-muted);
+font-size: 0.92rem;
+margin-block: 0.55rem 1rem;
+}
 .theme-grid {
 display: grid;
 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2796,6 +2801,16 @@ font-size: 0.92rem;
 max-width: 100%;
 overflow-x: auto;
 }
+
+.mermaid-js .nodeLabel,
+.mermaid-js .edgeLabel {
+color: var(--status-accent-dark) !important;
+}
+.mermaid-js .label text,
+.mermaid-js .edgeLabel text,
+.mermaid-js .cluster-label text {
+fill: var(--status-accent-dark) !important;
+}
 pre {
 max-width: 100%;
 overflow-x: auto;
@@ -2952,7 +2967,7 @@ transition: none !important;
 
 
 <nav class="status-breadcrumb" aria-label="Breadcrumb">
-<a href="./index.html">Start Here</a> <span aria-hidden="true">/</span> <span aria-current="page">Failure Library</span>
+<a href="./experiment-ledger.html">Research Themes</a> <span aria-hidden="true">/</span> <span aria-current="page">Failure Library</span>
 </nav>
 <div class="lead">
 <p>These cases preserve concrete failure mechanisms and the next test that could disprove each diagnosis. They are working research records, not examples of the full benchmark distribution.</p>
@@ -3014,10 +3029,6 @@ transition: none !important;
 Evidence received, run details, grading, and provenance
 </summary>
 <table class="caption-top table">
-<colgroup>
-<col style="width: 50%">
-<col style="width: 50%">
-</colgroup>
 <thead>
 <tr class="header">
 <th>Field</th>
@@ -3027,7 +3038,7 @@ Evidence received, run details, grading, and provenance
 <tbody>
 <tr class="odd">
 <td>Evidence configuration</td>
-<td>Frames only; frames plus automatic transcript</td>
+<td><code>Qwen/Qwen3.5-4B</code> revision <code>851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a</code>; 12 frozen chronological frames (256²–512²/frame); greedy decoding; 32-token cap; seed <code>20260724</code>. Conditions: frames only versus the same frames plus an automatic transcript from <code>openai/whisper-large-v3</code> revision <code>06f233fe06e710322aca913c1bc4249a0d71fce1</code>; native audio absent.</td>
 </tr>
 <tr class="even">
 <td>Selected timestamps, spans, or events</td>
@@ -3075,7 +3086,7 @@ Evidence received, run details, grading, and provenance
 </tr>
 <tr class="odd">
 <td>Immutable evidence links</td>
-<td>not recorded</td>
+<td><a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md">Evidence of record · Evidence report · GitHub</a></td>
 </tr>
 <tr class="even">
 <td>Supersession</td>
@@ -3121,10 +3132,6 @@ Evidence received, run details, grading, and provenance
 Evidence received, run details, grading, and provenance
 </summary>
 <table class="caption-top table">
-<colgroup>
-<col style="width: 50%">
-<col style="width: 50%">
-</colgroup>
 <thead>
 <tr class="header">
 <th>Field</th>
@@ -3134,7 +3141,7 @@ Evidence received, run details, grading, and provenance
 <tbody>
 <tr class="odd">
 <td>Evidence configuration</td>
-<td>Frames only; frames plus automatic transcript under the old generic gate</td>
+<td><code>Qwen/Qwen3.5-4B</code> revision <code>851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a</code>; 12 frozen chronological frames (256²–512²/frame); greedy decoding; 32-token cap; seed <code>20260724</code>. Conditions: frames only versus the same frames plus an automatic transcript from <code>openai/whisper-large-v3</code> revision <code>06f233fe06e710322aca913c1bc4249a0d71fce1</code> under the old generic gate; native audio absent.</td>
 </tr>
 <tr class="even">
 <td>Selected timestamps, spans, or events</td>
@@ -3182,7 +3189,7 @@ Evidence received, run details, grading, and provenance
 </tr>
 <tr class="odd">
 <td>Immutable evidence links</td>
-<td>not recorded</td>
+<td><a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md">Evidence of record · Evidence report · GitHub</a></td>
 </tr>
 <tr class="even">
 <td>Supersession</td>
@@ -3228,10 +3235,6 @@ Evidence received, run details, grading, and provenance
 Evidence received, run details, grading, and provenance
 </summary>
 <table class="caption-top table">
-<colgroup>
-<col style="width: 50%">
-<col style="width: 50%">
-</colgroup>
 <thead>
 <tr class="header">
 <th>Field</th>
@@ -3241,7 +3244,7 @@ Evidence received, run details, grading, and provenance
 <tbody>
 <tr class="odd">
 <td>Evidence configuration</td>
-<td>Frames only; automatic transcript; uploader captions</td>
+<td><code>Qwen/Qwen3.5-4B</code> revision <code>851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a</code>; 12 frozen chronological frames (256²–512²/frame); greedy decoding; 32-token cap; seed <code>20260724</code>. Three conditions: frames only; the same frames plus an automatic transcript from <code>openai/whisper-large-v3</code> revision <code>06f233fe06e710322aca913c1bc4249a0d71fce1</code>; and the same frames plus the verified uploader-caption reference. Native audio was absent.</td>
 </tr>
 <tr class="even">
 <td>Selected timestamps, spans, or events</td>
@@ -3289,7 +3292,7 @@ Evidence received, run details, grading, and provenance
 </tr>
 <tr class="odd">
 <td>Immutable evidence links</td>
-<td>not recorded</td>
+<td><a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md">Evidence of record · Evidence report · GitHub</a></td>
 </tr>
 <tr class="even">
 <td>Supersession</td>
@@ -3335,10 +3338,6 @@ Evidence received, run details, grading, and provenance
 Evidence received, run details, grading, and provenance
 </summary>
 <table class="caption-top table">
-<colgroup>
-<col style="width: 50%">
-<col style="width: 50%">
-</colgroup>
 <thead>
 <tr class="header">
 <th>Field</th>
@@ -3348,7 +3347,7 @@ Evidence received, run details, grading, and provenance
 <tbody>
 <tr class="odd">
 <td>Evidence configuration</td>
-<td>Audio off; native audio</td>
+<td><code>openbmb/MiniCPM-o-4_5</code> revision <code>1f761131fa83f5ed3cd6f2f22b225c4501d154fa</code>; 12 frames. Conditions: audio off versus full 16-kHz native audio.</td>
 </tr>
 <tr class="even">
 <td>Selected timestamps, spans, or events</td>
@@ -3392,7 +3391,7 @@ Evidence received, run details, grading, and provenance
 </tr>
 <tr class="even">
 <td>Immutable evidence links</td>
-<td>not recorded</td>
+<td><a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md">Evidence of record · Evidence report · GitHub</a></td>
 </tr>
 <tr class="odd">
 <td>Supersession</td>

@@ -5739,6 +5739,11 @@ padding: 0.7rem;
 .timestamp-card p {
 margin: 0;
 }
+.timestamp-caption {
+color: var(--status-muted);
+font-size: 0.92rem;
+margin-block: 0.55rem 1rem;
+}
 .theme-grid {
 display: grid;
 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5898,6 +5903,16 @@ font-size: 0.92rem;
 max-width: 100%;
 overflow-x: auto;
 }
+
+.mermaid-js .nodeLabel,
+.mermaid-js .edgeLabel {
+color: var(--status-accent-dark) !important;
+}
+.mermaid-js .label text,
+.mermaid-js .edgeLabel text,
+.mermaid-js .cluster-label text {
+fill: var(--status-accent-dark) !important;
+}
 pre {
 max-width: 100%;
 overflow-x: auto;
@@ -6024,6 +6039,7 @@ transition: none !important;
   <li><a href="#what-the-system-sees" id="toc-what-the-system-sees" class="nav-link" data-scroll-target="#what-the-system-sees">What the system sees</a></li>
   <li><a href="#current-recommendation" id="toc-current-recommendation" class="nav-link" data-scroll-target="#current-recommendation">Current recommendation</a></li>
   <li><a href="#see-one-answer-from-start-to-finish" id="toc-see-one-answer-from-start-to-finish" class="nav-link" data-scroll-target="#see-one-answer-from-start-to-finish">See one answer from start to finish</a></li>
+  <li><a href="#learn-from-concrete-failures" id="toc-learn-from-concrete-failures" class="nav-link" data-scroll-target="#learn-from-concrete-failures">Learn from concrete failures</a></li>
   <li><a href="#evidence-behind-the-recommendation" id="toc-evidence-behind-the-recommendation" class="nav-link" data-scroll-target="#evidence-behind-the-recommendation">Evidence behind the recommendation</a></li>
   <li><a href="#how-to-read-current-results" id="toc-how-to-read-current-results" class="nav-link" data-scroll-target="#how-to-read-current-results">How to read current results</a></li>
   <li><a href="#choose-a-reading-path" id="toc-choose-a-reading-path" class="nav-link" data-scroll-target="#choose-a-reading-path">Choose a reading path</a></li>
@@ -6101,6 +6117,10 @@ transition: none !important;
 <section id="see-one-answer-from-start-to-finish" class="level2">
 <h2 class="anchored" data-anchor-id="see-one-answer-from-start-to-finish">See one answer from start to finish</h2>
 <p>The <a href="./worked-example.html">worked current-approach example · Report page</a> follows one question through frame sampling, the route decision, constructed ASR evidence, a frozen answer, grading, and a post-hoc next test. It is a fully disclosed, project-authored synthetic teaching scenario—<strong>not benchmark evidence and not an estimate of system accuracy</strong>.</p>
+</section>
+<section id="learn-from-concrete-failures" class="level2">
+<h2 class="anchored" data-anchor-id="learn-from-concrete-failures">Learn from concrete failures</h2>
+<p>The <a href="./failure-library.html">Failure Library · Report page</a> preserves four selected development cases as compact “what failed / what changed / what happened / what to test next” records. Use it to study failure mechanisms and competing explanations—not to estimate how often a failure occurs across the benchmark.</p>
 </section>
 <section id="evidence-behind-the-recommendation" class="level2">
 <h2 class="anchored" data-anchor-id="evidence-behind-the-recommendation">Evidence behind the recommendation</h2>

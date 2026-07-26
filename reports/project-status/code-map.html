@@ -5739,6 +5739,11 @@ padding: 0.7rem;
 .timestamp-card p {
 margin: 0;
 }
+.timestamp-caption {
+color: var(--status-muted);
+font-size: 0.92rem;
+margin-block: 0.55rem 1rem;
+}
 .theme-grid {
 display: grid;
 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5897,6 +5902,16 @@ font-size: 0.92rem;
 .mermaid-js {
 max-width: 100%;
 overflow-x: auto;
+}
+
+.mermaid-js .nodeLabel,
+.mermaid-js .edgeLabel {
+color: var(--status-accent-dark) !important;
+}
+.mermaid-js .label text,
+.mermaid-js .edgeLabel text,
+.mermaid-js .cluster-label text {
+fill: var(--status-accent-dark) !important;
 }
 pre {
 max-width: 100%;

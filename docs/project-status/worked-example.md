@@ -48,8 +48,10 @@ Uniform sampling means selecting evenly spaced timestamps, here every
 two seconds. The system does not receive the constructed expected answer
 or grade.
 
-<div class="timestamp-storyboard"
-aria-label="Text-only timeline of twelve uniformly sampled timestamps">
+<div id="timestamp-storyboard-figure" class="timestamp-figure"
+role="figure" aria-labelledby="timestamp-storyboard-caption">
+
+<div class="timestamp-storyboard">
 
 <div class="timestamp-card">
 
@@ -122,6 +124,14 @@ aria-label="Text-only timeline of twelve uniformly sampled timestamps">
 **00:22** Fictional scene note: end of constructed clip.
 
 </div>
+
+</div>
+
+<p id="timestamp-storyboard-caption" class="timestamp-caption">
+
+<strong>Figure 1.</strong> Text-only storyboard of the twelve uniformly
+sampled timestamps in the synthetic 22-second teaching clip.
+</p>
 
 </div>
 

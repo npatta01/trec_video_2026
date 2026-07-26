@@ -2637,6 +2637,11 @@ padding: 0.7rem;
 .timestamp-card p {
 margin: 0;
 }
+.timestamp-caption {
+color: var(--status-muted);
+font-size: 0.92rem;
+margin-block: 0.55rem 1rem;
+}
 .theme-grid {
 display: grid;
 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2795,6 +2800,16 @@ font-size: 0.92rem;
 .mermaid-js {
 max-width: 100%;
 overflow-x: auto;
+}
+
+.mermaid-js .nodeLabel,
+.mermaid-js .edgeLabel {
+color: var(--status-accent-dark) !important;
+}
+.mermaid-js .label text,
+.mermaid-js .edgeLabel text,
+.mermaid-js .cluster-label text {
+fill: var(--status-accent-dark) !important;
 }
 pre {
 max-width: 100%;
@@ -2989,7 +3004,8 @@ transition: none !important;
 <section id="what-the-baseline-receives" class="level2">
 <h2 class="anchored" data-anchor-id="what-the-baseline-receives">2. What the baseline receives</h2>
 <p>The illustrated baseline receives the constructed question and a <strong>12-frame budget</strong> sampled uniformly across an invented 22-second clip. Uniform sampling means selecting evenly spaced timestamps, here every two seconds. The system does not receive the constructed expected answer or grade.</p>
-<div class="timestamp-storyboard" aria-label="Text-only timeline of twelve uniformly sampled timestamps">
+<div id="timestamp-storyboard-figure" class="timestamp-figure" role="figure" aria-labelledby="timestamp-storyboard-caption">
+<div class="timestamp-storyboard">
 <div class="timestamp-card">
 <p><strong>00:00</strong> Fictional scene note: lunch bag on a kitchen table.</p>
 </div>
@@ -3026,6 +3042,10 @@ transition: none !important;
 <div class="timestamp-card">
 <p><strong>00:22</strong> Fictional scene note: end of constructed clip.</p>
 </div>
+</div>
+<p id="timestamp-storyboard-caption" class="timestamp-caption">
+<strong>Figure 1.</strong> Text-only storyboard of the twelve uniformly sampled timestamps in the synthetic 22-second teaching clip.
+</p>
 </div>
 <p><strong>Text equivalent:</strong> At 00:00 a lunch bag is on a kitchen table; a speaker enters, handles an unlabelled thermos, speaks, places it in the bag, adds fruit, closes and carries the bag away, leaving the table empty by 00:20. The invented clip ends at 00:22. None of the twelve constructed scene notes visually names the drink.</p>
 </section>

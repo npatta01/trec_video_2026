@@ -621,8 +621,53 @@ cross-page Markdown `href` form (`79/79`) rather than only Markdown syntax.
   prospective `git diff --check 7c12afa` passes, and the exact committed
   `7c12afa..HEAD` range is rechecked after commit.
 
-**Next action:** Review the focused Task 6 commit, then choose the branch
-integration path. GitHub issue creation remains deferred.
+**Holistic final-review correction:** A final whole-site review found four
+presentation/evidence gaps after the link fixes. The canonical sources now
+address them without changing the three-item top navigation or adding
+application code:
+
+- Start Here visibly links both the synthetic worked example and the Failure
+  Library. Failure Library now identifies Research Themes as its parent.
+- Each of the four failure disclosures records the minimum verified model
+  revision, frame condition, and transcript/audio condition. CASE-001 through
+  CASE-003 also record the verified decoding cap/seed and Whisper revision;
+  CASE-004 retains its verified native-audio `0.0` exact match, `0.0` token F1,
+  and `0.125` METEOR. All four cases now link to their immutable pinned report
+  with the visible `Evidence of record · Evidence report · GitHub` taxonomy.
+- Mermaid node and edge-label foregrounds now use `#0d3d66`. Authorized
+  headless Chrome measured a minimum `9.8969:1` contrast against the actual
+  alpha-composited `#e9f2fc` node background, replacing the prior sub-4.5:1
+  default. The measurement covered 104 rendered label observations at 1440
+  and 390 CSS pixels.
+- The timestamp storyboard is now an explicitly labelled `role="figure"` with
+  a visible caption and retained nearby text equivalent; it no longer relies
+  on an `aria-label` attached to a generic layout container.
+
+Final-review verification regenerated all 11 QMD sources into exactly 11
+sibling Markdown and 11 self-contained HTML outputs with a task-specific
+cache. A physically separate render reproduced all 22 generated files
+byte-for-byte (`22/22`). Headless Chrome checked all 11 pages at 1440×1000 and
+390×844 (`22/22` scenarios): no document overflow or duplicate IDs, exact
+three-item navbar, working phone menu, visible 3-pixel keyboard focus, both
+Start Here entry links, the corrected breadcrumb, and the labelled storyboard
+all passed. The local resolver checked 171 Markdown hrefs (including 79
+cross-page fragments and raw-HTML anchors) and 305 HTML hrefs (including 79
+cross-page fragments): zero unresolved in either format and zero duplicate
+HTML IDs.
+
+The 35-file publication scan found no credential pattern, bucket URI, local
+path/URL, source/watch ID, raw-log link, source media element, or disclosed real
+expected answer. Actual rendered attributes contain no local/file/bucket URI,
+and every external host remains `github.com`. All four real case answers,
+source IDs, questions, transcripts, and media remain withheld; the synthetic
+worked example remains explicitly labelled. `git diff --check`, the
+prospective `git diff --check 7c12afa`, and exact `11/11/11` source/output
+counts pass. Quarto transients were removed. No application tests, custom test
+suite, CI, schema validator, dataset read, public publication, portal refresh,
+or Serve/Funnel change was performed.
+
+**Next action:** Review the focused Task 6/final-review commit, then choose the
+branch integration path. GitHub issue creation remains deferred.
 
 ## Success check
 
