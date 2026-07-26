@@ -5835,49 +5835,31 @@ Figure 1: Research-question reading path: four thematic questions and the curre
 </div>
 </div>
 </div>
-<p>The path is a decision index, not a chronology or evidence ranking. The table below gives the same four paths in text and states the strongest evidence each path can support.</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 25%">
-<col style="width: 25%">
-<col style="width: 25%">
-<col style="width: 25%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Research question</th>
-<th>Why it was tested</th>
-<th>Current answer</th>
-<th>Evidence strength</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>Can we run trustworthy experiments?</td>
-<td>Model comparisons require private, reproducible, label-isolated execution.</td>
-<td>The repository can run controlled work; readiness and compatibility do not establish answer quality.</td>
-<td>Operational checks and a three-row compatibility panel.</td>
-</tr>
-<tr class="even">
-<td>What should every question start with?</td>
-<td>The project needed a simple default before adding specialists.</td>
-<td>Qwen3.5-4B with 12 frames is the accuracy baseline; MiniCPM-o audio-off is the fast alternate.</td>
-<td>Matched frozen-30 plus narrower temporal diagnostics.</td>
-</tr>
-<tr class="odd">
-<td>When is specialist evidence worth adding?</td>
-<td>Speech and sound may help selected questions but can distract globally.</td>
-<td>Route quality-gated Whisper to lexical speech; keep native audio experimental and the human-oracle tier blocked.</td>
-<td>Selected diagnostics, including a ten-row transcript ablation.</td>
-</tr>
-<tr class="even">
-<td>Should another multimodal model replace the baseline?</td>
-<td>Larger and native-audio models might recover baseline failures.</td>
-<td>None is promoted; Qwen3-Omni is promising but formally ineligible.</td>
-<td>Failure-selected and three-/ten-row quality screens.</td>
-</tr>
-</tbody>
-</table>
+<p>The path is a decision index, not a chronology or evidence ranking. The four compact records below are its text equivalent and state the strongest evidence each path can support.</p>
+<p><strong>1. Can we run trustworthy experiments?</strong></p>
+<ul>
+<li><strong>Why it was tested:</strong> Model comparisons require private, reproducible, label-isolated execution.</li>
+<li><strong>Current answer:</strong> The repository can run controlled work; readiness and compatibility do not establish answer quality.</li>
+<li><strong>Evidence strength:</strong> Operational checks and a three-row compatibility panel.</li>
+</ul>
+<p><strong>2. What should every question start with?</strong></p>
+<ul>
+<li><strong>Why it was tested:</strong> The project needed a simple default before adding specialists.</li>
+<li><strong>Current answer:</strong> Qwen3.5-4B with 12 frames is the accuracy baseline; MiniCPM-o audio-off is the fast alternate.</li>
+<li><strong>Evidence strength:</strong> Matched frozen-30 plus narrower temporal diagnostics.</li>
+</ul>
+<p><strong>3. When is specialist evidence worth adding?</strong></p>
+<ul>
+<li><strong>Why it was tested:</strong> Speech and sound may help selected questions but can distract globally.</li>
+<li><strong>Current answer:</strong> Route quality-gated Whisper to lexical speech; keep native audio experimental and the human-oracle tier blocked.</li>
+<li><strong>Evidence strength:</strong> Selected diagnostics, including a ten-row transcript ablation.</li>
+</ul>
+<p><strong>4. Should another multimodal model replace the baseline?</strong></p>
+<ul>
+<li><strong>Why it was tested:</strong> Larger and native-audio models might recover baseline failures.</li>
+<li><strong>Current answer:</strong> None is promoted; Qwen3-Omni is promising but formally ineligible.</li>
+<li><strong>Evidence strength:</strong> Failure-selected and three-/ten-row quality screens.</li>
+</ul>
 </section>
 <section id="trustworthy-experiments" class="level2">
 <h2 class="anchored" data-anchor-id="trustworthy-experiments">Can we run trustworthy experiments?</h2>
