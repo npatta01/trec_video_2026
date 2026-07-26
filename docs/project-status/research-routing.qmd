@@ -68,7 +68,7 @@ bound: paraphrases can be missed and tags can overlap. Prior 2025 systems used
 related ingredients, but no paper documents a complete conditional router that
 chooses model, audio treatment, and frame density per question. See the
 [taxonomy audit](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/taxonomy_prior_art_and_open_omni_models_2026-07-24.md)
-and [evidence-routing plan](https://github.com/npatta01/trec_video_2026/blob/main/docs/superpowers/plans/2026-07-24-evidence-routing-benchmark.md).
+and [closed issue #4](https://github.com/npatta01/trec_video_2026/issues/4).
 </details>
 
 ### Transcript residuals: evidence present, answer still wrong {#transcript-residuals}
@@ -134,7 +134,7 @@ available but the model still combined it incorrectly or chose the wrong
 answer. The literature map recommends selector recall, oracle-evidence answer
 quality, and end-to-end answer quality precisely to tell these apart. See the
 [research-thread source](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/queries/literature_review.sql)
-and [routing benchmark plan](https://github.com/npatta01/trec_video_2026/blob/main/docs/superpowers/plans/2026-07-24-evidence-routing-benchmark.md).
+and [closed issue #4](https://github.com/npatta01/trec_video_2026/issues/4).
 </details>
 
 ### Evidence-aware answer election {#answer-election}
