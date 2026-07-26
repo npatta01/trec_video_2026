@@ -95,6 +95,16 @@ recording-prompt reference is not a TRECVID human oracle.
   panel.
 - **Current condition-bound status:** **Routed candidate** for quality-gated
   lexical speech; not a global transcript default.
+- **What this rules out now:** dismissing quality-accepted ASR as having no
+  diagnostic value on the tested selected lexical-speech panel.
+- **What it does not rule out:** routing prevalence, global transcript value,
+  non-lexical vocalization performance, transcript-fidelity failures, or 2026
+  accuracy.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the selected
+  ten-row panel cannot establish prevalence or a global policy.
+- **Reconsider when:** a representative label-blind routing panel measures
+  accepted and rejected ASR strata, including regressions, under one frozen
+  decision rule.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>

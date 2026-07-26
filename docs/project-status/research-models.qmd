@@ -171,6 +171,16 @@ and [semantic-quality correction · Evidence of record · Evidence report · Git
   Whisper led exact match and token F1.
 - **Current condition-bound status:** **Fast alternate**, not the global
   accuracy winner on every metric.
+- **What this rules out now:** calling MiniCPM-o the global accuracy winner
+  under frozen-30 merely because it was fastest or led METEOR.
+- **What it does not rule out:** using it when latency dominates, quality on
+  other representative panels, or a future accuracy/latency frontier under a
+  different controlled environment.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the outer-wall
+  timing is environment-specific and frozen-30 is descriptive 2025 training
+  evidence.
+- **Reconsider when:** a repeated same-hardware matched panel jointly reports
+  completion, latency, exact/F1, and the declared speed-quality decision rule.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>
@@ -186,6 +196,10 @@ selection on labeled 2025 training data, not an estimate for the unlabeled
 
 ### Qwen3-Omni quality and completion gate {#qwen3-omni-quality}
 
+- **Canonical model-eligibility claim:** its stable identity is
+  `#qwen3-omni-quality`; the related
+  [Canonical native-audio-effect claim](research-native-audio.{{< meta report-ext >}}#qwen3-omni-native-audio)
+  is owned by Native Audio.
 - **Reason for testing:** test a joint native-audio candidate under a paired
   frames-only/audio-on contract after its runtime became compatible.
 - **Tested condition and panel:** 10 deliberately difficult rows, 12 sampled
