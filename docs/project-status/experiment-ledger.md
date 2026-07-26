@@ -17,11 +17,15 @@ recommendation and the [Code Map · Report page](code-map.md) to find the
 implementation boundary. The six themes below are independent research
 areas, not a sequence.
 
+<div class="legacy-fragment-alias-group" aria-hidden="true"><span id="research-questions"></span><span id="fig-experiment-timeline"></span></div>
+
 ## Six-theme research map
 
 <div class="theme-grid">
 
 <div class="theme-card">
+
+<div class="legacy-fragment-alias-group" aria-hidden="true"><span id="trustworthy-experiments"></span><span id="field-guide"></span><span id="data-readiness"></span><span id="compatibility-gate"></span><span id="frozen-30-protocol-v2"></span></div>
 
 ### [Experiment integrity and evaluation](research-integrity.md)
 
@@ -37,6 +41,8 @@ mutation, and scoring-boundary faults before an expensive run?
 </div>
 
 <div class="theme-card">
+
+<div class="legacy-fragment-alias-group" aria-hidden="true"><span id="global-default"></span><span id="directed-temporal-sampling"></span><span id="dense-burst-sampling"></span></div>
 
 ### [Visual and temporal evidence](research-visual-evidence.md)
 
@@ -54,6 +60,8 @@ moment more reliably than uniform sampling?
 
 <div class="theme-card">
 
+<div class="legacy-fragment-alias-group" aria-hidden="true"><span id="automatic-transcript-ablation"></span><span id="human-oracle-tier"></span></div>
+
 ### [Speech and transcript evidence](research-speech-transcripts.md)
 
 **Working answer:** route quality-accepted Whisper to lexical speech;
@@ -70,6 +78,8 @@ upper bound improve answers without hiding transcript errors?
 
 <div class="theme-card">
 
+<div class="legacy-fragment-alias-group" aria-hidden="true"><span id="audio-spatial-seamless"></span></div>
+
 ### [Native audio and sound](research-native-audio.md)
 
 **Working answer:** native audio is not a global switch; prosody and
@@ -85,6 +95,8 @@ regressing visual controls?
 
 <div class="theme-card">
 
+<div class="legacy-fragment-alias-group" aria-hidden="true"><span id="model-promotion"></span><span id="failure-panel"></span><span id="phi-gemma-semantic-stop"></span><span id="qwen3-omni-quality"></span></div>
+
 ### [Models and adaptation](research-models.md)
 
 **Working answer:** no later candidate has displaced Qwen3.5-4B;
@@ -99,6 +111,8 @@ quality and integrity gate?
 </div>
 
 <div class="theme-card">
+
+<div class="legacy-fragment-alias-group" aria-hidden="true"><span id="specialist-evidence"></span><span id="taxonomy-audit"></span></div>
 
 ### [Routing, fusion, and answer selection](research-routing.md)
 
@@ -229,73 +243,9 @@ Validity concerns are separate from result status:
   or selected diagnostic panels constrain what can be claimed, even when
   the run itself is clean.
 
-## Compatibility index for older links
+## History and provenance
 
-Older report links still land here. Each entry points to the theme page
-that now holds the visible experiment summary, limitations, evidence,
-and next test.
-
-- <span id="trustworthy-experiments"></span> **Trustworthy experiments**
-  moved to [Experiment integrity and
-  evaluation](research-integrity.md#why-this-theme-matters).
-- <span id="global-default"></span> **Global default** moved to [Visual
-  and temporal
-  evidence](research-visual-evidence.md#current-working-answer).
-- <span id="specialist-evidence"></span> **Specialist evidence** moved
-  to [Routing, fusion, and answer
-  selection](research-routing.md#current-working-answer).
-- <span id="model-promotion"></span> **Model promotion** moved to
-  [Models and adaptation](research-models.md#current-working-answer).
-- <span id="research-questions"></span> **Research-question index** was
-  replaced by the six independent theme pages, beginning with
-  [Experiment integrity and evaluation](research-integrity.md).
-- <span id="fig-experiment-timeline"></span> **Linear research path
-  figure** was replaced by the non-linear theme map; use [Routing,
-  fusion, and answer selection](research-routing.md) for cross-theme
-  decisions.
-- <span id="field-guide"></span> **July 12 field guide** moved to
-  [Experiment integrity and
-  evaluation](research-integrity.md#field-guide).
-- <span id="data-readiness"></span> **Data readiness** moved to
-  [Experiment integrity and
-  evaluation](research-integrity.md#data-readiness).
-- <span id="compatibility-gate"></span> **Three-video compatibility
-  gate** moved to [Experiment integrity and
-  evaluation](research-integrity.md#compatibility-gate).
-- <span id="frozen-30-protocol-v2"></span> **Frozen-30 protocol v2**
-  moved to [Experiment integrity and
-  evaluation](research-integrity.md#frozen-30-protocol-v2); its frame
-  comparison is also explained under [Visual and temporal
-  evidence](research-visual-evidence.md#frozen-30-protocol-v2).
-- <span id="directed-temporal-sampling"></span> **Directed temporal
-  sampling** moved to [Visual and temporal
-  evidence](research-visual-evidence.md#directed-temporal-sampling).
-- <span id="dense-burst-sampling"></span> **Dense-burst sampling** moved
-  to [Visual and temporal
-  evidence](research-visual-evidence.md#dense-burst-sampling).
-- <span id="audio-spatial-seamless"></span> **Audio, spatial, and
-  Seamless diagnostics** moved to [Native audio and
-  sound](research-native-audio.md) and [Speech and transcript
-  evidence](research-speech-transcripts.md#seamless-diagnostic).
-- <span id="automatic-transcript-ablation"></span>
-  **Automatic-transcript ablation** moved to [Speech and transcript
-  evidence](research-speech-transcripts.md#automatic-transcript-ablation).
-- <span id="taxonomy-audit"></span> **Taxonomy audit** moved to
-  [Routing, fusion, and answer
-  selection](research-routing.md#taxonomy-audit).
-- <span id="human-oracle-tier"></span> **Human-oracle tier** moved to
-  [Speech and transcript
-  evidence](research-speech-transcripts.md#human-oracle-tier).
-- <span id="failure-panel"></span> **Failure-selected Qwen3.6 panel**
-  moved to [Models and adaptation](research-models.md#failure-panel);
-  its native-audio evidence is under [Native audio and
-  sound](research-native-audio.md#failure-panel-native-audio).
-- <span id="phi-gemma-semantic-stop"></span> **Phi/Gemma semantic
-  screen** moved to [Models and
-  adaptation](research-models.md#phi-gemma-semantic-stop).
-- <span id="qwen3-omni-quality"></span> **Qwen3-Omni quality result**
-  moved to [Models and
-  adaptation](research-models.md#qwen3-omni-quality).
+### Issue and PR trail
 
 <details>
 
@@ -367,7 +317,7 @@ provenance, not substitutes for the current condition-bound conclusions.
 
 </details>
 
-## What superseded what
+### What superseded what
 
 Six records explain which later evidence replaced an earlier project
 statement.
@@ -390,7 +340,7 @@ Expand six supersession records
 
 </details>
 
-## Chronology index
+### Chronology index
 
 Five milestones preserve the date-ordered audit trail without making
 chronology the primary reading path.

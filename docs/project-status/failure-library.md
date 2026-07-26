@@ -23,8 +23,10 @@ examples of the full benchmark distribution.
 > This is a selected development-case library, not a prevalence estimate
 > or leaderboard. Repeatedly inspected cases are development evidence,
 > never held-out validation. No 2026 evaluation row is admissible.
-> Expected answers and media appear only under the recorded disclosure
-> and rights policy.
+> Source IDs and original-video links are disclosed. Exact questions,
+> expected answers, transcripts, copied media, and within-video offsets
+> remain withheld or unrecorded under the recorded disclosure and rights
+> policy.
 
 ## How to read the records
 
@@ -40,9 +42,11 @@ Each card therefore includes a competing explanation and a next
 falsifying test.
 
 The frozen predictions and grades below are project-generated outputs
-and project adjudications. The source questions, expected answers,
-transcripts, media, and source identifiers remain withheld. No case has
-a public-safe media attestation, so this page is text-only.
+and project adjudications. Source IDs and original-video links are
+disclosed, while exact questions, expected answers, transcripts, copied
+media, and within-video offsets remain withheld or unrecorded under the
+recorded disclosure and rights policy. The links are external; no media
+is redistributed on this page.
 
 ## Cases
 
@@ -62,27 +66,48 @@ training row · Theme:
 answer selection</a>
 </p>
 
+> [!NOTE]
+>
+> ### Source media
+>
+> [Watch original video ·
+> YouTube](https://www.youtube.com/watch?v=NN7G28sBOlY) · Source ID:
+> `NN7G28sBOlY` · 2025 training source
+>
+> external source; media not redistributed · Relevant offset: not
+> recorded in tracked evidence
+
 <div class="case-fields">
 
 <div class="case-field">
 
 #### What failed
 
-In a spoken-answer case, a brief response was followed by longer numeric
-speculation. The system selected the later material instead of the
-needed span.
+In this spoken-answer case, a brief response was followed by longer
+numeric speculation.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-evidence">
+
+#### Evidence received
+
+The frames-only condition received 12 frozen chronological frames. The
+comparison condition received the same frames plus an automatic
+transcript; native audio was absent.
+
+</div>
+
+<div class="case-field case-field-evidence">
 
 #### Change tried
 
-Automatic transcript evidence was added to the frames-only condition.
+Automatic transcript evidence was added to the frames-only control while
+the 12 frames and answerer were held fixed.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-result">
 
 #### Result
 
@@ -92,7 +117,15 @@ accuracy, exact match, token F1, and METEOR were all `0.0`.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-diagnosis">
+
+#### Possible failure location
+
+Answer selection/output.
+
+</div>
+
+<div class="case-field case-field-diagnosis">
 
 #### Post-hoc diagnosis plus competing explanation
 
@@ -103,7 +136,15 @@ itself.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-diagnosis">
+
+#### Bug or audit status
+
+Post-hoc diagnosis; no confirmed defect.
+
+</div>
+
+<div class="case-field case-field-limit">
 
 #### Limit
 
@@ -112,7 +153,7 @@ validation or evidence of prevalence.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-next">
 
 #### Next falsifying test
 
@@ -134,6 +175,11 @@ Evidence received, run details, grading, and provenance
 
 | Field | Recorded value |
 |----|----|
+| Source ID | `NN7G28sBOlY` |
+| Source URL | [Watch original video · YouTube](https://www.youtube.com/watch?v=NN7G28sBOlY) |
+| Source availability | 2025 training source; platform-hosted watch URL recorded in the source annotation |
+| Relevant-offset status | not recorded in tracked evidence |
+| Link-only media status | external source; media not redistributed |
 | Evidence configuration | `Qwen/Qwen3.5-4B` revision `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`; 12 frozen chronological frames (256²–512²/frame); greedy decoding; 32-token cap; seed `20260724`. Conditions: frames only versus the same frames plus an automatic transcript from `openai/whisper-large-v3` revision `06f233fe06e710322aca913c1bc4249a0d71fce1`; native audio absent. |
 | Selected timestamps, spans, or events | not recorded |
 | Model observation | Not recorded |
@@ -168,6 +214,17 @@ training row · Theme: <a href="research-speech-transcripts.md">Speech
 and transcript evidence</a>
 </p>
 
+> [!NOTE]
+>
+> ### Source media
+>
+> [Watch original video ·
+> YouTube](https://www.youtube.com/watch?v=NW3Mhr76ClM) · Source ID:
+> `NW3Mhr76ClM` · 2025 training source
+>
+> external source; media not redistributed · Relevant offset: not
+> recorded in tracked evidence
+
 <div class="case-fields">
 
 <div class="case-field">
@@ -175,20 +232,31 @@ and transcript evidence</a>
 #### What failed
 
 The case asked the system to identify the clip’s only non-lexical vocal
-sound. The automatic transcript did not represent that event.
+sound, which the automatic transcript did not represent.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-evidence">
+
+#### Evidence received
+
+The frames-only condition received 12 frozen chronological frames. The
+comparison condition received the same frames plus an automatic
+transcript passed through the old generic gate; native audio was absent.
+
+</div>
+
+<div class="case-field case-field-evidence">
 
 #### Change tried
 
-Automatic transcript evidence was added to the frames-only condition and
-passed through the old generic gate.
+The old generic gate admitted automatic transcript text to the 12-frame
+baseline; the matched control used the same frames and answerer without
+the transcript.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-result">
 
 #### Result
 
@@ -198,7 +266,15 @@ exact match, token F1, and METEOR were all `0.0`.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-diagnosis">
+
+#### Possible failure location
+
+Evidence extraction plus gate/routing.
+
+</div>
+
+<div class="case-field case-field-diagnosis">
 
 #### Post-hoc diagnosis plus competing explanation
 
@@ -209,7 +285,15 @@ reliably encode the requested sound in the first place.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-diagnosis">
+
+#### Bug or audit status
+
+Old generic-gate defect fixed; non-lexical ASR coverage remains open.
+
+</div>
+
+<div class="case-field case-field-limit">
 
 #### Limit
 
@@ -218,7 +302,7 @@ validation or evidence of prevalence.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-next">
 
 #### Next falsifying test
 
@@ -240,6 +324,11 @@ Evidence received, run details, grading, and provenance
 
 | Field | Recorded value |
 |----|----|
+| Source ID | `NW3Mhr76ClM` |
+| Source URL | [Watch original video · YouTube](https://www.youtube.com/watch?v=NW3Mhr76ClM) |
+| Source availability | 2025 training source; platform-hosted watch URL recorded in the source annotation |
+| Relevant-offset status | not recorded in tracked evidence |
+| Link-only media status | external source; media not redistributed |
 | Evidence configuration | `Qwen/Qwen3.5-4B` revision `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`; 12 frozen chronological frames (256²–512²/frame); greedy decoding; 32-token cap; seed `20260724`. Conditions: frames only versus the same frames plus an automatic transcript from `openai/whisper-large-v3` revision `06f233fe06e710322aca913c1bc4249a0d71fce1` under the old generic gate; native audio absent. |
 | Selected timestamps, spans, or events | not recorded |
 | Model observation | Not recorded |
@@ -275,27 +364,49 @@ training row · Theme:
 answer selection</a>
 </p>
 
+> [!NOTE]
+>
+> ### Source media
+>
+> [Watch original video ·
+> YouTube](https://www.youtube.com/watch?v=NrB4LPosWBk) · Source ID:
+> `NrB4LPosWBk` · 2025 training source
+>
+> external source; media not redistributed · Relevant offset: not
+> recorded in tracked evidence
+
 <div class="case-fields">
 
 <div class="case-field">
 
 #### What failed
 
-In a final-spoken-token extraction case, two text evidence sources
-contained the needed token, but the frozen answer did not change.
+In this final-spoken-token extraction case, two text sources contained
+the reference token, but the frozen answer did not change.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-evidence">
+
+#### Evidence received
+
+The same answerer received 12 frozen chronological frames in all three
+conditions: frames only, frames plus an automatic transcript, and frames
+plus the verified uploader-caption reference. Native audio was absent.
+
+</div>
+
+<div class="case-field case-field-evidence">
 
 #### Change tried
 
-The same answerer was compared across frames-only, automatic-transcript,
-and uploader-caption conditions.
+Automatic-transcript evidence and the verified uploader-caption
+reference were added in separate comparisons to frames only, with the 12
+frames and answerer held fixed.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-result">
 
 #### Result
 
@@ -304,18 +415,34 @@ with manual accuracy `0.0`.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-diagnosis">
 
-#### Post-hoc diagnosis plus competing explanation
+#### Possible failure location
 
-**Post-hoc diagnosis:** two text sources contained the reference token,
-but the frozen answer did not change. A competing explanation is that
-the answerer did not recognize the task as final-token extraction,
-rather than failing to use text evidence generally.
+Fusion/evidence use or task instruction.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-diagnosis">
+
+#### Post-hoc diagnosis plus competing explanation
+
+**Post-hoc diagnosis:** the unchanged answer is consistent with failure
+to use retrieved text evidence. A competing explanation is that the
+answerer did not recognize the task as final-token extraction, rather
+than failing to use text evidence generally.
+
+</div>
+
+<div class="case-field case-field-diagnosis">
+
+#### Bug or audit status
+
+Post-hoc diagnosis; no confirmed defect.
+
+</div>
+
+<div class="case-field case-field-limit">
 
 #### Limit
 
@@ -324,7 +451,7 @@ validation or evidence of prevalence.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-next">
 
 #### Next falsifying test
 
@@ -347,6 +474,11 @@ Evidence received, run details, grading, and provenance
 
 | Field | Recorded value |
 |----|----|
+| Source ID | `NrB4LPosWBk` |
+| Source URL | [Watch original video · YouTube](https://www.youtube.com/watch?v=NrB4LPosWBk) |
+| Source availability | 2025 training source; platform-hosted watch URL recorded in the source annotation |
+| Relevant-offset status | not recorded in tracked evidence |
+| Link-only media status | external source; media not redistributed |
 | Evidence configuration | `Qwen/Qwen3.5-4B` revision `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`; 12 frozen chronological frames (256²–512²/frame); greedy decoding; 32-token cap; seed `20260724`. Three conditions: frames only; the same frames plus an automatic transcript from `openai/whisper-large-v3` revision `06f233fe06e710322aca913c1bc4249a0d71fce1`; and the same frames plus the verified uploader-caption reference. Native audio was absent. |
 | Selected timestamps, spans, or events | not recorded |
 | Model observation | Not recorded |
@@ -381,26 +513,47 @@ training row · Theme: <a href="research-native-audio.md">Native audio
 and omni models</a>
 </p>
 
+> [!NOTE]
+>
+> ### Source media
+>
+> [Watch original video ·
+> YouTube](https://www.youtube.com/watch?v=IWSPAfCKtV8) · Source ID:
+> `IWSPAfCKtV8` · 2025 training source
+>
+> external source; media not redistributed · Relevant offset: not
+> recorded in tracked evidence
+
 <div class="case-fields">
 
 <div class="case-field">
 
 #### What failed
 
-In a brief non-speech-event case near the end of a clip, native audio
+In this brief non-speech-event case near the end of a clip, native audio
 produced an unsupported, overly specific music interpretation.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-evidence">
 
-#### Change tried
+#### Evidence received
 
-Native audio was enabled and compared with an audio-off condition.
+The audio-off condition received 12 frames. The comparison condition
+received the same 12 frames plus full 16-kHz native audio.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-evidence">
+
+#### Change tried
+
+Full 16-kHz native audio was switched on against the matched audio-off
+control, with the same 12 frames in both conditions.
+
+</div>
+
+<div class="case-field case-field-result">
 
 #### Result
 
@@ -410,18 +563,35 @@ exact match `0.0`, token F1 `0.0`, and METEOR `0.125`.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-diagnosis">
+
+#### Possible failure location
+
+Answer specificity/evidence use.
+
+</div>
+
+<div class="case-field case-field-diagnosis">
 
 #### Post-hoc diagnosis plus competing explanation
 
-**Post-hoc diagnosis:** native audio produced an unsupported, overly
-specific music interpretation. A competing explanation is that answer
+**Post-hoc diagnosis:** the native-audio answer was more specific than
+the tracked evidence supported. A competing explanation is that answer
 wording became too specific even if the underlying sound representation
 improved.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-diagnosis">
+
+#### Bug or audit status
+
+A separate container mount-path defect was fixed before the recorded
+graded result.
+
+</div>
+
+<div class="case-field case-field-limit">
 
 #### Limit
 
@@ -430,7 +600,7 @@ validation or evidence of prevalence.
 
 </div>
 
-<div class="case-field">
+<div class="case-field case-field-next">
 
 #### Next falsifying test
 
@@ -452,6 +622,11 @@ Evidence received, run details, grading, and provenance
 
 | Field | Recorded value |
 |----|----|
+| Source ID | `IWSPAfCKtV8` |
+| Source URL | [Watch original video · YouTube](https://www.youtube.com/watch?v=IWSPAfCKtV8) |
+| Source availability | 2025 training source; platform-hosted watch URL recorded in the source annotation |
+| Relevant-offset status | not recorded in tracked evidence |
+| Link-only media status | external source; media not redistributed |
 | Evidence configuration | `openbmb/MiniCPM-o-4_5` revision `1f761131fa83f5ed3cd6f2f22b225c4501d154fa`; 12 frames. Conditions: audio off versus full 16-kHz native audio. |
 | Selected timestamps, spans, or events | not recorded |
 | Model observation | Not recorded |

@@ -510,6 +510,13 @@ code {
     overflow-wrap: anywhere;
   }
 
+  .failure-case details table th:first-child,
+  .failure-case details table td:first-child {
+    min-width: 7.5rem;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+
   .table-responsive,
   .quarto-table-container {
     max-width: 100%;

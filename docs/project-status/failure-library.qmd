@@ -62,12 +62,26 @@ tracked evidence
 :::
 
 ::: {.case-fields}
+::: {.case-field}
+#### What failed
+
+In this spoken-answer case, a brief response was followed by longer numeric
+speculation.
+:::
+
 ::: {.case-field .case-field-evidence}
 #### Evidence received
 
 The frames-only condition received 12 frozen chronological frames. The
 comparison condition received the same frames plus an automatic transcript;
 native audio was absent.
+:::
+
+::: {.case-field .case-field-evidence}
+#### Change tried
+
+Automatic transcript evidence was added to the frames-only control while the
+12 frames and answerer were held fixed.
 :::
 
 ::: {.case-field .case-field-result}
@@ -87,10 +101,9 @@ Answer selection/output.
 ::: {.case-field .case-field-diagnosis}
 #### Post-hoc diagnosis plus competing explanation
 
-In this spoken-answer case, a brief response was followed by longer numeric
-speculation. **Post-hoc diagnosis:** the needed span was retrieved, but a later
-span was selected. A competing explanation is that the answerer preferred the
-longer, more explicit numeric statement rather than later position itself.
+**Post-hoc diagnosis:** the needed span was retrieved, but a later span was
+selected. A competing explanation is that the answerer preferred the longer,
+more explicit numeric statement rather than later position itself.
 :::
 
 ::: {.case-field .case-field-diagnosis}
@@ -162,12 +175,27 @@ tracked evidence
 :::
 
 ::: {.case-fields}
+::: {.case-field}
+#### What failed
+
+The case asked the system to identify the clip's only non-lexical vocal sound,
+which the automatic transcript did not represent.
+:::
+
 ::: {.case-field .case-field-evidence}
 #### Evidence received
 
 The frames-only condition received 12 frozen chronological frames. The
 comparison condition received the same frames plus an automatic transcript
 passed through the old generic gate; native audio was absent.
+:::
+
+::: {.case-field .case-field-evidence}
+#### Change tried
+
+The old generic gate admitted automatic transcript text to the 12-frame
+baseline; the matched control used the same frames and answerer without the
+transcript.
 :::
 
 ::: {.case-field .case-field-result}
@@ -187,12 +215,10 @@ Evidence extraction plus gate/routing.
 ::: {.case-field .case-field-diagnosis}
 #### Post-hoc diagnosis plus competing explanation
 
-The case asked the system to identify the clip's only non-lexical vocal sound,
-which the automatic transcript did not represent. **Post-hoc diagnosis:** the
-ASR missed the non-lexical event and an unrelated phrase passed the old generic
-gate. A competing explanation is that the gate was not the decisive failure
-because text-only ASR cannot reliably encode the requested sound in the first
-place.
+**Post-hoc diagnosis:** the ASR missed the non-lexical event and an unrelated
+phrase passed the old generic gate. A competing explanation is that the gate
+was not the decisive failure because text-only ASR cannot reliably encode the
+requested sound in the first place.
 :::
 
 ::: {.case-field .case-field-diagnosis}
@@ -264,12 +290,27 @@ tracked evidence
 :::
 
 ::: {.case-fields}
+::: {.case-field}
+#### What failed
+
+In this final-spoken-token extraction case, two text sources contained the
+reference token, but the frozen answer did not change.
+:::
+
 ::: {.case-field .case-field-evidence}
 #### Evidence received
 
 The same answerer received 12 frozen chronological frames in all three
 conditions: frames only, frames plus an automatic transcript, and frames plus
 the verified uploader-caption reference. Native audio was absent.
+:::
+
+::: {.case-field .case-field-evidence}
+#### Change tried
+
+Automatic-transcript evidence and the verified uploader-caption reference were
+added in separate comparisons to frames only, with the 12 frames and answerer
+held fixed.
 :::
 
 ::: {.case-field .case-field-result}
@@ -288,10 +329,10 @@ Fusion/evidence use or task instruction.
 ::: {.case-field .case-field-diagnosis}
 #### Post-hoc diagnosis plus competing explanation
 
-In this final-spoken-token extraction case, **post-hoc diagnosis:** two text
-sources contained the reference token, but the frozen answer did not change. A
-competing explanation is that the answerer did not recognize the task as
-final-token extraction, rather than failing to use text evidence generally.
+**Post-hoc diagnosis:** the unchanged answer is consistent with failure to use
+retrieved text evidence. A competing explanation is that the answerer did not
+recognize the task as final-token extraction, rather than failing to use text
+evidence generally.
 :::
 
 ::: {.case-field .case-field-diagnosis}
@@ -363,11 +404,25 @@ tracked evidence
 :::
 
 ::: {.case-fields}
+::: {.case-field}
+#### What failed
+
+In this brief non-speech-event case near the end of a clip, native audio
+produced an unsupported, overly specific music interpretation.
+:::
+
 ::: {.case-field .case-field-evidence}
 #### Evidence received
 
 The audio-off condition received 12 frames. The comparison condition received
 the same 12 frames plus full 16-kHz native audio.
+:::
+
+::: {.case-field .case-field-evidence}
+#### Change tried
+
+Full 16-kHz native audio was switched on against the matched audio-off control,
+with the same 12 frames in both conditions.
 :::
 
 ::: {.case-field .case-field-result}
@@ -387,10 +442,9 @@ Answer specificity/evidence use.
 ::: {.case-field .case-field-diagnosis}
 #### Post-hoc diagnosis plus competing explanation
 
-In this brief non-speech-event case near the end of a clip, **post-hoc
-diagnosis:** native audio produced an unsupported, overly specific music
-interpretation. A competing explanation is that answer wording became too
-specific even if the underlying sound representation improved.
+**Post-hoc diagnosis:** the native-audio answer was more specific than the
+tracked evidence supported. A competing explanation is that answer wording
+became too specific even if the underlying sound representation improved.
 :::
 
 ::: {.case-field .case-field-diagnosis}

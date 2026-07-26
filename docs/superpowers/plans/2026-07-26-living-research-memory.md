@@ -702,6 +702,14 @@ route returned HTTP 200. `tailscale serve status` and
 `tailscale funnel status` both report `tailnet only`, with no Funnel or public
 listener, and the existing Serve mapping was not changed.
 
+**Duplicate-ID verification supersession:** Earlier literal “no duplicate IDs”
+and “zero duplicate HTML IDs” wording in this historical plan predates the
+native dual-theme refinement and is superseded for current output. Authored
+content, interactive controls, case anchors, and legacy fragments are unique;
+Quarto `1.9.38` separately emits the renderer-owned stylesheet resource IDs
+`quarto-bootstrap` and `quarto-text-highlighting-styles` three times per page.
+That framework behavior is not an authored fragment collision.
+
 **Next action:** Choose the branch integration path. GitHub issue creation
 remains deferred until this report has been reviewed in the chosen integration
 flow.

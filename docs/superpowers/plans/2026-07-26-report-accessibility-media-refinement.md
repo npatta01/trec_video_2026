@@ -95,7 +95,7 @@ for documentation-only responsive inspection.
 - Produces: `body.quarto-light` and `body.quarto-dark` token sets plus reusable
   `.status-chip` and `.case-field-*` presentation classes for Tasks 2 and 3.
 
-- [ ] **Step 1: Configure Quarto's native two-theme output**
+- [x] **Step 1: Configure Quarto's native two-theme output**
 
 Replace the current single theme list with:
 
@@ -109,7 +109,7 @@ respect-user-color-scheme: true
 Keep `embed-resources: true`. Quarto must provide the standard color-scheme
 toggle and remember the reader's explicit selection.
 
-- [ ] **Step 2: Add the dark Cosmo Sass defaults**
+- [x] **Step 2: Add the dark Cosmo Sass defaults**
 
 Create `theme-dark.scss` with `/*-- scss:defaults --*/`, repeat
 `$web-font-path: false`, and set these values:
@@ -135,7 +135,7 @@ $mermaid-label-fg-color: #8fd3ff;
 Retain the same system-font stack as `theme.scss`; do not introduce a web-font
 URL.
 
-- [ ] **Step 3: Replace light-only CSS values with mode-aware tokens**
+- [x] **Step 3: Replace light-only CSS values with mode-aware tokens**
 
 Define the current light palette on `body.quarto-light` and this dark palette
 on `body.quarto-dark`:
@@ -176,7 +176,7 @@ appearance:
 Replace the hard-coded `#fff` failure-card background and direct Mermaid label
 overrides with tokens/Quarto Mermaid variables.
 
-- [ ] **Step 4: Add redundant status and failure-trace styling**
+- [x] **Step 4: Add redundant status and failure-trace styling**
 
 Add outlined `.status-chip` variants for `use`, `route`, `open`,
 `not-promoted`, and `unknown`. Add subtle left-border variants for evidence,
@@ -188,7 +188,7 @@ modes. Give `summary` and the Quarto theme toggle a minimum 24-pixel target.
 Add `@media (forced-colors: active)` and `@media print` rules, and preserve the
 existing reduced-motion and 390-pixel stacking behavior.
 
-- [ ] **Step 5: Render an isolated shell check**
+- [x] **Step 5: Render an isolated shell check**
 
 Run:
 
@@ -204,7 +204,7 @@ Expected: eleven HTML pages under `$theme_check_dir/reports/project-status`, a
 visible Quarto color-scheme toggle in `index.html`, both light and dark theme
 styles embedded, and no external font/resource warning.
 
-- [ ] **Step 6: Commit the shell and token system**
+- [x] **Step 6: Commit the shell and token system**
 
 ```bash
 git add docs/project-status/_quarto.yml docs/project-status/theme.scss docs/project-status/theme-dark.scss docs/project-status/styles.css
@@ -223,13 +223,13 @@ git commit -m "docs: add accessible light and dark report themes"
 - Produces: unchanged old bookmark URLs that land on a current theme card, plus
   one compact historical appendix.
 
-- [ ] **Step 1: Move generic former anchors to the six-theme map**
+- [x] **Step 1: Move generic former anchors to the six-theme map**
 
 Place zero-height aliases for `research-questions` and
 `fig-experiment-timeline` immediately before the current six-theme map. Do not
 add visible migration prose.
 
-- [ ] **Step 2: Group the remaining aliases inside current theme cards**
+- [x] **Step 2: Group the remaining aliases inside current theme cards**
 
 Use this exact primary mapping:
 
@@ -253,26 +253,27 @@ Routing, fusion, and answer selection:
 Render aliases for both GFM and HTML without creating duplicate HTML IDs. Each
 card's visible description remains the meaningful destination.
 
-- [ ] **Step 3: Remove the visible compatibility index**
+- [x] **Step 3: Remove the visible compatibility index**
 
 Delete the `Compatibility index for older links` heading and nineteen-item
 migration list. Retain no second theme hierarchy.
 
-- [ ] **Step 4: Consolidate cross-cutting history**
+- [x] **Step 4: Consolidate cross-cutting history**
 
 Create `## History and provenance {.unlisted}` after result interpretation.
 Nest the existing issue/PR trail, `What superseded what`, and `Chronology index`
 under it. Preserve the existing `what-superseded-what` and `chronology-index`
 fragments and keep detailed tables inside native disclosures.
 
-- [ ] **Step 5: Verify all old bookmarks in an isolated render**
+- [x] **Step 5: Verify all old bookmarks in an isolated render**
 
 Render `experiment-ledger.qmd` to GFM and HTML in a temporary copy. Check each
-of the nineteen IDs exactly once in both outputs, check zero duplicate HTML IDs,
-and confirm `Compatibility index for older links` is absent from visible source
+of the nineteen IDs exactly once in both outputs, check that authored and
+legacy IDs are unique, report renderer-owned resource IDs separately, and
+confirm `Compatibility index for older links` is absent from visible source
 and output. Confirm the page contents omits History and provenance.
 
-- [ ] **Step 6: Commit the integrated history**
+- [x] **Step 6: Commit the integrated history**
 
 ```bash
 git add docs/project-status/experiment-ledger.qmd
@@ -292,7 +293,7 @@ git commit -m "docs: integrate legacy experiments into research themes"
 - Produces: four visible case traces with original-video links, explicit media
   boundaries, failure location, bug status, and falsifying next tests.
 
-- [ ] **Step 1: Verify the source boundary before authoring**
+- [x] **Step 1: Verify the source boundary before authoring**
 
 Run:
 
@@ -307,7 +308,7 @@ Expected: all four sources have platform-hosted watch URLs. The annotation
 `timestamp` field is an ISO dataset timestamp, not a video offset, so it must
 not become a `t=` link.
 
-- [ ] **Step 2: Correct the library-wide disclosure wording**
+- [x] **Step 2: Correct the library-wide disclosure wording**
 
 State that source IDs and original-video links are disclosed, while exact
 questions, expected answers, transcripts, copied media, and within-video
@@ -315,7 +316,7 @@ offsets remain withheld or unrecorded under the recorded policy. Replace the
 false claim that all source identifiers are withheld. Keep the selected-case,
 non-prevalence warning above the cases.
 
-- [ ] **Step 3: Add one source-media band to every case**
+- [x] **Step 3: Add one source-media band to every case**
 
 Use these exact canonical links:
 
@@ -330,7 +331,7 @@ Each band shows `Watch original video · YouTube`, the source ID, `2025 training
 source`, `external source; media not redistributed`, and `Relevant offset: not
 recorded in tracked evidence`. Do not embed a thumbnail or player.
 
-- [ ] **Step 4: Reorder each visible card as an evidence trace**
+- [x] **Step 4: Reorder each visible card as an evidence trace**
 
 Keep the prediction, grade, competing explanation, limit, and next test already
 present. Add visible `Evidence received`, `Possible failure location`, and `Bug
@@ -349,7 +350,7 @@ CASE-004 — answer specificity/evidence use; a separate container mount-path
 Use `case-field-evidence`, `case-field-result`, `case-field-diagnosis`,
 `case-field-limit`, and `case-field-next` classes from Task 1.
 
-- [ ] **Step 5: Reconcile each expert disclosure**
+- [x] **Step 5: Reconcile each expert disclosure**
 
 Add Source URL, source availability, relevant-offset status, and link-only media
 status to every details table. Preserve model revisions, frame/audio/transcript
@@ -357,14 +358,14 @@ conditions, frozen predictions, grades, rater/blinding gaps, immutable report
 links, and supersession statements. Keep `Model observation: Not recorded`; do
 not invent hidden reasoning.
 
-- [ ] **Step 6: Render and inspect the library alone**
+- [x] **Step 6: Render and inspect the library alone**
 
 Render `failure-library.qmd` to GFM and HTML in a temporary copy. Confirm all
 four source links appear, no source ID appears in an `img`, `iframe`, `video`,
 `audio`, `source`, or `poster` attribute, and all visible failure claims retain
 their condition and `n=1` boundary.
 
-- [ ] **Step 7: Commit the linked failure traces**
+- [x] **Step 7: Commit the linked failure traces**
 
 ```bash
 git add docs/project-status/failure-library.qmd
@@ -386,7 +387,7 @@ git commit -m "docs: link failure cases to source videos"
 - Produces: deterministic GitHub Markdown, self-contained light/dark HTML, and a
   verified tailnet-only preview for user review.
 
-- [ ] **Step 1: Render all canonical outputs**
+- [x] **Step 1: Render all canonical outputs**
 
 From the repository root, run:
 
@@ -402,7 +403,7 @@ env XDG_CACHE_HOME="$render_cache/cache" quarto render docs/project-status --to 
 Expected: exactly eleven QMD, eleven sibling Markdown, and eleven HTML files.
 Do not hand-edit generated output.
 
-- [ ] **Step 2: Prove deterministic regeneration**
+- [x] **Step 2: Prove deterministic regeneration**
 
 Create a fresh temporary directory with `docs/project-status/` at the same
 relative depth as the repository, render all eleven GFM and HTML outputs there
@@ -410,7 +411,7 @@ with a separate task-specific cache, and compare all twenty-two generated files
 byte-for-byte using `cmp`. Stop and investigate any mismatch before portal
 refresh.
 
-- [ ] **Step 3: Run focused source and output checks**
+- [x] **Step 3: Run focused source and output checks**
 
 Verify:
 
@@ -419,7 +420,8 @@ Verify:
 4/4 source-video links exist in QMD, Markdown, and HTML.
 0 copied/embedded media elements reference any of the four source IDs.
 0 remote runtime src/poster/import URLs exist in generated HTML/CSS.
-0 duplicate HTML IDs exist.
+0 duplicate authored/content/interactive/case/legacy ID groups exist; report
+renderer-owned framework resource-ID counts separately.
 0 unresolved repository-relative links or fragments exist.
 ```
 
@@ -428,7 +430,7 @@ bucket URIs, local filesystem paths/URLs, raw-log fragments, and 2026 evaluation
 identifiers. External `href` links to GitHub, Quarto, the Copyright Office, and
 the four YouTube watch pages are intentional.
 
-- [ ] **Step 4: Inspect representative light/dark desktop and phone views**
+- [x] **Step 4: Inspect representative light/dark desktop and phone views**
 
 Use authorized headless Chrome because the in-app browser has no automation
 surface. Capture Start Here, Research Themes, Failure Library, one theme page,
@@ -438,7 +440,7 @@ disclosures, card stacking, overflow, history placement, and the failure trace.
 Use the user's current screenshots as the visual baseline; do not redesign
 unrelated layout.
 
-- [ ] **Step 5: Obtain an independent review before publishing**
+- [x] **Step 5: Obtain an independent review before publishing**
 
 Give a fresh reviewer the approved spec, source diff, rendered pages, and
 verification evidence. Require findings to distinguish critical accessibility
@@ -446,7 +448,7 @@ or evidence errors, important usability issues, and optional polish. Resolve
 all critical/important findings and rerun the affected render/check before the
 portal is refreshed.
 
-- [ ] **Step 6: Refresh only the authorized portal copy**
+- [x] **Step 6: Refresh only the authorized portal copy**
 
 Copy the eleven sanitized HTML files to
 `/home/npatta01/codex-rendered/plans/trecvid-vqa-current-state/`. Replace the
@@ -464,7 +466,7 @@ Verify all eleven live HTTPS routes return `200` and match the repository HTML
 bytes. Confirm `tailscale serve status` and `tailscale funnel status` still say
 tailnet-only and that no Serve mapping changed.
 
-- [ ] **Step 7: Record evidence and commit the completed refinement**
+- [x] **Step 7: Record evidence and commit the completed refinement**
 
 Update this plan with render counts, deterministic comparison, fragment/link
 results, media/privacy scan, responsive light/dark scenarios, independent
@@ -476,6 +478,65 @@ HTML files. Confirm no `data/` path is staged, then commit:
 ```bash
 git commit -m "docs: publish accessible source-linked status report"
 ```
+
+**Task 4 status:** Complete. The fresh re-review approved private publication
+with zero Critical and zero Important findings; the authorized portal refresh,
+live-byte checks, and final commit then completed this refinement.
+
+**Pre-publication verification evidence:**
+
+- Quarto `1.9.38` rendered exactly 11 QMD sources to 11 sibling GFM files and
+  11 self-contained HTML files with task-specific caches. Both the original
+  pass and the review-fix pass were reproduced from physically separate copies;
+  every pass matched all 22 generated files byte-for-byte (`11/11` GFM and
+  `11/11` HTML). No generated output was hand-edited, and Quarto's `.quarto`,
+  nested `docs/`, `.gitignore`, `search.json`, and `site_libs` transients were
+  removed from the repository worktree.
+- The focused audit resolved all 19 legacy experiment-ledger IDs exactly once.
+  All four approved YouTube watch URLs occur in QMD, GFM, and HTML; each occurs
+  once in the visible source-media band and once in the expert disclosure on
+  every surface. No media element references a source ID, and generated HTML
+  contains no remote runtime `src`, `poster`, `srcset`, stylesheet link, CSS
+  import, or CSS resource URL.
+- Authored/content, interactive-control, case, and all 19 legacy IDs are
+  unique. Quarto `1.9.38`'s native dual-theme renderer separately emits the
+  framework stylesheet resource IDs `quarto-bootstrap` and
+  `quarto-text-highlighting-styles` three times on every page. This known
+  renderer behavior is not an authored fragment collision; the current result
+  must not be summarized as literal zero duplicate IDs.
+- Repository-relative resolution checked 149 QMD links/fragments, 149 GFM
+  links/fragments, and 280 rendered-HTML links/fragments with zero unresolved.
+  Credential, bucket-URI, local-path/URL, raw-log-fragment, and 2026 evaluation
+  identifier scans found zero matches. `git diff --check` passes.
+- Authorized Chrome `150` captured Start Here, Research Themes, Failure
+  Library, Visual and Temporal Evidence, and Code Map at `1440x1000` and
+  `390x844` in light and dark modes (`20/20` scenarios). All scenarios retained
+  the three-item navbar, correct mode, at least 24-pixel theme/disclosure
+  controls, one-column phone stacking, and zero page overflow. Keyboard Tab
+  focus produced the intended two-layer ring in both modes. The History and
+  provenance section is absent from the TOC but remains a valid deep-link
+  target below the fixed navbar.
+- The first independent review reported zero Critical and two Important
+  usability/evidence findings: provenance labels collapsed at phone width, and
+  the visible failure traces omitted explicit `What failed` and `Change tried`
+  steps. The focused fix preserves a usable first-column width (`133.125px` in
+  the `390px` Chrome scenario), normal label wrapping, and zero page overflow;
+  all four visible traces now follow the nine-field evidence order while
+  preserving source boundaries, conditions, predictions, grades, diagnoses,
+  provenance, limits, and next tests. Fresh re-review reported zero Critical
+  and zero Important findings and approved the portal refresh.
+- Only the 11 sanitized repository HTML files were copied into the existing
+  authorized portal directory; its 11 filesystem copies match the repository
+  byte-for-byte. The canonical Start Here directory route and ten named HTML
+  routes all returned HTTP 200 and matched repository bytes (`11/11`). The
+  explicit `index.html` spelling returns HTTP 301 to the canonical directory
+  route. The portal root returned 200 and contains the exact approved
+  description.
+- Before and after the copy, `tailscale serve status` and
+  `tailscale funnel status` reported the same single mapping:
+  `https://npatta01-framework.tail481212.ts.net (tailnet only)` with `/` served
+  from `/home/npatta01/codex-rendered`. No Serve mapping was changed, Funnel
+  was not enabled, and no public listener was introduced.
 
 ## Success check
 
