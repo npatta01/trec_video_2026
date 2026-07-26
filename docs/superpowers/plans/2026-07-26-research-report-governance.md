@@ -538,8 +538,11 @@ and this plan if unchanged Markdown files remain byte-identical.
   checked with zero remote dependencies. `git diff --check` passed. No
   application tests, custom script or test files, CI, schema, or portal
   refresh were added or run.
-- Final whole-branch re-review is pending. This correction round does not claim
-  approval.
+- Final whole-branch re-review verdict: **Ready to merge — Yes**, with no
+  Critical, Important, or Minor findings. The reviewer confirmed that all
+  compatibility corrections resolve the earlier findings without duplicate
+  HTML IDs or changes to scientific scope, layout, configuration, navbar, or
+  page count.
 
 ## Final review and authorized portal refresh
 
@@ -557,3 +560,24 @@ After all three task reviews pass:
    status is unchanged.
 6. Append the publication evidence to this plan and commit it. Do not push or
    open a pull request without separate authorization.
+
+### 2026-07-26 — Final review and portal-refresh evidence
+
+- Final whole-branch re-review returned **Ready to merge — Yes** with no
+  Critical, Important, or Minor findings after the GitHub-readable and legacy
+  fragment fixes.
+- Before and after the copy, `tailscale serve status` and
+  `tailscale funnel status` reported the same existing
+  `https://npatta01-framework.tail481212.ts.net` mapping as **tailnet only**, with
+  `/` served from `/home/npatta01/codex-rendered`; no public Funnel mapping was
+  enabled.
+- Copied only the 12 reviewed HTML files from `reports/project-status/` to
+  `/home/npatta01/codex-rendered/plans/trecvid-vqa-current-state/`. The source
+  and portal directories each contain exactly 12 HTML pages, and all **12/12**
+  portal files match repository bytes.
+- Verified the live directory route plus all 11 named page routes over HTTPS:
+  **12/12 HTTP 200** and **12/12 live byte matches** against the reviewed
+  repository HTML.
+- The portal remains private and tailnet-only. No public deployment, push,
+  pull request, GitHub issue, sharing-permission change, custom test, or
+  application-test run occurred.
