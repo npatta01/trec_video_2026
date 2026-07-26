@@ -339,8 +339,9 @@ or audit status` fields:
 
 ```text
 CASE-001 — answer selection/output; post-hoc diagnosis, no confirmed defect.
-CASE-002 — evidence extraction plus gate/routing; old generic-gate defect fixed,
-           non-lexical ASR coverage remains open.
+CASE-002 — evidence extraction plus gate/routing; confirmed defect in the tested
+           generic gate, with repair verification and a dedicated non-lexical
+           check or route still open.
 CASE-003 — fusion/evidence use or task instruction; post-hoc diagnosis,
            no confirmed defect.
 CASE-004 — answer specificity/evidence use; a separate container mount-path
@@ -479,9 +480,11 @@ HTML files. Confirm no `data/` path is staged, then commit:
 git commit -m "docs: publish accessible source-linked status report"
 ```
 
-**Task 4 status:** Complete. The fresh re-review approved private publication
-with zero Critical and zero Important findings; the authorized portal refresh,
-live-byte checks, and final commit then completed this refinement.
+**Earlier Task 4 status:** The then-scoped fresh re-review approved private
+publication with zero Critical and zero Important findings; the authorized
+portal refresh, live-byte checks, and final commit then completed that scope. A
+later holistic review found the evidence contradiction recorded below, so that
+earlier verdict is not the final review state for the current sources.
 
 **Pre-publication verification evidence:**
 
@@ -537,6 +540,39 @@ live-byte checks, and final commit then completed this refinement.
   `https://npatta01-framework.tail481212.ts.net (tailnet only)` with `/` served
   from `/home/npatta01/codex-rendered`. No Serve mapping was changed, Funnel
   was not enabled, and no public listener was introduced.
+
+**Later holistic-review correction (2026-07-26):**
+
+- The later review found one Important contradiction in CASE-002: the report
+  claimed the tested generic-gate defect was fixed and superseded, while the
+  immutable issue #7 evidence only confirms that the tested gate incorrectly
+  accepted an unrelated outro phrase and records a dedicated non-lexical check
+  as future work. The corrected source records the confirmed tested-gate defect,
+  states that no repair or supersession evidence is recorded, and leaves repair
+  verification plus a dedicated non-lexical-vocalization check or route open.
+- The same review found one Minor stale numeric record-count phrase after the
+  case traces had expanded. The hub now uses the durable description `full
+  evidence traces and disclosure boundary`.
+- Fresh scoped re-review reported zero Critical, zero Important, and zero Minor
+  findings and approved the private portal refresh.
+- The refresh replaced only `experiment-ledger.html` and
+  `failure-library.html`. The authorized directory still contains exactly 11
+  HTML files, and all 11 filesystem copies match the repository outputs
+  byte-for-byte. The portal index was not modified; its SHA-256 remained
+  `1597e111f1a1ea6e67f44d54f4bf33f083ac9efbc8cc32183d6fee9a53f57c8e`,
+  and its approved description remained unchanged.
+- The canonical Start Here directory route and all ten named HTML routes
+  returned HTTP 200 and matched the repository bytes (`11/11`). The portal root
+  returned HTTP 200 and contained the unchanged approved description.
+- Before and after the refresh, `tailscale serve status` and
+  `tailscale funnel status` reported the same single mapping:
+  `https://npatta01-framework.tail481212.ts.net (tailnet only)` with `/` served
+  from `/home/npatta01/codex-rendered`. No Serve mapping command was run, Funnel
+  was not enabled, and no public listener was introduced.
+- **Final commit status:** Completed after the post-plan diff check and exact
+  seven-path stage audit as the local commit
+  `docs: correct transcript gate evidence status`. No push, pull request, or
+  issue action was performed.
 
 ## Success check
 

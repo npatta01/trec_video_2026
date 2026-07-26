@@ -146,8 +146,8 @@ link opens the visible theme record with the tested condition and limits.
 ## Three failure mechanisms to preview
 
 These selected development cases explain mechanisms, not prevalence. Open the
-[Failure Library · Report page](failure-library.{{< meta report-ext >}}) for the complete
-six-field records and disclosure boundary.
+[Failure Library · Report page](failure-library.{{< meta report-ext >}}) for full
+evidence traces and the disclosure boundary.
 
 :::: {.failure-preview-grid}
 ::: {.failure-preview}
@@ -158,7 +158,7 @@ Needed speech was retrieved, but later numeric speculation was selected.
 ::: {.failure-preview}
 ### [Non-lexical event missed](failure-library.{{< meta report-ext >}}#case-002)
 
-An unrelated transcript passed the old generic gate while the requested vocal
+An unrelated transcript passed the tested generic gate while the requested vocal
 sound remained unrepresented.
 :::
 ::: {.failure-preview}

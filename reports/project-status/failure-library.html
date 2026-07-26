@@ -3449,7 +3449,7 @@ Evidence received, run details, grading, and provenance
 </details>
 </section>
 <section id="case-002" class="level3 failure-case">
-<h3 class="anchored" data-anchor-id="case-002">CASE-002 — Non-lexical event missed by transcript gate</h3>
+<h3 class="anchored" data-anchor-id="case-002">CASE-002 — Non-lexical event missed by transcript route</h3>
 <p class="case-meta">
 <strong>CASE-002</strong> · Selected development case · Owner: TRECVID VQA project · Last verified: 2026-07-26 · Source/split role: 2025 training row · Theme: <a href="./research-speech-transcripts.html">Speech and transcript evidence</a>
 </p>
@@ -3474,11 +3474,11 @@ Evidence received, run details, grading, and provenance
 </section>
 <section id="evidence-received-1" class="level4 case-field case-field-evidence">
 <h4 class="anchored" data-anchor-id="evidence-received-1">Evidence received</h4>
-<p>The frames-only condition received 12 frozen chronological frames. The comparison condition received the same frames plus an automatic transcript passed through the old generic gate; native audio was absent.</p>
+<p>The frames-only condition received 12 frozen chronological frames. The comparison condition received the same frames plus an automatic transcript passed through the recorded generic gate; native audio was absent.</p>
 </section>
 <section id="change-tried-1" class="level4 case-field case-field-evidence">
 <h4 class="anchored" data-anchor-id="change-tried-1">Change tried</h4>
-<p>The old generic gate admitted automatic transcript text to the 12-frame baseline; the matched control used the same frames and answerer without the transcript.</p>
+<p>The recorded generic gate admitted automatic transcript text to the 12-frame baseline; the matched control used the same frames and answerer without the transcript.</p>
 </section>
 <section id="result-1" class="level4 case-field case-field-result">
 <h4 class="anchored" data-anchor-id="result-1">Result</h4>
@@ -3490,11 +3490,11 @@ Evidence received, run details, grading, and provenance
 </section>
 <section id="post-hoc-diagnosis-plus-competing-explanation-1" class="level4 case-field case-field-diagnosis">
 <h4 class="anchored" data-anchor-id="post-hoc-diagnosis-plus-competing-explanation-1">Post-hoc diagnosis plus competing explanation</h4>
-<p><strong>Post-hoc diagnosis:</strong> the ASR missed the non-lexical event and an unrelated phrase passed the old generic gate. A competing explanation is that the gate was not the decisive failure because text-only ASR cannot reliably encode the requested sound in the first place.</p>
+<p><strong>Post-hoc diagnosis:</strong> the ASR missed the non-lexical event and an unrelated phrase passed the tested generic gate. A competing explanation is that the gate was not the decisive failure because text-only ASR cannot reliably encode the requested sound in the first place.</p>
 </section>
 <section id="bug-or-audit-status-1" class="level4 case-field case-field-diagnosis">
 <h4 class="anchored" data-anchor-id="bug-or-audit-status-1">Bug or audit status</h4>
-<p>Old generic-gate defect fixed; non-lexical ASR coverage remains open.</p>
+<p>Confirmed defect in the tested generic gate: it accepted the unrelated transcript phrase. Repair verification and a dedicated non-lexical-vocalization check or route remain open.</p>
 </section>
 <section id="limit-1" class="level4 case-field case-field-limit">
 <h4 class="anchored" data-anchor-id="limit-1">Limit</h4>
@@ -3502,7 +3502,7 @@ Evidence received, run details, grading, and provenance
 </section>
 <section id="next-falsifying-test-1" class="level4 case-field case-field-next">
 <h4 class="anchored" data-anchor-id="next-falsifying-test-1">Next falsifying test</h4>
-<p>On a declared non-lexical development panel, compare the old generic text gate with a label-blind non-lexical route and a frames-only control. The diagnosis is weakened if rejecting unrelated transcript text does not reduce this failure pattern.</p>
+<p>On a declared non-lexical development panel, compare the recorded generic text gate with a label-blind unrelated-phrase rejection check, a dedicated non-lexical route, and a frames-only control while holding the ASR, frames, answerer, prompt, and decoding fixed. The diagnosis is weakened if neither specialized arm reduces this failure pattern.</p>
 </section>
 </div>
 <details>
@@ -3539,7 +3539,7 @@ Evidence received, run details, grading, and provenance
 </tr>
 <tr class="even">
 <td>Evidence configuration</td>
-<td><code>Qwen/Qwen3.5-4B</code> revision <code>851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a</code>; 12 frozen chronological frames (256²–512²/frame); greedy decoding; 32-token cap; seed <code>20260724</code>. Conditions: frames only versus the same frames plus an automatic transcript from <code>openai/whisper-large-v3</code> revision <code>06f233fe06e710322aca913c1bc4249a0d71fce1</code> under the old generic gate; native audio absent.</td>
+<td><code>Qwen/Qwen3.5-4B</code> revision <code>851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a</code>; 12 frozen chronological frames (256²–512²/frame); greedy decoding; 32-token cap; seed <code>20260724</code>. Conditions: frames only versus the same frames plus an automatic transcript from <code>openai/whisper-large-v3</code> revision <code>06f233fe06e710322aca913c1bc4249a0d71fce1</code> under the recorded generic gate; native audio absent.</td>
 </tr>
 <tr class="odd">
 <td>Selected timestamps, spans, or events</td>
@@ -3583,7 +3583,7 @@ Evidence received, run details, grading, and provenance
 </tr>
 <tr class="odd">
 <td>Next comparison</td>
-<td>Old generic text gate versus label-blind non-lexical route and frames-only control</td>
+<td>Recorded generic text gate versus a label-blind unrelated-phrase rejection check, dedicated non-lexical route, and frames-only control, with ASR, frames, answerer, prompt, and decoding held fixed</td>
 </tr>
 <tr class="even">
 <td>Immutable evidence links</td>
@@ -3591,7 +3591,7 @@ Evidence received, run details, grading, and provenance
 </tr>
 <tr class="odd">
 <td>Supersession</td>
-<td>Old generic acceptance behavior is superseded by repaired quality gates; a dedicated non-lexical check remains open</td>
+<td>No repair or supersession evidence is recorded; repair verification and a dedicated non-lexical-vocalization check or route remain open</td>
 </tr>
 </tbody>
 </table>

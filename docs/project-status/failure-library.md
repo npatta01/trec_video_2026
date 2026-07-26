@@ -204,7 +204,7 @@ Evidence received, run details, grading, and provenance
 <span id="case-002" class="legacy-fragment-alias"
 aria-hidden="true"></span>
 
-### CASE-002 — Non-lexical event missed by transcript gate
+### CASE-002 — Non-lexical event missed by transcript route
 
 <p class="case-meta">
 
@@ -242,7 +242,8 @@ sound, which the automatic transcript did not represent.
 
 The frames-only condition received 12 frozen chronological frames. The
 comparison condition received the same frames plus an automatic
-transcript passed through the old generic gate; native audio was absent.
+transcript passed through the recorded generic gate; native audio was
+absent.
 
 </div>
 
@@ -250,9 +251,9 @@ transcript passed through the old generic gate; native audio was absent.
 
 #### Change tried
 
-The old generic gate admitted automatic transcript text to the 12-frame
-baseline; the matched control used the same frames and answerer without
-the transcript.
+The recorded generic gate admitted automatic transcript text to the
+12-frame baseline; the matched control used the same frames and answerer
+without the transcript.
 
 </div>
 
@@ -279,9 +280,9 @@ Evidence extraction plus gate/routing.
 #### Post-hoc diagnosis plus competing explanation
 
 **Post-hoc diagnosis:** the ASR missed the non-lexical event and an
-unrelated phrase passed the old generic gate. A competing explanation is
-that the gate was not the decisive failure because text-only ASR cannot
-reliably encode the requested sound in the first place.
+unrelated phrase passed the tested generic gate. A competing explanation
+is that the gate was not the decisive failure because text-only ASR
+cannot reliably encode the requested sound in the first place.
 
 </div>
 
@@ -289,7 +290,9 @@ reliably encode the requested sound in the first place.
 
 #### Bug or audit status
 
-Old generic-gate defect fixed; non-lexical ASR coverage remains open.
+Confirmed defect in the tested generic gate: it accepted the unrelated
+transcript phrase. Repair verification and a dedicated
+non-lexical-vocalization check or route remain open.
 
 </div>
 
@@ -306,10 +309,11 @@ validation or evidence of prevalence.
 
 #### Next falsifying test
 
-On a declared non-lexical development panel, compare the old generic
-text gate with a label-blind non-lexical route and a frames-only
-control. The diagnosis is weakened if rejecting unrelated transcript
-text does not reduce this failure pattern.
+On a declared non-lexical development panel, compare the recorded
+generic text gate with a label-blind unrelated-phrase rejection check, a
+dedicated non-lexical route, and a frames-only control while holding the
+ASR, frames, answerer, prompt, and decoding fixed. The diagnosis is
+weakened if neither specialized arm reduces this failure pattern.
 
 </div>
 
@@ -329,7 +333,7 @@ Evidence received, run details, grading, and provenance
 | Source availability | 2025 training source; platform-hosted watch URL recorded in the source annotation |
 | Relevant-offset status | not recorded in tracked evidence |
 | Link-only media status | external source; media not redistributed |
-| Evidence configuration | `Qwen/Qwen3.5-4B` revision `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`; 12 frozen chronological frames (256²–512²/frame); greedy decoding; 32-token cap; seed `20260724`. Conditions: frames only versus the same frames plus an automatic transcript from `openai/whisper-large-v3` revision `06f233fe06e710322aca913c1bc4249a0d71fce1` under the old generic gate; native audio absent. |
+| Evidence configuration | `Qwen/Qwen3.5-4B` revision `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`; 12 frozen chronological frames (256²–512²/frame); greedy decoding; 32-token cap; seed `20260724`. Conditions: frames only versus the same frames plus an automatic transcript from `openai/whisper-large-v3` revision `06f233fe06e710322aca913c1bc4249a0d71fce1` under the recorded generic gate; native audio absent. |
 | Selected timestamps, spans, or events | not recorded |
 | Model observation | Not recorded |
 | Project-generated frozen prediction | Frames only: `No`; frames plus automatic transcript: `Thank you for watching!` |
@@ -340,9 +344,9 @@ Evidence received, run details, grading, and provenance
 | Blinding provenance | Condition blinding not recorded |
 | Adjudication provenance | Separate adjudicator not recorded |
 | Uncertainty | Post-hoc diagnosis; competing explanation remains viable; `n=1` selected development evidence |
-| Next comparison | Old generic text gate versus label-blind non-lexical route and frames-only control |
+| Next comparison | Recorded generic text gate versus a label-blind unrelated-phrase rejection check, dedicated non-lexical route, and frames-only control, with ASR, frames, answerer, prompt, and decoding held fixed |
 | Immutable evidence links | [Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md) |
-| Supersession | Old generic acceptance behavior is superseded by repaired quality gates; a dedicated non-lexical check remains open |
+| Supersession | No repair or supersession evidence is recorded; repair verification and a dedicated non-lexical-vocalization check or route remain open |
 
 </details>
 

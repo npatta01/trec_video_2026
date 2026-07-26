@@ -152,8 +152,8 @@ aria-label="Scrollable research theme status matrix" tabindex="0">
 ## Three failure mechanisms to preview
 
 These selected development cases explain mechanisms, not prevalence.
-Open the [Failure Library · Report page](failure-library.md) for the
-complete six-field records and disclosure boundary.
+Open the [Failure Library · Report page](failure-library.md) for full
+evidence traces and the disclosure boundary.
 
 <div class="failure-preview-grid">
 
@@ -169,8 +169,8 @@ Needed speech was retrieved, but later numeric speculation was selected.
 
 ### [Non-lexical event missed](failure-library.md#case-002)
 
-An unrelated transcript passed the old generic gate while the requested
-vocal sound remained unrepresented.
+An unrelated transcript passed the tested generic gate while the
+requested vocal sound remained unrepresented.
 
 </div>
 
