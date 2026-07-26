@@ -74,8 +74,8 @@ Qwen12+Whisper arm led exact match at `11/30` and token F1 at `0.506795` across
 the 30-row panel. That result supports reporting the transcript arm as a route
 comparison; it does not establish a global Whisper policy or 2026 accuracy.
 See the [automatic-transcript
-report](../../reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md)
-and its [frozen ablation plan](../../plans/issue-7-automatic-transcript-ablation.md).
+report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md)
+and its [frozen ablation plan](https://github.com/npatta01/trec_video_2026/blob/main/plans/issue-7-automatic-transcript-ablation.md).
 </details>
 
 ### Multilingual and translation follow-ups {#multilingual-translation-followups}
@@ -104,9 +104,9 @@ The Latin-script/rate gate can accept fluent but incorrect English, accept an
 untranslated Latin-script language, and reject legitimate names or mixed
 scripts. A proposed 30-clip multilingual diagnostic needs human-verified source
 language, source transcript, and English translation, then matched visual-only
-and Whisper conditions. See the [multilingual follow-up](../../reports/trecvid_vqa_2026/multilingual_qwen36_followup_2026-07-24.md),
-[ASR options](../../reports/trecvid_vqa_2026/asr_model_followup_options_2026-07-20.md),
-and [frozen-30 report](../../reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
+and Whisper conditions. See the [multilingual follow-up](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/multilingual_qwen36_followup_2026-07-24.md),
+[ASR options](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/asr_model_followup_options_2026-07-20.md),
+and [frozen-30 report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
 </details>
 
 ### Seamless diagnostic {#seamless-diagnostic}
@@ -134,7 +134,7 @@ The reference was joined only after exact-capture inference. The output's
 mechanical rule pass was not treated as semantic credibility: it omitted later
 speech evidence needed for the answer. The result does not rule out another
 language, model revision, panel, or independently verified translation route.
-See the [Seamless follow-up](../../reports/trecvid_vqa_2026/seamless_audio_followup_results_2026-07-21.md).
+See the [Seamless follow-up](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/seamless_audio_followup_results_2026-07-21.md).
 </details>
 
 ### External dataset-reference research {#external-dataset-reference-research}
@@ -160,7 +160,7 @@ See the [Seamless follow-up](../../reports/trecvid_vqa_2026/seamless_audio_follo
 The external reference is a dataset-provided recording-prompt reference, not a
 human transcriber/reviewer record. It must not pass a `human_verified_oracle`
 validator or be called gold. The [external dataset-reference
-research](../../reports/trecvid_vqa_2026/external_gold_transcript_benchmark_research_2026-07-24.md)
+research](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/external_gold_transcript_benchmark_research_2026-07-24.md)
 also specifies identical frames/model/prompt/decoding across conditions.
 </details>
 
