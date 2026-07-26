@@ -450,3 +450,28 @@ pull request, or create GitHub issues without separate authorization.
   tailnet-only root mapping. No public listener, Funnel enablement, mapping or
   portal-index change, application test, public deployment, issue, pull
   request, push, or unrelated portal-artifact removal occurred.
+
+## Post-handoff dark code-surface correction (2026-07-26)
+
+- A user dark-mode screenshot exposed a theme-cascade defect: Quarto's dark
+  syntax colors were rendered over the inherited light
+  `rgba(233, 236, 239, 0.65)` code surface. The focused ephemeral regression
+  check failed on that value before the correction.
+- The source-level correction adds `$code-block-bg: #1d2a40` to
+  `docs/project-status/theme-dark.scss`. The same regression check now finds
+  `#1d2a40` for dark fenced and inline code while the light surface remains
+  unchanged.
+- All 12 self-contained HTML pages were regenerated. A clean isolated render
+  matched the repository outputs `12/12`; `git diff --check` passes, and no
+  remote runtime resource was added. Generated-content review confirmed that
+  only the embedded dark stylesheet changed.
+- Combined before/after inspection plus separate dark desktop, dark 390 px
+  phone, and light desktop captures show readable code blocks with overflow
+  contained inside the code area. The minimum syntax-token contrast is
+  `5.04:1`; base code text is `12.90:1`. Independent review reported zero
+  Critical, Important, or Minor findings.
+- Only the 12 sanitized HTML copies were refreshed under the existing portal
+  report directory. The portal copy and live tailnet-only HTTPS routes match
+  repository bytes `12/12`; Serve and Funnel status remain tailnet-only with
+  the same root mapping. No application test, public deployment, issue, pull
+  request, or push occurred.
