@@ -462,23 +462,35 @@ and this plan if unchanged Markdown files remain byte-identical.
   `/tmp/trecvid-governance-captures/start-here-light-desktop.png`,
   `/tmp/trecvid-governance-captures/research-themes-light-desktop.png`,
   `/tmp/trecvid-governance-captures/research-themes-dark-desktop.png`,
-  `/tmp/trecvid-governance-captures/research-themes-light-mobile.png`,
-  `/tmp/trecvid-governance-captures/research-themes-dark-mobile.png`,
+  `/tmp/trecvid-governance-captures/research-themes-light-mobile-full.png`,
+  `/tmp/trecvid-governance-captures/research-themes-dark-mobile-full.png`,
   `/tmp/trecvid-governance-captures/adding-experiments-light-desktop.png`,
   `/tmp/trecvid-governance-captures/adding-experiments-dark-desktop.png`,
-  `/tmp/trecvid-governance-captures/adding-experiments-light-mobile.png`,
-  `/tmp/trecvid-governance-captures/adding-experiments-dark-mobile.png`,
+  `/tmp/trecvid-governance-captures/adding-experiments-light-mobile-full.png`,
+  `/tmp/trecvid-governance-captures/adding-experiments-dark-mobile-full.png`,
   `/tmp/trecvid-governance-captures/speech-amended-light-desktop.png`, and
   `/tmp/trecvid-governance-captures/models-amended-light-desktop.png`.
-  The static index starts closed; Chrome interaction opened it without
-  overflow (`documentScrollWidth 1425 <= viewportWidth 1440`,
-  `detailsScrollWidth 797 = detailsClientWidth 797`). Theme cards and the
-  status table reflow, local navigation remains usable, the dark code/table
-  surfaces are readable, and no mobile brand/content overlap appeared. This
-  is a visual smoke check, not a WCAG conformance claim.
-- Task 3 self-review verdict: no Critical or Important finding in the scoped
-  generated-output diff. `git diff --check` passed. No custom tests,
-  application tests, scripts, validators, or CI were added or run.
+  The original 390x844 top-of-page captures did not establish lower-page
+  mobile behavior. The four replacement full-page 390 px captures above were
+  made sequentially with independent Chrome profiles and inspected; they show
+  the Themes cards, status matrix, and experiment index, and the guide's
+  lifecycle/status tables and render/code surfaces in both schemes. At an
+  actual 390 CSS-pixel viewport, Themes light and dark each measured
+  `documentScrollWidth 390 = viewportWidth 390`, with theme grid, status
+  matrix, and experiment index `scrollWidth 340 = clientWidth 340`. Adding
+  Experiments light and dark each measured `documentScrollWidth 375 <=
+  viewportWidth 390`, with lifecycle, after-run, and render/verify sections
+  `scrollWidth 325 = clientWidth 325`. The long code blocks retain contained
+  internal horizontal scrolling (`1181/323`, `1181/323`, and `1175/311`)
+  without page-level overflow. The static index starts closed; desktop Chrome
+  interaction opened it without overflow (`documentScrollWidth 1425 <=
+  viewportWidth 1440`, `detailsScrollWidth 797 = detailsClientWidth 797`).
+  This is a visual smoke check, not a WCAG conformance claim.
+- First independent review verdict: **Needs fixes** because the original four
+  390x844 captures covered only the page tops. The evidence above corrects
+  that gap. Final independent re-review is pending; this entry does not claim
+  approval. `git diff --check` passed. No custom tests, application tests,
+  scripts, validators, or CI were added or run.
 
 ## Final review and authorized portal refresh
 
