@@ -5819,27 +5819,23 @@ transition: none !important;
 <div aria-describedby="fig-experiment-timeline-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div>
 <pre class="mermaid mermaid-js" data-label="fig-experiment-timeline">flowchart TD
-  accTitle: Research-question map
-  accDescr: Four research questions led to the current baseline, specialist routes, stopped alternatives, and open candidates.
-  P[Project decisions] --&gt; T{Can experiments be trusted?}
-  T --&gt; TR[Reproducible execution&lt;br/&gt;quality still separate]
-  P --&gt; B{What should every question start with?}
-  B --&gt; BR[Qwen3.5-4B + 12 frames&lt;br/&gt;MiniCPM audio-off for speed]
-  P --&gt; S{When is specialist evidence useful?}
-  S --&gt; SR[Routed Whisper&lt;br/&gt;native audio remains experimental]
-  P --&gt; M{Should another model replace the baseline?}
-  M --&gt; MR[No promotion yet&lt;br/&gt;Qwen3-Omni remains ineligible]
+  accTitle: Research-question reading path
+  accDescr: A top-to-bottom path through four research questions. Reproducible execution does not establish quality. Qwen3.5-4B with 12 frames is the accuracy baseline and MiniCPM-o audio-off is the fast alternate. Whisper is routed while native audio remains experimental. No model is promoted and Qwen3-Omni remains ineligible.
+  P[Research questions] --&gt; T[1. Trust experiments?&lt;br/&gt;Reproducible execution;&lt;br/&gt;quality remains separate]
+  T --&gt; B[2. Global default?&lt;br/&gt;Qwen3.5-4B + 12 frames;&lt;br/&gt;MiniCPM audio-off for speed]
+  B --&gt; S[3. Add specialist evidence?&lt;br/&gt;Route Whisper; native audio&lt;br/&gt;remains experimental]
+  S --&gt; M[4. Promote another model?&lt;br/&gt;No; Qwen3-Omni is ineligible]
 </pre>
 </div>
 </div>
 <figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-experiment-timeline-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure 1: Research-question map showing how foundation, baseline, specialist-evidence, and model-promotion experiments led to the current system.
+Figure 1: Research-question reading path: four thematic questions and the current decision from each, ordered for a newcomer rather than as a chronology.
 </figcaption>
 </figure>
 </div>
 </div>
 </div>
-<p>The map is a decision index, not an evidence ranking. The table below gives the same four paths in text and states the strongest evidence each path can support.</p>
+<p>The path is a decision index, not a chronology or evidence ranking. The table below gives the same four paths in text and states the strongest evidence each path can support.</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 25%">

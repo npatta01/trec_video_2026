@@ -21,25 +21,21 @@ the end only when you need the date-ordered audit trail.
 
 ``` mermaid
 flowchart TD
-  accTitle: Research-question map
-  accDescr: Four research questions led to the current baseline, specialist routes, stopped alternatives, and open candidates.
-  P[Project decisions] --> T{Can experiments be trusted?}
-  T --> TR[Reproducible execution<br/>quality still separate]
-  P --> B{What should every question start with?}
-  B --> BR[Qwen3.5-4B + 12 frames<br/>MiniCPM audio-off for speed]
-  P --> S{When is specialist evidence useful?}
-  S --> SR[Routed Whisper<br/>native audio remains experimental]
-  P --> M{Should another model replace the baseline?}
-  M --> MR[No promotion yet<br/>Qwen3-Omni remains ineligible]
+  accTitle: Research-question reading path
+  accDescr: A top-to-bottom path through four research questions. Reproducible execution does not establish quality. Qwen3.5-4B with 12 frames is the accuracy baseline and MiniCPM-o audio-off is the fast alternate. Whisper is routed while native audio remains experimental. No model is promoted and Qwen3-Omni remains ineligible.
+  P[Research questions] --> T[1. Trust experiments?<br/>Reproducible execution;<br/>quality remains separate]
+  T --> B[2. Global default?<br/>Qwen3.5-4B + 12 frames;<br/>MiniCPM audio-off for speed]
+  B --> S[3. Add specialist evidence?<br/>Route Whisper; native audio<br/>remains experimental]
+  S --> M[4. Promote another model?<br/>No; Qwen3-Omni is ineligible]
 ```
 
-**Figure caption:** Research-question map showing how foundation,
-baseline, specialist-evidence, and model-promotion experiments led to
-the current system.
+**Figure caption:** Research-question reading path: four thematic
+questions and the current decision from each, ordered for a newcomer
+rather than as a chronology.
 
-The map is a decision index, not an evidence ranking. The table below
-gives the same four paths in text and states the strongest evidence each
-path can support.
+The path is a decision index, not a chronology or evidence ranking. The
+table below gives the same four paths in text and states the strongest
+evidence each path can support.
 
 | Research question | Why it was tested | Current answer | Evidence strength |
 |----|----|----|----|
