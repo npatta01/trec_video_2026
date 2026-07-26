@@ -126,7 +126,7 @@ inspection, and the existing tailnet-only Tailscale Serve portal.
 - Produces: a verified list of three to five admissible case IDs, exact tracked
   observation/prediction/grade fields, and a media decision for Tasks 2 and 3.
 
-- [ ] **Step 1: Verify checkout and shared-data boundary**
+- [x] **Step 1: Verify checkout and shared-data boundary**
 
 Run:
 
@@ -139,7 +139,7 @@ git diff --check
 Expected: branch `codex/repository-cleanup-report`; `data` resolves exactly to
 the canonical shared dataset path; only this design/plan work is uncommitted.
 
-- [ ] **Step 2: Select candidate cases from tracked evidence**
+- [x] **Step 2: Select candidate cases from tracked evidence**
 
 Start with these documented mechanisms, not with visually interesting cherry
 picks:
@@ -157,13 +157,13 @@ question, condition, prediction, grade, and post-hoc diagnosis. Record no hidden
 reasoning; `model observation` is present only if the run explicitly emitted an
 observation field.
 
-- [ ] **Step 3: Verify split and label boundary**
+- [x] **Step 3: Verify split and label boundary**
 
 For every selected case, confirm it is a 2025 training row or an external,
 self-recorded, or synthetic example. Reject any row whose split cannot be
 proven. Mark every answer-informed diagnosis `Post-hoc diagnosis`.
 
-- [ ] **Step 4: Decide media separately from textual admissibility**
+- [x] **Step 4: Decide media separately from textual admissibility**
 
 For each candidate asset, locate an authoritative license or project rights
 record. Classify it as one of:
@@ -180,7 +180,7 @@ the exact source/license and required attribution. If no TRECVID pixel clears
 the gate, use timestamps and plain-language evidence descriptions for TRECVID
 cases and reserve imagery for the cleared worked example.
 
-- [ ] **Step 5: Check extracted text before authoring**
+- [x] **Step 5: Check extracted text before authoring**
 
 Search the selected fields for local paths, bucket URIs, tokens, credentials,
 raw log fragments, and 2026 identifiers. Expected: none survive into the
