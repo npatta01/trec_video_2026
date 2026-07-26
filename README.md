@@ -7,14 +7,17 @@ logs stay local and ignored.
 
 ## Current baseline
 
-The current evidence-backed baseline is Qwen3.5-4B with 12 uniformly sampled
-frames. Add Whisper large-v3 only through a label-blind quality gate for
-speech-dependent questions; it is not a global default. The frozen-30 results
-also found that 24 frames are not the default, while the directed and
-dense-burst temporal-sampling heuristics are stopped. Gemma and Phi passed or
-failed runtime compatibility differently, but both stopped at the later
-semantic-quality gate. Qwen3-Omni remains ineligible for promotion because
-its quality run failed the strict output contract.
+The current frozen-30 evidence-backed baseline is Qwen3.5-4B with 12 uniformly
+sampled frames. Add Whisper large-v3 only through a label-blind quality gate
+for speech-dependent questions; it is not a global default. Frozen-30 found no
+exact-answer gain from 24 versus 12 frames, so 24 is not the current global
+default. The tested directed-12 and dense-burst-12 implementations were not
+promoted as defaults on their respective ten- and two-row panels; other
+smarter sampling methods remain open. Later three-row semantic screens did
+not earn promotion for Gemma or Phi; they did not rule out either model under
+other conditions. Qwen3-Omni's neutral A2 run was ineligible for its
+predeclared promotion decision because 19/20 outputs passed the contract; a
+repaired comparison can reconsider the model.
 
 Read the maintained [project-status pages](docs/project-status/index.md) for
 the current decision ledger and remaining gaps. The July 12

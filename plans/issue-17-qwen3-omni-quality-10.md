@@ -1,8 +1,9 @@
 # Qwen3-Omni Stratified Quality-10 Implementation Plan
 
 > **Historical status:** The referenced PR is merged and this quality work is
-> complete. The final neutral run failed the strict output contract, leaving
-> Qwen3-Omni ineligible for promotion. See
+> complete. The final neutral A2 run produced 19/20 contract-valid outputs, so
+> that run was ineligible for its predeclared promotion decision. A repaired
+> comparison can reconsider Qwen3-Omni. See
 > [Project Status](../docs/project-status/index.md).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use

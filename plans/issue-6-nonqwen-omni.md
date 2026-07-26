@@ -1,8 +1,9 @@
 # Issue #6: non-Qwen omni compatibility
 
 > **Historical status:** The referenced PR is merged and this compatibility
-> work is complete. Later semantic-quality evidence stopped both Gemma and
-> Phi; neither is promoted. See [Project Status](../docs/project-status/index.md).
+> work is complete. On a later three-row semantic screen, neither Gemma nor
+> Phi earned promotion; broader comparisons were not ruled out. See
+> [Project Status](../docs/project-status/index.md).
 
 ## Objective
 

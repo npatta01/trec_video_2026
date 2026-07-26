@@ -6,8 +6,9 @@ Issue: #6
 
 Decision: **promote Gemma 3n E4B-it; stop Phi-4-multimodal-instruct**
 
-> **Superseded decision:** This compatibility-only promotion was superseded by
-> the semantic-quality stop for both Gemma and Phi. See the current
+> **Superseded decision:** Compatibility alone did not establish quality. On a
+> later three-row semantic screen, neither Gemma nor Phi earned promotion;
+> broader comparisons were not ruled out. See the current
 > [Project Status](../project-status/index.md).
 
 ## Scope and gate
