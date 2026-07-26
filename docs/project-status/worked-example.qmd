@@ -108,7 +108,7 @@ The route is **label-blind** in the scenario: it uses only the question wording
 and ASR quality fields, never the constructed expected answer or grade. The
 phrase “does the speaker say” requests spoken words, so the scenario follows
 the selective Whisper branch. See the complete
-[evidence router](index.{{< meta report-ext >}}#fig-recommended-router).
+[evidence router · Report page](index.{{< meta report-ext >}}#fig-recommended-router).
 
 ## 4. Evidence added
 
@@ -197,4 +197,4 @@ predeclared completion and answer-quality promotion gate.
 - It cannot establish that transcripts always help. Real evidence includes
   cases where accepted text is incomplete, distracting, or unused.
 - It is **one traced example, not the policy**. The current recommendation and
-  its limits remain on [Start Here](index.{{< meta report-ext >}}).
+  its limits remain on [Start Here · Report page](index.{{< meta report-ext >}}).

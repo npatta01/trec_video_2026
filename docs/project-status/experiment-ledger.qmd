@@ -11,8 +11,8 @@ panels are diagnostics. A result that missed one promotion gate is not a
 permanent verdict on every model, prompt, selector, budget, or panel.
 :::
 
-Use [Start Here](index.{{< meta report-ext >}}) for the current operational
-recommendation and the [Code Map](code-map.{{< meta report-ext >}}) to find the
+Use [Start Here · Report page](index.{{< meta report-ext >}}) for the current operational
+recommendation and the [Code Map · Report page](code-map.{{< meta report-ext >}}) to find the
 implementation boundary. The six themes below are independent research areas,
 not a sequence.
 
@@ -118,7 +118,7 @@ link opens the visible theme record with the tested condition and limits.
 ## Three failure mechanisms to preview
 
 These selected development cases explain mechanisms, not prevalence. Open the
-[Failure Library](failure-library.{{< meta report-ext >}}) for the complete
+[Failure Library · Report page](failure-library.{{< meta report-ext >}}) for the complete
 six-field records and disclosure boundary.
 
 :::: {.failure-preview-grid}
@@ -222,12 +222,12 @@ records. **Evidence report · GitHub** links are immutable evidence of record;
 requires repository access until public release. They are provenance, not
 substitutes for the current condition-bound conclusions.
 
-- **Foundation and repository recovery — [Experiment integrity and evaluation](research-integrity.{{< meta report-ext >}}):** the [rendered July 12 field guide · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e554/reports/trecvid_vqa_2026/report.html) and [repository recovery PR #21 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/pull/21) record the background synthesis and restoration of the benchmark evidence.
+- **Foundation and repository recovery — [Experiment integrity and evaluation](research-integrity.{{< meta report-ext >}}):** the [rendered July 12 field guide · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/report.html) and [repository recovery PR #21 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/pull/21) record the background synthesis and restoration of the benchmark evidence.
 - **Directed temporal sampling — [Visual and temporal evidence](research-visual-evidence.{{< meta report-ext >}}#directed-temporal-sampling):** [closed issue #8 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/issues/8), its [conclusion audit in issue #13 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/issues/13), and [implementation PR #10 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/pull/10) preserve the tested heuristic's decision trail.
 - **Automatic and human transcripts — [Speech and transcript evidence](research-speech-transcripts.{{< meta report-ext >}}):** the automatic-ablation work is tracked in [closed issue #7 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/issues/7) and [PR #9 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/pull/9); the independently produced human-transcript tier remains blocked in [open issue #19 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/issues/19).
 - **Evidence taxonomy and routing — [Routing, fusion, and answer selection](research-routing.{{< meta report-ext >}}#taxonomy-audit):** [closed issue #4 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/issues/4) records the taxonomy and evidence-routing research thread.
 - **Phi and Gemma quality screen — [Models and adaptation](research-models.{{< meta report-ext >}}#phi-gemma-semantic-stop):** compatibility and semantic correction are tracked in [closed issue #6 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/issues/6), [closed issue #12 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/issues/12), [PR #11 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/pull/11), and [PR #15 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/pull/15).
-- **Qwen3-Omni compatibility and quality — [Models and adaptation](research-models.{{< meta report-ext >}}#qwen3-omni-quality):** the [tracked compatibility report · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e554/docs/experiments/2026-07-24-qwen3-omni-dstack-compatibility.md), [closed issue #5 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/issues/5), [closed issue #17 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/issues/17), [PR #14 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/pull/14), and recovery [PR #20 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/pull/20) preserve the gate-specific trail.
+- **Qwen3-Omni compatibility and quality — [Models and adaptation](research-models.{{< meta report-ext >}}#qwen3-omni-quality):** the [tracked compatibility report · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-24-qwen3-omni-dstack-compatibility.md), [closed issue #5 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/issues/5), [closed issue #17 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/issues/17), [PR #14 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/pull/14), and recovery [PR #20 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/pull/20) preserve the gate-specific trail.
 
 </details>
 

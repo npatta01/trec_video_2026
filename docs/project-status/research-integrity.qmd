@@ -92,7 +92,7 @@ is **Open work**, not an existing supported CLI.
 
 The field guide predates the local panels. It can explain why the project
 prioritized evidence boundaries, but cannot choose a current model, prompt, or
-frame policy. See the [field-guide source notes · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e554/reports/trecvid_vqa_2026/source_notes.md).
+frame policy. See the [field-guide source notes · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/source_notes.md).
 </details>
 
 ### Data readiness {#data-readiness}
@@ -119,7 +119,7 @@ frame policy. See the [field-guide source notes · Evidence report · GitHub](ht
 
 Readiness does not prove that every future video is available, that a model will
 run, or that answers will be correct. Operational readiness does not establish
-2026 answer quality. The [benchmark construction module · Source code · GitHub](https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_benchmark.py)
+2026 answer quality. The [benchmark construction module · Current code · Source code · GitHub](https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_benchmark.py)
 binds manifest identities and hashes; the shared data boundary remains local.
 </details>
 
@@ -153,7 +153,7 @@ binds manifest identities and hashes; the shared data boundary remains local.
 Labels were joined after inference, but three deliberately selected rows are
 too small to estimate competition accuracy. The current public `vqa-gate` CLI
 exposes preflight only; completed runs used tested Python seams. The
-[three-video gate report · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e554/reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md)
+[three-video gate report · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md)
 documents an audited execution, not a general one-command workflow.
 </details>
 
@@ -191,7 +191,7 @@ live-attested. V2 reran rather than reusing v1 predictions, with minimal
 mounts, source/model/image attestation, immutable prediction bytes, and a
 two-phase scoring boundary. Reproducible execution still does not establish
 answer quality; its 2025 training-data comparison is not a 2026 estimate. See
-the [protocol-v2 report · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e554/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
+the [protocol-v2 report · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
 </details>
 
 ### Scorer-reuse audit {#scorer-reuse-audit}
@@ -221,7 +221,7 @@ the [protocol-v2 report · Evidence report · GitHub](https://github.com/npatta0
 The audit identified shell interpolation, a skipped-query denominator bug,
 directory rescanning, and unpinned dependencies among the reasons to isolate
 the historical evaluator. NIST's 2026 scoring implementation was not final at
-the audit date. The [scorer-reuse audit · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e554/reports/trecvid_vqa_2026/nist_scorer_reuse_audit_2026-07-20.md)
+the audit date. The [scorer-reuse audit · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/nist_scorer_reuse_audit_2026-07-20.md)
 recommends a pinned external checkout/cache, local fixtures, and the validator
 as a final format gate.
 </details>

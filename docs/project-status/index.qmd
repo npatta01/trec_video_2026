@@ -77,7 +77,7 @@ not justify promotion; it is not a permanent verdict on every future version.
 
 ## See one answer from start to finish
 
-The [worked current-approach example](worked-example.{{< meta report-ext >}})
+The [worked current-approach example · Report page](worked-example.{{< meta report-ext >}})
 follows one question through frame sampling, the route decision, constructed
 ASR evidence, a frozen answer, grading, and a post-hoc next test. It is a fully
 disclosed, project-authored synthetic teaching scenario—**not benchmark
@@ -96,12 +96,12 @@ evidence and not an estimate of system accuracy**.
 - **Prosody or non-speech candidate:** test native audio as a specialist branch,
   never as a global switch on the current evidence.
 
-The matched [frozen-30 protocol-v2 report · Evidence report · GitHub][frozen30]
+The matched [frozen-30 protocol-v2 report · Evidence of record · Evidence report · GitHub][frozen30]
 is the strongest current global comparison. A **protocol version** is the
 named, fixed revision of the rules, inputs, and scoring used for a run. The
-later [automatic-transcript ablation · Evidence report · GitHub][transcript]
+later [automatic-transcript ablation · Evidence of record · Evidence report · GitHub][transcript]
 strengthens the lexical-speech route, while the
-[failure-selected audio panel · Evidence report · GitHub][failure-panel] shows
+[failure-selected audio panel · Evidence of record · Evidence report · GitHub][failure-panel] shows
 why native audio remains a specialist. A **panel** is the declared set of
 examples in a comparison; a **stratum** is a predeclared subgroup, such as
 lexical speech, within that panel. These GitHub links require repository access
@@ -155,7 +155,7 @@ strict run completed only **19/20** accepted outputs, so it missed its
 predeclared **promotion gate**—the pass/fail rule a result must satisfy before
 the project adopts it. That run is ineligible for its planned promotion
 decision; the repaired model remains open to a fresh comparison. See the
-[tracked neutral A2 result · Evidence report · GitHub][omni-a2] and
+[tracked neutral A2 result · Evidence of record · Evidence report · GitHub][omni-a2] and
 [PR #18 · Issue/PR history · GitHub][pr18].
 
 **Exact match** is 1 only when a normalized prediction equals the normalized
@@ -200,8 +200,8 @@ inside a tiny diagnostic without making the tested method a verified default.
 ### Five minutes: decide what to run
 
 1. Read **Current recommendation** above.
-2. Open [How One Answer Is Made](worked-example.{{< meta report-ext >}}).
-3. Scan the four supported commands in the [Code Map](code-map.{{< meta report-ext >}}#supported-commands).
+2. Open [How One Answer Is Made · Report page](worked-example.{{< meta report-ext >}}).
+3. Scan the four supported commands in the [Code Map · Report page](code-map.{{< meta report-ext >}}#supported-commands).
 
 ### Fifteen minutes: understand the decision
 
@@ -214,7 +214,7 @@ inside a tiny diagnostic without making the tested method a verified default.
 ### Thirty minutes: trace evidence to code
 
 1. Complete the fifteen-minute path.
-2. Choose relevant pages from [Research Themes](experiment-ledger.{{< meta report-ext >}}).
+2. Choose relevant pages from [Research Themes · Report page](experiment-ledger.{{< meta report-ext >}}).
 3. Walk the acquisition-to-report [system pipeline](code-map.{{< meta report-ext >}}#system-pipeline)
    and [repository map](code-map.{{< meta report-ext >}}#repository-map).
 
@@ -238,8 +238,8 @@ inside a tiny diagnostic without making the tested method a verified default.
 | **Promotion gate** | A rule a result must pass before the project adopts the tested change. |
 | **Protocol version** | The named, fixed revision of a run's rules, inputs, and scoring. |
 
-[frozen30]: https://github.com/npatta01/trec_video_2026/blob/814e554/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md
-[transcript]: https://github.com/npatta01/trec_video_2026/blob/814e554/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md
-[failure-panel]: https://github.com/npatta01/trec_video_2026/blob/814e554/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md
-[omni-a2]: https://github.com/npatta01/trec_video_2026/blob/814e554/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md
+[frozen30]: https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md
+[transcript]: https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md
+[failure-panel]: https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md
+[omni-a2]: https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md
 [pr18]: https://github.com/npatta01/trec_video_2026/pull/18
