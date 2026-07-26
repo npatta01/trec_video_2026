@@ -5662,6 +5662,11 @@ box-shadow: 0 0 0 3px var(--status-link);
 outline: 2px solid var(--status-surface-raised);
 outline-offset: 2px;
 }
+.navbar .navbar-toggler:focus-visible {
+box-shadow: 0 0 0 3px var(--status-link);
+outline: 2px solid var(--status-surface-raised);
+outline-offset: 2px;
+}
 .content a,
 .page-footer a {
 overflow-wrap: anywhere;
@@ -5726,6 +5731,18 @@ padding-block: 0.65rem;
 .theme-local-nav a {
 font-size: 0.92rem;
 font-weight: 650;
+}
+#where-does-this-update-belong table {
+table-layout: fixed;
+width: 100%;
+}
+#where-does-this-update-belong th:first-child {
+width: 10rem;
+}
+#where-does-this-update-belong td:first-child,
+#where-does-this-update-belong table a {
+overflow-wrap: normal;
+word-break: normal;
 }
 .theme-decision-strip {
 border: 1px solid var(--status-border);
@@ -6670,6 +6687,7 @@ Figure 2: Repository map showing the tracked newcomer entry points and the igno
 </tr>
 </tbody>
 </table>
+<p>For research-memory maintenance, use <a href="./adding-experiments.html">Adding Experiments and Results · Report page</a>. Edit the QMD report sources, then regenerate their GitHub-readable Markdown and self-contained HTML; never hand-edit those generated outputs.</p>
 </section>
 <section id="remaining-gaps" class="level2">
 <h2 class="anchored" data-anchor-id="remaining-gaps">Remaining gaps</h2>
@@ -6680,7 +6698,6 @@ Figure 2: Repository map showing the tracked newcomer entry points and the igno
 <li>Add one safe, copy-paste walkthrough from <code>uv sync</code> through a read-only preflight/status inspection, without assuming dataset access.</li>
 <li>Document which experiment-specific modules are reusable contracts versus frozen historical workflows.</li>
 <li>Keep a small claim-to-report-to-code crosswalk as new experiments supersede older recommendations.</li>
-<li>Document the separate Quarto source, GitHub-readable Markdown, and self-contained HTML update procedure after the first render is reviewed.</li>
 </ul>
 </section>
 <section id="engineering-seeds" class="level3">

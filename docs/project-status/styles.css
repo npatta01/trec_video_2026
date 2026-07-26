@@ -55,6 +55,12 @@ summary:focus-visible,
   outline-offset: 2px;
 }
 
+.navbar .navbar-toggler:focus-visible {
+  box-shadow: 0 0 0 3px var(--status-link);
+  outline: 2px solid var(--status-surface-raised);
+  outline-offset: 2px;
+}
+
 .content a,
 .page-footer a {
   overflow-wrap: anywhere;
@@ -130,6 +136,21 @@ h1 {
 .theme-local-nav a {
   font-size: 0.92rem;
   font-weight: 650;
+}
+
+#where-does-this-update-belong table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+#where-does-this-update-belong th:first-child {
+  width: 10rem;
+}
+
+#where-does-this-update-belong td:first-child,
+#where-does-this-update-belong table a {
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .theme-decision-strip {

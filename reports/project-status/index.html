@@ -5662,6 +5662,11 @@ box-shadow: 0 0 0 3px var(--status-link);
 outline: 2px solid var(--status-surface-raised);
 outline-offset: 2px;
 }
+.navbar .navbar-toggler:focus-visible {
+box-shadow: 0 0 0 3px var(--status-link);
+outline: 2px solid var(--status-surface-raised);
+outline-offset: 2px;
+}
 .content a,
 .page-footer a {
 overflow-wrap: anywhere;
@@ -5726,6 +5731,18 @@ padding-block: 0.65rem;
 .theme-local-nav a {
 font-size: 0.92rem;
 font-weight: 650;
+}
+#where-does-this-update-belong table {
+table-layout: fixed;
+width: 100%;
+}
+#where-does-this-update-belong th:first-child {
+width: 10rem;
+}
+#where-does-this-update-belong td:first-child,
+#where-does-this-update-belong table a {
+overflow-wrap: normal;
+word-break: normal;
 }
 .theme-decision-strip {
 border: 1px solid var(--status-border);
@@ -6560,6 +6577,10 @@ Figure 1: Recommended evidence router: keep the 12-frame Qwen baseline, use Whi
 <li>Choose relevant pages from <a href="./experiment-ledger.html">Research Themes · Report page</a>.</li>
 <li>Walk the acquisition-to-report <a href="./code-map.html#system-pipeline">system pipeline</a> and <a href="./code-map.html#repository-map">repository map</a>.</li>
 </ol>
+</section>
+<section id="contributors-add-a-result-without-creating-report-drift" class="level3">
+<h3 class="anchored" data-anchor-id="contributors-add-a-result-without-creating-report-drift">Contributors: add a result without creating report drift</h3>
+<p>Read <a href="./adding-experiments.html">Adding Experiments and Results · Report page</a> before turning a research idea, run, or finding into the living report.</p>
 </section>
 </section>
 <section id="newcomer-glossary" class="level2">

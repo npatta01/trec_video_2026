@@ -152,6 +152,11 @@ points and the ignored local-data boundary.
 | `tests/` | You are changing tracked behavior and need its executable contract. | This documentation task did not run or add application tests. |
 | `data/` | A specifically authorized run requires the shared local dataset. | Ignored and private: never copy, stage, commit, or expose it. |
 
+For research-memory maintenance, use [Adding Experiments and Results ·
+Report page](adding-experiments.md). Edit the QMD report sources, then
+regenerate their GitHub-readable Markdown and self-contained HTML; never
+hand-edit those generated outputs.
+
 ## Remaining gaps
 
 These are issue **seeds**, not newly created GitHub issues. Validate and
@@ -166,9 +171,6 @@ scope them before implementation.
   versus frozen historical workflows.
 - Keep a small claim-to-report-to-code crosswalk as new experiments
   supersede older recommendations.
-- Document the separate Quarto source, GitHub-readable Markdown, and
-  self-contained HTML update procedure after the first render is
-  reviewed.
 
 ### Engineering seeds
 

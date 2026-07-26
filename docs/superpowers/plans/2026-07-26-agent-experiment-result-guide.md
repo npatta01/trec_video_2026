@@ -37,7 +37,7 @@
 - Consumes: `docs/superpowers/specs/2026-07-26-agent-experiment-result-guide-design.md`, the six existing `research-*.qmd` page contracts, and the existing evidence-status vocabulary at `experiment-ledger.qmd#how-to-interpret-results`.
 - Produces: one canonical guide with stable anchors `the-rule-in-one-minute`, `where-does-this-update-belong`, `before-the-run`, `after-the-run`, `update-the-living-report`, `render-and-verify`, and `agent-handoff`; five contextual entry points; no navbar change.
 
-- [ ] **Step 1: Confirm the source ownership and clean baseline**
+- [x] **Step 1: Confirm the source ownership and clean baseline**
 
 Run:
 
@@ -51,7 +51,7 @@ Expected: the branch is clean; `_quarto.yml` has exactly the existing three
 navbar destinations; all six research-theme pages expose the established
 current-record and next-experiment sections.
 
-- [ ] **Step 2: Create the standalone QMD guide**
+- [x] **Step 2: Create the standalone QMD guide**
 
 Create `adding-experiments.qmd` with:
 
@@ -129,7 +129,7 @@ Keep detailed lists compact and use native tables, callouts, and disclosures
 already supported by the site. Do not add CSS unless a verified overflow or
 contrast defect requires it.
 
-- [ ] **Step 3: Add the five contextual entry points**
+- [x] **Step 3: Add the five contextual entry points**
 
 Make these source edits:
 
@@ -149,7 +149,7 @@ Make these source edits:
   remove the now-completed documentation seed that asks for the QMD/Markdown/
   HTML update procedure. Leave unrelated seeds unchanged.
 
-- [ ] **Step 4: Verify the source-level contract**
+- [x] **Step 4: Verify the source-level contract**
 
 Run:
 
@@ -164,7 +164,7 @@ git diff --check
 Expected: three navbar items, all five entry points, seven guide sections, the
 flexible-core/standard-envelope guardrails, and no whitespace errors.
 
-- [ ] **Step 5: Review and commit the canonical source change**
+- [x] **Step 5: Review and commit the canonical source change**
 
 Inspect:
 
@@ -194,7 +194,7 @@ git commit -m "docs: add experiment result workflow"
 - Consumes: the committed QMD and entry-point sources from Task 1.
 - Produces: exactly 12 QMD, 12 sibling GFM, and 12 self-contained HTML pages; deterministic outputs; source/link/privacy/accessibility evidence; an independent review verdict.
 
-- [ ] **Step 1: Render every canonical output**
+- [x] **Step 1: Render every canonical output**
 
 From the repository root, run:
 
@@ -211,7 +211,7 @@ Expected: exactly 12 QMD, 12 sibling Markdown, and 12 HTML files. Remove only
 task-generated Quarto transients after resolving their exact paths; do not
 delete or overwrite unrelated files.
 
-- [ ] **Step 2: Prove deterministic regeneration from an isolated copy**
+- [x] **Step 2: Prove deterministic regeneration from an isolated copy**
 
 Create a task-specific temporary directory at the same relative repository
 depth, copy only the Quarto sources and required styles into it, render all 12
@@ -221,7 +221,7 @@ byte-for-byte with `cmp`.
 Expected: `12/12` Markdown and `12/12` HTML matches. Stop and diagnose any
 mismatch before review or portal refresh.
 
-- [ ] **Step 3: Run focused report checks**
+- [x] **Step 3: Run focused report checks**
 
 Verify all of the following without adding a repository test or validator:
 
@@ -241,7 +241,7 @@ No source-video ID embedded as media by this change.
 Run `git diff --check`. Confirm the generated Markdown presents the full guide
 without requiring HTML-only disclosure behavior.
 
-- [ ] **Step 4: Inspect representative responsive views**
+- [x] **Step 4: Inspect representative responsive views**
 
 Use authorized headless Chrome to inspect:
 
@@ -254,7 +254,7 @@ link contrast, focus visibility, code-block wrapping/scrolling, and zero page
 overflow. Reuse the existing styles. If a verified defect requires a CSS fix,
 make the smallest scoped change and repeat the affected render and checks.
 
-- [ ] **Step 5: Obtain an independent documentation review**
+- [x] **Step 5: Obtain an independent documentation review**
 
 Give a fresh reviewer the design spec, this implementation plan, source diff,
 new guide, generated outputs, and verification evidence. Ask the reviewer to
@@ -270,7 +270,7 @@ report Critical, Important, and Minor findings for:
 Resolve all Critical and Important findings, rerender, and repeat affected
 checks. Record the verdict and remediation in this plan.
 
-- [ ] **Step 6: Commit reviewed generated outputs**
+- [x] **Step 6: Commit reviewed generated outputs**
 
 Inspect the exact diff and confirm it contains only intended sources, derived
 pages, any justified scoped style correction, and this plan's evidence update.
@@ -280,6 +280,68 @@ Then commit:
 git add docs/project-status reports/project-status docs/superpowers/plans/2026-07-26-agent-experiment-result-guide.md
 git commit -m "docs: render experiment result guide"
 ```
+
+**Task 1 and Task 2 completion evidence (2026-07-26):**
+
+- Task 1 is committed at `e2cba4fe0927b016db77ebd71e0e0a9b9c64564b`.
+  Its five source steps passed with the three-item navbar unchanged, all five
+  contextual entry points present, and the seven guide sections anchored.
+- Quarto `1.9.38` rendered exactly 12 QMD sources into 12 sibling GFM files and
+  12 self-contained HTML files. After the final review remediation, a
+  same-depth isolated copy containing only the Quarto sources and styles used a
+  separate cache and reproduced all 24 generated files byte-for-byte (`12/12`
+  GFM and `12/12` HTML). Task-created `.quarto`, nested `docs/`, `.gitignore`,
+  `search.json`, and `site_libs` transients were removed after their paths were
+  confirmed.
+- The final resolver checked 51 QMD, 180 GFM, and 351 HTML repository-relative
+  links, including 33 QMD, 106 GFM, and 217 HTML fragments, with zero
+  unresolved. All seven guide fragments and all 11 source/generated forms of
+  the five declared entry points resolve. Every HTML page has exactly the
+  original three top-level navbar links, and the generated GFM exposes the
+  complete guide without an HTML-only disclosure.
+- Authored content and control IDs are unique. Quarto's dual-theme renderer
+  separately emits its resource IDs `quarto-bootstrap` and
+  `quarto-text-highlighting-styles` three times on each page; these are
+  renderer-owned resource IDs, not authored fragment collisions. Generated
+  output has zero remote runtime `src`, `poster`, `srcset`, import, or
+  stylesheet dependencies.
+- Publication-boundary scans found zero credential patterns, bucket URIs,
+  private or local filesystem URLs, raw-log fragments, 2026 evaluation
+  identifiers, or source-video media in the new guide. The required generic
+  `/tmp/trecvid-guide-render.XXXXXX` cache template is documentation, not a
+  local filesystem URL. No source-video ID is embedded as media by this change.
+- Authorized Chrome `150` inspected Adding Experiments and Results and Start
+  Here at `1440x1000` and `390x844` in light and forced-dark modes (`8/8`
+  scenarios). The correct color scheme and three-link navigation were present;
+  the phone menu collapsed and expanded; main reading widths were 799 pixels
+  desktop and about 340 pixels phone; routing tables remained within the page;
+  code containers used horizontal scrolling; and document scroll width equaled
+  viewport width in every scenario. Guide text, link, and callout samples had a
+  minimum measured contrast of `6.288:1` light and `10.000:1` dark.
+- Chrome found two presentation defects before review. Bootstrap specificity
+  suppressed the mobile navbar toggle's keyboard indicator, and the new routing
+  table split words at 390 pixels. The scoped CSS correction restores a bright
+  3-pixel link-colored focus ring with a 2-pixel separating outline, keeps the
+  routing table at 340 pixels with balanced 170-pixel columns, and preserves
+  whole-word wrapping. Final light/dark desktop/phone checks reproduced zero
+  page overflow and `overflow-x: auto` on both guide code containers.
+- The first fresh, read-only documentation review reported zero Critical, two
+  Important, and one Minor finding: missing explicit invalid/incomplete-run
+  handling, a missing report-output privacy boundary, and wording that could
+  imply one new evidence file per diagnostic. The canonical QMD now says to
+  stop and classify possible label/evaluation influence, record missing
+  immutable evidence as an audit gap, preserve incomplete observations without
+  scoring them as completed comparisons, exclude the specified private
+  material from report outputs, follow the source-media rights boundary, and
+  extend an existing evidence-of-record report when it already owns the result.
+  All 24 outputs were rerendered and reproduced byte-for-byte after remediation.
+  The same read-only reviewer then reported zero Critical, Important, or Minor
+  findings and approved Task 2.
+- Self-review confirmed the intended QMD remediation, four generated GFM
+  changes, all 12 generated HTML pages, the two justified scoped CSS fixes, and
+  this evidence record. `git diff --check` passes. No application tests,
+  repository validator, schema, CI workflow, dataset read, portal action,
+  public deployment, push, pull request, or issue mutation occurred.
 
 ### Task 3: Refresh the authorized portal and close the implementation record
 

@@ -53,7 +53,7 @@ states the readable current conclusion.
 |---|---|
 | Early idea | The primary theme's [Open hypotheses and ideas](experiment-ledger.{{< meta report-ext >}}#six-theme-research-map). |
 | Scoped next experiment | The primary theme's [Cheapest valid next experiments](experiment-ledger.{{< meta report-ext >}}#six-theme-research-map). |
-| Completed result | One primary theme's [What has been tried](experiment-ledger.{{< meta report-ext >}}#six-theme-research-map), plus a sanitized dated evidence record as located in the [repository map](code-map.{{< meta report-ext >}}#repository-map). |
+| Completed result | One primary theme's [What has been tried](experiment-ledger.{{< meta report-ext >}}#six-theme-research-map), plus sanitized dated evidence as located in the [repository map](code-map.{{< meta report-ext >}}#repository-map). Extend an existing evidence-of-record report when it already owns the result; do not force a new file for every diagnostic. |
 | Cross-theme relevance | A link from the related [Research Themes](experiment-ledger.{{< meta report-ext >}}#six-theme-research-map), not a copied record. |
 | Durable selected failure | The [Failure Library](failure-library.{{< meta report-ext >}}#how-to-read-the-records), only when its evidence and disclosure boundary fit. |
 | Theme status or queue change | The [theme matrix and branch-complete queue](experiment-ledger.{{< meta report-ext >}}#branch-complete-next-test-queue). |
@@ -88,6 +88,11 @@ A field can be **not applicable** with a reason, but it may not disappear when
 it affects interpretation. These are reporting questions, not a required panel
 size, metric, model family, or experiment topology.
 
+Keep private competition data, evaluation rows, credentials, raw logs, and
+unapproved media out of report sources and generated outputs. Include
+source-video links or limited snapshots only when the repository's recorded
+rights and disclosure policy authorizes them.
+
 ## After the run {#after-the-run}
 
 1. Preserve the smallest immutable evidence needed to audit the claim.
@@ -99,6 +104,12 @@ size, metric, model family, or experiment topology.
 7. Make the resulting decision and name the condition that would trigger
    reconsideration.
 8. Preserve corrections and superseded claims instead of silently erasing them.
+
+If labels, expected answers, or evaluation data may have influenced inference,
+stop before making a quality claim and classify the validity problem. If
+immutable evidence is missing, record an **audit gap** rather than upgrading a
+result from memory. If a run is incomplete, preserve the partial observation
+but do not score it as a completed promotion comparison.
 
 The [Failure Library](failure-library.{{< meta report-ext >}}#how-to-read-the-records)
 is for selected, fully disclosed development cases. It is not a place to turn

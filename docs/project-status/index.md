@@ -266,6 +266,12 @@ verified default.
     pipeline](code-map.md#system-pipeline) and [repository
     map](code-map.md#repository-map).
 
+### Contributors: add a result without creating report drift
+
+Read [Adding Experiments and Results · Report
+page](adding-experiments.md) before turning a research idea, run, or
+finding into the living report.
+
 ## Newcomer glossary
 
 | Term | Plain-language meaning |
