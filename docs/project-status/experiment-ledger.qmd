@@ -104,7 +104,7 @@ This is a navigation layer, not a second results ledger. **Use**, **Do not
 default**, **Possible**, **Blocked**, and **Next** are short status tokens; each
 link opens the visible theme record with the tested condition and limits.
 
-::: {.research-matrix}
+::: {.research-matrix role="region" aria-label="Scrollable research theme status matrix" tabindex="0"}
 | Theme | Why it matters | Tried | Learned now | Still open | Next falsifying test |
 |---|---|---|---|---|---|
 | [Integrity](research-integrity.{{< meta report-ext >}}#current-working-answer) | Makes comparisons interpretable | [v2 freeze](research-integrity.{{< meta report-ext >}}#frozen-30-protocol-v2) | **Use:** v2; compatibility is not quality | **Possible:** reusable gate | [Invalid-fixture gate](research-integrity.{{< meta report-ext >}}#reusable-integrity-gate) |
@@ -140,6 +140,8 @@ Native audio produced a more specific music interpretation that the evidence
 did not support.
 :::
 ::::
+
+<span id="what-to-investigate-next" class="legacy-fragment-alias" aria-hidden="true"></span>
 
 ## Branch-complete next-test queue
 

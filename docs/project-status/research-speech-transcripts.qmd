@@ -3,6 +3,7 @@ title: "Speech and Transcript Evidence"
 description: "What automatic, reference, multilingual, and human transcripts can contribute without confusing their provenance."
 ---
 
+<span id="back-to-research-themes" class="legacy-fragment-alias" aria-hidden="true"></span>
 <nav class="status-breadcrumb" aria-label="Breadcrumb">
   <a href="index.{{< meta report-ext >}}">Start Here</a>
   <span aria-hidden="true">/</span>
@@ -18,6 +19,10 @@ description: "What automatic, reference, multilingual, and human transcripts can
   <a href="#cheapest-valid-next-experiments">Next tests</a>
 </nav>
 
+::: {.content-visible when-format="gfm"}
+<span id="why-this-theme-matters" class="legacy-fragment-alias" aria-hidden="true"></span>
+:::
+
 ## New to this theme? {#why-this-theme-matters}
 
 Speech evidence can resolve a visual ambiguity, but fluent text can still be
@@ -31,6 +36,8 @@ speech**—the words—not merely frames or tone of voice. **ASR** converts audi
 to timestamped text, but a plausible sentence can omit the needed phrase. An
 automatic transcript, uploader caption, dataset reference, and independently
 reviewed human transcript are therefore different evidence tiers.
+
+<span id="technical-summary" class="legacy-fragment-alias" aria-hidden="true"></span>
 
 ## Current working answer
 
@@ -252,6 +259,8 @@ cite.
   ASR systems.
 - The blocked human tier does not imply a zero upper bound; it means no valid
   upper-bound evidence exists yet.
+
+<span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span>
 
 ### Confirmed defects, audit gaps, and uncertainties
 

@@ -175,6 +175,11 @@ h1 {
   overflow-x: auto;
 }
 
+.research-matrix:focus-visible {
+  outline: 3px solid var(--status-accent);
+  outline-offset: 3px;
+}
+
 .research-matrix table {
   min-width: 68rem;
 }

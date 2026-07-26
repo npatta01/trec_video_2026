@@ -3,6 +3,7 @@ title: "Routing, Fusion, and Answer Selection"
 description: "How to decide which evidence path to invoke and distinguish missing evidence from failure to use evidence correctly."
 ---
 
+<span id="back-to-research-themes" class="legacy-fragment-alias" aria-hidden="true"></span>
 <nav class="status-breadcrumb" aria-label="Breadcrumb">
   <a href="index.{{< meta report-ext >}}">Start Here</a>
   <span aria-hidden="true">/</span>
@@ -18,6 +19,10 @@ description: "How to decide which evidence path to invoke and distinguish missin
   <a href="#cheapest-valid-next-experiments">Next tests</a>
 </nav>
 
+::: {.content-visible when-format="gfm"}
+<span id="why-this-theme-matters" class="legacy-fragment-alias" aria-hidden="true"></span>
+:::
+
 ## New to this theme? {#why-this-theme-matters}
 
 More evidence is useful only if the system requests the right evidence and
@@ -31,6 +36,8 @@ wrong, retrieving more text may not help. The next diagnostic should hold the
 text fixed and test grounding or answer selection. A **router** chooses an
 evidence path; **fusion** combines evidence; **answer election** selects among
 candidate answers.
+
+<span id="technical-summary" class="legacy-fragment-alias" aria-hidden="true"></span>
 
 ## Current working answer
 
@@ -222,6 +229,8 @@ future direction.
   the project’s integrity and scoring boundaries.
 - A future ensemble may help after evidence paths stabilize; it should not be
   used to mask an unmeasured retrieval problem.
+
+<span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span>
 
 ### Confirmed defects, audit gaps, and uncertainties
 

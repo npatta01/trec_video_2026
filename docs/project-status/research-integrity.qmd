@@ -3,6 +3,7 @@ title: "Experiment Integrity and Evaluation"
 description: "What makes a TRECVID VQA experiment interpretable, which protocol defects were confirmed, and what integrity work remains."
 ---
 
+<span id="back-to-research-themes" class="legacy-fragment-alias" aria-hidden="true"></span>
 <nav class="status-breadcrumb" aria-label="Breadcrumb">
   <a href="index.{{< meta report-ext >}}">Start Here</a>
   <span aria-hidden="true">/</span>
@@ -18,6 +19,10 @@ description: "What makes a TRECVID VQA experiment interpretable, which protocol 
   <a href="#cheapest-valid-next-experiments">Next tests</a>
 </nav>
 
+::: {.content-visible when-format="gfm"}
+<span id="why-this-theme-matters" class="legacy-fragment-alias" aria-hidden="true"></span>
+:::
+
 ## New to this theme? {#why-this-theme-matters}
 
 An answer comparison is useful only when its input evidence, model identity,
@@ -30,6 +35,8 @@ after the expected answer became visible. A **frozen prediction** is saved
 before that disclosure; **label-blind** inference prevents the answer or grade
 from selecting evidence. These terms use the definitions on [Start
 Here](index.{{< meta report-ext >}}#newcomer-glossary).
+
+<span id="technical-summary" class="legacy-fragment-alias" aria-hidden="true"></span>
 
 ## Current working answer
 
@@ -243,6 +250,8 @@ selected cases are development evidence, not a held-out validation set.
   representative, controlled quality panel.
 - The scorer audit does not rule out a later authoritative 2026 evaluator;
   it requires re-audit when one is published.
+
+<span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span>
 
 ### Confirmed defects, audit gaps, and uncertainties
 

@@ -3,6 +3,7 @@ title: "Models and Adaptation"
 description: "Which model candidates ran, which quality gates they met, and what a valid reconsideration would require."
 ---
 
+<span id="back-to-research-themes" class="legacy-fragment-alias" aria-hidden="true"></span>
 <nav class="status-breadcrumb" aria-label="Breadcrumb">
   <a href="index.{{< meta report-ext >}}">Start Here</a>
   <span aria-hidden="true">/</span>
@@ -18,6 +19,10 @@ description: "Which model candidates ran, which quality gates they met, and what
   <a href="#cheapest-valid-next-experiments">Next tests</a>
 </nav>
 
+::: {.content-visible when-format="gfm"}
+<span id="why-this-theme-matters" class="legacy-fragment-alias" aria-hidden="true"></span>
+:::
+
 ## New to this theme? {#why-this-theme-matters}
 
 A new model can fail because it cannot run, because it violates an input or
@@ -29,6 +34,8 @@ For example, a model that accepts frames and audio has passed a compatibility
 check, not an answer-quality check. If a later answer is wrong because the
 needed moment was never supplied, replacing or fine-tuning the answerer targets
 the wrong bottleneck.
+
+<span id="technical-summary" class="legacy-fragment-alias" aria-hidden="true"></span>
 
 ## Current working answer
 
@@ -240,6 +247,8 @@ before treating the model family as the cause.
   passing one cannot substitute for the others.
 - Fine-tuning may be useful later, but no current result identifies a measured
   bottleneck that warrants it over evidence selection or answer grounding.
+
+<span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span>
 
 ### Confirmed defects, audit gaps, and uncertainties
 
