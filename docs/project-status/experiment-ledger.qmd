@@ -16,10 +16,19 @@ recommendation and the [Code Map · Report page](code-map.{{< meta report-ext >}
 implementation boundary. The six themes below are independent research areas,
 not a sequence.
 
+<span id="research-questions" class="legacy-fragment-alias" aria-hidden="true"></span>
+<span id="fig-experiment-timeline" class="legacy-fragment-alias" aria-hidden="true"></span>
+
 ## Six-theme research map
 
 :::: {.theme-grid}
 ::: {.theme-card}
+<span id="trustworthy-experiments" class="legacy-fragment-alias" aria-hidden="true"></span>
+<span id="field-guide" class="legacy-fragment-alias" aria-hidden="true"></span>
+<span id="data-readiness" class="legacy-fragment-alias" aria-hidden="true"></span>
+<span id="compatibility-gate" class="legacy-fragment-alias" aria-hidden="true"></span>
+<span id="frozen-30-protocol-v2" class="legacy-fragment-alias" aria-hidden="true"></span>
+
 ### [Experiment integrity and evaluation](research-integrity.{{< meta report-ext >}})
 
 **Working answer:** frozen-30 protocol v2 is interpretable; successful
@@ -33,6 +42,10 @@ scoring-boundary faults before an expensive run?
 :::
 
 ::: {.theme-card}
+<span id="global-default" class="legacy-fragment-alias" aria-hidden="true"></span>
+<span id="directed-temporal-sampling" class="legacy-fragment-alias" aria-hidden="true"></span>
+<span id="dense-burst-sampling" class="legacy-fragment-alias" aria-hidden="true"></span>
+
 ### [Visual and temporal evidence](research-visual-evidence.{{< meta report-ext >}})
 
 **Working answer:** uniform-12 remains the default; global 24 frames and the
@@ -47,6 +60,9 @@ more reliably than uniform sampling?
 :::
 
 ::: {.theme-card}
+<span id="automatic-transcript-ablation" class="legacy-fragment-alias" aria-hidden="true"></span>
+<span id="human-oracle-tier" class="legacy-fragment-alias" aria-hidden="true"></span>
+
 ### [Speech and transcript evidence](research-speech-transcripts.{{< meta report-ext >}})
 
 **Working answer:** route quality-accepted Whisper to lexical speech; keep
@@ -60,6 +76,8 @@ bound improve answers without hiding transcript errors?
 :::
 
 ::: {.theme-card}
+<span id="audio-spatial-seamless" class="legacy-fragment-alias" aria-hidden="true"></span>
+
 ### [Native audio and sound](research-native-audio.{{< meta report-ext >}})
 
 **Working answer:** native audio is not a global switch; prosody and non-speech
@@ -73,6 +91,11 @@ visual controls?
 :::
 
 ::: {.theme-card}
+<span id="model-promotion" class="legacy-fragment-alias" aria-hidden="true"></span>
+<span id="failure-panel" class="legacy-fragment-alias" aria-hidden="true"></span>
+<span id="phi-gemma-semantic-stop" class="legacy-fragment-alias" aria-hidden="true"></span>
+<span id="qwen3-omni-quality" class="legacy-fragment-alias" aria-hidden="true"></span>
+
 ### [Models and adaptation](research-models.{{< meta report-ext >}})
 
 **Working answer:** no later candidate has displaced Qwen3.5-4B; MiniCPM-o
@@ -86,6 +109,9 @@ and integrity gate?
 :::
 
 ::: {.theme-card}
+<span id="specialist-evidence" class="legacy-fragment-alias" aria-hidden="true"></span>
+<span id="taxonomy-audit" class="legacy-fragment-alias" aria-hidden="true"></span>
+
 ### [Routing, fusion, and answer selection](research-routing.{{< meta report-ext >}})
 
 **Working answer:** use the baseline unless a label-blind specialist rule
@@ -188,30 +214,9 @@ Validity concerns are separate from result status:
   selected diagnostic panels constrain what can be claimed, even when the run
   itself is clean.
 
-## Compatibility index for older links
+## History and provenance {.unlisted}
 
-Older report links still land here. Each entry points to the theme page that
-now holds the visible experiment summary, limitations, evidence, and next test.
-
-- <span id="trustworthy-experiments"></span> **Trustworthy experiments** moved to [Experiment integrity and evaluation](research-integrity.{{< meta report-ext >}}#why-this-theme-matters).
-- <span id="global-default"></span> **Global default** moved to [Visual and temporal evidence](research-visual-evidence.{{< meta report-ext >}}#current-working-answer).
-- <span id="specialist-evidence"></span> **Specialist evidence** moved to [Routing, fusion, and answer selection](research-routing.{{< meta report-ext >}}#current-working-answer).
-- <span id="model-promotion"></span> **Model promotion** moved to [Models and adaptation](research-models.{{< meta report-ext >}}#current-working-answer).
-- <span id="research-questions"></span> **Research-question index** was replaced by the six independent theme pages, beginning with [Experiment integrity and evaluation](research-integrity.{{< meta report-ext >}}).
-- <span id="fig-experiment-timeline"></span> **Linear research path figure** was replaced by the non-linear theme map; use [Routing, fusion, and answer selection](research-routing.{{< meta report-ext >}}) for cross-theme decisions.
-- <span id="field-guide"></span> **July 12 field guide** moved to [Experiment integrity and evaluation](research-integrity.{{< meta report-ext >}}#field-guide).
-- <span id="data-readiness"></span> **Data readiness** moved to [Experiment integrity and evaluation](research-integrity.{{< meta report-ext >}}#data-readiness).
-- <span id="compatibility-gate"></span> **Three-video compatibility gate** moved to [Experiment integrity and evaluation](research-integrity.{{< meta report-ext >}}#compatibility-gate).
-- <span id="frozen-30-protocol-v2"></span> **Frozen-30 protocol v2** moved to [Experiment integrity and evaluation](research-integrity.{{< meta report-ext >}}#frozen-30-protocol-v2); its frame comparison is also explained under [Visual and temporal evidence](research-visual-evidence.{{< meta report-ext >}}#frozen-30-protocol-v2).
-- <span id="directed-temporal-sampling"></span> **Directed temporal sampling** moved to [Visual and temporal evidence](research-visual-evidence.{{< meta report-ext >}}#directed-temporal-sampling).
-- <span id="dense-burst-sampling"></span> **Dense-burst sampling** moved to [Visual and temporal evidence](research-visual-evidence.{{< meta report-ext >}}#dense-burst-sampling).
-- <span id="audio-spatial-seamless"></span> **Audio, spatial, and Seamless diagnostics** moved to [Native audio and sound](research-native-audio.{{< meta report-ext >}}) and [Speech and transcript evidence](research-speech-transcripts.{{< meta report-ext >}}#seamless-diagnostic).
-- <span id="automatic-transcript-ablation"></span> **Automatic-transcript ablation** moved to [Speech and transcript evidence](research-speech-transcripts.{{< meta report-ext >}}#automatic-transcript-ablation).
-- <span id="taxonomy-audit"></span> **Taxonomy audit** moved to [Routing, fusion, and answer selection](research-routing.{{< meta report-ext >}}#taxonomy-audit).
-- <span id="human-oracle-tier"></span> **Human-oracle tier** moved to [Speech and transcript evidence](research-speech-transcripts.{{< meta report-ext >}}#human-oracle-tier).
-- <span id="failure-panel"></span> **Failure-selected Qwen3.6 panel** moved to [Models and adaptation](research-models.{{< meta report-ext >}}#failure-panel); its native-audio evidence is under [Native audio and sound](research-native-audio.{{< meta report-ext >}}#failure-panel-native-audio).
-- <span id="phi-gemma-semantic-stop"></span> **Phi/Gemma semantic screen** moved to [Models and adaptation](research-models.{{< meta report-ext >}}#phi-gemma-semantic-stop).
-- <span id="qwen3-omni-quality"></span> **Qwen3-Omni quality result** moved to [Models and adaptation](research-models.{{< meta report-ext >}}#qwen3-omni-quality).
+### Issue and PR trail
 
 <details>
 <summary>Expand the historical issue and PR trail</summary>
@@ -231,7 +236,7 @@ substitutes for the current condition-bound conclusions.
 
 </details>
 
-## What superseded what {#what-superseded-what}
+### What superseded what {#what-superseded-what}
 
 Six records explain which later evidence replaced an earlier project statement.
 
@@ -249,7 +254,7 @@ Six records explain which later evidence replaced an earlier project statement.
 
 </details>
 
-## Chronology index {#chronology-index}
+### Chronology index {#chronology-index}
 
 Five milestones preserve the date-ordered audit trail without making chronology
 the primary reading path.
