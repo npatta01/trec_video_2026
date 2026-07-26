@@ -353,27 +353,27 @@ git commit -m "docs: render experiment result guide"
 - Consumes: 12 independently reviewed, sanitized repository HTML files from Task 2.
 - Produces: a byte-identical 12-page tailnet-only preview, live-route evidence, unchanged Serve/Funnel scope, and a clean committed branch.
 
-- [ ] **Step 1: Reconfirm publication scope before copying**
+- [x] **Step 1: Reconfirm publication scope before copying**
 
 Run read-only checks for `tailscale serve status`, `tailscale funnel status`,
 the portal directory contents, and the current portal index link. Record the
 existing mapping and confirm it remains tailnet-only.
 
-- [ ] **Step 2: Refresh only the report directory**
+- [x] **Step 2: Refresh only the report directory**
 
 Copy the 12 sanitized files from `reports/project-status/` into the existing
 `/home/npatta01/codex-rendered/plans/trecvid-vqa-current-state/` directory.
 Remove no unrelated portal artifact. Confirm the portal directory contains
 exactly the intended report files and all 12 copies match repository bytes.
 
-- [ ] **Step 3: Verify live HTTPS routes and containment**
+- [x] **Step 3: Verify live HTTPS routes and containment**
 
 Verify HTTP 200 and byte identity for the Start Here directory route and all
 11 named HTML routes, including `adding-experiments.html`. Confirm the portal
 root still links to the report and its description is unchanged. Re-run Serve
 and Funnel status and confirm no public listener, Funnel, or mapping change.
 
-- [ ] **Step 4: Record final evidence and commit**
+- [x] **Step 4: Record final evidence and commit**
 
 Update this plan with:
 
@@ -401,7 +401,7 @@ git add docs/superpowers/plans/2026-07-26-agent-experiment-result-guide.md
 git commit -m "docs: record experiment guide verification"
 ```
 
-- [ ] **Step 5: Final clean-state check**
+- [x] **Step 5: Final clean-state check**
 
 Run:
 
@@ -414,3 +414,39 @@ git diff HEAD~3..HEAD --check
 Expected: clean `codex/repository-cleanup-report`, three implementation commits
 after the design/plan commits, and no whitespace errors. Do not push, open a
 pull request, or create GitHub issues without separate authorization.
+
+**Task 3 completion evidence (2026-07-26):**
+
+- The implementation commits are Task 1
+  `e2cba4fe0927b016db77ebd71e0e0a9b9c64564b` and Task 2
+  `bf3a460d15410d6e1540d7bfd889345798500eca`; this evidence-record commit
+  closes Task 3. Quarto `1.9.38` had already produced the intended 12 QMD,
+  12 GFM, and 12 self-contained HTML report surfaces, with isolated,
+  post-remediation deterministic comparisons of `12/12` GFM and `12/12` HTML.
+- Task 2's focused checks found zero unresolved repository-relative links or
+  fragments; all seven guide fragments and 11 declared entry-point forms
+  resolve. It found zero remote runtime dependencies, credential patterns,
+  bucket URIs, private or local filesystem URLs, raw-log fragments, 2026
+  evaluation identifiers, or source-video media added by the guide. Its eight
+  light/dark desktop/phone Chrome inspections found no page overflow, contained
+  the routing table, preserved the three-link navigation and visible focus, and
+  measured at least `6.288:1` light and `10.000:1` dark contrast.
+- The independent read-only documentation re-review approved the completed
+  sources and outputs with zero Critical, Important, or Minor findings after
+  the explicit invalid/incomplete-run, report-output privacy, and existing
+  evidence-of-record routing fixes were made.
+- Before refresh, `tailscale serve status` and `tailscale funnel status` both
+  reported only `https://npatta01-framework.tail481212.ts.net (tailnet only)`
+  with `/` mapped to `/home/npatta01/codex-rendered`. The portal root retained
+  the `plans/trecvid-vqa-current-state/index.html` link and its unchanged
+  TRECVID 2026 VQA current-state description.
+- Only the 12 reviewed `reports/project-status/*.html` files were copied to
+  `/home/npatta01/codex-rendered/plans/trecvid-vqa-current-state/`; its HTML
+  file set now exactly matches the intended 12 files and repository comparisons
+  pass `12/12`. The live Start Here directory route plus all 11 named HTML
+  routes, including `adding-experiments.html`, returned HTTP 200 and matched
+  repository bytes (`12/12`).
+- After refresh, both Serve and Funnel status commands reported the same
+  tailnet-only root mapping. No public listener, Funnel enablement, mapping or
+  portal-index change, application test, public deployment, issue, pull
+  request, push, or unrelated portal-artifact removal occurred.
