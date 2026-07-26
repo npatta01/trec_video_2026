@@ -6,7 +6,7 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
-<meta name="description" content="The current TRECVID 2026 VQA baseline, routing policy, evidence limits, and newcomer reading paths.">
+<meta name="description" content="A newcomer guide to the current TRECVID 2026 VQA baseline, evidence routes, limits, and research vocabulary.">
 
 <title>Start Here – TRECVID VQA Status</title>
 <style>
@@ -5629,9 +5629,16 @@ color: var(--status-accent-dark);
 text-decoration-thickness: 0.08em;
 text-underline-offset: 0.15em;
 }
-a:focus-visible {
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
 outline: 3px solid var(--status-accent);
 outline-offset: 3px;
+}
+.content a,
+.page-footer a {
+overflow-wrap: anywhere;
 }
 h1,
 h2,
@@ -5646,6 +5653,91 @@ max-width: 24ch;
 color: var(--status-muted);
 font-size: 1.15rem;
 max-width: 68ch;
+}
+.lifecycle-banner {
+border: 1px solid var(--status-border);
+border-left: 0.35rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+margin-block: 0.5rem 1.5rem;
+padding: 0.8rem 1rem;
+}
+.lifecycle-banner p {
+margin: 0;
+}
+.decision-strip {
+display: grid;
+grid-template-columns: repeat(5, minmax(0, 1fr));
+gap: 0.65rem;
+margin-block: 1rem;
+}
+.decision-item {
+border: 1px solid var(--status-border);
+border-top: 0.3rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+padding: 0.75rem;
+}
+.decision-item p {
+margin-block: 0 0.35rem;
+}
+.status-breadcrumb {
+color: var(--status-muted);
+display: flex;
+flex-wrap: wrap;
+gap: 0.45rem;
+margin-block: 0.25rem 1rem;
+}
+.theme-local-nav {
+align-items: center;
+border-block: 1px solid var(--status-border);
+display: flex;
+flex-wrap: wrap;
+gap: 0.45rem 1rem;
+margin-block: 0 1.5rem;
+padding-block: 0.65rem;
+}
+.theme-local-nav a {
+font-size: 0.92rem;
+font-weight: 650;
+}
+.theme-decision-strip {
+border: 1px solid var(--status-border);
+border-left: 0.35rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+margin-block: 1rem 1.5rem;
+padding: 0.7rem 1rem;
+}
+.theme-decision-strip ul {
+display: grid;
+gap: 0.45rem 1rem;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+margin-block: 0;
+padding-left: 1.2rem;
+}
+.trace-label {
+color: var(--status-accent-dark);
+font-size: 0.9rem;
+letter-spacing: 0.04em;
+margin-block: 0.5rem 1.25rem;
+text-transform: uppercase;
+}
+.timestamp-storyboard {
+display: grid;
+grid-template-columns: repeat(4, minmax(0, 1fr));
+gap: 0.65rem;
+margin-block: 1rem;
+}
+.timestamp-card {
+border: 1px solid var(--status-border);
+border-radius: 0.4rem;
+background: var(--status-panel);
+min-height: 6.5rem;
+padding: 0.7rem;
+}
+.timestamp-card p {
+margin: 0;
 }
 .theme-grid {
 display: grid;
@@ -5667,10 +5759,78 @@ margin-top: 0;
 border-color: var(--status-accent);
 box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-accent) 22%, transparent);
 }
+.research-matrix {
+margin-block: 1rem 1.75rem;
+max-width: 100%;
+overflow-x: auto;
+}
+.research-matrix:focus-visible {
+outline: 3px solid var(--status-accent);
+outline-offset: 3px;
+}
+.research-matrix table {
+min-width: 68rem;
+}
+.failure-preview-grid {
+display: grid;
+gap: 0.75rem;
+grid-template-columns: repeat(3, minmax(0, 1fr));
+margin-block: 1rem 1.75rem;
+}
+.failure-preview {
+border: 1px solid var(--status-border);
+border-top: 0.3rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+padding: 0.8rem 0.9rem;
+}
+.failure-preview h3 {
+font-size: 1rem;
+margin-top: 0;
+}
+.failure-preview p {
+margin-bottom: 0;
+}
 .theme-status {
 color: var(--status-muted);
 font-size: 0.94rem;
 margin-block: 0.35rem;
+}
+.failure-case {
+border: 1px solid var(--status-border);
+border-top: 0.35rem solid var(--status-accent);
+border-radius: 0.5rem;
+background: #fff;
+margin-block: 1.5rem;
+padding: 1rem 1.1rem;
+}
+.failure-case > h3 {
+margin-top: 0;
+}
+.case-meta {
+color: var(--status-muted);
+font-size: 0.9rem;
+line-height: 1.45;
+margin-block: 0.35rem 1rem;
+}
+.case-fields {
+display: grid;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+gap: 0.75rem;
+}
+.case-field {
+border-left: 0.22rem solid var(--status-border);
+padding-inline: 0.75rem 0.25rem;
+}
+.case-field h4 {
+font-size: 1rem;
+margin-block: 0 0.35rem;
+}
+.case-field p {
+margin-block: 0;
+}
+.failure-case details {
+margin-bottom: 0;
 }
 details {
 border: 1px solid var(--status-border);
@@ -5685,6 +5845,7 @@ summary {
 cursor: pointer;
 color: var(--status-ink);
 font-weight: 650;
+padding-block: 0.15rem;
 }
 summary:focus-visible {
 outline: 3px solid var(--status-accent);
@@ -5737,6 +5898,10 @@ font-size: 0.92rem;
 max-width: 100%;
 overflow-x: auto;
 }
+pre {
+max-width: 100%;
+overflow-x: auto;
+}
 code {
 color: var(--status-ink);
 overflow-wrap: anywhere;
@@ -5761,10 +5926,28 @@ font-size: 1.05rem;
 .theme-grid {
 grid-template-columns: minmax(0, 1fr);
 }
+.theme-decision-strip ul,
+.failure-preview-grid {
+grid-template-columns: minmax(0, 1fr);
+}
+.theme-local-nav {
+align-items: flex-start;
+flex-direction: column;
+gap: 0.35rem;
+}
+.case-fields {
+grid-template-columns: minmax(0, 1fr);
+}
+.decision-strip,
+.timestamp-storyboard {
+grid-template-columns: minmax(0, 1fr);
+}
+.timestamp-card {
+min-height: 0;
+}
 table {
 font-size: 0.88rem;
-table-layout: fixed;
-width: 100%;
+min-width: 100%;
 }
 table th,
 table td {
@@ -5772,7 +5955,14 @@ overflow-wrap: anywhere;
 }
 .table-responsive,
 .quarto-table-container {
+max-width: 100%;
 overflow-x: auto;
+}
+.failure-case,
+.theme-card,
+.decision-item,
+.timestamp-card {
+min-width: 0;
 }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -5830,12 +6020,14 @@ transition: none !important;
     <h2 id="toc-title">On this page</h2>
    
   <ul class="collapse">
-  <li><a href="#current-technical-default" id="toc-current-technical-default" class="nav-link active" data-scroll-target="#current-technical-default">Current technical default</a></li>
-  <li><a href="#recommended-router" id="toc-recommended-router" class="nav-link" data-scroll-target="#recommended-router">Recommended router</a></li>
-  <li><a href="#current-decision-map" id="toc-current-decision-map" class="nav-link" data-scroll-target="#current-decision-map">Current decision map</a></li>
-  <li><a href="#what-not-to-infer" id="toc-what-not-to-infer" class="nav-link" data-scroll-target="#what-not-to-infer">What not to infer</a></li>
+  <li><a href="#project-in-one-minute" id="toc-project-in-one-minute" class="nav-link active" data-scroll-target="#project-in-one-minute">Project in one minute</a></li>
+  <li><a href="#what-the-system-sees" id="toc-what-the-system-sees" class="nav-link" data-scroll-target="#what-the-system-sees">What the system sees</a></li>
+  <li><a href="#current-recommendation" id="toc-current-recommendation" class="nav-link" data-scroll-target="#current-recommendation">Current recommendation</a></li>
+  <li><a href="#see-one-answer-from-start-to-finish" id="toc-see-one-answer-from-start-to-finish" class="nav-link" data-scroll-target="#see-one-answer-from-start-to-finish">See one answer from start to finish</a></li>
+  <li><a href="#evidence-behind-the-recommendation" id="toc-evidence-behind-the-recommendation" class="nav-link" data-scroll-target="#evidence-behind-the-recommendation">Evidence behind the recommendation</a></li>
+  <li><a href="#how-to-read-current-results" id="toc-how-to-read-current-results" class="nav-link" data-scroll-target="#how-to-read-current-results">How to read current results</a></li>
   <li><a href="#choose-a-reading-path" id="toc-choose-a-reading-path" class="nav-link" data-scroll-target="#choose-a-reading-path">Choose a reading path</a></li>
-  <li><a href="#evidence-vocabulary" id="toc-evidence-vocabulary" class="nav-link" data-scroll-target="#evidence-vocabulary">Evidence vocabulary</a></li>
+  <li><a href="#newcomer-glossary" id="toc-newcomer-glossary" class="nav-link" data-scroll-target="#newcomer-glossary">Newcomer glossary</a></li>
   </ul>
 </nav>
     </div>
@@ -5849,7 +6041,7 @@ transition: none !important;
 
 <div>
   <div class="description">
-    The current TRECVID 2026 VQA baseline, routing policy, evidence limits, and newcomer reading paths.
+    A newcomer guide to the current TRECVID 2026 VQA baseline, evidence routes, limits, and research vocabulary.
   </div>
 </div>
 
@@ -5866,34 +6058,64 @@ transition: none !important;
 </header>
 
 
-<div class="lead">
-<p>This repository prepares video evidence, runs reproducible local VQA experiments, and records sanitized findings for TRECVID 2026. The answer today: start with <strong>Qwen3.5-4B and 12 uniformly sampled frames</strong>, then add modalities only through narrow, quality-gated routes.</p>
+<div class="lifecycle-banner" role="status" aria-label="Project lifecycle">
+<p><strong>Lifecycle banner — current working recommendation.</strong> Evidence is drawn from labeled 2025 training examples and controlled diagnostics through 2026-07-25. Answer quality on the unlabeled 2026 evaluation set remains <strong>unknown</strong>.</p>
 </div>
-<div class="callout callout-style-default callout-note callout-titled" title="What is known—and what is not">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
+<section id="project-in-one-minute" class="level2">
+<h2 class="anchored" data-anchor-id="project-in-one-minute">Project in one minute</h2>
+<p><strong>Video question answering (VQA)</strong> means answering a natural-language question about a video. This repository prepares evidence, runs reproducible local VQA experiments, and keeps a sanitized memory of what the team has learned for TRECVID 2026.</p>
+<p>The practical answer today is simple: begin with <strong>Qwen3.5-4B and 12 uniformly sampled frames</strong>, then add speech or audio evidence only through narrow, quality-gated routes. This is a choice for the next experiment, not a claim about 2026 evaluation accuracy.</p>
+</section>
+<section id="what-the-system-sees" class="level2">
+<h2 class="anchored" data-anchor-id="what-the-system-sees">What the system sees</h2>
+<p>The baseline does not watch a video continuously. Its <strong>frame budget</strong> is the maximum number of still images it may receive: currently 12. <strong>Uniform sampling</strong> places those frames at evenly spaced times across the clip so the whole duration is represented without looking at the expected answer.</p>
+<p>Some questions require words that were spoken. <strong>Automatic speech recognition (ASR)</strong> converts audio into timestamped text; this project currently tests Whisper for that job. A <strong>lexical-speech</strong> question asks about the words spoken, rather than tone of voice, music, or another non-speech sound.</p>
+<p>The system records a <strong>frozen prediction</strong>: an answer saved before the expected answer is revealed or used for scoring. Evidence selection is <strong>label-blind</strong> when the expected answer and correctness label cannot influence which route, frames, transcript, or model the system receives.</p>
+</section>
+<section id="current-recommendation" class="level2">
+<h2 class="anchored" data-anchor-id="current-recommendation">Current recommendation</h2>
+<div class="decision-strip" aria-label="Current project decisions">
+<div class="decision-item">
+<p><strong>Use now</strong></p>
+<p>Qwen3.5-4B, 12 uniform frames</p>
 </div>
-<div class="callout-title-container flex-fill">
-<span class="screen-reader-only">Note</span>What is known—and what is not
+<div class="decision-item">
+<p><strong>Use for speed</strong></p>
+<p>MiniCPM-o 4.5, audio off</p>
+</div>
+<div class="decision-item">
+<p><strong>Route selectively</strong></p>
+<p>accepted Whisper for spoken-word questions</p>
+</div>
+<div class="decision-item">
+<p><strong>Still testing</strong></p>
+<p>category-routed native audio and repaired Qwen3-Omni</p>
+</div>
+<div class="decision-item">
+<p><strong>Do not default</strong></p>
+<p>global 24 frames and tested directed/burst heuristics</p>
 </div>
 </div>
-<div class="callout-body-container callout-body">
-<p>The recommendation comes from labeled 2025 training examples and controlled diagnostics. It is useful for choosing the next run; it is <strong>not</strong> an estimate of answer quality on the unlabeled 2026 evaluation set. That performance is unknown.</p>
-</div>
-</div>
-<section id="current-technical-default" class="level2">
-<h2 class="anchored" data-anchor-id="current-technical-default">Current technical default</h2>
+<p>These labels are condition-bound. “Do not default” means the tested version did not justify promotion; it is not a permanent verdict on every future version.</p>
+</section>
+<section id="see-one-answer-from-start-to-finish" class="level2">
+<h2 class="anchored" data-anchor-id="see-one-answer-from-start-to-finish">See one answer from start to finish</h2>
+<p>The <a href="./worked-example.html">worked current-approach example · Report page</a> follows one question through frame sampling, the route decision, constructed ASR evidence, a frozen answer, grading, and a post-hoc next test. It is a fully disclosed, project-authored synthetic teaching scenario—<strong>not benchmark evidence and not an estimate of system accuracy</strong>.</p>
+</section>
+<section id="evidence-behind-the-recommendation" class="level2">
+<h2 class="anchored" data-anchor-id="evidence-behind-the-recommendation">Evidence behind the recommendation</h2>
 <ul>
 <li><strong>Accuracy baseline:</strong> Qwen3.5-4B with 12 uniform frames.</li>
-<li><strong>Fast alternate:</strong> MiniCPM-o 4.5 with native audio disabled. It had the best METEOR and fastest measured outer wall in the matched frozen-30 run.</li>
-<li><strong>Lexical-speech route:</strong> in a declared label-blind routed experiment, add Whisper large-v3 only when the question is classified as lexical speech and transcript quality passes. No versioned evaluated router exists yet.</li>
+<li><strong>Fast alternate:</strong> MiniCPM-o 4.5 with native audio disabled. It had the best <strong>METEOR</strong> (a token-overlap score that gives partial credit for aligned words and some linguistic variants) and fastest measured outer wall in the matched frozen-30 run.</li>
+<li><strong>Lexical-speech route:</strong> add Whisper large-v3 only when a label-blind router classifies the question as spoken-word evidence and transcript quality passes. No versioned evaluated router exists yet.</li>
 <li><strong>Prosody or non-speech candidate:</strong> test native audio as a specialist branch, never as a global switch on the current evidence.</li>
 </ul>
-<p>The matched <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">frozen-30 protocol-v2 report</a> is the strongest current global comparison. The later <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md">automatic-transcript ablation</a> strengthens the lexical-speech route, while the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md">failure-selected audio panel</a> shows why native audio remains a specialist.</p>
-</section>
-<section id="recommended-router" class="level2">
-<h2 class="anchored" data-anchor-id="recommended-router">Recommended router</h2>
+<p>The matched <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">frozen-30 protocol-v2 report · Evidence of record · Evidence report · GitHub</a> is the strongest current global comparison. A <strong>protocol version</strong> is the named, fixed revision of the rules, inputs, and scoring used for a run. The later <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md">automatic-transcript ablation · Evidence of record · Evidence report · GitHub</a> strengthens the lexical-speech route, while the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md">failure-selected audio panel · Evidence of record · Evidence report · GitHub</a> shows why native audio remains a specialist. A <strong>panel</strong> is the declared set of examples in a comparison; a <strong>stratum</strong> is a predeclared subgroup, such as lexical speech, within that panel. These GitHub links require repository access until public release.</p>
+<details class="diagram-details">
+<summary>
+Expand the full evidence router
+</summary>
+<div class="diagram-scroll" tabindex="0" aria-label="Scrollable recommended evidence router">
 <div class="cell" data-layout-align="default">
 <div class="cell-output-display">
 <div id="fig-recommended-router" class="quarto-float quarto-figure quarto-figure-center anchored">
@@ -5920,6 +6142,7 @@ Figure 1: Recommended evidence router: keep the 12-frame Qwen baseline, use Whi
 </div>
 </div>
 </div>
+</div>
 <p>Plain-text equivalent:</p>
 <ol type="1">
 <li>Run Qwen3.5-4B on 12 uniform frames for every question.</li>
@@ -5927,111 +6150,73 @@ Figure 1: Recommended evidence router: keep the 12-frame Qwen baseline, use Whi
 <li>For prosody or non-speech sound, native audio is a candidate specialist experiment, not a promoted production route.</li>
 <li>Otherwise, continue with the 12-frame baseline.</li>
 </ol>
+</details>
 </section>
-<section id="current-decision-map" class="level2">
-<h2 class="anchored" data-anchor-id="current-decision-map">Current decision map</h2>
-<p>The table is the primary decision interface. It states the current use of each system without requiring the expanded visual.</p>
+<section id="how-to-read-current-results" class="level2">
+<h2 class="anchored" data-anchor-id="how-to-read-current-results">How to read current results</h2>
+<p>Results sometimes use <strong>C/P/W</strong>: counts graded correct, partially correct, and wrong. Qwen3-Omni’s neutral A2 diagnostic changed frames-only <strong>3C/3P/4W</strong> to audio-on <strong>5C/2P/3W</strong> after narrow post-hoc answer recovery. The immutable strict run completed only <strong>19/20</strong> accepted outputs, so it missed its predeclared <strong>promotion gate</strong>—the pass/fail rule a result must satisfy before the project adopts it. That run is ineligible for its planned promotion decision; the repaired model remains open to a fresh comparison. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md">tracked neutral A2 result · Evidence of record · Evidence report · GitHub</a> and <a href="https://github.com/npatta01/trec_video_2026/pull/18">PR #18 · Issue/PR history · GitHub</a>.</p>
+<p><strong>Exact match</strong> is 1 only when a normalized prediction equals the normalized reference. <strong>Token F1</strong> balances word-level precision and recall, so it can give partial credit for overlapping words. Neither metric turns a small diagnostic into a population estimate.</p>
+<section id="evidence-strength" class="level3">
+<h3 class="anchored" data-anchor-id="evidence-strength">Evidence strength</h3>
+<p>Read every result with its evidence-status label. These labels keep a working runtime probe or a selected diagnostic from being mistaken for promotion evidence.</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 33%">
-<col style="width: 33%">
-<col style="width: 33%">
+<col style="width: 50%">
+<col style="width: 50%">
 </colgroup>
 <thead>
 <tr class="header">
 <th>Status</th>
-<th>Systems or routes</th>
-<th>Meaning now</th>
+<th>What it means here</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td>Current default</td>
-<td>Qwen3.5-4B, 12 uniform frames</td>
-<td>Evidence-backed visual baseline.</td>
+<td><strong>Verified</strong></td>
+<td>The declared protocol completed, required outputs and provenance checks passed, and the stated result was scored or reviewed within that protocol.</td>
 </tr>
 <tr class="even">
-<td>Fast alternate</td>
-<td>MiniCPM-o 4.5, audio off</td>
-<td>Explicit speed/METEOR trade-off, not the accuracy winner on every metric.</td>
+<td><strong>Diagnostic</strong></td>
+<td>A deliberately small, selected, or post-hoc comparison that may explain a mechanism but cannot estimate population accuracy.</td>
 </tr>
 <tr class="odd">
-<td>Routed candidate</td>
-<td>Quality-gated Whisper</td>
-<td>Lexical-speech evidence only; not a global default.</td>
+<td><strong>Compatibility-only</strong></td>
+<td>The runtime, modality input, and output contract worked; answer quality was not established.</td>
 </tr>
 <tr class="even">
-<td>Routed candidate</td>
-<td>Native audio</td>
-<td>Prosody and non-speech candidate; global use can distract visual reasoning.</td>
+<td><strong>Not promoted under the tested condition</strong></td>
+<td>This implementation, panel, budget, or gate did not justify promotion; it is not a permanent verdict.</td>
 </tr>
 <tr class="odd">
-<td>Gate-specific ineligible run</td>
-<td>Qwen3-Omni neutral A2</td>
-<td>Encouraging diagnostic, but this strict run produced 19/20 accepted outputs and cannot support its predeclared promotion decision.</td>
+<td><strong>Blocked</strong></td>
+<td>A required input, independent record, budget, or authorization is absent, so the planned evidence tier cannot run validly yet.</td>
 </tr>
 <tr class="even">
-<td>Not promoted as current defaults under the tested conditions</td>
-<td>Global 24 frames, directed temporal sampling, dense bursts, Qwen3.6, Gemma, Phi</td>
-<td>Each tested implementation missed its applicable efficiency, semantic, or promotion gate; different controlled conditions remain possible.</td>
+<td><strong>Unknown</strong></td>
+<td>No valid evidence answers the question. In particular, answer quality on the 2026 evaluation set is <strong>Unknown</strong>.</td>
 </tr>
 </tbody>
 </table>
-<p>The Qwen3-Omni neutral A2 diagnostic changed frames-only <strong>3C/3P/4W</strong> to audio-on <strong>5C/2P/3W</strong> after a narrow post-hoc answer recovery. The immutable strict run still completed only <strong>19/20</strong> accepted outputs, so that run is formally ineligible under its predeclared 20/20 promotion gate. The model may be reconsidered in a repaired fresh comparison. See the <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md">tracked neutral A2 result</a> and <a href="https://github.com/npatta01/trec_video_2026/pull/18">PR #18</a>.</p>
-<details class="diagram-details">
-<summary>
-Expand the full decision diagram
-</summary>
-<div class="diagram-scroll" tabindex="0" aria-label="Scrollable full current decision diagram">
-<div class="cell" data-layout-align="default">
-<div class="cell-output-display">
-<div id="fig-current-decisions" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-current-decisions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<div>
-<pre class="mermaid mermaid-js" data-label="fig-current-decisions">flowchart TD
-  accTitle: Current project decisions
-  accDescr: Qwen with 12 frames is the default, MiniCPM audio-off is the fast alternate, speech and native audio are routed candidates, several tested conditions were not promoted, and one Qwen3-Omni run missed its completion gate.
-  E[Current evidence] --&gt; D[Use now]
-  E --&gt; ROUTE[Route or study]
-  E --&gt; S[Do not default]
-  D --&gt; Q12[Qwen3.5-4B&lt;br/&gt;12 uniform frames]
-  D --&gt; M[MiniCPM-o 4.5&lt;br/&gt;audio off: fast alternate]
-  ROUTE --&gt; W[Quality-gated Whisper&lt;br/&gt;lexical speech]
-  ROUTE --&gt; NA[Native audio&lt;br/&gt;prosody / non-speech]
-  ROUTE --&gt; O[Qwen3-Omni A2 run&lt;br/&gt;19/20 gate-specific ineligibility]
-  S --&gt; X[Not promoted under tested conditions&lt;br/&gt;Global 24f; directed; bursts;&lt;br/&gt;Qwen3.6; Gemma; Phi]
-</pre>
-</div>
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-current-decisions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure 2: Current decision map separating defaults, routed candidates, condition-bound non-promotions, and Qwen3-Omni’s gate-specific ineligible run.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
-</div>
-</details>
+<p>Evidence strength and answer grade are different: a prediction can be correct inside a tiny diagnostic without making the tested method a verified default.</p>
 </section>
-<section id="what-not-to-infer" class="level2">
-<h2 class="anchored" data-anchor-id="what-not-to-infer">What not to infer</h2>
+<section id="what-not-to-infer" class="level3">
+<h3 class="anchored" data-anchor-id="what-not-to-infer">What not to infer</h3>
 <ul>
 <li><strong>More frames are not automatically better.</strong> Global Qwen 24 frames added no exact answers over 12 in frozen-30; a directed 12-frame heuristic tied uniform 12 and trailed uniform 24; a two-row dense-burst probe regressed.</li>
 <li><strong>A larger model is not automatically better.</strong> Qwen3.6 scored 3C/2P/7W on a deliberately failure-selected diagnostic and did not displace the smaller baseline.</li>
 <li><strong>Runtime compatibility is not answer quality.</strong> Gemma passed an initial joint-input compatibility gate and Phi needed output handling correction, but neither was promoted beyond the later three-row semantic gate.</li>
 <li><strong>Native audio is not universally helpful.</strong> It improved some prosody and sound cases while harming some temporal cases.</li>
 </ul>
-<p>Follow the evidence, limitations, and next experiments in <a href="./experiment-ledger.html">Research Themes</a>.</p>
+</section>
 </section>
 <section id="choose-a-reading-path" class="level2">
 <h2 class="anchored" data-anchor-id="choose-a-reading-path">Choose a reading path</h2>
 <section id="five-minutes-decide-what-to-run" class="level3">
 <h3 class="anchored" data-anchor-id="five-minutes-decide-what-to-run">Five minutes: decide what to run</h3>
 <ol type="1">
-<li>Read <strong>Current technical default</strong> and <strong>Recommended router</strong> above.</li>
-<li>Scan the four supported commands in the <a href="./code-map.html#supported-commands">Code Map</a>.</li>
-<li>Before any substantial benchmark, read the repository <a href="https://github.com/npatta01/trec_video_2026/blob/main/README.md">privacy and shared-data boundary</a>.</li>
+<li>Read <strong>Current recommendation</strong> above.</li>
+<li>Open <a href="./worked-example.html">How One Answer Is Made · Report page</a>.</li>
+<li>Scan the four supported commands in the <a href="./code-map.html#supported-commands">Code Map · Report page</a>.</li>
 </ol>
 </section>
 <section id="fifteen-minutes-understand-the-decision" class="level3">
@@ -6046,14 +6231,13 @@ Figure 2: Current decision map separating defaults, routed candidates, conditio
 <h3 class="anchored" data-anchor-id="thirty-minutes-trace-evidence-to-code">Thirty minutes: trace evidence to code</h3>
 <ol type="1">
 <li>Complete the fifteen-minute path.</li>
-<li>Choose relevant pages from <a href="./experiment-ledger.html">Research Themes</a>.</li>
+<li>Choose relevant pages from <a href="./experiment-ledger.html">Research Themes · Report page</a>.</li>
 <li>Walk the acquisition-to-report <a href="./code-map.html#system-pipeline">system pipeline</a> and <a href="./code-map.html#repository-map">repository map</a>.</li>
-<li>Open the linked tracked reports or source modules for the decision you plan to revisit.</li>
 </ol>
 </section>
 </section>
-<section id="evidence-vocabulary" class="level2">
-<h2 class="anchored" data-anchor-id="evidence-vocabulary">Evidence vocabulary</h2>
+<section id="newcomer-glossary" class="level2">
+<h2 class="anchored" data-anchor-id="newcomer-glossary">Newcomer glossary</h2>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 50%">
@@ -6062,37 +6246,72 @@ Figure 2: Current decision map separating defaults, routed candidates, conditio
 <thead>
 <tr class="header">
 <th>Term</th>
-<th>Meaning in this report</th>
+<th>Plain-language meaning</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><strong>Verified</strong></td>
-<td>The declared protocol completed, its required outputs and provenance checks passed, and the stated result was scored or reviewed within that protocol.</td>
+<td><strong>VQA</strong></td>
+<td>Video question answering: answering a natural-language question about a video.</td>
 </tr>
 <tr class="even">
-<td><strong>Diagnostic</strong></td>
-<td>A deliberately small, selected, or post-hoc comparison that can explain a mechanism but cannot estimate population accuracy.</td>
+<td><strong>Frame budget</strong></td>
+<td>The maximum number of still images supplied to the model.</td>
 </tr>
 <tr class="odd">
-<td><strong>Compatibility-only</strong></td>
-<td>The runtime, modality-input, and output contract ran; answer quality was not established.</td>
+<td><strong>Uniform sampling</strong></td>
+<td>Selecting frames at evenly spaced times across a clip.</td>
 </tr>
 <tr class="even">
-<td><strong>Not promoted under the tested condition</strong></td>
-<td>This implementation, panel, budget, or gate did not justify promotion; it is not a permanent verdict.</td>
+<td><strong>ASR</strong></td>
+<td>Automatic speech recognition: converting speech audio into timestamped text.</td>
 </tr>
 <tr class="odd">
-<td><strong>Blocked</strong></td>
-<td>A required input, independent record, budget, or authorization is absent, so the planned tier cannot run validly yet.</td>
+<td><strong>Lexical speech</strong></td>
+<td>The words spoken, as distinct from tone, music, or non-speech sound.</td>
 </tr>
 <tr class="even">
-<td><strong>Unknown</strong></td>
-<td>No valid evidence answers the question. In particular, 2026 evaluation answer quality is unknown.</td>
+<td><strong>Frozen prediction</strong></td>
+<td>An answer saved before the expected answer is revealed or used for scoring.</td>
+</tr>
+<tr class="odd">
+<td><strong>Label-blind</strong></td>
+<td>Hidden expected answers and grades cannot influence evidence or route selection.</td>
+</tr>
+<tr class="even">
+<td><strong>C/P/W</strong></td>
+<td>Counts graded correct / partially correct / wrong.</td>
+</tr>
+<tr class="odd">
+<td><strong>Exact match</strong></td>
+<td>A strict normalized-answer score: 1 for a match and 0 otherwise.</td>
+</tr>
+<tr class="even">
+<td><strong>Token F1</strong></td>
+<td>A word-overlap score balancing precision and recall.</td>
+</tr>
+<tr class="odd">
+<td><strong>METEOR</strong></td>
+<td>A token-alignment score that can give partial credit for linguistic overlap.</td>
+</tr>
+<tr class="even">
+<td><strong>Panel</strong></td>
+<td>The declared set of examples in a comparison.</td>
+</tr>
+<tr class="odd">
+<td><strong>Stratum</strong></td>
+<td>A predeclared subgroup within a panel.</td>
+</tr>
+<tr class="even">
+<td><strong>Promotion gate</strong></td>
+<td>A rule a result must pass before the project adopts the tested change.</td>
+</tr>
+<tr class="odd">
+<td><strong>Protocol version</strong></td>
+<td>The named, fixed revision of a run’s rules, inputs, and scoring.</td>
 </tr>
 </tbody>
 </table>
-<p>These categories prevent a clean runtime probe, an interesting failure panel, or a post-hoc diagnostic from being reported as a baseline win. For exact panels and decisions, continue to <a href="./experiment-ledger.html">Research Themes</a>.</p>
 
 
 </section>
@@ -6440,13 +6659,13 @@ Figure 2: Current decision map separating defaults, routed candidates, conditio
 <footer class="footer">
   <div class="nav-footer">
     <div class="nav-footer-left">
-<p>Repository evidence through 2026-07-25</p>
+<p>Reviewed evidence: 2026-07-26</p>
 </div>   
     <div class="nav-footer-center">
        
     </div>
     <div class="nav-footer-right">
-<p>Sanitized aggregates only</p>
+<p>Development phase · 2026 evaluation quality remains unknown</p>
 </div>
   </div>
 </footer>

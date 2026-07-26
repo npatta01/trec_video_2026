@@ -2527,9 +2527,16 @@ color: var(--status-accent-dark);
 text-decoration-thickness: 0.08em;
 text-underline-offset: 0.15em;
 }
-a:focus-visible {
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
 outline: 3px solid var(--status-accent);
 outline-offset: 3px;
+}
+.content a,
+.page-footer a {
+overflow-wrap: anywhere;
 }
 h1,
 h2,
@@ -2544,6 +2551,91 @@ max-width: 24ch;
 color: var(--status-muted);
 font-size: 1.15rem;
 max-width: 68ch;
+}
+.lifecycle-banner {
+border: 1px solid var(--status-border);
+border-left: 0.35rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+margin-block: 0.5rem 1.5rem;
+padding: 0.8rem 1rem;
+}
+.lifecycle-banner p {
+margin: 0;
+}
+.decision-strip {
+display: grid;
+grid-template-columns: repeat(5, minmax(0, 1fr));
+gap: 0.65rem;
+margin-block: 1rem;
+}
+.decision-item {
+border: 1px solid var(--status-border);
+border-top: 0.3rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+padding: 0.75rem;
+}
+.decision-item p {
+margin-block: 0 0.35rem;
+}
+.status-breadcrumb {
+color: var(--status-muted);
+display: flex;
+flex-wrap: wrap;
+gap: 0.45rem;
+margin-block: 0.25rem 1rem;
+}
+.theme-local-nav {
+align-items: center;
+border-block: 1px solid var(--status-border);
+display: flex;
+flex-wrap: wrap;
+gap: 0.45rem 1rem;
+margin-block: 0 1.5rem;
+padding-block: 0.65rem;
+}
+.theme-local-nav a {
+font-size: 0.92rem;
+font-weight: 650;
+}
+.theme-decision-strip {
+border: 1px solid var(--status-border);
+border-left: 0.35rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+margin-block: 1rem 1.5rem;
+padding: 0.7rem 1rem;
+}
+.theme-decision-strip ul {
+display: grid;
+gap: 0.45rem 1rem;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+margin-block: 0;
+padding-left: 1.2rem;
+}
+.trace-label {
+color: var(--status-accent-dark);
+font-size: 0.9rem;
+letter-spacing: 0.04em;
+margin-block: 0.5rem 1.25rem;
+text-transform: uppercase;
+}
+.timestamp-storyboard {
+display: grid;
+grid-template-columns: repeat(4, minmax(0, 1fr));
+gap: 0.65rem;
+margin-block: 1rem;
+}
+.timestamp-card {
+border: 1px solid var(--status-border);
+border-radius: 0.4rem;
+background: var(--status-panel);
+min-height: 6.5rem;
+padding: 0.7rem;
+}
+.timestamp-card p {
+margin: 0;
 }
 .theme-grid {
 display: grid;
@@ -2565,10 +2657,78 @@ margin-top: 0;
 border-color: var(--status-accent);
 box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-accent) 22%, transparent);
 }
+.research-matrix {
+margin-block: 1rem 1.75rem;
+max-width: 100%;
+overflow-x: auto;
+}
+.research-matrix:focus-visible {
+outline: 3px solid var(--status-accent);
+outline-offset: 3px;
+}
+.research-matrix table {
+min-width: 68rem;
+}
+.failure-preview-grid {
+display: grid;
+gap: 0.75rem;
+grid-template-columns: repeat(3, minmax(0, 1fr));
+margin-block: 1rem 1.75rem;
+}
+.failure-preview {
+border: 1px solid var(--status-border);
+border-top: 0.3rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+padding: 0.8rem 0.9rem;
+}
+.failure-preview h3 {
+font-size: 1rem;
+margin-top: 0;
+}
+.failure-preview p {
+margin-bottom: 0;
+}
 .theme-status {
 color: var(--status-muted);
 font-size: 0.94rem;
 margin-block: 0.35rem;
+}
+.failure-case {
+border: 1px solid var(--status-border);
+border-top: 0.35rem solid var(--status-accent);
+border-radius: 0.5rem;
+background: #fff;
+margin-block: 1.5rem;
+padding: 1rem 1.1rem;
+}
+.failure-case > h3 {
+margin-top: 0;
+}
+.case-meta {
+color: var(--status-muted);
+font-size: 0.9rem;
+line-height: 1.45;
+margin-block: 0.35rem 1rem;
+}
+.case-fields {
+display: grid;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+gap: 0.75rem;
+}
+.case-field {
+border-left: 0.22rem solid var(--status-border);
+padding-inline: 0.75rem 0.25rem;
+}
+.case-field h4 {
+font-size: 1rem;
+margin-block: 0 0.35rem;
+}
+.case-field p {
+margin-block: 0;
+}
+.failure-case details {
+margin-bottom: 0;
 }
 details {
 border: 1px solid var(--status-border);
@@ -2583,6 +2743,7 @@ summary {
 cursor: pointer;
 color: var(--status-ink);
 font-weight: 650;
+padding-block: 0.15rem;
 }
 summary:focus-visible {
 outline: 3px solid var(--status-accent);
@@ -2635,6 +2796,10 @@ font-size: 0.92rem;
 max-width: 100%;
 overflow-x: auto;
 }
+pre {
+max-width: 100%;
+overflow-x: auto;
+}
 code {
 color: var(--status-ink);
 overflow-wrap: anywhere;
@@ -2659,10 +2824,28 @@ font-size: 1.05rem;
 .theme-grid {
 grid-template-columns: minmax(0, 1fr);
 }
+.theme-decision-strip ul,
+.failure-preview-grid {
+grid-template-columns: minmax(0, 1fr);
+}
+.theme-local-nav {
+align-items: flex-start;
+flex-direction: column;
+gap: 0.35rem;
+}
+.case-fields {
+grid-template-columns: minmax(0, 1fr);
+}
+.decision-strip,
+.timestamp-storyboard {
+grid-template-columns: minmax(0, 1fr);
+}
+.timestamp-card {
+min-height: 0;
+}
 table {
 font-size: 0.88rem;
-table-layout: fixed;
-width: 100%;
+min-width: 100%;
 }
 table th,
 table td {
@@ -2670,7 +2853,14 @@ overflow-wrap: anywhere;
 }
 .table-responsive,
 .quarto-table-container {
+max-width: 100%;
 overflow-x: auto;
+}
+.failure-case,
+.theme-card,
+.decision-item,
+.timestamp-card {
+min-width: 0;
 }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2728,16 +2918,14 @@ transition: none !important;
     <h2 id="toc-title">On this page</h2>
    
   <ul class="collapse">
-  <li><a href="#back-to-research-themes" id="toc-back-to-research-themes" class="nav-link active" data-scroll-target="#back-to-research-themes">Back to Research Themes</a></li>
-  <li><a href="#technical-summary" id="toc-technical-summary" class="nav-link" data-scroll-target="#technical-summary">Technical summary</a></li>
-  <li><a href="#why-this-theme-matters" id="toc-why-this-theme-matters" class="nav-link" data-scroll-target="#why-this-theme-matters">Why this theme matters</a></li>
+  <li><a href="#why-this-theme-matters" id="toc-why-this-theme-matters" class="nav-link active" data-scroll-target="#why-this-theme-matters">New to this theme?</a></li>
   <li><a href="#current-working-answer" id="toc-current-working-answer" class="nav-link" data-scroll-target="#current-working-answer">Current working answer</a></li>
+  <li><a href="#evidence-at-a-glance" id="toc-evidence-at-a-glance" class="nav-link" data-scroll-target="#evidence-at-a-glance">Evidence at a glance</a></li>
   <li><a href="#what-has-been-tried" id="toc-what-has-been-tried" class="nav-link" data-scroll-target="#what-has-been-tried">What has been tried</a></li>
-  <li><a href="#what-the-evidence-supports" id="toc-what-the-evidence-supports" class="nav-link" data-scroll-target="#what-the-evidence-supports">What the evidence supports</a></li>
-  <li><a href="#what-it-does-not-rule-out" id="toc-what-it-does-not-rule-out" class="nav-link" data-scroll-target="#what-it-does-not-rule-out">What it does not rule out</a></li>
-  <li><a href="#possible-bugs-confounds-and-audit-gaps" id="toc-possible-bugs-confounds-and-audit-gaps" class="nav-link" data-scroll-target="#possible-bugs-confounds-and-audit-gaps">Possible bugs, confounds, and audit gaps</a></li>
+  <li><a href="#known-failures-and-cases" id="toc-known-failures-and-cases" class="nav-link" data-scroll-target="#known-failures-and-cases">Known failures and cases</a></li>
   <li><a href="#open-hypotheses-and-ideas" id="toc-open-hypotheses-and-ideas" class="nav-link" data-scroll-target="#open-hypotheses-and-ideas">Open hypotheses and ideas</a></li>
   <li><a href="#cheapest-valid-next-experiments" id="toc-cheapest-valid-next-experiments" class="nav-link" data-scroll-target="#cheapest-valid-next-experiments">Cheapest valid next experiments</a></li>
+  <li><a href="#method-result-validity-risks-and-evidence" id="toc-method-result-validity-risks-and-evidence" class="nav-link" data-scroll-target="#method-result-validity-risks-and-evidence">Method, result, validity risks, and evidence</a></li>
   <li><a href="#related-themes" id="toc-related-themes" class="nav-link" data-scroll-target="#related-themes">Related themes</a></li>
   </ul>
 </nav>
@@ -2769,21 +2957,39 @@ transition: none !important;
 </header>
 
 
-<section id="back-to-research-themes" class="level2">
-<h2 class="anchored" data-anchor-id="back-to-research-themes">Back to Research Themes</h2>
-<p>Return to the <a href="./experiment-ledger.html">Research Themes and Experiment Ledger</a>.</p>
-</section>
-<section id="technical-summary" class="level2">
-<h2 class="anchored" data-anchor-id="technical-summary">Technical summary</h2>
-<p>Qwen3.5-4B with uniform-12 is the current visual default. Frozen-30 v2 found no exact-answer gain from global uniform-24; a ten-row directed-12 heuristic tied uniform-12 and trailed uniform-24; and a two-row dense-burst diagnostic regressed. Those results are condition-bound and do not reject all question-aware, retrieval, spatial-detail, or OCR methods.</p>
-</section>
+<span id="back-to-research-themes" class="legacy-fragment-alias" aria-hidden="true"></span>
+<nav class="status-breadcrumb" aria-label="Breadcrumb">
+<a href="./index.html">Start Here</a> <span aria-hidden="true">/</span> <a href="./experiment-ledger.html">Research Themes</a> <span aria-hidden="true">/</span> <span aria-current="page">Visual and Temporal Evidence</span>
+</nav>
+<nav class="theme-local-nav" aria-label="On this theme page">
+<a href="#current-working-answer">Working answer</a> <a href="#what-has-been-tried">Tried</a> <a href="#known-failures-and-cases">Failures</a> <a href="#cheapest-valid-next-experiments">Next tests</a>
+</nav>
 <section id="why-this-theme-matters" class="level2">
-<h2 class="anchored" data-anchor-id="why-this-theme-matters">Why this theme matters</h2>
+<h2 class="anchored" data-anchor-id="why-this-theme-matters">New to this theme?</h2>
 <p>VQA fails either because needed evidence was not selected (retrieval) or because selected evidence was not used well (answering). More frames, a local burst, or crops can cost compute and still miss the required moment, so the fixed evidence budget and selection mechanism must be visible.</p>
+<p>For example, <strong>uniform-12</strong> spends a 12-frame budget across the whole clip, while a directed selector spends some of the same budget near a question-chosen time. If neither selects the brief decisive action, that is a retrieval problem; if both select it and the answer is still wrong, the likely bottleneck is downstream.</p>
+<p><span id="technical-summary" class="legacy-fragment-alias" aria-hidden="true"></span></p>
 </section>
 <section id="current-working-answer" class="level2">
 <h2 class="anchored" data-anchor-id="current-working-answer">Current working answer</h2>
 <p>Use uniform-12 as the current default: it takes midpoint frames from 12 equal time bins. Uniform-24 applies the same whole-video coverage with twice the frame proxy. Do not make the tested directed-12 or dense-burst-12 diagnostic a default; each is <strong>Not promoted under the tested condition</strong>.</p>
+<div class="theme-decision-strip" aria-label="Visual-evidence decisions">
+<ul>
+<li><strong>Use now:</strong> Qwen3.5-4B with 12 uniformly sampled frames.</li>
+<li><strong>Do not default:</strong> global uniform-24 or the tested directed/burst heuristics.</li>
+<li><strong>Still possible:</strong> learned, hybrid, shot/event, OCR, or coarse-to-fine retrieval.</li>
+<li><strong>Next test:</strong> required-moment labels, selector recall, and oracle-frame answering at one fixed budget.</li>
+</ul>
+</div>
+</section>
+<section id="evidence-at-a-glance" class="level2">
+<h2 class="anchored" data-anchor-id="evidence-at-a-glance">Evidence at a glance</h2>
+<ul>
+<li><strong>Strongest evidence:</strong> matched uniform-12 versus uniform-24 on frozen-30 v2.</li>
+<li><strong>Diagnostic evidence:</strong> ten selected temporal rows for directed-12 and two rows for dense-burst-12.</li>
+<li><strong>Audit gaps:</strong> no tracked general-workflow caller for directed-12; the exact dense-burst implementation is absent.</li>
+<li><strong>Condition boundary:</strong> none of these results rejects smarter visual sampling or retrieval as a research branch.</li>
+</ul>
 </section>
 <section id="what-has-been-tried" class="level2">
 <h2 class="anchored" data-anchor-id="what-has-been-tried">What has been tried</h2>
@@ -2796,13 +3002,14 @@ transition: none !important;
 <li><strong>Current condition-bound status:</strong> uniform-12 remains the <strong>Current default</strong>; global uniform-24 is <strong>Not promoted under the tested condition</strong>.</li>
 <li><strong>What this rules out now:</strong> making uniform-24 the global default for this model and protocol-v2 panel.</li>
 <li><strong>What it does not rule out:</strong> a declared temporal-only route or another fixed-budget evidence design.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—30 labeled 2025 rows do not establish a universal frame-budget effect.</li>
 <li><strong>Reconsider when:</strong> a matched routed panel beats uniform-12 under predeclared controls and non-regression rules.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-Both arms use whole-video bin-midpoint coverage, not query-driven retrieval. The comparison is the strongest global visual evidence here but remains a 30-row 2025 training-data result, not an estimate of 2026 accuracy. See the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">protocol-v2 report</a>.
+Both arms use whole-video bin-midpoint coverage, not query-driven retrieval. The comparison is the strongest global visual evidence here but remains a 30-row 2025 training-data result, not an estimate of 2026 accuracy. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">protocol-v2 report · Evidence of record · Evidence report · GitHub</a>.
 </details>
 </section>
 <section id="directed-temporal-sampling" class="level3">
@@ -2815,13 +3022,14 @@ Both arms use whole-video bin-midpoint coverage, not query-driven retrieval. The
 <li><strong>Current condition-bound status:</strong> <strong>Not promoted under the tested condition</strong>; it rejects this heuristic as the current default, not all question-aware sampling.</li>
 <li><strong>What this rules out now:</strong> using this keyword/anchor directed-12 heuristic as the default temporal selector.</li>
 <li><strong>What it does not rule out:</strong> learned, query-only, hybrid, shot, event, or coarse-to-fine selection under a new controlled design.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Audit gap</strong>—source and unit tests exist, but no tracked general-workflow caller proves the attachment path.</li>
 <li><strong>Reconsider when:</strong> required-moment recall and oracle-frame answer quality show a predeclared improvement with matched controls.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-The selector source and tests establish deterministic timestamps for a supplied anchor, not required-evidence recall or answer relevance. The tracked repository has no general-workflow caller for the selector: that is an <strong>Audit gap</strong>, not a confirmed execution bug. The <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/temporal-sampling-issue-8.md">temporal experiment record</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_experiments/temporal_sampling.py">selector</a>, and <a href="https://github.com/npatta01/trec_video_2026/blob/main/tests/test_temporal_sampling.py">tests</a> document the narrow contract.
+The selector source and tests establish deterministic timestamps for a supplied anchor, not required-evidence recall or answer relevance. The tracked repository has no general-workflow caller for the selector: that is an <strong>Audit gap</strong>, not a confirmed execution bug. The <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/temporal-sampling-issue-8.md">temporal experiment record · Evidence of record · Evidence report · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_experiments/temporal_sampling.py">selector · Current code · Source code · GitHub</a>, and <a href="https://github.com/npatta01/trec_video_2026/blob/main/tests/test_temporal_sampling.py">tests · Current code · Source code · GitHub</a> document the narrow contract.
 </details>
 </section>
 <section id="dense-burst-sampling" class="level3">
@@ -2834,13 +3042,14 @@ The selector source and tests establish deterministic timestamps for a supplied 
 <li><strong>Current condition-bound status:</strong> <strong>Not promoted under the tested condition</strong>; reject the tested diagnostic as a default.</li>
 <li><strong>What this rules out now:</strong> making this tested dense-burst-12 diagnostic the default local selector.</li>
 <li><strong>What it does not rule out:</strong> another local schedule or selector evaluated with recoverable source, provenance, and a larger declared panel.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Audit gap</strong>—the exact dense-burst implementation and schedule are absent from tracked source.</li>
 <li><strong>Reconsider when:</strong> a fully tracked implementation passes a fixed-budget, label-isolated comparison with non-regression controls.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-The two-row boundary means the evidence cannot estimate prevalence, effect size, or performance of all local selectors. It also cannot recover the exact burst schedule or launch path, an <strong>Audit gap</strong> rather than proof of an execution bug. The aggregate’s recorded source digest is <code>d4825b4530b181f1b4414552a80136e2f0e5a7ee64def23131d8c163acc458f1</code>; the <a href="https://github.com/npatta01/trec_video_2026/issues/16">closed issue #16</a> records the decision without exposing rows or raw artifacts.
+The two-row boundary means the evidence cannot estimate prevalence, effect size, or performance of all local selectors. It also cannot recover the exact burst schedule or launch path, an <strong>Audit gap</strong> rather than proof of an execution bug. The aggregate’s recorded source digest is <code>d4825b4530b181f1b4414552a80136e2f0e5a7ee64def23131d8c163acc458f1</code>; the <a href="https://github.com/npatta01/trec_video_2026/issues/16">closed issue #16 · Issue/PR history · GitHub</a> records the decision without exposing rows or raw artifacts.
 </details>
 </section>
 <section id="spatial-crop-diagnostic" class="level3">
@@ -2852,18 +3061,22 @@ The two-row boundary means the evidence cannot estimate prevalence, effect size,
 <li><strong>Current condition-bound status:</strong> <strong>Diagnostic signal</strong>; global tiling or crops are not promoted.</li>
 <li><strong>What this rules out now:</strong> promoting this manual crop or global tiling from the targeted failure diagnostic.</li>
 <li><strong>What it does not rule out:</strong> a category-routed spatial-detail or OCR policy with a declared crop budget.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—one manual, targeted crop cannot separate retrieval from fusion failure.</li>
 <li><strong>Reconsider when:</strong> a matched target stratum and visual controls show a predeclared route benefit without regressions.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-The crop was manually selected and not scale-ready. One targeted failure cannot show that spatial detail is generally useless, nor distinguish a selector failure from a fusion/reasoning failure. The original mixed follow-up comprised exactly two audio/spatial failures, then one speech failure; the speech and Seamless record now lives under <a href="./research-speech-transcripts.html#seamless-diagnostic">Speech and Transcript Evidence</a>. See the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/audio_spatial_followup_results_2026-07-21.md">audio and spatial follow-up</a> and the frozen-30 spatial policy discussion in the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">protocol-v2 report</a>.
+The crop was manually selected and not scale-ready. One targeted failure cannot show that spatial detail is generally useless, nor distinguish a selector failure from a fusion/reasoning failure. The original mixed follow-up comprised exactly two audio/spatial failures, then one speech failure; the speech and Seamless record now lives under <a href="./research-speech-transcripts.html#seamless-diagnostic">Speech and Transcript Evidence</a>. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/audio_spatial_followup_results_2026-07-21.md">audio and spatial follow-up · Evidence of record · Evidence report · GitHub</a> and the frozen-30 spatial policy discussion in the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">protocol-v2 report · Evidence of record · Evidence report · GitHub</a>.
 </details>
 </section>
 </section>
-<section id="what-the-evidence-supports" class="level2">
-<h2 class="anchored" data-anchor-id="what-the-evidence-supports">What the evidence supports</h2>
+<section id="known-failures-and-cases" class="level2">
+<h2 class="anchored" data-anchor-id="known-failures-and-cases">Known failures and cases</h2>
+<p><a href="./failure-library.html#case-004">CASE-004</a> is a useful cross-theme warning: a brief end-of-clip event can involve temporal retrieval, native sound, and answer specificity at once. One selected case cannot identify which bottleneck dominates without matched evidence.</p>
+<section id="what-the-evidence-supports" class="level3">
+<h3 class="anchored" data-anchor-id="what-the-evidence-supports">What the evidence supports</h3>
 <ul>
 <li>Uniform-12 is the present simple visual default under the tested global frozen-30 conditions.</li>
 <li>The tested directed-12 heuristic did not earn default status on its ten-row temporal diagnostic.</li>
@@ -2871,23 +3084,25 @@ The crop was manually selected and not scale-ready. One targeted failure cannot 
 <li>A manual crop can add spatial pixels without repairing an answer; that is a reason to route and diagnose detail needs rather than tile globally.</li>
 </ul>
 </section>
-<section id="what-it-does-not-rule-out" class="level2">
-<h2 class="anchored" data-anchor-id="what-it-does-not-rule-out">What it does not rule out</h2>
+<section id="what-it-does-not-rule-out" class="level3">
+<h3 class="anchored" data-anchor-id="what-it-does-not-rule-out">What it does not rule out</h3>
 <ul>
 <li>Global uniform-24’s result does not rule out a temporal-only route or a different evidence budget.</li>
 <li>Directed-12 does not rule out learned, query-only, half-uniform/half-query, shot-based, event-based, or coarse-to-fine selectors.</li>
 <li>Dense-burst-12 does not estimate prevalence, effect size, or all local selection schedules.</li>
 <li>The crop diagnostic does not rule out category-routed spatial detail or OCR.</li>
 </ul>
+<p><span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span></p>
 </section>
-<section id="possible-bugs-confounds-and-audit-gaps" class="level2">
-<h2 class="anchored" data-anchor-id="possible-bugs-confounds-and-audit-gaps">Possible bugs, confounds, and audit gaps</h2>
+<section id="confirmed-defects-audit-gaps-and-uncertainties" class="level3">
+<h3 class="anchored" data-anchor-id="confirmed-defects-audit-gaps-and-uncertainties">Confirmed defects, audit gaps, and uncertainties</h3>
 <ul>
 <li><strong>Audit gap:</strong> no tracked general-workflow caller establishes how the directed selector was attached to a general workflow. This is not a confirmed execution bug.</li>
 <li><strong>Audit gap:</strong> dense-burst-12’s exact implementation and schedule are absent from tracked source; only its two-row aggregate is recoverable.</li>
 <li><strong>Uncertainty:</strong> directed-12’s ten selected temporal rows have no required-moment labels, selector-recall measure, or oracle-frame answer quality measure.</li>
 <li><strong>Uncertainty:</strong> manual spatial crops are targeted and non-scalable, so their negative result cannot rank global tiling or OCR routes.</li>
 </ul>
+</section>
 </section>
 <section id="open-hypotheses-and-ideas" class="level2">
 <h2 class="anchored" data-anchor-id="open-hypotheses-and-ideas">Open hypotheses and ideas</h2>
@@ -2929,6 +3144,15 @@ The crop was manually selected and not scale-ready. One targeted failure cannot 
 <li><strong>Boundary on what a positive result would establish:</strong> it would support a category route, not global tiling or universal OCR benefit.</li>
 </ul>
 </section>
+</section>
+<section id="method-result-validity-risks-and-evidence" class="level2">
+<h2 class="anchored" data-anchor-id="method-result-validity-risks-and-evidence">Method, result, validity risks, and evidence</h2>
+<details>
+<summary>
+How to audit this theme’s records
+</summary>
+The visible record summaries preserve the exact panel, budget, result, limits, and reconsideration condition. Open each record’s native details block for source links, selector provenance, and validity risks. Compare selectors only at a fixed frame/pixel budget and with labels hidden from selection.
+</details>
 </section>
 <section id="related-themes" class="level2">
 <h2 class="anchored" data-anchor-id="related-themes">Related themes</h2>
@@ -3284,13 +3508,13 @@ The crop was manually selected and not scale-ready. One targeted failure cannot 
 <footer class="footer">
   <div class="nav-footer">
     <div class="nav-footer-left">
-<p>Repository evidence through 2026-07-25</p>
+<p>Reviewed evidence: 2026-07-26</p>
 </div>   
     <div class="nav-footer-center">
        
     </div>
     <div class="nav-footer-right">
-<p>Sanitized aggregates only</p>
+<p>Development phase · 2026 evaluation quality remains unknown</p>
 </div>
   </div>
 </footer>

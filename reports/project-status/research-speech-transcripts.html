@@ -2527,9 +2527,16 @@ color: var(--status-accent-dark);
 text-decoration-thickness: 0.08em;
 text-underline-offset: 0.15em;
 }
-a:focus-visible {
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
 outline: 3px solid var(--status-accent);
 outline-offset: 3px;
+}
+.content a,
+.page-footer a {
+overflow-wrap: anywhere;
 }
 h1,
 h2,
@@ -2544,6 +2551,91 @@ max-width: 24ch;
 color: var(--status-muted);
 font-size: 1.15rem;
 max-width: 68ch;
+}
+.lifecycle-banner {
+border: 1px solid var(--status-border);
+border-left: 0.35rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+margin-block: 0.5rem 1.5rem;
+padding: 0.8rem 1rem;
+}
+.lifecycle-banner p {
+margin: 0;
+}
+.decision-strip {
+display: grid;
+grid-template-columns: repeat(5, minmax(0, 1fr));
+gap: 0.65rem;
+margin-block: 1rem;
+}
+.decision-item {
+border: 1px solid var(--status-border);
+border-top: 0.3rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+padding: 0.75rem;
+}
+.decision-item p {
+margin-block: 0 0.35rem;
+}
+.status-breadcrumb {
+color: var(--status-muted);
+display: flex;
+flex-wrap: wrap;
+gap: 0.45rem;
+margin-block: 0.25rem 1rem;
+}
+.theme-local-nav {
+align-items: center;
+border-block: 1px solid var(--status-border);
+display: flex;
+flex-wrap: wrap;
+gap: 0.45rem 1rem;
+margin-block: 0 1.5rem;
+padding-block: 0.65rem;
+}
+.theme-local-nav a {
+font-size: 0.92rem;
+font-weight: 650;
+}
+.theme-decision-strip {
+border: 1px solid var(--status-border);
+border-left: 0.35rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+margin-block: 1rem 1.5rem;
+padding: 0.7rem 1rem;
+}
+.theme-decision-strip ul {
+display: grid;
+gap: 0.45rem 1rem;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+margin-block: 0;
+padding-left: 1.2rem;
+}
+.trace-label {
+color: var(--status-accent-dark);
+font-size: 0.9rem;
+letter-spacing: 0.04em;
+margin-block: 0.5rem 1.25rem;
+text-transform: uppercase;
+}
+.timestamp-storyboard {
+display: grid;
+grid-template-columns: repeat(4, minmax(0, 1fr));
+gap: 0.65rem;
+margin-block: 1rem;
+}
+.timestamp-card {
+border: 1px solid var(--status-border);
+border-radius: 0.4rem;
+background: var(--status-panel);
+min-height: 6.5rem;
+padding: 0.7rem;
+}
+.timestamp-card p {
+margin: 0;
 }
 .theme-grid {
 display: grid;
@@ -2565,10 +2657,78 @@ margin-top: 0;
 border-color: var(--status-accent);
 box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-accent) 22%, transparent);
 }
+.research-matrix {
+margin-block: 1rem 1.75rem;
+max-width: 100%;
+overflow-x: auto;
+}
+.research-matrix:focus-visible {
+outline: 3px solid var(--status-accent);
+outline-offset: 3px;
+}
+.research-matrix table {
+min-width: 68rem;
+}
+.failure-preview-grid {
+display: grid;
+gap: 0.75rem;
+grid-template-columns: repeat(3, minmax(0, 1fr));
+margin-block: 1rem 1.75rem;
+}
+.failure-preview {
+border: 1px solid var(--status-border);
+border-top: 0.3rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+padding: 0.8rem 0.9rem;
+}
+.failure-preview h3 {
+font-size: 1rem;
+margin-top: 0;
+}
+.failure-preview p {
+margin-bottom: 0;
+}
 .theme-status {
 color: var(--status-muted);
 font-size: 0.94rem;
 margin-block: 0.35rem;
+}
+.failure-case {
+border: 1px solid var(--status-border);
+border-top: 0.35rem solid var(--status-accent);
+border-radius: 0.5rem;
+background: #fff;
+margin-block: 1.5rem;
+padding: 1rem 1.1rem;
+}
+.failure-case > h3 {
+margin-top: 0;
+}
+.case-meta {
+color: var(--status-muted);
+font-size: 0.9rem;
+line-height: 1.45;
+margin-block: 0.35rem 1rem;
+}
+.case-fields {
+display: grid;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+gap: 0.75rem;
+}
+.case-field {
+border-left: 0.22rem solid var(--status-border);
+padding-inline: 0.75rem 0.25rem;
+}
+.case-field h4 {
+font-size: 1rem;
+margin-block: 0 0.35rem;
+}
+.case-field p {
+margin-block: 0;
+}
+.failure-case details {
+margin-bottom: 0;
 }
 details {
 border: 1px solid var(--status-border);
@@ -2583,6 +2743,7 @@ summary {
 cursor: pointer;
 color: var(--status-ink);
 font-weight: 650;
+padding-block: 0.15rem;
 }
 summary:focus-visible {
 outline: 3px solid var(--status-accent);
@@ -2635,6 +2796,10 @@ font-size: 0.92rem;
 max-width: 100%;
 overflow-x: auto;
 }
+pre {
+max-width: 100%;
+overflow-x: auto;
+}
 code {
 color: var(--status-ink);
 overflow-wrap: anywhere;
@@ -2659,10 +2824,28 @@ font-size: 1.05rem;
 .theme-grid {
 grid-template-columns: minmax(0, 1fr);
 }
+.theme-decision-strip ul,
+.failure-preview-grid {
+grid-template-columns: minmax(0, 1fr);
+}
+.theme-local-nav {
+align-items: flex-start;
+flex-direction: column;
+gap: 0.35rem;
+}
+.case-fields {
+grid-template-columns: minmax(0, 1fr);
+}
+.decision-strip,
+.timestamp-storyboard {
+grid-template-columns: minmax(0, 1fr);
+}
+.timestamp-card {
+min-height: 0;
+}
 table {
 font-size: 0.88rem;
-table-layout: fixed;
-width: 100%;
+min-width: 100%;
 }
 table th,
 table td {
@@ -2670,7 +2853,14 @@ overflow-wrap: anywhere;
 }
 .table-responsive,
 .quarto-table-container {
+max-width: 100%;
 overflow-x: auto;
+}
+.failure-case,
+.theme-card,
+.decision-item,
+.timestamp-card {
+min-width: 0;
 }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2728,16 +2918,14 @@ transition: none !important;
     <h2 id="toc-title">On this page</h2>
    
   <ul class="collapse">
-  <li><a href="#back-to-research-themes" id="toc-back-to-research-themes" class="nav-link active" data-scroll-target="#back-to-research-themes">Back to Research Themes</a></li>
-  <li><a href="#technical-summary" id="toc-technical-summary" class="nav-link" data-scroll-target="#technical-summary">Technical summary</a></li>
-  <li><a href="#why-this-theme-matters" id="toc-why-this-theme-matters" class="nav-link" data-scroll-target="#why-this-theme-matters">Why this theme matters</a></li>
+  <li><a href="#why-this-theme-matters" id="toc-why-this-theme-matters" class="nav-link active" data-scroll-target="#why-this-theme-matters">New to this theme?</a></li>
   <li><a href="#current-working-answer" id="toc-current-working-answer" class="nav-link" data-scroll-target="#current-working-answer">Current working answer</a></li>
+  <li><a href="#evidence-at-a-glance" id="toc-evidence-at-a-glance" class="nav-link" data-scroll-target="#evidence-at-a-glance">Evidence at a glance</a></li>
   <li><a href="#what-has-been-tried" id="toc-what-has-been-tried" class="nav-link" data-scroll-target="#what-has-been-tried">What has been tried</a></li>
-  <li><a href="#what-the-evidence-supports" id="toc-what-the-evidence-supports" class="nav-link" data-scroll-target="#what-the-evidence-supports">What the evidence supports</a></li>
-  <li><a href="#what-it-does-not-rule-out" id="toc-what-it-does-not-rule-out" class="nav-link" data-scroll-target="#what-it-does-not-rule-out">What it does not rule out</a></li>
-  <li><a href="#possible-bugs-confounds-and-audit-gaps" id="toc-possible-bugs-confounds-and-audit-gaps" class="nav-link" data-scroll-target="#possible-bugs-confounds-and-audit-gaps">Possible bugs, confounds, and audit gaps</a></li>
+  <li><a href="#known-failures-and-cases" id="toc-known-failures-and-cases" class="nav-link" data-scroll-target="#known-failures-and-cases">Known failures and cases</a></li>
   <li><a href="#open-hypotheses-and-ideas" id="toc-open-hypotheses-and-ideas" class="nav-link" data-scroll-target="#open-hypotheses-and-ideas">Open hypotheses and ideas</a></li>
   <li><a href="#cheapest-valid-next-experiments" id="toc-cheapest-valid-next-experiments" class="nav-link" data-scroll-target="#cheapest-valid-next-experiments">Cheapest valid next experiments</a></li>
+  <li><a href="#method-result-validity-risks-and-evidence" id="toc-method-result-validity-risks-and-evidence" class="nav-link" data-scroll-target="#method-result-validity-risks-and-evidence">Method, result, validity risks, and evidence</a></li>
   <li><a href="#related-themes" id="toc-related-themes" class="nav-link" data-scroll-target="#related-themes">Related themes</a></li>
   </ul>
 </nav>
@@ -2769,21 +2957,39 @@ transition: none !important;
 </header>
 
 
-<section id="back-to-research-themes" class="level2">
-<h2 class="anchored" data-anchor-id="back-to-research-themes">Back to Research Themes</h2>
-<p>Return to the <a href="./experiment-ledger.html">Research Themes and Experiment Ledger</a>.</p>
-</section>
-<section id="technical-summary" class="level2">
-<h2 class="anchored" data-anchor-id="technical-summary">Technical summary</h2>
-<p>Quality-accepted Whisper large-v3 improved a selected ten-row lexical-speech ablation from <code>4/10</code> to <code>7/10</code>, with three rescues and no observed degradation. That supports a narrow lexical-speech route, not global transcript attachment or multilingual robustness. Transcript provenance must remain visible: automatic ASR, uploader captions, dataset recording-prompt references, and independently produced human transcripts answer different questions.</p>
-</section>
+<span id="back-to-research-themes" class="legacy-fragment-alias" aria-hidden="true"></span>
+<nav class="status-breadcrumb" aria-label="Breadcrumb">
+<a href="./index.html">Start Here</a> <span aria-hidden="true">/</span> <a href="./experiment-ledger.html">Research Themes</a> <span aria-hidden="true">/</span> <span aria-current="page">Speech and Transcript Evidence</span>
+</nav>
+<nav class="theme-local-nav" aria-label="On this theme page">
+<a href="#current-working-answer">Working answer</a> <a href="#what-has-been-tried">Tried</a> <a href="#known-failures-and-cases">Failures</a> <a href="#cheapest-valid-next-experiments">Next tests</a>
+</nav>
 <section id="why-this-theme-matters" class="level2">
-<h2 class="anchored" data-anchor-id="why-this-theme-matters">Why this theme matters</h2>
+<h2 class="anchored" data-anchor-id="why-this-theme-matters">New to this theme?</h2>
 <p>Speech evidence can resolve a visual ambiguity, but fluent text can still be wrong, incomplete, translated from the wrong source, or supplied with a misleading provenance label. A transcript comparison is interpretable only when it holds frames, model, prompt, and decoding fixed and records how each text was produced.</p>
+<p>For example, a question asking “what did the speaker say?” needs <strong>lexical speech</strong>—the words—not merely frames or tone of voice. <strong>ASR</strong> converts audio to timestamped text, but a plausible sentence can omit the needed phrase. An automatic transcript, uploader caption, dataset reference, and independently reviewed human transcript are therefore different evidence tiers.</p>
+<p><span id="technical-summary" class="legacy-fragment-alias" aria-hidden="true"></span></p>
 </section>
 <section id="current-working-answer" class="level2">
 <h2 class="anchored" data-anchor-id="current-working-answer">Current working answer</h2>
 <p>Use quality-gated Whisper large-v3 as a <strong>Routed candidate</strong> for selected lexical-speech questions, with a matched frame-only control. Do not treat its acceptance rule as language recognition or fidelity. Keep the strict independently produced human-transcript tier <strong>Blocked</strong> until independent transcriber/reviewer records exist.</p>
+<div class="theme-decision-strip" aria-label="Transcript decisions">
+<ul>
+<li><strong>Use now:</strong> quality-accepted Whisper only for declared lexical-speech work, with a frame-only control.</li>
+<li><strong>Do not default:</strong> transcripts on every question or mechanical acceptance as proof of fidelity.</li>
+<li><strong>Still possible:</strong> alternative ASR, grounded spans, dataset-reference controls, and a valid human upper bound.</li>
+<li><strong>Next test:</strong> a matched, source-language-aware ASR panel plus independent transcript controls.</li>
+</ul>
+</div>
+</section>
+<section id="evidence-at-a-glance" class="level2">
+<h2 class="anchored" data-anchor-id="evidence-at-a-glance">Evidence at a glance</h2>
+<ul>
+<li><strong>Selected diagnostic:</strong> accepted Whisper improved 4/10 to 7/10 on ten lexical-speech rows; this is not a prevalence estimate.</li>
+<li><strong>Failure mechanisms:</strong> text can miss non-lexical events or contain the right token without changing the answer.</li>
+<li><strong>Blocked:</strong> a human-transcript upper bound lacks independent producer and reviewer provenance.</li>
+<li><strong>Condition boundary:</strong> a one-row Seamless result does not reject alternative or multilingual ASR families.</li>
+</ul>
 </section>
 <section id="what-has-been-tried" class="level2">
 <h2 class="anchored" data-anchor-id="what-has-been-tried">What has been tried</h2>
@@ -2810,7 +3016,7 @@ transition: none !important;
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-The selected ten-row diagnostic does not estimate routing prevalence, global transcript value, non-lexical vocalization performance, or 2026 accuracy. Transcript acceptance was mechanically label-blind; its validity is separate from transcript fidelity. Separately, in frozen-30 protocol v2, the Qwen12+Whisper arm led exact match at <code>11/30</code> and token F1 at <code>0.506795</code> across the 30-row panel. That result supports reporting the transcript arm as a route comparison; it does not establish a global Whisper policy or 2026 accuracy. See the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md">automatic-transcript report</a> and its <a href="https://github.com/npatta01/trec_video_2026/blob/main/plans/issue-7-automatic-transcript-ablation.md">frozen ablation plan</a>.
+The selected ten-row diagnostic does not estimate routing prevalence, global transcript value, non-lexical vocalization performance, or 2026 accuracy. Transcript acceptance was mechanically label-blind; its validity is separate from transcript fidelity. Separately, in frozen-30 protocol v2, the Qwen12+Whisper arm led exact match at <code>11/30</code> and token F1 at <code>0.506795</code> across the 30-row panel. That result supports reporting the transcript arm as a route comparison; it does not establish a global Whisper policy or 2026 accuracy. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md">automatic-transcript report · Evidence of record · Evidence report · GitHub</a> and its <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/plans/issue-7-automatic-transcript-ablation.md">frozen ablation plan · Evidence of record · Evidence report · GitHub</a>.
 </details>
 </section>
 <section id="multilingual-translation-followups" class="level3">
@@ -2822,13 +3028,14 @@ The selected ten-row diagnostic does not estimate routing prevalence, global tra
 <li><strong>Current condition-bound status:</strong> compatibility evidence for the route; <strong>not</strong> multilingual robustness or transcript-fidelity evidence.</li>
 <li><strong>What this rules out now:</strong> claiming multilingual robustness or translation fidelity from the completed mixed frozen-30 route.</li>
 <li><strong>What it does not rule out:</strong> benefit for a declared language, dialect, or translation condition under human-referenced evaluation.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Audit gap</strong>—the completed panel lacks source-language and independently reviewed transcript references.</li>
 <li><strong>Reconsider when:</strong> a source-language-stratified panel with independent transcript and translation references completes under matched controls.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-The Latin-script/rate gate can accept fluent but incorrect English, accept an untranslated Latin-script language, and reject legitimate names or mixed scripts. A proposed 30-clip multilingual diagnostic needs human-verified source language, source transcript, and English translation, then matched visual-only and Whisper conditions. See the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/multilingual_qwen36_followup_2026-07-24.md">multilingual follow-up</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/asr_model_followup_options_2026-07-20.md">ASR options</a>, and <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">frozen-30 report</a>.
+The Latin-script/rate gate can accept fluent but incorrect English, accept an untranslated Latin-script language, and reject legitimate names or mixed scripts. A proposed 30-clip multilingual diagnostic needs human-verified source language, source transcript, and English translation, then matched visual-only and Whisper conditions. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/multilingual_qwen36_followup_2026-07-24.md">multilingual follow-up · Evidence of record · Evidence report · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/asr_model_followup_options_2026-07-20.md">ASR options · Evidence of record · Evidence report · GitHub</a>, and <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">frozen-30 report · Evidence of record · Evidence report · GitHub</a>.
 </details>
 </section>
 <section id="seamless-diagnostic" class="level3">
@@ -2840,13 +3047,14 @@ The Latin-script/rate gate can accept fluent but incorrect English, accept an un
 <li><strong>Current condition-bound status:</strong> <strong>Not promoted under the tested condition</strong>; a one-example diagnostic, not an ASR accuracy estimate.</li>
 <li><strong>What this rules out now:</strong> advancing SeamlessM4T-v2 large as the selected speech route on that one controlled example.</li>
 <li><strong>What it does not rule out:</strong> another language, model revision, panel, or independently verified translation route.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—one example cannot estimate alternative-ASR fidelity or downstream value.</li>
 <li><strong>Reconsider when:</strong> a matched, independently reviewable multilingual panel shows faithful evidence and a predeclared downstream improvement.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-The reference was joined only after exact-capture inference. The output’s mechanical rule pass was not treated as semantic credibility: it omitted later speech evidence needed for the answer. The result does not rule out another language, model revision, panel, or independently verified translation route. See the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/seamless_audio_followup_results_2026-07-21.md">Seamless follow-up</a>.
+The reference was joined only after exact-capture inference. The output’s mechanical rule pass was not treated as semantic credibility: it omitted later speech evidence needed for the answer. The result does not rule out another language, model revision, panel, or independently verified translation route. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/seamless_audio_followup_results_2026-07-21.md">Seamless follow-up · Evidence of record · Evidence report · GitHub</a>.
 </details>
 </section>
 <section id="external-dataset-reference-research" class="level3">
@@ -2858,13 +3066,14 @@ The reference was joined only after exact-capture inference. The output’s mech
 <li><strong>Current condition-bound status:</strong> an <strong>Open hypothesis</strong>; the design is not a TRECVID human oracle or an effectiveness result.</li>
 <li><strong>What this rules out now:</strong> calling the proposed dataset-reference control a TRECVID human oracle or reporting it as an effectiveness result.</li>
 <li><strong>What it does not rule out:</strong> a provenance-labeled, small external control that compares automatic ASR and dataset reference text.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Audit gap</strong>—the design has not run and the dataset reference is not independent human transcription.</li>
 <li><strong>Reconsider when:</strong> the declared three-condition protocol runs with frozen predictions, exact provenance, and no claim beyond its small panel.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-The external reference is a dataset-provided recording-prompt reference, not a human transcriber/reviewer record. It must not pass a <code>human_verified_oracle</code> validator or be called gold. The <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/external_gold_transcript_benchmark_research_2026-07-24.md">external dataset-reference research</a> also specifies identical frames/model/prompt/decoding across conditions.
+The external reference is a dataset-provided recording-prompt reference, not a human transcriber/reviewer record. It must not pass a <code>human_verified_oracle</code> validator or be called gold. The <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/external_gold_transcript_benchmark_research_2026-07-24.md">external dataset-reference research · Evidence of record · Evidence report · GitHub</a> also specifies identical frames/model/prompt/decoding across conditions.
 </details>
 </section>
 <section id="human-oracle-tier" class="level3">
@@ -2876,6 +3085,7 @@ The external reference is a dataset-provided recording-prompt reference, not a h
 <li><strong>Current condition-bound status:</strong> <strong>Blocked</strong> until independent provenance records and a label-blind protocol exist.</li>
 <li><strong>What this rules out now:</strong> treating uploader captions, dataset references, or ASR agreement as a strict human-transcript upper bound.</li>
 <li><strong>What it does not rule out:</strong> a valid independent human-transcript upper bound once its named provenance prerequisites exist.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Audit gap</strong>—independent transcriber and reviewer provenance records are missing.</li>
 <li><strong>Reconsider when:</strong> independent transcriber and reviewer records, a label-blind protocol, and matched downstream controls are complete.</li>
 </ul>
 <details>
@@ -2886,8 +3096,14 @@ Uploader captions, ASR ensembles, and dataset references cannot substitute for t
 </details>
 </section>
 </section>
-<section id="what-the-evidence-supports" class="level2">
-<h2 class="anchored" data-anchor-id="what-the-evidence-supports">What the evidence supports</h2>
+<section id="known-failures-and-cases" class="level2">
+<h2 class="anchored" data-anchor-id="known-failures-and-cases">Known failures and cases</h2>
+<ul>
+<li><a href="./failure-library.html#case-002">CASE-002 — Non-lexical event missed by transcript gate</a> shows that accepted text can be irrelevant to a requested vocal sound.</li>
+<li><a href="./failure-library.html#case-003">CASE-003 — Retrieved token unused by answerer</a> shows that a needed word can be present while the answer remains wrong.</li>
+</ul>
+<section id="what-the-evidence-supports" class="level3">
+<h3 class="anchored" data-anchor-id="what-the-evidence-supports">What the evidence supports</h3>
 <ul>
 <li>On the selected ten lexical-speech rows, accepted Whisper changed manual accuracy from 4/10 to 7/10, with three rescues and no observed degradation.</li>
 <li>Transcript output can be included in a label-isolated request path while a rejected output becomes null.</li>
@@ -2895,23 +3111,25 @@ Uploader captions, ASR ensembles, and dataset references cannot substitute for t
 <li>Dataset recording-prompt references can be a separately labeled control, not a TRECVID human-oracle result.</li>
 </ul>
 </section>
-<section id="what-it-does-not-rule-out" class="level2">
-<h2 class="anchored" data-anchor-id="what-it-does-not-rule-out">What it does not rule out</h2>
+<section id="what-it-does-not-rule-out" class="level3">
+<h3 class="anchored" data-anchor-id="what-it-does-not-rule-out">What it does not rule out</h3>
 <ul>
 <li>The ten-row ablation does not establish global transcript use, route prevalence, multilingual effectiveness, or effects on non-lexical sound.</li>
 <li>The multilingual follow-up does not identify source languages or translation fidelity in frozen-30.</li>
 <li>The one-row Seamless result does not reject all alternative or multilingual ASR systems.</li>
 <li>The blocked human tier does not imply a zero upper bound; it means no valid upper-bound evidence exists yet.</li>
 </ul>
+<p><span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span></p>
 </section>
-<section id="possible-bugs-confounds-and-audit-gaps" class="level2">
-<h2 class="anchored" data-anchor-id="possible-bugs-confounds-and-audit-gaps">Possible bugs, confounds, and audit gaps</h2>
+<section id="confirmed-defects-audit-gaps-and-uncertainties" class="level3">
+<h3 class="anchored" data-anchor-id="confirmed-defects-audit-gaps-and-uncertainties">Confirmed defects, audit gaps, and uncertainties</h3>
 <ul>
 <li><strong>Uncertainty:</strong> selected lexical-speech rows are diagnostic rather than a prevalence or global-accuracy sample.</li>
 <li><strong>Uncertainty:</strong> the rate/Latin-script acceptance policy is not a language detector, an accuracy measure, or a human transcript review.</li>
 <li><strong>Audit gap:</strong> no human source-language transcript or faithful translation reference is available for the completed multilingual route.</li>
 <li><strong>Blocked prerequisite:</strong> the strict human tier lacks independent transcriber/reviewer provenance records; other text tiers must not fill that gap by renaming.</li>
 </ul>
+</section>
 </section>
 <section id="open-hypotheses-and-ideas" class="level2">
 <h2 class="anchored" data-anchor-id="open-hypotheses-and-ideas">Open hypotheses and ideas</h2>
@@ -2953,6 +3171,15 @@ Uploader captions, ASR ensembles, and dataset references cannot substitute for t
 <li><strong>Boundary on what a positive result would establish:</strong> it would support the tested ASR on that frozen stratum, not multilingual robustness everywhere.</li>
 </ul>
 </section>
+</section>
+<section id="method-result-validity-risks-and-evidence" class="level2">
+<h2 class="anchored" data-anchor-id="method-result-validity-risks-and-evidence">Method, result, validity risks, and evidence</h2>
+<details>
+<summary>
+How to audit this theme’s records
+</summary>
+The visible record summaries keep provenance tier, panel, observed result, condition boundary, and reconsideration rule outside disclosures. Open each native details block for source links and validity risks. Never rename ASR, uploader captions, or dataset recording prompts as independently reviewed human transcripts.
+</details>
 </section>
 <section id="related-themes" class="level2">
 <h2 class="anchored" data-anchor-id="related-themes">Related themes</h2>
@@ -3308,13 +3535,13 @@ Uploader captions, ASR ensembles, and dataset references cannot substitute for t
 <footer class="footer">
   <div class="nav-footer">
     <div class="nav-footer-left">
-<p>Repository evidence through 2026-07-25</p>
+<p>Reviewed evidence: 2026-07-26</p>
 </div>   
     <div class="nav-footer-center">
        
     </div>
     <div class="nav-footer-right">
-<p>Sanitized aggregates only</p>
+<p>Development phase · 2026 evaluation quality remains unknown</p>
 </div>
   </div>
 </footer>

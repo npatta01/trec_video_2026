@@ -495,19 +495,19 @@ Do not add custom JavaScript.
 - Produces: reviewable GitHub Markdown, self-contained HTML, and a verified
   private live preview.
 
-- [ ] **Step 1: Render GFM and HTML from QMD**
+- [x] **Step 1: Render GFM and HTML from QMD**
 
 Run the repository's established Quarto render commands for every QMD. Expect
 eleven QMD, eleven sibling Markdown files, and eleven self-contained HTML pages.
 Do not hand-edit generated files.
 
-- [ ] **Step 2: Prove deterministic generated outputs**
+- [x] **Step 2: Prove deterministic generated outputs**
 
 Render an isolated copy with a task-specific `XDG_CACHE_HOME` and compare all
 22 generated files byte-for-byte with repository outputs. Investigate any
 unexpected nondeterminism before publication.
 
-- [ ] **Step 3: Inspect desktop and phone flows**
+- [x] **Step 3: Inspect desktop and phone flows**
 
 Using the user's existing browser flow or authorized headless Chrome, inspect
 Start Here, worked example, Research Themes hub, Failure Library, one
@@ -515,20 +515,20 @@ representative theme, and Code Map at 1440 pixels and 390 pixels. Check
 navigation, focus, disclosures, reading order, image scaling, table/diagram
 overflow, and whether newcomer content appears before expert metrics.
 
-- [ ] **Step 4: Run accessibility, link, and disclosure checks**
+- [x] **Step 4: Run accessibility, link, and disclosure checks**
 
 Confirm every visual has meaningful alt text, caption, and nearby text/table
 equivalent. Check repository-relative paths, stable fragments, and external
 links; classify private-GitHub authentication separately from broken 404s.
 
-- [ ] **Step 5: Run publication-boundary scans**
+- [x] **Step 5: Run publication-boundary scans**
 
 Scan QMD, Markdown, HTML, and any assets for secrets, credentials, bucket URIs,
 local paths, raw logs, 2026 identifiers, unapproved frames/audio/transcripts,
 and private licensing records. Confirm all included media have their public-safe
 attestation and required attribution. Run `git diff --check`.
 
-- [ ] **Step 6: Refresh only the authorized private portal copy**
+- [x] **Step 6: Refresh only the authorized private portal copy**
 
 Copy the eleven sanitized HTML files and cleared required assets to
 `/home/npatta01/codex-rendered/plans/trecvid-vqa-current-state/`, refresh
@@ -536,12 +536,63 @@ Copy the eleven sanitized HTML files and cleared required assets to
 user-owned artifact. Verify the live HTTPS routes return the intended bytes and
 that `tailscale funnel status` remains tailnet-only.
 
-- [ ] **Step 7: Record final evidence and commit the reviewed revision**
+- [x] **Step 7: Record final evidence and commit the reviewed revision**
 
 Update this plan with exact render counts, responsive checks, link results,
 privacy/media results, live byte comparisons, and portal status. Commit only
 the intended source, generated, design, plan, and cleared asset files; confirm
 no `data/` path is staged.
+
+**Task 6 status:** Complete. Final verification and the focused final-render
+commit succeeded on the current branch.
+
+**Verification evidence:**
+
+- Quarto `1.9.38`, with a Task 6 `XDG_CACHE_HOME`, rendered exactly 11 QMD
+  sources to 11 sibling Markdown files and 11 self-contained HTML files. A
+  physically separate copy with its own cache reproduced all 22 generated
+  outputs byte-for-byte (`22/22`). The only warning was the previously
+  documented unavailable Google font; the declared system-font fallback was
+  used. No generated file was hand-edited.
+- Authorized headless Chrome inspected Start Here, the worked example,
+  Research Themes, Failure Library, Visual and Temporal Evidence, and Code Map
+  at 1440 and 390 CSS pixels (`12/12` page-width scenarios). All pages kept the
+  exact three-route navbar and one H1, had no document overflow or duplicate
+  IDs, exposed a working mobile menu, retained a visible solid 3-pixel focus
+  outline, toggled all 14 disclosures by keyboard, kept diagrams/tables
+  contained, and presented newcomer explanation before expert metrics.
+- Across all 11 HTML pages, 303 local links and 192 fragments resolved. Across
+  all 11 Markdown pages, 128 local links and 77 fragments resolved. All three
+  Mermaid visuals have meaningful figure alt text, captions, SVG titles and
+  descriptions, plus a nearby list or table equivalent. All 42 disclosures
+  are closed by default, and the canonical sources add no custom JavaScript.
+- All 62 unique external URLs are GitHub links with a visible access/type
+  label. All 44 blob/tree targets resolve to Git objects. The 18 issue/PR
+  routes return the same anonymous 404 as the private repository root and are
+  therefore classified as repository-authentication-required, not as public
+  broken links.
+- The QMD, Markdown, HTML, CSS, and config publication scan found no
+  credentials, bucket URIs, local absolute paths, raw-log files, source/watch
+  URLs, machine source IDs, 2026 evaluation identifiers, source media, real
+  transcripts, disclosed real expected answers, or private licensing records.
+  No media is included, so no attribution asset is required. The four approved
+  project-generated 2025 failure records and the clearly labeled synthetic
+  worked-example strings are preserved intentionally. `git diff --check`
+  passes.
+- Only the 11 sanitized HTML files were refreshed in the authorized portal
+  directory; each matches its repository output. All 11 canonical live HTTPS
+  routes returned 200 and matched repository bytes (`11/11`), and the portal
+  root returned 200 with the refreshed description. `tailscale funnel status`
+  and `tailscale serve status` both report `tailnet only`; no Funnel/public
+  listener is enabled and the Serve mapping was not changed.
+- The task-created nested render artifact, `search.json`, and `site_libs` were
+  removed after inspection. The previously documented nested `.gitignore` and
+  ignored `.quarto` cache were also removed. No other untracked path was
+  touched. No application tests, custom test suite, CI, schema validation,
+  dataset read, or GitHub mutation was performed.
+
+**Next action:** Review the focused Task 6 commit, then choose the branch
+integration path. GitHub issue creation remains deferred.
 
 ## Success check
 

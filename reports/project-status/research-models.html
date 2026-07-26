@@ -2527,9 +2527,16 @@ color: var(--status-accent-dark);
 text-decoration-thickness: 0.08em;
 text-underline-offset: 0.15em;
 }
-a:focus-visible {
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
 outline: 3px solid var(--status-accent);
 outline-offset: 3px;
+}
+.content a,
+.page-footer a {
+overflow-wrap: anywhere;
 }
 h1,
 h2,
@@ -2544,6 +2551,91 @@ max-width: 24ch;
 color: var(--status-muted);
 font-size: 1.15rem;
 max-width: 68ch;
+}
+.lifecycle-banner {
+border: 1px solid var(--status-border);
+border-left: 0.35rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+margin-block: 0.5rem 1.5rem;
+padding: 0.8rem 1rem;
+}
+.lifecycle-banner p {
+margin: 0;
+}
+.decision-strip {
+display: grid;
+grid-template-columns: repeat(5, minmax(0, 1fr));
+gap: 0.65rem;
+margin-block: 1rem;
+}
+.decision-item {
+border: 1px solid var(--status-border);
+border-top: 0.3rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+padding: 0.75rem;
+}
+.decision-item p {
+margin-block: 0 0.35rem;
+}
+.status-breadcrumb {
+color: var(--status-muted);
+display: flex;
+flex-wrap: wrap;
+gap: 0.45rem;
+margin-block: 0.25rem 1rem;
+}
+.theme-local-nav {
+align-items: center;
+border-block: 1px solid var(--status-border);
+display: flex;
+flex-wrap: wrap;
+gap: 0.45rem 1rem;
+margin-block: 0 1.5rem;
+padding-block: 0.65rem;
+}
+.theme-local-nav a {
+font-size: 0.92rem;
+font-weight: 650;
+}
+.theme-decision-strip {
+border: 1px solid var(--status-border);
+border-left: 0.35rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+margin-block: 1rem 1.5rem;
+padding: 0.7rem 1rem;
+}
+.theme-decision-strip ul {
+display: grid;
+gap: 0.45rem 1rem;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+margin-block: 0;
+padding-left: 1.2rem;
+}
+.trace-label {
+color: var(--status-accent-dark);
+font-size: 0.9rem;
+letter-spacing: 0.04em;
+margin-block: 0.5rem 1.25rem;
+text-transform: uppercase;
+}
+.timestamp-storyboard {
+display: grid;
+grid-template-columns: repeat(4, minmax(0, 1fr));
+gap: 0.65rem;
+margin-block: 1rem;
+}
+.timestamp-card {
+border: 1px solid var(--status-border);
+border-radius: 0.4rem;
+background: var(--status-panel);
+min-height: 6.5rem;
+padding: 0.7rem;
+}
+.timestamp-card p {
+margin: 0;
 }
 .theme-grid {
 display: grid;
@@ -2565,10 +2657,78 @@ margin-top: 0;
 border-color: var(--status-accent);
 box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-accent) 22%, transparent);
 }
+.research-matrix {
+margin-block: 1rem 1.75rem;
+max-width: 100%;
+overflow-x: auto;
+}
+.research-matrix:focus-visible {
+outline: 3px solid var(--status-accent);
+outline-offset: 3px;
+}
+.research-matrix table {
+min-width: 68rem;
+}
+.failure-preview-grid {
+display: grid;
+gap: 0.75rem;
+grid-template-columns: repeat(3, minmax(0, 1fr));
+margin-block: 1rem 1.75rem;
+}
+.failure-preview {
+border: 1px solid var(--status-border);
+border-top: 0.3rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+padding: 0.8rem 0.9rem;
+}
+.failure-preview h3 {
+font-size: 1rem;
+margin-top: 0;
+}
+.failure-preview p {
+margin-bottom: 0;
+}
 .theme-status {
 color: var(--status-muted);
 font-size: 0.94rem;
 margin-block: 0.35rem;
+}
+.failure-case {
+border: 1px solid var(--status-border);
+border-top: 0.35rem solid var(--status-accent);
+border-radius: 0.5rem;
+background: #fff;
+margin-block: 1.5rem;
+padding: 1rem 1.1rem;
+}
+.failure-case > h3 {
+margin-top: 0;
+}
+.case-meta {
+color: var(--status-muted);
+font-size: 0.9rem;
+line-height: 1.45;
+margin-block: 0.35rem 1rem;
+}
+.case-fields {
+display: grid;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+gap: 0.75rem;
+}
+.case-field {
+border-left: 0.22rem solid var(--status-border);
+padding-inline: 0.75rem 0.25rem;
+}
+.case-field h4 {
+font-size: 1rem;
+margin-block: 0 0.35rem;
+}
+.case-field p {
+margin-block: 0;
+}
+.failure-case details {
+margin-bottom: 0;
 }
 details {
 border: 1px solid var(--status-border);
@@ -2583,6 +2743,7 @@ summary {
 cursor: pointer;
 color: var(--status-ink);
 font-weight: 650;
+padding-block: 0.15rem;
 }
 summary:focus-visible {
 outline: 3px solid var(--status-accent);
@@ -2635,6 +2796,10 @@ font-size: 0.92rem;
 max-width: 100%;
 overflow-x: auto;
 }
+pre {
+max-width: 100%;
+overflow-x: auto;
+}
 code {
 color: var(--status-ink);
 overflow-wrap: anywhere;
@@ -2659,10 +2824,28 @@ font-size: 1.05rem;
 .theme-grid {
 grid-template-columns: minmax(0, 1fr);
 }
+.theme-decision-strip ul,
+.failure-preview-grid {
+grid-template-columns: minmax(0, 1fr);
+}
+.theme-local-nav {
+align-items: flex-start;
+flex-direction: column;
+gap: 0.35rem;
+}
+.case-fields {
+grid-template-columns: minmax(0, 1fr);
+}
+.decision-strip,
+.timestamp-storyboard {
+grid-template-columns: minmax(0, 1fr);
+}
+.timestamp-card {
+min-height: 0;
+}
 table {
 font-size: 0.88rem;
-table-layout: fixed;
-width: 100%;
+min-width: 100%;
 }
 table th,
 table td {
@@ -2670,7 +2853,14 @@ overflow-wrap: anywhere;
 }
 .table-responsive,
 .quarto-table-container {
+max-width: 100%;
 overflow-x: auto;
+}
+.failure-case,
+.theme-card,
+.decision-item,
+.timestamp-card {
+min-width: 0;
 }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2728,16 +2918,14 @@ transition: none !important;
     <h2 id="toc-title">On this page</h2>
    
   <ul class="collapse">
-  <li><a href="#back-to-research-themes" id="toc-back-to-research-themes" class="nav-link active" data-scroll-target="#back-to-research-themes">Back to Research Themes</a></li>
-  <li><a href="#technical-summary" id="toc-technical-summary" class="nav-link" data-scroll-target="#technical-summary">Technical summary</a></li>
-  <li><a href="#why-this-theme-matters" id="toc-why-this-theme-matters" class="nav-link" data-scroll-target="#why-this-theme-matters">Why this theme matters</a></li>
+  <li><a href="#why-this-theme-matters" id="toc-why-this-theme-matters" class="nav-link active" data-scroll-target="#why-this-theme-matters">New to this theme?</a></li>
   <li><a href="#current-working-answer" id="toc-current-working-answer" class="nav-link" data-scroll-target="#current-working-answer">Current working answer</a></li>
+  <li><a href="#evidence-at-a-glance" id="toc-evidence-at-a-glance" class="nav-link" data-scroll-target="#evidence-at-a-glance">Evidence at a glance</a></li>
   <li><a href="#what-has-been-tried" id="toc-what-has-been-tried" class="nav-link" data-scroll-target="#what-has-been-tried">What has been tried</a></li>
-  <li><a href="#what-the-evidence-supports" id="toc-what-the-evidence-supports" class="nav-link" data-scroll-target="#what-the-evidence-supports">What the evidence supports</a></li>
-  <li><a href="#what-it-does-not-rule-out" id="toc-what-it-does-not-rule-out" class="nav-link" data-scroll-target="#what-it-does-not-rule-out">What it does not rule out</a></li>
-  <li><a href="#possible-bugs-confounds-and-audit-gaps" id="toc-possible-bugs-confounds-and-audit-gaps" class="nav-link" data-scroll-target="#possible-bugs-confounds-and-audit-gaps">Possible bugs, confounds, and audit gaps</a></li>
+  <li><a href="#known-failures-and-cases" id="toc-known-failures-and-cases" class="nav-link" data-scroll-target="#known-failures-and-cases">Known failures and cases</a></li>
   <li><a href="#open-hypotheses-and-ideas" id="toc-open-hypotheses-and-ideas" class="nav-link" data-scroll-target="#open-hypotheses-and-ideas">Open hypotheses and ideas</a></li>
   <li><a href="#cheapest-valid-next-experiments" id="toc-cheapest-valid-next-experiments" class="nav-link" data-scroll-target="#cheapest-valid-next-experiments">Cheapest valid next experiments</a></li>
+  <li><a href="#method-result-validity-risks-and-evidence" id="toc-method-result-validity-risks-and-evidence" class="nav-link" data-scroll-target="#method-result-validity-risks-and-evidence">Method, result, validity risks, and evidence</a></li>
   <li><a href="#related-themes" id="toc-related-themes" class="nav-link" data-scroll-target="#related-themes">Related themes</a></li>
   </ul>
 </nav>
@@ -2769,21 +2957,39 @@ transition: none !important;
 </header>
 
 
-<section id="back-to-research-themes" class="level2">
-<h2 class="anchored" data-anchor-id="back-to-research-themes">Back to Research Themes</h2>
-<p>Return to the <a href="./experiment-ledger.html">Research Themes and Experiment Ledger</a>.</p>
-</section>
-<section id="technical-summary" class="level2">
-<h2 class="anchored" data-anchor-id="technical-summary">Technical summary</h2>
-<p>Runtime compatibility is a prerequisite, not a quality result. The current operational choices are Qwen3.5-4B with 12 frames as the accuracy baseline and MiniCPM-o 4.5 with audio off as the <strong>Fast alternate</strong>. No later model family has met a comparable quality and integrity gate. Small selected screens are still useful: they identify where a repaired run, specialist panel, or a different bottleneck might be worth testing.</p>
-</section>
+<span id="back-to-research-themes" class="legacy-fragment-alias" aria-hidden="true"></span>
+<nav class="status-breadcrumb" aria-label="Breadcrumb">
+<a href="./index.html">Start Here</a> <span aria-hidden="true">/</span> <a href="./experiment-ledger.html">Research Themes</a> <span aria-hidden="true">/</span> <span aria-current="page">Models and Adaptation</span>
+</nav>
+<nav class="theme-local-nav" aria-label="On this theme page">
+<a href="#current-working-answer">Working answer</a> <a href="#what-has-been-tried">Tried</a> <a href="#known-failures-and-cases">Failures</a> <a href="#cheapest-valid-next-experiments">Next tests</a>
+</nav>
 <section id="why-this-theme-matters" class="level2">
-<h2 class="anchored" data-anchor-id="why-this-theme-matters">Why this theme matters</h2>
+<h2 class="anchored" data-anchor-id="why-this-theme-matters">New to this theme?</h2>
 <p>A new model can fail because it cannot run, because it violates an input or output contract, because it lacks needed evidence, or because it makes a poor answer despite having that evidence. These are different failures, so a model family should not receive a permanent verdict from one small panel.</p>
+<p>For example, a model that accepts frames and audio has passed a compatibility check, not an answer-quality check. If a later answer is wrong because the needed moment was never supplied, replacing or fine-tuning the answerer targets the wrong bottleneck.</p>
+<p><span id="technical-summary" class="legacy-fragment-alias" aria-hidden="true"></span></p>
 </section>
 <section id="current-working-answer" class="level2">
 <h2 class="anchored" data-anchor-id="current-working-answer">Current working answer</h2>
 <p>Use the frozen-30 protocol-v2 comparison for current model selection. Keep Qwen3.5-4B with 12 frames as the <strong>Current default</strong> for accuracy and MiniCPM-o 4.5 audio-off as the <strong>Fast alternate</strong>. Treat newer/larger candidates as <strong>Diagnostic signal</strong>, <strong>Routed candidate</strong>, or <strong>Open hypothesis</strong> until they complete a matched, label-isolated quality comparison.</p>
+<div class="theme-decision-strip" aria-label="Model decisions">
+<ul>
+<li><strong>Use now:</strong> Qwen3.5-4B with 12 frames; use MiniCPM-o audio-off for speed.</li>
+<li><strong>Do not default:</strong> later candidates based on compatibility or selected screens alone.</li>
+<li><strong>Still possible:</strong> repaired Omni, specialist models, and bottleneck-first adaptation.</li>
+<li><strong>Next test:</strong> repair the strict output path, then diagnose retrieval versus fusion before training.</li>
+</ul>
+</div>
+</section>
+<section id="evidence-at-a-glance" class="level2">
+<h2 class="anchored" data-anchor-id="evidence-at-a-glance">Evidence at a glance</h2>
+<ul>
+<li><strong>Strongest comparison:</strong> frozen-30 protocol v2 supports the current Qwen and MiniCPM roles on labeled 2025 training data.</li>
+<li><strong>Selected diagnostics:</strong> Qwen3.6, Phi, Gemma, and Omni screens do not rank their families globally.</li>
+<li><strong>Confirmed defect:</strong> one Qwen3-Omni strict output missed the 20/20 completion gate.</li>
+<li><strong>Condition boundary:</strong> no small screen permanently disqualifies a model, checkpoint, evidence route, or later adaptation.</li>
+</ul>
 </section>
 <section id="what-has-been-tried" class="level2">
 <h2 class="anchored" data-anchor-id="what-has-been-tried">What has been tried</h2>
@@ -2796,13 +3002,14 @@ transition: none !important;
 <li><strong>Current condition-bound status:</strong> <strong>Diagnostic signal</strong> for portability and adapter behavior, not a model leaderboard.</li>
 <li><strong>What this rules out now:</strong> promoting a family or estimating its competition quality from three execution rows.</li>
 <li><strong>What it does not rule out:</strong> a repaired adapter or a matched larger quality panel for any compatible family.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—three selected rows are a portability screen, not a quality ranking.</li>
 <li><strong>Reconsider when:</strong> the candidate completes a declared, label-isolated quality panel with the same evidence and scoring controls as its comparator.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-The compatibility gate checks that a combined request can execute; it does not score semantic answer quality. The <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md">three-video gate report</a> and <a href="./research-integrity.html#compatibility-gate">Experiment Integrity and Evaluation</a> describe why that distinction matters.
+The compatibility gate checks that a combined request can execute; it does not score semantic answer quality. The <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md">three-video gate report · Evidence of record · Evidence report · GitHub</a> and <a href="./research-integrity.html#compatibility-gate">Experiment Integrity and Evaluation</a> describe why that distinction matters.
 </details>
 </section>
 <section id="failure-panel" class="level3">
@@ -2814,13 +3021,14 @@ The compatibility gate checks that a combined request can execute; it does not s
 <li><strong>Current condition-bound status:</strong> <strong>Not promoted under the tested condition</strong> as a replacement for the current baseline.</li>
 <li><strong>What this rules out now:</strong> advancing this Qwen3.6 version, prompt, and 12-frame configuration from the 12-row failure panel.</li>
 <li><strong>What it does not rule out:</strong> a different Qwen3.6 revision, evidence policy, question route, or representative matched panel.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—the 12 rows were selected failures and include a visual-control regression.</li>
 <li><strong>Reconsider when:</strong> a compatibility-cleared version passes a predeclared matched specialist or representative quality gate without control loss.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-The run itself was technically clean, so this is not a runtime failure. The failure-selected panel can reveal recovery patterns but cannot estimate full test accuracy; the 24-frame local winner on this panel is superseded as a global default by frozen-30. See the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md">failure-panel report</a>.
+The run itself was technically clean, so this is not a runtime failure. The failure-selected panel can reveal recovery patterns but cannot estimate full test accuracy; the 24-frame local winner on this panel is superseded as a global default by frozen-30. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md">failure-panel report · Evidence of record · Evidence report · GitHub</a>.
 </details>
 </section>
 <section id="phi-gemma-semantic-stop" class="level3">
@@ -2832,13 +3040,14 @@ The run itself was technically clean, so this is not a runtime failure. The fail
 <li><strong>Current condition-bound status:</strong> <strong>Not promoted under the tested condition</strong> beyond the three-row semantic screen.</li>
 <li><strong>What this rules out now:</strong> using successful combined-modality parsing, or the earlier compatibility promotion, as evidence that either tested version improves answer quality.</li>
 <li><strong>What it does not rule out:</strong> a newer checkpoint, a repaired input path, a different evidence route, or a larger representative comparison.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—the three-row semantic screen is too small to rank either family.</li>
 <li><strong>Reconsider when:</strong> a candidate first passes compatibility and then meets a predeclared semantic-quality and control non-regression gate on a matched panel.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-The counts are a semantic screen, not a general leaderboard. The relevant records are the <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-nonqwen-omni-compatibility.md">compatibility probe</a> and <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-omni-semantic-quality.md">semantic-quality correction</a>.
+The counts are a semantic screen, not a general leaderboard. The relevant records are the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-24-nonqwen-omni-compatibility.md">compatibility probe · Evidence of record · Evidence report · GitHub</a> and <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-24-omni-semantic-quality.md">semantic-quality correction · Evidence of record · Evidence report · GitHub</a>.
 </details>
 </section>
 <section id="minicpm-fast-alternate" class="level3">
@@ -2853,7 +3062,7 @@ The counts are a semantic screen, not a general leaderboard. The relevant record
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-All four frozen-30 conditions completed 30/30 rows. This is descriptive model selection on labeled 2025 training data, not an estimate for the unlabeled 2026 evaluation set. See the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">protocol-v2 report</a>.
+All four frozen-30 conditions completed 30/30 rows. This is descriptive model selection on labeled 2025 training data, not an estimate for the unlabeled 2026 evaluation set. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">protocol-v2 report · Evidence of record · Evidence report · GitHub</a>.
 </details>
 </section>
 <section id="qwen3-omni-quality" class="level3">
@@ -2865,18 +3074,22 @@ All four frozen-30 conditions completed 30/30 rows. This is descriptive model se
 <li><strong>Current condition-bound status:</strong> formally ineligible under the predeclared 20/20 completion gate; <strong>Not promoted under the tested condition</strong>, while remaining a <strong>Routed candidate</strong> for a repaired run.</li>
 <li><strong>What this rules out now:</strong> using the incomplete strict run for a promotion decision or declaring Qwen3-Omni the new general baseline.</li>
 <li><strong>What it does not rule out:</strong> the model family, a repaired parser/output contract, a complete blinded paired run, or specialist native-audio value.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Confirmed defect</strong>—one fenced output failed the unchanged strict parser and completion gate.</li>
 <li><strong>Reconsider when:</strong> a sentinel verifies the output fix and a fresh full 20-call paired run completes under one frozen configuration and its declared quality/control gate.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-The earlier A1 run completed 20/20 strict outputs but had a prompt-context mismatch and did not meet its semantic gate. The neutral A2 rerun corrected that prompt context but one strict-parser failure remained. Semantic recovery of that exact output is diagnostic only and cannot retroactively complete A2. The 10 rows are selected and frame-based, so they cannot be compared directly to frozen-30. 2026 answer quality remains unknown. See the <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10.md">quality-10 report</a> and <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md">neutral A2 result</a>.
+The earlier A1 run completed 20/20 strict outputs but had a prompt-context mismatch and did not meet its semantic gate. The neutral A2 rerun corrected that prompt context but one strict-parser failure remained. Semantic recovery of that exact output is diagnostic only and cannot retroactively complete A2. The 10 rows are selected and frame-based, so they cannot be compared directly to frozen-30. 2026 answer quality remains unknown. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-25-qwen3-omni-quality-10.md">quality-10 report · Evidence of record · Evidence report · GitHub</a> and <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md">neutral A2 result · Evidence of record · Evidence report · GitHub</a>.
 </details>
 </section>
 </section>
-<section id="what-the-evidence-supports" class="level2">
-<h2 class="anchored" data-anchor-id="what-the-evidence-supports">What the evidence supports</h2>
+<section id="known-failures-and-cases" class="level2">
+<h2 class="anchored" data-anchor-id="known-failures-and-cases">Known failures and cases</h2>
+<p><a href="./failure-library.html#case-004">CASE-004 — Unsupported native-audio specificity</a> illustrates why a more capable modality path can still produce a worse, over-specific answer. Diagnose evidence, fusion, and output-contract failures before treating the model family as the cause.</p>
+<section id="what-the-evidence-supports" class="level3">
+<h3 class="anchored" data-anchor-id="what-the-evidence-supports">What the evidence supports</h3>
 <ul>
 <li>A successful adapter or joint-modality request proves compatibility, not semantic answer quality.</li>
 <li>MiniCPM-o audio-off is a useful speed/METEOR trade-off, while Qwen3.5-4B remains the current accuracy baseline.</li>
@@ -2884,23 +3097,25 @@ The earlier A1 run completed 20/20 strict outputs but had a prompt-context misma
 <li>Qwen3-Omni has a conditionally encouraging audio diagnostic but no eligible promotion result because its strict completion gate was not met.</li>
 </ul>
 </section>
-<section id="what-it-does-not-rule-out" class="level2">
-<h2 class="anchored" data-anchor-id="what-it-does-not-rule-out">What it does not rule out</h2>
+<section id="what-it-does-not-rule-out" class="level3">
+<h3 class="anchored" data-anchor-id="what-it-does-not-rule-out">What it does not rule out</h3>
 <ul>
 <li>No small screen permanently disqualifies a model family, model revision, or specialist route.</li>
 <li>Frozen-30 does not prove the baseline is best on unlabeled 2026 evaluation.</li>
 <li>Compatibility, completion, semantic quality, and cost are separate gates; passing one cannot substitute for the others.</li>
 <li>Fine-tuning may be useful later, but no current result identifies a measured bottleneck that warrants it over evidence selection or answer grounding.</li>
 </ul>
+<p><span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span></p>
 </section>
-<section id="possible-bugs-confounds-and-audit-gaps" class="level2">
-<h2 class="anchored" data-anchor-id="possible-bugs-confounds-and-audit-gaps">Possible bugs, confounds, and audit gaps</h2>
+<section id="confirmed-defects-audit-gaps-and-uncertainties" class="level3">
+<h3 class="anchored" data-anchor-id="confirmed-defects-audit-gaps-and-uncertainties">Confirmed defects, audit gaps, and uncertainties</h3>
 <ul>
 <li><strong>Confirmed defect:</strong> one Qwen3-Omni strict-output contract failed, making that run ineligible for its predeclared promotion decision.</li>
 <li><strong>Uncertainty:</strong> Qwen3.6, Phi, Gemma, and Omni quality panels are selected diagnostics, not representative rankings or 2026 estimates.</li>
 <li><strong>Uncertainty:</strong> model comparison can be confounded by frame policy, prompt, modality treatment, and answer formatting unless they are held fixed.</li>
 <li><strong>Audit gap:</strong> the repository has compatibility and experimental seams, not one reusable versioned model-promotion workflow for every candidate family.</li>
 </ul>
+</section>
 </section>
 <section id="open-hypotheses-and-ideas" class="level2">
 <h2 class="anchored" data-anchor-id="open-hypotheses-and-ideas">Open hypotheses and ideas</h2>
@@ -2942,6 +3157,15 @@ The earlier A1 run completed 20/20 strict outputs but had a prompt-context misma
 <li><strong>Boundary on what a positive result would establish:</strong> value for the declared adaptation and panel, not a blanket claim that fine-tuning solves video QA.</li>
 </ul>
 </section>
+</section>
+<section id="method-result-validity-risks-and-evidence" class="level2">
+<h2 class="anchored" data-anchor-id="method-result-validity-risks-and-evidence">Method, result, validity risks, and evidence</h2>
+<details>
+<summary>
+How to audit this theme’s records
+</summary>
+The visible summaries distinguish compatibility, completion, semantic quality, cost, and promotion. Open each record’s native details block for source links, panel selection, and configuration risks. A model/adaptation decision is valid only after its measured bottleneck and matched controls are explicit.
+</details>
 </section>
 <section id="related-themes" class="level2">
 <h2 class="anchored" data-anchor-id="related-themes">Related themes</h2>
@@ -3297,13 +3521,13 @@ The earlier A1 run completed 20/20 strict outputs but had a prompt-context misma
 <footer class="footer">
   <div class="nav-footer">
     <div class="nav-footer-left">
-<p>Repository evidence through 2026-07-25</p>
+<p>Reviewed evidence: 2026-07-26</p>
 </div>   
     <div class="nav-footer-center">
        
     </div>
     <div class="nav-footer-right">
-<p>Sanitized aggregates only</p>
+<p>Development phase · 2026 evaluation quality remains unknown</p>
 </div>
   </div>
 </footer>

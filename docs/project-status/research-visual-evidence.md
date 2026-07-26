@@ -1,27 +1,43 @@
 # Visual and Temporal Evidence
 
 
-## Back to Research Themes
+<span id="back-to-research-themes" class="legacy-fragment-alias"
+aria-hidden="true"></span>
+<nav class="status-breadcrumb" aria-label="Breadcrumb">
 
-Return to the [Research Themes and Experiment
-Ledger](experiment-ledger.md).
+<a href="index.md">Start Here</a> <span aria-hidden="true">/</span>
+<a href="experiment-ledger.md">Research Themes</a>
+<span aria-hidden="true">/</span> <span aria-current="page">Visual and
+Temporal Evidence</span>
+</nav>
 
-## Technical summary
+<nav class="theme-local-nav" aria-label="On this theme page">
 
-Qwen3.5-4B with uniform-12 is the current visual default. Frozen-30 v2
-found no exact-answer gain from global uniform-24; a ten-row directed-12
-heuristic tied uniform-12 and trailed uniform-24; and a two-row
-dense-burst diagnostic regressed. Those results are condition-bound and
-do not reject all question-aware, retrieval, spatial-detail, or OCR
-methods.
+<a href="#current-working-answer">Working answer</a>
+<a href="#what-has-been-tried">Tried</a>
+<a href="#known-failures-and-cases">Failures</a>
+<a href="#cheapest-valid-next-experiments">Next tests</a>
+</nav>
 
-## Why this theme matters
+<span id="why-this-theme-matters" class="legacy-fragment-alias"
+aria-hidden="true"></span>
+
+## New to this theme?
 
 VQA fails either because needed evidence was not selected (retrieval) or
 because selected evidence was not used well (answering). More frames, a
 local burst, or crops can cost compute and still miss the required
 moment, so the fixed evidence budget and selection mechanism must be
 visible.
+
+For example, **uniform-12** spends a 12-frame budget across the whole
+clip, while a directed selector spends some of the same budget near a
+question-chosen time. If neither selects the brief decisive action, that
+is a retrieval problem; if both select it and the answer is still wrong,
+the likely bottleneck is downstream.
+
+<span id="technical-summary" class="legacy-fragment-alias"
+aria-hidden="true"></span>
 
 ## Current working answer
 
@@ -30,6 +46,30 @@ equal time bins. Uniform-24 applies the same whole-video coverage with
 twice the frame proxy. Do not make the tested directed-12 or
 dense-burst-12 diagnostic a default; each is **Not promoted under the
 tested condition**.
+
+<div class="theme-decision-strip"
+aria-label="Visual-evidence decisions">
+
+- **Use now:** Qwen3.5-4B with 12 uniformly sampled frames.
+- **Do not default:** global uniform-24 or the tested directed/burst
+  heuristics.
+- **Still possible:** learned, hybrid, shot/event, OCR, or
+  coarse-to-fine retrieval.
+- **Next test:** required-moment labels, selector recall, and
+  oracle-frame answering at one fixed budget.
+
+</div>
+
+## Evidence at a glance
+
+- **Strongest evidence:** matched uniform-12 versus uniform-24 on
+  frozen-30 v2.
+- **Diagnostic evidence:** ten selected temporal rows for directed-12
+  and two rows for dense-burst-12.
+- **Audit gaps:** no tracked general-workflow caller for directed-12;
+  the exact dense-burst implementation is absent.
+- **Condition boundary:** none of these results rejects smarter visual
+  sampling or retrieval as a research branch.
 
 ## What has been tried
 
@@ -50,6 +90,8 @@ tested condition**.
   this model and protocol-v2 panel.
 - **What it does not rule out:** a declared temporal-only route or
   another fixed-budget evidence design.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—30
+  labeled 2025 rows do not establish a universal frame-budget effect.
 - **Reconsider when:** a matched routed panel beats uniform-12 under
   predeclared controls and non-regression rules.
 
@@ -63,8 +105,9 @@ Method, result, validity risks, and evidence
 Both arms use whole-video bin-midpoint coverage, not query-driven
 retrieval. The comparison is the strongest global visual evidence here
 but remains a 30-row 2025 training-data result, not an estimate of 2026
-accuracy. See the [protocol-v2
-report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
+accuracy. See the [protocol-v2 report · Evidence of record · Evidence
+report ·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
 </details>
 
 ### Directed temporal sampling
@@ -87,6 +130,9 @@ uniform-24, which doubles that same whole-video coverage.
   heuristic as the default temporal selector.
 - **What it does not rule out:** learned, query-only, hybrid, shot,
   event, or coarse-to-fine selection under a new controlled design.
+- **Possible defect, audit gap, or uncertainty:** **Audit gap**—source
+  and unit tests exist, but no tracked general-workflow caller proves
+  the attachment path.
 - **Reconsider when:** required-moment recall and oracle-frame answer
   quality show a predeclared improvement with matched controls.
 
@@ -101,11 +147,12 @@ The selector source and tests establish deterministic timestamps for a
 supplied anchor, not required-evidence recall or answer relevance. The
 tracked repository has no general-workflow caller for the selector: that
 is an **Audit gap**, not a confirmed execution bug. The [temporal
-experiment
-record](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/temporal-sampling-issue-8.md),
-[selector](https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_experiments/temporal_sampling.py),
-and
-[tests](https://github.com/npatta01/trec_video_2026/blob/main/tests/test_temporal_sampling.py)
+experiment record · Evidence of record · Evidence report ·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/temporal-sampling-issue-8.md),
+[selector · Current code · Source code ·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_experiments/temporal_sampling.py),
+and [tests · Current code · Source code ·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/main/tests/test_temporal_sampling.py)
 document the narrow contract.
 </details>
 
@@ -128,6 +175,9 @@ auditable diagnostic, not a general selector result.
 - **What it does not rule out:** another local schedule or selector
   evaluated with recoverable source, provenance, and a larger declared
   panel.
+- **Possible defect, audit gap, or uncertainty:** **Audit gap**—the
+  exact dense-burst implementation and schedule are absent from tracked
+  source.
 - **Reconsider when:** a fully tracked implementation passes a
   fixed-budget, label-isolated comparison with non-regression controls.
 
@@ -143,9 +193,9 @@ effect size, or performance of all local selectors. It also cannot
 recover the exact burst schedule or launch path, an **Audit gap** rather
 than proof of an execution bug. The aggregate’s recorded source digest
 is `d4825b4530b181f1b4414552a80136e2f0e5a7ee64def23131d8c163acc458f1`;
-the [closed issue
-\#16](https://github.com/npatta01/trec_video_2026/issues/16) records the
-decision without exposing rows or raw artifacts.
+the [closed issue \#16 · Issue/PR history ·
+GitHub](https://github.com/npatta01/trec_video_2026/issues/16) records
+the decision without exposing rows or raw artifacts.
 </details>
 
 ### Spatial-crop diagnostic
@@ -162,6 +212,8 @@ decision without exposing rows or raw artifacts.
   tiling from the targeted failure diagnostic.
 - **What it does not rule out:** a category-routed spatial-detail or OCR
   policy with a declared crop budget.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—one
+  manual, targeted crop cannot separate retrieval from fusion failure.
 - **Reconsider when:** a matched target stratum and visual controls show
   a predeclared route benefit without regressions.
 
@@ -179,13 +231,21 @@ follow-up comprised exactly two audio/spatial failures, then one speech
 failure; the speech and Seamless record now lives under [Speech and
 Transcript
 Evidence](research-speech-transcripts.md#seamless-diagnostic). See the
-[audio and spatial
-follow-up](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/audio_spatial_followup_results_2026-07-21.md)
-and the frozen-30 spatial policy discussion in the [protocol-v2
-report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
+[audio and spatial follow-up · Evidence of record · Evidence report ·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/audio_spatial_followup_results_2026-07-21.md)
+and the frozen-30 spatial policy discussion in the [protocol-v2 report ·
+Evidence of record · Evidence report ·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
 </details>
 
-## What the evidence supports
+## Known failures and cases
+
+[CASE-004](failure-library.md#case-004) is a useful cross-theme warning:
+a brief end-of-clip event can involve temporal retrieval, native sound,
+and answer specificity at once. One selected case cannot identify which
+bottleneck dominates without matched evidence.
+
+### What the evidence supports
 
 - Uniform-12 is the present simple visual default under the tested
   global frozen-30 conditions.
@@ -197,7 +257,7 @@ report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vq
   is a reason to route and diagnose detail needs rather than tile
   globally.
 
-## What it does not rule out
+### What it does not rule out
 
 - Global uniform-24’s result does not rule out a temporal-only route or
   a different evidence budget.
@@ -209,7 +269,10 @@ report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vq
 - The crop diagnostic does not rule out category-routed spatial detail
   or OCR.
 
-## Possible bugs, confounds, and audit gaps
+<span id="possible-bugs-confounds-and-audit-gaps"
+class="legacy-fragment-alias" aria-hidden="true"></span>
+
+### Confirmed defects, audit gaps, and uncertainties
 
 - **Audit gap:** no tracked general-workflow caller establishes how the
   directed selector was attached to a general workflow. This is not a
@@ -282,6 +345,22 @@ report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vq
   regression limit.
 - **Boundary on what a positive result would establish:** it would
   support a category route, not global tiling or universal OCR benefit.
+
+## Method, result, validity risks, and evidence
+
+<details>
+
+<summary>
+
+How to audit this theme’s records
+</summary>
+
+The visible record summaries preserve the exact panel, budget, result,
+limits, and reconsideration condition. Open each record’s native details
+block for source links, selector provenance, and validity risks. Compare
+selectors only at a fixed frame/pixel budget and with labels hidden from
+selection.
+</details>
 
 ## Related themes
 

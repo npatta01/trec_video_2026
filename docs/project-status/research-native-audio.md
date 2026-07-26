@@ -1,27 +1,42 @@
 # Native Audio and Sound
 
 
-## Back to Research Themes
+<span id="back-to-research-themes" class="legacy-fragment-alias"
+aria-hidden="true"></span>
+<nav class="status-breadcrumb" aria-label="Breadcrumb">
 
-Return to the [Research Themes and Experiment
-Ledger](experiment-ledger.md).
+<a href="index.md">Start Here</a> <span aria-hidden="true">/</span>
+<a href="experiment-ledger.md">Research Themes</a>
+<span aria-hidden="true">/</span> <span aria-current="page">Native Audio
+and Sound</span>
+</nav>
 
-## Technical summary
+<nav class="theme-local-nav" aria-label="On this theme page">
 
-Native audio is not one capability. Words, vocal delivery, environmental
-sound, and identifying the title of a recording require different
-evidence. The current evidence does **not** support turning native audio
-on for every question. It does leave category-routed audio open: the
-clearest diagnostic improvements are in prosody and non-speech sound,
-while exact music-title questions remain a retrieval problem rather than
-a general-VLM guessing task.
+<a href="#current-working-answer">Working answer</a>
+<a href="#what-has-been-tried">Tried</a>
+<a href="#known-failures-and-cases">Failures</a>
+<a href="#cheapest-valid-next-experiments">Next tests</a>
+</nav>
 
-## Why this theme matters
+<span id="why-this-theme-matters" class="legacy-fragment-alias"
+aria-hidden="true"></span>
+
+## New to this theme?
 
 An automatic transcript can preserve spoken words but loses tone, music,
 alarms, overlapping voices, and timing. A native-audio model can consume
 that signal, but it may also distract from a visual or temporal
 question. Treating all audio questions alike would hide that trade-off.
+
+For example, “what word was spoken?” may be served by ASR, while “did
+the voice sound angry?” needs prosody and “what made the popping sound?”
+needs non-speech audio. Exact music-title questions are different again:
+they may need fingerprint retrieval with abstention, not confident
+generation.
+
+<span id="technical-summary" class="legacy-fragment-alias"
+aria-hidden="true"></span>
 
 ## Current working answer
 
@@ -31,6 +46,30 @@ candidate** for a declared prosody or non-speech-sound question, not a
 global switch. Exact music identification should abstain or use
 fingerprint/retrieval evidence rather than ask a general VLM to invent a
 title.
+
+<div class="theme-decision-strip" aria-label="Native-audio decisions">
+
+- **Use now:** the visual baseline; MiniCPM-o audio-off remains the fast
+  alternate.
+- **Do not default:** native audio on every question or general-VLM
+  music-title guesses.
+- **Still possible:** routed prosody, non-speech sound, fingerprinting,
+  and repaired Omni audio.
+- **Next test:** a matched specialist panel with audio-off fallback and
+  route-level non-regression.
+
+</div>
+
+## Evidence at a glance
+
+- **Global result:** MiniCPM audio on tied exact match and reduced
+  F1/METEOR on its ten-row pre-v2 screen.
+- **Localized signal:** selected diagnostics improved some prosody and
+  sound cases while regressing temporal cases.
+- **Confirmed defect:** Qwen3-Omni’s strict run completed only 19/20
+  outputs.
+- **Condition boundary:** these panels do not permanently reject routed
+  native audio or another audio-capable model.
 
 ## What has been tried
 
@@ -51,6 +90,9 @@ title.
   MiniCPM version and 10-row gate.
 - **What it does not rule out:** a matched specialist route for prosody,
   non-speech sound, or another model/prompt/panel.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—this
+  pre-v2 ten-row screen cannot estimate category-specific or global
+  value.
 - **Reconsider when:** a stratified, audio-off/audio-on comparison meets
   a predeclared target-stratum gain and visual/temporal-control
   non-regression.
@@ -65,8 +107,8 @@ Method, result, validity risks, and evidence
 This was pre-v2 screening evidence, not part of frozen-30’s
 four-condition ranking. Its promotion rule also required non-speech
 wins, multilingual wins, and no temporal/control loss; it did not pass.
-The [protocol-v2
-report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md)
+The [protocol-v2 report · Evidence of record · Evidence report ·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md)
 records the gate values and explicitly calls for a new controlled
 native-audio test rather than assuming it helps.
 </details>
@@ -95,6 +137,8 @@ native-audio test rather than assuming it helps.
 - **What it does not rule out:** native audio for declared prosody or
   non-speech-sound strata, a different audio-capable model, or an audio
   route with abstention.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the
+  panel was selected from known failures and is not a prevalence sample.
 - **Reconsider when:** a representative matched panel shows a
   target-stratum gain while preserving visual-control and temporal
   performance.
@@ -110,8 +154,9 @@ The first launch had a container-mount error before inference; the
 corrected run completed all 12 requests. That operational repair is not
 evidence of quality. This panel was selected from known failures, so it
 can diagnose recovery behavior but cannot estimate full-test prevalence
-or rank systems. See the [failure-panel
-report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md).
+or rank systems. See the [failure-panel report · Evidence of record ·
+Evidence report ·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md).
 </details>
 
 ### Native audio with Qwen3-Omni
@@ -136,6 +181,9 @@ report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vq
 - **What it does not rule out:** a repaired, complete, blinded
   Qwen3-Omni comparison, or a category route whose gate is met on a
   representative panel.
+- **Possible defect, audit gap, or uncertainty:** **Confirmed
+  defect**—one strict-parser output failed the predeclared completion
+  contract.
 - **Reconsider when:** terminal-output handling passes a sentinel check
   and a fresh full paired run completes 20/20 under one frozen contract.
 
@@ -152,7 +200,8 @@ that eligibility outcome. The panel is selected and frame-based, so it
 is neither a global ranking nor a complete native-video test.
 Model-specific gate details are on [Models and
 Adaptation](research-models.md#qwen3-omni-quality). See the [quality-10
-report](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10.md).
+report · Evidence of record · Evidence report ·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-25-qwen3-omni-quality-10.md).
 </details>
 
 ### Sound and music diagnostic boundaries
@@ -175,6 +224,9 @@ report](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2
   composition title.
 - **What it does not rule out:** an audio-event classifier, fingerprint
   lookup, or a provenance-safe music retrieval system that can abstain.
+- **Possible defect, audit gap, or uncertainty:**
+  **Uncertainty**—six-row and selected failure panels cannot establish
+  catalog coverage or prevalence.
 - **Reconsider when:** a route names its evidence source, abstention
   behavior, and target-stratum control before a matched evaluation.
 
@@ -186,14 +238,24 @@ Method, result, validity risks, and evidence
 </summary>
 
 Frozen-30 is the stronger panel but has only six rows per stratum; the
-failure-selected rows are diagnostic only. The [protocol-v2
-report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md)
-and [failure-panel
-report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md)
+failure-selected rows are diagnostic only. The [protocol-v2 report ·
+Evidence of record · Evidence report ·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md)
+and [failure-panel report · Evidence of record · Evidence report ·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md)
 support this separation.
 </details>
 
-## What the evidence supports
+## Known failures and cases
+
+- [CASE-002 — Non-lexical event missed by transcript
+  gate](failure-library.md#case-002) motivates a sound route rather than
+  forcing non-lexical evidence through ASR.
+- [CASE-004 — Unsupported native-audio
+  specificity](failure-library.md#case-004) shows why native sound needs
+  grounded labels or abstention.
+
+### What the evidence supports
 
 - Speech text and native sound are complementary evidence types, not
   interchangeable routes.
@@ -206,7 +268,7 @@ support this separation.
 - Exact music-title questions require a retrieval-style hypothesis; no
   current general-VLM result validates confident title generation.
 
-## What it does not rule out
+### What it does not rule out
 
 - A negative global switch does not reject a quality-gated native-audio
   route.
@@ -217,7 +279,10 @@ support this separation.
 - Audio-event recognition is not established merely because a model
   generated a plausible sound label.
 
-## Possible bugs, confounds, and audit gaps
+<span id="possible-bugs-confounds-and-audit-gaps"
+class="legacy-fragment-alias" aria-hidden="true"></span>
+
+### Confirmed defects, audit gaps, and uncertainties
 
 - **Uncertainty:** the MiniCPM and Omni audio findings are on pre-v2 or
   deliberately selected panels, not representative prevalence samples.
@@ -300,6 +365,22 @@ support this separation.
   route’s performance on its indexed catalog and declared prevalence
   slice, not general music knowledge or value on a distribution with a
   different title frequency.
+
+## Method, result, validity risks, and evidence
+
+<details>
+
+<summary>
+
+How to audit this theme’s records
+</summary>
+
+The visible summaries separate lexical speech, prosody, non-speech
+sound, and music retrieval. Open each record’s native details block for
+model/panel conditions, source links, and validity risks. Selected gains
+never override a failed completion gate or establish a global audio-on
+policy.
+</details>
 
 ## Related themes
 

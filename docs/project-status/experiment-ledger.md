@@ -12,9 +12,10 @@ selector, budget, or panel.
 
 </div>
 
-Use [Start Here](index.md) for the current operational recommendation
-and the [Code Map](code-map.md) to find the implementation boundary. The
-six themes below are independent research areas, not a sequence.
+Use [Start Here · Report page](index.md) for the current operational
+recommendation and the [Code Map · Report page](code-map.md) to find the
+implementation boundary. The six themes below are independent research
+areas, not a sequence.
 
 ## Six-theme research map
 
@@ -113,21 +114,92 @@ wrong answer selection—and can a router abstain without regressions?
 
 </div>
 
-## What to investigate next
+## Theme status matrix
 
-1.  **Integrity:** build a cheap reusable gate with deliberately invalid
-    fixtures before another substantial run.
-2.  **Visual evidence:** label required moments and compare uniform,
-    question-aware, and hybrid selectors under one fixed budget.
-3.  **Speech:** test transcript-grounded answers and evidence spans with
-    an unchanged frame-only control.
-4.  **Native audio:** run matched prosody, non-speech, lexical-speech,
-    and visual control strata with an abstaining route.
-5.  **Models:** repair the Qwen3-Omni output path, then require a fresh
-    complete blinded comparison rather than recovering the prior strict
-    run post hoc.
-6.  **Routing:** version a label-blind router with baseline fallback and
-    measure retrieval, fusion, and answer-election failures separately.
+This is a navigation layer, not a second results ledger. **Use**, **Do
+not default**, **Possible**, **Blocked**, and **Next** are short status
+tokens; each link opens the visible theme record with the tested
+condition and limits.
+
+<div class="research-matrix" role="region"
+aria-label="Scrollable research theme status matrix" tabindex="0">
+
+| Theme | Why it matters | Tried | Learned now | Still open | Next falsifying test |
+|----|----|----|----|----|----|
+| [Integrity](research-integrity.md#current-working-answer) | Makes comparisons interpretable | [v2 freeze](research-integrity.md#frozen-30-protocol-v2) | **Use:** v2; compatibility is not quality | **Possible:** reusable gate | [Invalid-fixture gate](research-integrity.md#reusable-integrity-gate) |
+| [Visual](research-visual-evidence.md#current-working-answer) | Finds the useful moment within a frame budget | [Uniform/directed/burst](research-visual-evidence.md#directed-temporal-sampling) | **Use:** uniform-12; **Do not default:** tested directed/burst | **Possible:** learned or hybrid retrieval | [Required-moment recall](research-visual-evidence.md#required-moments-selector-recall-and-oracle-frames) |
+| [Speech](research-speech-transcripts.md#current-working-answer) | Adds spoken words with explicit provenance | [Whisper ablation](research-speech-transcripts.md#automatic-transcript-ablation) | **Use selectively:** accepted Whisper | **Blocked:** human tier; **Possible:** alternate ASR | [Matched ASR panel](research-speech-transcripts.md#alternative-or-multilingual-asr-matched-panel) |
+| [Native audio](research-native-audio.md#current-working-answer) | Preserves prosody and non-speech sound | [Audio on/off](research-native-audio.md#minicpm-audio-on-off) | **Do not default:** global audio on | **Possible:** routed sound/prosody | [Specialist panel](research-native-audio.md#matched-native-audio-specialist-panel) |
+| [Models](research-models.md#current-working-answer) | Separates compatibility, quality, and adaptation | [Candidate screens](research-models.md#failure-panel) | **Use:** Qwen3.5-4B; **Fast:** MiniCPM-o | **Possible:** repaired/specialist model or adaptation | [Bottleneck-first decision](research-models.md#bottleneck-first-adaptation-decision) |
+| [Routing](research-routing.md#current-working-answer) | Chooses evidence and separates retrieval from answering | [Route seeds](research-routing.md#taxonomy-audit) | **Use:** baseline fallback; router unvalidated | **Possible:** fusion and answer election | [Three-way measurement](research-routing.md#required-evidence-labels-and-three-way-measurement) |
+
+</div>
+
+## Three failure mechanisms to preview
+
+These selected development cases explain mechanisms, not prevalence.
+Open the [Failure Library · Report page](failure-library.md) for the
+complete six-field records and disclosure boundary.
+
+<div class="failure-preview-grid">
+
+<div class="failure-preview">
+
+### [Later-span answer selection](failure-library.md#case-001)
+
+Needed speech was retrieved, but later numeric speculation was selected.
+
+</div>
+
+<div class="failure-preview">
+
+### [Non-lexical event missed](failure-library.md#case-002)
+
+An unrelated transcript passed the old generic gate while the requested
+vocal sound remained unrepresented.
+
+</div>
+
+<div class="failure-preview">
+
+### [Unsupported audio specificity](failure-library.md#case-004)
+
+Native audio produced a more specific music interpretation that the
+evidence did not support.
+
+</div>
+
+</div>
+
+<span id="what-to-investigate-next" class="legacy-fragment-alias"
+aria-hidden="true"></span>
+
+## Branch-complete next-test queue
+
+These branches are independent choices; their numbering is for
+reference, not a prescribed research sequence.
+
+1.  **Smarter visual sampling/retrieval:** [label required moments and
+    compare fixed-budget
+    selectors](research-visual-evidence.md#required-moments-selector-recall-and-oracle-frames).
+2.  **Alternative ASR:** [compare an alternative or multilingual ASR on
+    one frozen, source-language-aware
+    panel](research-speech-transcripts.md#alternative-or-multilingual-asr-matched-panel).
+3.  **Human/reference transcript controls:** [produce an independently
+    reviewed, label-blind upper
+    bound](research-speech-transcripts.md#label-blind-human-transcript-upper-bound).
+4.  **Routed native audio/sound:** [test prosody and non-speech strata
+    with abstention and matched
+    controls](research-native-audio.md#matched-native-audio-specialist-panel).
+5.  **Repaired/specialist models or bottleneck-first adaptation:**
+    [repair the strict Omni
+    path](research-models.md#repaired-complete-neutral-qwen3-omni-run),
+    or [measure the bottleneck before
+    adapting](research-models.md#bottleneck-first-adaptation-decision).
+6.  **Routing, fusion, and answer election:** [measure retrieval,
+    oracle-evidence answering, and end-to-end answering
+    separately](research-routing.md#required-evidence-labels-and-three-way-measurement),
+    then test election only if evidence paths are stable.
 
 ## How to interpret results
 
@@ -232,53 +304,65 @@ and next test.
 Expand the historical issue and PR trail
 </summary>
 
-These public links preserve the implementation and review trail behind
-the theme records. They are provenance, not substitutes for the current
-condition-bound conclusions.
+These links preserve the implementation and review trail behind the
+theme records. **Evidence report · GitHub** links are immutable evidence
+of record; **Issue/PR history · GitHub** links preserve discussion and
+review. GitHub requires repository access until public release. They are
+provenance, not substitutes for the current condition-bound conclusions.
 
 - **Foundation and repository recovery — [Experiment integrity and
   evaluation](research-integrity.md):** the [rendered July 12 field
-  guide](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/report.html)
-  and [repository recovery PR
-  \#21](https://github.com/npatta01/trec_video_2026/pull/21) record the
-  background synthesis and restoration of the benchmark evidence.
+  guide · Evidence of record · Evidence report ·
+  GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/report.html)
+  and [repository recovery PR \#21 · Issue/PR history ·
+  GitHub](https://github.com/npatta01/trec_video_2026/pull/21) record
+  the background synthesis and restoration of the benchmark evidence.
 - **Directed temporal sampling — [Visual and temporal
   evidence](research-visual-evidence.md#directed-temporal-sampling):**
-  [closed issue
-  \#8](https://github.com/npatta01/trec_video_2026/issues/8), its
-  [conclusion audit in issue
-  \#13](https://github.com/npatta01/trec_video_2026/issues/13), and
-  [implementation PR
-  \#10](https://github.com/npatta01/trec_video_2026/pull/10) preserve
+  [closed issue \#8 · Issue/PR history ·
+  GitHub](https://github.com/npatta01/trec_video_2026/issues/8), its
+  [conclusion audit in issue \#13 · Issue/PR history ·
+  GitHub](https://github.com/npatta01/trec_video_2026/issues/13), and
+  [implementation PR \#10 · Issue/PR history ·
+  GitHub](https://github.com/npatta01/trec_video_2026/pull/10) preserve
   the tested heuristic’s decision trail.
 - **Automatic and human transcripts — [Speech and transcript
   evidence](research-speech-transcripts.md):** the automatic-ablation
-  work is tracked in [closed issue
-  \#7](https://github.com/npatta01/trec_video_2026/issues/7) and [PR
-  \#9](https://github.com/npatta01/trec_video_2026/pull/9); the
+  work is tracked in [closed issue \#7 · Issue/PR history ·
+  GitHub](https://github.com/npatta01/trec_video_2026/issues/7) and [PR
+  \#9 · Issue/PR history ·
+  GitHub](https://github.com/npatta01/trec_video_2026/pull/9); the
   independently produced human-transcript tier remains blocked in [open
-  issue \#19](https://github.com/npatta01/trec_video_2026/issues/19).
+  issue \#19 · Issue/PR history ·
+  GitHub](https://github.com/npatta01/trec_video_2026/issues/19).
 - **Evidence taxonomy and routing — [Routing, fusion, and answer
-  selection](research-routing.md#taxonomy-audit):** [closed issue
-  \#4](https://github.com/npatta01/trec_video_2026/issues/4) records the
-  taxonomy and evidence-routing research thread.
+  selection](research-routing.md#taxonomy-audit):** [closed issue \#4 ·
+  Issue/PR history ·
+  GitHub](https://github.com/npatta01/trec_video_2026/issues/4) records
+  the taxonomy and evidence-routing research thread.
 - **Phi and Gemma quality screen — [Models and
   adaptation](research-models.md#phi-gemma-semantic-stop):**
-  compatibility and semantic correction are tracked in [closed issue
-  \#6](https://github.com/npatta01/trec_video_2026/issues/6), [closed
-  issue \#12](https://github.com/npatta01/trec_video_2026/issues/12),
-  [PR \#11](https://github.com/npatta01/trec_video_2026/pull/11), and
-  [PR \#15](https://github.com/npatta01/trec_video_2026/pull/15).
+  compatibility and semantic correction are tracked in [closed issue \#6
+  · Issue/PR history ·
+  GitHub](https://github.com/npatta01/trec_video_2026/issues/6), [closed
+  issue \#12 · Issue/PR history ·
+  GitHub](https://github.com/npatta01/trec_video_2026/issues/12), [PR
+  \#11 · Issue/PR history ·
+  GitHub](https://github.com/npatta01/trec_video_2026/pull/11), and [PR
+  \#15 · Issue/PR history ·
+  GitHub](https://github.com/npatta01/trec_video_2026/pull/15).
 - **Qwen3-Omni compatibility and quality — [Models and
   adaptation](research-models.md#qwen3-omni-quality):** the [tracked
-  compatibility
-  report](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-qwen3-omni-dstack-compatibility.md),
-  [closed issue
-  \#5](https://github.com/npatta01/trec_video_2026/issues/5), [closed
-  issue \#17](https://github.com/npatta01/trec_video_2026/issues/17),
-  [PR \#14](https://github.com/npatta01/trec_video_2026/pull/14), and
-  recovery [PR
-  \#20](https://github.com/npatta01/trec_video_2026/pull/20) preserve
+  compatibility report · Evidence of record · Evidence report ·
+  GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-24-qwen3-omni-dstack-compatibility.md),
+  [closed issue \#5 · Issue/PR history ·
+  GitHub](https://github.com/npatta01/trec_video_2026/issues/5), [closed
+  issue \#17 · Issue/PR history ·
+  GitHub](https://github.com/npatta01/trec_video_2026/issues/17), [PR
+  \#14 · Issue/PR history ·
+  GitHub](https://github.com/npatta01/trec_video_2026/pull/14), and
+  recovery [PR \#20 · Issue/PR history ·
+  GitHub](https://github.com/npatta01/trec_video_2026/pull/20) preserve
   the gate-specific trail.
 
 </details>

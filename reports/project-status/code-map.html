@@ -5629,9 +5629,16 @@ color: var(--status-accent-dark);
 text-decoration-thickness: 0.08em;
 text-underline-offset: 0.15em;
 }
-a:focus-visible {
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
 outline: 3px solid var(--status-accent);
 outline-offset: 3px;
+}
+.content a,
+.page-footer a {
+overflow-wrap: anywhere;
 }
 h1,
 h2,
@@ -5646,6 +5653,91 @@ max-width: 24ch;
 color: var(--status-muted);
 font-size: 1.15rem;
 max-width: 68ch;
+}
+.lifecycle-banner {
+border: 1px solid var(--status-border);
+border-left: 0.35rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+margin-block: 0.5rem 1.5rem;
+padding: 0.8rem 1rem;
+}
+.lifecycle-banner p {
+margin: 0;
+}
+.decision-strip {
+display: grid;
+grid-template-columns: repeat(5, minmax(0, 1fr));
+gap: 0.65rem;
+margin-block: 1rem;
+}
+.decision-item {
+border: 1px solid var(--status-border);
+border-top: 0.3rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+padding: 0.75rem;
+}
+.decision-item p {
+margin-block: 0 0.35rem;
+}
+.status-breadcrumb {
+color: var(--status-muted);
+display: flex;
+flex-wrap: wrap;
+gap: 0.45rem;
+margin-block: 0.25rem 1rem;
+}
+.theme-local-nav {
+align-items: center;
+border-block: 1px solid var(--status-border);
+display: flex;
+flex-wrap: wrap;
+gap: 0.45rem 1rem;
+margin-block: 0 1.5rem;
+padding-block: 0.65rem;
+}
+.theme-local-nav a {
+font-size: 0.92rem;
+font-weight: 650;
+}
+.theme-decision-strip {
+border: 1px solid var(--status-border);
+border-left: 0.35rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+margin-block: 1rem 1.5rem;
+padding: 0.7rem 1rem;
+}
+.theme-decision-strip ul {
+display: grid;
+gap: 0.45rem 1rem;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+margin-block: 0;
+padding-left: 1.2rem;
+}
+.trace-label {
+color: var(--status-accent-dark);
+font-size: 0.9rem;
+letter-spacing: 0.04em;
+margin-block: 0.5rem 1.25rem;
+text-transform: uppercase;
+}
+.timestamp-storyboard {
+display: grid;
+grid-template-columns: repeat(4, minmax(0, 1fr));
+gap: 0.65rem;
+margin-block: 1rem;
+}
+.timestamp-card {
+border: 1px solid var(--status-border);
+border-radius: 0.4rem;
+background: var(--status-panel);
+min-height: 6.5rem;
+padding: 0.7rem;
+}
+.timestamp-card p {
+margin: 0;
 }
 .theme-grid {
 display: grid;
@@ -5667,10 +5759,78 @@ margin-top: 0;
 border-color: var(--status-accent);
 box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-accent) 22%, transparent);
 }
+.research-matrix {
+margin-block: 1rem 1.75rem;
+max-width: 100%;
+overflow-x: auto;
+}
+.research-matrix:focus-visible {
+outline: 3px solid var(--status-accent);
+outline-offset: 3px;
+}
+.research-matrix table {
+min-width: 68rem;
+}
+.failure-preview-grid {
+display: grid;
+gap: 0.75rem;
+grid-template-columns: repeat(3, minmax(0, 1fr));
+margin-block: 1rem 1.75rem;
+}
+.failure-preview {
+border: 1px solid var(--status-border);
+border-top: 0.3rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+padding: 0.8rem 0.9rem;
+}
+.failure-preview h3 {
+font-size: 1rem;
+margin-top: 0;
+}
+.failure-preview p {
+margin-bottom: 0;
+}
 .theme-status {
 color: var(--status-muted);
 font-size: 0.94rem;
 margin-block: 0.35rem;
+}
+.failure-case {
+border: 1px solid var(--status-border);
+border-top: 0.35rem solid var(--status-accent);
+border-radius: 0.5rem;
+background: #fff;
+margin-block: 1.5rem;
+padding: 1rem 1.1rem;
+}
+.failure-case > h3 {
+margin-top: 0;
+}
+.case-meta {
+color: var(--status-muted);
+font-size: 0.9rem;
+line-height: 1.45;
+margin-block: 0.35rem 1rem;
+}
+.case-fields {
+display: grid;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+gap: 0.75rem;
+}
+.case-field {
+border-left: 0.22rem solid var(--status-border);
+padding-inline: 0.75rem 0.25rem;
+}
+.case-field h4 {
+font-size: 1rem;
+margin-block: 0 0.35rem;
+}
+.case-field p {
+margin-block: 0;
+}
+.failure-case details {
+margin-bottom: 0;
 }
 details {
 border: 1px solid var(--status-border);
@@ -5685,6 +5845,7 @@ summary {
 cursor: pointer;
 color: var(--status-ink);
 font-weight: 650;
+padding-block: 0.15rem;
 }
 summary:focus-visible {
 outline: 3px solid var(--status-accent);
@@ -5737,6 +5898,10 @@ font-size: 0.92rem;
 max-width: 100%;
 overflow-x: auto;
 }
+pre {
+max-width: 100%;
+overflow-x: auto;
+}
 code {
 color: var(--status-ink);
 overflow-wrap: anywhere;
@@ -5761,10 +5926,28 @@ font-size: 1.05rem;
 .theme-grid {
 grid-template-columns: minmax(0, 1fr);
 }
+.theme-decision-strip ul,
+.failure-preview-grid {
+grid-template-columns: minmax(0, 1fr);
+}
+.theme-local-nav {
+align-items: flex-start;
+flex-direction: column;
+gap: 0.35rem;
+}
+.case-fields {
+grid-template-columns: minmax(0, 1fr);
+}
+.decision-strip,
+.timestamp-storyboard {
+grid-template-columns: minmax(0, 1fr);
+}
+.timestamp-card {
+min-height: 0;
+}
 table {
 font-size: 0.88rem;
-table-layout: fixed;
-width: 100%;
+min-width: 100%;
 }
 table th,
 table td {
@@ -5772,7 +5955,14 @@ overflow-wrap: anywhere;
 }
 .table-responsive,
 .quarto-table-container {
+max-width: 100%;
 overflow-x: auto;
+}
+.failure-case,
+.theme-card,
+.decision-item,
+.timestamp-card {
+min-width: 0;
 }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -5831,6 +6021,7 @@ transition: none !important;
    
   <ul class="collapse">
   <li><a href="#system-pipeline" id="toc-system-pipeline" class="nav-link active" data-scroll-target="#system-pipeline">System pipeline</a></li>
+  <li><a href="#synthetic-code-trace" id="toc-synthetic-code-trace" class="nav-link" data-scroll-target="#synthetic-code-trace">Trace the synthetic example to code</a></li>
   <li><a href="#supported-commands" id="toc-supported-commands" class="nav-link" data-scroll-target="#supported-commands">Supported commands</a></li>
   <li><a href="#code-layers" id="toc-code-layers" class="nav-link" data-scroll-target="#code-layers">Code layers</a></li>
   <li><a href="#repository-map" id="toc-repository-map" class="nav-link" data-scroll-target="#repository-map">Repository map</a></li>
@@ -5868,7 +6059,20 @@ transition: none !important;
 <div class="lead">
 <p>The repository has reusable acquisition and benchmark seams, four supported project commands, isolated model-family adapters, and several bespoke research workflows. For a newcomer, <strong><code>vqa-frozen30</code> is the most complete end-to-end workflow</strong>; <code>vqa-gate</code> currently exposes preflight only, and there is no general <code>vqa-score</code> command.</p>
 </div>
-<p>Use <a href="./index.html">Start Here</a> to choose a baseline and <a href="./experiment-ledger.html">Research Themes</a> to understand why it was chosen.</p>
+<p>Use <a href="./index.html">Start Here · Report page</a> to choose a baseline and <a href="./experiment-ledger.html">Research Themes · Report page</a> to understand why it was chosen.</p>
+<div class="callout callout-style-default callout-note callout-titled" title="How links in this report work">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>How links in this report work
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p><strong>Evidence of record · Evidence report · GitHub</strong> links use the immutable repository snapshot <code>814e55429f6dd1dc8570bc08f1dad849f74e36a1</code>. <strong>Current code · Source code · GitHub</strong> links use <code>main</code> because those implementation paths can evolve. <strong>Issue/PR history · GitHub</strong> links preserve the project history. <strong>Report page</strong> links stay inside this report. GitHub links require repository access until public release.</p>
+</div>
+</div>
 <section id="system-pipeline" class="level2">
 <h2 class="anchored" data-anchor-id="system-pipeline">System pipeline</h2>
 <div class="cell" data-layout-align="default">
@@ -5898,29 +6102,29 @@ Figure 1: The repository pipeline from source-video acquisition through sanitiz
 <thead>
 <tr class="header">
 <th>Stage</th>
-<th>Main tracked code</th>
+<th>Main tracked code · Current code · Source code · GitHub</th>
 <th>Boundary</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td>Acquisition</td>
-<td><a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/youtube_dataset.py"><code>youtube_dataset.py</code></a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_download.py"><code>vqa_download.py</code></a></td>
+<td><a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/youtube_dataset.py"><code>youtube_dataset.py</code> · Current code · Source code · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_download.py"><code>vqa_download.py</code> · Current code · Source code · GitHub</a></td>
 <td>Media and runtime state stay local and ignored.</td>
 </tr>
 <tr class="even">
 <td>Evidence preparation</td>
-<td><a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_benchmark.py"><code>vqa_benchmark.py</code></a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_gate.py"><code>vqa_gate.py</code></a>, tracked configs</td>
+<td><a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_benchmark.py"><code>vqa_benchmark.py</code> · Current code · Source code · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_gate.py"><code>vqa_gate.py</code> · Current code · Source code · GitHub</a>, tracked configs</td>
 <td>Questions and evidence are bound without reference labels in inference requests.</td>
 </tr>
 <tr class="odd">
 <td>Inference</td>
-<td>family runners plus <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_frozen30_workflow.py"><code>vqa_frozen30_workflow.py</code></a></td>
+<td>family runners plus <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_frozen30_workflow.py"><code>vqa_frozen30_workflow.py</code> · Current code · Source code · GitHub</a></td>
 <td>Heavy model runtimes are isolated; request/result identity is checked.</td>
 </tr>
 <tr class="even">
 <td>Scoring</td>
-<td><a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_evaluation.py"><code>vqa_evaluation.py</code></a> and experiment-specific scoring modules</td>
+<td><a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_evaluation.py"><code>vqa_evaluation.py</code> · Current code · Source code · GitHub</a> and experiment-specific scoring modules</td>
 <td>Labels are joined only after predictions are frozen.</td>
 </tr>
 <tr class="odd">
@@ -5932,9 +6136,73 @@ Figure 1: The repository pipeline from source-video acquisition through sanitiz
 </table>
 <p>The arrow sequence is operational, not a promise of a single universal command. Only frozen-30 currently packages preparation, guarded execution, resume/status, and scoring into one supported workflow.</p>
 </section>
+<section id="synthetic-code-trace" class="level2">
+<h2 class="anchored" data-anchor-id="synthetic-code-trace">Trace the synthetic example to code</h2>
+<p>The <a href="./worked-example.html">worked example · Report page</a> is a deliberately invented explanation: no video was downloaded, no model ran, and no benchmark row was written. The crosswalk below asks a narrower question: <strong>if a real, authorized row followed the same shape, which repository seam would own each stage?</strong> It does not convert the synthetic answer into executed evidence.</p>
+<div class="callout callout-style-default callout-warning callout-titled" title="Do not copy the stateful or expensive commands casually">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Warning</span>Do not copy the stateful or expensive commands casually
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p><code>vqa-download</code> can download media and mutate ignored local runtime state. <code>vqa-frozen30 run-whisper</code> and <code>vqa-frozen30 run CONDITION</code> can launch expensive GPU inference. Inspect <code>status</code>/<code>--help</code>, confirm dataset authorization and the frozen protocol, and obtain any required run authorization before using them. The commands below are a code-path map, not a walkthrough to execute now.</p>
+</div>
+</div>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Stage in the teaching trace</th>
+<th>Exact reusable CLI or module</th>
+<th>What really happened in the synthetic page</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>1. Acquisition</strong></td>
+<td>Reusable CLIs: <code>uv run vqa-download …</code> (TRECVID adapter) and <code>uv run youtube-dataset-download …</code> (generic engine); modules: <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_download.py"><code>vqa_download.py</code> · Current code · Source code · GitHub</a> and <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/youtube_dataset.py"><code>youtube_dataset.py</code> · Current code · Source code · GitHub</a>.</td>
+<td><strong>Bespoke/missing execution:</strong> the 22-second clip and scene notes were invented, so neither acquisition CLI ran and no media exists.</td>
+</tr>
+<tr class="even">
+<td><strong>2. Evidence preparation</strong></td>
+<td>Reusable frozen workflow: <code>uv run vqa-frozen30 prepare</code>; reusable frame builder: <code>build_frame_evidence()</code> in <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_benchmark.py"><code>vqa_benchmark.py</code> · Current code · Source code · GitHub</a>. Transcript binding, when separately authorized evidence exists, is <code>uv run vqa-frozen30 build-transcript-requests</code>.</td>
+<td><strong>Bespoke explanation:</strong> twelve timestamps and one ASR line were authored for teaching; no frames, audio, cache, manifest, or request artifact was produced.</td>
+</tr>
+<tr class="odd">
+<td><strong>3. Route</strong></td>
+<td><strong>Missing general seam:</strong> no versioned label-blind question router CLI/module exists. <code>build_transcript_requests()</code> in <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_frozen30_workflow.py"><code>vqa_frozen30_workflow.py</code> · Current code · Source code · GitHub</a> reuses accepted ASR quality status, but it does not implement the proposed lexical-speech question classifier.</td>
+<td>The route string <code>lexical_speech → request ASR → quality accepted</code> is an explanatory project-authored decision, not a router output.</td>
+</tr>
+<tr class="even">
+<td><strong>4. Inference</strong></td>
+<td>Supported orchestrator: <code>uv run vqa-frozen30 run CONDITION</code>; isolated current adapter for the illustrated Qwen family: <code>python -m trec_video_2026.vqa_transformers_runner</code>, invoked by the workflow rather than as a separate supported project CLI.</td>
+<td><strong>Bespoke/missing execution:</strong> <code>green tea</code> was invented. No model, container, runner request, or result existed.</td>
+</tr>
+<tr class="odd">
+<td><strong>5. Freeze</strong></td>
+<td>No standalone freeze CLI. The reusable workflow validates and appends attempts through <code>append_attempt_rows()</code> and <code>validate_frozen_attempt()</code> in <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_frozen30.py"><code>vqa_frozen30.py</code> · Current code · Source code · GitHub</a>; <code>freeze_selected_predictions()</code> in <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_frozen30_workflow.py"><code>vqa_frozen30_workflow.py</code> · Current code · Source code · GitHub</a> selects validated saved rows.</td>
+<td>“Frozen prediction” describes the narrated label boundary only; there is no append-only attempt row, hash, or run identifier.</td>
+</tr>
+<tr class="even">
+<td><strong>6. Score</strong></td>
+<td>Workflow CLI: <code>uv run vqa-frozen30 score</code>; reusable join-and-score module: <code>evaluate_saved_predictions()</code> in <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_evaluation.py"><code>vqa_evaluation.py</code> · Current code · Source code · GitHub</a>. There is no general <code>vqa-score</code> CLI.</td>
+<td>Exact match and token F1 of <code>1.0</code> were explanatory arithmetic on invented strings, not benchmark metrics.</td>
+</tr>
+<tr class="odd">
+<td><strong>7. Report</strong></td>
+<td><strong>Bespoke/missing general CLI:</strong> <code>vqa-frozen30 score</code> writes scored artifacts, but publication remains a manual, sanitized reporting step into tracked evidence pages. No reusable report generator promotes a run automatically.</td>
+<td>This local worked-example page reports teaching content only and is not an evidence-of-record benchmark report.</td>
+</tr>
+</tbody>
+</table>
+<p>For an executed benchmark row, the minimum distinguishing evidence would be a frozen run/condition identity, validated request and attempt records, artifact hashes, runtime attestations, and post-freeze scoring provenance. The synthetic page explicitly records that all of those are absent.</p>
+</section>
 <section id="supported-commands" class="level2">
 <h2 class="anchored" data-anchor-id="supported-commands">Supported commands</h2>
-<p>The four installed project scripts are declared in <a href="https://github.com/npatta01/trec_video_2026/blob/main/pyproject.toml"><code>pyproject.toml</code></a>. After <code>uv sync</code>, inspect them with <code>uv run &lt;command&gt; --help</code>; do not launch a large download or GPU run merely to explore the code.</p>
+<p>The four installed project scripts are declared in <a href="https://github.com/npatta01/trec_video_2026/blob/main/pyproject.toml"><code>pyproject.toml</code> · Current code · Source code · GitHub</a>. After <code>uv sync</code>, inspect them with <code>uv run &lt;command&gt; --help</code>; do not launch a large download or GPU run merely to explore the code.</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 33%">
@@ -5971,7 +6239,7 @@ Figure 1: The repository pipeline from source-video acquisition through sanitiz
 </tr>
 </tbody>
 </table>
-<p>There is <strong>no general <code>vqa-score</code> CLI</strong>. General scoring primitives live in <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_evaluation.py"><code>vqa_evaluation.py</code></a>; frozen-30 exposes its own <code>score</code> action, and later experiments have purpose-built scoring modules or scripts.</p>
+<p>There is <strong>no general <code>vqa-score</code> CLI</strong>. General scoring primitives live in <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_evaluation.py"><code>vqa_evaluation.py</code> · Current code · Source code · GitHub</a>; frozen-30 exposes its own <code>score</code> action, and later experiments have purpose-built scoring modules or scripts.</p>
 </section>
 <section id="code-layers" class="level2">
 <h2 class="anchored" data-anchor-id="code-layers">Code layers</h2>
@@ -5979,7 +6247,7 @@ Figure 1: The repository pipeline from source-video acquisition through sanitiz
 <thead>
 <tr class="header">
 <th>Layer</th>
-<th>Representative paths</th>
+<th>Representative paths · Current code · Source code · GitHub</th>
 <th>Intended reuse</th>
 </tr>
 </thead>
@@ -5991,17 +6259,17 @@ Figure 1: The repository pipeline from source-video acquisition through sanitiz
 </tr>
 <tr class="even">
 <td>Reusable modules</td>
-<td><a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_benchmark.py"><code>vqa_benchmark.py</code></a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_frozen30.py"><code>vqa_frozen30.py</code></a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_evaluation.py"><code>vqa_evaluation.py</code></a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_models.py"><code>vqa_models.py</code></a></td>
+<td><a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_benchmark.py"><code>vqa_benchmark.py</code> · Current code · Source code · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_frozen30.py"><code>vqa_frozen30.py</code> · Current code · Source code · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_evaluation.py"><code>vqa_evaluation.py</code> · Current code · Source code · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_models.py"><code>vqa_models.py</code> · Current code · Source code · GitHub</a></td>
 <td>Evidence construction, manifests, fail-closed resume controls, evaluation, and shared prompt behavior.</td>
 </tr>
 <tr class="odd">
 <td>Specialist adapters</td>
-<td><a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_transformers_runner.py"><code>vqa_transformers_runner.py</code></a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_specialist_runner.py"><code>vqa_specialist_runner.py</code></a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_omni_runner.py"><code>vqa_omni_runner.py</code></a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_whisper.py"><code>vqa_whisper.py</code></a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_audio_runner.py"><code>vqa_audio_runner.py</code></a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_seamless.py"><code>vqa_seamless.py</code></a></td>
+<td><a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_transformers_runner.py"><code>vqa_transformers_runner.py</code> · Current code · Source code · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_specialist_runner.py"><code>vqa_specialist_runner.py</code> · Current code · Source code · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_omni_runner.py"><code>vqa_omni_runner.py</code> · Current code · Source code · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_whisper.py"><code>vqa_whisper.py</code> · Current code · Source code · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_audio_runner.py"><code>vqa_audio_runner.py</code> · Current code · Source code · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_seamless.py"><code>vqa_seamless.py</code> · Current code · Source code · GitHub</a></td>
 <td>Isolated <code>python -m trec_video_2026.&lt;module&gt;</code> request/result adapters for pinned model families or modalities; they are not separate project scripts.</td>
 </tr>
 <tr class="even">
 <td>Bespoke experiment workflows</td>
-<td><a href="https://github.com/npatta01/trec_video_2026/tree/main/src/trec_video_2026/vqa_experiments"><code>vqa_experiments/</code></a> and <code>scripts/</code> experiment helpers</td>
+<td><a href="https://github.com/npatta01/trec_video_2026/tree/main/src/trec_video_2026/vqa_experiments"><code>vqa_experiments/</code> · Current code · Source code · GitHub</a> and <code>scripts/</code> experiment helpers</td>
 <td>Frozen contracts, transport, scoring, and collection for a specific research question; reuse only after reading that experiment’s report and limitations.</td>
 </tr>
 </tbody>
@@ -6038,35 +6306,35 @@ Figure 2: Repository map showing the tracked newcomer entry points and the igno
 <table class="caption-top table">
 <thead>
 <tr class="header">
-<th>Path</th>
+<th>Path · Current code · Source code · GitHub</th>
 <th>Read it when…</th>
 <th>Caution</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><a href="https://github.com/npatta01/trec_video_2026/blob/main/README.md"><code>README.md</code></a> and <a href="https://github.com/npatta01/trec_video_2026/blob/main/pyproject.toml"><code>pyproject.toml</code></a></td>
+<td><a href="https://github.com/npatta01/trec_video_2026/blob/main/README.md"><code>README.md</code> · Current code · Source code · GitHub</a> and <a href="https://github.com/npatta01/trec_video_2026/blob/main/pyproject.toml"><code>pyproject.toml</code> · Current code · Source code · GitHub</a></td>
 <td>You need the operating boundary or supported command names.</td>
 <td>A help command is safer than starting work.</td>
 </tr>
 <tr class="even">
-<td><a href="https://github.com/npatta01/trec_video_2026/tree/main/src/trec_video_2026"><code>src/trec_video_2026/</code></a></td>
+<td><a href="https://github.com/npatta01/trec_video_2026/tree/main/src/trec_video_2026"><code>src/trec_video_2026/</code> · Current code · Source code · GitHub</a></td>
 <td>You are changing reusable behavior, orchestration, or an adapter.</td>
 <td>Identify the layer before widening an experiment-specific seam.</td>
 </tr>
 <tr class="odd">
-<td><a href="https://github.com/npatta01/trec_video_2026/tree/main/configs/vqa"><code>configs/vqa/</code></a> and <a href="https://github.com/npatta01/trec_video_2026/tree/main/scripts"><code>scripts/</code></a></td>
+<td><a href="https://github.com/npatta01/trec_video_2026/tree/main/configs/vqa"><code>configs/vqa/</code> · Current code · Source code · GitHub</a> and <a href="https://github.com/npatta01/trec_video_2026/tree/main/scripts"><code>scripts/</code> · Current code · Source code · GitHub</a></td>
 <td>You need frozen run definitions or operational helpers.</td>
 <td>Some helpers launch expensive or stateful work; inspect first.</td>
 </tr>
 <tr class="even">
-<td><a href="https://github.com/npatta01/trec_video_2026/tree/main/docs/experiments"><code>docs/experiments/</code></a></td>
+<td><a href="https://github.com/npatta01/trec_video_2026/tree/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments"><code>docs/experiments/</code> · Evidence of record · Evidence report · GitHub</a></td>
 <td>You need recent sanitized experiment contracts and results.</td>
 <td>Compatibility reports may be superseded by quality reports.</td>
 </tr>
 <tr class="odd">
-<td><a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/README.md"><code>reports/trecvid_vqa_2026/</code></a></td>
-<td>You need the July 12 field guide or later analytical reports.</td>
+<td><a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/report.html">July 12 field guide · Evidence of record · Evidence report · GitHub</a></td>
+<td>You need the background field guide or later analytical reports.</td>
 <td>Historical recommendations are not the current default.</td>
 </tr>
 <tr class="even">
@@ -6115,7 +6383,7 @@ Figure 2: Repository map showing the tracked newcomer entry points and the igno
 <li><a href="./research-models.html">Models and adaptation</a></li>
 <li><a href="./research-routing.html">Routing, fusion, and answer selection</a></li>
 </ul>
-<p>The current safe next action is therefore determined by the question: use <a href="./experiment-ledger.html">Research Themes</a> for a research decision, or begin at the supported-command table above for a code change.</p>
+<p>The current safe next action is therefore determined by the question: use <a href="./experiment-ledger.html">Research Themes · Report page</a> for a research decision, or begin at the supported-command table above for a code change.</p>
 
 
 </section>
@@ -6464,13 +6732,13 @@ Figure 2: Repository map showing the tracked newcomer entry points and the igno
 <footer class="footer">
   <div class="nav-footer">
     <div class="nav-footer-left">
-<p>Repository evidence through 2026-07-25</p>
+<p>Reviewed evidence: 2026-07-26</p>
 </div>   
     <div class="nav-footer-center">
        
     </div>
     <div class="nav-footer-right">
-<p>Sanitized aggregates only</p>
+<p>Development phase · 2026 evaluation quality remains unknown</p>
 </div>
   </div>
 </footer>

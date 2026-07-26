@@ -1,28 +1,42 @@
 # Models and Adaptation
 
 
-## Back to Research Themes
+<span id="back-to-research-themes" class="legacy-fragment-alias"
+aria-hidden="true"></span>
+<nav class="status-breadcrumb" aria-label="Breadcrumb">
 
-Return to the [Research Themes and Experiment
-Ledger](experiment-ledger.md).
+<a href="index.md">Start Here</a> <span aria-hidden="true">/</span>
+<a href="experiment-ledger.md">Research Themes</a>
+<span aria-hidden="true">/</span> <span aria-current="page">Models and
+Adaptation</span>
+</nav>
 
-## Technical summary
+<nav class="theme-local-nav" aria-label="On this theme page">
 
-Runtime compatibility is a prerequisite, not a quality result. The
-current operational choices are Qwen3.5-4B with 12 frames as the
-accuracy baseline and MiniCPM-o 4.5 with audio off as the **Fast
-alternate**. No later model family has met a comparable quality and
-integrity gate. Small selected screens are still useful: they identify
-where a repaired run, specialist panel, or a different bottleneck might
-be worth testing.
+<a href="#current-working-answer">Working answer</a>
+<a href="#what-has-been-tried">Tried</a>
+<a href="#known-failures-and-cases">Failures</a>
+<a href="#cheapest-valid-next-experiments">Next tests</a>
+</nav>
 
-## Why this theme matters
+<span id="why-this-theme-matters" class="legacy-fragment-alias"
+aria-hidden="true"></span>
+
+## New to this theme?
 
 A new model can fail because it cannot run, because it violates an input
 or output contract, because it lacks needed evidence, or because it
 makes a poor answer despite having that evidence. These are different
 failures, so a model family should not receive a permanent verdict from
 one small panel.
+
+For example, a model that accepts frames and audio has passed a
+compatibility check, not an answer-quality check. If a later answer is
+wrong because the needed moment was never supplied, replacing or
+fine-tuning the answerer targets the wrong bottleneck.
+
+<span id="technical-summary" class="legacy-fragment-alias"
+aria-hidden="true"></span>
 
 ## Current working answer
 
@@ -32,6 +46,30 @@ and MiniCPM-o 4.5 audio-off as the **Fast alternate**. Treat
 newer/larger candidates as **Diagnostic signal**, **Routed candidate**,
 or **Open hypothesis** until they complete a matched, label-isolated
 quality comparison.
+
+<div class="theme-decision-strip" aria-label="Model decisions">
+
+- **Use now:** Qwen3.5-4B with 12 frames; use MiniCPM-o audio-off for
+  speed.
+- **Do not default:** later candidates based on compatibility or
+  selected screens alone.
+- **Still possible:** repaired Omni, specialist models, and
+  bottleneck-first adaptation.
+- **Next test:** repair the strict output path, then diagnose retrieval
+  versus fusion before training.
+
+</div>
+
+## Evidence at a glance
+
+- **Strongest comparison:** frozen-30 protocol v2 supports the current
+  Qwen and MiniCPM roles on labeled 2025 training data.
+- **Selected diagnostics:** Qwen3.6, Phi, Gemma, and Omni screens do not
+  rank their families globally.
+- **Confirmed defect:** one Qwen3-Omni strict output missed the 20/20
+  completion gate.
+- **Condition boundary:** no small screen permanently disqualifies a
+  model, checkpoint, evidence route, or later adaptation.
 
 ## What has been tried
 
@@ -51,6 +89,8 @@ quality comparison.
   competition quality from three execution rows.
 - **What it does not rule out:** a repaired adapter or a matched larger
   quality panel for any compatible family.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—three
+  selected rows are a portability screen, not a quality ranking.
 - **Reconsider when:** the candidate completes a declared,
   label-isolated quality panel with the same evidence and scoring
   controls as its comparator.
@@ -63,8 +103,9 @@ Method, result, validity risks, and evidence
 </summary>
 
 The compatibility gate checks that a combined request can execute; it
-does not score semantic answer quality. The [three-video gate
-report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md)
+does not score semantic answer quality. The [three-video gate report ·
+Evidence of record · Evidence report ·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md)
 and [Experiment Integrity and
 Evaluation](research-integrity.md#compatibility-gate) describe why that
 distinction matters.
@@ -88,6 +129,8 @@ distinction matters.
   and 12-frame configuration from the 12-row failure panel.
 - **What it does not rule out:** a different Qwen3.6 revision, evidence
   policy, question route, or representative matched panel.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the 12
+  rows were selected failures and include a visual-control regression.
 - **Reconsider when:** a compatibility-cleared version passes a
   predeclared matched specialist or representative quality gate without
   control loss.
@@ -103,7 +146,8 @@ The run itself was technically clean, so this is not a runtime failure.
 The failure-selected panel can reveal recovery patterns but cannot
 estimate full test accuracy; the 24-frame local winner on this panel is
 superseded as a global default by frozen-30. See the [failure-panel
-report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md).
+report · Evidence of record · Evidence report ·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md).
 </details>
 
 <a name="phi-gemma-semantic-stop"></a>
@@ -127,6 +171,8 @@ report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vq
 - **What it does not rule out:** a newer checkpoint, a repaired input
   path, a different evidence route, or a larger representative
   comparison.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the
+  three-row semantic screen is too small to rank either family.
 - **Reconsider when:** a candidate first passes compatibility and then
   meets a predeclared semantic-quality and control non-regression gate
   on a matched panel.
@@ -139,10 +185,12 @@ Method, result, validity risks, and evidence
 </summary>
 
 The counts are a semantic screen, not a general leaderboard. The
-relevant records are the [compatibility
-probe](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-nonqwen-omni-compatibility.md)
-and [semantic-quality
-correction](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-omni-semantic-quality.md).
+relevant records are the [compatibility probe · Evidence of record ·
+Evidence report ·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-24-nonqwen-omni-compatibility.md)
+and [semantic-quality correction · Evidence of record · Evidence report
+·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-24-omni-semantic-quality.md).
 </details>
 
 ### MiniCPM-o 4.5 fast alternate
@@ -166,8 +214,9 @@ Method, result, validity risks, and evidence
 
 All four frozen-30 conditions completed 30/30 rows. This is descriptive
 model selection on labeled 2025 training data, not an estimate for the
-unlabeled 2026 evaluation set. See the [protocol-v2
-report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
+unlabeled 2026 evaluation set. See the [protocol-v2 report · Evidence of
+record · Evidence report ·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
 </details>
 
 <a name="qwen3-omni-quality"></a>
@@ -192,6 +241,9 @@ report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vq
 - **What it does not rule out:** the model family, a repaired
   parser/output contract, a complete blinded paired run, or specialist
   native-audio value.
+- **Possible defect, audit gap, or uncertainty:** **Confirmed
+  defect**—one fenced output failed the unchanged strict parser and
+  completion gate.
 - **Reconsider when:** a sentinel verifies the output fix and a fresh
   full 20-call paired run completes under one frozen configuration and
   its declared quality/control gate.
@@ -209,13 +261,22 @@ A2 rerun corrected that prompt context but one strict-parser failure
 remained. Semantic recovery of that exact output is diagnostic only and
 cannot retroactively complete A2. The 10 rows are selected and
 frame-based, so they cannot be compared directly to frozen-30. 2026
-answer quality remains unknown. See the [quality-10
-report](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10.md)
-and [neutral A2
-result](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md).
+answer quality remains unknown. See the [quality-10 report · Evidence of
+record · Evidence report ·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-25-qwen3-omni-quality-10.md)
+and [neutral A2 result · Evidence of record · Evidence report ·
+GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md).
 </details>
 
-## What the evidence supports
+## Known failures and cases
+
+[CASE-004 — Unsupported native-audio
+specificity](failure-library.md#case-004) illustrates why a more capable
+modality path can still produce a worse, over-specific answer. Diagnose
+evidence, fusion, and output-contract failures before treating the model
+family as the cause.
+
+### What the evidence supports
 
 - A successful adapter or joint-modality request proves compatibility,
   not semantic answer quality.
@@ -227,7 +288,7 @@ result](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2
   eligible promotion result because its strict completion gate was not
   met.
 
-## What it does not rule out
+### What it does not rule out
 
 - No small screen permanently disqualifies a model family, model
   revision, or specialist route.
@@ -239,7 +300,10 @@ result](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2
   measured bottleneck that warrants it over evidence selection or answer
   grounding.
 
-## Possible bugs, confounds, and audit gaps
+<span id="possible-bugs-confounds-and-audit-gaps"
+class="legacy-fragment-alias" aria-hidden="true"></span>
+
+### Confirmed defects, audit gaps, and uncertainties
 
 - **Confirmed defect:** one Qwen3-Omni strict-output contract failed,
   making that run ineligible for its predeclared promotion decision.
@@ -317,6 +381,22 @@ result](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2
 - **Boundary on what a positive result would establish:** value for the
   declared adaptation and panel, not a blanket claim that fine-tuning
   solves video QA.
+
+## Method, result, validity risks, and evidence
+
+<details>
+
+<summary>
+
+How to audit this theme’s records
+</summary>
+
+The visible summaries distinguish compatibility, completion, semantic
+quality, cost, and promotion. Open each record’s native details block
+for source links, panel selection, and configuration risks. A
+model/adaptation decision is valid only after its measured bottleneck
+and matched controls are explicit.
+</details>
 
 ## Related themes
 

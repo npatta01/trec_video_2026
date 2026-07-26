@@ -2527,9 +2527,16 @@ color: var(--status-accent-dark);
 text-decoration-thickness: 0.08em;
 text-underline-offset: 0.15em;
 }
-a:focus-visible {
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
 outline: 3px solid var(--status-accent);
 outline-offset: 3px;
+}
+.content a,
+.page-footer a {
+overflow-wrap: anywhere;
 }
 h1,
 h2,
@@ -2544,6 +2551,91 @@ max-width: 24ch;
 color: var(--status-muted);
 font-size: 1.15rem;
 max-width: 68ch;
+}
+.lifecycle-banner {
+border: 1px solid var(--status-border);
+border-left: 0.35rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+margin-block: 0.5rem 1.5rem;
+padding: 0.8rem 1rem;
+}
+.lifecycle-banner p {
+margin: 0;
+}
+.decision-strip {
+display: grid;
+grid-template-columns: repeat(5, minmax(0, 1fr));
+gap: 0.65rem;
+margin-block: 1rem;
+}
+.decision-item {
+border: 1px solid var(--status-border);
+border-top: 0.3rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+padding: 0.75rem;
+}
+.decision-item p {
+margin-block: 0 0.35rem;
+}
+.status-breadcrumb {
+color: var(--status-muted);
+display: flex;
+flex-wrap: wrap;
+gap: 0.45rem;
+margin-block: 0.25rem 1rem;
+}
+.theme-local-nav {
+align-items: center;
+border-block: 1px solid var(--status-border);
+display: flex;
+flex-wrap: wrap;
+gap: 0.45rem 1rem;
+margin-block: 0 1.5rem;
+padding-block: 0.65rem;
+}
+.theme-local-nav a {
+font-size: 0.92rem;
+font-weight: 650;
+}
+.theme-decision-strip {
+border: 1px solid var(--status-border);
+border-left: 0.35rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+margin-block: 1rem 1.5rem;
+padding: 0.7rem 1rem;
+}
+.theme-decision-strip ul {
+display: grid;
+gap: 0.45rem 1rem;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+margin-block: 0;
+padding-left: 1.2rem;
+}
+.trace-label {
+color: var(--status-accent-dark);
+font-size: 0.9rem;
+letter-spacing: 0.04em;
+margin-block: 0.5rem 1.25rem;
+text-transform: uppercase;
+}
+.timestamp-storyboard {
+display: grid;
+grid-template-columns: repeat(4, minmax(0, 1fr));
+gap: 0.65rem;
+margin-block: 1rem;
+}
+.timestamp-card {
+border: 1px solid var(--status-border);
+border-radius: 0.4rem;
+background: var(--status-panel);
+min-height: 6.5rem;
+padding: 0.7rem;
+}
+.timestamp-card p {
+margin: 0;
 }
 .theme-grid {
 display: grid;
@@ -2565,10 +2657,78 @@ margin-top: 0;
 border-color: var(--status-accent);
 box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-accent) 22%, transparent);
 }
+.research-matrix {
+margin-block: 1rem 1.75rem;
+max-width: 100%;
+overflow-x: auto;
+}
+.research-matrix:focus-visible {
+outline: 3px solid var(--status-accent);
+outline-offset: 3px;
+}
+.research-matrix table {
+min-width: 68rem;
+}
+.failure-preview-grid {
+display: grid;
+gap: 0.75rem;
+grid-template-columns: repeat(3, minmax(0, 1fr));
+margin-block: 1rem 1.75rem;
+}
+.failure-preview {
+border: 1px solid var(--status-border);
+border-top: 0.3rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+padding: 0.8rem 0.9rem;
+}
+.failure-preview h3 {
+font-size: 1rem;
+margin-top: 0;
+}
+.failure-preview p {
+margin-bottom: 0;
+}
 .theme-status {
 color: var(--status-muted);
 font-size: 0.94rem;
 margin-block: 0.35rem;
+}
+.failure-case {
+border: 1px solid var(--status-border);
+border-top: 0.35rem solid var(--status-accent);
+border-radius: 0.5rem;
+background: #fff;
+margin-block: 1.5rem;
+padding: 1rem 1.1rem;
+}
+.failure-case > h3 {
+margin-top: 0;
+}
+.case-meta {
+color: var(--status-muted);
+font-size: 0.9rem;
+line-height: 1.45;
+margin-block: 0.35rem 1rem;
+}
+.case-fields {
+display: grid;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+gap: 0.75rem;
+}
+.case-field {
+border-left: 0.22rem solid var(--status-border);
+padding-inline: 0.75rem 0.25rem;
+}
+.case-field h4 {
+font-size: 1rem;
+margin-block: 0 0.35rem;
+}
+.case-field p {
+margin-block: 0;
+}
+.failure-case details {
+margin-bottom: 0;
 }
 details {
 border: 1px solid var(--status-border);
@@ -2583,6 +2743,7 @@ summary {
 cursor: pointer;
 color: var(--status-ink);
 font-weight: 650;
+padding-block: 0.15rem;
 }
 summary:focus-visible {
 outline: 3px solid var(--status-accent);
@@ -2635,6 +2796,10 @@ font-size: 0.92rem;
 max-width: 100%;
 overflow-x: auto;
 }
+pre {
+max-width: 100%;
+overflow-x: auto;
+}
 code {
 color: var(--status-ink);
 overflow-wrap: anywhere;
@@ -2659,10 +2824,28 @@ font-size: 1.05rem;
 .theme-grid {
 grid-template-columns: minmax(0, 1fr);
 }
+.theme-decision-strip ul,
+.failure-preview-grid {
+grid-template-columns: minmax(0, 1fr);
+}
+.theme-local-nav {
+align-items: flex-start;
+flex-direction: column;
+gap: 0.35rem;
+}
+.case-fields {
+grid-template-columns: minmax(0, 1fr);
+}
+.decision-strip,
+.timestamp-storyboard {
+grid-template-columns: minmax(0, 1fr);
+}
+.timestamp-card {
+min-height: 0;
+}
 table {
 font-size: 0.88rem;
-table-layout: fixed;
-width: 100%;
+min-width: 100%;
 }
 table th,
 table td {
@@ -2670,7 +2853,14 @@ overflow-wrap: anywhere;
 }
 .table-responsive,
 .quarto-table-container {
+max-width: 100%;
 overflow-x: auto;
+}
+.failure-case,
+.theme-card,
+.decision-item,
+.timestamp-card {
+min-width: 0;
 }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2728,16 +2918,14 @@ transition: none !important;
     <h2 id="toc-title">On this page</h2>
    
   <ul class="collapse">
-  <li><a href="#back-to-research-themes" id="toc-back-to-research-themes" class="nav-link active" data-scroll-target="#back-to-research-themes">Back to Research Themes</a></li>
-  <li><a href="#technical-summary" id="toc-technical-summary" class="nav-link" data-scroll-target="#technical-summary">Technical summary</a></li>
-  <li><a href="#why-this-theme-matters" id="toc-why-this-theme-matters" class="nav-link" data-scroll-target="#why-this-theme-matters">Why this theme matters</a></li>
+  <li><a href="#why-this-theme-matters" id="toc-why-this-theme-matters" class="nav-link active" data-scroll-target="#why-this-theme-matters">New to this theme?</a></li>
   <li><a href="#current-working-answer" id="toc-current-working-answer" class="nav-link" data-scroll-target="#current-working-answer">Current working answer</a></li>
+  <li><a href="#evidence-at-a-glance" id="toc-evidence-at-a-glance" class="nav-link" data-scroll-target="#evidence-at-a-glance">Evidence at a glance</a></li>
   <li><a href="#what-has-been-tried" id="toc-what-has-been-tried" class="nav-link" data-scroll-target="#what-has-been-tried">What has been tried</a></li>
-  <li><a href="#what-the-evidence-supports" id="toc-what-the-evidence-supports" class="nav-link" data-scroll-target="#what-the-evidence-supports">What the evidence supports</a></li>
-  <li><a href="#what-it-does-not-rule-out" id="toc-what-it-does-not-rule-out" class="nav-link" data-scroll-target="#what-it-does-not-rule-out">What it does not rule out</a></li>
-  <li><a href="#possible-bugs-confounds-and-audit-gaps" id="toc-possible-bugs-confounds-and-audit-gaps" class="nav-link" data-scroll-target="#possible-bugs-confounds-and-audit-gaps">Possible bugs, confounds, and audit gaps</a></li>
+  <li><a href="#known-failures-and-cases" id="toc-known-failures-and-cases" class="nav-link" data-scroll-target="#known-failures-and-cases">Known failures and cases</a></li>
   <li><a href="#open-hypotheses-and-ideas" id="toc-open-hypotheses-and-ideas" class="nav-link" data-scroll-target="#open-hypotheses-and-ideas">Open hypotheses and ideas</a></li>
   <li><a href="#cheapest-valid-next-experiments" id="toc-cheapest-valid-next-experiments" class="nav-link" data-scroll-target="#cheapest-valid-next-experiments">Cheapest valid next experiments</a></li>
+  <li><a href="#method-result-validity-risks-and-evidence" id="toc-method-result-validity-risks-and-evidence" class="nav-link" data-scroll-target="#method-result-validity-risks-and-evidence">Method, result, validity risks, and evidence</a></li>
   <li><a href="#related-themes" id="toc-related-themes" class="nav-link" data-scroll-target="#related-themes">Related themes</a></li>
   </ul>
 </nav>
@@ -2769,21 +2957,39 @@ transition: none !important;
 </header>
 
 
-<section id="back-to-research-themes" class="level2">
-<h2 class="anchored" data-anchor-id="back-to-research-themes">Back to Research Themes</h2>
-<p>Return to the <a href="./experiment-ledger.html">Research Themes and Experiment Ledger</a>.</p>
-</section>
-<section id="technical-summary" class="level2">
-<h2 class="anchored" data-anchor-id="technical-summary">Technical summary</h2>
-<p>Native audio is not one capability. Words, vocal delivery, environmental sound, and identifying the title of a recording require different evidence. The current evidence does <strong>not</strong> support turning native audio on for every question. It does leave category-routed audio open: the clearest diagnostic improvements are in prosody and non-speech sound, while exact music-title questions remain a retrieval problem rather than a general-VLM guessing task.</p>
-</section>
+<span id="back-to-research-themes" class="legacy-fragment-alias" aria-hidden="true"></span>
+<nav class="status-breadcrumb" aria-label="Breadcrumb">
+<a href="./index.html">Start Here</a> <span aria-hidden="true">/</span> <a href="./experiment-ledger.html">Research Themes</a> <span aria-hidden="true">/</span> <span aria-current="page">Native Audio and Sound</span>
+</nav>
+<nav class="theme-local-nav" aria-label="On this theme page">
+<a href="#current-working-answer">Working answer</a> <a href="#what-has-been-tried">Tried</a> <a href="#known-failures-and-cases">Failures</a> <a href="#cheapest-valid-next-experiments">Next tests</a>
+</nav>
 <section id="why-this-theme-matters" class="level2">
-<h2 class="anchored" data-anchor-id="why-this-theme-matters">Why this theme matters</h2>
+<h2 class="anchored" data-anchor-id="why-this-theme-matters">New to this theme?</h2>
 <p>An automatic transcript can preserve spoken words but loses tone, music, alarms, overlapping voices, and timing. A native-audio model can consume that signal, but it may also distract from a visual or temporal question. Treating all audio questions alike would hide that trade-off.</p>
+<p>For example, “what word was spoken?” may be served by ASR, while “did the voice sound angry?” needs prosody and “what made the popping sound?” needs non-speech audio. Exact music-title questions are different again: they may need fingerprint retrieval with abstention, not confident generation.</p>
+<p><span id="technical-summary" class="legacy-fragment-alias" aria-hidden="true"></span></p>
 </section>
 <section id="current-working-answer" class="level2">
 <h2 class="anchored" data-anchor-id="current-working-answer">Current working answer</h2>
 <p>Keep the 12-frame visual baseline as the default and the MiniCPM-o audio-off path as the <strong>Fast alternate</strong>. Native audio is a <strong>Routed candidate</strong> for a declared prosody or non-speech-sound question, not a global switch. Exact music identification should abstain or use fingerprint/retrieval evidence rather than ask a general VLM to invent a title.</p>
+<div class="theme-decision-strip" aria-label="Native-audio decisions">
+<ul>
+<li><strong>Use now:</strong> the visual baseline; MiniCPM-o audio-off remains the fast alternate.</li>
+<li><strong>Do not default:</strong> native audio on every question or general-VLM music-title guesses.</li>
+<li><strong>Still possible:</strong> routed prosody, non-speech sound, fingerprinting, and repaired Omni audio.</li>
+<li><strong>Next test:</strong> a matched specialist panel with audio-off fallback and route-level non-regression.</li>
+</ul>
+</div>
+</section>
+<section id="evidence-at-a-glance" class="level2">
+<h2 class="anchored" data-anchor-id="evidence-at-a-glance">Evidence at a glance</h2>
+<ul>
+<li><strong>Global result:</strong> MiniCPM audio on tied exact match and reduced F1/METEOR on its ten-row pre-v2 screen.</li>
+<li><strong>Localized signal:</strong> selected diagnostics improved some prosody and sound cases while regressing temporal cases.</li>
+<li><strong>Confirmed defect:</strong> Qwen3-Omni’s strict run completed only 19/20 outputs.</li>
+<li><strong>Condition boundary:</strong> these panels do not permanently reject routed native audio or another audio-capable model.</li>
+</ul>
 </section>
 <section id="what-has-been-tried" class="level2">
 <h2 class="anchored" data-anchor-id="what-has-been-tried">What has been tried</h2>
@@ -2796,13 +3002,14 @@ transition: none !important;
 <li><strong>Current condition-bound status:</strong> <strong>Not promoted under the tested condition</strong> as a global audio-on policy.</li>
 <li><strong>What this rules out now:</strong> enabling native audio by default for this MiniCPM version and 10-row gate.</li>
 <li><strong>What it does not rule out:</strong> a matched specialist route for prosody, non-speech sound, or another model/prompt/panel.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—this pre-v2 ten-row screen cannot estimate category-specific or global value.</li>
 <li><strong>Reconsider when:</strong> a stratified, audio-off/audio-on comparison meets a predeclared target-stratum gain and visual/temporal-control non-regression.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-This was pre-v2 screening evidence, not part of frozen-30’s four-condition ranking. Its promotion rule also required non-speech wins, multilingual wins, and no temporal/control loss; it did not pass. The <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">protocol-v2 report</a> records the gate values and explicitly calls for a new controlled native-audio test rather than assuming it helps.
+This was pre-v2 screening evidence, not part of frozen-30’s four-condition ranking. Its promotion rule also required non-speech wins, multilingual wins, and no temporal/control loss; it did not pass. The <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">protocol-v2 report · Evidence of record · Evidence report · GitHub</a> records the gate values and explicitly calls for a new controlled native-audio test rather than assuming it helps.
 </details>
 </section>
 <section id="failure-panel-native-audio" class="level3">
@@ -2814,13 +3021,14 @@ This was pre-v2 screening evidence, not part of frozen-30’s four-condition ran
 <li><strong>Current condition-bound status:</strong> <strong>Diagnostic signal</strong> for category-gated native audio; <strong>Not promoted under the tested condition</strong> as a global switch.</li>
 <li><strong>What this rules out now:</strong> treating this MiniCPM audio-on configuration as a better all-question policy on the failure-selected panel.</li>
 <li><strong>What it does not rule out:</strong> native audio for declared prosody or non-speech-sound strata, a different audio-capable model, or an audio route with abstention.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—the panel was selected from known failures and is not a prevalence sample.</li>
 <li><strong>Reconsider when:</strong> a representative matched panel shows a target-stratum gain while preserving visual-control and temporal performance.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-The first launch had a container-mount error before inference; the corrected run completed all 12 requests. That operational repair is not evidence of quality. This panel was selected from known failures, so it can diagnose recovery behavior but cannot estimate full-test prevalence or rank systems. See the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md">failure-panel report</a>.
+The first launch had a container-mount error before inference; the corrected run completed all 12 requests. That operational repair is not evidence of quality. This panel was selected from known failures, so it can diagnose recovery behavior but cannot estimate full-test prevalence or rank systems. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md">failure-panel report · Evidence of record · Evidence report · GitHub</a>.
 </details>
 </section>
 <section id="qwen3-omni-native-audio" class="level3">
@@ -2832,13 +3040,14 @@ The first launch had a container-mount error before inference; the corrected run
 <li><strong>Current condition-bound status:</strong> <strong>Diagnostic signal</strong>; it is formally ineligible for promotion under the predeclared 20/20 completion gate.</li>
 <li><strong>What this rules out now:</strong> promoting that incomplete strict run or calling native audio a new overall default from this ten-row diagnostic.</li>
 <li><strong>What it does not rule out:</strong> a repaired, complete, blinded Qwen3-Omni comparison, or a category route whose gate is met on a representative panel.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Confirmed defect</strong>—one strict-parser output failed the predeclared completion contract.</li>
 <li><strong>Reconsider when:</strong> terminal-output handling passes a sentinel check and a fresh full paired run completes 20/20 under one frozen contract.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-One complete answer was wrapped in a Markdown JSON fence and failed the unchanged strict parser; a post-hoc semantic diagnostic cannot change that eligibility outcome. The panel is selected and frame-based, so it is neither a global ranking nor a complete native-video test. Model-specific gate details are on <a href="./research-models.html#qwen3-omni-quality">Models and Adaptation</a>. See the <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10.md">quality-10 report</a>.
+One complete answer was wrapped in a Markdown JSON fence and failed the unchanged strict parser; a post-hoc semantic diagnostic cannot change that eligibility outcome. The panel is selected and frame-based, so it is neither a global ranking nor a complete native-video test. Model-specific gate details are on <a href="./research-models.html#qwen3-omni-quality">Models and Adaptation</a>. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-25-qwen3-omni-quality-10.md">quality-10 report · Evidence of record · Evidence report · GitHub</a>.
 </details>
 </section>
 <section id="sound-music-boundary" class="level3">
@@ -2850,18 +3059,25 @@ One complete answer was wrapped in a Markdown JSON fence and failed the unchange
 <li><strong>Current condition-bound status:</strong> <strong>Open hypothesis</strong> for a dedicated sound route; exact music-title retrieval is <strong>Not promoted under the tested general-VLM conditions</strong>.</li>
 <li><strong>What this rules out now:</strong> using ASR text as a substitute for non-speech audio or asking the current general VLMs to guess an exact composition title.</li>
 <li><strong>What it does not rule out:</strong> an audio-event classifier, fingerprint lookup, or a provenance-safe music retrieval system that can abstain.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—six-row and selected failure panels cannot establish catalog coverage or prevalence.</li>
 <li><strong>Reconsider when:</strong> a route names its evidence source, abstention behavior, and target-stratum control before a matched evaluation.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-Frozen-30 is the stronger panel but has only six rows per stratum; the failure-selected rows are diagnostic only. The <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">protocol-v2 report</a> and <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md">failure-panel report</a> support this separation.
+Frozen-30 is the stronger panel but has only six rows per stratum; the failure-selected rows are diagnostic only. The <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">protocol-v2 report · Evidence of record · Evidence report · GitHub</a> and <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md">failure-panel report · Evidence of record · Evidence report · GitHub</a> support this separation.
 </details>
 </section>
 </section>
-<section id="what-the-evidence-supports" class="level2">
-<h2 class="anchored" data-anchor-id="what-the-evidence-supports">What the evidence supports</h2>
+<section id="known-failures-and-cases" class="level2">
+<h2 class="anchored" data-anchor-id="known-failures-and-cases">Known failures and cases</h2>
+<ul>
+<li><a href="./failure-library.html#case-002">CASE-002 — Non-lexical event missed by transcript gate</a> motivates a sound route rather than forcing non-lexical evidence through ASR.</li>
+<li><a href="./failure-library.html#case-004">CASE-004 — Unsupported native-audio specificity</a> shows why native sound needs grounded labels or abstention.</li>
+</ul>
+<section id="what-the-evidence-supports" class="level3">
+<h3 class="anchored" data-anchor-id="what-the-evidence-supports">What the evidence supports</h3>
 <ul>
 <li>Speech text and native sound are complementary evidence types, not interchangeable routes.</li>
 <li>No global audio-on condition has earned promotion over its audio-off control under a complete eligible gate; the encouraging Qwen3-Omni A2 semantic signal remains ineligible because that run completed only 19/20 strict outputs.</li>
@@ -2869,17 +3085,18 @@ Frozen-30 is the stronger panel but has only six rows per stratum; the failure-s
 <li>Exact music-title questions require a retrieval-style hypothesis; no current general-VLM result validates confident title generation.</li>
 </ul>
 </section>
-<section id="what-it-does-not-rule-out" class="level2">
-<h2 class="anchored" data-anchor-id="what-it-does-not-rule-out">What it does not rule out</h2>
+<section id="what-it-does-not-rule-out" class="level3">
+<h3 class="anchored" data-anchor-id="what-it-does-not-rule-out">What it does not rule out</h3>
 <ul>
 <li>A negative global switch does not reject a quality-gated native-audio route.</li>
 <li>The selected panels do not estimate how often prosody, sound, or music occur in the 2026 evaluation set.</li>
 <li>The Qwen3-Omni diagnostic does not settle the quality of a complete run, a different prompt, or native temporal video input.</li>
 <li>Audio-event recognition is not established merely because a model generated a plausible sound label.</li>
 </ul>
+<p><span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span></p>
 </section>
-<section id="possible-bugs-confounds-and-audit-gaps" class="level2">
-<h2 class="anchored" data-anchor-id="possible-bugs-confounds-and-audit-gaps">Possible bugs, confounds, and audit gaps</h2>
+<section id="confirmed-defects-audit-gaps-and-uncertainties" class="level3">
+<h3 class="anchored" data-anchor-id="confirmed-defects-audit-gaps-and-uncertainties">Confirmed defects, audit gaps, and uncertainties</h3>
 <ul>
 <li><strong>Uncertainty:</strong> the MiniCPM and Omni audio findings are on pre-v2 or deliberately selected panels, not representative prevalence samples.</li>
 <li><strong>Confirmed defect:</strong> the Qwen3-Omni strict run had one parser-contract failure. It is a completion-gate defect, not proof that its semantic output is useless.</li>
@@ -2887,6 +3104,7 @@ Frozen-30 is the stronger panel but has only six rows per stratum; the failure-s
 <li><strong>Audit gap:</strong> the repository has route ideas and diagnostics, not a versioned evaluated audio router with abstention and route-level non-regression.</li>
 <li><strong>Audit gap:</strong> the failure-panel report names localized audio gains and losses but does not retain a complete transition matrix for every audio-on/off row; that missing detail is not evidence of an execution bug.</li>
 </ul>
+</section>
 </section>
 <section id="open-hypotheses-and-ideas" class="level2">
 <h2 class="anchored" data-anchor-id="open-hypotheses-and-ideas">Open hypotheses and ideas</h2>
@@ -2928,6 +3146,15 @@ Frozen-30 is the stronger panel but has only six rows per stratum; the failure-s
 <li><strong>Boundary on what a positive result would establish:</strong> the retrieval route’s performance on its indexed catalog and declared prevalence slice, not general music knowledge or value on a distribution with a different title frequency.</li>
 </ul>
 </section>
+</section>
+<section id="method-result-validity-risks-and-evidence" class="level2">
+<h2 class="anchored" data-anchor-id="method-result-validity-risks-and-evidence">Method, result, validity risks, and evidence</h2>
+<details>
+<summary>
+How to audit this theme’s records
+</summary>
+The visible summaries separate lexical speech, prosody, non-speech sound, and music retrieval. Open each record’s native details block for model/panel conditions, source links, and validity risks. Selected gains never override a failed completion gate or establish a global audio-on policy.
+</details>
 </section>
 <section id="related-themes" class="level2">
 <h2 class="anchored" data-anchor-id="related-themes">Related themes</h2>
@@ -3283,13 +3510,13 @@ Frozen-30 is the stronger panel but has only six rows per stratum; the failure-s
 <footer class="footer">
   <div class="nav-footer">
     <div class="nav-footer-left">
-<p>Repository evidence through 2026-07-25</p>
+<p>Reviewed evidence: 2026-07-26</p>
 </div>   
     <div class="nav-footer-center">
        
     </div>
     <div class="nav-footer-right">
-<p>Sanitized aggregates only</p>
+<p>Development phase · 2026 evaluation quality remains unknown</p>
 </div>
   </div>
 </footer>

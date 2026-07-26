@@ -2527,9 +2527,16 @@ color: var(--status-accent-dark);
 text-decoration-thickness: 0.08em;
 text-underline-offset: 0.15em;
 }
-a:focus-visible {
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
 outline: 3px solid var(--status-accent);
 outline-offset: 3px;
+}
+.content a,
+.page-footer a {
+overflow-wrap: anywhere;
 }
 h1,
 h2,
@@ -2544,6 +2551,91 @@ max-width: 24ch;
 color: var(--status-muted);
 font-size: 1.15rem;
 max-width: 68ch;
+}
+.lifecycle-banner {
+border: 1px solid var(--status-border);
+border-left: 0.35rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+margin-block: 0.5rem 1.5rem;
+padding: 0.8rem 1rem;
+}
+.lifecycle-banner p {
+margin: 0;
+}
+.decision-strip {
+display: grid;
+grid-template-columns: repeat(5, minmax(0, 1fr));
+gap: 0.65rem;
+margin-block: 1rem;
+}
+.decision-item {
+border: 1px solid var(--status-border);
+border-top: 0.3rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+padding: 0.75rem;
+}
+.decision-item p {
+margin-block: 0 0.35rem;
+}
+.status-breadcrumb {
+color: var(--status-muted);
+display: flex;
+flex-wrap: wrap;
+gap: 0.45rem;
+margin-block: 0.25rem 1rem;
+}
+.theme-local-nav {
+align-items: center;
+border-block: 1px solid var(--status-border);
+display: flex;
+flex-wrap: wrap;
+gap: 0.45rem 1rem;
+margin-block: 0 1.5rem;
+padding-block: 0.65rem;
+}
+.theme-local-nav a {
+font-size: 0.92rem;
+font-weight: 650;
+}
+.theme-decision-strip {
+border: 1px solid var(--status-border);
+border-left: 0.35rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+margin-block: 1rem 1.5rem;
+padding: 0.7rem 1rem;
+}
+.theme-decision-strip ul {
+display: grid;
+gap: 0.45rem 1rem;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+margin-block: 0;
+padding-left: 1.2rem;
+}
+.trace-label {
+color: var(--status-accent-dark);
+font-size: 0.9rem;
+letter-spacing: 0.04em;
+margin-block: 0.5rem 1.25rem;
+text-transform: uppercase;
+}
+.timestamp-storyboard {
+display: grid;
+grid-template-columns: repeat(4, minmax(0, 1fr));
+gap: 0.65rem;
+margin-block: 1rem;
+}
+.timestamp-card {
+border: 1px solid var(--status-border);
+border-radius: 0.4rem;
+background: var(--status-panel);
+min-height: 6.5rem;
+padding: 0.7rem;
+}
+.timestamp-card p {
+margin: 0;
 }
 .theme-grid {
 display: grid;
@@ -2565,10 +2657,78 @@ margin-top: 0;
 border-color: var(--status-accent);
 box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-accent) 22%, transparent);
 }
+.research-matrix {
+margin-block: 1rem 1.75rem;
+max-width: 100%;
+overflow-x: auto;
+}
+.research-matrix:focus-visible {
+outline: 3px solid var(--status-accent);
+outline-offset: 3px;
+}
+.research-matrix table {
+min-width: 68rem;
+}
+.failure-preview-grid {
+display: grid;
+gap: 0.75rem;
+grid-template-columns: repeat(3, minmax(0, 1fr));
+margin-block: 1rem 1.75rem;
+}
+.failure-preview {
+border: 1px solid var(--status-border);
+border-top: 0.3rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+padding: 0.8rem 0.9rem;
+}
+.failure-preview h3 {
+font-size: 1rem;
+margin-top: 0;
+}
+.failure-preview p {
+margin-bottom: 0;
+}
 .theme-status {
 color: var(--status-muted);
 font-size: 0.94rem;
 margin-block: 0.35rem;
+}
+.failure-case {
+border: 1px solid var(--status-border);
+border-top: 0.35rem solid var(--status-accent);
+border-radius: 0.5rem;
+background: #fff;
+margin-block: 1.5rem;
+padding: 1rem 1.1rem;
+}
+.failure-case > h3 {
+margin-top: 0;
+}
+.case-meta {
+color: var(--status-muted);
+font-size: 0.9rem;
+line-height: 1.45;
+margin-block: 0.35rem 1rem;
+}
+.case-fields {
+display: grid;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+gap: 0.75rem;
+}
+.case-field {
+border-left: 0.22rem solid var(--status-border);
+padding-inline: 0.75rem 0.25rem;
+}
+.case-field h4 {
+font-size: 1rem;
+margin-block: 0 0.35rem;
+}
+.case-field p {
+margin-block: 0;
+}
+.failure-case details {
+margin-bottom: 0;
 }
 details {
 border: 1px solid var(--status-border);
@@ -2583,6 +2743,7 @@ summary {
 cursor: pointer;
 color: var(--status-ink);
 font-weight: 650;
+padding-block: 0.15rem;
 }
 summary:focus-visible {
 outline: 3px solid var(--status-accent);
@@ -2635,6 +2796,10 @@ font-size: 0.92rem;
 max-width: 100%;
 overflow-x: auto;
 }
+pre {
+max-width: 100%;
+overflow-x: auto;
+}
 code {
 color: var(--status-ink);
 overflow-wrap: anywhere;
@@ -2659,10 +2824,28 @@ font-size: 1.05rem;
 .theme-grid {
 grid-template-columns: minmax(0, 1fr);
 }
+.theme-decision-strip ul,
+.failure-preview-grid {
+grid-template-columns: minmax(0, 1fr);
+}
+.theme-local-nav {
+align-items: flex-start;
+flex-direction: column;
+gap: 0.35rem;
+}
+.case-fields {
+grid-template-columns: minmax(0, 1fr);
+}
+.decision-strip,
+.timestamp-storyboard {
+grid-template-columns: minmax(0, 1fr);
+}
+.timestamp-card {
+min-height: 0;
+}
 table {
 font-size: 0.88rem;
-table-layout: fixed;
-width: 100%;
+min-width: 100%;
 }
 table th,
 table td {
@@ -2670,7 +2853,14 @@ overflow-wrap: anywhere;
 }
 .table-responsive,
 .quarto-table-container {
+max-width: 100%;
 overflow-x: auto;
+}
+.failure-case,
+.theme-card,
+.decision-item,
+.timestamp-card {
+min-width: 0;
 }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2728,16 +2918,14 @@ transition: none !important;
     <h2 id="toc-title">On this page</h2>
    
   <ul class="collapse">
-  <li><a href="#back-to-research-themes" id="toc-back-to-research-themes" class="nav-link active" data-scroll-target="#back-to-research-themes">Back to Research Themes</a></li>
-  <li><a href="#technical-summary" id="toc-technical-summary" class="nav-link" data-scroll-target="#technical-summary">Technical summary</a></li>
-  <li><a href="#why-this-theme-matters" id="toc-why-this-theme-matters" class="nav-link" data-scroll-target="#why-this-theme-matters">Why this theme matters</a></li>
+  <li><a href="#why-this-theme-matters" id="toc-why-this-theme-matters" class="nav-link active" data-scroll-target="#why-this-theme-matters">New to this theme?</a></li>
   <li><a href="#current-working-answer" id="toc-current-working-answer" class="nav-link" data-scroll-target="#current-working-answer">Current working answer</a></li>
+  <li><a href="#evidence-at-a-glance" id="toc-evidence-at-a-glance" class="nav-link" data-scroll-target="#evidence-at-a-glance">Evidence at a glance</a></li>
   <li><a href="#what-has-been-tried" id="toc-what-has-been-tried" class="nav-link" data-scroll-target="#what-has-been-tried">What has been tried</a></li>
-  <li><a href="#what-the-evidence-supports" id="toc-what-the-evidence-supports" class="nav-link" data-scroll-target="#what-the-evidence-supports">What the evidence supports</a></li>
-  <li><a href="#what-it-does-not-rule-out" id="toc-what-it-does-not-rule-out" class="nav-link" data-scroll-target="#what-it-does-not-rule-out">What it does not rule out</a></li>
-  <li><a href="#possible-bugs-confounds-and-audit-gaps" id="toc-possible-bugs-confounds-and-audit-gaps" class="nav-link" data-scroll-target="#possible-bugs-confounds-and-audit-gaps">Possible bugs, confounds, and audit gaps</a></li>
+  <li><a href="#known-failures-and-cases" id="toc-known-failures-and-cases" class="nav-link" data-scroll-target="#known-failures-and-cases">Known failures and cases</a></li>
   <li><a href="#open-hypotheses-and-ideas" id="toc-open-hypotheses-and-ideas" class="nav-link" data-scroll-target="#open-hypotheses-and-ideas">Open hypotheses and ideas</a></li>
   <li><a href="#cheapest-valid-next-experiments" id="toc-cheapest-valid-next-experiments" class="nav-link" data-scroll-target="#cheapest-valid-next-experiments">Cheapest valid next experiments</a></li>
+  <li><a href="#method-result-validity-risks-and-evidence" id="toc-method-result-validity-risks-and-evidence" class="nav-link" data-scroll-target="#method-result-validity-risks-and-evidence">Method, result, validity risks, and evidence</a></li>
   <li><a href="#related-themes" id="toc-related-themes" class="nav-link" data-scroll-target="#related-themes">Related themes</a></li>
   </ul>
 </nav>
@@ -2769,21 +2957,39 @@ transition: none !important;
 </header>
 
 
-<section id="back-to-research-themes" class="level2">
-<h2 class="anchored" data-anchor-id="back-to-research-themes">Back to Research Themes</h2>
-<p>Return to the <a href="./experiment-ledger.html">Research Themes and Experiment Ledger</a>.</p>
-</section>
-<section id="technical-summary" class="level2">
-<h2 class="anchored" data-anchor-id="technical-summary">Technical summary</h2>
-<p>The repository has evidence that controlled, label-isolated execution can be reproducible, and frozen-30 protocol v2 is the strongest comparative protocol recorded here. That establishes that the resulting comparison is interpretable; it does <strong>not</strong> establish that the answers are good, that a compatibility gate ranks models, or that 2026 evaluation quality is known.</p>
-</section>
+<span id="back-to-research-themes" class="legacy-fragment-alias" aria-hidden="true"></span>
+<nav class="status-breadcrumb" aria-label="Breadcrumb">
+<a href="./index.html">Start Here</a> <span aria-hidden="true">/</span> <a href="./experiment-ledger.html">Research Themes</a> <span aria-hidden="true">/</span> <span aria-current="page">Experiment Integrity and Evaluation</span>
+</nav>
+<nav class="theme-local-nav" aria-label="On this theme page">
+<a href="#current-working-answer">Working answer</a> <a href="#what-has-been-tried">Tried</a> <a href="#known-failures-and-cases">Failures</a> <a href="#cheapest-valid-next-experiments">Next tests</a>
+</nav>
 <section id="why-this-theme-matters" class="level2">
-<h2 class="anchored" data-anchor-id="why-this-theme-matters">Why this theme matters</h2>
+<h2 class="anchored" data-anchor-id="why-this-theme-matters">New to this theme?</h2>
 <p>An answer comparison is useful only when its input evidence, model identity, label boundary, prediction freeze, and scoring procedure are all known. A run that completes can still be invalid for a comparative conclusion, and a small compatibility probe can still be valuable without estimating accuracy.</p>
+<p>For example, two model answers cannot be compared fairly if one was produced after the expected answer became visible. A <strong>frozen prediction</strong> is saved before that disclosure; <strong>label-blind</strong> inference prevents the answer or grade from selecting evidence. These terms use the definitions on <a href="./index.html#newcomer-glossary">Start Here</a>.</p>
+<p><span id="technical-summary" class="legacy-fragment-alias" aria-hidden="true"></span></p>
 </section>
 <section id="current-working-answer" class="level2">
 <h2 class="anchored" data-anchor-id="current-working-answer">Current working answer</h2>
 <p>Use frozen-30 protocol v2, not frozen-30 v1, for comparative conclusions. The three-video gate is evidence of portability and pipeline compatibility only. The current repository has useful tested seams, but a reusable integrity gate is <strong>Open work</strong>, not an existing supported CLI.</p>
+<div class="theme-decision-strip" aria-label="Integrity decisions">
+<ul>
+<li><strong>Use now:</strong> frozen-30 protocol v2 for matched comparisons.</li>
+<li><strong>Do not default:</strong> compatibility success as evidence of answer quality.</li>
+<li><strong>Still possible:</strong> a reusable end-to-end integrity gate and a later audited scorer.</li>
+<li><strong>Next test:</strong> deliberately invalid fixtures that must fail before model cost is incurred.</li>
+</ul>
+</div>
+</section>
+<section id="evidence-at-a-glance" class="level2">
+<h2 class="anchored" data-anchor-id="evidence-at-a-glance">Evidence at a glance</h2>
+<ul>
+<li><strong>Strongest evidence:</strong> 120 frozen VQA predictions and 30 Whisper executions under protocol v2’s separated freeze and scoring boundary.</li>
+<li><strong>Confirmed defect:</strong> frozen-30 v1 could not demonstrate label isolation.</li>
+<li><strong>Audit gap:</strong> no supported reusable <code>prepare → run → freeze → score → report</code> command exists.</li>
+<li><strong>Unknown:</strong> answer quality on the 2026 evaluation set.</li>
+</ul>
 </section>
 <section id="what-has-been-tried" class="level2">
 <h2 class="anchored" data-anchor-id="what-has-been-tried">What has been tried</h2>
@@ -2796,13 +3002,14 @@ transition: none !important;
 <li><strong>Current condition-bound status:</strong> background orientation, <strong>Superseded</strong> as a baseline-selection source by later executed evidence.</li>
 <li><strong>What this rules out now:</strong> using the July 12 synthesis alone to select the current baseline.</li>
 <li><strong>What it does not rule out:</strong> the field guide’s architectural ideas under a later matched, label-isolated test.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—the synthesis predates local comparison evidence; no execution defect is claimed.</li>
 <li><strong>Reconsider when:</strong> a specific idea has a declared panel, controls, and current execution evidence.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-The field guide predates the local panels. It can explain why the project prioritized evidence boundaries, but cannot choose a current model, prompt, or frame policy. See the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/source_notes.md">field-guide source notes</a>.
+The field guide predates the local panels. It can explain why the project prioritized evidence boundaries, but cannot choose a current model, prompt, or frame policy. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/source_notes.md">field-guide source notes · Evidence of record · Evidence report · GitHub</a>.
 </details>
 </section>
 <section id="data-readiness" class="level3">
@@ -2814,13 +3021,14 @@ The field guide predates the local panels. It can explain why the project priori
 <li><strong>Current condition-bound status:</strong> operationally useful; <strong>not</strong> an answer-quality result.</li>
 <li><strong>What this rules out now:</strong> treating successful preparation as a quality or model-ranking result.</li>
 <li><strong>What it does not rule out:</strong> a later controlled answer-quality comparison.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Audit gap</strong>—preparation success does not attest a complete general execution-to-scoring workflow.</li>
 <li><strong>Reconsider when:</strong> a label-isolated, frozen comparison is scored on a declared panel.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-Readiness does not prove that every future video is available, that a model will run, or that answers will be correct. Operational readiness does not establish 2026 answer quality. The <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_benchmark.py">benchmark construction module</a> binds manifest identities and hashes; the shared data boundary remains local.
+Readiness does not prove that every future video is available, that a model will run, or that answers will be correct. Operational readiness does not establish 2026 answer quality. The <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_benchmark.py">benchmark construction module · Current code · Source code · GitHub</a> binds manifest identities and hashes; the shared data boundary remains local.
 </details>
 </section>
 <section id="compatibility-gate" class="level3">
@@ -2832,13 +3040,14 @@ Readiness does not prove that every future video is available, that a model will
 <li><strong>Current condition-bound status:</strong> <strong>Diagnostic signal</strong> for adapter and runtime compatibility, not a statistical model ranking.</li>
 <li><strong>What this rules out now:</strong> promoting a family from this three-row portability check or scaling MiniCPM’s observed speech-row failure.</li>
 <li><strong>What it does not rule out:</strong> a repaired adapter or a model’s quality on a larger, representative controlled panel.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—three selected rows measure portability, not general completion or quality.</li>
 <li><strong>Reconsider when:</strong> a complete matched quality panel passes the integrity gate with the repaired condition, if applicable.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-Labels were joined after inference, but three deliberately selected rows are too small to estimate competition accuracy. The current public <code>vqa-gate</code> CLI exposes preflight only; completed runs used tested Python seams. The <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md">three-video gate report</a> documents an audited execution, not a general one-command workflow.
+Labels were joined after inference, but three deliberately selected rows are too small to estimate competition accuracy. The current public <code>vqa-gate</code> CLI exposes preflight only; completed runs used tested Python seams. The <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md">three-video gate report · Evidence of record · Evidence report · GitHub</a> documents an audited execution, not a general one-command workflow.
 </details>
 </section>
 <section id="frozen-30-protocol-v2" class="level3">
@@ -2850,13 +3059,14 @@ Labels were joined after inference, but three deliberately selected rows are too
 <li><strong>Current condition-bound status:</strong> v2 is the comparative protocol; frozen-30 v1 label isolation is a <strong>Confirmed defect</strong> and v1 is historical audit evidence only.</li>
 <li><strong>What this rules out now:</strong> using v1 predictions for frozen-30 comparative conclusions.</li>
 <li><strong>What it does not rule out:</strong> a valid comparison under v2 or a later integrity-preserving protocol.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Confirmed defect</strong>—v1 could not demonstrate label isolation; this does not transfer to v2.</li>
 <li><strong>Reconsider when:</strong> only if historical v1 evidence is explicitly discussed as an audit record rather than reused for a comparison.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-V1 inference mounted a dataset root containing labels, preparation opened annotation content, and Qwen device/dtype strings were configured rather than live-attested. V2 reran rather than reusing v1 predictions, with minimal mounts, source/model/image attestation, immutable prediction bytes, and a two-phase scoring boundary. Reproducible execution still does not establish answer quality; its 2025 training-data comparison is not a 2026 estimate. See the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">protocol-v2 report</a>.
+V1 inference mounted a dataset root containing labels, preparation opened annotation content, and Qwen device/dtype strings were configured rather than live-attested. V2 reran rather than reusing v1 predictions, with minimal mounts, source/model/image attestation, immutable prediction bytes, and a two-phase scoring boundary. Reproducible execution still does not establish answer quality; its 2025 training-data comparison is not a 2026 estimate. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">protocol-v2 report · Evidence of record · Evidence report · GitHub</a>.
 </details>
 </section>
 <section id="scorer-reuse-audit" class="level3">
@@ -2868,18 +3078,22 @@ V1 inference mounted a dataset root containing labels, preparation opened annota
 <li><strong>Current condition-bound status:</strong> reuse behind a pinned, isolated adapter; do not call it the final official 2026 scorer.</li>
 <li><strong>What this rules out now:</strong> labeling the current historical CSV evaluator an official final 2026 score.</li>
 <li><strong>What it does not rule out:</strong> pinned historical-parity checks or a later audited authoritative 2026 evaluator.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Audit gap</strong>—final 2026 scoring authority and its audited interface were not available.</li>
 <li><strong>Reconsider when:</strong> NIST publishes updated scoring code and the project re-audits its interface, dependencies, and fixtures.</li>
 </ul>
 <details>
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-The audit identified shell interpolation, a skipped-query denominator bug, directory rescanning, and unpinned dependencies among the reasons to isolate the historical evaluator. NIST’s 2026 scoring implementation was not final at the audit date. The <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/nist_scorer_reuse_audit_2026-07-20.md">scorer-reuse audit</a> recommends a pinned external checkout/cache, local fixtures, and the validator as a final format gate.
+The audit identified shell interpolation, a skipped-query denominator bug, directory rescanning, and unpinned dependencies among the reasons to isolate the historical evaluator. NIST’s 2026 scoring implementation was not final at the audit date. The <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/nist_scorer_reuse_audit_2026-07-20.md">scorer-reuse audit · Evidence of record · Evidence report · GitHub</a> recommends a pinned external checkout/cache, local fixtures, and the validator as a final format gate.
 </details>
 </section>
 </section>
-<section id="what-the-evidence-supports" class="level2">
-<h2 class="anchored" data-anchor-id="what-the-evidence-supports">What the evidence supports</h2>
+<section id="known-failures-and-cases" class="level2">
+<h2 class="anchored" data-anchor-id="known-failures-and-cases">Known failures and cases</h2>
+<p>The <a href="./failure-library.html">Failure Library</a> shows why integrity records must distinguish frozen output from post-hoc diagnosis. Its selected cases are development evidence, not a held-out validation set.</p>
+<section id="what-the-evidence-supports" class="level3">
+<h3 class="anchored" data-anchor-id="what-the-evidence-supports">What the evidence supports</h3>
 <ul>
 <li>A valid comparison needs a label-free inference phase, an immutable prediction freeze, and separately mounted evaluation references.</li>
 <li>Protocol v2 replaces v1 for frozen-30 comparative conclusions.</li>
@@ -2887,22 +3101,24 @@ The audit identified shell interpolation, a skipped-query denominator bug, direc
 <li>A pinned validator can check current 2026 AG submission shape; historical parity metrics need an explicitly quarantined context.</li>
 </ul>
 </section>
-<section id="what-it-does-not-rule-out" class="level2">
-<h2 class="anchored" data-anchor-id="what-it-does-not-rule-out">What it does not rule out</h2>
+<section id="what-it-does-not-rule-out" class="level3">
+<h3 class="anchored" data-anchor-id="what-it-does-not-rule-out">What it does not rule out</h3>
 <ul>
 <li>V2 does not prove 2026 evaluation quality, generalization beyond its 30 labeled 2025 rows, or superiority under another model, prompt, or panel.</li>
 <li>The compatibility gate does not rule out model differences on a larger, representative, controlled quality panel.</li>
 <li>The scorer audit does not rule out a later authoritative 2026 evaluator; it requires re-audit when one is published.</li>
 </ul>
+<p><span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span></p>
 </section>
-<section id="possible-bugs-confounds-and-audit-gaps" class="level2">
-<h2 class="anchored" data-anchor-id="possible-bugs-confounds-and-audit-gaps">Possible bugs, confounds, and audit gaps</h2>
+<section id="confirmed-defects-audit-gaps-and-uncertainties" class="level3">
+<h3 class="anchored" data-anchor-id="confirmed-defects-audit-gaps-and-uncertainties">Confirmed defects, audit gaps, and uncertainties</h3>
 <ul>
 <li><strong>Confirmed defect:</strong> frozen-30 v1 could not demonstrate label isolation. It must not supply comparative conclusions.</li>
 <li><strong>Audit gap:</strong> there is no reusable supported <code>prepare → run → freeze → score → report</code> integrity CLI. Existing <code>vqa-gate</code> is preflight-only, even though individual seams and audited workflows exist.</li>
 <li><strong>Uncertainty:</strong> frozen-30 v2 is a descriptive 2025 training-data comparison, not a representative 2026 evaluation estimate.</li>
 <li><strong>Audit gap:</strong> the NIST scorer remains a pinned historical-parity and format validation dependency until NIST releases and the project audits a final 2026 evaluator.</li>
 </ul>
+</section>
 </section>
 <section id="open-hypotheses-and-ideas" class="level2">
 <h2 class="anchored" data-anchor-id="open-hypotheses-and-ideas">Open hypotheses and ideas</h2>
@@ -2933,6 +3149,15 @@ The audit identified shell interpolation, a skipped-query denominator bug, direc
 <li><strong>Boundary on what a positive result would establish:</strong> it would establish a valid evaluation plan, not accuracy on the unlabeled 2026 set.</li>
 </ul>
 </section>
+</section>
+<section id="method-result-validity-risks-and-evidence" class="level2">
+<h2 class="anchored" data-anchor-id="method-result-validity-risks-and-evidence">Method, result, validity risks, and evidence</h2>
+<details>
+<summary>
+How to audit this theme’s records
+</summary>
+Each exact experiment heading above remains visible and carries the tested condition, observed result, current status, and reconsideration rule. Open its native details block for source links, method, and validity risks. Do not infer answer quality from data readiness, compatibility, or successful execution.
+</details>
 </section>
 <section id="related-themes" class="level2">
 <h2 class="anchored" data-anchor-id="related-themes">Related themes</h2>
@@ -3288,13 +3513,13 @@ The audit identified shell interpolation, a skipped-query denominator bug, direc
 <footer class="footer">
   <div class="nav-footer">
     <div class="nav-footer-left">
-<p>Repository evidence through 2026-07-25</p>
+<p>Reviewed evidence: 2026-07-26</p>
 </div>   
     <div class="nav-footer-center">
        
     </div>
     <div class="nav-footer-right">
-<p>Sanitized aggregates only</p>
+<p>Development phase · 2026 evaluation quality remains unknown</p>
 </div>
   </div>
 </footer>

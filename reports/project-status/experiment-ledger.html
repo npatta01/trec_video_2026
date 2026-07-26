@@ -2527,9 +2527,16 @@ color: var(--status-accent-dark);
 text-decoration-thickness: 0.08em;
 text-underline-offset: 0.15em;
 }
-a:focus-visible {
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
 outline: 3px solid var(--status-accent);
 outline-offset: 3px;
+}
+.content a,
+.page-footer a {
+overflow-wrap: anywhere;
 }
 h1,
 h2,
@@ -2544,6 +2551,91 @@ max-width: 24ch;
 color: var(--status-muted);
 font-size: 1.15rem;
 max-width: 68ch;
+}
+.lifecycle-banner {
+border: 1px solid var(--status-border);
+border-left: 0.35rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+margin-block: 0.5rem 1.5rem;
+padding: 0.8rem 1rem;
+}
+.lifecycle-banner p {
+margin: 0;
+}
+.decision-strip {
+display: grid;
+grid-template-columns: repeat(5, minmax(0, 1fr));
+gap: 0.65rem;
+margin-block: 1rem;
+}
+.decision-item {
+border: 1px solid var(--status-border);
+border-top: 0.3rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+padding: 0.75rem;
+}
+.decision-item p {
+margin-block: 0 0.35rem;
+}
+.status-breadcrumb {
+color: var(--status-muted);
+display: flex;
+flex-wrap: wrap;
+gap: 0.45rem;
+margin-block: 0.25rem 1rem;
+}
+.theme-local-nav {
+align-items: center;
+border-block: 1px solid var(--status-border);
+display: flex;
+flex-wrap: wrap;
+gap: 0.45rem 1rem;
+margin-block: 0 1.5rem;
+padding-block: 0.65rem;
+}
+.theme-local-nav a {
+font-size: 0.92rem;
+font-weight: 650;
+}
+.theme-decision-strip {
+border: 1px solid var(--status-border);
+border-left: 0.35rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+margin-block: 1rem 1.5rem;
+padding: 0.7rem 1rem;
+}
+.theme-decision-strip ul {
+display: grid;
+gap: 0.45rem 1rem;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+margin-block: 0;
+padding-left: 1.2rem;
+}
+.trace-label {
+color: var(--status-accent-dark);
+font-size: 0.9rem;
+letter-spacing: 0.04em;
+margin-block: 0.5rem 1.25rem;
+text-transform: uppercase;
+}
+.timestamp-storyboard {
+display: grid;
+grid-template-columns: repeat(4, minmax(0, 1fr));
+gap: 0.65rem;
+margin-block: 1rem;
+}
+.timestamp-card {
+border: 1px solid var(--status-border);
+border-radius: 0.4rem;
+background: var(--status-panel);
+min-height: 6.5rem;
+padding: 0.7rem;
+}
+.timestamp-card p {
+margin: 0;
 }
 .theme-grid {
 display: grid;
@@ -2565,10 +2657,78 @@ margin-top: 0;
 border-color: var(--status-accent);
 box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-accent) 22%, transparent);
 }
+.research-matrix {
+margin-block: 1rem 1.75rem;
+max-width: 100%;
+overflow-x: auto;
+}
+.research-matrix:focus-visible {
+outline: 3px solid var(--status-accent);
+outline-offset: 3px;
+}
+.research-matrix table {
+min-width: 68rem;
+}
+.failure-preview-grid {
+display: grid;
+gap: 0.75rem;
+grid-template-columns: repeat(3, minmax(0, 1fr));
+margin-block: 1rem 1.75rem;
+}
+.failure-preview {
+border: 1px solid var(--status-border);
+border-top: 0.3rem solid var(--status-accent);
+border-radius: 0.4rem;
+background: var(--status-panel);
+padding: 0.8rem 0.9rem;
+}
+.failure-preview h3 {
+font-size: 1rem;
+margin-top: 0;
+}
+.failure-preview p {
+margin-bottom: 0;
+}
 .theme-status {
 color: var(--status-muted);
 font-size: 0.94rem;
 margin-block: 0.35rem;
+}
+.failure-case {
+border: 1px solid var(--status-border);
+border-top: 0.35rem solid var(--status-accent);
+border-radius: 0.5rem;
+background: #fff;
+margin-block: 1.5rem;
+padding: 1rem 1.1rem;
+}
+.failure-case > h3 {
+margin-top: 0;
+}
+.case-meta {
+color: var(--status-muted);
+font-size: 0.9rem;
+line-height: 1.45;
+margin-block: 0.35rem 1rem;
+}
+.case-fields {
+display: grid;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+gap: 0.75rem;
+}
+.case-field {
+border-left: 0.22rem solid var(--status-border);
+padding-inline: 0.75rem 0.25rem;
+}
+.case-field h4 {
+font-size: 1rem;
+margin-block: 0 0.35rem;
+}
+.case-field p {
+margin-block: 0;
+}
+.failure-case details {
+margin-bottom: 0;
 }
 details {
 border: 1px solid var(--status-border);
@@ -2583,6 +2743,7 @@ summary {
 cursor: pointer;
 color: var(--status-ink);
 font-weight: 650;
+padding-block: 0.15rem;
 }
 summary:focus-visible {
 outline: 3px solid var(--status-accent);
@@ -2635,6 +2796,10 @@ font-size: 0.92rem;
 max-width: 100%;
 overflow-x: auto;
 }
+pre {
+max-width: 100%;
+overflow-x: auto;
+}
 code {
 color: var(--status-ink);
 overflow-wrap: anywhere;
@@ -2659,10 +2824,28 @@ font-size: 1.05rem;
 .theme-grid {
 grid-template-columns: minmax(0, 1fr);
 }
+.theme-decision-strip ul,
+.failure-preview-grid {
+grid-template-columns: minmax(0, 1fr);
+}
+.theme-local-nav {
+align-items: flex-start;
+flex-direction: column;
+gap: 0.35rem;
+}
+.case-fields {
+grid-template-columns: minmax(0, 1fr);
+}
+.decision-strip,
+.timestamp-storyboard {
+grid-template-columns: minmax(0, 1fr);
+}
+.timestamp-card {
+min-height: 0;
+}
 table {
 font-size: 0.88rem;
-table-layout: fixed;
-width: 100%;
+min-width: 100%;
 }
 table th,
 table td {
@@ -2670,7 +2853,14 @@ overflow-wrap: anywhere;
 }
 .table-responsive,
 .quarto-table-container {
+max-width: 100%;
 overflow-x: auto;
+}
+.failure-case,
+.theme-card,
+.decision-item,
+.timestamp-card {
+min-width: 0;
 }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2729,7 +2919,9 @@ transition: none !important;
    
   <ul class="collapse">
   <li><a href="#six-theme-research-map" id="toc-six-theme-research-map" class="nav-link active" data-scroll-target="#six-theme-research-map">Six-theme research map</a></li>
-  <li><a href="#what-to-investigate-next" id="toc-what-to-investigate-next" class="nav-link" data-scroll-target="#what-to-investigate-next">What to investigate next</a></li>
+  <li><a href="#theme-status-matrix" id="toc-theme-status-matrix" class="nav-link" data-scroll-target="#theme-status-matrix">Theme status matrix</a></li>
+  <li><a href="#three-failure-mechanisms-to-preview" id="toc-three-failure-mechanisms-to-preview" class="nav-link" data-scroll-target="#three-failure-mechanisms-to-preview">Three failure mechanisms to preview</a></li>
+  <li><a href="#branch-complete-next-test-queue" id="toc-branch-complete-next-test-queue" class="nav-link" data-scroll-target="#branch-complete-next-test-queue">Branch-complete next-test queue</a></li>
   <li><a href="#how-to-interpret-results" id="toc-how-to-interpret-results" class="nav-link" data-scroll-target="#how-to-interpret-results">How to interpret results</a></li>
   <li><a href="#compatibility-index-for-older-links" id="toc-compatibility-index-for-older-links" class="nav-link" data-scroll-target="#compatibility-index-for-older-links">Compatibility index for older links</a></li>
   <li><a href="#what-superseded-what" id="toc-what-superseded-what" class="nav-link" data-scroll-target="#what-superseded-what">What superseded what</a></li>
@@ -2767,7 +2959,7 @@ transition: none !important;
 <div class="lead">
 <p>The project currently uses <strong>Qwen3.5-4B with 12 uniform frames</strong> as its visual baseline and adds specialist evidence only through declared, quality-gated routes. Frozen-30 protocol v2 is the strongest matched comparison; the smaller panels are diagnostics. A result that missed one promotion gate is not a permanent verdict on every model, prompt, selector, budget, or panel.</p>
 </div>
-<p>Use <a href="./index.html">Start Here</a> for the current operational recommendation and the <a href="./code-map.html">Code Map</a> to find the implementation boundary. The six themes below are independent research areas, not a sequence.</p>
+<p>Use <a href="./index.html">Start Here · Report page</a> for the current operational recommendation and the <a href="./code-map.html">Code Map · Report page</a> to find the implementation boundary. The six themes below are independent research areas, not a sequence.</p>
 <section id="six-theme-research-map" class="level2">
 <h2 class="anchored" data-anchor-id="six-theme-research-map">Six-theme research map</h2>
 <div class="theme-grid">
@@ -2809,15 +3001,103 @@ transition: none !important;
 </section>
 </div>
 </section>
-<section id="what-to-investigate-next" class="level2">
-<h2 class="anchored" data-anchor-id="what-to-investigate-next">What to investigate next</h2>
+<section id="theme-status-matrix" class="level2">
+<h2 class="anchored" data-anchor-id="theme-status-matrix">Theme status matrix</h2>
+<p>This is a navigation layer, not a second results ledger. <strong>Use</strong>, <strong>Do not default</strong>, <strong>Possible</strong>, <strong>Blocked</strong>, and <strong>Next</strong> are short status tokens; each link opens the visible theme record with the tested condition and limits.</p>
+<div class="research-matrix" role="region" aria-label="Scrollable research theme status matrix" tabindex="0">
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Theme</th>
+<th>Why it matters</th>
+<th>Tried</th>
+<th>Learned now</th>
+<th>Still open</th>
+<th>Next falsifying test</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><a href="./research-integrity.html#current-working-answer">Integrity</a></td>
+<td>Makes comparisons interpretable</td>
+<td><a href="./research-integrity.html#frozen-30-protocol-v2">v2 freeze</a></td>
+<td><strong>Use:</strong> v2; compatibility is not quality</td>
+<td><strong>Possible:</strong> reusable gate</td>
+<td><a href="./research-integrity.html#reusable-integrity-gate">Invalid-fixture gate</a></td>
+</tr>
+<tr class="even">
+<td><a href="./research-visual-evidence.html#current-working-answer">Visual</a></td>
+<td>Finds the useful moment within a frame budget</td>
+<td><a href="./research-visual-evidence.html#directed-temporal-sampling">Uniform/directed/burst</a></td>
+<td><strong>Use:</strong> uniform-12; <strong>Do not default:</strong> tested directed/burst</td>
+<td><strong>Possible:</strong> learned or hybrid retrieval</td>
+<td><a href="./research-visual-evidence.html#required-moments-selector-recall-and-oracle-frames">Required-moment recall</a></td>
+</tr>
+<tr class="odd">
+<td><a href="./research-speech-transcripts.html#current-working-answer">Speech</a></td>
+<td>Adds spoken words with explicit provenance</td>
+<td><a href="./research-speech-transcripts.html#automatic-transcript-ablation">Whisper ablation</a></td>
+<td><strong>Use selectively:</strong> accepted Whisper</td>
+<td><strong>Blocked:</strong> human tier; <strong>Possible:</strong> alternate ASR</td>
+<td><a href="./research-speech-transcripts.html#alternative-or-multilingual-asr-matched-panel">Matched ASR panel</a></td>
+</tr>
+<tr class="even">
+<td><a href="./research-native-audio.html#current-working-answer">Native audio</a></td>
+<td>Preserves prosody and non-speech sound</td>
+<td><a href="./research-native-audio.html#minicpm-audio-on-off">Audio on/off</a></td>
+<td><strong>Do not default:</strong> global audio on</td>
+<td><strong>Possible:</strong> routed sound/prosody</td>
+<td><a href="./research-native-audio.html#matched-native-audio-specialist-panel">Specialist panel</a></td>
+</tr>
+<tr class="odd">
+<td><a href="./research-models.html#current-working-answer">Models</a></td>
+<td>Separates compatibility, quality, and adaptation</td>
+<td><a href="./research-models.html#failure-panel">Candidate screens</a></td>
+<td><strong>Use:</strong> Qwen3.5-4B; <strong>Fast:</strong> MiniCPM-o</td>
+<td><strong>Possible:</strong> repaired/specialist model or adaptation</td>
+<td><a href="./research-models.html#bottleneck-first-adaptation-decision">Bottleneck-first decision</a></td>
+</tr>
+<tr class="even">
+<td><a href="./research-routing.html#current-working-answer">Routing</a></td>
+<td>Chooses evidence and separates retrieval from answering</td>
+<td><a href="./research-routing.html#taxonomy-audit">Route seeds</a></td>
+<td><strong>Use:</strong> baseline fallback; router unvalidated</td>
+<td><strong>Possible:</strong> fusion and answer election</td>
+<td><a href="./research-routing.html#required-evidence-labels-and-three-way-measurement">Three-way measurement</a></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="three-failure-mechanisms-to-preview" class="level2">
+<h2 class="anchored" data-anchor-id="three-failure-mechanisms-to-preview">Three failure mechanisms to preview</h2>
+<p>These selected development cases explain mechanisms, not prevalence. Open the <a href="./failure-library.html">Failure Library · Report page</a> for the complete six-field records and disclosure boundary.</p>
+<div class="failure-preview-grid">
+<section id="later-span-answer-selection" class="level3 failure-preview">
+<h3 class="anchored" data-anchor-id="later-span-answer-selection"><a href="./failure-library.html#case-001">Later-span answer selection</a></h3>
+<p>Needed speech was retrieved, but later numeric speculation was selected.</p>
+</section>
+<section id="non-lexical-event-missed" class="level3 failure-preview">
+<h3 class="anchored" data-anchor-id="non-lexical-event-missed"><a href="./failure-library.html#case-002">Non-lexical event missed</a></h3>
+<p>An unrelated transcript passed the old generic gate while the requested vocal sound remained unrepresented.</p>
+</section>
+<section id="unsupported-audio-specificity" class="level3 failure-preview">
+<h3 class="anchored" data-anchor-id="unsupported-audio-specificity"><a href="./failure-library.html#case-004">Unsupported audio specificity</a></h3>
+<p>Native audio produced a more specific music interpretation that the evidence did not support.</p>
+</section>
+</div>
+<p><span id="what-to-investigate-next" class="legacy-fragment-alias" aria-hidden="true"></span></p>
+</section>
+<section id="branch-complete-next-test-queue" class="level2">
+<h2 class="anchored" data-anchor-id="branch-complete-next-test-queue">Branch-complete next-test queue</h2>
+<p>These branches are independent choices; their numbering is for reference, not a prescribed research sequence.</p>
 <ol type="1">
-<li><strong>Integrity:</strong> build a cheap reusable gate with deliberately invalid fixtures before another substantial run.</li>
-<li><strong>Visual evidence:</strong> label required moments and compare uniform, question-aware, and hybrid selectors under one fixed budget.</li>
-<li><strong>Speech:</strong> test transcript-grounded answers and evidence spans with an unchanged frame-only control.</li>
-<li><strong>Native audio:</strong> run matched prosody, non-speech, lexical-speech, and visual control strata with an abstaining route.</li>
-<li><strong>Models:</strong> repair the Qwen3-Omni output path, then require a fresh complete blinded comparison rather than recovering the prior strict run post hoc.</li>
-<li><strong>Routing:</strong> version a label-blind router with baseline fallback and measure retrieval, fusion, and answer-election failures separately.</li>
+<li><strong>Smarter visual sampling/retrieval:</strong> <a href="./research-visual-evidence.html#required-moments-selector-recall-and-oracle-frames">label required moments and compare fixed-budget selectors</a>.</li>
+<li><strong>Alternative ASR:</strong> <a href="./research-speech-transcripts.html#alternative-or-multilingual-asr-matched-panel">compare an alternative or multilingual ASR on one frozen, source-language-aware panel</a>.</li>
+<li><strong>Human/reference transcript controls:</strong> <a href="./research-speech-transcripts.html#label-blind-human-transcript-upper-bound">produce an independently reviewed, label-blind upper bound</a>.</li>
+<li><strong>Routed native audio/sound:</strong> <a href="./research-native-audio.html#matched-native-audio-specialist-panel">test prosody and non-speech strata with abstention and matched controls</a>.</li>
+<li><strong>Repaired/specialist models or bottleneck-first adaptation:</strong> <a href="./research-models.html#repaired-complete-neutral-qwen3-omni-run">repair the strict Omni path</a>, or <a href="./research-models.html#bottleneck-first-adaptation-decision">measure the bottleneck before adapting</a>.</li>
+<li><strong>Routing, fusion, and answer election:</strong> <a href="./research-routing.html#required-evidence-labels-and-three-way-measurement">measure retrieval, oracle-evidence answering, and end-to-end answering separately</a>, then test election only if evidence paths are stable.</li>
 </ol>
 </section>
 <section id="how-to-interpret-results" class="level2">
@@ -2904,14 +3184,14 @@ transition: none !important;
 <summary>
 Expand the historical issue and PR trail
 </summary>
-<p>These public links preserve the implementation and review trail behind the theme records. They are provenance, not substitutes for the current condition-bound conclusions.</p>
+<p>These links preserve the implementation and review trail behind the theme records. <strong>Evidence report · GitHub</strong> links are immutable evidence of record; <strong>Issue/PR history · GitHub</strong> links preserve discussion and review. GitHub requires repository access until public release. They are provenance, not substitutes for the current condition-bound conclusions.</p>
 <ul>
-<li><strong>Foundation and repository recovery — <a href="./research-integrity.html">Experiment integrity and evaluation</a>:</strong> the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/report.html">rendered July 12 field guide</a> and <a href="https://github.com/npatta01/trec_video_2026/pull/21">repository recovery PR #21</a> record the background synthesis and restoration of the benchmark evidence.</li>
-<li><strong>Directed temporal sampling — <a href="./research-visual-evidence.html#directed-temporal-sampling">Visual and temporal evidence</a>:</strong> <a href="https://github.com/npatta01/trec_video_2026/issues/8">closed issue #8</a>, its <a href="https://github.com/npatta01/trec_video_2026/issues/13">conclusion audit in issue #13</a>, and <a href="https://github.com/npatta01/trec_video_2026/pull/10">implementation PR #10</a> preserve the tested heuristic’s decision trail.</li>
-<li><strong>Automatic and human transcripts — <a href="./research-speech-transcripts.html">Speech and transcript evidence</a>:</strong> the automatic-ablation work is tracked in <a href="https://github.com/npatta01/trec_video_2026/issues/7">closed issue #7</a> and <a href="https://github.com/npatta01/trec_video_2026/pull/9">PR #9</a>; the independently produced human-transcript tier remains blocked in <a href="https://github.com/npatta01/trec_video_2026/issues/19">open issue #19</a>.</li>
-<li><strong>Evidence taxonomy and routing — <a href="./research-routing.html#taxonomy-audit">Routing, fusion, and answer selection</a>:</strong> <a href="https://github.com/npatta01/trec_video_2026/issues/4">closed issue #4</a> records the taxonomy and evidence-routing research thread.</li>
-<li><strong>Phi and Gemma quality screen — <a href="./research-models.html#phi-gemma-semantic-stop">Models and adaptation</a>:</strong> compatibility and semantic correction are tracked in <a href="https://github.com/npatta01/trec_video_2026/issues/6">closed issue #6</a>, <a href="https://github.com/npatta01/trec_video_2026/issues/12">closed issue #12</a>, <a href="https://github.com/npatta01/trec_video_2026/pull/11">PR #11</a>, and <a href="https://github.com/npatta01/trec_video_2026/pull/15">PR #15</a>.</li>
-<li><strong>Qwen3-Omni compatibility and quality — <a href="./research-models.html#qwen3-omni-quality">Models and adaptation</a>:</strong> the <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-qwen3-omni-dstack-compatibility.md">tracked compatibility report</a>, <a href="https://github.com/npatta01/trec_video_2026/issues/5">closed issue #5</a>, <a href="https://github.com/npatta01/trec_video_2026/issues/17">closed issue #17</a>, <a href="https://github.com/npatta01/trec_video_2026/pull/14">PR #14</a>, and recovery <a href="https://github.com/npatta01/trec_video_2026/pull/20">PR #20</a> preserve the gate-specific trail.</li>
+<li><strong>Foundation and repository recovery — <a href="./research-integrity.html">Experiment integrity and evaluation</a>:</strong> the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/report.html">rendered July 12 field guide · Evidence of record · Evidence report · GitHub</a> and <a href="https://github.com/npatta01/trec_video_2026/pull/21">repository recovery PR #21 · Issue/PR history · GitHub</a> record the background synthesis and restoration of the benchmark evidence.</li>
+<li><strong>Directed temporal sampling — <a href="./research-visual-evidence.html#directed-temporal-sampling">Visual and temporal evidence</a>:</strong> <a href="https://github.com/npatta01/trec_video_2026/issues/8">closed issue #8 · Issue/PR history · GitHub</a>, its <a href="https://github.com/npatta01/trec_video_2026/issues/13">conclusion audit in issue #13 · Issue/PR history · GitHub</a>, and <a href="https://github.com/npatta01/trec_video_2026/pull/10">implementation PR #10 · Issue/PR history · GitHub</a> preserve the tested heuristic’s decision trail.</li>
+<li><strong>Automatic and human transcripts — <a href="./research-speech-transcripts.html">Speech and transcript evidence</a>:</strong> the automatic-ablation work is tracked in <a href="https://github.com/npatta01/trec_video_2026/issues/7">closed issue #7 · Issue/PR history · GitHub</a> and <a href="https://github.com/npatta01/trec_video_2026/pull/9">PR #9 · Issue/PR history · GitHub</a>; the independently produced human-transcript tier remains blocked in <a href="https://github.com/npatta01/trec_video_2026/issues/19">open issue #19 · Issue/PR history · GitHub</a>.</li>
+<li><strong>Evidence taxonomy and routing — <a href="./research-routing.html#taxonomy-audit">Routing, fusion, and answer selection</a>:</strong> <a href="https://github.com/npatta01/trec_video_2026/issues/4">closed issue #4 · Issue/PR history · GitHub</a> records the taxonomy and evidence-routing research thread.</li>
+<li><strong>Phi and Gemma quality screen — <a href="./research-models.html#phi-gemma-semantic-stop">Models and adaptation</a>:</strong> compatibility and semantic correction are tracked in <a href="https://github.com/npatta01/trec_video_2026/issues/6">closed issue #6 · Issue/PR history · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/issues/12">closed issue #12 · Issue/PR history · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/pull/11">PR #11 · Issue/PR history · GitHub</a>, and <a href="https://github.com/npatta01/trec_video_2026/pull/15">PR #15 · Issue/PR history · GitHub</a>.</li>
+<li><strong>Qwen3-Omni compatibility and quality — <a href="./research-models.html#qwen3-omni-quality">Models and adaptation</a>:</strong> the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-24-qwen3-omni-dstack-compatibility.md">tracked compatibility report · Evidence of record · Evidence report · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/issues/5">closed issue #5 · Issue/PR history · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/issues/17">closed issue #17 · Issue/PR history · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/pull/14">PR #14 · Issue/PR history · GitHub</a>, and recovery <a href="https://github.com/npatta01/trec_video_2026/pull/20">PR #20 · Issue/PR history · GitHub</a> preserve the gate-specific trail.</li>
 </ul>
 </details>
 </section>
@@ -3361,13 +3641,13 @@ Expand the five-milestone chronology
 <footer class="footer">
   <div class="nav-footer">
     <div class="nav-footer-left">
-<p>Repository evidence through 2026-07-25</p>
+<p>Reviewed evidence: 2026-07-26</p>
 </div>   
     <div class="nav-footer-center">
        
     </div>
     <div class="nav-footer-right">
-<p>Sanitized aggregates only</p>
+<p>Development phase · 2026 evaluation quality remains unknown</p>
 </div>
   </div>
 </footer>
