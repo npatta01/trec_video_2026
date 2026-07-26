@@ -187,6 +187,14 @@ raw log fragments, and 2026 identifiers. Expected: none survive into the
 authoring notes. Keep raw evidence in place; do not create a scratch export in
 the repository.
 
+**Task 1 outcome.** Four 2025-training cases are privately verified, but no
+annotation or media redistribution attestation was located. Downstream public
+authoring may use only paraphrased mechanism summaries plus exact
+project-generated frozen predictions and project grades; exact questions,
+expected answers, transcripts, pixels, audio, and derivatives remain withheld.
+Use a clearly labeled, cleared synthetic worked example unless later rights
+evidence clears both annotations and media for a real case.
+
 ---
 
 ### Task 2: Start Here and the worked current-approach example
