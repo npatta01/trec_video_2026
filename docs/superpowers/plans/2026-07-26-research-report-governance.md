@@ -424,6 +424,62 @@ git commit -m "docs: render report governance update"
 Stage only the six changed sibling Markdown files, the existing 12 HTML files,
 and this plan if unchanged Markdown files remain byte-identical.
 
+### 2026-07-26 — Task 3 completion evidence
+
+- Rendered the six reviewed QMD sources to their sibling Markdown files with
+  Quarto 1.9.38, then rendered the site `1/12` through `12/12`; the output
+  directory contains exactly 12 existing HTML pages. The changed generated
+  files are the six Task 3 Markdown pages and their corresponding six HTML
+  pages; no QMD, project configuration, or stylesheet source changed.
+- Confirmed the four named render transients were absent before the render and
+  created by it, then removed only
+  `docs/project-status/.quarto/`, `docs/project-status/.gitignore`,
+  `reports/project-status/search.json`, and
+  `reports/project-status/site_libs/`. Quarto also created one untracked
+  source-relative `docs/project-status/docs/project-status/index.html` during
+  the requested GFM invocation; it was confirmed generated in this task and
+  removed immediately, leaving no extra page or directory.
+- Copied all 12 QMD files plus `_quarto.yml`, `styles.css`, `theme.scss`, and
+  `theme-dark.scss` to `/tmp/trecvid-governance-isolated.AR9F0Q`, rendered GFM
+  and HTML there, and compared bytes with the repository outputs:
+  **Markdown 12/12** and **HTML 12/12** matches.
+- Checked all 263 repository-relative links in the six changed rendered HTML
+  pages and found zero target or fragment failures. All required anchors were
+  present: `adding-experiments#result-lifecycle`,
+  `adding-experiments#when-should-a-theme-change`,
+  `adding-experiments#after-the-run`,
+  `experiment-ledger#six-theme-research-map`,
+  `experiment-ledger#experiment-index`,
+  `experiment-ledger#how-to-interpret-evidence-and-decisions`,
+  `research-models#qwen3-omni-quality`, and
+  `research-native-audio#qwen3-omni-native-audio`.
+- Targeted generated-output scans found **0** credentials, sensitive local
+  paths, or local preview URLs, and inspected **72** runtime resource
+  attributes across all HTML pages with **0** remote script, stylesheet,
+  image, audio, or video dependencies.
+- Used a loopback-only `127.0.0.1:8765` preview and headless Chrome 150 for
+  the following inspected captures:
+  `/tmp/trecvid-governance-captures/start-here-light-desktop.png`,
+  `/tmp/trecvid-governance-captures/research-themes-light-desktop.png`,
+  `/tmp/trecvid-governance-captures/research-themes-dark-desktop.png`,
+  `/tmp/trecvid-governance-captures/research-themes-light-mobile.png`,
+  `/tmp/trecvid-governance-captures/research-themes-dark-mobile.png`,
+  `/tmp/trecvid-governance-captures/adding-experiments-light-desktop.png`,
+  `/tmp/trecvid-governance-captures/adding-experiments-dark-desktop.png`,
+  `/tmp/trecvid-governance-captures/adding-experiments-light-mobile.png`,
+  `/tmp/trecvid-governance-captures/adding-experiments-dark-mobile.png`,
+  `/tmp/trecvid-governance-captures/speech-amended-light-desktop.png`, and
+  `/tmp/trecvid-governance-captures/models-amended-light-desktop.png`.
+  The static index starts closed; Chrome interaction opened it without
+  overflow (`documentScrollWidth 1425 <= viewportWidth 1440`,
+  `detailsScrollWidth 797 = detailsClientWidth 797`). Theme cards and the
+  status table reflow, local navigation remains usable, the dark code/table
+  surfaces are readable, and no mobile brand/content overlap appeared. This
+  is a visual smoke check, not a WCAG conformance claim.
+- Task 3 self-review verdict: no Critical or Important finding in the scoped
+  generated-output diff. `git diff --check` passed. No custom tests,
+  application tests, scripts, validators, or CI were added or run.
+
 ## Final review and authorized portal refresh
 
 After all three task reviews pass:

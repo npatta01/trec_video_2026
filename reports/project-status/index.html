@@ -6499,9 +6499,9 @@ Figure 1: Recommended evidence router: keep the 12-frame Qwen baseline, use Whi
 <h2 class="anchored" data-anchor-id="how-to-read-current-results">How to read current results</h2>
 <p>Results sometimes use <strong>C/P/W</strong>: counts graded correct, partially correct, and wrong. Qwen3-Omni’s neutral A2 diagnostic changed frames-only <strong>3C/3P/4W</strong> to audio-on <strong>5C/2P/3W</strong> after narrow post-hoc answer recovery. The immutable strict run completed only <strong>19/20</strong> accepted outputs, so it missed its predeclared <strong>promotion gate</strong>—the pass/fail rule a result must satisfy before the project adopts it. That run is ineligible for its planned promotion decision; the repaired model remains open to a fresh comparison. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md">tracked neutral A2 result · Evidence of record · Evidence report · GitHub</a> and <a href="https://github.com/npatta01/trec_video_2026/pull/18">PR #18 · Issue/PR history · GitHub</a>.</p>
 <p><strong>Exact match</strong> is 1 only when a normalized prediction equals the normalized reference. <strong>Token F1</strong> balances word-level precision and recall, so it can give partial credit for overlapping words. Neither metric turns a small diagnostic into a population estimate.</p>
-<section id="evidence-strength" class="level3">
-<h3 class="anchored" data-anchor-id="evidence-strength">Evidence strength</h3>
-<p>Read every result with its evidence-status label. These labels keep a working runtime probe or a selected diagnostic from being mistaken for promotion evidence.</p>
+<section id="evidence-validity" class="level3">
+<h3 class="anchored" data-anchor-id="evidence-validity">Evidence validity</h3>
+<p>Read every result with its evidence-validity label. These labels keep a working runtime probe or a selected diagnostic from being mistaken for promotion evidence.</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 50%">
@@ -6527,20 +6527,24 @@ Figure 1: Recommended evidence router: keep the 12-frame Qwen baseline, use Whi
 <td>The runtime, modality input, and output contract worked; answer quality was not established.</td>
 </tr>
 <tr class="even">
-<td><strong>Not promoted under the tested condition</strong></td>
-<td>This implementation, panel, budget, or gate did not justify promotion; it is not a permanent verdict.</td>
+<td><strong>Incomplete</strong></td>
+<td>The declared evidence bundle did not complete; partial observations cannot satisfy the planned comparison.</td>
 </tr>
 <tr class="odd">
+<td><strong>Invalid</strong></td>
+<td>A demonstrated integrity failure makes the affected comparison unusable for its intended claim.</td>
+</tr>
+<tr class="even">
 <td><strong>Blocked</strong></td>
 <td>A required input, independent record, budget, or authorization is absent, so the planned evidence tier cannot run validly yet.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><strong>Unknown</strong></td>
 <td>No valid evidence answers the question. In particular, answer quality on the 2026 evaluation set is <strong>Unknown</strong>.</td>
 </tr>
 </tbody>
 </table>
-<p>Evidence strength and answer grade are different: a prediction can be correct inside a tiny diagnostic without making the tested method a verified default.</p>
+<p>Evidence validity and answer grade are different: a prediction can be correct inside a tiny diagnostic without making the tested method a verified default. For what the project does now, read the hub’s separate <a href="./experiment-ledger.html#how-to-interpret-evidence-and-decisions">decision-disposition table</a>.</p>
 </section>
 <section id="what-not-to-infer" class="level3">
 <h3 class="anchored" data-anchor-id="what-not-to-infer">What not to infer</h3>

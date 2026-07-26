@@ -17,9 +17,18 @@ recommendation and the [Code Map · Report page](code-map.md) to find the
 implementation boundary. The six themes below are independent research
 areas, not a sequence.
 
+> [!NOTE]
+>
+> ### Contributors: place evidence, claims, and decisions consistently
+>
+> Before adding or revising a result, follow the [Adding Experiments and
+> Results guide · Report page](adding-experiments.md). It defines the
+> evidence bundle, canonical claim, decision disposition, and
+> theme-routing rules used by this hub.
+
 <div class="legacy-fragment-alias-group" aria-hidden="true"><span id="research-questions"></span><span id="fig-experiment-timeline"></span></div>
 
-## Six-theme research map
+## Current research-theme map
 
 <div class="theme-grid">
 
@@ -32,8 +41,8 @@ areas, not a sequence.
 **Working answer:** frozen-30 protocol v2 is interpretable; successful
 execution alone does not establish answer quality.
 
-**Strongest evidence:** verified 30-row, four-arm protocol v2 plus
-integrity audits.
+**Strongest evidence:** [verified 30-row, four-arm protocol v2 plus
+integrity audits](research-integrity.md#frozen-30-protocol-v2).
 
 **Open question:** can one reusable gate reject label, identity,
 mutation, and scoring-boundary faults before an expensive run?
@@ -50,8 +59,9 @@ mutation, and scoring-boundary faults before an expensive run?
 the tested directed/burst heuristics were not promoted under their
 tested conditions.
 
-**Strongest evidence:** matched frozen-30 frame-budget comparison;
-smaller 10-row and 2-row temporal diagnostics.
+**Strongest evidence:** [matched frozen-30 frame-budget comparison;
+smaller 10-row and 2-row temporal
+diagnostics](research-visual-evidence.md#frozen-30-protocol-v2).
 
 **Open question:** can a fixed-budget selector retrieve the required
 moment more reliably than uniform sampling?
@@ -68,8 +78,9 @@ moment more reliably than uniform sampling?
 keep transcript provenance explicit and the independent human tier
 blocked.
 
-**Strongest evidence:** selected 10-row automatic-transcript ablation
-plus frozen-30 transcript results.
+**Strongest evidence:** [selected 10-row automatic-transcript ablation
+plus frozen-30 transcript
+results](research-speech-transcripts.md#automatic-transcript-ablation).
 
 **Open question:** do grounded spans, alternative ASR, or a valid human
 upper bound improve answers without hiding transcript errors?
@@ -85,8 +96,9 @@ upper bound improve answers without hiding transcript errors?
 **Working answer:** native audio is not a global switch; prosody and
 non-speech sound remain routed candidates.
 
-**Strongest evidence:** matched audio-on/off and failure-selected
-diagnostics, not a representative benchmark.
+**Strongest evidence:** [matched audio-on/off and failure-selected
+diagnostics, not a representative
+benchmark](research-native-audio.md#minicpm-audio-on-off).
 
 **Open question:** which declared audio strata improve without
 regressing visual controls?
@@ -102,8 +114,9 @@ regressing visual controls?
 **Working answer:** no later candidate has displaced Qwen3.5-4B;
 MiniCPM-o audio-off is the fast alternate.
 
-**Strongest evidence:** frozen-30 model comparison; later model screens
-are selected diagnostics or compatibility checks.
+**Strongest evidence:** [frozen-30 model comparison; later model screens
+are selected diagnostics or compatibility
+checks](research-models.md#minicpm-fast-alternate).
 
 **Open question:** can a repaired, complete candidate pass a matched
 quality and integrity gate?
@@ -119,7 +132,8 @@ quality and integrity gate?
 **Working answer:** use the baseline unless a label-blind specialist
 rule applies; the repository has route seeds, not a validated router.
 
-**Strongest evidence:** taxonomy and residual-error diagnostics.
+**Strongest evidence:** [taxonomy and residual-error
+diagnostics](research-routing.md#taxonomy-audit).
 
 **Open question:** is each failure missing evidence, unused evidence, or
 wrong answer selection—and can a router abstain without regressions?
@@ -148,6 +162,84 @@ aria-label="Scrollable research theme status matrix" tabindex="0">
 | [Routing](research-routing.md#current-working-answer) | Chooses evidence and separates retrieval from answering | [Route seeds](research-routing.md#taxonomy-audit) | **Use:** baseline fallback; router unvalidated | **Possible:** fusion and answer election | [Three-way measurement](research-routing.md#required-evidence-labels-and-three-way-measurement) |
 
 </div>
+
+## Experiment index
+
+<details>
+
+<summary>
+
+Expand named experiments by theme
+</summary>
+
+### Experiment integrity and evaluation
+
+- [July 12 field guide](research-integrity.md#field-guide)
+- [Data readiness](research-integrity.md#data-readiness)
+- [Three-video compatibility
+  gate](research-integrity.md#compatibility-gate)
+- [Frozen-30 protocol transition: v1 to
+  v2](research-integrity.md#frozen-30-protocol-v2)
+- [Scorer-reuse audit](research-integrity.md#scorer-reuse-audit)
+
+### Visual and temporal evidence
+
+- [Frozen-30 protocol v2: global frame
+  budget](research-visual-evidence.md#frozen-30-protocol-v2)
+- [Directed temporal
+  sampling](research-visual-evidence.md#directed-temporal-sampling)
+- [Dense-burst
+  sampling](research-visual-evidence.md#dense-burst-sampling)
+- [Spatial-crop
+  diagnostic](research-visual-evidence.md#spatial-crop-diagnostic)
+
+### Speech and transcript evidence
+
+- [Transcript provenance
+  tiers](research-speech-transcripts.md#transcript-provenance-tiers)
+- [Automatic transcript
+  ablation](research-speech-transcripts.md#automatic-transcript-ablation)
+- [Multilingual and translation
+  follow-ups](research-speech-transcripts.md#multilingual-translation-followups)
+- [Seamless
+  diagnostic](research-speech-transcripts.md#seamless-diagnostic)
+- [External dataset-reference
+  research](research-speech-transcripts.md#external-dataset-reference-research)
+- [Human-oracle tier](research-speech-transcripts.md#human-oracle-tier)
+
+### Native audio and sound
+
+- [Matched MiniCPM audio-on/off
+  screen](research-native-audio.md#minicpm-audio-on-off)
+- [Failure-selected native-audio
+  diagnostic](research-native-audio.md#failure-panel-native-audio)
+- [Native audio with
+  Qwen3-Omni](research-native-audio.md#qwen3-omni-native-audio)
+- [Sound and music diagnostic
+  boundaries](research-native-audio.md#sound-music-boundary)
+
+### Models and adaptation
+
+- [Three-video compatibility
+  gate](research-models.md#compatibility-gate-models)
+- [Failure-selected Qwen3.6 screen](research-models.md#failure-panel)
+- [Phi and Gemma semantic
+  screen](research-models.md#phi-gemma-semantic-stop)
+- [MiniCPM-o 4.5 fast
+  alternate](research-models.md#minicpm-fast-alternate)
+- [Qwen3-Omni quality and completion
+  gate](research-models.md#qwen3-omni-quality)
+
+### Routing, fusion, and answer selection
+
+- [Taxonomy audit and route seeds](research-routing.md#taxonomy-audit)
+- [Transcript residuals: evidence present, answer still
+  wrong](research-routing.md#transcript-residuals)
+- [Retrieval versus fusion
+  diagnostic](research-routing.md#retrieval-versus-fusion)
+- [Evidence-aware answer election](research-routing.md#answer-election)
+
+</details>
 
 ## Three failure mechanisms to preview
 
@@ -219,9 +311,27 @@ reference, not a prescribed research sequence.
     separately](research-routing.md#required-evidence-labels-and-three-way-measurement),
     then test election only if evidence paths are stable.
 
-## How to interpret results
+## How to interpret evidence and decisions
 
-These status labels describe the evidence available now, not permanent
+Evidence validity describes whether and how evidence can be used.
+Decision disposition describes what the project does now; the axes are
+independent.
+
+### Evidence validity
+
+| Status | Meaning |
+|----|----|
+| **Verified** | The declared protocol completed and supports the stated condition-bound result. |
+| **Diagnostic** | Deliberately limited evidence that selects a next test but does not estimate prevalence or general quality. |
+| **Compatibility-only** | Execution or interface success without quality evidence. |
+| **Incomplete** | The declared evidence bundle did not complete; partial observations cannot satisfy the planned comparison. |
+| **Invalid** | A demonstrated integrity failure makes the affected comparison unusable for its intended claim. |
+| **Blocked** | A named prerequisite is absent, so the planned evidence cannot yet be produced or interpreted. |
+| **Unknown** | No admissible evidence establishes the claim. |
+
+### Decision disposition
+
+These labels describe what the project does now, not permanent
 properties of a technique:
 
 | Status | Meaning |
@@ -231,11 +341,11 @@ properties of a technique:
 | **Routed candidate** | Consider only for a declared question or evidence type. |
 | **Diagnostic signal** | Chooses the next test; does not estimate prevalence or general quality. |
 | **Not promoted under the tested condition** | This implementation, panel, budget, or gate did not justify promotion; another controlled condition remains possible. |
-| **Blocked** | A named prerequisite is absent, so the experiment cannot yet run or be interpreted validly. |
 | **Superseded** | Later valid evidence replaces the earlier conclusion. |
 | **Open hypothesis** | Proposed but not yet tested. |
 
-Validity concerns are separate from result status:
+Validity concerns are separate from evidence validity or decision
+disposition:
 
 - **Confirmed defect — demonstrated fault.** Frozen-30 v1 could not
   demonstrate label isolation, so v1 cannot support the comparative

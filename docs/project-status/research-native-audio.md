@@ -164,6 +164,10 @@ GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc0
 
 ### Native audio with Qwen3-Omni
 
+- **Canonical native-audio-effect claim:** the quality-10 neutral A2
+  evidence bundle is shared with the [Canonical model-eligibility
+  claim](research-models.md#qwen3-omni-quality); strict eligibility
+  details remain canonical on Models.
 - **Reason for testing:** check whether a larger joint audio/vision
   model can use native audio while holding the 12-frame visual evidence
   fixed.
@@ -197,11 +201,9 @@ GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc0
 Method, result, validity risks, and evidence
 </summary>
 
-One complete answer was wrapped in a Markdown JSON fence and failed the
-unchanged strict parser; a post-hoc semantic diagnostic cannot change
-that eligibility outcome. The panel is selected and frame-based, so it
-is neither a global ranking nor a complete native-video test.
-Model-specific gate details are on [Models and
+The panel is selected and frame-based, so it is neither a global ranking
+nor a complete native-video test. Strict eligibility details are
+canonical on [Models and
 Adaptation](research-models.md#qwen3-omni-quality). See the [quality-10
 report · Evidence of record · Evidence report ·
 GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-25-qwen3-omni-quality-10.md).

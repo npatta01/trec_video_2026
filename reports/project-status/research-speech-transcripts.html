@@ -3349,6 +3349,10 @@ break-inside: avoid;
 <li><strong>Tested condition and panel:</strong> identical 12-frame Qwen requests with and without a quality-accepted Whisper large-v3 transcript on ten selected lexical-speech rows; all 20 predictions froze before scoring.</li>
 <li><strong>Observed result:</strong> manual accuracy changed from <code>4/10</code> to <code>7/10</code>, with three rescues and no observed degradation on that selected lexical-speech panel.</li>
 <li><strong>Current condition-bound status:</strong> <strong>Routed candidate</strong> for quality-gated lexical speech; not a global transcript default.</li>
+<li><strong>What this rules out now:</strong> dismissing quality-accepted ASR as having no diagnostic value on the tested selected lexical-speech panel.</li>
+<li><strong>What it does not rule out:</strong> routing prevalence, global transcript value, non-lexical vocalization performance, transcript-fidelity failures, or 2026 accuracy.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—the selected ten-row panel cannot establish prevalence or a global policy.</li>
+<li><strong>Reconsider when:</strong> a representative label-blind routing panel measures accepted and rejected ASR strata, including regressions, under one frozen decision rule.</li>
 </ul>
 <details>
 <summary>

@@ -3395,6 +3395,10 @@ The counts are a semantic screen, not a general leaderboard. The relevant record
 <li><strong>Tested condition and panel:</strong> MiniCPM-o 4.5 with native-video input and audio disabled across all 30 frozen rows.</li>
 <li><strong>Observed result:</strong> it achieved the best METEOR (<code>0.374089</code>) and fastest measured outer wall time (4.50 minutes), while Qwen plus quality-gated Whisper led exact match and token F1.</li>
 <li><strong>Current condition-bound status:</strong> <strong>Fast alternate</strong>, not the global accuracy winner on every metric.</li>
+<li><strong>What this rules out now:</strong> calling MiniCPM-o the global accuracy winner under frozen-30 merely because it was fastest or led METEOR.</li>
+<li><strong>What it does not rule out:</strong> using it when latency dominates, quality on other representative panels, or a future accuracy/latency frontier under a different controlled environment.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—the outer-wall timing is environment-specific and frozen-30 is descriptive 2025 training evidence.</li>
+<li><strong>Reconsider when:</strong> a repeated same-hardware matched panel jointly reports completion, latency, exact/F1, and the declared speed-quality decision rule.</li>
 </ul>
 <details>
 <summary>
@@ -3406,6 +3410,7 @@ All four frozen-30 conditions completed 30/30 rows. This is descriptive model se
 <section id="qwen3-omni-quality" class="level3">
 <h3 class="anchored" data-anchor-id="qwen3-omni-quality">Qwen3-Omni quality and completion gate</h3>
 <ul>
+<li><strong>Canonical model-eligibility claim:</strong> its stable identity is <code>#qwen3-omni-quality</code>; the related <a href="./research-native-audio.html#qwen3-omni-native-audio">Canonical native-audio-effect claim</a> is owned by Native Audio.</li>
 <li><strong>Reason for testing:</strong> test a joint native-audio candidate under a paired frames-only/audio-on contract after its runtime became compatible.</li>
 <li><strong>Tested condition and panel:</strong> 10 deliberately difficult rows, 12 sampled frames with and without native audio, a modality-neutral prompt, and a predeclared 20/20 strict-output completion requirement.</li>
 <li><strong>Observed result:</strong> the diagnostic semantic comparison was <code>3C/3P/4W</code> frames-only and <code>5C/2P/3W</code> audio-on, but the unchanged strict run completed 19/20 outputs because one complete answer used fenced JSON.</li>

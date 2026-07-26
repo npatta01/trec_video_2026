@@ -3255,11 +3255,12 @@ break-inside: avoid;
     <h2 id="toc-title">On this page</h2>
    
   <ul class="collapse">
-  <li><a href="#six-theme-research-map" id="toc-six-theme-research-map" class="nav-link active" data-scroll-target="#six-theme-research-map">Six-theme research map</a></li>
+  <li><a href="#six-theme-research-map" id="toc-six-theme-research-map" class="nav-link active" data-scroll-target="#six-theme-research-map">Current research-theme map</a></li>
   <li><a href="#theme-status-matrix" id="toc-theme-status-matrix" class="nav-link" data-scroll-target="#theme-status-matrix">Theme status matrix</a></li>
+  <li><a href="#experiment-index" id="toc-experiment-index" class="nav-link" data-scroll-target="#experiment-index">Experiment index</a></li>
   <li><a href="#three-failure-mechanisms-to-preview" id="toc-three-failure-mechanisms-to-preview" class="nav-link" data-scroll-target="#three-failure-mechanisms-to-preview">Three failure mechanisms to preview</a></li>
   <li><a href="#branch-complete-next-test-queue" id="toc-branch-complete-next-test-queue" class="nav-link" data-scroll-target="#branch-complete-next-test-queue">Branch-complete next-test queue</a></li>
-  <li><a href="#how-to-interpret-results" id="toc-how-to-interpret-results" class="nav-link" data-scroll-target="#how-to-interpret-results">How to interpret results</a></li>
+  <li><a href="#how-to-interpret-evidence-and-decisions" id="toc-how-to-interpret-evidence-and-decisions" class="nav-link" data-scroll-target="#how-to-interpret-evidence-and-decisions">How to interpret evidence and decisions</a></li>
   </ul>
 </nav>
     </div>
@@ -3295,16 +3296,29 @@ break-inside: avoid;
 <p>The project currently uses <strong>Qwen3.5-4B with 12 uniform frames</strong> as its visual baseline and adds specialist evidence only through declared, quality-gated routes. Frozen-30 protocol v2 is the strongest matched comparison; the smaller panels are diagnostics. A result that missed one promotion gate is not a permanent verdict on every model, prompt, selector, budget, or panel.</p>
 </div>
 <p>Use <a href="./index.html">Start Here · Report page</a> for the current operational recommendation and the <a href="./code-map.html">Code Map · Report page</a> to find the implementation boundary. The six themes below are independent research areas, not a sequence.</p>
+<div class="callout callout-style-default callout-note callout-titled" title="Contributors: place evidence, claims, and decisions consistently">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Contributors: place evidence, claims, and decisions consistently
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Before adding or revising a result, follow the <a href="./adding-experiments.html">Adding Experiments and Results guide · Report page</a>. It defines the evidence bundle, canonical claim, decision disposition, and theme-routing rules used by this hub.</p>
+</div>
+</div>
 <div class="legacy-fragment-alias-group" aria-hidden="true"><span id="research-questions"></span><span id="fig-experiment-timeline"></span></div>
 <section id="six-theme-research-map" class="level2">
-<h2 class="anchored" data-anchor-id="six-theme-research-map">Six-theme research map</h2>
+<h2 class="anchored" data-anchor-id="six-theme-research-map">Current research-theme map</h2>
 <div class="theme-grid">
 <div class="theme-card">
 <div class="legacy-fragment-alias-group" aria-hidden="true"><span id="trustworthy-experiments"></span><span id="field-guide"></span><span id="data-readiness"></span><span id="compatibility-gate"></span><span id="frozen-30-protocol-v2"></span></div>
 <section id="experiment-integrity-and-evaluation" class="level3">
 <h3 class="anchored" data-anchor-id="experiment-integrity-and-evaluation"><a href="./research-integrity.html">Experiment integrity and evaluation</a></h3>
 <p><strong>Working answer:</strong> frozen-30 protocol v2 is interpretable; successful execution alone does not establish answer quality.</p>
-<p><strong>Strongest evidence:</strong> verified 30-row, four-arm protocol v2 plus integrity audits.</p>
+<p><strong>Strongest evidence:</strong> <a href="./research-integrity.html#frozen-30-protocol-v2">verified 30-row, four-arm protocol v2 plus integrity audits</a>.</p>
 <p><strong>Open question:</strong> can one reusable gate reject label, identity, mutation, and scoring-boundary faults before an expensive run?</p>
 </section>
 </div>
@@ -3313,7 +3327,7 @@ break-inside: avoid;
 <section id="visual-and-temporal-evidence" class="level3">
 <h3 class="anchored" data-anchor-id="visual-and-temporal-evidence"><a href="./research-visual-evidence.html">Visual and temporal evidence</a></h3>
 <p><strong>Working answer:</strong> uniform-12 remains the default; global 24 frames and the tested directed/burst heuristics were not promoted under their tested conditions.</p>
-<p><strong>Strongest evidence:</strong> matched frozen-30 frame-budget comparison; smaller 10-row and 2-row temporal diagnostics.</p>
+<p><strong>Strongest evidence:</strong> <a href="./research-visual-evidence.html#frozen-30-protocol-v2">matched frozen-30 frame-budget comparison; smaller 10-row and 2-row temporal diagnostics</a>.</p>
 <p><strong>Open question:</strong> can a fixed-budget selector retrieve the required moment more reliably than uniform sampling?</p>
 </section>
 </div>
@@ -3322,7 +3336,7 @@ break-inside: avoid;
 <section id="speech-and-transcript-evidence" class="level3">
 <h3 class="anchored" data-anchor-id="speech-and-transcript-evidence"><a href="./research-speech-transcripts.html">Speech and transcript evidence</a></h3>
 <p><strong>Working answer:</strong> route quality-accepted Whisper to lexical speech; keep transcript provenance explicit and the independent human tier blocked.</p>
-<p><strong>Strongest evidence:</strong> selected 10-row automatic-transcript ablation plus frozen-30 transcript results.</p>
+<p><strong>Strongest evidence:</strong> <a href="./research-speech-transcripts.html#automatic-transcript-ablation">selected 10-row automatic-transcript ablation plus frozen-30 transcript results</a>.</p>
 <p><strong>Open question:</strong> do grounded spans, alternative ASR, or a valid human upper bound improve answers without hiding transcript errors?</p>
 </section>
 </div>
@@ -3331,7 +3345,7 @@ break-inside: avoid;
 <section id="native-audio-and-sound" class="level3">
 <h3 class="anchored" data-anchor-id="native-audio-and-sound"><a href="./research-native-audio.html">Native audio and sound</a></h3>
 <p><strong>Working answer:</strong> native audio is not a global switch; prosody and non-speech sound remain routed candidates.</p>
-<p><strong>Strongest evidence:</strong> matched audio-on/off and failure-selected diagnostics, not a representative benchmark.</p>
+<p><strong>Strongest evidence:</strong> <a href="./research-native-audio.html#minicpm-audio-on-off">matched audio-on/off and failure-selected diagnostics, not a representative benchmark</a>.</p>
 <p><strong>Open question:</strong> which declared audio strata improve without regressing visual controls?</p>
 </section>
 </div>
@@ -3340,7 +3354,7 @@ break-inside: avoid;
 <section id="models-and-adaptation" class="level3">
 <h3 class="anchored" data-anchor-id="models-and-adaptation"><a href="./research-models.html">Models and adaptation</a></h3>
 <p><strong>Working answer:</strong> no later candidate has displaced Qwen3.5-4B; MiniCPM-o audio-off is the fast alternate.</p>
-<p><strong>Strongest evidence:</strong> frozen-30 model comparison; later model screens are selected diagnostics or compatibility checks.</p>
+<p><strong>Strongest evidence:</strong> <a href="./research-models.html#minicpm-fast-alternate">frozen-30 model comparison; later model screens are selected diagnostics or compatibility checks</a>.</p>
 <p><strong>Open question:</strong> can a repaired, complete candidate pass a matched quality and integrity gate?</p>
 </section>
 </div>
@@ -3349,7 +3363,7 @@ break-inside: avoid;
 <section id="routing-fusion-and-answer-selection" class="level3">
 <h3 class="anchored" data-anchor-id="routing-fusion-and-answer-selection"><a href="./research-routing.html">Routing, fusion, and answer selection</a></h3>
 <p><strong>Working answer:</strong> use the baseline unless a label-blind specialist rule applies; the repository has route seeds, not a validated router.</p>
-<p><strong>Strongest evidence:</strong> taxonomy and residual-error diagnostics.</p>
+<p><strong>Strongest evidence:</strong> <a href="./research-routing.html#taxonomy-audit">taxonomy and residual-error diagnostics</a>.</p>
 <p><strong>Open question:</strong> is each failure missing evidence, unused evidence, or wrong answer selection—and can a router abstain without regressions?</p>
 </section>
 </div>
@@ -3423,6 +3437,72 @@ break-inside: avoid;
 </table>
 </div>
 </section>
+<section id="experiment-index" class="level2">
+<h2 class="anchored" data-anchor-id="experiment-index">Experiment index</h2>
+<details>
+<summary>
+Expand named experiments by theme
+</summary>
+<section id="experiment-integrity-and-evaluation-1" class="level3">
+<h3 class="anchored" data-anchor-id="experiment-integrity-and-evaluation-1">Experiment integrity and evaluation</h3>
+<ul>
+<li><a href="./research-integrity.html#field-guide">July 12 field guide</a></li>
+<li><a href="./research-integrity.html#data-readiness">Data readiness</a></li>
+<li><a href="./research-integrity.html#compatibility-gate">Three-video compatibility gate</a></li>
+<li><a href="./research-integrity.html#frozen-30-protocol-v2">Frozen-30 protocol transition: v1 to v2</a></li>
+<li><a href="./research-integrity.html#scorer-reuse-audit">Scorer-reuse audit</a></li>
+</ul>
+</section>
+<section id="visual-and-temporal-evidence-1" class="level3">
+<h3 class="anchored" data-anchor-id="visual-and-temporal-evidence-1">Visual and temporal evidence</h3>
+<ul>
+<li><a href="./research-visual-evidence.html#frozen-30-protocol-v2">Frozen-30 protocol v2: global frame budget</a></li>
+<li><a href="./research-visual-evidence.html#directed-temporal-sampling">Directed temporal sampling</a></li>
+<li><a href="./research-visual-evidence.html#dense-burst-sampling">Dense-burst sampling</a></li>
+<li><a href="./research-visual-evidence.html#spatial-crop-diagnostic">Spatial-crop diagnostic</a></li>
+</ul>
+</section>
+<section id="speech-and-transcript-evidence-1" class="level3">
+<h3 class="anchored" data-anchor-id="speech-and-transcript-evidence-1">Speech and transcript evidence</h3>
+<ul>
+<li><a href="./research-speech-transcripts.html#transcript-provenance-tiers">Transcript provenance tiers</a></li>
+<li><a href="./research-speech-transcripts.html#automatic-transcript-ablation">Automatic transcript ablation</a></li>
+<li><a href="./research-speech-transcripts.html#multilingual-translation-followups">Multilingual and translation follow-ups</a></li>
+<li><a href="./research-speech-transcripts.html#seamless-diagnostic">Seamless diagnostic</a></li>
+<li><a href="./research-speech-transcripts.html#external-dataset-reference-research">External dataset-reference research</a></li>
+<li><a href="./research-speech-transcripts.html#human-oracle-tier">Human-oracle tier</a></li>
+</ul>
+</section>
+<section id="native-audio-and-sound-1" class="level3">
+<h3 class="anchored" data-anchor-id="native-audio-and-sound-1">Native audio and sound</h3>
+<ul>
+<li><a href="./research-native-audio.html#minicpm-audio-on-off">Matched MiniCPM audio-on/off screen</a></li>
+<li><a href="./research-native-audio.html#failure-panel-native-audio">Failure-selected native-audio diagnostic</a></li>
+<li><a href="./research-native-audio.html#qwen3-omni-native-audio">Native audio with Qwen3-Omni</a></li>
+<li><a href="./research-native-audio.html#sound-music-boundary">Sound and music diagnostic boundaries</a></li>
+</ul>
+</section>
+<section id="models-and-adaptation-1" class="level3">
+<h3 class="anchored" data-anchor-id="models-and-adaptation-1">Models and adaptation</h3>
+<ul>
+<li><a href="./research-models.html#compatibility-gate-models">Three-video compatibility gate</a></li>
+<li><a href="./research-models.html#failure-panel">Failure-selected Qwen3.6 screen</a></li>
+<li><a href="./research-models.html#phi-gemma-semantic-stop">Phi and Gemma semantic screen</a></li>
+<li><a href="./research-models.html#minicpm-fast-alternate">MiniCPM-o 4.5 fast alternate</a></li>
+<li><a href="./research-models.html#qwen3-omni-quality">Qwen3-Omni quality and completion gate</a></li>
+</ul>
+</section>
+<section id="routing-fusion-and-answer-selection-1" class="level3">
+<h3 class="anchored" data-anchor-id="routing-fusion-and-answer-selection-1">Routing, fusion, and answer selection</h3>
+<ul>
+<li><a href="./research-routing.html#taxonomy-audit">Taxonomy audit and route seeds</a></li>
+<li><a href="./research-routing.html#transcript-residuals">Transcript residuals: evidence present, answer still wrong</a></li>
+<li><a href="./research-routing.html#retrieval-versus-fusion">Retrieval versus fusion diagnostic</a></li>
+<li><a href="./research-routing.html#answer-election">Evidence-aware answer election</a></li>
+</ul>
+</section></details>
+</section>
+
 <section id="three-failure-mechanisms-to-preview" class="level2">
 <h2 class="anchored" data-anchor-id="three-failure-mechanisms-to-preview">Three failure mechanisms to preview</h2>
 <p>These selected development cases explain mechanisms, not prevalence. Open the <a href="./failure-library.html">Failure Library · Report page</a> for full evidence traces and the disclosure boundary.</p>
@@ -3455,9 +3535,57 @@ break-inside: avoid;
 <li><strong>Routing, fusion, and answer election:</strong> <a href="./research-routing.html#required-evidence-labels-and-three-way-measurement">measure retrieval, oracle-evidence answering, and end-to-end answering separately</a>, then test election only if evidence paths are stable.</li>
 </ol>
 </section>
-<section id="how-to-interpret-results" class="level2">
-<h2 class="anchored" data-anchor-id="how-to-interpret-results">How to interpret results</h2>
-<p>These status labels describe the evidence available now, not permanent properties of a technique:</p>
+<section id="how-to-interpret-evidence-and-decisions" class="level2">
+<h2 class="anchored" data-anchor-id="how-to-interpret-evidence-and-decisions">How to interpret evidence and decisions</h2>
+<p>Evidence validity describes whether and how evidence can be used. Decision disposition describes what the project does now; the axes are independent.</p>
+<section id="evidence-validity" class="level3">
+<h3 class="anchored" data-anchor-id="evidence-validity">Evidence validity</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Status</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Verified</strong></td>
+<td>The declared protocol completed and supports the stated condition-bound result.</td>
+</tr>
+<tr class="even">
+<td><strong>Diagnostic</strong></td>
+<td>Deliberately limited evidence that selects a next test but does not estimate prevalence or general quality.</td>
+</tr>
+<tr class="odd">
+<td><strong>Compatibility-only</strong></td>
+<td>Execution or interface success without quality evidence.</td>
+</tr>
+<tr class="even">
+<td><strong>Incomplete</strong></td>
+<td>The declared evidence bundle did not complete; partial observations cannot satisfy the planned comparison.</td>
+</tr>
+<tr class="odd">
+<td><strong>Invalid</strong></td>
+<td>A demonstrated integrity failure makes the affected comparison unusable for its intended claim.</td>
+</tr>
+<tr class="even">
+<td><strong>Blocked</strong></td>
+<td>A named prerequisite is absent, so the planned evidence cannot yet be produced or interpreted.</td>
+</tr>
+<tr class="odd">
+<td><strong>Unknown</strong></td>
+<td>No admissible evidence establishes the claim.</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="decision-disposition" class="level3">
+<h3 class="anchored" data-anchor-id="decision-disposition">Decision disposition</h3>
+<p>These labels describe what the project does now, not permanent properties of a technique:</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 50%">
@@ -3491,25 +3619,22 @@ break-inside: avoid;
 <td>This implementation, panel, budget, or gate did not justify promotion; another controlled condition remains possible.</td>
 </tr>
 <tr class="even">
-<td><strong>Blocked</strong></td>
-<td>A named prerequisite is absent, so the experiment cannot yet run or be interpreted validly.</td>
-</tr>
-<tr class="odd">
 <td><strong>Superseded</strong></td>
 <td>Later valid evidence replaces the earlier conclusion.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><strong>Open hypothesis</strong></td>
 <td>Proposed but not yet tested.</td>
 </tr>
 </tbody>
 </table>
-<p>Validity concerns are separate from result status:</p>
+<p>Validity concerns are separate from evidence validity or decision disposition:</p>
 <ul>
 <li><strong>Confirmed defect — demonstrated fault.</strong> Frozen-30 v1 could not demonstrate label isolation, so v1 cannot support the comparative conclusion.</li>
 <li><strong>Audit gap — exact path is not proven by tracked evidence.</strong> The directed selector has source and tests but no tracked general-workflow caller; that is not proof that the diagnostic run was buggy.</li>
 <li><strong>Uncertainty — limited generalization without bug evidence.</strong> Small or selected diagnostic panels constrain what can be claimed, even when the run itself is clean.</li>
 </ul>
+</section>
 </section>
 <section id="history-and-provenance" class="level2 unlisted">
 <h2 class="unlisted anchored" data-anchor-id="history-and-provenance">History and provenance</h2>

@@ -204,6 +204,17 @@ GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc0
   quality-gated Whisper led exact match and token F1.
 - **Current condition-bound status:** **Fast alternate**, not the global
   accuracy winner on every metric.
+- **What this rules out now:** calling MiniCPM-o the global accuracy
+  winner under frozen-30 merely because it was fastest or led METEOR.
+- **What it does not rule out:** using it when latency dominates,
+  quality on other representative panels, or a future accuracy/latency
+  frontier under a different controlled environment.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the
+  outer-wall timing is environment-specific and frozen-30 is descriptive
+  2025 training evidence.
+- **Reconsider when:** a repeated same-hardware matched panel jointly
+  reports completion, latency, exact/F1, and the declared speed-quality
+  decision rule.
 
 <details>
 
@@ -223,6 +234,10 @@ GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc0
 
 ### Qwen3-Omni quality and completion gate
 
+- **Canonical model-eligibility claim:** its stable identity is
+  `#qwen3-omni-quality`; the related [Canonical native-audio-effect
+  claim](research-native-audio.md#qwen3-omni-native-audio) is owned by
+  Native Audio.
 - **Reason for testing:** test a joint native-audio candidate under a
   paired frames-only/audio-on contract after its runtime became
   compatible.

@@ -3290,8 +3290,10 @@ break-inside: avoid;
     <h2 id="toc-title">On this page</h2>
    
   <ul class="collapse">
-  <li><a href="#the-rule-in-one-minute" id="toc-the-rule-in-one-minute" class="nav-link active" data-scroll-target="#the-rule-in-one-minute">The rule in one minute</a></li>
+  <li><a href="#result-lifecycle" id="toc-result-lifecycle" class="nav-link active" data-scroll-target="#result-lifecycle">Result lifecycle</a></li>
+  <li><a href="#the-rule-in-one-minute" id="toc-the-rule-in-one-minute" class="nav-link" data-scroll-target="#the-rule-in-one-minute">The rule in one minute</a></li>
   <li><a href="#where-does-this-update-belong" id="toc-where-does-this-update-belong" class="nav-link" data-scroll-target="#where-does-this-update-belong">Where does this update belong?</a></li>
+  <li><a href="#when-should-a-theme-change" id="toc-when-should-a-theme-change" class="nav-link" data-scroll-target="#when-should-a-theme-change">When should a theme change?</a></li>
   <li><a href="#before-the-run" id="toc-before-the-run" class="nav-link" data-scroll-target="#before-the-run">Before the run</a></li>
   <li><a href="#after-the-run" id="toc-after-the-run" class="nav-link" data-scroll-target="#after-the-run">After the run</a></li>
   <li><a href="#update-the-living-report" id="toc-update-the-living-report" class="nav-link" data-scroll-target="#update-the-living-report">Update the living report</a></li>
@@ -3332,14 +3334,50 @@ break-inside: avoid;
 <a href="./index.html">Start Here</a> <span aria-hidden="true">/</span> <a href="./experiment-ledger.html">Research Themes</a> <span aria-hidden="true">/</span> <span aria-current="page">Adding Experiments and Results</span>
 </nav>
 <nav class="theme-local-nav" aria-label="On this guide page">
-<a href="#the-rule-in-one-minute">Rule</a> <a href="#where-does-this-update-belong">Routing</a> <a href="#before-the-run">Before</a> <a href="#after-the-run">After</a> <a href="#update-the-living-report">Report</a> <a href="#render-and-verify">Render</a> <a href="#agent-handoff">Handoff</a>
+<a href="#the-rule-in-one-minute">Rule</a> <a href="#result-lifecycle">Lifecycle</a> <a href="#where-does-this-update-belong">Routing</a> <a href="#when-should-a-theme-change">Themes</a> <a href="#before-the-run">Before</a> <a href="#after-the-run">After</a> <a href="#update-the-living-report">Report</a> <a href="#render-and-verify">Render</a> <a href="#agent-handoff">Handoff</a>
 </nav>
 <div class="lead">
 <p>This guide helps contributors turn an idea, a run, or a finding into durable research memory without forcing every scientific question into the same experiment design. It keeps the evidence and the current project decision readable, auditable, and safely separated from private run artifacts.</p>
 </div>
+<section id="result-lifecycle" class="level2">
+<h2 class="anchored" data-anchor-id="result-lifecycle">Result lifecycle</h2>
+<p>idea → planned test → evidence bundle → claim record → project decision → reconsider, supersede, or invalidate</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Concept</th>
+<th>What it owns</th>
+<th>Stable reference</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Evidence bundle</strong></td>
+<td>What executed: frozen configuration, completion count, outputs, and immutable evidence.</td>
+<td>Evidence-of-record link.</td>
+</tr>
+<tr class="even">
+<td><strong>Claim record</strong></td>
+<td>One condition-bound scientific conclusion.</td>
+<td>Canonical theme page plus authored section anchor.</td>
+</tr>
+<tr class="odd">
+<td><strong>Project decision</strong></td>
+<td>What the project does now because of one or more claims.</td>
+<td>Start Here, the owning theme’s working answer, and the hub when globally relevant.</td>
+</tr>
+</tbody>
+</table>
+<p>One primary theme owns each claim. One evidence bundle may support several linked claims when they have independently testable conclusions and decision rules; related themes link to the canonical claim rather than copy its full record. The canonical page plus authored section anchor is the claim identity.</p>
+</section>
 <section id="the-rule-in-one-minute" class="level2">
 <h2 class="anchored" data-anchor-id="the-rule-in-one-minute">The rule in one minute</h2>
-<p>Static audits, compatibility probes, matched ablations, qualitative diagnostics, and benchmarks can use different scientific designs. Each still needs a visible question; treatment and control; panel boundary; integrity safeguards; observed result; interpretation; evidence status; limitations; and next decision.</p>
+<p>Static audits, compatibility probes, matched ablations, qualitative diagnostics, and benchmarks can use different scientific designs. Each still needs a visible question; treatment and control; panel boundary; integrity safeguards; observed result; interpretation; evidence validity; limitations; and next decision.</p>
 <div class="callout callout-style-default callout-note callout-titled" title="The reporting contract">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -3406,8 +3444,25 @@ break-inside: avoid;
 <td>Correction without new evidence</td>
 <td>Correct the owning <a href="./experiment-ledger.html#six-theme-research-map">Research Themes record</a>, mark the correction, and preserve its provenance.</td>
 </tr>
+<tr class="odd">
+<td>New, split, or merged theme</td>
+<td>Apply <a href="#when-should-a-theme-change">When should a theme change?</a>, then update the hub, matrix, queue, and related-theme links.</td>
+</tr>
 </tbody>
 </table>
+<p>The Qwen3-Omni neutral A2 work shows cross-theme routing: one immutable quality-10 evidence bundle supports a Models claim about <code>19/20</code> strict completion and promotion ineligibility, and a Native Audio claim about the selected <code>3C/3P/4W</code> to <code>5C/2P/3W</code> semantic signal. Each theme owns the claim whose decision changes, and the two canonical claims link directly rather than duplicating the full experiment record.</p>
+</section>
+<section id="when-should-a-theme-change" class="level2">
+<h2 class="anchored" data-anchor-id="when-should-a-theme-change">When should a theme change?</h2>
+<p>Keep an idea in the nearest theme’s <strong>Open hypotheses and ideas</strong> until all of these conditions are true:</p>
+<ol type="1">
+<li>Its working answer cannot be expressed as a refinement of an existing theme.</li>
+<li>It has an independent decision or promotion rule.</li>
+<li>It needs its own evidence boundary and next-test queue.</li>
+<li>It is expected to produce at least two durable claims, or it is one consequential multi-iteration research program.</li>
+</ol>
+<p>Split a theme only when two subareas can change their working answers independently and each has its own decision rule, evidence program, and queue. Merge themes when those elements no longer vary independently and most new claims require the same evidence and controls. Page length alone never creates or splits a theme.</p>
+<p>A new theme uses the established headings: <strong>Current working answer</strong>, <strong>What has been tried</strong>, <strong>What the evidence supports</strong>, <strong>What it does not rule out</strong>, <strong>Confirmed defects, audit gaps, and uncertainties</strong>, <strong>Open hypotheses and ideas</strong>, <strong>Cheapest valid next experiments</strong>, and <strong>Related themes</strong>. Add its hub card and matrix row, link its next work from the branch-complete queue, and add reciprocal related-theme links. Include it in normal render, link, privacy, accessibility, and responsive checks.</p>
 </section>
 <section id="before-the-run" class="level2">
 <h2 class="anchored" data-anchor-id="before-the-run">Before the run</h2>
@@ -3430,13 +3485,52 @@ break-inside: avoid;
 <ol type="1">
 <li>Preserve the smallest immutable evidence needed to audit the claim.</li>
 <li>Record the <strong>observed result</strong> apart from the project’s interpretation.</li>
-<li>Assign an existing <a href="./experiment-ledger.html#how-to-interpret-results">evidence status</a>; do not invent a parallel status system.</li>
+<li>Assign <a href="./experiment-ledger.html#how-to-interpret-evidence-and-decisions">evidence validity</a> and <a href="./experiment-ledger.html#how-to-interpret-evidence-and-decisions">decision disposition</a>; do not invent a parallel status system.</li>
 <li>State the panel, selection, data-split, and generalization boundaries.</li>
 <li>Classify a possible <strong>confirmed defect</strong>, <strong>audit gap</strong>, or <strong>uncertainty</strong>.</li>
 <li>Say what the result rules out now and what it does not rule out.</li>
 <li>Make the resulting decision and name the condition that would trigger reconsideration.</li>
 <li>Preserve corrections and superseded claims instead of silently erasing them.</li>
 </ol>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Evidence state</th>
+<th>Required action</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Valid but negative</strong></td>
+<td>Preserve the claim and use <strong>Not promoted under the tested condition</strong>.</td>
+</tr>
+<tr class="even">
+<td><strong>Incomplete</strong></td>
+<td>Preserve the evidence bundle and completion denominator; do not score it as a completed promotion comparison.</td>
+</tr>
+<tr class="odd">
+<td><strong>Invalid</strong></td>
+<td>Preserve the evidence, mark the intended claim unusable, identify affected conclusions, and require a fresh isolated run.</td>
+</tr>
+<tr class="even">
+<td><strong>Audit gap</strong></td>
+<td>State what cannot be reconstructed without claiming an unproven defect.</td>
+</tr>
+<tr class="odd">
+<td><strong>Corrected interpretation</strong></td>
+<td>Amend the owning claim, state what changed, and preserve the earlier wording and provenance.</td>
+</tr>
+<tr class="even">
+<td><strong>Superseded valid claim</strong></td>
+<td>Retain both claims, link <code>supersedes</code> and <code>superseded by</code>, and update current-answer surfaces when the decision changes.</td>
+</tr>
+</tbody>
+</table>
+<p>Invalid or incomplete attempts become theme claims only when their failure changes scientific or operational understanding.</p>
 <p>If labels, expected answers, or evaluation data may have influenced inference, stop before making a quality claim and classify the validity problem. If immutable evidence is missing, record an <strong>audit gap</strong> rather than upgrading a result from memory. If a run is incomplete, preserve the partial observation but do not score it as a completed promotion comparison.</p>
 <p>The <a href="./failure-library.html#how-to-read-the-records">Failure Library</a> is for selected, fully disclosed development cases. It is not a place to turn every incomplete run into a prevalence claim.</p>
 </section>
@@ -3454,6 +3548,17 @@ break-inside: avoid;
 <li>Reconsider when</li>
 <li>Collapsed method, result, validity risks, and evidence</li>
 </ul>
+<p>For every new or materially updated durable claim, also include:</p>
+<ul>
+<li>Canonical claim page and anchor</li>
+<li>Shared evidence bundle and immutable evidence link</li>
+<li>Evidence validity</li>
+<li>Decision disposition</li>
+<li>Decision rule and whether it was predeclared</li>
+<li>Gate outcome and completion denominator</li>
+<li>Supersedes / superseded by</li>
+</ul>
+<p>A missing historical field must be reported as <code>not recorded</code>, not inferred; it does not force a wholesale historical migration.</p>
 <p>Keep the method, result, validity risks, and evidence in that collapsed disclosure so the current conclusion remains scannable while audit detail stays available.</p>
 <p>For an upcoming test, use the established <strong>Cheapest valid next experiments</strong> fields:</p>
 <ul>
@@ -3485,11 +3590,14 @@ break-inside: avoid;
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Question / hypothesis / decision rule:**</span>
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Treatment / control / panel / data boundary:**</span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Revisions and immutable evidence:**</span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Observed result / evidence status / limits:**</span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Decision / reconsideration condition / superseded claim:**</span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Report pages and code paths changed:**</span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Verification:**</span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Unresolved defects / audit gaps / unknowns:**</span></code></pre></div>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Canonical claim page and anchor / shared evidence bundle:**</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Observed result / evidence validity / limits:**</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Decision disposition / decision rule predeclared?:**</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Gate outcome / completion denominator:**</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Decision / reconsideration condition / supersedes / superseded by:**</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Report pages and code paths changed:**</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Verification:**</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Unresolved defects / audit gaps / unknowns:**</span></code></pre></div>
 
 
 </section>

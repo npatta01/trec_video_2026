@@ -3372,6 +3372,7 @@ The first launch had a container-mount error before inference; the corrected run
 <section id="qwen3-omni-native-audio" class="level3">
 <h3 class="anchored" data-anchor-id="qwen3-omni-native-audio">Native audio with Qwen3-Omni</h3>
 <ul>
+<li><strong>Canonical native-audio-effect claim:</strong> the quality-10 neutral A2 evidence bundle is shared with the <a href="./research-models.html#qwen3-omni-quality">Canonical model-eligibility claim</a>; strict eligibility details remain canonical on Models.</li>
 <li><strong>Reason for testing:</strong> check whether a larger joint audio/vision model can use native audio while holding the 12-frame visual evidence fixed.</li>
 <li><strong>Tested condition and panel:</strong> a 10-row difficult, failure-selected panel compared Qwen3-Omni frames-only with the same frames plus native audio under a modality-neutral prompt.</li>
 <li><strong>Observed result:</strong> the semantic diagnostic changed from <code>3C/3P/4W</code> to <code>5C/2P/3W</code>: prosody and non-speech sound improved from partial to correct, and one action improved from wrong to partial; both visual controls stayed correct. The unchanged strict run completed only 19 of 20 required outputs.</li>
@@ -3385,7 +3386,7 @@ The first launch had a container-mount error before inference; the corrected run
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-One complete answer was wrapped in a Markdown JSON fence and failed the unchanged strict parser; a post-hoc semantic diagnostic cannot change that eligibility outcome. The panel is selected and frame-based, so it is neither a global ranking nor a complete native-video test. Model-specific gate details are on <a href="./research-models.html#qwen3-omni-quality">Models and Adaptation</a>. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-25-qwen3-omni-quality-10.md">quality-10 report · Evidence of record · Evidence report · GitHub</a>.
+The panel is selected and frame-based, so it is neither a global ranking nor a complete native-video test. Strict eligibility details are canonical on <a href="./research-models.html#qwen3-omni-quality">Models and Adaptation</a>. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-25-qwen3-omni-quality-10.md">quality-10 report · Evidence of record · Evidence report · GitHub</a>.
 </details>
 </section>
 <section id="sound-music-boundary" class="level3">
