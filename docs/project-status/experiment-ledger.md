@@ -28,6 +28,8 @@ areas, not a sequence.
 
 <div class="legacy-fragment-alias-group" aria-hidden="true"><span id="research-questions"></span><span id="fig-experiment-timeline"></span></div>
 
+<a name="six-theme-research-map"></a>
+
 ## Current research-theme map
 
 <div class="theme-grid">

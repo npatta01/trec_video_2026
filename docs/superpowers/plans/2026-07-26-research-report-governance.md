@@ -523,10 +523,16 @@ and this plan if unchanged Markdown files remain byte-identical.
   **Markdown 12/12** and **HTML 12/12**. All eight required corrected fragments
   were present in both output formats, and all **387** HTML-local links and
   fragments resolved with zero failures. The broad GFM check inspected
-  **169** local links and found zero unexpected failures; its six occurrences
-  were pre-existing out-of-scope authored-ID misses for
-  `six-theme-research-map` and `multilingual-translation-followups`, which this
-  tightly scoped correction did not change.
+  **169** local links and surfaced six link occurrences across two additional
+  missing aliases: `six-theme-research-map`, which the global compatibility
+  contract explicitly preserves, and `multilingual-translation-followups`,
+  which the new experiment index links directly. Added GFM-only aliases for
+  both, rendered those two sibling Markdown pages and the 12-page HTML site,
+  and repeated the broad checks: **169/169** GFM-local links and **387/387**
+  HTML-local links and fragments now resolve. A fresh isolated regeneration at
+  `/tmp/trecvid-compat-final.KpqzD9` again matched **Markdown 12/12** and
+  **HTML 12/12** byte for byte. The two follow-up aliases are GFM-only, so they
+  did not add duplicate HTML IDs or change HTML bytes.
 - Privacy/runtime containment remained unchanged: zero targeted credential,
   sensitive-path, or preview-URL matches; **72** runtime resource attributes
   checked with zero remote dependencies. `git diff --check` passed. No

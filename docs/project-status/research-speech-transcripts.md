@@ -136,6 +136,8 @@ and its [frozen ablation plan · Evidence of record · Evidence report ·
 GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/plans/issue-7-automatic-transcript-ablation.md).
 </details>
 
+<a name="multilingual-translation-followups"></a>
+
 ### Multilingual and translation follow-ups
 
 - **Reason for testing:** determine whether the intended

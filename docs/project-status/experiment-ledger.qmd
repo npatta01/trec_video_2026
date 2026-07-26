@@ -27,6 +27,10 @@ rules used by this hub.
 <div class="legacy-fragment-alias-group" aria-hidden="true"><span id="research-questions"></span><span id="fig-experiment-timeline"></span></div>
 ```
 
+::: {.content-visible when-format="gfm"}
+<a name="six-theme-research-map"></a>
+:::
+
 ## Current research-theme map {#six-theme-research-map}
 
 :::: {.theme-grid}
