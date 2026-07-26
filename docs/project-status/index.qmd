@@ -160,6 +160,24 @@ reference. **Token F1** balances word-level precision and recall, so it can give
 partial credit for overlapping words. Neither metric turns a small diagnostic
 into a population estimate.
 
+### Evidence strength
+
+Read every result with its evidence-status label. These labels keep a working
+runtime probe or a selected diagnostic from being mistaken for promotion
+evidence.
+
+| Status | What it means here |
+|---|---|
+| **Verified** | The declared protocol completed, required outputs and provenance checks passed, and the stated result was scored or reviewed within that protocol. |
+| **Diagnostic** | A deliberately small, selected, or post-hoc comparison that may explain a mechanism but cannot estimate population accuracy. |
+| **Compatibility-only** | The runtime, modality input, and output contract worked; answer quality was not established. |
+| **Not promoted under the tested condition** | This implementation, panel, budget, or gate did not justify promotion; it is not a permanent verdict. |
+| **Blocked** | A required input, independent record, budget, or authorization is absent, so the planned evidence tier cannot run validly yet. |
+| **Unknown** | No valid evidence answers the question. In particular, answer quality on the 2026 evaluation set is **Unknown**. |
+
+Evidence strength and answer grade are different: a prediction can be correct
+inside a tiny diagnostic without making the tested method a verified default.
+
 ### What not to infer
 
 - **More frames are not automatically better.** Global Qwen 24 frames added no
