@@ -3,7 +3,8 @@
 > **Historical-status note (2026-07-25):** This plan was restored because
 > closed issue #4 links to it. Frozen-30, automatic-transcript, model
 > compatibility, semantic correction, Qwen3-Omni, and temporal diagnostics
-> ran. Directed and dense-burst temporal heuristics stopped; the strict
+> ran. The tested directed-12 ten-row and dense-burst-12 two-row diagnostics
+> were not promoted as defaults; other selectors remain open. The strict
 > human-oracle tier remains deferred in open issue #19. Current decisions live
 > in [Project Status](../../project-status/index.md). The checklist below is
 > preserved as historical record.
