@@ -73,6 +73,8 @@ quality comparison.
 
 ## What has been tried
 
+<a name="compatibility-gate-models"></a>
+
 ### Three-video compatibility gate
 
 - **Reason for testing:** determine which adapters can execute under a
@@ -192,6 +194,8 @@ and [semantic-quality correction · Evidence of record · Evidence report
 ·
 GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-24-omni-semantic-quality.md).
 </details>
+
+<a name="minicpm-fast-alternate"></a>
 
 ### MiniCPM-o 4.5 fast alternate
 

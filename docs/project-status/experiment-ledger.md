@@ -311,6 +311,9 @@ reference, not a prescribed research sequence.
     separately](research-routing.md#required-evidence-labels-and-three-way-measurement),
     then test election only if evidence paths are stable.
 
+<span id="how-to-interpret-results" class="legacy-fragment-alias"
+aria-hidden="true"></span>
+
 ## How to interpret evidence and decisions
 
 Evidence validity describes whether and how evidence can be used.

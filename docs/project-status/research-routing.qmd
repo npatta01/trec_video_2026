@@ -148,6 +148,10 @@ explains the separation between speech recovery and answer selection. See also
 [Speech and Transcript Evidence](research-speech-transcripts.{{< meta report-ext >}}).
 </details>
 
+::: {.content-visible when-format="gfm"}
+<a name="retrieval-versus-fusion"></a>
+:::
+
 ### Retrieval versus fusion diagnostic {#retrieval-versus-fusion}
 
 - **Reason for testing:** prevent a temporal or multimodal failure from being
@@ -179,6 +183,10 @@ quality, and end-to-end answer quality precisely to tell these apart. See the
 [research-thread source · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/queries/literature_review.sql)
 and [closed issue #4 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
 </details>
+
+::: {.content-visible when-format="gfm"}
+<a name="answer-election"></a>
+:::
 
 ### Evidence-aware answer election {#answer-election}
 

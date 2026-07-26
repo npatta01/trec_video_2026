@@ -493,6 +493,48 @@ and this plan if unchanged Markdown files remain byte-identical.
   replacement full-page captures. `git diff --check` passed. No custom tests,
   application tests, scripts, validators, or CI were added or run.
 
+### 2026-07-26 — Whole-branch review correction round 1
+
+- First whole-branch review verdict: **With fixes**. The reviewer reported two
+  Important link-compatibility findings: six experiment-index links targeted
+  authored heading IDs that were present in HTML but absent from sibling GFM,
+  and the historical `#how-to-interpret-results` hub fragment had been removed
+  when the canonical heading became
+  `#how-to-interpret-evidence-and-decisions`.
+- Added GFM-only named-anchor aliases immediately before the six owning
+  headings: `qwen3-omni-native-audio`, `sound-music-boundary`,
+  `compatibility-gate-models`, `minicpm-fast-alternate`,
+  `retrieval-versus-fusion`, and `answer-election`. Each alias appears once in
+  its sibling Markdown; each owner HTML page retains one authored section ID
+  and contains no duplicate GFM alias. Added the zero-height
+  `how-to-interpret-results` legacy span before the unchanged canonical hub
+  heading; both legacy and canonical fragments appear once in GFM and HTML.
+- Corrected the approved design's render count from five to six changed QMD
+  files. No scientific prose, page design, stylesheet, Quarto configuration,
+  navbar, or report page was added or changed beyond the compatibility spans.
+- Rendered only the four corrected QMD sources to sibling GFM, then rendered
+  the existing HTML site `1/12` through `12/12`. Confirmed exactly 12 tracked
+  and 12 worktree HTML pages, three primary navbar items, and zero style or
+  configuration diffs. Confirmed and removed only the four Quarto transients
+  plus the source-relative extra generated `docs/project-status/docs/` path,
+  all of which were absent before rendering.
+- An isolated repository-shaped regeneration at
+  `/tmp/trecvid-compat-isolated.70qUBd` matched repository output byte for byte:
+  **Markdown 12/12** and **HTML 12/12**. All eight required corrected fragments
+  were present in both output formats, and all **387** HTML-local links and
+  fragments resolved with zero failures. The broad GFM check inspected
+  **169** local links and found zero unexpected failures; its six occurrences
+  were pre-existing out-of-scope authored-ID misses for
+  `six-theme-research-map` and `multilingual-translation-followups`, which this
+  tightly scoped correction did not change.
+- Privacy/runtime containment remained unchanged: zero targeted credential,
+  sensitive-path, or preview-URL matches; **72** runtime resource attributes
+  checked with zero remote dependencies. `git diff --check` passed. No
+  application tests, custom script or test files, CI, schema, or portal
+  refresh were added or run.
+- Final whole-branch re-review is pending. This correction round does not claim
+  approval.
+
 ## Final review and authorized portal refresh
 
 After all three task reviews pass:

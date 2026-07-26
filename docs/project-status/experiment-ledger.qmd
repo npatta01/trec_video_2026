@@ -253,6 +253,8 @@ a prescribed research sequence.
 6. **Routing, fusion, and answer election:** [measure retrieval, oracle-evidence
    answering, and end-to-end answering separately](research-routing.{{< meta report-ext >}}#required-evidence-labels-and-three-way-measurement), then test election only if evidence paths are stable.
 
+<span id="how-to-interpret-results" class="legacy-fragment-alias" aria-hidden="true"></span>
+
 ## How to interpret evidence and decisions {#how-to-interpret-evidence-and-decisions}
 
 Evidence validity describes whether and how evidence can be used. Decision

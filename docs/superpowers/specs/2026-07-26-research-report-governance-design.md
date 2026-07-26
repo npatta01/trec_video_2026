@@ -196,7 +196,7 @@ happened to execute do not determine ownership by themselves.
 
 ## Verification
 
-- Render the five changed QMD files to sibling GitHub-readable Markdown.
+- Render the six changed QMD files to sibling GitHub-readable Markdown.
 - Render all 12 existing QMD pages to self-contained HTML; do not add a page.
 - Compare a clean isolated regeneration with repository outputs.
 - Check repository-relative links and authored fragments, including the legacy

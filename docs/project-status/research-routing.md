@@ -173,6 +173,8 @@ See also [Speech and Transcript
 Evidence](research-speech-transcripts.md).
 </details>
 
+<a name="retrieval-versus-fusion"></a>
+
 ### Retrieval versus fusion diagnostic
 
 - **Reason for testing:** prevent a temporal or multimodal failure from
@@ -214,6 +216,8 @@ GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc0
 and [closed issue \#4 · Issue/PR history ·
 GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
 </details>
+
+<a name="answer-election"></a>
 
 ### Evidence-aware answer election
 

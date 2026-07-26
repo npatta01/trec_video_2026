@@ -162,6 +162,8 @@ Evidence report ·
 GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md).
 </details>
 
+<a name="qwen3-omni-native-audio"></a>
+
 ### Native audio with Qwen3-Omni
 
 - **Canonical native-audio-effect claim:** the quality-10 neutral A2
@@ -208,6 +210,8 @@ Adaptation](research-models.md#qwen3-omni-quality). See the [quality-10
 report · Evidence of record · Evidence report ·
 GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-25-qwen3-omni-quality-10.md).
 </details>
+
+<a name="sound-music-boundary"></a>
 
 ### Sound and music diagnostic boundaries
 

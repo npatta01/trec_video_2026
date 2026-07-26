@@ -137,6 +137,10 @@ recovery behavior but cannot estimate full-test prevalence or rank systems.
 See the [failure-panel report · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md).
 </details>
 
+::: {.content-visible when-format="gfm"}
+<a name="qwen3-omni-native-audio"></a>
+:::
+
 ### Native audio with Qwen3-Omni {#qwen3-omni-native-audio}
 
 - **Canonical native-audio-effect claim:** the quality-10 neutral A2 evidence
@@ -170,6 +174,10 @@ complete native-video test. Strict eligibility details are canonical on
 [Models and Adaptation](research-models.{{< meta report-ext >}}#qwen3-omni-quality).
 See the [quality-10 report · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-25-qwen3-omni-quality-10.md).
 </details>
+
+::: {.content-visible when-format="gfm"}
+<a name="sound-music-boundary"></a>
+:::
 
 ### Sound and music diagnostic boundaries {#sound-music-boundary}
 
