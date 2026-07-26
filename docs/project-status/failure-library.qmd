@@ -105,13 +105,14 @@ span.
 | Project-generated frozen prediction | Frames only: `2012`; frames plus automatic transcript: `The horse is 22 years old.` |
 | Expected answer | `withheld` |
 | Project grade | Both `wrong`; manual accuracy, exact match, token F1, and METEOR all `0.0` |
-| Rater provenance | not recorded |
-| Blinding provenance | not recorded |
-| Adjudication provenance | not recorded |
+| Freeze and grading provenance | Paired predictions were frozen before references were loaded; manual adjudication occurred after the freeze |
+| Rater provenance | Rater count not recorded |
+| Blinding provenance | Condition blinding not recorded |
+| Adjudication provenance | Separate adjudicator not recorded |
 | Uncertainty | Post-hoc diagnosis; competing explanation remains viable; `n=1` selected development evidence |
 | Next comparison | Position-versus-explicitness comparison with evidence and answerer held fixed |
 | Immutable evidence links | not recorded |
-| Supersession | not recorded |
+| Supersession | No row-level supersession; the broader transcript policy is quality-gated and routed, not global |
 
 </details>
 :::
@@ -181,13 +182,14 @@ failure pattern.
 | Project-generated frozen prediction | Frames only: `No`; frames plus automatic transcript: `Thank you for watching!` |
 | Expected answer | `withheld` |
 | Project grade | Both `wrong`; manual accuracy, exact match, token F1, and METEOR all `0.0` |
-| Rater provenance | not recorded |
-| Blinding provenance | not recorded |
-| Adjudication provenance | not recorded |
+| Freeze and grading provenance | Paired predictions were frozen before references were loaded; manual adjudication occurred after the freeze |
+| Rater provenance | Rater count not recorded |
+| Blinding provenance | Condition blinding not recorded |
+| Adjudication provenance | Separate adjudicator not recorded |
 | Uncertainty | Post-hoc diagnosis; competing explanation remains viable; `n=1` selected development evidence |
 | Next comparison | Old generic text gate versus label-blind non-lexical route and frames-only control |
 | Immutable evidence links | not recorded |
-| Supersession | not recorded |
+| Supersession | Old generic acceptance behavior is superseded by repaired quality gates; a dedicated non-lexical check remains open |
 
 </details>
 :::
@@ -256,13 +258,14 @@ answer while the control behaves normally.
 | Project-generated frozen prediction | `Justice` in frames-only, automatic-transcript, and uploader-caption conditions |
 | Expected answer | `withheld` |
 | Project grade | All `wrong`; manual accuracy `0.0` |
-| Rater provenance | not recorded |
-| Blinding provenance | not recorded |
-| Adjudication provenance | not recorded |
+| Freeze, scoring, and caption provenance | All three predictions were frozen before label access; scoring occurred after the freeze; caption coverage was verified |
+| Rater provenance | Rater count not recorded |
+| Blinding provenance | Condition blinding not recorded |
+| Adjudication provenance | Separate adjudication not recorded |
 | Uncertainty | Post-hoc diagnosis; competing explanation remains viable; `n=1` selected development evidence |
 | Next comparison | Current prompt versus label-blind final-token instruction and matched control |
 | Immutable evidence links | not recorded |
-| Supersession | not recorded |
+| Supersession | No row-level supersession; uploader captions remain distinct provenance, not a human oracle |
 
 </details>
 :::
@@ -330,13 +333,13 @@ specific music interpretation.
 | Project-generated frozen prediction | Audio off: `Wedding bells`; native audio: `Wedding march music.` |
 | Expected answer | `withheld` |
 | Project grade | Native audio `Wrong`; exact match `0.0`, token F1 `0.0`, METEOR `0.125` |
-| Rater provenance | not recorded |
-| Blinding provenance | not recorded |
-| Adjudication provenance | not recorded |
+| Rater provenance | One independent advisor reviewed answers; no multi-rater count recorded |
+| Blinding provenance | The independent advisor reviewed answers without model identities |
+| Adjudication provenance | No adjudication process recorded |
 | Uncertainty | Post-hoc diagnosis; competing explanation remains viable; `n=1` selected development evidence |
 | Next comparison | Current prompt versus least-specific supported-label prompt, with audio-off control |
 | Immutable evidence links | not recorded |
-| Supersession | not recorded |
+| Supersession | The old panel's global 24-frame default is superseded by frozen-30's global 12-frame default; this row still supports category-gated, not global, native audio |
 
 </details>
 :::
