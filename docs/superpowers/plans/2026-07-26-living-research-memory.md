@@ -146,10 +146,10 @@ picks:
 
 ```text
 NN7G28sBOlY — accepted transcript contained the needed answer; wrong span chosen
-NW3Mhr76ClM — non-lexical chuckle missed; generic ASR gate accepted wrong text
+NW3Mhr76ClM — non-lexical vocal event missed; generic ASR gate accepted unrelated text
 NrB4LPosWBk — automatic and uploader text contained the reference word; answer unchanged and wrong
 EMI_anpHII4 — music/no-speech Whisper repetition or timestamp-overrun failure
-IWSPAfCKtV8 — native-audio distraction: church bell answered as wedding-march music
+IWSPAfCKtV8 — native-audio distraction produced an unsupported music interpretation
 ```
 
 Choose three to five only when the tracked report and frozen artifact agree on
