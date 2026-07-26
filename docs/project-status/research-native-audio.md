@@ -66,7 +66,7 @@ This was pre-v2 screening evidence, not part of frozen-30’s
 four-condition ranking. Its promotion rule also required non-speech
 wins, multilingual wins, and no temporal/control loss; it did not pass.
 The [protocol-v2
-report](../../reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md)
+report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md)
 records the gate values and explicitly calls for a new controlled
 native-audio test rather than assuming it helps.
 </details>
@@ -111,7 +111,7 @@ corrected run completed all 12 requests. That operational repair is not
 evidence of quality. This panel was selected from known failures, so it
 can diagnose recovery behavior but cannot estimate full-test prevalence
 or rank systems. See the [failure-panel
-report](../../reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md).
+report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md).
 </details>
 
 ### Native audio with Qwen3-Omni
@@ -152,7 +152,7 @@ that eligibility outcome. The panel is selected and frame-based, so it
 is neither a global ranking nor a complete native-video test.
 Model-specific gate details are on [Models and
 Adaptation](research-models.md#qwen3-omni-quality). See the [quality-10
-report](../../docs/experiments/2026-07-25-qwen3-omni-quality-10.md).
+report](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10.md).
 </details>
 
 ### Sound and music diagnostic boundaries
@@ -187,9 +187,9 @@ Method, result, validity risks, and evidence
 
 Frozen-30 is the stronger panel but has only six rows per stratum; the
 failure-selected rows are diagnostic only. The [protocol-v2
-report](../../reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md)
+report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md)
 and [failure-panel
-report](../../reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md)
+report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md)
 support this separation.
 </details>
 

@@ -64,7 +64,7 @@ Method, result, validity risks, and evidence
 The field guide predates the local panels. It can explain why the
 project prioritized evidence boundaries, but cannot choose a current
 model, prompt, or frame policy. See the [field-guide source
-notes](../../reports/trecvid_vqa_2026/source_notes.md).
+notes](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/source_notes.md).
 </details>
 
 ### Data readiness
@@ -95,8 +95,9 @@ Method, result, validity risks, and evidence
 Readiness does not prove that every future video is available, that a
 model will run, or that answers will be correct. Operational readiness
 does not establish 2026 answer quality. The [benchmark construction
-module](../../src/trec_video_2026/vqa_benchmark.py) binds manifest
-identities and hashes; the shared data boundary remains local.
+module](https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_benchmark.py)
+binds manifest identities and hashes; the shared data boundary remains
+local.
 </details>
 
 <a name="compatibility-gate"></a>
@@ -130,7 +131,7 @@ Labels were joined after inference, but three deliberately selected rows
 are too small to estimate competition accuracy. The current public
 `vqa-gate` CLI exposes preflight only; completed runs used tested Python
 seams. The [three-video gate
-report](../../reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md)
+report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md)
 documents an audited execution, not a general one-command workflow.
 </details>
 
@@ -170,7 +171,7 @@ with minimal mounts, source/model/image attestation, immutable
 prediction bytes, and a two-phase scoring boundary. Reproducible
 execution still does not establish answer quality; its 2025
 training-data comparison is not a 2026 estimate. See the [protocol-v2
-report](../../reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
+report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
 </details>
 
 ### Scorer-reuse audit
@@ -203,7 +204,7 @@ The audit identified shell interpolation, a skipped-query denominator
 bug, directory rescanning, and unpinned dependencies among the reasons
 to isolate the historical evaluator. NIST’s 2026 scoring implementation
 was not final at the audit date. The [scorer-reuse
-audit](../../reports/trecvid_vqa_2026/nist_scorer_reuse_audit_2026-07-20.md)
+audit](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/nist_scorer_reuse_audit_2026-07-20.md)
 recommends a pinned external checkout/cache, local fixtures, and the
 validator as a final format gate.
 </details>

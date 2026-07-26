@@ -5993,13 +5993,13 @@ Expand the full decision diagram
   accTitle: Current project decisions
   accDescr: Qwen with 12 frames is the default, MiniCPM audio-off is the fast alternate, speech and native audio are routed candidates, several tested conditions were not promoted, and one Qwen3-Omni run missed its completion gate.
   E[Current evidence] --&gt; D[Use now]
-  E --&gt; R[Route or study]
+  E --&gt; ROUTE[Route or study]
   E --&gt; S[Do not default]
   D --&gt; Q12[Qwen3.5-4B&lt;br/&gt;12 uniform frames]
   D --&gt; M[MiniCPM-o 4.5&lt;br/&gt;audio off: fast alternate]
-  R --&gt; W[Quality-gated Whisper&lt;br/&gt;lexical speech]
-  R --&gt; NA[Native audio&lt;br/&gt;prosody / non-speech]
-  R --&gt; O[Qwen3-Omni A2 run&lt;br/&gt;19/20 gate-specific ineligibility]
+  ROUTE --&gt; W[Quality-gated Whisper&lt;br/&gt;lexical speech]
+  ROUTE --&gt; NA[Native audio&lt;br/&gt;prosody / non-speech]
+  ROUTE --&gt; O[Qwen3-Omni A2 run&lt;br/&gt;19/20 gate-specific ineligibility]
   S --&gt; X[Not promoted under tested conditions&lt;br/&gt;Global 24f; directed; bursts;&lt;br/&gt;Qwen3.6; Gemma; Phi]
 </pre>
 </div>

@@ -2802,7 +2802,7 @@ transition: none !important;
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-The field guide predates the local panels. It can explain why the project prioritized evidence boundaries, but cannot choose a current model, prompt, or frame policy. See the <a href="../../reports/trecvid_vqa_2026/source_notes.md">field-guide source notes</a>.
+The field guide predates the local panels. It can explain why the project prioritized evidence boundaries, but cannot choose a current model, prompt, or frame policy. See the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/source_notes.md">field-guide source notes</a>.
 </details>
 </section>
 <section id="data-readiness" class="level3">
@@ -2820,7 +2820,7 @@ The field guide predates the local panels. It can explain why the project priori
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-Readiness does not prove that every future video is available, that a model will run, or that answers will be correct. Operational readiness does not establish 2026 answer quality. The <a href="../../src/trec_video_2026/vqa_benchmark.py">benchmark construction module</a> binds manifest identities and hashes; the shared data boundary remains local.
+Readiness does not prove that every future video is available, that a model will run, or that answers will be correct. Operational readiness does not establish 2026 answer quality. The <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_benchmark.py">benchmark construction module</a> binds manifest identities and hashes; the shared data boundary remains local.
 </details>
 </section>
 <section id="compatibility-gate" class="level3">
@@ -2838,7 +2838,7 @@ Readiness does not prove that every future video is available, that a model will
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-Labels were joined after inference, but three deliberately selected rows are too small to estimate competition accuracy. The current public <code>vqa-gate</code> CLI exposes preflight only; completed runs used tested Python seams. The <a href="../../reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md">three-video gate report</a> documents an audited execution, not a general one-command workflow.
+Labels were joined after inference, but three deliberately selected rows are too small to estimate competition accuracy. The current public <code>vqa-gate</code> CLI exposes preflight only; completed runs used tested Python seams. The <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md">three-video gate report</a> documents an audited execution, not a general one-command workflow.
 </details>
 </section>
 <section id="frozen-30-protocol-v2" class="level3">
@@ -2856,7 +2856,7 @@ Labels were joined after inference, but three deliberately selected rows are too
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-V1 inference mounted a dataset root containing labels, preparation opened annotation content, and Qwen device/dtype strings were configured rather than live-attested. V2 reran rather than reusing v1 predictions, with minimal mounts, source/model/image attestation, immutable prediction bytes, and a two-phase scoring boundary. Reproducible execution still does not establish answer quality; its 2025 training-data comparison is not a 2026 estimate. See the <a href="../../reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">protocol-v2 report</a>.
+V1 inference mounted a dataset root containing labels, preparation opened annotation content, and Qwen device/dtype strings were configured rather than live-attested. V2 reran rather than reusing v1 predictions, with minimal mounts, source/model/image attestation, immutable prediction bytes, and a two-phase scoring boundary. Reproducible execution still does not establish answer quality; its 2025 training-data comparison is not a 2026 estimate. See the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">protocol-v2 report</a>.
 </details>
 </section>
 <section id="scorer-reuse-audit" class="level3">
@@ -2874,7 +2874,7 @@ V1 inference mounted a dataset root containing labels, preparation opened annota
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-The audit identified shell interpolation, a skipped-query denominator bug, directory rescanning, and unpinned dependencies among the reasons to isolate the historical evaluator. NIST’s 2026 scoring implementation was not final at the audit date. The <a href="../../reports/trecvid_vqa_2026/nist_scorer_reuse_audit_2026-07-20.md">scorer-reuse audit</a> recommends a pinned external checkout/cache, local fixtures, and the validator as a final format gate.
+The audit identified shell interpolation, a skipped-query denominator bug, directory rescanning, and unpinned dependencies among the reasons to isolate the historical evaluator. NIST’s 2026 scoring implementation was not final at the audit date. The <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/nist_scorer_reuse_audit_2026-07-20.md">scorer-reuse audit</a> recommends a pinned external checkout/cache, local fixtures, and the validator as a final format gate.
 </details>
 </section>
 </section>

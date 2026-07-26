@@ -64,7 +64,7 @@ Both arms use whole-video bin-midpoint coverage, not query-driven
 retrieval. The comparison is the strongest global visual evidence here
 but remains a 30-row 2025 training-data result, not an estimate of 2026
 accuracy. See the [protocol-v2
-report](../../reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
+report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
 </details>
 
 ### Directed temporal sampling
@@ -101,10 +101,12 @@ The selector source and tests establish deterministic timestamps for a
 supplied anchor, not required-evidence recall or answer relevance. The
 tracked repository has no general-workflow caller for the selector: that
 is an **Audit gap**, not a confirmed execution bug. The [temporal
-experiment record](../../docs/experiments/temporal-sampling-issue-8.md),
-[selector](../../src/trec_video_2026/vqa_experiments/temporal_sampling.py),
-and [tests](../../tests/test_temporal_sampling.py) document the narrow
-contract.
+experiment
+record](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/temporal-sampling-issue-8.md),
+[selector](https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_experiments/temporal_sampling.py),
+and
+[tests](https://github.com/npatta01/trec_video_2026/blob/main/tests/test_temporal_sampling.py)
+document the narrow contract.
 </details>
 
 ### Dense-burst sampling
@@ -178,9 +180,9 @@ failure; the speech and Seamless record now lives under [Speech and
 Transcript
 Evidence](research-speech-transcripts.md#seamless-diagnostic). See the
 [audio and spatial
-follow-up](../../reports/trecvid_vqa_2026/audio_spatial_followup_results_2026-07-21.md)
+follow-up](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/audio_spatial_followup_results_2026-07-21.md)
 and the frozen-30 spatial policy discussion in the [protocol-v2
-report](../../reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
+report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
 </details>
 
 ## What the evidence supports

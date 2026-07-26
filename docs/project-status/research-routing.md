@@ -71,9 +71,9 @@ conservative lower bound: paraphrases can be missed and tags can
 overlap. Prior 2025 systems used related ingredients, but no paper
 documents a complete conditional router that chooses model, audio
 treatment, and frame density per question. See the [taxonomy
-audit](../../reports/trecvid_vqa_2026/taxonomy_prior_art_and_open_omni_models_2026-07-24.md)
-and [evidence-routing
-plan](../../docs/superpowers/plans/2026-07-24-evidence-routing-benchmark.md).
+audit](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/taxonomy_prior_art_and_open_omni_models_2026-07-24.md)
+and [closed issue
+\#4](https://github.com/npatta01/trec_video_2026/issues/4).
 </details>
 
 ### Transcript residuals: evidence present, answer still wrong
@@ -113,10 +113,10 @@ Method, result, validity risks, and evidence
 The two-language diagnostic is too small to estimate multilingual
 performance; the 10-row Whisper ablation is selected lexical-speech
 evidence. The [transcript
-diagnostic](../../reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md)
+diagnostic](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md)
 supports the two evidence-use residuals and the missed non-lexical
 vocalization. The [failure-panel
-report](../../reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md)
+report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md)
 explains the separation between speech recovery and answer selection.
 See also [Speech and Transcript
 Evidence](research-speech-transcripts.md).
@@ -156,9 +156,9 @@ evidence was available but the model still combined it incorrectly or
 chose the wrong answer. The literature map recommends selector recall,
 oracle-evidence answer quality, and end-to-end answer quality precisely
 to tell these apart. See the [research-thread
-source](../../reports/trecvid_vqa_2026/queries/literature_review.sql)
-and [routing benchmark
-plan](../../docs/superpowers/plans/2026-07-24-evidence-routing-benchmark.md).
+source](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/queries/literature_review.sql)
+and [closed issue
+\#4](https://github.com/npatta01/trec_video_2026/issues/4).
 </details>
 
 ### Evidence-aware answer election
@@ -189,7 +189,7 @@ Method, result, validity risks, and evidence
 
 An election mechanism cannot repair missing evidence, and exact-string
 voting can split equivalent open answers. The [literature
-map](../../reports/trecvid_vqa_2026/queries/literature_review.sql)
+map](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/queries/literature_review.sql)
 recommends semantic deduplication and evidence-aware ranking only as a
 testable future direction.
 </details>

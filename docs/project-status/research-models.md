@@ -64,7 +64,7 @@ Method, result, validity risks, and evidence
 
 The compatibility gate checks that a combined request can execute; it
 does not score semantic answer quality. The [three-video gate
-report](../../reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md)
+report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md)
 and [Experiment Integrity and
 Evaluation](research-integrity.md#compatibility-gate) describe why that
 distinction matters.
@@ -103,7 +103,7 @@ The run itself was technically clean, so this is not a runtime failure.
 The failure-selected panel can reveal recovery patterns but cannot
 estimate full test accuracy; the 24-frame local winner on this panel is
 superseded as a global default by frozen-30. See the [failure-panel
-report](../../reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md).
+report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md).
 </details>
 
 <a name="phi-gemma-semantic-stop"></a>
@@ -140,9 +140,9 @@ Method, result, validity risks, and evidence
 
 The counts are a semantic screen, not a general leaderboard. The
 relevant records are the [compatibility
-probe](../../docs/experiments/2026-07-24-nonqwen-omni-compatibility.md)
+probe](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-nonqwen-omni-compatibility.md)
 and [semantic-quality
-correction](../../docs/experiments/2026-07-24-omni-semantic-quality.md).
+correction](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-omni-semantic-quality.md).
 </details>
 
 ### MiniCPM-o 4.5 fast alternate
@@ -167,7 +167,7 @@ Method, result, validity risks, and evidence
 All four frozen-30 conditions completed 30/30 rows. This is descriptive
 model selection on labeled 2025 training data, not an estimate for the
 unlabeled 2026 evaluation set. See the [protocol-v2
-report](../../reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
+report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
 </details>
 
 <a name="qwen3-omni-quality"></a>
@@ -210,9 +210,9 @@ remained. Semantic recovery of that exact output is diagnostic only and
 cannot retroactively complete A2. The 10 rows are selected and
 frame-based, so they cannot be compared directly to frozen-30. 2026
 answer quality remains unknown. See the [quality-10
-report](../../docs/experiments/2026-07-25-qwen3-omni-quality-10.md) and
-[neutral A2
-result](../../docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md).
+report](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10.md)
+and [neutral A2
+result](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md).
 </details>
 
 ## What the evidence supports
