@@ -25,9 +25,10 @@ add modalities only through narrow, quality-gated routes.
 - **Fast alternate:** MiniCPM-o 4.5 with native audio disabled. It had
   the best METEOR and fastest measured outer wall in the matched
   frozen-30 run.
-- **Lexical-speech route:** add Whisper large-v3 only when a label-blind
-  question/speech router selects the route and transcript quality
-  passes.
+- **Lexical-speech route:** in a declared label-blind routed experiment,
+  add Whisper large-v3 only when the question is classified as lexical
+  speech and transcript quality passes. No versioned evaluated router
+  exists yet.
 - **Prosody or non-speech candidate:** test native audio as a specialist
   branch, never as a global switch on the current evidence.
 
@@ -67,14 +68,45 @@ Plain-text equivalent:
     result as the matched control.
 3.  For prosody or non-speech sound, native audio is a candidate
     specialist experiment, not a promoted production route.
-4.  Otherwise, stop at the 12-frame baseline.
+4.  Otherwise, continue with the 12-frame baseline.
 
 ## Current decision map
+
+The table is the primary decision interface. It states the current use
+of each system without requiring the expanded visual.
+
+| Status | Systems or routes | Meaning now |
+|----|----|----|
+| Current default | Qwen3.5-4B, 12 uniform frames | Evidence-backed visual baseline. |
+| Fast alternate | MiniCPM-o 4.5, audio off | Explicit speed/METEOR trade-off, not the accuracy winner on every metric. |
+| Routed candidate | Quality-gated Whisper | Lexical-speech evidence only; not a global default. |
+| Routed candidate | Native audio | Prosody and non-speech candidate; global use can distract visual reasoning. |
+| Gate-specific ineligible run | Qwen3-Omni neutral A2 | Encouraging diagnostic, but this strict run produced 19/20 accepted outputs and cannot support its predeclared promotion decision. |
+| Not promoted as current defaults under the tested conditions | Global 24 frames, directed temporal sampling, dense bursts, Qwen3.6, Gemma, Phi | Each tested implementation missed its applicable efficiency, semantic, or promotion gate; different controlled conditions remain possible. |
+
+The Qwen3-Omni neutral A2 diagnostic changed frames-only **3C/3P/4W** to
+audio-on **5C/2P/3W** after a narrow post-hoc answer recovery. The
+immutable strict run still completed only **19/20** accepted outputs, so
+that run is formally ineligible under its predeclared 20/20 promotion
+gate. The model may be reconsidered in a repaired fresh comparison. See
+the [tracked neutral A2
+result](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md)
+and [PR \#18](https://github.com/npatta01/trec_video_2026/pull/18).
+
+<details class="diagram-details">
+
+<summary>
+
+Expand the full decision diagram
+</summary>
+
+<div class="diagram-scroll" tabindex="0"
+aria-label="Scrollable full current decision diagram">
 
 ``` mermaid
 flowchart TD
   accTitle: Current project decisions
-  accDescr: Qwen with 12 frames is the default, MiniCPM audio-off is the fast alternate, speech and native audio are routed candidates, and stopped approaches are not defaults.
+  accDescr: Qwen with 12 frames is the default, MiniCPM audio-off is the fast alternate, speech and native audio are routed candidates, several tested conditions were not promoted, and one Qwen3-Omni run missed its completion gate.
   E[Current evidence] --> D[Use now]
   E --> R[Route or study]
   E --> S[Do not default]
@@ -82,28 +114,17 @@ flowchart TD
   D --> M[MiniCPM-o 4.5<br/>audio off: fast alternate]
   R --> W[Quality-gated Whisper<br/>lexical speech]
   R --> NA[Native audio<br/>prosody / non-speech]
-  R --> O[Qwen3-Omni<br/>promising, ineligible]
-  S --> X[Global 24f; directed; bursts;<br/>Qwen3.6; Gemma; Phi]
+  R --> O[Qwen3-Omni A2 run<br/>19/20 gate-specific ineligibility]
+  S --> X[Not promoted under tested conditions<br/>Global 24f; directed; bursts;<br/>Qwen3.6; Gemma; Phi]
 ```
 
 **Figure caption:** Current decision map separating defaults, routed
-candidates, stopped approaches, and an ineligible but promising model.
+candidates, condition-bound non-promotions, and Qwen3-Omni’s
+gate-specific ineligible run.
 
-| Status | Systems or routes | Meaning now |
-|----|----|----|
-| Use now | Qwen3.5-4B, 12 uniform frames | Evidence-backed default. |
-| Use when speed dominates | MiniCPM-o 4.5, audio off | Fast alternate, not the accuracy winner on every metric. |
-| Route | Quality-gated Whisper | Lexical-speech evidence only; not a global default. |
-| Study as specialist | Native audio | Prosody and non-speech candidate; global use can distract visual reasoning. |
-| Ineligible candidate | Qwen3-Omni | Encouraging answer-only diagnostic, but the strict A2 run passed only 19/20 outputs. |
-| Stop as current defaults | Global 24 frames, directed temporal sampling, dense bursts, Qwen3.6, Gemma, Phi | Each failed its applicable efficiency, semantic, or promotion gate. |
+</div>
 
-The Qwen3-Omni neutral A2 diagnostic changed frames-only **3C/3P/4W** to
-audio-on **5C/2P/3W** after a narrow post-hoc answer recovery, but the
-immutable strict run still completed only **19/20** outputs. It is
-therefore formally ineligible for promotion. See the [tracked neutral A2
-result](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md)
-and [PR \#18](https://github.com/npatta01/trec_video_2026/pull/18).
+</details>
 
 ## What not to infer
 
@@ -116,12 +137,13 @@ and [PR \#18](https://github.com/npatta01/trec_video_2026/pull/18).
   displace the smaller baseline.
 - **Runtime compatibility is not answer quality.** Gemma passed an
   initial joint-input compatibility gate and Phi needed output handling
-  correction, but the later semantic gate stopped both.
+  correction, but neither was promoted beyond the later three-row
+  semantic gate.
 - **Native audio is not universally helpful.** It improved some prosody
   and sound cases while harming some temporal cases.
 
-Follow the experiments and their limitations in the [Experiment
-Ledger](experiment-ledger.md).
+Follow the evidence, limitations, and next experiments in [Research
+Themes](experiment-ledger.md).
 
 ## Choose a reading path
 
@@ -137,10 +159,10 @@ Ledger](experiment-ledger.md).
 ### Fifteen minutes: understand the decision
 
 1.  Complete the five-minute path.
-2.  Read the [frozen-30
-    entry](experiment-ledger.md#frozen-30-protocol-v2) and
+2.  Read the [frozen-30 integrity
+    record](research-integrity.md#frozen-30-protocol-v2) and
     [automatic-transcript
-    entry](experiment-ledger.md#automatic-transcript-ablation).
+    record](research-speech-transcripts.md#automatic-transcript-ablation).
 3.  Scan the [supersession
     table](experiment-ledger.md#what-superseded-what), then review
     [Remaining gaps](code-map.md#remaining-gaps).
@@ -148,7 +170,7 @@ Ledger](experiment-ledger.md).
 ### Thirty minutes: trace evidence to code
 
 1.  Complete the fifteen-minute path.
-2.  Read the full [Experiment Ledger](experiment-ledger.md).
+2.  Choose relevant pages from [Research Themes](experiment-ledger.md).
 3.  Walk the acquisition-to-report [system
     pipeline](code-map.md#system-pipeline) and [repository
     map](code-map.md#repository-map).
@@ -162,11 +184,11 @@ Ledger](experiment-ledger.md).
 | **Verified** | The declared protocol completed, its required outputs and provenance checks passed, and the stated result was scored or reviewed within that protocol. |
 | **Diagnostic** | A deliberately small, selected, or post-hoc comparison that can explain a mechanism but cannot estimate population accuracy. |
 | **Compatibility-only** | The runtime, modality-input, and output contract ran; answer quality was not established. |
-| **Stopped** | The work ran far enough to miss a declared promotion condition or to show no reason for expansion. |
+| **Not promoted under the tested condition** | This implementation, panel, budget, or gate did not justify promotion; it is not a permanent verdict. |
 | **Blocked** | A required input, independent record, budget, or authorization is absent, so the planned tier cannot run validly yet. |
 | **Unknown** | No valid evidence answers the question. In particular, 2026 evaluation answer quality is unknown. |
 
 These categories prevent a clean runtime probe, an interesting failure
 panel, or a post-hoc diagnostic from being reported as a baseline win.
-For exact panels and decisions, continue to the [Experiment
-Ledger](experiment-ledger.md).
+For exact panels and decisions, continue to [Research
+Themes](experiment-ledger.md).

@@ -11,8 +11,8 @@ only, and there is no general `vqa-score` command.
 
 </div>
 
-Use [Start Here](index.md) to choose a baseline and the [Experiment
-Ledger](experiment-ledger.md) to understand why it was chosen.
+Use [Start Here](index.md) to choose a baseline and [Research
+Themes](experiment-ledger.md) to understand why it was chosen.
 
 ## System pipeline
 
@@ -137,24 +137,19 @@ scope them before implementation.
 - Define a cheap representative end-to-end smoke path before any larger
   local or rented-GPU run.
 
-### Research seeds
+### Research directions
 
-- Measure 2026 performance when valid evaluation evidence becomes
-  available; it is currently unknown.
-- Validate lexical-speech, prosody, non-speech, counting, and
-  visible-text routing prevalence on a larger label-blind question
-  sample.
-- Run a matched native-audio specialist benchmark with separate speech,
-  prosody, non-speech, temporal, and visual-control strata.
-- Re-evaluate Qwen3-Omni only with a strict output-complete run and a
-  larger, predeclared panel; do not promote the 19/20 diagnostic.
-- Design a different temporal selector only if it addresses the directed
-  and dense-burst failure modes under a fixed evidence budget.
-- Keep the independent human-oracle tier blocked until the required
-  transcriber/reviewer provenance exists; track it in [open issue
-  \#19](https://github.com/npatta01/trec_video_2026/issues/19).
+Exact hypotheses, smallest valid panels, controls, integrity safeguards,
+and decision rules live on the six theme pages rather than being
+duplicated here:
+
+- [Experiment integrity and evaluation](research-integrity.md)
+- [Visual and temporal evidence](research-visual-evidence.md)
+- [Speech and transcript evidence](research-speech-transcripts.md)
+- [Native audio and sound](research-native-audio.md)
+- [Models and adaptation](research-models.md)
+- [Routing, fusion, and answer selection](research-routing.md)
 
 The current safe next action is therefore determined by the question:
-use the [Experiment Ledger](experiment-ledger.md) for a research
-decision, or begin at the supported-command table above for a code
-change.
+use [Research Themes](experiment-ledger.md) for a research decision, or
+begin at the supported-command table above for a code change.

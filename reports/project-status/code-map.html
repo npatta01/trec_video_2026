@@ -5647,6 +5647,65 @@ color: var(--status-muted);
 font-size: 1.15rem;
 max-width: 68ch;
 }
+.theme-grid {
+display: grid;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+gap: 1rem;
+margin-block: 1.25rem 2rem;
+max-width: 100%;
+}
+.theme-card {
+border: 1px solid var(--status-border);
+border-radius: 0.45rem;
+background: var(--status-panel);
+padding: 1rem 1.1rem;
+}
+.theme-card h3 {
+margin-top: 0;
+}
+.theme-card:focus-within {
+border-color: var(--status-accent);
+box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-accent) 22%, transparent);
+}
+.theme-status {
+color: var(--status-muted);
+font-size: 0.94rem;
+margin-block: 0.35rem;
+}
+details {
+border: 1px solid var(--status-border);
+border-radius: 0.4rem;
+margin-block: 1rem;
+padding: 0.7rem 0.9rem;
+}
+details[open] {
+background: var(--status-panel);
+}
+summary {
+cursor: pointer;
+color: var(--status-ink);
+font-weight: 650;
+}
+summary:focus-visible {
+outline: 3px solid var(--status-accent);
+outline-offset: 3px;
+}
+.diagram-scroll {
+max-width: 100%;
+overflow-x: auto;
+padding-block: 0.5rem;
+}
+.diagram-scroll:focus-visible {
+outline: 3px solid var(--status-accent);
+outline-offset: 2px;
+}
+.diagram-details .mermaid-js svg,
+.diagram-details svg.mermaid-js {
+min-width: 56rem;
+}
+.diagram-details .diagram-scroll > .cell {
+min-width: 56rem;
+}
 .callout {
 border-color: var(--status-border);
 border-left-width: 0.3rem;
@@ -5699,6 +5758,9 @@ font-size: 1.45rem;
 .lead {
 font-size: 1.05rem;
 }
+.theme-grid {
+grid-template-columns: minmax(0, 1fr);
+}
 table {
 font-size: 0.88rem;
 table-layout: fixed;
@@ -5746,7 +5808,7 @@ transition: none !important;
   </li>  
   <li class="nav-item">
     <a class="nav-link" href="./experiment-ledger.html"> 
-<span class="menu-text">Experiment Ledger</span></a>
+<span class="menu-text">Research Themes</span></a>
   </li>  
   <li class="nav-item">
     <a class="nav-link active" href="./code-map.html" aria-current="page"> 
@@ -5806,7 +5868,7 @@ transition: none !important;
 <div class="lead">
 <p>The repository has reusable acquisition and benchmark seams, four supported project commands, isolated model-family adapters, and several bespoke research workflows. For a newcomer, <strong><code>vqa-frozen30</code> is the most complete end-to-end workflow</strong>; <code>vqa-gate</code> currently exposes preflight only, and there is no general <code>vqa-score</code> command.</p>
 </div>
-<p>Use <a href="./index.html">Start Here</a> to choose a baseline and the <a href="./experiment-ledger.html">Experiment Ledger</a> to understand why it was chosen.</p>
+<p>Use <a href="./index.html">Start Here</a> to choose a baseline and <a href="./experiment-ledger.html">Research Themes</a> to understand why it was chosen.</p>
 <section id="system-pipeline" class="level2">
 <h2 class="anchored" data-anchor-id="system-pipeline">System pipeline</h2>
 <div class="cell" data-layout-align="default">
@@ -6042,17 +6104,18 @@ Figure 2: Repository map showing the tracked newcomer entry points and the igno
 <li>Define a cheap representative end-to-end smoke path before any larger local or rented-GPU run.</li>
 </ul>
 </section>
-<section id="research-seeds" class="level3">
-<h3 class="anchored" data-anchor-id="research-seeds">Research seeds</h3>
+<section id="research-directions" class="level3">
+<h3 class="anchored" data-anchor-id="research-directions">Research directions</h3>
+<p>Exact hypotheses, smallest valid panels, controls, integrity safeguards, and decision rules live on the six theme pages rather than being duplicated here:</p>
 <ul>
-<li>Measure 2026 performance when valid evaluation evidence becomes available; it is currently unknown.</li>
-<li>Validate lexical-speech, prosody, non-speech, counting, and visible-text routing prevalence on a larger label-blind question sample.</li>
-<li>Run a matched native-audio specialist benchmark with separate speech, prosody, non-speech, temporal, and visual-control strata.</li>
-<li>Re-evaluate Qwen3-Omni only with a strict output-complete run and a larger, predeclared panel; do not promote the 19/20 diagnostic.</li>
-<li>Design a different temporal selector only if it addresses the directed and dense-burst failure modes under a fixed evidence budget.</li>
-<li>Keep the independent human-oracle tier blocked until the required transcriber/reviewer provenance exists; track it in <a href="https://github.com/npatta01/trec_video_2026/issues/19">open issue #19</a>.</li>
+<li><a href="./research-integrity.html">Experiment integrity and evaluation</a></li>
+<li><a href="./research-visual-evidence.html">Visual and temporal evidence</a></li>
+<li><a href="./research-speech-transcripts.html">Speech and transcript evidence</a></li>
+<li><a href="./research-native-audio.html">Native audio and sound</a></li>
+<li><a href="./research-models.html">Models and adaptation</a></li>
+<li><a href="./research-routing.html">Routing, fusion, and answer selection</a></li>
 </ul>
-<p>The current safe next action is therefore determined by the question: use the <a href="./experiment-ledger.html">Experiment Ledger</a> for a research decision, or begin at the supported-command table above for a code change.</p>
+<p>The current safe next action is therefore determined by the question: use <a href="./experiment-ledger.html">Research Themes</a> for a research decision, or begin at the supported-command table above for a code change.</p>
 
 
 </section>

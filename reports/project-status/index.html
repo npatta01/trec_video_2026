@@ -5647,6 +5647,65 @@ color: var(--status-muted);
 font-size: 1.15rem;
 max-width: 68ch;
 }
+.theme-grid {
+display: grid;
+grid-template-columns: repeat(2, minmax(0, 1fr));
+gap: 1rem;
+margin-block: 1.25rem 2rem;
+max-width: 100%;
+}
+.theme-card {
+border: 1px solid var(--status-border);
+border-radius: 0.45rem;
+background: var(--status-panel);
+padding: 1rem 1.1rem;
+}
+.theme-card h3 {
+margin-top: 0;
+}
+.theme-card:focus-within {
+border-color: var(--status-accent);
+box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-accent) 22%, transparent);
+}
+.theme-status {
+color: var(--status-muted);
+font-size: 0.94rem;
+margin-block: 0.35rem;
+}
+details {
+border: 1px solid var(--status-border);
+border-radius: 0.4rem;
+margin-block: 1rem;
+padding: 0.7rem 0.9rem;
+}
+details[open] {
+background: var(--status-panel);
+}
+summary {
+cursor: pointer;
+color: var(--status-ink);
+font-weight: 650;
+}
+summary:focus-visible {
+outline: 3px solid var(--status-accent);
+outline-offset: 3px;
+}
+.diagram-scroll {
+max-width: 100%;
+overflow-x: auto;
+padding-block: 0.5rem;
+}
+.diagram-scroll:focus-visible {
+outline: 3px solid var(--status-accent);
+outline-offset: 2px;
+}
+.diagram-details .mermaid-js svg,
+.diagram-details svg.mermaid-js {
+min-width: 56rem;
+}
+.diagram-details .diagram-scroll > .cell {
+min-width: 56rem;
+}
 .callout {
 border-color: var(--status-border);
 border-left-width: 0.3rem;
@@ -5699,6 +5758,9 @@ font-size: 1.45rem;
 .lead {
 font-size: 1.05rem;
 }
+.theme-grid {
+grid-template-columns: minmax(0, 1fr);
+}
 table {
 font-size: 0.88rem;
 table-layout: fixed;
@@ -5746,7 +5808,7 @@ transition: none !important;
   </li>  
   <li class="nav-item">
     <a class="nav-link" href="./experiment-ledger.html"> 
-<span class="menu-text">Experiment Ledger</span></a>
+<span class="menu-text">Research Themes</span></a>
   </li>  
   <li class="nav-item">
     <a class="nav-link" href="./code-map.html"> 
@@ -5825,7 +5887,7 @@ transition: none !important;
 <ul>
 <li><strong>Accuracy baseline:</strong> Qwen3.5-4B with 12 uniform frames.</li>
 <li><strong>Fast alternate:</strong> MiniCPM-o 4.5 with native audio disabled. It had the best METEOR and fastest measured outer wall in the matched frozen-30 run.</li>
-<li><strong>Lexical-speech route:</strong> add Whisper large-v3 only when a label-blind question/speech router selects the route and transcript quality passes.</li>
+<li><strong>Lexical-speech route:</strong> in a declared label-blind routed experiment, add Whisper large-v3 only when the question is classified as lexical speech and transcript quality passes. No versioned evaluated router exists yet.</li>
 <li><strong>Prosody or non-speech candidate:</strong> test native audio as a specialist branch, never as a global switch on the current evidence.</li>
 </ul>
 <p>The matched <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">frozen-30 protocol-v2 report</a> is the strongest current global comparison. The later <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md">automatic-transcript ablation</a> strengthens the lexical-speech route, while the <a href="https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md">failure-selected audio panel</a> shows why native audio remains a specialist.</p>
@@ -5863,39 +5925,12 @@ Figure 1: Recommended evidence router: keep the 12-frame Qwen baseline, use Whi
 <li>Run Qwen3.5-4B on 12 uniform frames for every question.</li>
 <li>For lexical-speech questions, add Whisper large-v3 only after its output passes the label-blind quality gate; retain the frame-only result as the matched control.</li>
 <li>For prosody or non-speech sound, native audio is a candidate specialist experiment, not a promoted production route.</li>
-<li>Otherwise, stop at the 12-frame baseline.</li>
+<li>Otherwise, continue with the 12-frame baseline.</li>
 </ol>
 </section>
 <section id="current-decision-map" class="level2">
 <h2 class="anchored" data-anchor-id="current-decision-map">Current decision map</h2>
-<div class="cell" data-layout-align="default">
-<div class="cell-output-display">
-<div id="fig-current-decisions" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-current-decisions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<div>
-<pre class="mermaid mermaid-js" data-label="fig-current-decisions">flowchart TD
-  accTitle: Current project decisions
-  accDescr: Qwen with 12 frames is the default, MiniCPM audio-off is the fast alternate, speech and native audio are routed candidates, and stopped approaches are not defaults.
-  E[Current evidence] --&gt; D[Use now]
-  E --&gt; R[Route or study]
-  E --&gt; S[Do not default]
-  D --&gt; Q12[Qwen3.5-4B&lt;br/&gt;12 uniform frames]
-  D --&gt; M[MiniCPM-o 4.5&lt;br/&gt;audio off: fast alternate]
-  R --&gt; W[Quality-gated Whisper&lt;br/&gt;lexical speech]
-  R --&gt; NA[Native audio&lt;br/&gt;prosody / non-speech]
-  R --&gt; O[Qwen3-Omni&lt;br/&gt;promising, ineligible]
-  S --&gt; X[Global 24f; directed; bursts;&lt;br/&gt;Qwen3.6; Gemma; Phi]
-</pre>
-</div>
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-current-decisions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure 2: Current decision map separating defaults, routed candidates, stopped approaches, and an ineligible but promising model.
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
+<p>The table is the primary decision interface. It states the current use of each system without requiring the expanded visual.</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 33%">
@@ -5911,48 +5946,83 @@ Figure 2: Current decision map separating defaults, routed candidates, stopped 
 </thead>
 <tbody>
 <tr class="odd">
-<td>Use now</td>
+<td>Current default</td>
 <td>Qwen3.5-4B, 12 uniform frames</td>
-<td>Evidence-backed default.</td>
+<td>Evidence-backed visual baseline.</td>
 </tr>
 <tr class="even">
-<td>Use when speed dominates</td>
+<td>Fast alternate</td>
 <td>MiniCPM-o 4.5, audio off</td>
-<td>Fast alternate, not the accuracy winner on every metric.</td>
+<td>Explicit speed/METEOR trade-off, not the accuracy winner on every metric.</td>
 </tr>
 <tr class="odd">
-<td>Route</td>
+<td>Routed candidate</td>
 <td>Quality-gated Whisper</td>
 <td>Lexical-speech evidence only; not a global default.</td>
 </tr>
 <tr class="even">
-<td>Study as specialist</td>
+<td>Routed candidate</td>
 <td>Native audio</td>
 <td>Prosody and non-speech candidate; global use can distract visual reasoning.</td>
 </tr>
 <tr class="odd">
-<td>Ineligible candidate</td>
-<td>Qwen3-Omni</td>
-<td>Encouraging answer-only diagnostic, but the strict A2 run passed only 19/20 outputs.</td>
+<td>Gate-specific ineligible run</td>
+<td>Qwen3-Omni neutral A2</td>
+<td>Encouraging diagnostic, but this strict run produced 19/20 accepted outputs and cannot support its predeclared promotion decision.</td>
 </tr>
 <tr class="even">
-<td>Stop as current defaults</td>
+<td>Not promoted as current defaults under the tested conditions</td>
 <td>Global 24 frames, directed temporal sampling, dense bursts, Qwen3.6, Gemma, Phi</td>
-<td>Each failed its applicable efficiency, semantic, or promotion gate.</td>
+<td>Each tested implementation missed its applicable efficiency, semantic, or promotion gate; different controlled conditions remain possible.</td>
 </tr>
 </tbody>
 </table>
-<p>The Qwen3-Omni neutral A2 diagnostic changed frames-only <strong>3C/3P/4W</strong> to audio-on <strong>5C/2P/3W</strong> after a narrow post-hoc answer recovery, but the immutable strict run still completed only <strong>19/20</strong> outputs. It is therefore formally ineligible for promotion. See the <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md">tracked neutral A2 result</a> and <a href="https://github.com/npatta01/trec_video_2026/pull/18">PR #18</a>.</p>
+<p>The Qwen3-Omni neutral A2 diagnostic changed frames-only <strong>3C/3P/4W</strong> to audio-on <strong>5C/2P/3W</strong> after a narrow post-hoc answer recovery. The immutable strict run still completed only <strong>19/20</strong> accepted outputs, so that run is formally ineligible under its predeclared 20/20 promotion gate. The model may be reconsidered in a repaired fresh comparison. See the <a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md">tracked neutral A2 result</a> and <a href="https://github.com/npatta01/trec_video_2026/pull/18">PR #18</a>.</p>
+<details class="diagram-details">
+<summary>
+Expand the full decision diagram
+</summary>
+<div class="diagram-scroll" tabindex="0" aria-label="Scrollable full current decision diagram">
+<div class="cell" data-layout-align="default">
+<div class="cell-output-display">
+<div id="fig-current-decisions" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-current-decisions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div>
+<pre class="mermaid mermaid-js" data-label="fig-current-decisions">flowchart TD
+  accTitle: Current project decisions
+  accDescr: Qwen with 12 frames is the default, MiniCPM audio-off is the fast alternate, speech and native audio are routed candidates, several tested conditions were not promoted, and one Qwen3-Omni run missed its completion gate.
+  E[Current evidence] --&gt; D[Use now]
+  E --&gt; R[Route or study]
+  E --&gt; S[Do not default]
+  D --&gt; Q12[Qwen3.5-4B&lt;br/&gt;12 uniform frames]
+  D --&gt; M[MiniCPM-o 4.5&lt;br/&gt;audio off: fast alternate]
+  R --&gt; W[Quality-gated Whisper&lt;br/&gt;lexical speech]
+  R --&gt; NA[Native audio&lt;br/&gt;prosody / non-speech]
+  R --&gt; O[Qwen3-Omni A2 run&lt;br/&gt;19/20 gate-specific ineligibility]
+  S --&gt; X[Not promoted under tested conditions&lt;br/&gt;Global 24f; directed; bursts;&lt;br/&gt;Qwen3.6; Gemma; Phi]
+</pre>
+</div>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-current-decisions-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure 2: Current decision map separating defaults, routed candidates, condition-bound non-promotions, and Qwen3-Omni’s gate-specific ineligible run.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</div>
+</details>
 </section>
 <section id="what-not-to-infer" class="level2">
 <h2 class="anchored" data-anchor-id="what-not-to-infer">What not to infer</h2>
 <ul>
 <li><strong>More frames are not automatically better.</strong> Global Qwen 24 frames added no exact answers over 12 in frozen-30; a directed 12-frame heuristic tied uniform 12 and trailed uniform 24; a two-row dense-burst probe regressed.</li>
 <li><strong>A larger model is not automatically better.</strong> Qwen3.6 scored 3C/2P/7W on a deliberately failure-selected diagnostic and did not displace the smaller baseline.</li>
-<li><strong>Runtime compatibility is not answer quality.</strong> Gemma passed an initial joint-input compatibility gate and Phi needed output handling correction, but the later semantic gate stopped both.</li>
+<li><strong>Runtime compatibility is not answer quality.</strong> Gemma passed an initial joint-input compatibility gate and Phi needed output handling correction, but neither was promoted beyond the later three-row semantic gate.</li>
 <li><strong>Native audio is not universally helpful.</strong> It improved some prosody and sound cases while harming some temporal cases.</li>
 </ul>
-<p>Follow the experiments and their limitations in the <a href="./experiment-ledger.html">Experiment Ledger</a>.</p>
+<p>Follow the evidence, limitations, and next experiments in <a href="./experiment-ledger.html">Research Themes</a>.</p>
 </section>
 <section id="choose-a-reading-path" class="level2">
 <h2 class="anchored" data-anchor-id="choose-a-reading-path">Choose a reading path</h2>
@@ -5968,7 +6038,7 @@ Figure 2: Current decision map separating defaults, routed candidates, stopped 
 <h3 class="anchored" data-anchor-id="fifteen-minutes-understand-the-decision">Fifteen minutes: understand the decision</h3>
 <ol type="1">
 <li>Complete the five-minute path.</li>
-<li>Read the <a href="./experiment-ledger.html#frozen-30-protocol-v2">frozen-30 entry</a> and <a href="./experiment-ledger.html#automatic-transcript-ablation">automatic-transcript entry</a>.</li>
+<li>Read the <a href="./research-integrity.html#frozen-30-protocol-v2">frozen-30 integrity record</a> and <a href="./research-speech-transcripts.html#automatic-transcript-ablation">automatic-transcript record</a>.</li>
 <li>Scan the <a href="./experiment-ledger.html#what-superseded-what">supersession table</a>, then review <a href="./code-map.html#remaining-gaps">Remaining gaps</a>.</li>
 </ol>
 </section>
@@ -5976,7 +6046,7 @@ Figure 2: Current decision map separating defaults, routed candidates, stopped 
 <h3 class="anchored" data-anchor-id="thirty-minutes-trace-evidence-to-code">Thirty minutes: trace evidence to code</h3>
 <ol type="1">
 <li>Complete the fifteen-minute path.</li>
-<li>Read the full <a href="./experiment-ledger.html">Experiment Ledger</a>.</li>
+<li>Choose relevant pages from <a href="./experiment-ledger.html">Research Themes</a>.</li>
 <li>Walk the acquisition-to-report <a href="./code-map.html#system-pipeline">system pipeline</a> and <a href="./code-map.html#repository-map">repository map</a>.</li>
 <li>Open the linked tracked reports or source modules for the decision you plan to revisit.</li>
 </ol>
@@ -6009,8 +6079,8 @@ Figure 2: Current decision map separating defaults, routed candidates, stopped 
 <td>The runtime, modality-input, and output contract ran; answer quality was not established.</td>
 </tr>
 <tr class="even">
-<td><strong>Stopped</strong></td>
-<td>The work ran far enough to miss a declared promotion condition or to show no reason for expansion.</td>
+<td><strong>Not promoted under the tested condition</strong></td>
+<td>This implementation, panel, budget, or gate did not justify promotion; it is not a permanent verdict.</td>
 </tr>
 <tr class="odd">
 <td><strong>Blocked</strong></td>
@@ -6022,7 +6092,7 @@ Figure 2: Current decision map separating defaults, routed candidates, stopped 
 </tr>
 </tbody>
 </table>
-<p>These categories prevent a clean runtime probe, an interesting failure panel, or a post-hoc diagnostic from being reported as a baseline win. For exact panels and decisions, continue to the <a href="./experiment-ledger.html">Experiment Ledger</a>.</p>
+<p>These categories prevent a clean runtime probe, an interesting failure panel, or a post-hoc diagnostic from being reported as a baseline win. For exact panels and decisions, continue to <a href="./experiment-ledger.html">Research Themes</a>.</p>
 
 
 </section>
