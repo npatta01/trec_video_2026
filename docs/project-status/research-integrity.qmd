@@ -82,7 +82,8 @@ frame policy. See the [field-guide source notes](../../reports/trecvid_vqa_2026/
 <summary>Method, result, validity risks, and evidence</summary>
 
 Readiness does not prove that every future video is available, that a model will
-run, or that answers will be correct. The [benchmark construction module](../../src/trec_video_2026/vqa_benchmark.py)
+run, or that answers will be correct. Operational readiness does not establish
+2026 answer quality. The [benchmark construction module](../../src/trec_video_2026/vqa_benchmark.py)
 binds manifest identities and hashes; the shared data boundary remains local.
 </details>
 

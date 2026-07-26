@@ -151,7 +151,10 @@ records the decision without exposing rows or raw artifacts.
 
 The crop was manually selected and not scale-ready. One targeted failure cannot
 show that spatial detail is generally useless, nor distinguish a selector
-failure from a fusion/reasoning failure. See the [audio and spatial
+failure from a fusion/reasoning failure. The original mixed follow-up comprised
+exactly two audio/spatial failures, then one speech failure; the speech and
+Seamless record now lives under [Speech and Transcript Evidence](research-speech-transcripts.{{< meta report-ext >}}#seamless-diagnostic).
+See the [audio and spatial
 follow-up](../../reports/trecvid_vqa_2026/audio_spatial_followup_results_2026-07-21.md)
 and the frozen-30 spatial policy discussion in the [protocol-v2
 report](../../reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).

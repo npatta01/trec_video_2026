@@ -69,7 +69,11 @@ recording-prompt reference is not a TRECVID human oracle.
 The selected ten-row diagnostic does not estimate routing prevalence, global
 transcript value, non-lexical vocalization performance, or 2026 accuracy.
 Transcript acceptance was mechanically label-blind; its validity is separate
-from transcript fidelity. See the [automatic-transcript
+from transcript fidelity. Separately, in frozen-30 protocol v2, the
+Qwen12+Whisper arm led exact match at `11/30` and token F1 at `0.506795` across
+the 30-row panel. That result supports reporting the transcript arm as a route
+comparison; it does not establish a global Whisper policy or 2026 accuracy.
+See the [automatic-transcript
 report](../../reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md)
 and its [frozen ablation plan](../../plans/issue-7-automatic-transcript-ablation.md).
 </details>
@@ -182,7 +186,8 @@ also specifies identical frames/model/prompt/decoding across conditions.
 Uploader captions, ASR ensembles, and dataset references cannot substitute for
 this tier. A true upper bound needs independent transcript production and
 review, immutable provenance, matching downstream controls, and answer labels
-loaded only after prediction freeze.
+loaded only after prediction freeze. There is no oracle result to compare or
+cite.
 </details>
 
 ## What the evidence supports

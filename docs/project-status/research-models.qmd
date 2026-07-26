@@ -176,7 +176,7 @@ mismatch and did not meet its semantic gate. The neutral A2 rerun corrected
 that prompt context but one strict-parser failure remained. Semantic recovery
 of that exact output is diagnostic only and cannot retroactively complete A2.
 The 10 rows are selected and frame-based, so they cannot be compared directly
-to frozen-30.
+to frozen-30. 2026 answer quality remains unknown.
 See the [quality-10 report](../../docs/experiments/2026-07-25-qwen3-omni-quality-10.md)
 and [neutral A2 result](../../docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md).
 </details>
