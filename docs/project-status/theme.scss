@@ -6,3 +6,12 @@ $font-family-sans-serif: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI
   Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji",
   "Segoe UI Emoji", "Segoe UI Symbol";
 $font-family-base: $font-family-sans-serif;
+
+// Preserve the report's high-contrast light Mermaid labels without CSS overrides.
+$mermaid-bg-color: #ffffff;
+$mermaid-edge-color: #536176;
+$mermaid-node-bg-color: #f5f8fc;
+$mermaid-node-fg-color: #172033;
+$mermaid-fg-color: #0d3d66;
+$mermaid-label-bg-color: #ffffff;
+$mermaid-label-fg-color: #0d3d66;

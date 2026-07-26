@@ -283,33 +283,23 @@ h1 {
   padding-inline: 0.75rem 0.25rem;
 }
 
-.case-field--evidence,
-.case-field-evidence,
-.case-field.evidence {
+.case-field-evidence {
   border-left-color: var(--status-use);
 }
 
-.case-field--result,
-.case-field-result,
-.case-field.result {
+.case-field-result {
   border-left-color: var(--status-route);
 }
 
-.case-field--diagnosis,
-.case-field-diagnosis,
-.case-field.diagnosis {
+.case-field-diagnosis {
   border-left-color: var(--status-unknown);
 }
 
-.case-field--limit,
-.case-field-limit,
-.case-field.limit {
+.case-field-limit {
   border-left-color: var(--status-not-promoted);
 }
 
-.case-field--next-test,
-.case-field-next-test,
-.case-field.next-test {
+.case-field-next {
   border-left-color: var(--status-open);
 }
 
@@ -422,33 +412,23 @@ figcaption,
   padding: 0.2rem 0.55rem;
 }
 
-.status-chip--use,
-.status-chip-use,
-.status-chip.use {
+.status-chip-use {
   color: var(--status-use);
 }
 
-.status-chip--route,
-.status-chip-route,
-.status-chip.route {
+.status-chip-route {
   color: var(--status-route);
 }
 
-.status-chip--open,
-.status-chip-open,
-.status-chip.open {
+.status-chip-open {
   color: var(--status-open);
 }
 
-.status-chip--not-promoted,
-.status-chip-not-promoted,
-.status-chip.not-promoted {
+.status-chip-not-promoted {
   color: var(--status-not-promoted);
 }
 
-.status-chip--unknown,
-.status-chip-unknown,
-.status-chip.unknown {
+.status-chip-unknown {
   color: var(--status-unknown);
 }
 
