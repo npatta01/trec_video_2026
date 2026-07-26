@@ -165,6 +165,22 @@ now holds the visible experiment summary, limitations, evidence, and next test.
 - <span id="phi-gemma-semantic-stop"></span> **Phi/Gemma semantic screen** moved to [Models and adaptation](research-models.{{< meta report-ext >}}#phi-gemma-semantic-stop).
 - <span id="qwen3-omni-quality"></span> **Qwen3-Omni quality result** moved to [Models and adaptation](research-models.{{< meta report-ext >}}#qwen3-omni-quality).
 
+<details>
+<summary>Expand the historical issue and PR trail</summary>
+
+These public links preserve the implementation and review trail behind the
+theme records. They are provenance, not substitutes for the current
+condition-bound conclusions.
+
+- **Foundation and repository recovery — [Experiment integrity and evaluation](research-integrity.{{< meta report-ext >}}):** the [rendered July 12 field guide](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/report.html) and [repository recovery PR #21](https://github.com/npatta01/trec_video_2026/pull/21) record the background synthesis and restoration of the benchmark evidence.
+- **Directed temporal sampling — [Visual and temporal evidence](research-visual-evidence.{{< meta report-ext >}}#directed-temporal-sampling):** [closed issue #8](https://github.com/npatta01/trec_video_2026/issues/8), its [conclusion audit in issue #13](https://github.com/npatta01/trec_video_2026/issues/13), and [implementation PR #10](https://github.com/npatta01/trec_video_2026/pull/10) preserve the tested heuristic's decision trail.
+- **Automatic and human transcripts — [Speech and transcript evidence](research-speech-transcripts.{{< meta report-ext >}}):** the automatic-ablation work is tracked in [closed issue #7](https://github.com/npatta01/trec_video_2026/issues/7) and [PR #9](https://github.com/npatta01/trec_video_2026/pull/9); the independently produced human-transcript tier remains blocked in [open issue #19](https://github.com/npatta01/trec_video_2026/issues/19).
+- **Evidence taxonomy and routing — [Routing, fusion, and answer selection](research-routing.{{< meta report-ext >}}#taxonomy-audit):** [closed issue #4](https://github.com/npatta01/trec_video_2026/issues/4) records the taxonomy and evidence-routing research thread.
+- **Phi and Gemma quality screen — [Models and adaptation](research-models.{{< meta report-ext >}}#phi-gemma-semantic-stop):** compatibility and semantic correction are tracked in [closed issue #6](https://github.com/npatta01/trec_video_2026/issues/6), [closed issue #12](https://github.com/npatta01/trec_video_2026/issues/12), [PR #11](https://github.com/npatta01/trec_video_2026/pull/11), and [PR #15](https://github.com/npatta01/trec_video_2026/pull/15).
+- **Qwen3-Omni compatibility and quality — [Models and adaptation](research-models.{{< meta report-ext >}}#qwen3-omni-quality):** the [tracked compatibility report](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-qwen3-omni-dstack-compatibility.md), [closed issue #5](https://github.com/npatta01/trec_video_2026/issues/5), [closed issue #17](https://github.com/npatta01/trec_video_2026/issues/17), [PR #14](https://github.com/npatta01/trec_video_2026/pull/14), and recovery [PR #20](https://github.com/npatta01/trec_video_2026/pull/20) preserve the gate-specific trail.
+
+</details>
+
 ## What superseded what {#what-superseded-what}
 
 Six records explain which later evidence replaced an earlier project statement.
