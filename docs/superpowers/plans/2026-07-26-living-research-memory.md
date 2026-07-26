@@ -681,7 +681,7 @@ All 11 sibling Markdown files and all 11 self-contained HTML files were
 regenerated. The repository render and an isolated render emitted no font or
 network warnings and reproduced all 22 generated files byte-for-byte
 (`22/22`). An audit decoded all 22 embedded CSS data payloads and found zero
-remote imports or hosts. Authorized headless Chrome checked all 11 pages at
+fetchable remote imports or resource URLs. Authorized headless Chrome checked all 11 pages at
 1440×1000 and 390×844 in both normal and CDP-forced-offline modes (22
 scenarios per mode): both runs loaded zero external HTTP resources, computed a
 system-font stack for body, heading, and navbar text, and retained the
@@ -691,9 +691,20 @@ were removed. No application tests, custom test suite, CI, schema validator,
 dataset read, public publication, portal refresh, or Serve/Funnel change was
 performed for this correction.
 
-**Next action:** Review the focused Task 6/final-review and offline-correction
-commits, then choose the branch integration path. GitHub issue creation remains
-deferred.
+**Final review and private-portal handoff:** Independent re-review of the
+offline correction reported zero Critical, Important, or Minor findings. It
+distinguished non-fetching SVG/XML namespace literals from resource URLs and
+independently reproduced the offline, deterministic, accessibility, link, and
+publication-boundary checks. After that clean review, the 11 final sanitized
+HTML files were copied to the existing authorized tailnet-only portal. The 11
+portal files and all 11 live HTTPS routes match the repository bytes; every
+route returned HTTP 200. `tailscale serve status` and
+`tailscale funnel status` both report `tailnet only`, with no Funnel or public
+listener, and the existing Serve mapping was not changed.
+
+**Next action:** Choose the branch integration path. GitHub issue creation
+remains deferred until this report has been reviewed in the chosen integration
+flow.
 
 ## Success check
 
