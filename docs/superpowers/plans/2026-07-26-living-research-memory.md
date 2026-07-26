@@ -552,6 +552,12 @@ heading slugs from the visible Markdown and does not retain every explicit QMD
 heading ID. Six GFM-only raw aliases now preserve the intended targets without
 adding duplicate HTML IDs; the corrected audit and regenerated outputs pass.
 
+**Fix round 2:** A focused follow-up found that fix round 1's resolver counted
+77 Markdown-syntax links but omitted two raw-HTML `href` attributes in Failure
+Library metadata. Both targeted `research-routing.md#transcript-residuals`.
+The adjacent GFM-only alias is now present, and the final resolver audits every
+cross-page Markdown `href` form (`79/79`) rather than only Markdown syntax.
+
 **Verification evidence:**
 
 - Quarto `1.9.38`, with a Task 6 `XDG_CACHE_HOME`, rendered exactly 11 QMD
@@ -567,16 +573,15 @@ adding duplicate HTML IDs; the corrected audit and regenerated outputs pass.
   IDs, exposed a working mobile menu, retained a visible solid 3-pixel focus
   outline, toggled all 14 disclosures by keyboard, kept diagrams/tables
   contained, and presented newcomer explanation before expert metrics.
-- A GitHub-slug-aware Markdown resolver checked all 77 cross-page fragment
-  links. Before fix round 1 it reproduced 13 unresolved occurrences targeting
-  six missing aliases: `case-001` through `case-004`,
-  `fig-recommended-router`, and `minicpm-audio-on-off`; after the canonical QMD
-  fix it reports 0 unresolved out of 77. The separate rendered-HTML DOM
-  resolver reports 0 unresolved out of 79 cross-page fragments and exactly
-  one HTML ID for each target. All three Mermaid visuals have meaningful figure alt text,
-  captions, SVG titles and descriptions, plus a nearby list or table
-  equivalent. All 42 disclosures are closed by default, and the canonical
-  sources add no custom JavaScript.
+- The final GitHub-slug-aware Markdown resolver checks all 79 cross-page hrefs:
+  77 Markdown-syntax links plus two raw-HTML metadata links. Fix round 1 reduced
+  13 unresolved Markdown-syntax occurrences to zero; fix round 2 reproduced
+  and fixed the two previously omitted raw links. The final result is `79/79`
+  resolved with zero unresolved. The separate rendered-HTML DOM resolver is
+  also `79/79`, with zero unresolved and no duplicate IDs. All three Mermaid
+  visuals have meaningful figure alt text, captions, SVG titles and
+  descriptions, plus a nearby list or table equivalent. All 42 disclosures
+  are closed by default, and the canonical sources add no custom JavaScript.
 - All 62 unique external URLs are GitHub links with a visible access/type
   label. All 44 blob/tree targets resolve to Git objects. The 18 issue/PR
   routes return the same anonymous 404 as the private repository root and are
@@ -607,6 +612,14 @@ adding duplicate HTML IDs; the corrected audit and regenerated outputs pass.
   was not rewritten. Its 11 filesystem copies and 11 live HTTPS routes still
   match the repository, all live routes return 200, and Tailscale remains
   tailnet-only with no Funnel.
+- Fix round 2 again rerendered all 22 outputs and reproduced them byte-for-byte
+  from a physically separate copy (`22/22`). Only `research-routing.md`
+  changed; HTML remained byte-identical, so the portal was not rewritten. Its
+  11 filesystem and live copies remain byte matches with HTTPS 200 responses,
+  and Tailscale remains tailnet-only with no Funnel. The three intentional
+  Markdown hard breaks in the design-spec metadata were reflowed; the
+  prospective `git diff --check 7c12afa` passes, and the exact committed
+  `7c12afa..HEAD` range is rechecked after commit.
 
 **Next action:** Review the focused Task 6 commit, then choose the branch
 integration path. GitHub issue creation remains deferred.

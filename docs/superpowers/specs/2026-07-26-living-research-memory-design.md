@@ -1,9 +1,12 @@
 # Living Research Memory and Failure Library
 
-**Date:** 2026-07-26  
+**Date:** 2026-07-26
+
 **Audience:** Newcomers to video question answering, project contributors, and
-expert reviewers  
-**Canonical sources:** `docs/project-status/*.qmd`  
+expert reviewers
+
+**Canonical sources:** `docs/project-status/*.qmd`
+
 **Delivery:** GitHub-readable Markdown plus self-contained HTML on the existing
 private tailnet-only portal until the repository is intentionally made public
 

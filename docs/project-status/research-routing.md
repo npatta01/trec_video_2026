@@ -119,6 +119,9 @@ and [closed issue \#4 · Issue/PR history ·
 GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
 </details>
 
+<span id="transcript-residuals" class="legacy-fragment-alias"
+aria-hidden="true"></span>
+
 ### Transcript residuals: evidence present, answer still wrong
 
 - **Reason for testing:** determine whether transcript improvements
