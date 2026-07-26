@@ -51,7 +51,7 @@ record. The canonical page plus authored section anchor is the claim identity.
 Static audits, compatibility probes, matched ablations, qualitative diagnostics,
 and benchmarks can use different scientific designs. Each still needs a visible
 question; treatment and control; panel boundary; integrity safeguards; observed
-result; interpretation; evidence status; limitations; and next decision.
+result; interpretation; evidence validity; limitations; and next decision.
 
 ::: {.callout-note title="The reporting contract"}
 **Standardize the handoff, not the hypothesis.**

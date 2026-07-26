@@ -285,7 +285,7 @@ technique:
 | **Superseded** | Later valid evidence replaces the earlier conclusion. |
 | **Open hypothesis** | Proposed but not yet tested. |
 
-Validity concerns are separate from result status:
+Validity concerns are separate from evidence validity or decision disposition:
 
 - **Confirmed defect — demonstrated fault.** Frozen-30 v1 could not demonstrate
   label isolation, so v1 cannot support the comparative conclusion.
