@@ -95,6 +95,9 @@ and [evidence-routing plan](../../docs/superpowers/plans/2026-07-24-evidence-rou
 
 The two-language diagnostic is too small to estimate multilingual performance;
 the 10-row Whisper ablation is selected lexical-speech evidence. The
+[transcript diagnostic](../../reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md)
+supports the two evidence-use residuals and the missed non-lexical
+vocalization. The
 [failure-panel report](../../reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md)
 explains the separation between speech recovery and answer selection. See also
 [Speech and Transcript Evidence](research-speech-transcripts.{{< meta report-ext >}}).

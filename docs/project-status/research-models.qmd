@@ -207,8 +207,10 @@ and [neutral A2 result](../../docs/experiments/2026-07-25-qwen3-omni-quality-10-
   satisfying a complete output contract.
 - A specialist model may beat the baseline on a declared evidence type even if
   it is not a global replacement.
-- Adaptation or fine-tuning should follow, rather than precede, evidence that
-  retrieval, fusion, or answer selection—not missing evidence—is the bottleneck.
+- Adaptation or fine-tuning should follow a measured bottleneck diagnosis.
+  Model fine-tuning is justified for fusion or answer-selection failures only
+  after retrieval and the supplied evidence have been controlled; a measured
+  retrieval failure instead calls for evidence-selection work first.
 
 ## Cheapest valid next experiments
 

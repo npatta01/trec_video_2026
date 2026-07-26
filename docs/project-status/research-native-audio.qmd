@@ -159,7 +159,10 @@ support this separation.
 
 - Speech text and native sound are complementary evidence types, not
   interchangeable routes.
-- Current global audio-on diagnostics do not beat their audio-off controls.
+- No global audio-on condition has earned promotion over its audio-off control
+  under a complete eligible gate; the encouraging Qwen3-Omni A2 semantic
+  signal remains ineligible because that run completed only 19/20 strict
+  outputs.
 - Prosody and non-speech sound are plausible specialist strata because two
   separate selected diagnostics show localized native-audio gains.
 - Exact music-title questions require a retrieval-style hypothesis; no current
@@ -240,9 +243,12 @@ support this separation.
   version and matching threshold; include audio-off and general-VLM controls;
   retain abstentions; score only after predictions freeze.
 - **Decision or promotion rule:** advance only when exact retrieval improves
-  the declared title cases and weak matches abstain rather than fabricate.
+  the declared title cases, weak matches abstain rather than fabricate, and a
+  prevalence estimate shows enough routed cases to provide useful expected
+  aggregate value for the added cost.
 - **Boundary on what a positive result would establish:** the retrieval route's
-  performance on its indexed catalog, not general music knowledge.
+  performance on its indexed catalog and declared prevalence slice, not general
+  music knowledge or value on a distribution with a different title frequency.
 
 ## Related themes
 
