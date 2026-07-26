@@ -41,6 +41,12 @@ default; each is **Not promoted under the tested condition**.
   increasing the visual evidence proxy.
 - **Current condition-bound status:** uniform-12 remains the **Current default**;
   global uniform-24 is **Not promoted under the tested condition**.
+- **What this rules out now:** making uniform-24 the global default for this
+  model and protocol-v2 panel.
+- **What it does not rule out:** a declared temporal-only route or another
+  fixed-budget evidence design.
+- **Reconsider when:** a matched routed panel beats uniform-12 under
+  predeclared controls and non-regression rules.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>
@@ -67,6 +73,12 @@ uniform-24, which doubles that same whole-video coverage.
 - **Current condition-bound status:** **Not promoted under the tested
   condition**; it rejects this heuristic as the current default, not all
   question-aware sampling.
+- **What this rules out now:** using this keyword/anchor directed-12 heuristic
+  as the default temporal selector.
+- **What it does not rule out:** learned, query-only, hybrid, shot, event, or
+  coarse-to-fine selection under a new controlled design.
+- **Reconsider when:** required-moment recall and oracle-frame answer quality
+  show a predeclared improvement with matched controls.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>
@@ -94,6 +106,12 @@ diagnostic, not a general selector result.
   one C→P and one C→W regression.
 - **Current condition-bound status:** **Not promoted under the tested
   condition**; reject the tested diagnostic as a default.
+- **What this rules out now:** making this tested dense-burst-12 diagnostic the
+  default local selector.
+- **What it does not rule out:** another local schedule or selector evaluated
+  with recoverable source, provenance, and a larger declared panel.
+- **Reconsider when:** a fully tracked implementation passes a fixed-budget,
+  label-isolated comparison with non-regression controls.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>
@@ -101,8 +119,10 @@ diagnostic, not a general selector result.
 The two-row boundary means the evidence cannot estimate prevalence, effect
 size, or performance of all local selectors. It also cannot recover the exact
 burst schedule or launch path, an **Audit gap** rather than proof of an
-execution bug. The aggregate is recorded in the [experiment
-record](../../docs/experiments/temporal-sampling-issue-8.md).
+execution bug. The aggregate's recorded source digest is
+`d4825b4530b181f1b4414552a80136e2f0e5a7ee64def23131d8c163acc458f1`;
+the [closed issue #16](https://github.com/npatta01/trec_video_2026/issues/16)
+records the decision without exposing rows or raw artifacts.
 </details>
 
 ### Spatial-crop diagnostic {#spatial-crop-diagnostic}
@@ -115,6 +135,12 @@ record](../../docs/experiments/temporal-sampling-issue-8.md).
   answer correct.
 - **Current condition-bound status:** **Diagnostic signal**; global tiling or
   crops are not promoted.
+- **What this rules out now:** promoting this manual crop or global tiling from
+  the targeted failure diagnostic.
+- **What it does not rule out:** a category-routed spatial-detail or OCR
+  policy with a declared crop budget.
+- **Reconsider when:** a matched target stratum and visual controls show a
+  predeclared route benefit without regressions.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>

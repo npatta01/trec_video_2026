@@ -86,6 +86,12 @@ and its [frozen ablation plan](../../plans/issue-7-automatic-transcript-ablation
   and transcript/translation references.
 - **Current condition-bound status:** compatibility evidence for the route;
   **not** multilingual robustness or transcript-fidelity evidence.
+- **What this rules out now:** claiming multilingual robustness or translation
+  fidelity from the completed mixed frozen-30 route.
+- **What it does not rule out:** benefit for a declared language, dialect, or
+  translation condition under human-referenced evaluation.
+- **Reconsider when:** a source-language-stratified panel with independent
+  transcript and translation references completes under matched controls.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>
@@ -110,6 +116,12 @@ and [frozen-30 report](../../reports/trecvid_vqa_2026/native_audio_model_benchma
   METEOR decreased.
 - **Current condition-bound status:** **Not promoted under the tested
   condition**; a one-example diagnostic, not an ASR accuracy estimate.
+- **What this rules out now:** advancing SeamlessM4T-v2 large as the selected
+  speech route on that one controlled example.
+- **What it does not rule out:** another language, model revision, panel, or
+  independently verified translation route.
+- **Reconsider when:** a matched, independently reviewable multilingual panel
+  shows faithful evidence and a predeclared downstream improvement.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>
@@ -129,8 +141,14 @@ See the [Seamless follow-up](../../reports/trecvid_vqa_2026/seamless_audio_follo
   four-video, three-condition control; no TRECVID effectiveness result.
 - **Observed result:** the design distinguishes frames-only, automatic-ASR,
   and dataset-reference text while freezing predictions before labels load.
-- **Current condition-bound status:** an **Open hypothesis/design**, not a
-  TRECVID human oracle or an effectiveness result.
+- **Current condition-bound status:** an **Open hypothesis**; the design is not
+  a TRECVID human oracle or an effectiveness result.
+- **What this rules out now:** calling the proposed dataset-reference control a
+  TRECVID human oracle or reporting it as an effectiveness result.
+- **What it does not rule out:** a provenance-labeled, small external control
+  that compares automatic ASR and dataset reference text.
+- **Reconsider when:** the declared three-condition protocol runs with frozen
+  predictions, exact provenance, and no claim beyond its small panel.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>
@@ -151,6 +169,12 @@ also specifies identical frames/model/prompt/decoding across conditions.
 - **Observed result:** no valid human-oracle result exists.
 - **Current condition-bound status:** **Blocked** until independent provenance
   records and a label-blind protocol exist.
+- **What this rules out now:** treating uploader captions, dataset references,
+  or ASR agreement as a strict human-transcript upper bound.
+- **What it does not rule out:** a valid independent human-transcript upper
+  bound once its named provenance prerequisites exist.
+- **Reconsider when:** independent transcriber and reviewer records, a
+  label-blind protocol, and matched downstream controls are complete.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>

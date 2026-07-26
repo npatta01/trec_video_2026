@@ -42,6 +42,12 @@ is **Open work**, not an existing supported CLI.
   and label-safe workflows.
 - **Current condition-bound status:** background orientation, **Superseded** as
   a baseline-selection source by later executed evidence.
+- **What this rules out now:** using the July 12 synthesis alone to select the
+  current baseline.
+- **What it does not rule out:** the field guide's architectural ideas under a
+  later matched, label-isolated test.
+- **Reconsider when:** a specific idea has a declared panel, controls, and
+  current execution evidence.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>
@@ -62,6 +68,11 @@ frame policy. See the [field-guide source notes](../../reports/trecvid_vqa_2026/
   labels, predictions, and raw logs remain ignored.
 - **Current condition-bound status:** operationally useful; **not** an
   answer-quality result.
+- **What this rules out now:** treating successful preparation as a quality or
+  model-ranking result.
+- **What it does not rule out:** a later controlled answer-quality comparison.
+- **Reconsider when:** a label-isolated, frozen comparison is scored on a
+  declared panel.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>
@@ -80,8 +91,14 @@ binds manifest identities and hashes; the shared data boundary remains local.
 - **Observed result:** Qwen, Molmo, InternVL, and Gemma completed all requested
   inferences; MiniCPM completed two of three and had a speech-row tensor-shape
   error.
-- **Current condition-bound status:** **compatibility-only** diagnostic, not a
-  statistical model ranking.
+- **Current condition-bound status:** **Diagnostic signal** for adapter and
+  runtime compatibility, not a statistical model ranking.
+- **What this rules out now:** promoting a family from this three-row
+  portability check or scaling MiniCPM's observed speech-row failure.
+- **What it does not rule out:** a repaired adapter or a model's quality on a
+  larger, representative controlled panel.
+- **Reconsider when:** a complete matched quality panel passes the integrity
+  gate with the repaired condition, if applicable.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>
@@ -105,6 +122,12 @@ documents an audited execution, not a general one-command workflow.
 - **Current condition-bound status:** v2 is the comparative protocol; frozen-30
   v1 label isolation is a **Confirmed defect** and v1 is historical audit
   evidence only.
+- **What this rules out now:** using v1 predictions for frozen-30 comparative
+  conclusions.
+- **What it does not rule out:** a valid comparison under v2 or a later
+  integrity-preserving protocol.
+- **Reconsider when:** only if historical v1 evidence is explicitly discussed
+  as an audit record rather than reused for a comparison.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>
@@ -130,6 +153,12 @@ the [protocol-v2 report](../../reports/trecvid_vqa_2026/native_audio_model_bench
   dependency, network, validation, and repeat-run hazards.
 - **Current condition-bound status:** reuse behind a pinned, isolated adapter;
   do not call it the final official 2026 scorer.
+- **What this rules out now:** labeling the current historical CSV evaluator an
+  official final 2026 score.
+- **What it does not rule out:** pinned historical-parity checks or a later
+  audited authoritative 2026 evaluator.
+- **Reconsider when:** NIST publishes updated scoring code and the project
+  re-audits its interface, dependencies, and fixtures.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>
