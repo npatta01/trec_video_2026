@@ -12,7 +12,7 @@ website:
       - href: index.qmd
         text: Start Here
       - href: experiment-ledger.qmd
-        text: Experiment Ledger
+        text: Research Themes
       - href: code-map.qmd
         text: Code Map and Gaps
   page-footer:

@@ -46,6 +46,78 @@ h1 {
   max-width: 68ch;
 }
 
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-block: 1.25rem 2rem;
+  max-width: 100%;
+}
+
+.theme-card {
+  border: 1px solid var(--status-border);
+  border-radius: 0.45rem;
+  background: var(--status-panel);
+  padding: 1rem 1.1rem;
+}
+
+.theme-card h3 {
+  margin-top: 0;
+}
+
+.theme-card:focus-within {
+  border-color: var(--status-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-accent) 22%, transparent);
+}
+
+.theme-status {
+  color: var(--status-muted);
+  font-size: 0.94rem;
+  margin-block: 0.35rem;
+}
+
+details {
+  border: 1px solid var(--status-border);
+  border-radius: 0.4rem;
+  margin-block: 1rem;
+  padding: 0.7rem 0.9rem;
+}
+
+details[open] {
+  background: var(--status-panel);
+}
+
+summary {
+  cursor: pointer;
+  color: var(--status-ink);
+  font-weight: 650;
+}
+
+summary:focus-visible {
+  outline: 3px solid var(--status-accent);
+  outline-offset: 3px;
+}
+
+.diagram-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  padding-block: 0.5rem;
+}
+
+.diagram-scroll:focus-visible {
+  outline: 3px solid var(--status-accent);
+  outline-offset: 2px;
+}
+
+.diagram-details .mermaid-js svg,
+.diagram-details svg.mermaid-js {
+  min-width: 56rem;
+}
+
+.diagram-details .diagram-scroll > .cell {
+  min-width: 56rem;
+}
+
 .callout {
   border-color: var(--status-border);
   border-left-width: 0.3rem;
@@ -110,6 +182,10 @@ code {
 
   .lead {
     font-size: 1.05rem;
+  }
+
+  .theme-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   table {
