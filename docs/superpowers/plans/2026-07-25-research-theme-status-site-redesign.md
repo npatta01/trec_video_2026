@@ -8,6 +8,32 @@
 
 **Tech Stack:** Quarto 1.9.x, Pandoc GFM, native HTML `<details>/<summary>`, Mermaid, repository CSS, self-contained HTML, headless Chrome for responsive/accessibility verification.
 
+**Status:** Complete on `codex/repository-cleanup-report`. The user reviewed
+the refreshed private site and approved the result.
+
+## Current implementation record
+
+- **Delivered structure:** Nine canonical QMD pages, nine sibling GFM pages,
+  and nine self-contained HTML pages. The top-level navigation remains **Start
+  Here**, **Research Themes**, and **Code Map and Gaps**; the Research Themes
+  hub links to six focused theme pages.
+- **Decisions preserved:** The redesign groups evidence by broad research
+  theme, keeps audit depth in native disclosures, preserves legacy ledger
+  fragments, makes the dense decision map expandable, and states negative
+  evidence as condition-bound rather than permanent disqualification.
+- **Verification:** An isolated render reproduced all 18 generated GFM/HTML
+  outputs byte-for-byte (`18/18`). All nine HTML pages passed 1440- and
+  390-pixel responsive checks plus accessibility, fragment, repository-link,
+  isolated-portal-link, privacy, and external-resource gates. All nine live
+  portal pages returned HTTPS 200 and were byte-identical to repository HTML
+  (`9/9`); the portal remains `tailnet only`.
+- **Intentional exclusion:** The application test suite was not run because
+  this was a documentation-only change; no custom tests, CI, schema validator,
+  dataset access, or GitHub issue mutation was added.
+- **Next action:** The user chooses whether to merge, open a pull request, or
+  keep the branch as-is. GitHub issue creation remains deferred until that
+  integration choice is made.
+
 ## Global Constraints
 
 - Work only on `codex/repository-cleanup-report`; do not switch or modify detached or issue worktrees.
@@ -68,7 +94,7 @@
 - Consumes: the approved design at `docs/superpowers/specs/2026-07-25-research-theme-status-site-redesign.md`; existing evidence files listed below; hub path `experiment-ledger.{{< meta report-ext >}}`.
 - Produces: three standalone QMD pages with stable experiment anchors, visible condition-bound summaries, native evidence disclosures, and theme-specific next experiments. Task 3 links to these exact filenames and anchors.
 
-- [ ] **Step 1: Verify scope and evidence sources**
+- [x] **Step 1: Verify scope and evidence sources**
 
 Run:
 
@@ -98,7 +124,7 @@ reports/trecvid_vqa_2026/seamless_audio_followup_results_2026-07-21.md
 plans/issue-7-automatic-transcript-ablation.md
 ```
 
-- [ ] **Step 2: Create the integrity and evaluation page**
+- [x] **Step 2: Create the integrity and evaluation page**
 
 Use this YAML header and page spine:
 
@@ -141,7 +167,7 @@ Define two next experiments/work items using the full five-field contract:
    deliberately invalid fixtures;
 2. representative-panel and scorer-validation gate before expensive runs.
 
-- [ ] **Step 3: Create the visual and temporal evidence page**
+- [x] **Step 3: Create the visual and temporal evidence page**
 
 Use title `Visual and Temporal Evidence` and description `What frame budgets,
 temporal selectors, spatial crops, and retrieval diagnostics have—and have
@@ -175,7 +201,7 @@ Define three next experiments:
    comparison with identical model/prompt/decoding controls;
 3. category-routed spatial-detail/OCR diagnostic rather than global tiling.
 
-- [ ] **Step 4: Create the speech and transcript evidence page**
+- [x] **Step 4: Create the speech and transcript evidence page**
 
 Use title `Speech and Transcript Evidence` and description `What automatic,
 reference, multilingual, and human transcripts can contribute without
@@ -208,7 +234,7 @@ Define three next experiments:
 3. alternative/multilingual ASR only on a matched frozen panel with the same
    downstream frames/model/prompt and explicit null/rejection controls.
 
-- [ ] **Step 5: Verify the three source pages without creating repository outputs**
+- [x] **Step 5: Verify the three source pages without creating repository outputs**
 
 Copy the project-status source directory to a task-specific temporary directory
 so Quarto project resolution cannot write an output into the repository:
@@ -233,7 +259,7 @@ Inspect all three temporary files. Confirm every page has one H1-equivalent
 title, all nine page-contract sections, visible status/boundary text, disclosure
 summaries, and repository-relative evidence links. Run `git diff --check`.
 
-- [ ] **Step 6: Commit Task 1**
+- [x] **Step 6: Commit Task 1**
 
 ```bash
 git add docs/project-status/research-integrity.qmd docs/project-status/research-visual-evidence.qmd docs/project-status/research-speech-transcripts.qmd
@@ -253,7 +279,7 @@ git commit -m "docs: add integrity visual and speech research themes"
 - Consumes: the approved design; existing evidence files listed below; hub path `experiment-ledger.{{< meta report-ext >}}`; cross-theme filenames from Task 1.
 - Produces: three standalone QMD pages with exact theme-page contracts and links that Task 3 exposes from the hub.
 
-- [ ] **Step 1: Read the source evidence before drafting**
+- [x] **Step 1: Read the source evidence before drafting**
 
 ```text
 reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md
@@ -271,7 +297,7 @@ reports/trecvid_vqa_2026/queries/literature_review.sql
 docs/superpowers/plans/2026-07-24-evidence-routing-benchmark.md
 ```
 
-- [ ] **Step 2: Create the native audio and sound page**
+- [x] **Step 2: Create the native audio and sound page**
 
 Use title `Native Audio and Sound` and description `What matched audio-on/off
 diagnostics say about speech, prosody, sound events, music, and specialist
@@ -296,7 +322,7 @@ Define three next experiments:
 3. exact-music fingerprint/retrieval route that abstains rather than asking a
    general VLM to guess.
 
-- [ ] **Step 3: Create the models and adaptation page**
+- [x] **Step 3: Create the models and adaptation page**
 
 Use title `Models and Adaptation` and description `Which model candidates ran,
 which quality gates they met, and what a valid reconsideration would require.`
@@ -319,7 +345,7 @@ Define three next experiments:
 3. adaptation/fine-tuning only after a measured retrieval, fusion, or answer-
    selection bottleneck justifies it.
 
-- [ ] **Step 4: Create the routing, fusion, and answer-selection page**
+- [x] **Step 4: Create the routing, fusion, and answer-selection page**
 
 Use title `Routing, Fusion, and Answer Selection` and description `How to decide
 which evidence path to invoke and distinguish missing evidence from failure to
@@ -344,7 +370,7 @@ Define three next experiments:
 3. answer grounding/election or a targeted ensemble only after matched evidence
    paths are frozen.
 
-- [ ] **Step 5: Verify the three source pages in temporary GFM**
+- [x] **Step 5: Verify the three source pages in temporary GFM**
 
 ```bash
 theme_task2_dir=$(mktemp -d /tmp/trecvid-theme-task2.XXXXXX)
@@ -364,7 +390,7 @@ Expected: all commands exit 0; disclosures preserve their summaries and inner
 Markdown; no raw/private artifact reference appears; repository worktree shows
 only the three intended QMD files. Run `git diff --check`.
 
-- [ ] **Step 6: Commit Task 2**
+- [x] **Step 6: Commit Task 2**
 
 ```bash
 git add docs/project-status/research-native-audio.qmd docs/project-status/research-models.qmd docs/project-status/research-routing.qmd
@@ -386,7 +412,7 @@ git commit -m "docs: add audio model and routing research themes"
 - Consumes: the six exact theme filenames from Tasks 1–2.
 - Produces: three stable top-level navigation destinations, a non-linear hub, all legacy fragment targets, cross-theme links, native disclosures, and reusable CSS classes consumed by generated HTML.
 
-- [ ] **Step 1: Replace the linear ledger with the Research Themes hub**
+- [x] **Step 1: Replace the linear ledger with the Research Themes hub**
 
 Keep the source path `experiment-ledger.qmd`; change the visible title to
 `Research Themes and Experiment Ledger` and description to an answer-first
@@ -416,7 +442,7 @@ research-routing.{{< meta report-ext >}}
 Follow the grid with six concise priorities, one per theme. Do not repeat the
 full backlog from theme pages.
 
-- [ ] **Step 2: Add condition-bound status and validity guidance**
+- [x] **Step 2: Add condition-bound status and validity guidance**
 
 Add an always-visible section defining:
 
@@ -442,7 +468,7 @@ Uncertainty — small/selected panel or generalization boundary without bug evid
 Use frozen-30 v1, directed integration, and small diagnostic panels as the
 respective examples.
 
-- [ ] **Step 3: Preserve legacy anchors in a compatibility index**
+- [x] **Step 3: Preserve legacy anchors in a compatibility index**
 
 Every legacy fragment must exist exactly once on the new hub and visibly link
 to its theme-page replacement:
@@ -479,7 +505,7 @@ Keep the six-row supersession information and five-row July 12/20/21/24/25
 chronology. Put each inside a native disclosure while keeping its section
 heading/anchor and one-sentence purpose visible.
 
-- [ ] **Step 4: Make the Start Here decision diagram secondary and expandable**
+- [x] **Step 4: Make the Start Here decision diagram secondary and expandable**
 
 Keep the readable status table as the primary decision interface. Wrap the
 dense Mermaid current-decision diagram in a native disclosure with summary
@@ -492,7 +518,7 @@ Replace standalone `Stop as current defaults` wording with `Not promoted as
 current defaults under the tested conditions`. Describe the Qwen3-Omni strict
 run as gate-specific ineligibility, not permanent model ineligibility.
 
-- [ ] **Step 5: Update site navigation and Code Map links**
+- [x] **Step 5: Update site navigation and Code Map links**
 
 In `_quarto.yml`, retain the three navbar items but change the second label to
 `Research Themes`. Keep `render: ["*.qmd"]`, which includes the new pages.
@@ -502,7 +528,7 @@ research-seed bullets with a short link list to the six theme pages and state
 that exact hypotheses, controls, and decision rules live there. Do not duplicate
 the research backlog.
 
-- [ ] **Step 6: Add responsive, accessible CSS**
+- [x] **Step 6: Add responsive, accessible CSS**
 
 Add styles with these responsibilities:
 
@@ -521,7 +547,7 @@ At `max-width: 767px`, set `.theme-grid` to one column. Do not apply a fixed
 height to cards. Preserve the existing reduced-motion rule and existing table
 wrapping behavior.
 
-- [ ] **Step 7: Render a temporary HTML site and inspect interactions**
+- [x] **Step 7: Render a temporary HTML site and inspect interactions**
 
 Copy `docs/project-status/` into a temporary directory, render there with a
 task-specific `XDG_CACHE_HOME`, and inspect all nine pages without modifying
@@ -539,7 +565,7 @@ At 1440 and 390 pixels verify:
 
 Run `git diff --check`.
 
-- [ ] **Step 8: Commit Task 3**
+- [x] **Step 8: Commit Task 3**
 
 ```bash
 git add docs/project-status/experiment-ledger.qmd docs/project-status/index.qmd docs/project-status/code-map.qmd docs/project-status/_quarto.yml docs/project-status/styles.css
@@ -569,7 +595,7 @@ git commit -m "docs: center status site on research themes"
 - Consumes: all committed QMD/CSS/config sources from Tasks 1–3.
 - Produces: the complete GitHub-readable and browser-readable site consumed by Task 5.
 
-- [ ] **Step 1: Render every QMD to sibling GFM**
+- [x] **Step 1: Render every QMD to sibling GFM**
 
 Use one task-specific Quarto cache. Render these nine sources with output names
 matching their basenames:
@@ -597,7 +623,7 @@ done
 Remove only Quarto transients created by the GFM render, never canonical source
 or generated deliverables.
 
-- [ ] **Step 2: Render the complete self-contained HTML site**
+- [x] **Step 2: Render the complete self-contained HTML site**
 
 ```bash
 env XDG_CACHE_HOME=/tmp/trecvid-theme-quarto-cache quarto render docs/project-status --to html
@@ -608,7 +634,7 @@ environment only if generated HTML contains no Google Fonts URL and the browser
 records no external resources. Remove `search.json`, `site_libs`, `.quarto`, or
 other transient outputs not part of the declared self-contained site.
 
-- [ ] **Step 3: Run source/generated consistency and content-preservation checks**
+- [x] **Step 3: Run source/generated consistency and content-preservation checks**
 
 Compare the pre-redesign ledger at commit `7a837db` with the nine final
 QMD/GFM/HTML pages. Confirm all thirteen historical entries, exact panels,
@@ -629,7 +655,7 @@ human transcript: blocked pending independent provenance
 2026 answer quality: unknown
 ```
 
-- [ ] **Step 4: Check links, fragments, disclosures, visuals, and privacy**
+- [x] **Step 4: Check links, fragments, disclosures, visuals, and privacy**
 
 Run a repository-relative link check across changed QMD/Markdown files. Check
 all legacy fragments in GFM and HTML and reject missing or duplicate targets.
@@ -652,7 +678,7 @@ links, bucket URIs, credentials, tokens, raw media/log links, structured private
 records, YouTube watch URLs, and private artifact names. Expected: zero
 findings.
 
-- [ ] **Step 5: Isolated deterministic render check**
+- [x] **Step 5: Isolated deterministic render check**
 
 Copy only the canonical project-status sources into a fresh temporary directory,
 render all nine GFM and HTML pages there, and compare each result byte-for-byte
@@ -669,7 +695,7 @@ git diff --name-only 814e554..HEAD -- data/
 Expected: no whitespace errors, only intended report outputs before commit, and
 no dataset path changes.
 
-- [ ] **Step 6: Commit Task 4**
+- [x] **Step 6: Commit Task 4**
 
 ```bash
 git add \
@@ -706,7 +732,7 @@ git commit -m "docs: render research-theme status site"
 - Consumes: the committed nine-page site from Task 4.
 - Produces: independently approved content and a byte-identical tailnet-only private site.
 
-- [ ] **Step 1: Run an independent content and framing review**
+- [x] **Step 1: Run an independent content and framing review**
 
 Ask a fresh reviewer to compare the final site against:
 
@@ -731,7 +757,7 @@ The reviewer must verify:
 Address only actionable findings, re-render affected outputs, and repeat the
 scoped verification before proceeding.
 
-- [ ] **Step 2: Refresh the authorized private portal**
+- [x] **Step 2: Refresh the authorized private portal**
 
 Copy exactly these nine verified HTML pages from `reports/project-status/`:
 
@@ -758,7 +784,7 @@ configuration. Verify source and portal-copy SHA-256 for every page. Fetch each
 live URL and require HTTPS 200 plus the same hash. Run `tailscale funnel status`
 and require `(tailnet only)` with `/` mapped to `/home/npatta01/codex-rendered`.
 
-- [ ] **Step 3: Run final clean-branch checks**
+- [x] **Step 3: Run final clean-branch checks**
 
 ```bash
 git diff --check 814e554..HEAD
@@ -772,7 +798,7 @@ canonical shared-data resolution. Record that the application test suite was
 intentionally not run because the user explicitly scoped this to report-only
 work.
 
-- [ ] **Step 4: Hand off for browser review**
+- [x] **Step 4: Hand off for browser review**
 
 Provide:
 
