@@ -143,6 +143,50 @@ h1 {
   margin-block: 0.35rem;
 }
 
+.failure-case {
+  border: 1px solid var(--status-border);
+  border-top: 0.35rem solid var(--status-accent);
+  border-radius: 0.5rem;
+  background: #fff;
+  margin-block: 1.5rem;
+  padding: 1rem 1.1rem;
+}
+
+.failure-case > h3 {
+  margin-top: 0;
+}
+
+.case-meta {
+  color: var(--status-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  margin-block: 0.35rem 1rem;
+}
+
+.case-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.case-field {
+  border-left: 0.22rem solid var(--status-border);
+  padding-inline: 0.75rem 0.25rem;
+}
+
+.case-field h4 {
+  font-size: 1rem;
+  margin-block: 0 0.35rem;
+}
+
+.case-field p {
+  margin-block: 0;
+}
+
+.failure-case details {
+  margin-bottom: 0;
+}
+
 details {
   border: 1px solid var(--status-border);
   border-radius: 0.4rem;
@@ -252,6 +296,10 @@ code {
   }
 
   .theme-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .case-fields {
     grid-template-columns: minmax(0, 1fr);
   }
 

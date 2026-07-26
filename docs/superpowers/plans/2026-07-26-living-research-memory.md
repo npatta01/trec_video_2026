@@ -300,7 +300,7 @@ worked example remains understandable with all disclosures closed.
 - Consumes: Task 1's verified cases and Task 2's glossary terms.
 - Produces: stable case anchors used by the hub and theme pages.
 
-- [ ] **Step 1: Author the library boundary**
+- [x] **Step 1: Author the library boundary**
 
 State above the first case:
 
@@ -313,7 +313,7 @@ Expected answers and media appear only under the recorded disclosure and rights 
 
 Add status and diagnosis keys in plain language.
 
-- [ ] **Step 2: Author three to five six-field case cards**
+- [x] **Step 2: Author three to five six-field case cards**
 
 For each stable `case-*` anchor, keep this content visible:
 
@@ -329,7 +329,7 @@ Next falsifying test
 Show a compact metadata line with case ID, lifecycle, owner, last verified,
 source/split role, and linked theme.
 
-- [ ] **Step 3: Add expert disclosures**
+- [x] **Step 3: Add expert disclosures**
 
 Each disclosure is titled `Evidence received, run details, grading, and
 provenance` and contains only verified fields: evidence configuration, selected
@@ -338,7 +338,7 @@ prediction, expected-answer disclosure, metric or C/P/W grade, rater/blinding/
 adjudication provenance, uncertainty, next comparison, immutable evidence
 links, and supersession.
 
-- [ ] **Step 4: Add media only when the case attestation is complete**
+- [x] **Step 4: Add media only when the case attestation is complete**
 
 Place the public-safe attestation next to the asset in the same QMD disclosure:
 
@@ -355,7 +355,7 @@ Required attribution
 Every image receives alt text, a caption, and a nearby textual evidence
 equivalent. Audio or derivative media receives a transcript/event description.
 
-- [ ] **Step 5: Render and inspect the failure page in isolation**
+- [x] **Step 5: Render and inspect the failure page in isolation**
 
 Render both GFM and HTML from a temporary source copy. Confirm cases are
 readable with disclosures closed, stable anchors exist, no row is from 2026,
