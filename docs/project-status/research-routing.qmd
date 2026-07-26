@@ -34,6 +34,10 @@ decision rule.
 
 ## What has been tried
 
+::: {.content-visible when-format="gfm"}
+<a name="taxonomy-audit"></a>
+:::
+
 ### Taxonomy audit and route seeds {#taxonomy-audit}
 
 - **Reason for testing:** identify recurring question/evidence types and prior

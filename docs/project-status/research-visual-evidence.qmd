@@ -31,6 +31,10 @@ default; each is **Not promoted under the tested condition**.
 
 ## What has been tried
 
+::: {.content-visible when-format="gfm"}
+<a name="frozen-30-protocol-v2"></a>
+:::
+
 ### Frozen-30 protocol v2: global frame budget {#frozen-30-protocol-v2}
 
 - **Reason for testing:** learn whether twice the uniform evidence budget

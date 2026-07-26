@@ -31,6 +31,10 @@ is **Open work**, not an existing supported CLI.
 
 ## What has been tried
 
+::: {.content-visible when-format="gfm"}
+<a name="field-guide"></a>
+:::
+
 ### July 12 field guide {#field-guide}
 
 - **Reason for testing:** establish an evidence-first research direction before
@@ -82,6 +86,10 @@ run, or that answers will be correct. The [benchmark construction module](../../
 binds manifest identities and hashes; the shared data boundary remains local.
 </details>
 
+::: {.content-visible when-format="gfm"}
+<a name="compatibility-gate"></a>
+:::
+
 ### Three-video compatibility gate {#compatibility-gate}
 
 - **Reason for testing:** learn which model-family adapters could execute on
@@ -109,6 +117,10 @@ exposes preflight only; completed runs used tested Python seams. The
 [three-video gate report](../../reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md)
 documents an audited execution, not a general one-command workflow.
 </details>
+
+::: {.content-visible when-format="gfm"}
+<a name="frozen-30-protocol-v2"></a>
+:::
 
 ### Frozen-30 protocol transition: v1 to v2 {#frozen-30-protocol-v2}
 

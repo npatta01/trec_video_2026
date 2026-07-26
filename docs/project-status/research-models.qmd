@@ -59,6 +59,10 @@ and [Experiment Integrity and Evaluation](research-integrity.{{< meta report-ext
 describe why that distinction matters.
 </details>
 
+::: {.content-visible when-format="gfm"}
+<a name="failure-panel"></a>
+:::
+
 ### Failure-selected Qwen3.6 screen {#failure-panel}
 
 - **Reason for testing:** learn whether a larger Qwen model recovers known
@@ -86,6 +90,10 @@ failure-selected panel can reveal recovery patterns but cannot estimate full
 test accuracy; the 24-frame local winner on this panel is superseded as a
 global default by frozen-30. See the [failure-panel report](../../reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md).
 </details>
+
+::: {.content-visible when-format="gfm"}
+<a name="phi-gemma-semantic-stop"></a>
+:::
 
 ### Phi and Gemma semantic screen {#phi-gemma-semantic-stop}
 
@@ -134,6 +142,10 @@ All four frozen-30 conditions completed 30/30 rows. This is descriptive model
 selection on labeled 2025 training data, not an estimate for the unlabeled
 2026 evaluation set. See the [protocol-v2 report](../../reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
 </details>
+
+::: {.content-visible when-format="gfm"}
+<a name="qwen3-omni-quality"></a>
+:::
 
 ### Qwen3-Omni quality and completion gate {#qwen3-omni-quality}
 

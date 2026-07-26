@@ -61,6 +61,10 @@ records the gate values and explicitly calls for a new controlled native-audio
 test rather than assuming it helps.
 </details>
 
+::: {.content-visible when-format="gfm"}
+<a name="failure-panel-native-audio"></a>
+:::
+
 ### Failure-selected native-audio diagnostic {#failure-panel-native-audio}
 
 - **Reason for testing:** determine whether native audio recovers known
