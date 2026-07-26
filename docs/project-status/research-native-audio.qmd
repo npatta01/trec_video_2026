@@ -64,6 +64,10 @@ ask a general VLM to invent a title.
 
 ## What has been tried
 
+:::: {.content-visible when-format="gfm"}
+<span id="minicpm-audio-on-off" class="legacy-fragment-alias" aria-hidden="true"></span>
+::::
+
 ### Matched MiniCPM audio-on/off screen {#minicpm-audio-on-off}
 
 - **Reason for testing:** learn whether adding the same clip's native audio to

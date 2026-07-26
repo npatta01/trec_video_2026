@@ -42,6 +42,10 @@ attestation, so this page is text-only.
 ## Cases
 
 ::: {.failure-case}
+:::: {.content-visible when-format="gfm"}
+<span id="case-001" class="legacy-fragment-alias" aria-hidden="true"></span>
+::::
+
 ### CASE-001 — Later-span answer selection {#case-001}
 
 <p class="case-meta"><strong>CASE-001</strong> · Selected development case · Owner: TRECVID VQA project · Last verified: 2026-07-26 · Source/split role: 2025 training row · Theme: <a href="research-routing.{{< meta report-ext >}}#transcript-residuals">Routing, fusion, and answer selection</a></p>
@@ -118,6 +122,10 @@ span.
 :::
 
 ::: {.failure-case}
+:::: {.content-visible when-format="gfm"}
+<span id="case-002" class="legacy-fragment-alias" aria-hidden="true"></span>
+::::
+
 ### CASE-002 — Non-lexical event missed by transcript gate {#case-002}
 
 <p class="case-meta"><strong>CASE-002</strong> · Selected development case · Owner: TRECVID VQA project · Last verified: 2026-07-26 · Source/split role: 2025 training row · Theme: <a href="research-speech-transcripts.{{< meta report-ext >}}">Speech and transcript evidence</a></p>
@@ -195,6 +203,10 @@ failure pattern.
 :::
 
 ::: {.failure-case}
+:::: {.content-visible when-format="gfm"}
+<span id="case-003" class="legacy-fragment-alias" aria-hidden="true"></span>
+::::
+
 ### CASE-003 — Retrieved token unused by answerer {#case-003}
 
 <p class="case-meta"><strong>CASE-003</strong> · Selected development case · Owner: TRECVID VQA project · Last verified: 2026-07-26 · Source/split role: 2025 training row · Theme: <a href="research-routing.{{< meta report-ext >}}#transcript-residuals">Routing, fusion, and answer selection</a></p>
@@ -271,6 +283,10 @@ answer while the control behaves normally.
 :::
 
 ::: {.failure-case}
+:::: {.content-visible when-format="gfm"}
+<span id="case-004" class="legacy-fragment-alias" aria-hidden="true"></span>
+::::
+
 ### CASE-004 — Unsupported native-audio specificity {#case-004}
 
 <p class="case-meta"><strong>CASE-004</strong> · Selected development case · Owner: TRECVID VQA project · Last verified: 2026-07-26 · Source/split role: 2025 training row · Theme: <a href="research-native-audio.{{< meta report-ext >}}">Native audio and omni models</a></p>

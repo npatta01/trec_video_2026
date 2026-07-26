@@ -47,6 +47,9 @@ a public-safe media attestation, so this page is text-only.
 
 <div class="failure-case">
 
+<span id="case-001" class="legacy-fragment-alias"
+aria-hidden="true"></span>
+
 ### CASE-001 — Later-span answer selection
 
 <p class="case-meta">
@@ -151,6 +154,9 @@ Evidence received, run details, grading, and provenance
 
 <div class="failure-case">
 
+<span id="case-002" class="legacy-fragment-alias"
+aria-hidden="true"></span>
+
 ### CASE-002 — Non-lexical event missed by transcript gate
 
 <p class="case-meta">
@@ -253,6 +259,9 @@ Evidence received, run details, grading, and provenance
 </div>
 
 <div class="failure-case">
+
+<span id="case-003" class="legacy-fragment-alias"
+aria-hidden="true"></span>
 
 ### CASE-003 — Retrieved token unused by answerer
 
@@ -357,6 +366,9 @@ Evidence received, run details, grading, and provenance
 </div>
 
 <div class="failure-case">
+
+<span id="case-004" class="legacy-fragment-alias"
+aria-hidden="true"></span>
 
 ### CASE-004 — Unsupported native-audio specificity
 

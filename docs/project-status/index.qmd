@@ -111,6 +111,10 @@ until public release.
 <summary>Expand the full evidence router</summary>
 
 ::: {.diagram-scroll tabindex="0" aria-label="Scrollable recommended evidence router"}
+:::: {.content-visible when-format="gfm"}
+<span id="fig-recommended-router" class="legacy-fragment-alias" aria-hidden="true"></span>
+::::
+
 ```{mermaid}
 %%| label: fig-recommended-router
 %%| fig-cap: "Recommended evidence router: keep the 12-frame Qwen baseline, use Whisper only for quality-gated lexical speech, and reserve native audio for specialist evaluation."

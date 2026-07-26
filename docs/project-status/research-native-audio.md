@@ -73,6 +73,9 @@ title.
 
 ## What has been tried
 
+<span id="minicpm-audio-on-off" class="legacy-fragment-alias"
+aria-hidden="true"></span>
+
 ### Matched MiniCPM audio-on/off screen
 
 - **Reason for testing:** learn whether adding the same clip’s native

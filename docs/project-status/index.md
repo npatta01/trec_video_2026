@@ -140,6 +140,9 @@ Expand the full evidence router
 <div class="diagram-scroll" tabindex="0"
 aria-label="Scrollable recommended evidence router">
 
+<span id="fig-recommended-router" class="legacy-fragment-alias"
+aria-hidden="true"></span>
+
 ``` mermaid
 flowchart TD
   accTitle: Recommended evidence router
