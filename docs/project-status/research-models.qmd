@@ -87,7 +87,7 @@ complete a matched, label-isolated quality comparison.
 <summary>Method, result, validity risks, and evidence</summary>
 
 The compatibility gate checks that a combined request can execute; it does not
-score semantic answer quality. The [three-video gate report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md)
+score semantic answer quality. The [three-video gate report · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e554/reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md)
 and [Experiment Integrity and Evaluation](research-integrity.{{< meta report-ext >}}#compatibility-gate)
 describe why that distinction matters.
 </details>
@@ -123,7 +123,7 @@ describe why that distinction matters.
 The run itself was technically clean, so this is not a runtime failure. The
 failure-selected panel can reveal recovery patterns but cannot estimate full
 test accuracy; the 24-frame local winner on this panel is superseded as a
-global default by frozen-30. See the [failure-panel report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md).
+global default by frozen-30. See the [failure-panel report · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e554/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md).
 </details>
 
 ::: {.content-visible when-format="gfm"}
@@ -156,8 +156,8 @@ global default by frozen-30. See the [failure-panel report](https://github.com/n
 <summary>Method, result, validity risks, and evidence</summary>
 
 The counts are a semantic screen, not a general leaderboard. The relevant
-records are the [compatibility probe](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-nonqwen-omni-compatibility.md)
-and [semantic-quality correction](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-24-omni-semantic-quality.md).
+records are the [compatibility probe · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e554/docs/experiments/2026-07-24-nonqwen-omni-compatibility.md)
+and [semantic-quality correction · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e554/docs/experiments/2026-07-24-omni-semantic-quality.md).
 </details>
 
 ### MiniCPM-o 4.5 fast alternate {#minicpm-fast-alternate}
@@ -177,7 +177,7 @@ and [semantic-quality correction](https://github.com/npatta01/trec_video_2026/bl
 
 All four frozen-30 conditions completed 30/30 rows. This is descriptive model
 selection on labeled 2025 training data, not an estimate for the unlabeled
-2026 evaluation set. See the [protocol-v2 report](https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
+2026 evaluation set. See the [protocol-v2 report · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e554/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
 </details>
 
 ::: {.content-visible when-format="gfm"}
@@ -216,8 +216,8 @@ that prompt context but one strict-parser failure remained. Semantic recovery
 of that exact output is diagnostic only and cannot retroactively complete A2.
 The 10 rows are selected and frame-based, so they cannot be compared directly
 to frozen-30. 2026 answer quality remains unknown.
-See the [quality-10 report](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10.md)
-and [neutral A2 result](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md).
+See the [quality-10 report · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e554/docs/experiments/2026-07-25-qwen3-omni-quality-10.md)
+and [neutral A2 result · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e554/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md).
 </details>
 
 ## Known failures and cases

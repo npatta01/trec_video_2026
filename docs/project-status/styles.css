@@ -24,9 +24,17 @@ a {
   text-underline-offset: 0.15em;
 }
 
-a:focus-visible {
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
   outline: 3px solid var(--status-accent);
   outline-offset: 3px;
+}
+
+.content a,
+.page-footer a {
+  overflow-wrap: anywhere;
 }
 
 h1,
@@ -273,6 +281,7 @@ summary {
   cursor: pointer;
   color: var(--status-ink);
   font-weight: 650;
+  padding-block: 0.15rem;
 }
 
 summary:focus-visible {
@@ -339,6 +348,11 @@ figcaption,
   overflow-x: auto;
 }
 
+pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 code {
   color: var(--status-ink);
   overflow-wrap: anywhere;
@@ -396,8 +410,7 @@ code {
 
   table {
     font-size: 0.88rem;
-    table-layout: fixed;
-    width: 100%;
+    min-width: 100%;
   }
 
   table th,
@@ -407,7 +420,15 @@ code {
 
   .table-responsive,
   .quarto-table-container {
+    max-width: 100%;
     overflow-x: auto;
+  }
+
+  .failure-case,
+  .theme-card,
+  .decision-item,
+  .timestamp-card {
+    min-width: 0;
   }
 }
 

@@ -16,8 +16,8 @@ website:
       - href: code-map.qmd
         text: Code Map and Gaps
   page-footer:
-    left: "Repository evidence through 2026-07-25"
-    right: "Sanitized aggregates only"
+    left: "Reviewed evidence: 2026-07-26"
+    right: "Development phase · 2026 evaluation quality remains unknown"
   search: false
 
 format:

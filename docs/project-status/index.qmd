@@ -96,14 +96,16 @@ evidence and not an estimate of system accuracy**.
 - **Prosody or non-speech candidate:** test native audio as a specialist branch,
   never as a global switch on the current evidence.
 
-The matched [frozen-30 protocol-v2 report][frozen30] is the strongest current
-global comparison. A **protocol version** is the named, fixed revision of the
-rules, inputs, and scoring used for a run. The later
-[automatic-transcript ablation][transcript] strengthens the lexical-speech
-route, while the [failure-selected audio panel][failure-panel] shows why native
-audio remains a specialist. A **panel** is the declared set of examples in a
-comparison; a **stratum** is a predeclared subgroup, such as lexical speech,
-within that panel.
+The matched [frozen-30 protocol-v2 report · Evidence report · GitHub][frozen30]
+is the strongest current global comparison. A **protocol version** is the
+named, fixed revision of the rules, inputs, and scoring used for a run. The
+later [automatic-transcript ablation · Evidence report · GitHub][transcript]
+strengthens the lexical-speech route, while the
+[failure-selected audio panel · Evidence report · GitHub][failure-panel] shows
+why native audio remains a specialist. A **panel** is the declared set of
+examples in a comparison; a **stratum** is a predeclared subgroup, such as
+lexical speech, within that panel. These GitHub links require repository access
+until public release.
 
 <details class="diagram-details">
 <summary>Expand the full evidence router</summary>
@@ -153,7 +155,8 @@ strict run completed only **19/20** accepted outputs, so it missed its
 predeclared **promotion gate**—the pass/fail rule a result must satisfy before
 the project adopts it. That run is ineligible for its planned promotion
 decision; the repaired model remains open to a fresh comparison. See the
-[tracked neutral A2 result][omni-a2] and [PR #18][pr18].
+[tracked neutral A2 result · Evidence report · GitHub][omni-a2] and
+[PR #18 · Issue/PR history · GitHub][pr18].
 
 **Exact match** is 1 only when a normalized prediction equals the normalized
 reference. **Token F1** balances word-level precision and recall, so it can give
@@ -235,9 +238,8 @@ inside a tiny diagnostic without making the tested method a verified default.
 | **Promotion gate** | A rule a result must pass before the project adopts the tested change. |
 | **Protocol version** | The named, fixed revision of a run's rules, inputs, and scoring. |
 
-[readme]: https://github.com/npatta01/trec_video_2026/blob/main/README.md
-[frozen30]: https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md
-[transcript]: https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md
-[failure-panel]: https://github.com/npatta01/trec_video_2026/blob/main/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md
-[omni-a2]: https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md
+[frozen30]: https://github.com/npatta01/trec_video_2026/blob/814e554/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md
+[transcript]: https://github.com/npatta01/trec_video_2026/blob/814e554/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md
+[failure-panel]: https://github.com/npatta01/trec_video_2026/blob/814e554/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md
+[omni-a2]: https://github.com/npatta01/trec_video_2026/blob/814e554/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md
 [pr18]: https://github.com/npatta01/trec_video_2026/pull/18

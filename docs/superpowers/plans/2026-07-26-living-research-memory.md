@@ -440,21 +440,25 @@ visible content, and no theme implies a linear research sequence.
 - Modify: `docs/project-status/code-map.qmd`
 - Modify: `docs/project-status/_quarto.yml`
 - Modify: `docs/project-status/styles.css`
+- Modify: `docs/project-status/index.qmd`, `experiment-ledger.qmd`, and
+  `research-*.qmd` only for Task 5 GitHub evidence-link text and immutable
+  evidence-of-record targets
 - Modify: `README.md` only if its report links or description become stale
+- Modify: this plan's Task 5 file list and checkboxes only
 
 **Interfaces:**
 - Consumes: stable routes and anchors from Tasks 2–4.
 - Produces: final site navigation, lifecycle metadata, link legend, and
   implementation crosswalk.
 
-- [ ] **Step 1: Add one traced flow-to-code example**
+- [x] **Step 1: Add one traced flow-to-code example**
 
 Map the worked example through acquisition → evidence preparation → route →
 inference → freeze → score → report. For each stage name the reusable CLI or
 module and mark bespoke scripts explicitly. Keep operational warnings before
 any expensive command.
 
-- [ ] **Step 2: Label link kinds and access state**
+- [x] **Step 2: Label link kinds and access state**
 
 Use visible labels for Report page, Evidence report · GitHub, Issue/PR history
 · GitHub, Source code · GitHub, Evidence of record, and Current code. Mark
@@ -462,14 +466,14 @@ GitHub evidence as requiring repository access until public release. Pin
 historical evidence-of-record links to a commit SHA or release tag; reserve
 `main` for evolving code links.
 
-- [ ] **Step 3: Update lifecycle and navigation**
+- [x] **Step 3: Update lifecycle and navigation**
 
 Keep navbar text exactly `Start Here`, `Research Themes`, and `Code Map and
 Gaps`. Add the two new pages to Quarto rendering without flattening them into
 the navbar. Replace the stale fixed footer date with the reviewed evidence date
 and phase. Keep search off for the initial three-to-five-case library.
 
-- [ ] **Step 4: Finish responsive and focus styles**
+- [x] **Step 4: Finish responsive and focus styles**
 
 Reuse the current Cosmo theme and existing spacing/color language. Verify
 visible keyboard focus, text-plus-color statuses, disclosure summaries,
