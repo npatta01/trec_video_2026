@@ -22,7 +22,9 @@ website:
 
 format:
   html:
-    theme: cosmo
+    theme:
+      - cosmo
+      - theme.scss
     css: styles.css
     embed-resources: true
     format-links: false

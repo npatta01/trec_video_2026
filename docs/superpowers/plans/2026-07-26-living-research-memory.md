@@ -85,7 +85,10 @@ inspection, and the existing tailnet-only Tailscale Serve portal.
 ### Modified site shell
 
 - `docs/project-status/_quarto.yml` — render the two new pages, refresh lifecycle
-  copy, and preserve the three-item navbar.
+  copy, preserve the three-item navbar, and layer the local offline theme after
+  Cosmo.
+- `docs/project-status/theme.scss` — disable Cosmo's remote web-font import and
+  define the system-font stack used by every generated page.
 - `docs/project-status/styles.css` — lifecycle banner, decision strip, glossary,
   breadcrumb/local navigation, failure cards, contact-sheet/timeline layout,
   link-kind labels, and responsive disclosure behavior.
@@ -666,8 +669,31 @@ counts pass. Quarto transients were removed. No application tests, custom test
 suite, CI, schema validator, dataset read, public publication, portal refresh,
 or Serve/Funnel change was performed.
 
-**Next action:** Review the focused Task 6/final-review commit, then choose the
-branch integration path. GitHub issue creation remains deferred.
+**Offline self-containment correction:** The earlier verification called the
+HTML outputs self-contained because Quarto embedded their resources. That claim
+was incomplete and, for offline presentation, false: each HTML file's embedded
+theme CSS still contained a Google Fonts `@import`, so typography could depend
+on network availability. The canonical configuration now layers
+`theme.scss` after Cosmo, sets `$web-font-path: false`, and uses a local system
+sans-serif stack.
+
+All 11 sibling Markdown files and all 11 self-contained HTML files were
+regenerated. The repository render and an isolated render emitted no font or
+network warnings and reproduced all 22 generated files byte-for-byte
+(`22/22`). An audit decoded all 22 embedded CSS data payloads and found zero
+remote imports or hosts. Authorized headless Chrome checked all 11 pages at
+1440×1000 and 390×844 in both normal and CDP-forced-offline modes (22
+scenarios per mode): both runs loaded zero external HTTP resources, computed a
+system-font stack for body, heading, and navbar text, and retained the
+`9.8969:1` minimum Mermaid contrast. The link/fragment resolver, publication
+scan, exact `11/11/11` counts, and diff checks still pass. Quarto transients
+were removed. No application tests, custom test suite, CI, schema validator,
+dataset read, public publication, portal refresh, or Serve/Funnel change was
+performed for this correction.
+
+**Next action:** Review the focused Task 6/final-review and offline-correction
+commits, then choose the branch integration path. GitHub issue creation remains
+deferred.
 
 ## Success check
 

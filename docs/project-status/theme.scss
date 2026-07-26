@@ -1,0 +1,8 @@
+/*-- scss:defaults --*/
+
+// Keep Cosmo's layout and color system while making the report fully offline.
+$web-font-path: false;
+$font-family-sans-serif: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+  Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji",
+  "Segoe UI Emoji", "Segoe UI Symbol";
+$font-family-base: $font-family-sans-serif;
