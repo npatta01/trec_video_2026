@@ -16,18 +16,17 @@ recommendation and the [Code Map · Report page](code-map.{{< meta report-ext >}
 implementation boundary. The six themes below are independent research areas,
 not a sequence.
 
-<span id="research-questions" class="legacy-fragment-alias" aria-hidden="true"></span>
-<span id="fig-experiment-timeline" class="legacy-fragment-alias" aria-hidden="true"></span>
+```{=html}
+<div class="legacy-fragment-alias-group" aria-hidden="true"><span id="research-questions"></span><span id="fig-experiment-timeline"></span></div>
+```
 
 ## Six-theme research map
 
 :::: {.theme-grid}
 ::: {.theme-card}
-<span id="trustworthy-experiments" class="legacy-fragment-alias" aria-hidden="true"></span>
-<span id="field-guide" class="legacy-fragment-alias" aria-hidden="true"></span>
-<span id="data-readiness" class="legacy-fragment-alias" aria-hidden="true"></span>
-<span id="compatibility-gate" class="legacy-fragment-alias" aria-hidden="true"></span>
-<span id="frozen-30-protocol-v2" class="legacy-fragment-alias" aria-hidden="true"></span>
+```{=html}
+<div class="legacy-fragment-alias-group" aria-hidden="true"><span id="trustworthy-experiments"></span><span id="field-guide"></span><span id="data-readiness"></span><span id="compatibility-gate"></span><span id="frozen-30-protocol-v2"></span></div>
+```
 
 ### [Experiment integrity and evaluation](research-integrity.{{< meta report-ext >}})
 
@@ -42,9 +41,9 @@ scoring-boundary faults before an expensive run?
 :::
 
 ::: {.theme-card}
-<span id="global-default" class="legacy-fragment-alias" aria-hidden="true"></span>
-<span id="directed-temporal-sampling" class="legacy-fragment-alias" aria-hidden="true"></span>
-<span id="dense-burst-sampling" class="legacy-fragment-alias" aria-hidden="true"></span>
+```{=html}
+<div class="legacy-fragment-alias-group" aria-hidden="true"><span id="global-default"></span><span id="directed-temporal-sampling"></span><span id="dense-burst-sampling"></span></div>
+```
 
 ### [Visual and temporal evidence](research-visual-evidence.{{< meta report-ext >}})
 
@@ -60,8 +59,9 @@ more reliably than uniform sampling?
 :::
 
 ::: {.theme-card}
-<span id="automatic-transcript-ablation" class="legacy-fragment-alias" aria-hidden="true"></span>
-<span id="human-oracle-tier" class="legacy-fragment-alias" aria-hidden="true"></span>
+```{=html}
+<div class="legacy-fragment-alias-group" aria-hidden="true"><span id="automatic-transcript-ablation"></span><span id="human-oracle-tier"></span></div>
+```
 
 ### [Speech and transcript evidence](research-speech-transcripts.{{< meta report-ext >}})
 
@@ -76,7 +76,9 @@ bound improve answers without hiding transcript errors?
 :::
 
 ::: {.theme-card}
-<span id="audio-spatial-seamless" class="legacy-fragment-alias" aria-hidden="true"></span>
+```{=html}
+<div class="legacy-fragment-alias-group" aria-hidden="true"><span id="audio-spatial-seamless"></span></div>
+```
 
 ### [Native audio and sound](research-native-audio.{{< meta report-ext >}})
 
@@ -91,10 +93,9 @@ visual controls?
 :::
 
 ::: {.theme-card}
-<span id="model-promotion" class="legacy-fragment-alias" aria-hidden="true"></span>
-<span id="failure-panel" class="legacy-fragment-alias" aria-hidden="true"></span>
-<span id="phi-gemma-semantic-stop" class="legacy-fragment-alias" aria-hidden="true"></span>
-<span id="qwen3-omni-quality" class="legacy-fragment-alias" aria-hidden="true"></span>
+```{=html}
+<div class="legacy-fragment-alias-group" aria-hidden="true"><span id="model-promotion"></span><span id="failure-panel"></span><span id="phi-gemma-semantic-stop"></span><span id="qwen3-omni-quality"></span></div>
+```
 
 ### [Models and adaptation](research-models.{{< meta report-ext >}})
 
@@ -109,8 +110,9 @@ and integrity gate?
 :::
 
 ::: {.theme-card}
-<span id="specialist-evidence" class="legacy-fragment-alias" aria-hidden="true"></span>
-<span id="taxonomy-audit" class="legacy-fragment-alias" aria-hidden="true"></span>
+```{=html}
+<div class="legacy-fragment-alias-group" aria-hidden="true"><span id="specialist-evidence"></span><span id="taxonomy-audit"></span></div>
+```
 
 ### [Routing, fusion, and answer selection](research-routing.{{< meta report-ext >}})
 
