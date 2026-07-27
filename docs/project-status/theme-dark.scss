@@ -1,0 +1,25 @@
+/*-- scss:defaults --*/
+
+// Keep Cosmo's layout and color system while making the report fully offline.
+$web-font-path: false;
+$font-family-sans-serif: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+  Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji",
+  "Segoe UI Emoji", "Segoe UI Symbol";
+$font-family-base: $font-family-sans-serif;
+
+$body-bg: #0f1722;
+$body-color: #edf3fa;
+$code-block-bg: #1d2a40;
+$link-color: #8fd3ff;
+$border-color: #4b5c74;
+$navbar-bg: #162235;
+$navbar-fg: #edf3fa;
+$table-bg: #172235;
+$table-color: #edf3fa;
+$code-color: #f1b8ca;
+$mermaid-bg-color: $body-bg;
+$mermaid-edge-color: #a9b7c9;
+$mermaid-node-bg-color: #1d2a40;
+$mermaid-node-fg-color: #edf3fa;
+$mermaid-label-bg-color: $body-bg;
+$mermaid-label-fg-color: #8fd3ff;

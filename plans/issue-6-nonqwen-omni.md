@@ -1,5 +1,10 @@
 # Issue #6: non-Qwen omni compatibility
 
+> **Historical status:** The referenced PR is merged and this compatibility
+> work is complete. On a later three-row semantic screen, neither Gemma nor
+> Phi earned promotion; broader comparisons were not ruled out. See
+> [Project Status](../docs/project-status/index.md).
+
 ## Objective
 
 Probe Phi-4-multimodal-instruct and Gemma 3n E4B-it on the same frozen

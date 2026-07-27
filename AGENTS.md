@@ -1,5 +1,13 @@
 # Repository agent instructions
 
+## Adding or updating research
+
+Before proposing, running, interpreting, or recording an experiment, read the
+[Adding Experiments and Results guide](docs/project-status/adding-experiments.qmd).
+Choose one primary theme for each current result; related themes should link to
+that record rather than copy it. QMD is the editable report source: generated
+Markdown and HTML must not be hand-edited.
+
 ## Shared local dataset
 
 - The only physical dataset copy is

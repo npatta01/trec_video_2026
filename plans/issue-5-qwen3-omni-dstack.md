@@ -1,5 +1,10 @@
 # Issue #5: Qwen3-Omni dstack compatibility
 
+> **Historical status:** The referenced PR is merged and this compatibility
+> work is complete. Compatibility did not establish semantic quality; the
+> later strict quality run failed its output contract, so Qwen3-Omni is not
+> promoted. See [Project Status](../docs/project-status/index.md).
+
 ## Objective
 
 Run the exact frozen three-video joint visual/audio compatibility contract with

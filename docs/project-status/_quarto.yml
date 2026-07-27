@@ -1,0 +1,40 @@
+project:
+  type: website
+  output-dir: ../../reports/project-status
+  render:
+    - "*.qmd"
+
+website:
+  title: "TRECVID VQA Status"
+  navbar:
+    collapse-below: lg
+    left:
+      - href: index.qmd
+        text: Start Here
+      - href: experiment-ledger.qmd
+        text: Research Themes
+      - href: code-map.qmd
+        text: Code Map and Gaps
+  page-footer:
+    left: "Reviewed evidence: 2026-07-26"
+    right: "Development phase · 2026 evaluation quality remains unknown"
+  search: false
+
+format:
+  html:
+    theme:
+      light: [cosmo, theme.scss]
+      dark: [cosmo, theme.scss, theme-dark.scss]
+    respect-user-color-scheme: true
+    css: styles.css
+    embed-resources: true
+    format-links: false
+    metadata:
+      report-ext: qmd
+    toc: true
+    toc-depth: 2
+    toc-title: On this page
+    code-copy: false
+  gfm:
+    metadata:
+      report-ext: md

@@ -1,5 +1,9 @@
 # TREC 2026 VQA report — source and analysis notes
 
+> **Background only:** This July 12 field guide supports historical context.
+> The current [Project Status](../../docs/project-status/index.md) supersedes
+> it for local experiment decisions.
+
 Competition evidence snapshot: July 11, 2026 (America/New_York). The model-primer, team-architecture, literature, fine-tuning, and public-weight model supplements were researched July 12. This file records the evidence boundary, reconciliation decisions, calculations, report mapping, and visual contracts behind the canonical report artifact and its delivery surfaces. It is supporting material, not part of the main reading path.
 
 ## Reporting job

@@ -4,6 +4,11 @@
 **Decision:** Keep a small, routed ensemble. Do not promote Qwen3.6-35B, Whisper
 transcripts, or MiniCPM native audio as the global default.
 
+> **Superseded default:** This failure-selected panel's 24-frame default is
+> superseded by frozen-30's global 12-frame default. Whisper is routed through
+> a quality gate, not used globally; see the current
+> [Project Status](../../docs/project-status/index.md).
+
 ## Executive result
 
 The 12-video panel was deliberately selected from known failures: two
@@ -11,7 +16,8 @@ dialogue/prosody examples, four sound/music examples, four temporal-action
 examples, and two visual controls. It is useful for failure diagnosis, but it
 is not an unbiased estimate of full-test accuracy.
 
-The strongest safe default tested is **Qwen3.5-4B with 24 sampled frames**.
+Within this failure-selected panel, the strongest tested visual condition was
+**Qwen3.5-4B with 24 sampled frames**.
 **MiniCPM-o 4.5 with 12 frames and audio disabled** is an equally strong
 alternative and wins more individual failures, but makes one worse temporal
 error. **MiniCPM-o native audio** should be routed only to prosody and

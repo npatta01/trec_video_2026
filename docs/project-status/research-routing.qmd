@@ -1,0 +1,343 @@
+---
+title: "Routing, Fusion, and Answer Selection"
+description: "How to decide which evidence path to invoke and distinguish missing evidence from failure to use evidence correctly."
+---
+
+<span id="back-to-research-themes" class="legacy-fragment-alias" aria-hidden="true"></span>
+<nav class="status-breadcrumb" aria-label="Breadcrumb">
+  <a href="index.{{< meta report-ext >}}">Start Here</a>
+  <span aria-hidden="true">/</span>
+  <a href="experiment-ledger.{{< meta report-ext >}}">Research Themes</a>
+  <span aria-hidden="true">/</span>
+  <span aria-current="page">Routing, Fusion, and Answer Selection</span>
+</nav>
+
+<nav class="theme-local-nav" aria-label="On this theme page">
+  <a href="#current-working-answer">Working answer</a>
+  <a href="#what-has-been-tried">Tried</a>
+  <a href="#known-failures-and-cases">Failures</a>
+  <a href="#cheapest-valid-next-experiments">Next tests</a>
+</nav>
+
+::: {.content-visible when-format="gfm"}
+<span id="why-this-theme-matters" class="legacy-fragment-alias" aria-hidden="true"></span>
+:::
+
+## New to this theme? {#why-this-theme-matters}
+
+More evidence is useful only if the system requests the right evidence and
+then uses it correctly. A route can fail because it did not retrieve the
+needed moment, transcript span, sound, or detail. It can also fail after that
+evidence was present, because the model selected the wrong fact or phrased the
+wrong answer. Those are different research problems.
+
+For example, when a transcript contains the needed word but the answer stays
+wrong, retrieving more text may not help. The next diagnostic should hold the
+text fixed and test grounding or answer selection. A **router** chooses an
+evidence path; **fusion** combines evidence; **answer election** selects among
+candidate answers.
+
+<span id="technical-summary" class="legacy-fragment-alias" aria-hidden="true"></span>
+
+## Current working answer
+
+Use the visual baseline unless a declared, quality-gated specialist condition
+applies. Existing taxonomy tags are **Diagnostic signal** for experiment design,
+not a validated deployment policy. A future router must abstain to the baseline
+when uncertain and pass route-level non-regression before it becomes a default
+decision rule.
+
+::: {.theme-decision-strip aria-label="Routing decisions"}
+- **Use now:** visual baseline fallback and selective accepted Whisper for declared lexical speech.
+- **Do not default:** taxonomy tags as if they were a validated router, or an ensemble before evidence paths are measured.
+- **Still possible:** abstaining multi-label routing, grounded fusion, and evidence-aware answer election.
+- **Next test:** measure selector recall, oracle-evidence answering, and end-to-end answering separately.
+:::
+
+## Evidence at a glance
+
+- **Route seeds:** lexical question counts and operational tags help form
+  strata; they do not measure routing prevalence.
+- **Observed mechanism:** some transcripts contain needed words while the
+  frozen answer remains wrong.
+- **Audit gaps:** there is no versioned evaluated router or local required-
+  evidence label set.
+- **Condition boundary:** an unvalidated router does not imply routing, fusion,
+  or answer election cannot help under a controlled test.
+
+## What has been tried
+
+::: {.content-visible when-format="gfm"}
+<a name="taxonomy-audit"></a>
+:::
+
+### Taxonomy audit and route seeds {#taxonomy-audit}
+
+- **Reason for testing:** identify recurring question/evidence types and prior
+  routing ideas before assigning specialist experiments.
+- **Tested condition and panel:** a conservative lexical audit of 481 training
+  questions plus primary documentation for prior TRECVID systems.
+- **Observed result:** the audit found lower-bound prompt counts of 71 counting,
+  22 spoken-language, 20 sound/music, and 15 visible-text questions. It
+  proposes operational tags such as speech content, non-speech sound/music,
+  prosody, temporal order, counting, small spatial detail, global visual, and
+  multi-hop.
+- **Current condition-bound status:** **Diagnostic signal** and **Open
+  hypothesis** for a future router, not measured routing prevalence.
+- **What this rules out now:** treating lexical lower bounds as exhaustive,
+  mutually exclusive labels or claiming that the repository has a validated
+  question router.
+- **What it does not rule out:** a versioned multi-label taxonomy or a
+  label-blind classifier that is validated on held-out questions.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—lexical counts
+  are lower bounds and tags may overlap or miss paraphrases.
+- **Reconsider when:** tags, routing thresholds, abstention, and baseline
+  fallback are fixed before a held-out route evaluation.
+
+<details>
+<summary>Method, result, validity risks, and evidence</summary>
+
+The official taxonomy is useful for reporting, while operational tags describe
+which evidence path may help. Prompt wording is only a conservative lower
+bound: paraphrases can be missed and tags can overlap. Prior 2025 systems used
+related ingredients, but no paper documents a complete conditional router that
+chooses model, audio treatment, and frame density per question. See the
+[taxonomy audit · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/taxonomy_prior_art_and_open_omni_models_2026-07-24.md)
+and [closed issue #4 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
+</details>
+
+:::: {.content-visible when-format="gfm"}
+<span id="transcript-residuals" class="legacy-fragment-alias" aria-hidden="true"></span>
+::::
+
+### Transcript residuals: evidence present, answer still wrong {#transcript-residuals}
+
+- **Reason for testing:** determine whether transcript improvements solve the
+  downstream answer problem or only reveal the spoken evidence.
+- **Tested condition and panel:** targeted speech and multilingual diagnostics,
+  including two non-English examples and a selected automatic-transcript panel.
+- **Observed result:** language-aware ASR produced coherent native-language
+  text for two diagnostic examples, but the downstream Qwen answers were still
+  wrong or incomplete; two residuals had needed words but the VLM selected or
+  used the wrong evidence, and one ASR output missed a non-lexical
+  vocalization. In the selected 10-row Whisper ablation, accepted transcripts
+  improved manual accuracy from 4/10 to 7/10, leaving residual errors.
+- **Current condition-bound status:** **Diagnostic signal** that speech
+  recovery and answer grounding are separable; current Whisper remains a
+  **Routed candidate**, not a universal route.
+- **What this rules out now:** assuming that a fluent transcript, or a better
+  transcription family, automatically yields the correct final answer.
+- **What it does not rule out:** timestamped evidence-span prompts, a better
+  answer-grounding stage, or a matched multilingual route.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—selected
+  residuals identify a mechanism but not its frequency.
+- **Reconsider when:** a frozen panel compares the same accepted evidence with
+  and without explicit evidence-span grounding and records null/rejection
+  controls.
+
+<details>
+<summary>Method, result, validity risks, and evidence</summary>
+
+The two-language diagnostic is too small to estimate multilingual performance;
+the 10-row Whisper ablation is selected lexical-speech evidence. The
+[transcript diagnostic · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md)
+supports the two evidence-use residuals and the missed non-lexical
+vocalization. The
+[failure-panel report · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md)
+explains the separation between speech recovery and answer selection. See also
+[Speech and Transcript Evidence](research-speech-transcripts.{{< meta report-ext >}}).
+</details>
+
+::: {.content-visible when-format="gfm"}
+<a name="retrieval-versus-fusion"></a>
+:::
+
+### Retrieval versus fusion diagnostic {#retrieval-versus-fusion}
+
+- **Reason for testing:** prevent a temporal or multimodal failure from being
+  misdiagnosed as only a model-quality failure.
+- **Tested condition and panel:** a tracked literature synthesis and experiment
+  design; no local required-evidence labels or oracle-frame evaluation exist
+  yet.
+- **Observed result:** the project has a concrete measurement distinction but
+  no empirical local retrieval-versus-fusion decomposition.
+- **Current condition-bound status:** **Open hypothesis** and **Audit gap** in
+  the current evidence record.
+- **What this rules out now:** claiming that a wrong answer proves either poor
+  evidence selection or poor reasoning without measuring both.
+- **What it does not rule out:** a small grounded development set that measures
+  selection, oracle evidence, and end-to-end answers separately.
+- **Possible defect, audit gap, or uncertainty:** **Audit gap**—no local
+  required-evidence labels or oracle-evidence evaluation exist yet.
+- **Reconsider when:** required moments or evidence spans are labeled and the
+  three metrics are reported under one frozen answer protocol.
+
+<details>
+<summary>Method, result, validity risks, and evidence</summary>
+
+**Retrieval failure** means the needed frame, transcript span, sound, or crop
+was not selected. **Fusion/reasoning failure** means the needed evidence was
+available but the model still combined it incorrectly or chose the wrong
+answer. The literature map recommends selector recall, oracle-evidence answer
+quality, and end-to-end answer quality precisely to tell these apart. See the
+[research-thread source · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/queries/literature_review.sql)
+and [closed issue #4 · Issue/PR history · GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
+</details>
+
+::: {.content-visible when-format="gfm"}
+<a name="answer-election"></a>
+:::
+
+### Evidence-aware answer election {#answer-election}
+
+- **Reason for testing:** explore whether multiple plausible generations or
+  evidence views need a separate selection step.
+- **Tested condition and panel:** literature-backed proposal only; the
+  repository has no matched local answer-election or ensemble evaluation.
+- **Observed result:** prior systems motivate probability pooling, reranking,
+  and evidence-aware election, but no local result establishes a benefit here.
+- **Current condition-bound status:** **Open hypothesis**.
+- **What this rules out now:** presenting voting, reranking, or ensembles as a
+  current project recommendation.
+- **What it does not rule out:** a targeted election experiment once candidate
+  evidence paths and answer formats are frozen.
+- **Possible defect, audit gap, or uncertainty:** **Audit gap**—no matched local
+  answer-election experiment establishes benefit or cost.
+- **Reconsider when:** a controlled comparison uses the same generated
+  candidates, evidence citations, costs, and a baseline single-answer path.
+
+<details>
+<summary>Method, result, validity risks, and evidence</summary>
+
+An election mechanism cannot repair missing evidence, and exact-string voting
+can split equivalent open answers. The [literature map · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/queries/literature_review.sql)
+recommends semantic deduplication and evidence-aware ranking only as a testable
+future direction.
+</details>
+
+## Known failures and cases
+
+- [CASE-001 — Later-span answer selection](failure-library.{{< meta report-ext >}}#case-001)
+  separates retrieved evidence from the fact ultimately selected.
+- [CASE-003 — Retrieved token unused by answerer](failure-library.{{< meta report-ext >}}#case-003)
+  motivates grounded fusion or extraction tests instead of more retrieval.
+
+### What the evidence supports
+
+- The current taxonomy is useful to form strata and candidate routes, but it is
+  not a measured router.
+- Retrieval and fusion are different failure modes and need different metrics.
+- Transcript residuals demonstrate that recovering words does not guarantee
+  the VLM will ground the final answer in those words.
+- Specialist policies need abstention, a baseline fallback, and route-level
+  non-regression—not just a target-slice improvement.
+
+### What it does not rule out
+
+- The absence of an evaluated router does not imply a simple route cannot help.
+- A wrong answer does not reveal whether the missing piece was frame selection,
+  audio/transcript selection, reasoning, or answer normalization.
+- A literature-supported technique is not a local result until it runs under
+  the project’s integrity and scoring boundaries.
+- A future ensemble may help after evidence paths stabilize; it should not be
+  used to mask an unmeasured retrieval problem.
+
+<span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span>
+
+### Confirmed defects, audit gaps, and uncertainties
+
+- **Audit gap:** route seeds exist, but no versioned router records its tag
+  model, thresholds, abstentions, fallback, held-out evaluation, and
+  route-level metrics.
+- **Uncertainty:** lexical tags are lower bounds and may miss paraphrases or
+  assign overlapping evidence needs.
+- **Audit gap:** no local required-moment or evidence-span labels exist to
+  distinguish selector recall from fusion/reasoning accuracy.
+- **Uncertainty:** selected transcript residuals show a mechanism but do not
+  estimate its frequency across the competition distribution.
+
+## Open hypotheses and ideas
+
+- A label-blind multi-label router can reduce harmful global modality use by
+  abstaining to the visual baseline.
+- A union of broad visual coverage and targeted evidence can improve retrieval
+  without forcing a model to reason over only question-matched fragments.
+- Grounding an answer in cited timestamps, frames, transcript spans, or sound
+  events can expose whether an answer-selection stage is using relevant
+  evidence.
+- Evidence-aware election or a targeted ensemble may help only after the
+  evidence paths themselves are controlled and frozen.
+
+## Cheapest valid next experiments
+
+### Versioned label-blind router
+
+- **Hypothesis:** a multi-label router with abstention selects specialist
+  evidence more safely than a global modality switch.
+- **Smallest valid panel or work item:** a held-out, label-blind development
+  slice with declared tags for speech, sound, prosody, temporal, spatial, and
+  visual controls.
+- **Matched controls and integrity safeguards:** version tag rules/model and
+  thresholds; hide references from routing and inference; record every route,
+  abstention, fallback, and downstream configuration; freeze answers before
+  scoring.
+- **Decision or promotion rule:** advance only if routed end-to-end quality
+  meets a predeclared target gain with no route-level or aggregate regression
+  beyond the declared limits versus baseline fallback.
+- **Boundary on what a positive result would establish:** the router’s value on
+  its held-out slice, not universal classification accuracy.
+
+### Required-evidence labels and three-way measurement
+
+- **Hypothesis:** separating selector recall, oracle-evidence answer quality,
+  and end-to-end answer quality identifies whether a route needs retrieval or
+  fusion work.
+- **Smallest valid panel or work item:** a small manually grounded development
+  slice with required frames, transcript spans, sound events, or crops.
+- **Matched controls and integrity safeguards:** label evidence independently
+  of model answers; preserve timestamps/IDs; evaluate uniform and proposed
+  selectors at the same budget; use the same model/prompt/decoding and frozen
+  scoring boundary.
+- **Decision or promotion rule:** pursue retrieval only when selector recall is
+  limiting and oracle evidence improves answers; pursue fusion/grounding only
+  when the necessary evidence is present but answers remain wrong.
+- **Boundary on what a positive result would establish:** a diagnosis for the
+  labeled slice, not a universal causal explanation.
+
+### Grounded answer election or targeted ensemble
+
+- **Hypothesis:** once matched evidence paths are frozen, selecting among a
+  small set of evidence-citing candidates improves answer quality without
+  hiding uncertainty.
+- **Smallest valid panel or work item:** a small frozen panel with a fixed
+  candidate generator, cited evidence, and single-answer baseline.
+- **Matched controls and integrity safeguards:** keep evidence/model/prompt
+  paths fixed; retain candidate text, evidence citation, election score, cost,
+  and abstention; compare against the unchanged single-answer path after
+  predictions freeze.
+- **Decision or promotion rule:** advance only with a paired improvement and
+  no predeclared regression in controls, cost, or unsupported-evidence rate.
+- **Boundary on what a positive result would establish:** the tested election
+  method for that candidate set, not a general endorsement of ensembles.
+
+## Method, result, validity risks, and evidence
+
+<details>
+<summary>How to audit this theme's records</summary>
+
+The visible summaries distinguish route selection, evidence retrieval, fusion,
+and answer election. Open each record's native details block for source links
+and validity risks. A later election experiment must hold generated candidates
+and evidence fixed; it cannot compensate for unmeasured missing evidence.
+</details>
+
+## Related themes
+
+- [Visual and Temporal Evidence](research-visual-evidence.{{< meta report-ext >}})
+  covers the retrieval side of frame and temporal selection.
+- [Speech and Transcript Evidence](research-speech-transcripts.{{< meta report-ext >}})
+  covers provenance and accepted transcript evidence.
+- [Native Audio and Sound](research-native-audio.{{< meta report-ext >}})
+  covers category-routed sound hypotheses.
+- [Models and Adaptation](research-models.{{< meta report-ext >}}) explains
+  why a specialist-model decision needs matched evidence and gates.

@@ -1,0 +1,362 @@
+---
+title: "Models and Adaptation"
+description: "Which model candidates ran, which quality gates they met, and what a valid reconsideration would require."
+---
+
+<span id="back-to-research-themes" class="legacy-fragment-alias" aria-hidden="true"></span>
+<nav class="status-breadcrumb" aria-label="Breadcrumb">
+  <a href="index.{{< meta report-ext >}}">Start Here</a>
+  <span aria-hidden="true">/</span>
+  <a href="experiment-ledger.{{< meta report-ext >}}">Research Themes</a>
+  <span aria-hidden="true">/</span>
+  <span aria-current="page">Models and Adaptation</span>
+</nav>
+
+<nav class="theme-local-nav" aria-label="On this theme page">
+  <a href="#current-working-answer">Working answer</a>
+  <a href="#what-has-been-tried">Tried</a>
+  <a href="#known-failures-and-cases">Failures</a>
+  <a href="#cheapest-valid-next-experiments">Next tests</a>
+</nav>
+
+::: {.content-visible when-format="gfm"}
+<span id="why-this-theme-matters" class="legacy-fragment-alias" aria-hidden="true"></span>
+:::
+
+## New to this theme? {#why-this-theme-matters}
+
+A new model can fail because it cannot run, because it violates an input or
+output contract, because it lacks needed evidence, or because it makes a poor
+answer despite having that evidence. These are different failures, so a model
+family should not receive a permanent verdict from one small panel.
+
+For example, a model that accepts frames and audio has passed a compatibility
+check, not an answer-quality check. If a later answer is wrong because the
+needed moment was never supplied, replacing or fine-tuning the answerer targets
+the wrong bottleneck.
+
+<span id="technical-summary" class="legacy-fragment-alias" aria-hidden="true"></span>
+
+## Current working answer
+
+Use the frozen-30 protocol-v2 comparison for current model selection. Keep
+Qwen3.5-4B with 12 frames as the **Current default** for accuracy and MiniCPM-o
+4.5 audio-off as the **Fast alternate**. Treat newer/larger candidates as
+**Diagnostic signal**, **Routed candidate**, or **Open hypothesis** until they
+complete a matched, label-isolated quality comparison.
+
+::: {.theme-decision-strip aria-label="Model decisions"}
+- **Use now:** Qwen3.5-4B with 12 frames; use MiniCPM-o audio-off for speed.
+- **Do not default:** later candidates based on compatibility or selected screens alone.
+- **Still possible:** repaired Omni, specialist models, and bottleneck-first adaptation.
+- **Next test:** repair the strict output path, then diagnose retrieval versus fusion before training.
+:::
+
+## Evidence at a glance
+
+- **Strongest comparison:** frozen-30 protocol v2 supports the current Qwen and
+  MiniCPM roles on labeled 2025 training data.
+- **Selected diagnostics:** Qwen3.6, Phi, Gemma, and Omni screens do not rank
+  their families globally.
+- **Confirmed defect:** one Qwen3-Omni strict output missed the 20/20 completion gate.
+- **Condition boundary:** no small screen permanently disqualifies a model,
+  checkpoint, evidence route, or later adaptation.
+
+## What has been tried
+
+::: {.content-visible when-format="gfm"}
+<a name="compatibility-gate-models"></a>
+:::
+
+### Three-video compatibility gate {#compatibility-gate-models}
+
+- **Reason for testing:** determine which adapters can execute under a shared
+  label-blind input contract before spending on a larger quality panel.
+- **Tested condition and panel:** five model families on three deliberately
+  different labeled 2025 examples.
+- **Observed result:** Qwen, Molmo, InternVL, and Gemma completed all requested
+  inferences; MiniCPM completed two of three and had a speech-row input error.
+- **Current condition-bound status:** **Diagnostic signal** for portability and
+  adapter behavior, not a model leaderboard.
+- **What this rules out now:** promoting a family or estimating its competition
+  quality from three execution rows.
+- **What it does not rule out:** a repaired adapter or a matched larger quality
+  panel for any compatible family.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—three selected
+  rows are a portability screen, not a quality ranking.
+- **Reconsider when:** the candidate completes a declared, label-isolated
+  quality panel with the same evidence and scoring controls as its comparator.
+
+<details>
+<summary>Method, result, validity risks, and evidence</summary>
+
+The compatibility gate checks that a combined request can execute; it does not
+score semantic answer quality. The [three-video gate report · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/three_video_gate_results_2026-07-20.md)
+and [Experiment Integrity and Evaluation](research-integrity.{{< meta report-ext >}}#compatibility-gate)
+describe why that distinction matters.
+</details>
+
+::: {.content-visible when-format="gfm"}
+<a name="failure-panel"></a>
+:::
+
+### Failure-selected Qwen3.6 screen {#failure-panel}
+
+- **Reason for testing:** learn whether a larger Qwen model recovers known
+  visual, audio, and temporal failures that the baseline missed.
+- **Tested condition and panel:** Qwen3.6-35B-A3B used the same 12 frames as
+  the baseline across 12 deliberately selected failures.
+- **Observed result:** it was `3C/2P/7W`, compared with `4C/4P/4W` for the
+  strongest tested visual and audio-off alternatives. It recovered three
+  baseline failures but had a visual-control regression and confident wrong
+  music/instrument answers.
+- **Current condition-bound status:** **Not promoted under the tested
+  condition** as a replacement for the current baseline.
+- **What this rules out now:** advancing this Qwen3.6 version, prompt, and
+  12-frame configuration from the 12-row failure panel.
+- **What it does not rule out:** a different Qwen3.6 revision, evidence
+  policy, question route, or representative matched panel.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the 12 rows
+  were selected failures and include a visual-control regression.
+- **Reconsider when:** a compatibility-cleared version passes a predeclared
+  matched specialist or representative quality gate without control loss.
+
+<details>
+<summary>Method, result, validity risks, and evidence</summary>
+
+The run itself was technically clean, so this is not a runtime failure. The
+failure-selected panel can reveal recovery patterns but cannot estimate full
+test accuracy; the 24-frame local winner on this panel is superseded as a
+global default by frozen-30. See the [failure-panel report · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md).
+</details>
+
+::: {.content-visible when-format="gfm"}
+<a name="phi-gemma-semantic-stop"></a>
+:::
+
+### Phi and Gemma semantic screen {#phi-gemma-semantic-stop}
+
+- **Reason for testing:** separate successful joint audio/vision compatibility
+  from meaningful answer quality for two non-Qwen candidates.
+- **Tested condition and panel:** after a three-role joint-modality
+  compatibility probe, Phi-4-multimodal-instruct and Gemma 3n ran a corrected
+  semantic screen over three selected audio roles.
+- **Observed result:** Gemma was `1C/1P/1W`; Phi was `0C/2P/1W`. An earlier
+  compatibility-only Gemma promotion is superseded by this quality screen.
+- **Current condition-bound status:** **Not promoted under the tested
+  condition** beyond the three-row semantic screen.
+- **What this rules out now:** using successful combined-modality parsing, or
+  the earlier compatibility promotion, as evidence that either tested version
+  improves answer quality.
+- **What it does not rule out:** a newer checkpoint, a repaired input path, a
+  different evidence route, or a larger representative comparison.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the three-row
+  semantic screen is too small to rank either family.
+- **Reconsider when:** a candidate first passes compatibility and then meets a
+  predeclared semantic-quality and control non-regression gate on a matched
+  panel.
+
+<details>
+<summary>Method, result, validity risks, and evidence</summary>
+
+The counts are a semantic screen, not a general leaderboard. The relevant
+records are the [compatibility probe · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-24-nonqwen-omni-compatibility.md)
+and [semantic-quality correction · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-24-omni-semantic-quality.md).
+</details>
+
+::: {.content-visible when-format="gfm"}
+<a name="minicpm-fast-alternate"></a>
+:::
+
+### MiniCPM-o 4.5 fast alternate {#minicpm-fast-alternate}
+
+- **Reason for testing:** compare a practical native-video model with the
+  visual Qwen conditions under frozen-30's shared protocol.
+- **Tested condition and panel:** MiniCPM-o 4.5 with native-video input and
+  audio disabled across all 30 frozen rows.
+- **Observed result:** it achieved the best METEOR (`0.374089`) and fastest
+  measured outer wall time (4.50 minutes), while Qwen plus quality-gated
+  Whisper led exact match and token F1.
+- **Current condition-bound status:** **Fast alternate**, not the global
+  accuracy winner on every metric.
+- **What this rules out now:** calling MiniCPM-o the global accuracy winner
+  under frozen-30 merely because it was fastest or led METEOR.
+- **What it does not rule out:** using it when latency dominates, quality on
+  other representative panels, or a future accuracy/latency frontier under a
+  different controlled environment.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the outer-wall
+  timing is environment-specific and frozen-30 is descriptive 2025 training
+  evidence.
+- **Reconsider when:** a repeated same-hardware matched panel jointly reports
+  completion, latency, exact/F1, and the declared speed-quality decision rule.
+
+<details>
+<summary>Method, result, validity risks, and evidence</summary>
+
+All four frozen-30 conditions completed 30/30 rows. This is descriptive model
+selection on labeled 2025 training data, not an estimate for the unlabeled
+2026 evaluation set. See the [protocol-v2 report · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
+</details>
+
+::: {.content-visible when-format="gfm"}
+<a name="qwen3-omni-quality"></a>
+:::
+
+### Qwen3-Omni quality and completion gate {#qwen3-omni-quality}
+
+- **Canonical model-eligibility claim:** its stable identity is
+  `#qwen3-omni-quality`; the related
+  [Canonical native-audio-effect claim](research-native-audio.{{< meta report-ext >}}#qwen3-omni-native-audio)
+  is owned by Native Audio.
+- **Reason for testing:** test a joint native-audio candidate under a paired
+  frames-only/audio-on contract after its runtime became compatible.
+- **Tested condition and panel:** 10 deliberately difficult rows, 12 sampled
+  frames with and without native audio, a modality-neutral prompt, and a
+  predeclared 20/20 strict-output completion requirement.
+- **Observed result:** the diagnostic semantic comparison was `3C/3P/4W`
+  frames-only and `5C/2P/3W` audio-on, but the unchanged strict run completed
+  19/20 outputs because one complete answer used fenced JSON.
+- **Current condition-bound status:** formally ineligible under the
+  predeclared 20/20 completion gate; **Not promoted under the tested
+  condition**, while remaining a **Routed candidate** for a repaired run.
+- **What this rules out now:** using the incomplete strict run for a promotion
+  decision or declaring Qwen3-Omni the new general baseline.
+- **What it does not rule out:** the model family, a repaired parser/output
+  contract, a complete blinded paired run, or specialist native-audio value.
+- **Possible defect, audit gap, or uncertainty:** **Confirmed defect**—one
+  fenced output failed the unchanged strict parser and completion gate.
+- **Reconsider when:** a sentinel verifies the output fix and a fresh full
+  20-call paired run completes under one frozen configuration and its declared
+  quality/control gate.
+
+<details>
+<summary>Method, result, validity risks, and evidence</summary>
+
+The earlier A1 run completed 20/20 strict outputs but had a prompt-context
+mismatch and did not meet its semantic gate. The neutral A2 rerun corrected
+that prompt context but one strict-parser failure remained. Semantic recovery
+of that exact output is diagnostic only and cannot retroactively complete A2.
+The 10 rows are selected and frame-based, so they cannot be compared directly
+to frozen-30. 2026 answer quality remains unknown.
+See the [quality-10 report · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-25-qwen3-omni-quality-10.md)
+and [neutral A2 result · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md).
+</details>
+
+## Known failures and cases
+
+[CASE-004 — Unsupported native-audio specificity](failure-library.{{< meta report-ext >}}#case-004)
+illustrates why a more capable modality path can still produce a worse,
+over-specific answer. Diagnose evidence, fusion, and output-contract failures
+before treating the model family as the cause.
+
+### What the evidence supports
+
+- A successful adapter or joint-modality request proves compatibility, not
+  semantic answer quality.
+- MiniCPM-o audio-off is a useful speed/METEOR trade-off, while Qwen3.5-4B
+  remains the current accuracy baseline.
+- The tested Qwen3.6, Phi, and Gemma conditions did not earn promotion; their
+  results bound those versions, evidence paths, and small panels.
+- Qwen3-Omni has a conditionally encouraging audio diagnostic but no eligible
+  promotion result because its strict completion gate was not met.
+
+### What it does not rule out
+
+- No small screen permanently disqualifies a model family, model revision, or
+  specialist route.
+- Frozen-30 does not prove the baseline is best on unlabeled 2026 evaluation.
+- Compatibility, completion, semantic quality, and cost are separate gates;
+  passing one cannot substitute for the others.
+- Fine-tuning may be useful later, but no current result identifies a measured
+  bottleneck that warrants it over evidence selection or answer grounding.
+
+<span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span>
+
+### Confirmed defects, audit gaps, and uncertainties
+
+- **Confirmed defect:** one Qwen3-Omni strict-output contract failed, making
+  that run ineligible for its predeclared promotion decision.
+- **Uncertainty:** Qwen3.6, Phi, Gemma, and Omni quality panels are selected
+  diagnostics, not representative rankings or 2026 estimates.
+- **Uncertainty:** model comparison can be confounded by frame policy, prompt,
+  modality treatment, and answer formatting unless they are held fixed.
+- **Audit gap:** the repository has compatibility and experimental seams, not
+  one reusable versioned model-promotion workflow for every candidate family.
+
+## Open hypotheses and ideas
+
+- A repaired Qwen3-Omni run may retain its prosody/non-speech gains while
+  satisfying a complete output contract.
+- A specialist model may beat the baseline on a declared evidence type even if
+  it is not a global replacement.
+- Adaptation or fine-tuning should follow a measured bottleneck diagnosis.
+  Model fine-tuning is justified for fusion or answer-selection failures only
+  after retrieval and the supplied evidence have been controlled; a measured
+  retrieval failure instead calls for evidence-selection work first.
+
+## Cheapest valid next experiments
+
+### Repaired, complete neutral Qwen3-Omni run
+
+- **Hypothesis:** a terminal-output fix permits Qwen3-Omni's paired
+  audio-on/off diagnostic to complete without changing the frozen condition.
+- **Smallest valid panel or work item:** first rerun the failed sentinel; then,
+  if it passes, a fresh full 20-call paired run under the strict contract.
+- **Matched controls and integrity safeguards:** freeze model, prompt, frames,
+  audio, decoding, parser, ordering, and scoring; require all outputs before
+  labels load; retain the frames-only control and visual controls.
+- **Decision or promotion rule:** evaluate only if 20/20 outputs pass; advance
+  only with the predeclared audio-focused gain and control non-regression.
+- **Boundary on what a positive result would establish:** a valid result for
+  that model/configuration and declared panel, not a global model replacement.
+
+### Representative matched specialist-model panel
+
+- **Hypothesis:** a compatibility-cleared model can add value on a declared
+  specialist stratum without harming matched controls.
+- **Smallest valid panel or work item:** a frozen representative slice with
+  target and visual/temporal control strata, after a three-row compatibility
+  check if the adapter changed.
+- **Matched controls and integrity safeguards:** same frames, modality policy,
+  prompt, decoding, scoring, labels-after-freeze boundary, and baseline model;
+  record model revision and input/output contracts.
+- **Decision or promotion rule:** promote only if the candidate meets a paired
+  target-stratum gain and route-level non-regression threshold.
+- **Boundary on what a positive result would establish:** a specialist role on
+  that panel, not a general leaderboard position.
+
+### Bottleneck-first adaptation decision
+
+- **Hypothesis:** adaptation is justified only when a measured retrieval,
+  fusion, or answer-selection bottleneck remains after evidence paths freeze.
+- **Smallest valid panel or work item:** a small grounded development slice
+  that reports selector recall, oracle-evidence answer quality, and end-to-end
+  answer quality before any training run.
+- **Matched controls and integrity safeguards:** hold base model, evidence,
+  prompts, labels-after-freeze boundary, and scoring fixed; compare any adapted
+  model to the unadapted baseline on held-out rows.
+- **Decision or promotion rule:** authorize adaptation only when the diagnostic
+  identifies a residual bottleneck and held-out non-regression is predeclared.
+- **Boundary on what a positive result would establish:** value for the
+  declared adaptation and panel, not a blanket claim that fine-tuning solves
+  video QA.
+
+## Method, result, validity risks, and evidence
+
+<details>
+<summary>How to audit this theme's records</summary>
+
+The visible summaries distinguish compatibility, completion, semantic quality,
+cost, and promotion. Open each record's native details block for source links,
+panel selection, and configuration risks. A model/adaptation decision is valid
+only after its measured bottleneck and matched controls are explicit.
+</details>
+
+## Related themes
+
+- [Native Audio and Sound](research-native-audio.{{< meta report-ext >}})
+  explains the model-specific modality evidence.
+- [Experiment Integrity and Evaluation](research-integrity.{{< meta report-ext >}})
+  defines compatibility, completion, freeze, and scoring boundaries.
+- [Routing, Fusion, and Answer Selection](research-routing.{{< meta report-ext >}})
+  defines the bottlenecks that should justify a specialist or adaptation.
