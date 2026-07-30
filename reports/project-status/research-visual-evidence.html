@@ -3316,7 +3316,7 @@ break-inside: avoid;
 <li><strong>Use now:</strong> Qwen3.5-4B with 12 uniformly sampled frames.</li>
 <li><strong>Do not default:</strong> global uniform-24 or the tested directed/burst heuristics.</li>
 <li><strong>Still possible:</strong> learned, hybrid, shot/event, OCR, or coarse-to-fine retrieval.</li>
-<li><strong>Next test:</strong> required-moment labels, selector recall, and oracle-frame answering at one fixed budget.</li>
+<li><strong>Next test:</strong> calibrate the required-moment rubric, collect fresh blind annotations, and retry the agreement gate before selector recall.</li>
 </ul>
 </div>
 </section>
@@ -3324,7 +3324,7 @@ break-inside: avoid;
 <h2 class="anchored" data-anchor-id="evidence-at-a-glance">Evidence at a glance</h2>
 <ul>
 <li><strong>Strongest evidence:</strong> matched uniform-12 versus uniform-24 on frozen-30 v2.</li>
-<li><strong>Diagnostic evidence:</strong> ten selected temporal rows for directed-12 and two rows for dense-burst-12.</li>
+<li><strong>Diagnostic evidence:</strong> ten selected temporal rows for directed-12 and two rows for dense-burst-12; a separate ten-row required-moment diagnostic stopped at its primary annotation-agreement gate.</li>
 <li><strong>Audit gaps:</strong> no tracked general-workflow caller for directed-12; the exact dense-burst implementation is absent.</li>
 <li><strong>Condition boundary:</strong> none of these results rejects smarter visual sampling or retrieval as a research branch.</li>
 </ul>
@@ -3368,6 +3368,26 @@ Both arms use whole-video bin-midpoint coverage, not query-driven retrieval. The
 Method, result, validity risks, and evidence
 </summary>
 The selector source and tests establish deterministic timestamps for a supplied anchor, not required-evidence recall or answer relevance. The tracked repository has no general-workflow caller for the selector: that is an <strong>Audit gap</strong>, not a confirmed execution bug. The <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/temporal-sampling-issue-8.md">temporal experiment record · Evidence of record · Evidence report · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_experiments/temporal_sampling.py">selector · Current code · Source code · GitHub</a>, and <a href="https://github.com/npatta01/trec_video_2026/blob/main/tests/test_temporal_sampling.py">tests · Current code · Source code · GitHub</a> document the narrow contract.
+</details>
+</section>
+<section id="temporal-required-moment-oracle" class="level3">
+<h3 class="anchored" data-anchor-id="temporal-required-moment-oracle">Required-moment oracle diagnostic</h3>
+<ul>
+<li><strong>Reason for testing:</strong> separate missing-moment retrieval from downstream answering by labeling the minimal visual evidence needed for each selected temporal row.</li>
+<li><strong>Tested condition and panel:</strong> three blind, de novo full-video annotation passes on ten selected temporal development rows from labeled 2025 training data; the planned uniform-12/oracle-hybrid-12 comparison was conditional on primary reviewer agreement.</li>
+<li><strong>Observed result:</strong> the two primary reviewers matched eligibility on <code>9/10</code> rows and structure on <code>8/10</code>, exactly meeting the structural threshold, but median tIoU was <code>0.4791666666666665</code> against the required <code>0.50</code>. Six rows were flagged. The agreement gate failed and all later stages were not run.</li>
+<li><strong>Current condition-bound status:</strong> <strong>Diagnostic signal</strong>; evidence is <strong>Incomplete</strong> for the intended oracle comparison, and no selector was promoted. Uniform-12 remains the <strong>Current default</strong>.</li>
+<li><strong>What this rules out now:</strong> using these annotations for boundary-sensitive required-moment recall or oracle-frame answer claims.</li>
+<li><strong>What it does not rule out:</strong> whether oracle or deployable selectors can improve retrieval, whether retrieval is the dominant bottleneck, or whether transcript work should take priority.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—the selected ten-row panel and narrowly failed agreement gate diagnose this rubric and process, not every required-moment annotation design.</li>
+<li><strong>Reconsider when:</strong> a calibrated rubric and three fresh blind annotations pass the same predeclared structural and median-tIoU gate.</li>
+</ul>
+<details>
+<summary>
+Method, result, validity risks, and evidence
+</summary>
+<p>All three reviewers annotated <code>10/10</code> rows independently. The A/B files froze before their comparison. Reviewer C remained blind while A/B were compared, then froze its de novo file before learning the result; it was supplemental and was not used to rescue the failed gate. Reviewer A marked <code>9/10</code> rows eligible; reviewers B and C marked <code>10/10</code>. A/B eligibility matched on <code>9/10</code>; eight eligible rows structurally matched. The tIoU interquartile range was <code>0.49476190476190574</code>. Per the preregistered stop rule, adjudication, actual-PTS inventory and frame extraction, selector recall, local ROCm inference, references, predictions, grading, and transcript work were not run.</p>
+<p>The tracked dated evidence record is <code>docs/experiments/2026-07-30-temporal-required-moment-oracle.md</code>.</p>
 </details>
 </section>
 <section id="dense-burst-sampling" class="level3">
@@ -3420,6 +3440,7 @@ The crop was manually selected and not scale-ready. One targeted failure cannot 
 <li>The tested directed-12 heuristic did not earn default status on its ten-row temporal diagnostic.</li>
 <li>The tested dense-burst-12 diagnostic regressed on its two rows and should not be expanded as a default without a new controlled design.</li>
 <li>A manual crop can add spatial pixels without repairing an answer; that is a reason to route and diagnose detail needs rather than tile globally.</li>
+<li>The required-moment diagnostic shows that structural agreement alone is not enough to support boundary-sensitive selector recall; temporal overlap must also pass before labels control an oracle comparison.</li>
 </ul>
 </section>
 <section id="what-it-does-not-rule-out" class="level3">
@@ -3429,6 +3450,7 @@ The crop was manually selected and not scale-ready. One targeted failure cannot 
 <li>Directed-12 does not rule out learned, query-only, half-uniform/half-query, shot-based, event-based, or coarse-to-fine selectors.</li>
 <li>Dense-burst-12 does not estimate prevalence, effect size, or all local selection schedules.</li>
 <li>The crop diagnostic does not rule out category-routed spatial detail or OCR.</li>
+<li>The failed required-moment agreement gate does not show that oracle sampling would fail or identify retrieval as—or as not—the dominant bottleneck.</li>
 </ul>
 <p><span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span></p>
 </section>
@@ -3437,7 +3459,7 @@ The crop was manually selected and not scale-ready. One targeted failure cannot 
 <ul>
 <li><strong>Audit gap:</strong> no tracked general-workflow caller establishes how the directed selector was attached to a general workflow. This is not a confirmed execution bug.</li>
 <li><strong>Audit gap:</strong> dense-burst-12’s exact implementation and schedule are absent from tracked source; only its two-row aggregate is recoverable.</li>
-<li><strong>Uncertainty:</strong> directed-12’s ten selected temporal rows have no required-moment labels, selector-recall measure, or oracle-frame answer quality measure.</li>
+<li><strong>Uncertainty:</strong> a ten-row required-moment annotation attempt exists, but its primary temporal-overlap gate failed; selector recall and oracle-frame answer quality therefore remain unmeasured.</li>
 <li><strong>Uncertainty:</strong> manual spatial crops are targeted and non-scalable, so their negative result cannot rank global tiling or OCR routes.</li>
 </ul>
 </section>
@@ -3455,11 +3477,11 @@ The crop was manually selected and not scale-ready. One targeted failure cannot 
 <section id="required-moments-selector-recall-and-oracle-frames" class="level3">
 <h3 class="anchored" data-anchor-id="required-moments-selector-recall-and-oracle-frames">Required moments, selector recall, and oracle frames</h3>
 <ul>
-<li><strong>Hypothesis:</strong> missing required moments, rather than answer reasoning alone, explain a measurable share of temporal failures.</li>
-<li><strong>Smallest valid panel or work item:</strong> label required moment/span on a small frozen temporal panel, then score each selector’s recall and run an oracle-frame answer-quality condition.</li>
-<li><strong>Matched controls and integrity safeguards:</strong> freeze labels before selector scoring; hold model, prompt, decoding, frame count, and pixel budget fixed; keep required-moment labels out of ordinary inference.</li>
-<li><strong>Decision or promotion rule:</strong> advance a selector only if it improves recall and downstream answer quality without a predeclared control regression.</li>
-<li><strong>Boundary on what a positive result would establish:</strong> it would separate retrieval from answering on that panel, not prove general temporal accuracy.</li>
+<li><strong>Hypothesis:</strong> a calibrated rubric can produce sufficiently consistent minimal-evidence intervals to support boundary-sensitive selector recall.</li>
+<li><strong>Smallest valid panel or work item:</strong> run a small calibration exercise for eligibility, preferred-set topology, temporal-order anchor/event coverage, and boundary placement; then collect three fresh blind annotations on the frozen ten-row panel and retry the primary agreement gate.</li>
+<li><strong>Matched controls and integrity safeguards:</strong> keep reviewers blind to references, predictions, selector timestamps, condition outcomes, and one another until all files freeze; do not adjudicate or score recall unless the structural and median-tIoU requirements both pass.</li>
+<li><strong>Decision or promotion rule:</strong> resume adjudication and the CPU recall gate only if at least <code>8/10</code> primary rows structurally match and median tIoU is at least <code>0.50</code>; later selector and answer gates remain unchanged.</li>
+<li><strong>Boundary on what a positive result would establish:</strong> it would establish label reliability for this selected panel, not selector benefit or general temporal accuracy; those require the still-unrun downstream stages.</li>
 </ul>
 </section>
 <section id="fixed-budget-temporal-selector-comparison" class="level3">
@@ -3859,7 +3881,7 @@ The visible record summaries preserve the exact panel, budget, result, limits, a
 <footer class="footer">
   <div class="nav-footer">
     <div class="nav-footer-left">
-<p>Reviewed evidence: 2026-07-26</p>
+<p>Reviewed evidence: 2026-07-30</p>
 </div>   
     <div class="nav-footer-center">
        
