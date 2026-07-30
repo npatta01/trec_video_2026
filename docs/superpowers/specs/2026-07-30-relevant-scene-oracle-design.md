@@ -4,8 +4,8 @@
 
 **Primary theme:** Visual and Temporal Evidence
 
-**Status:** Advisor-refined design approved by the user; awaiting written-spec
-review before implementation planning.
+**Status:** Advisor-refined design and integrity corrections approved for
+implementation; Stage 1 is planned separately from conditional inference.
 
 ## Objective
 
@@ -44,6 +44,16 @@ failure, and a model-answer failure after verified extraction and representation
 is evidence about answering or fusion, not proof that retrieval was already
 sufficient in the baseline.
 
+## Stage 1 hypothesis and falsifier
+
+**Hypothesis:** at least one candidate completely extracts and faithfully
+represents the frozen preferred evidence for every row in a cohort of at least
+eight labelable, still-frame-representable rows.
+
+**Falsifier:** fewer than eight rows enter that cohort, or neither candidate
+passes every cohort row after the single simultaneous repair round. Either
+result stops before model requests or inference.
+
 ## Scope and claim boundary
 
 - Review all ten frozen temporal-panel videos.
@@ -72,10 +82,14 @@ boundary-sensitive claim.
 
 For this exploratory run, reviewer C—whose de novo annotation was frozen while
 the A/B result remained hidden—will inspect the frozen A, B, and C annotations
-and adjudicate all ten rows. The adjudicator selects a final eligibility value
-and one or more minimal sufficient evidence sets; it does not average interval
-boundaries. The adjudication artifact binds the three frozen annotation hashes
-and is explicitly labeled exploratory.
+and adjudicate all ten rows. The adjudicator selects a final eligibility value,
+one or more minimal sufficient evidence sets, and one `preferred_set_index`; it
+does not average interval boundaries. Before candidate frames exist, the
+adjudicator also freezes an opaque component ID and role for every interval in
+the preferred set and every required `motion`, `ordering`, `duration`,
+`transition`, or `cooccurrence` relationship with its component bindings. The
+adjudication artifacts bind the three frozen annotation hashes and are
+explicitly labeled exploratory.
 
 Alternatives were rejected:
 
@@ -98,7 +112,8 @@ Use exactly six global and six oracle-local frames:
 
 - Global frames are nearest unused decoded frames to six equal-bin whole-video
   midpoints.
-- Local frames use the adjudicated preferred sufficient set.
+- Local frames use exactly the sufficient set named by the adjudicated
+  `preferred_set_index`; legacy shortest-set selection is not used.
 - Assign one local slot to every conjunctive interval, then allocate remaining
   slots proportional to interval duration using Hamilton largest remainder.
 - Place desired local times at equal-sub-bin midpoints inside each interval.
@@ -109,12 +124,12 @@ Use exactly six global and six oracle-local frames:
 
 ### Candidate B: `oracle-local-12`
 
-Use twelve oracle-local frames and no global frames. Select the adjudicated
-preferred sufficient set, assign one slot to every conjunctive interval, and
-allocate the remaining slots proportional to interval duration with the same
-Hamilton largest-remainder and equal-sub-bin-midpoint rules as Candidate A.
-Bind to unique actual decoded PTS with the same provenance and chronological
-ordering requirements.
+Use twelve oracle-local frames and no global frames. Use exactly the sufficient
+set named by the adjudicated `preferred_set_index`, assign one slot to every
+conjunctive interval, and allocate the remaining slots proportional to interval
+duration with the same Hamilton largest-remainder and equal-sub-bin-midpoint
+rules as Candidate A. Bind to unique actual decoded PTS with the same provenance
+and chronological ordering requirements.
 
 All three conditions use the same 12-frame count and maximum-pixel proxy. Stage
 1 audits both candidates, but Stage 2 compares the control with at most one
@@ -152,10 +167,14 @@ representational sufficiency are audited.
 For each labelable row, build two private, opaque candidate packets: one with
 the complete twelve-frame hybrid input and one with the twelve-local-frame
 input. Preserve chronological order and show the exact timestamp before each
-frame, matching the model prompt. Randomize candidate presentation order per
-auditor with a frozen seed. Do not identify the candidate, distinguish local
-from global frames, or include references, model answers, grades, uniform
-frames, or condition outcomes.
+frame, matching the model prompt. Each displayed frame must be the same bounded-
+pixel PNG reserved for later model input; auditors must not receive a higher-
+resolution copy. Randomize candidate presentation order per auditor with a
+frozen seed. Do not identify the candidate, distinguish local from global
+frames, or include references, model answers, grades, uniform frames, or
+condition outcomes. This is partial condition blinding: timestamp distribution
+may allow an auditor to infer which candidate is denser locally, and the report
+must disclose that limitation.
 
 Each fresh auditor completes a frame-first pass before receiving the full source
 video or adjudicated interval packet. For each candidate, the auditor records a
@@ -187,24 +206,28 @@ After both independent audit records freeze, a fresh third auditor adjudicates
 every disagreement without condition identities, model outputs, references, or
 grades.
 
-A candidate passes a row only when every interval in at least one adjudicated
-sufficient set is `visible` in its local audit-target frames, every required
-temporal relationship is `preserved` or `not_applicable` in its complete input,
-and the complete input is `answer_sufficient` after disagreement adjudication.
-Alternative sufficient sets remain alternatives; components from different
-alternatives cannot be mixed. The frame-first answer attempt is descriptive and
-does not override these gates.
+A candidate passes a row only when every interval in the exact frozen preferred
+set is `visible` in its local audit-target frames, every relationship frozen for
+that set is `preserved`, and the complete input is `answer_sufficient` after
+disagreement adjudication. `not_applicable` is valid only for a relation class
+that was not frozen as required; `uncertain` never passes. Alternative sets are
+not used to rescue a candidate that was constructed from the preferred set. The
+frame-first answer attempt is descriptive and does not override these gates.
 
-If either candidate fails because a desired time landed between useful decoded
-frames, one predeclared repair round is allowed for all failing candidates
-before condition selection. Each auditor records one proposed event-center time
-to `0.1` seconds inside the same adjudicated interval; the third auditor resolves
-disagreement without seeing model output. The extractor then chooses the nearest
-unused decoded frame to the resolved time, constrained to that interval and
-breaking equal-distance ties toward the earlier PTS. Freeze the proposed and
-resolved times, replacement reasons, and complete frame provenance, then rerun
-the candidate-blind audit. Rows still failing remain in the ten-row denominator
-and participate in the predeclared Stage 2 stop/selection rule.
+If either candidate has a documented `partial` or `not_visible` local-frame gap
+because a desired time landed between useful decoded frames, one predeclared
+simultaneous repair round is allowed before condition selection. Each auditor
+records one proposed event-center time to `0.1` seconds for each failed
+preferred-set interval; the third auditor resolves disagreement without seeing
+model output. Repair is prohibited for still-frame incompatibility, missing
+global context, `uncertain`, relationship failure, or generic answer
+insufficiency. The extractor chooses the nearest unused decoded frame to each
+resolved time, constrained to the original interval and breaking equal-distance
+ties toward the earlier PTS. Freeze proposed/resolved times, replacement
+reasons, original/replacement identities, and complete frame provenance, then
+rerun the complete candidate-blind packet once. A second repair round is
+invalid. Rows still failing remain in the ten-row denominator and participate
+in the predeclared Stage 2 stop/selection rule.
 
 This audit distinguishes whether the relevant scene was extracted from whether
 the still-frame representation preserved what made the scene answer-relevant;
@@ -331,7 +354,9 @@ The Stage 1 user-facing result must state, separately for six-local hybrid and
 twelve-local scene-only inputs, how many of ten scenes were visibly extracted,
 how many preserved their required temporal relationships, how many were
 answer-sufficient to the auditors, the still-incompatible count, and the frozen
-Stage 2 selection or stop decision. If Stage 2 runs, its result must add the
-paired-inference denominator, grade transitions, runtime, evidence validity,
-and remaining unknowns. Stop and share each completed visual result before any
-transcript work.
+Stage 2 selection or stop decision. It must also report raw independent-auditor
+agreement and disagreement counts for representability, interval visibility,
+relationship preservation, and answer sufficiency. If Stage 2 runs, its result
+must add the paired-inference denominator, grade transitions, runtime, evidence
+validity, and remaining unknowns. Stop and share each completed visual result
+before any transcript work.
