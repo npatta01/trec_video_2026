@@ -8,6 +8,7 @@ import json
 import math
 import re
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
@@ -69,6 +70,7 @@ REQUIRED_FRAME_PROVENANCE_FIELDS = (
     "request_sha256",
     "runtime_identity",
 )
+_SHA256 = re.compile(r"[0-9a-f]{64}")
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -79,6 +81,609 @@ def _canonical_json(value: Any) -> bytes:
 
 def _sha256(value: Any) -> str:
     return hashlib.sha256(_canonical_json(value)).hexdigest()
+
+
+def _lowercase_sha256(value: Any, field: str) -> str:
+    if not isinstance(value, str) or _SHA256.fullmatch(value) is None:
+        raise ValueError(f"{field} must be a lowercase SHA-256")
+    return value
+
+
+def probe_frame_inventory(
+    ffprobe_payload: dict[str, Any], *, media_sha256: str
+) -> list[dict[str, Any]]:
+    """Normalize exact decoded-frame PTS values from a bound ffprobe payload."""
+
+    expected_media_sha256 = _lowercase_sha256(media_sha256, "media_sha256")
+    if not isinstance(ffprobe_payload, Mapping):
+        raise TypeError("ffprobe_payload must be an object")
+    payload_media_sha256 = _lowercase_sha256(
+        ffprobe_payload.get("source_media_sha256"), "source_media_sha256"
+    )
+    if payload_media_sha256 != expected_media_sha256:
+        raise ValueError("source_media_sha256 does not match frozen media")
+
+    streams = ffprobe_payload.get("streams")
+    if not isinstance(streams, list) or not streams:
+        raise ValueError("ffprobe payload must contain streams")
+    time_base_by_stream: dict[int, str] = {}
+    for stream_position, stream in enumerate(streams):
+        if not isinstance(stream, Mapping):
+            raise TypeError(f"ffprobe stream {stream_position} must be an object")
+        if stream.get("codec_type") != "video":
+            continue
+        stream_index = stream.get("index")
+        if (
+            isinstance(stream_index, bool)
+            or not isinstance(stream_index, int)
+            or stream_index < 0
+        ):
+            raise ValueError(f"ffprobe stream {stream_position} has invalid index")
+        if stream_index in time_base_by_stream:
+            raise ValueError("ffprobe streams contain a duplicate index")
+        time_base = stream.get("time_base")
+        if not isinstance(time_base, str) or not time_base.strip():
+            raise ValueError(f"ffprobe stream {stream_index} is missing time_base")
+        time_base_by_stream[stream_index] = time_base
+    if not time_base_by_stream:
+        raise ValueError("ffprobe payload has no video stream with time_base")
+
+    frames = ffprobe_payload.get("frames")
+    if not isinstance(frames, list) or not frames:
+        raise ValueError("ffprobe payload must contain decoded frames")
+    inventory: list[dict[str, Any]] = []
+    seen_frame_indexes: set[tuple[int, int]] = set()
+    previous_pts_by_stream: dict[int, float] = {}
+    for frame_position, frame in enumerate(frames):
+        if not isinstance(frame, Mapping):
+            raise TypeError(f"ffprobe frame {frame_position} must be an object")
+        if frame.get("media_type", "video") != "video":
+            continue
+        stream_index = frame.get("stream_index")
+        if stream_index not in time_base_by_stream:
+            raise ValueError(
+                f"ffprobe frame {frame_position} has no matching video time_base"
+            )
+        frame_index = frame.get("frame_index", frame_position)
+        if (
+            isinstance(frame_index, bool)
+            or not isinstance(frame_index, int)
+            or frame_index < 0
+        ):
+            raise ValueError(f"ffprobe frame {frame_position} has invalid frame_index")
+        frame_key = (stream_index, frame_index)
+        if frame_key in seen_frame_indexes:
+            raise ValueError("ffprobe frames contain a duplicate frame_index")
+        seen_frame_indexes.add(frame_key)
+
+        if "best_effort_timestamp_time" not in frame:
+            raise ValueError(f"ffprobe frame {frame_position} is missing decoded PTS")
+        try:
+            pts = float(frame["best_effort_timestamp_time"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"ffprobe frame {frame_position} decoded PTS must be numeric"
+            ) from exc
+        if not math.isfinite(pts):
+            raise ValueError(
+                f"ffprobe frame {frame_position} decoded PTS must be finite"
+            )
+        canonical_pts = round(pts, 6)
+        previous_pts = previous_pts_by_stream.get(stream_index)
+        if previous_pts is not None:
+            if canonical_pts == previous_pts:
+                raise ValueError("ffprobe frames contain a duplicate decoded PTS")
+            if canonical_pts < previous_pts:
+                raise ValueError("ffprobe decoded PTS must be strictly monotonic")
+        previous_pts_by_stream[stream_index] = canonical_pts
+        inventory.append(
+            {
+                "stream_index": stream_index,
+                "frame_index": frame_index,
+                "actual_pts_seconds": canonical_pts,
+                "time_base": time_base_by_stream[stream_index],
+                "source_media_sha256": expected_media_sha256,
+            }
+        )
+    if not inventory:
+        raise ValueError("ffprobe payload has no decoded video frames")
+    return inventory
+
+
+def _planning_inventory(
+    duration: float, inventory: Any
+) -> tuple[float, list[dict[str, Any]]]:
+    normalized_duration = _numeric(duration, "duration")
+    if normalized_duration <= 0:
+        raise ValueError("duration must be positive")
+    if not isinstance(inventory, list) or not inventory:
+        raise ValueError("inventory must contain decoded frames")
+    normalized: list[dict[str, Any]] = []
+    frame_indexes: set[tuple[int, int]] = set()
+    pts_values: set[float] = set()
+    source_media_sha256: str | None = None
+    previous_pts: float | None = None
+    for position, record in enumerate(inventory):
+        if not isinstance(record, Mapping):
+            raise TypeError(f"inventory record {position} must be an object")
+        stream_index = record.get("stream_index")
+        frame_index = record.get("frame_index")
+        if (
+            isinstance(stream_index, bool)
+            or not isinstance(stream_index, int)
+            or stream_index < 0
+        ):
+            raise ValueError(f"inventory record {position} has invalid stream_index")
+        if (
+            isinstance(frame_index, bool)
+            or not isinstance(frame_index, int)
+            or frame_index < 0
+        ):
+            raise ValueError(f"inventory record {position} has invalid frame_index")
+        frame_key = (stream_index, frame_index)
+        if frame_key in frame_indexes:
+            raise ValueError("inventory contains a duplicate frame_index")
+        frame_indexes.add(frame_key)
+        actual_pts_seconds = round(
+            _numeric(
+                record.get("actual_pts_seconds"),
+                f"inventory record {position} actual_pts_seconds",
+            ),
+            6,
+        )
+        if not 0 <= actual_pts_seconds <= normalized_duration:
+            raise ValueError(
+                f"inventory record {position} actual_pts_seconds is outside duration"
+            )
+        if actual_pts_seconds in pts_values:
+            raise ValueError("inventory contains a duplicate decoded PTS")
+        if previous_pts is not None and actual_pts_seconds < previous_pts:
+            raise ValueError("inventory decoded PTS must be monotonic")
+        previous_pts = actual_pts_seconds
+        pts_values.add(actual_pts_seconds)
+        time_base = record.get("time_base")
+        if not isinstance(time_base, str) or not time_base.strip():
+            raise ValueError(f"inventory record {position} is missing time_base")
+        record_media_sha256 = _lowercase_sha256(
+            record.get("source_media_sha256"),
+            f"inventory record {position} source_media_sha256",
+        )
+        if source_media_sha256 is None:
+            source_media_sha256 = record_media_sha256
+        elif record_media_sha256 != source_media_sha256:
+            raise ValueError("inventory source_media_sha256 values do not match")
+        normalized.append(
+            {
+                "stream_index": stream_index,
+                "frame_index": frame_index,
+                "actual_pts_seconds": actual_pts_seconds,
+                "time_base": time_base,
+                "source_media_sha256": record_media_sha256,
+            }
+        )
+    return normalized_duration, normalized
+
+
+def _desired_times(start: float, end: float, count: int) -> list[float]:
+    width = (end - start) / count
+    return [round(start + (index + 0.5) * width, 6) for index in range(count)]
+
+
+def _bind_slots(
+    slots: Sequence[tuple[str, float, tuple[float, float] | None]],
+    inventory: Sequence[dict[str, Any]],
+    *,
+    used_frame_indexes: set[tuple[int, int]] | None = None,
+) -> list[dict[str, Any]]:
+    used = used_frame_indexes if used_frame_indexes is not None else set()
+    plan: list[dict[str, Any]] = []
+    for slot_kind, desired_time, interval in slots:
+        candidates = [
+            frame
+            for frame in inventory
+            if (frame["stream_index"], frame["frame_index"]) not in used
+            and (
+                interval is None
+                or interval[0] <= frame["actual_pts_seconds"] <= interval[1]
+            )
+        ]
+        if not candidates:
+            qualifier = "local interval" if interval is not None else "global slots"
+            raise ValueError(f"cannot construct {qualifier} with unique decoded frames")
+        selected = min(
+            candidates,
+            key=lambda frame: (
+                abs(frame["actual_pts_seconds"] - desired_time),
+                frame["actual_pts_seconds"],
+                frame["stream_index"],
+                frame["frame_index"],
+            ),
+        )
+        used.add((selected["stream_index"], selected["frame_index"]))
+        plan.append(
+            {
+                "slot_kind": slot_kind,
+                "desired_time_seconds": desired_time,
+                "requested_time_seconds": desired_time,
+                "frame_index": selected["frame_index"],
+                "actual_pts_seconds": selected["actual_pts_seconds"],
+                "time_base": selected["time_base"],
+                "source_media_sha256": selected["source_media_sha256"],
+            }
+        )
+    return plan
+
+
+def uniform_decoded_frame_plan(
+    duration: float, inventory: list[dict[str, Any]], count: int = 12
+) -> list[dict[str, Any]]:
+    """Bind equal-bin midpoint requests to unique decoded frames."""
+
+    if isinstance(count, bool) or not isinstance(count, int) or count <= 0:
+        raise ValueError("count must be a positive integer")
+    normalized_duration, normalized_inventory = _planning_inventory(duration, inventory)
+    if len(normalized_inventory) < count:
+        raise ValueError(f"inventory cannot supply {count} unique decoded frames")
+    slots = [
+        ("global", desired_time, None)
+        for desired_time in _desired_times(0.0, normalized_duration, count)
+    ]
+    return sorted(
+        _bind_slots(slots, normalized_inventory),
+        key=lambda frame: (
+            frame["actual_pts_seconds"],
+            frame["desired_time_seconds"],
+        ),
+    )
+
+
+def _normalized_sufficient_sets(
+    sufficient_sets: Any, *, duration: float
+) -> list[list[tuple[float, float]]]:
+    if isinstance(sufficient_sets, Mapping):
+        forbidden = _forbidden_key(sufficient_sets)
+        if forbidden is not None:
+            raise ValueError(f"answer-bearing annotation key is forbidden: {forbidden}")
+        raise TypeError("sufficient_sets must be the normalized interval list only")
+    if not isinstance(sufficient_sets, list) or not sufficient_sets:
+        raise ValueError("sufficient_sets must be a nonempty list")
+    normalized_sets: list[list[tuple[float, float]]] = []
+    for set_index, sufficient_set in enumerate(sufficient_sets):
+        if not isinstance(sufficient_set, list) or not sufficient_set:
+            raise ValueError(f"sufficient set {set_index} must not be empty")
+        if len(sufficient_set) > 6:
+            raise ValueError("sufficient sets may contain at most six intervals")
+        normalized_set: list[tuple[float, float]] = []
+        for interval_index, interval in enumerate(sufficient_set):
+            if not isinstance(interval, list) or len(interval) != 2:
+                raise ValueError(
+                    f"sufficient set {set_index} interval {interval_index} "
+                    "must contain two bounds"
+                )
+            start = _numeric(interval[0], "interval start_seconds")
+            end = _numeric(interval[1], "interval end_seconds")
+            if start < 0 or end <= start or end > duration:
+                raise ValueError("sufficient interval is outside duration")
+            normalized_set.append((start, end))
+        normalized_sets.append(normalized_set)
+    return normalized_sets
+
+
+def _hamilton_local_allocations(
+    intervals: Sequence[tuple[float, float]], *, slot_count: int
+) -> list[int]:
+    if len(intervals) > slot_count:
+        raise ValueError("cannot allocate a local slot to every interval")
+    allocations = [1] * len(intervals)
+    remaining = slot_count - len(intervals)
+    if not remaining:
+        return allocations
+    durations = [end - start for start, end in intervals]
+    total_duration = sum(durations)
+    quotas = [
+        remaining * interval_duration / total_duration
+        for interval_duration in durations
+    ]
+    floors = [math.floor(quota) for quota in quotas]
+    allocations = [
+        base + floor for base, floor in zip(allocations, floors, strict=True)
+    ]
+    leftover = remaining - sum(floors)
+    remainder_order = sorted(
+        range(len(intervals)),
+        key=lambda index: (
+            -(quotas[index] - floors[index]),
+            intervals[index][0],
+            index,
+        ),
+    )
+    for index in remainder_order[:leftover]:
+        allocations[index] += 1
+    return allocations
+
+
+def oracle_hybrid_decoded_frame_plan(
+    duration: float,
+    sufficient_sets: list[list[list[float]]],
+    inventory: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Bind six local oracle slots and six label-free global context slots."""
+
+    normalized_duration, normalized_inventory = _planning_inventory(duration, inventory)
+    if len(normalized_inventory) < 12:
+        raise ValueError("inventory cannot supply 12 unique decoded frames")
+    normalized_sets = _normalized_sufficient_sets(
+        sufficient_sets, duration=normalized_duration
+    )
+    selected_set = min(
+        normalized_sets,
+        key=lambda intervals: (
+            sum(end - start for start, end in intervals),
+            min(start for start, _ in intervals),
+        ),
+    )
+    intervals = sorted(selected_set)
+    allocations = _hamilton_local_allocations(intervals, slot_count=6)
+    local_slots = [
+        ("local", desired_time, interval)
+        for interval, allocation in zip(intervals, allocations, strict=True)
+        for desired_time in _desired_times(interval[0], interval[1], allocation)
+    ]
+    used: set[tuple[int, int]] = set()
+    local_plan = _bind_slots(local_slots, normalized_inventory, used_frame_indexes=used)
+    global_slots = [
+        ("global", desired_time, None)
+        for desired_time in _desired_times(0.0, normalized_duration, 6)
+    ]
+    global_plan = _bind_slots(
+        global_slots, normalized_inventory, used_frame_indexes=used
+    )
+    return sorted(
+        [*local_plan, *global_plan],
+        key=lambda frame: (
+            frame["actual_pts_seconds"],
+            frame["desired_time_seconds"],
+            frame["slot_kind"],
+        ),
+    )
+
+
+TEMPORAL_CONDITIONS = ("uniform-12", "oracle-hybrid-12")
+
+
+def _label_material_key(value: Any) -> str | None:
+    if isinstance(value, Mapping):
+        for key, nested in value.items():
+            if isinstance(key, str):
+                tokens = {
+                    token.casefold() for token in _KEY_BOUNDARY.split(key) if token
+                }
+                if tokens & {
+                    "answer",
+                    "answers",
+                    "reference",
+                    "references",
+                    "prediction",
+                    "predictions",
+                    "grade",
+                    "grades",
+                    "span",
+                    "spans",
+                } or key in {"sufficient_sets", "preferred_set_index"}:
+                    return key
+            found = _label_material_key(nested)
+            if found is not None:
+                return found
+    elif isinstance(value, list):
+        for nested in value:
+            found = _label_material_key(nested)
+            if found is not None:
+                return found
+    return None
+
+
+def _request_frames(
+    records: Any, *, video_id: str, duration: float, media_sha256: str
+) -> tuple[list[dict[str, Any]], list[str], list[float]]:
+    if not isinstance(records, list) or len(records) != 12:
+        raise ValueError(f"{video_id} condition must contain exactly 12 frames")
+    frames: list[dict[str, Any]] = []
+    hashes: list[str] = []
+    timestamps: list[float] = []
+    frame_indexes: set[int] = set()
+    for position, record in enumerate(records):
+        if not isinstance(record, Mapping):
+            raise TypeError(f"{video_id} frame {position} must be an object")
+        leaked = _label_material_key(record)
+        if leaked is not None:
+            raise ValueError(f"forbidden label key in frame plan: {leaked}")
+        frame_index = record.get("frame_index")
+        if (
+            isinstance(frame_index, bool)
+            or not isinstance(frame_index, int)
+            or frame_index < 0
+        ):
+            raise ValueError(f"{video_id} frame {position} has invalid frame_index")
+        if frame_index in frame_indexes:
+            raise ValueError(f"{video_id} condition has a duplicate frame_index")
+        frame_indexes.add(frame_index)
+        timestamp = round(
+            _numeric(
+                record.get("actual_pts_seconds"),
+                f"{video_id} frame {position} actual_pts_seconds",
+            ),
+            6,
+        )
+        if not 0 <= timestamp <= duration:
+            raise ValueError(f"{video_id} frame {position} PTS is outside duration")
+        frame_sha256 = _lowercase_sha256(
+            record.get("sha256"), f"{video_id} frame {position} sha256"
+        )
+        if record.get("source_media_sha256") != media_sha256:
+            raise ValueError(
+                f"{video_id} frame {position} source_media_sha256 mismatch"
+            )
+        time_base = record.get("time_base")
+        if not isinstance(time_base, str) or not time_base.strip():
+            raise ValueError(f"{video_id} frame {position} is missing time_base")
+        frames.append(
+            {
+                "frame_index": frame_index,
+                "actual_pts_seconds": timestamp,
+                "time_base": time_base,
+                "source_media_sha256": media_sha256,
+                "sha256": frame_sha256,
+            }
+        )
+        hashes.append(frame_sha256)
+        timestamps.append(timestamp)
+    if len(set(hashes)) != 12:
+        raise ValueError(f"{video_id} condition must have 12 unique frame hashes")
+    if len(set(timestamps)) != 12:
+        raise ValueError(f"{video_id} condition must have 12 unique decoded PTS values")
+    if timestamps != sorted(timestamps):
+        raise ValueError(f"{video_id} condition frames must be chronological")
+    return frames, hashes, timestamps
+
+
+def build_temporal_requests(
+    panel: dict[str, Any],
+    condition_frames: dict[str, dict[str, list[dict[str, Any]]]],
+    inference_identity: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Build matched, label-free uniform and oracle-hybrid inference requests."""
+
+    if not isinstance(panel, Mapping):
+        raise TypeError("panel must be an object")
+    leaked = _label_material_key(panel)
+    if leaked is not None:
+        raise ValueError(f"forbidden label key in panel: {leaked}")
+    if panel.get("schema_version") != SCHEMA_VERSION:
+        raise ValueError(f"schema_version must be {SCHEMA_VERSION}")
+    panel_id = panel.get("panel_id")
+    if not isinstance(panel_id, str) or not panel_id.strip():
+        raise ValueError("panel_id must be a nonempty string")
+    panel_rows = _panel_rows(panel)
+    examples = panel.get("examples", panel.get("rows"))
+    assert isinstance(examples, list)
+    if not isinstance(condition_frames, Mapping):
+        raise TypeError("condition_frames must be an object")
+    if set(condition_frames) != set(TEMPORAL_CONDITIONS):
+        raise ValueError(f"condition set must be exactly {set(TEMPORAL_CONDITIONS)}")
+    if not isinstance(inference_identity, Mapping) or not inference_identity:
+        raise ValueError("inference_identity must be a nonempty object")
+    leaked = _label_material_key(inference_identity)
+    if leaked is not None:
+        raise ValueError(f"forbidden label key in inference_identity: {leaked}")
+    try:
+        _canonical_json(inference_identity)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("inference_identity must be JSON serializable") from exc
+
+    expected_video_ids = {video_id for video_id, _ in panel_rows}
+    for condition in TEMPORAL_CONDITIONS:
+        by_video = condition_frames[condition]
+        if not isinstance(by_video, Mapping) or set(by_video) != expected_video_ids:
+            raise ValueError(f"{condition} frame rows must match the frozen panel")
+
+    panel_sha256 = _sha256(panel)
+    requests: list[dict[str, Any]] = []
+    for example, (video_id, duration) in zip(examples, panel_rows, strict=True):
+        assert isinstance(example, Mapping)
+        question = example.get("question")
+        if not isinstance(question, str) or not question.strip():
+            raise ValueError(f"{video_id} lacks a question")
+        media_sha256 = _lowercase_sha256(
+            example.get("media_sha256"), f"{video_id} media_sha256"
+        )
+        for condition in TEMPORAL_CONDITIONS:
+            frames, frame_sha256s, frame_timestamps = _request_frames(
+                condition_frames[condition][video_id],
+                video_id=video_id,
+                duration=duration,
+                media_sha256=media_sha256,
+            )
+            request = {
+                "schema_version": SCHEMA_VERSION,
+                "panel_id": panel_id,
+                "panel_sha256": panel_sha256,
+                "video_id": video_id,
+                "condition": condition,
+                "condition_id": condition,
+                "question": question.strip(),
+                "source_media_sha256": media_sha256,
+                "frames": frames,
+                "frame_sha256s": frame_sha256s,
+                "frame_timestamps": frame_timestamps,
+                "frame_count": 12,
+                "inference_identity": copy.deepcopy(dict(inference_identity)),
+                "transcript": None,
+                "media_path": None,
+                "audio_path": None,
+                "audio_mode": None,
+            }
+            request["request_sha256"] = _sha256(request)
+            requests.append(request)
+    return requests
+
+
+def _read_json_artifact(path: Any) -> tuple[bytes, Mapping[str, Any]]:
+    artifact_path = Path(path)
+    try:
+        raw = artifact_path.read_bytes()
+    except OSError as exc:
+        raise ValueError(f"cannot read JSON artifact: {artifact_path.name}") from exc
+    try:
+        payload = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("artifact must contain valid JSON") from exc
+    if not isinstance(payload, Mapping):
+        raise TypeError("JSON artifact must contain a top-level object")
+    return raw, payload
+
+
+def freeze_json_artifact(path: Any, *, bindings: dict[str, Any]) -> dict[str, Any]:
+    """Return a read-only content freeze after checking top-level bindings."""
+
+    if not isinstance(bindings, Mapping) or not bindings:
+        raise ValueError("bindings must be a nonempty object")
+    try:
+        bindings_sha256 = _sha256(bindings)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("bindings must be JSON serializable") from exc
+    raw, payload = _read_json_artifact(path)
+    for key, expected in bindings.items():
+        if payload.get(key) != expected:
+            raise ValueError(f"artifact {key} does not match freeze binding")
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "status": "frozen",
+        "artifact_sha256": hashlib.sha256(raw).hexdigest(),
+        "bindings": copy.deepcopy(dict(bindings)),
+        "bindings_sha256": bindings_sha256,
+    }
+
+
+def verify_json_artifact(path: Any, freeze_record: dict[str, Any]) -> None:
+    """Verify frozen JSON bytes, the freeze record, and live bindings."""
+
+    if not isinstance(freeze_record, Mapping):
+        raise TypeError("freeze_record must be an object")
+    if freeze_record.get("schema_version") != SCHEMA_VERSION:
+        raise ValueError(f"freeze schema_version must be {SCHEMA_VERSION}")
+    if freeze_record.get("status") != "frozen":
+        raise ValueError("freeze status must be frozen")
+    bindings = freeze_record.get("bindings")
+    if not isinstance(bindings, Mapping) or not bindings:
+        raise ValueError("freeze bindings must be a nonempty object")
+    if freeze_record.get("bindings_sha256") != _sha256(bindings):
+        raise ValueError("freeze bindings_sha256 does not match bindings")
+    raw, payload = _read_json_artifact(path)
+    if freeze_record.get("artifact_sha256") != hashlib.sha256(raw).hexdigest():
+        raise ValueError("freeze artifact_sha256 does not match artifact")
+    for key, expected in bindings.items():
+        if payload.get(key) != expected:
+            raise ValueError(f"artifact {key} does not match freeze binding")
 
 
 def _numeric(value: Any, field: str) -> float:
@@ -95,9 +700,7 @@ def _forbidden_key(value: Any) -> str | None:
         for key, nested in value.items():
             if isinstance(key, str):
                 tokens = {
-                    token.casefold()
-                    for token in _KEY_BOUNDARY.split(key)
-                    if token
+                    token.casefold() for token in _KEY_BOUNDARY.split(key) if token
                 }
                 frame_timestamp = "frame" in tokens and bool(
                     tokens & {"timestamp", "timestamps"}
@@ -172,7 +775,12 @@ def _normalized_annotation_hash_payload(
 
 
 def _normalize_interval(
-    interval: Any, *, duration: float, row_index: int, set_index: int, interval_index: int
+    interval: Any,
+    *,
+    duration: float,
+    row_index: int,
+    set_index: int,
+    interval_index: int,
 ) -> list[float]:
     if not isinstance(interval, list) or len(interval) != 2:
         raise ValueError(
@@ -187,9 +795,9 @@ def _normalize_interval(
         raise ValueError("interval end_seconds must be after start_seconds")
     if end > duration:
         raise ValueError("interval end_seconds exceeds frozen duration")
-    if not math.isclose(start * 10, round(start * 10), abs_tol=1e-9) or not math.isclose(
-        end * 10, round(end * 10), abs_tol=1e-9
-    ):
+    if not math.isclose(
+        start * 10, round(start * 10), abs_tol=1e-9
+    ) or not math.isclose(end * 10, round(end * 10), abs_tol=1e-9):
         raise ValueError("interval bounds must be recorded to 0.1 seconds")
     return [round(start, 1), round(end, 1)]
 
@@ -263,7 +871,9 @@ def validate_annotation(
             raise ValueError(f"row {row_index} has invalid eligibility")
         if eligibility != ELIGIBILITY_LABELABLE_VISUAL:
             if "sufficient_sets" in row or "preferred_set_index" in row:
-                raise ValueError("ineligible rows must not contain sufficient intervals")
+                raise ValueError(
+                    "ineligible rows must not contain sufficient intervals"
+                )
             normalized_rows.append(normalized)
             continue
 
@@ -320,7 +930,9 @@ def validate_annotation(
     return normalized_payload
 
 
-def _merged_intervals(intervals: Sequence[Sequence[float]]) -> list[tuple[float, float]]:
+def _merged_intervals(
+    intervals: Sequence[Sequence[float]],
+) -> list[tuple[float, float]]:
     merged: list[tuple[float, float]] = []
     for start, end in sorted((float(start), float(end)) for start, end in intervals):
         if not merged or start > merged[-1][1]:
@@ -444,7 +1056,9 @@ def annotation_agreement(
             if temporal_iou < MIN_MEDIAN_TEMPORAL_IOU:
                 flags.append("temporal_iou_below_threshold")
             ordered_left = sorted((float(start), float(end)) for start, end in left_set)
-            ordered_right = sorted((float(start), float(end)) for start, end in right_set)
+            ordered_right = sorted(
+                (float(start), float(end)) for start, end in right_set
+            )
             maximum_boundary_drift = max(
                 abs(left_boundary - right_boundary)
                 for left_interval, right_interval in zip(
@@ -496,8 +1110,7 @@ def annotation_agreement(
         "temporal_iou_iqr": _interquartile_range(temporal_ious),
         "median_temporal_iou_minimum": MIN_MEDIAN_TEMPORAL_IOU,
         "median_temporal_iou_passes": median_temporal_iou_passes,
-        "agreement_passes": structural_threshold_passes
-        and median_temporal_iou_passes,
+        "agreement_passes": structural_threshold_passes and median_temporal_iou_passes,
     }
 
 
@@ -511,7 +1124,9 @@ def _actual_pts_records(
     frame_hashes: set[str] = set()
     for record_index, record in enumerate(records):
         if not isinstance(record, Mapping):
-            raise TypeError(f"frame record {record_index} for {video_id} must be an object")
+            raise TypeError(
+                f"frame record {record_index} for {video_id} must be an object"
+            )
         for field in REQUIRED_FRAME_PROVENANCE_FIELDS:
             if field not in record:
                 raise ValueError(
@@ -522,23 +1137,35 @@ def _actual_pts_records(
             f"frame record {record_index} actual_pts_seconds",
         )
         if not 0 <= actual_pts_seconds <= duration:
-            raise ValueError(f"frame record {record_index} actual_pts_seconds is outside duration")
+            raise ValueError(
+                f"frame record {record_index} actual_pts_seconds is outside duration"
+            )
         frame_index = record["frame_index"]
-        if isinstance(frame_index, bool) or not isinstance(frame_index, int) or frame_index < 0:
-            raise ValueError(f"frame record {record_index} frame_index must be a nonnegative integer")
+        if (
+            isinstance(frame_index, bool)
+            or not isinstance(frame_index, int)
+            or frame_index < 0
+        ):
+            raise ValueError(
+                f"frame record {record_index} frame_index must be a nonnegative integer"
+            )
         if frame_index in frame_indexes:
             raise ValueError(f"frames for {video_id} contain a duplicate frame_index")
         frame_indexes.add(frame_index)
         time_base = record["time_base"]
         if not isinstance(time_base, str) or not time_base.strip():
-            raise ValueError(f"frame record {record_index} time_base must be a nonempty string")
+            raise ValueError(
+                f"frame record {record_index} time_base must be a nonempty string"
+            )
         sha256 = record["sha256"]
         if (
             not isinstance(sha256, str)
             or len(sha256) != 64
             or any(character not in "0123456789abcdef" for character in sha256)
         ):
-            raise ValueError(f"frame record {record_index} sha256 must be a lowercase SHA-256")
+            raise ValueError(
+                f"frame record {record_index} sha256 must be a lowercase SHA-256"
+            )
         if sha256 in frame_hashes:
             raise ValueError(f"frames for {video_id} contain a duplicate sha256")
         frame_hashes.add(sha256)
@@ -576,10 +1203,7 @@ def _actual_pts_records(
         if (
             not isinstance(request_sha256, str)
             or len(request_sha256) != 64
-            or any(
-                character not in "0123456789abcdef"
-                for character in request_sha256
-            )
+            or any(character not in "0123456789abcdef" for character in request_sha256)
         ):
             raise ValueError(
                 f"frame record {record_index} request_sha256 must be a lowercase SHA-256"
@@ -605,8 +1229,7 @@ def score_selector_recall(
 
     if tolerance_seconds not in RECALL_TOLERANCES:
         raise ValueError(
-            "tolerance_seconds must be one of "
-            f"{sorted(RECALL_TOLERANCES)}"
+            f"tolerance_seconds must be one of {sorted(RECALL_TOLERANCES)}"
         )
     if not isinstance(frames_by_video, Mapping):
         raise TypeError("frames_by_video must be an object")
@@ -669,7 +1292,9 @@ def score_selector_recall(
             )
             continue
 
-        duration = _numeric(row.get("duration_seconds"), f"row {row_index} duration_seconds")
+        duration = _numeric(
+            row.get("duration_seconds"), f"row {row_index} duration_seconds"
+        )
         if duration <= 0:
             raise ValueError(f"row {row_index} duration_seconds must be positive")
         if video_id not in frames_by_video:
@@ -731,6 +1356,8 @@ def score_selector_recall(
         "component_recall": (
             recalled_component_count / component_count if component_count else None
         ),
-        "row_recall": recalled_row_count / eligible_row_count if eligible_row_count else None,
+        "row_recall": recalled_row_count / eligible_row_count
+        if eligible_row_count
+        else None,
         "missed_video_ids": missed_video_ids,
     }
