@@ -170,121 +170,133 @@ def test_uniform_plan_is_the_literal_twelve_midpoint_decoded_frame_plan() -> Non
             "slot_kind": "global",
             "desired_time_seconds": 0.5,
             "requested_time_seconds": 0.5,
+            "stream_index": 0,
             "frame_index": 0,
             "actual_pts_seconds": 0.5,
             "time_base": "1/1000",
             "source_media_sha256": MEDIA_SHA,
-            "frame_plan_sha256": "a4f4f7292d0c919ba8823a7bd44f7a5518459c03edbf8a7dcef401fe2bcb884a",
+            "frame_plan_sha256": "443eed9c5d81ce75cb435670e058f774c05aca7d18912df52a44fb0641b90e4f",
         },
         {
             "slot_kind": "global",
             "desired_time_seconds": 1.5,
             "requested_time_seconds": 1.5,
+            "stream_index": 0,
             "frame_index": 1,
             "actual_pts_seconds": 1.5,
             "time_base": "1/1000",
             "source_media_sha256": MEDIA_SHA,
-            "frame_plan_sha256": "d6a2270608add5697a8a4cb280a9e598e73de133bcf9a91b387e1b12cf55788f",
+            "frame_plan_sha256": "cce2cd4f1f1bcc943cf5720f3b33a0ef9492ec084240a7e4934f5fac5751130f",
         },
         {
             "slot_kind": "global",
             "desired_time_seconds": 2.5,
             "requested_time_seconds": 2.5,
+            "stream_index": 0,
             "frame_index": 2,
             "actual_pts_seconds": 2.5,
             "time_base": "1/1000",
             "source_media_sha256": MEDIA_SHA,
-            "frame_plan_sha256": "506b803e8df691f534f353ee1ff169967802c5c3dbf042595f7928a5d91f1268",
+            "frame_plan_sha256": "364ec343ad8a6d28bd5821379d5839a82324ea2612ee996eabba223686408354",
         },
         {
             "slot_kind": "global",
             "desired_time_seconds": 3.5,
             "requested_time_seconds": 3.5,
+            "stream_index": 0,
             "frame_index": 3,
             "actual_pts_seconds": 3.5,
             "time_base": "1/1000",
             "source_media_sha256": MEDIA_SHA,
-            "frame_plan_sha256": "fa57aa232ed044895cab5b5f422c0efd31cb4b56208733c40a0e2fe19cc92864",
+            "frame_plan_sha256": "34a26cb90801475db43e8ddafe64410ed0ba1ff9ccba226a2d5d54ced344e934",
         },
         {
             "slot_kind": "global",
             "desired_time_seconds": 4.5,
             "requested_time_seconds": 4.5,
+            "stream_index": 0,
             "frame_index": 4,
             "actual_pts_seconds": 4.5,
             "time_base": "1/1000",
             "source_media_sha256": MEDIA_SHA,
-            "frame_plan_sha256": "d9a288b81b8c614a6a636c43ef4a495c7615f4ee7ac519c9e4712e50f117ce26",
+            "frame_plan_sha256": "b9c59a44897e89b06cd7835ede8ed530125041109464deb27dff25def8a73ca8",
         },
         {
             "slot_kind": "global",
             "desired_time_seconds": 5.5,
             "requested_time_seconds": 5.5,
+            "stream_index": 0,
             "frame_index": 5,
             "actual_pts_seconds": 5.5,
             "time_base": "1/1000",
             "source_media_sha256": MEDIA_SHA,
-            "frame_plan_sha256": "88b1650b53ad493db60db52bfa3ddbc82e969bd6f3d9a4773a307d68313ccd63",
+            "frame_plan_sha256": "c0056c1ccfcc69eeade35dc12a4dc1f66a8c647f777d2e1274109369f5621c25",
         },
         {
             "slot_kind": "global",
             "desired_time_seconds": 6.5,
             "requested_time_seconds": 6.5,
+            "stream_index": 0,
             "frame_index": 6,
             "actual_pts_seconds": 6.5,
             "time_base": "1/1000",
             "source_media_sha256": MEDIA_SHA,
-            "frame_plan_sha256": "f6d6b6ce5f74083dfa28620e2933c5d7870400ef018b66d35b0c7a3b556f6dd3",
+            "frame_plan_sha256": "083d3afbb1382ad789d61d73a4977a2246a6fd00cc52132fb534974ab6a0b922",
         },
         {
             "slot_kind": "global",
             "desired_time_seconds": 7.5,
             "requested_time_seconds": 7.5,
+            "stream_index": 0,
             "frame_index": 7,
             "actual_pts_seconds": 7.5,
             "time_base": "1/1000",
             "source_media_sha256": MEDIA_SHA,
-            "frame_plan_sha256": "b04891654dde048e4b5ca613c892534c3c0e35f227e7087266c78e97d075a936",
+            "frame_plan_sha256": "40101fffa83a2df5a4f667221c8c4d24366dce5984747b080fe9209de4b8b688",
         },
         {
             "slot_kind": "global",
             "desired_time_seconds": 8.5,
             "requested_time_seconds": 8.5,
+            "stream_index": 0,
             "frame_index": 8,
             "actual_pts_seconds": 8.5,
             "time_base": "1/1000",
             "source_media_sha256": MEDIA_SHA,
-            "frame_plan_sha256": "5f307d6ced13a0eca8bf113c7d3f29b7333cc1f54a40349809d31ffe33f63a4b",
+            "frame_plan_sha256": "f12ac8810729723b446cbcb15ce6902f706cc2f7fd257f29f51cf46235046d4e",
         },
         {
             "slot_kind": "global",
             "desired_time_seconds": 9.5,
             "requested_time_seconds": 9.5,
+            "stream_index": 0,
             "frame_index": 9,
             "actual_pts_seconds": 9.5,
             "time_base": "1/1000",
             "source_media_sha256": MEDIA_SHA,
-            "frame_plan_sha256": "3e98a26c418ae4f261320547f045fec34e37cd89456ac7c9f9f2b26130a85576",
+            "frame_plan_sha256": "bed00c8456c1f812a7ad838f1379043a2a5b8f94d8914034dec2f4775ba151cc",
         },
         {
             "slot_kind": "global",
             "desired_time_seconds": 10.5,
             "requested_time_seconds": 10.5,
+            "stream_index": 0,
             "frame_index": 10,
             "actual_pts_seconds": 10.5,
             "time_base": "1/1000",
             "source_media_sha256": MEDIA_SHA,
-            "frame_plan_sha256": "5a8857d57e372d01b6d1a3101cb3b28fb16232986575e4001ecacb186e24dc4c",
+            "frame_plan_sha256": "495d311b48769ca83e29bfbe9c675af780e904d8176895763f2474d05fcf0ce8",
         },
         {
             "slot_kind": "global",
             "desired_time_seconds": 11.5,
             "requested_time_seconds": 11.5,
+            "stream_index": 0,
             "frame_index": 11,
             "actual_pts_seconds": 11.5,
             "time_base": "1/1000",
             "source_media_sha256": MEDIA_SHA,
-            "frame_plan_sha256": "6d5d2e5961825eec3b8797ad609514f76bd25a6324d306128f76316b3bc21787",
+            "frame_plan_sha256": "914460a19b61d2e5af5a1ef6200e50dfb4ca6df2f212792fee400ab001aa7046",
         },
     ]
 
@@ -314,6 +326,39 @@ def test_frame_plans_have_a_stable_non_self_referential_binding_hash() -> None:
         for frame in plan
     )
     assert all("request_sha256" not in frame for frame in plan)
+
+
+def test_frame_plan_preserves_stream_identity_when_frame_indexes_overlap() -> None:
+    inventory = [
+        {
+            "stream_index": 0,
+            "frame_index": 7,
+            "actual_pts_seconds": 0.5,
+            "time_base": "1/1000",
+            "source_media_sha256": MEDIA_SHA,
+        },
+        {
+            "stream_index": 1,
+            "frame_index": 7,
+            "actual_pts_seconds": 1.5,
+            "time_base": "1/1000",
+            "source_media_sha256": MEDIA_SHA,
+        },
+    ]
+
+    plan = _uniform_plan(2.0, inventory, count=2)
+
+    assert [(frame["stream_index"], frame["frame_index"]) for frame in plan] == [
+        (0, 7),
+        (1, 7),
+    ]
+    assert all(
+        frame["frame_plan_sha256"]
+        == _canonical_sha256(
+            {key: value for key, value in frame.items() if key != "frame_plan_sha256"}
+        )
+        for frame in plan
+    )
 
 
 def test_oracle_hybrid_uses_six_global_and_six_interval_local_slots() -> None:
@@ -439,6 +484,7 @@ def _condition_frames() -> dict:
                 "slot_kind": "local" if condition_index and index < 6 else "global",
                 "desired_time_seconds": index + 0.25 + condition_index * 0.1,
                 "requested_time_seconds": index + 0.25 + condition_index * 0.1,
+                "stream_index": 0,
                 "frame_index": index + condition_index * 100,
                 "actual_pts_seconds": index + 0.25 + condition_index * 0.1,
                 "time_base": "1/1000",
@@ -524,6 +570,7 @@ def test_temporal_requests_are_matched_label_free_and_stably_hashed() -> None:
             set(frame)
             == {
                 "frame_index",
+                "stream_index",
                 "actual_pts_seconds",
                 "time_base",
                 "source_media_sha256",
@@ -570,9 +617,49 @@ def test_temporal_requests_are_matched_label_free_and_stably_hashed() -> None:
         assert forbidden not in serialized
 
 
+def test_temporal_requests_allow_same_frame_index_on_distinct_streams() -> None:
+    frames = _condition_frames()
+    for condition_frames in frames.values():
+        records = condition_frames["alpha"]
+        records[1]["frame_index"] = records[0]["frame_index"]
+        records[1]["stream_index"] = 1
+        plan_record = {
+            key: records[1][key]
+            for key in (
+                "slot_kind",
+                "desired_time_seconds",
+                "requested_time_seconds",
+                "stream_index",
+                "frame_index",
+                "actual_pts_seconds",
+                "time_base",
+                "source_media_sha256",
+            )
+        }
+        records[1]["frame_plan_sha256"] = _canonical_sha256(plan_record)
+
+    requests = _build_temporal_requests(
+        _temporal_panel(), frames, _inference_identity()
+    )
+
+    for request in requests:
+        first, second = request["frames"][:2]
+        assert [first["stream_index"], second["stream_index"]] == [0, 1]
+        assert first["frame_index"] == second["frame_index"]
+
+
+def test_temporal_requests_reject_stream_identity_tampering() -> None:
+    frames = _condition_frames()
+    frames["uniform-12"]["alpha"][0]["stream_index"] = 1
+
+    with pytest.raises(ValueError, match="frame_plan_sha256"):
+        _build_temporal_requests(_temporal_panel(), frames, _inference_identity())
+
+
 @pytest.mark.parametrize(
     "missing_field",
     [
+        "stream_index",
         "requested_time_seconds",
         "extraction_command_identity",
         "prompt_source_identity",
@@ -758,6 +845,89 @@ def valid_annotation(panel: dict) -> dict:
             },
         ],
     }
+
+
+@pytest.mark.parametrize("missing_field", ["started_at", "ended_at"])
+def test_validator_requires_both_utc_annotation_timestamps(
+    panel: dict, valid_annotation: dict, missing_field: str
+) -> None:
+    payload = copy.deepcopy(valid_annotation)
+    payload.pop(missing_field)
+
+    with pytest.raises(ValueError, match=missing_field):
+        validate_annotation(payload, panel, expected_role=ROLE_PRIMARY_REVIEWER)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("started_at", "not-a-timestamp", "started_at"),
+        ("started_at", "2026-07-30T09:00:00+00:00", "UTC.*Z"),
+        ("started_at", "2026-07-30T09:00:00-04:00", "UTC.*Z"),
+        ("ended_at", "2026-07-30T08:59:59Z", "after started_at"),
+        ("ended_at", "2026-07-30T09:00:00Z", "after started_at"),
+    ],
+)
+def test_validator_rejects_noncanonical_or_nonincreasing_annotation_timestamps(
+    panel: dict,
+    valid_annotation: dict,
+    field: str,
+    value: str,
+    message: str,
+) -> None:
+    payload = copy.deepcopy(valid_annotation)
+    payload[field] = value
+
+    with pytest.raises(ValueError, match=message):
+        validate_annotation(payload, panel, expected_role=ROLE_PRIMARY_REVIEWER)
+
+
+def test_primary_annotation_rejects_adjudicator_input_hashes(
+    panel: dict, valid_annotation: dict
+) -> None:
+    payload = copy.deepcopy(valid_annotation)
+    payload["input_annotation_sha256s"] = ["1" * 64, "2" * 64, "3" * 64]
+
+    with pytest.raises(ValueError, match="input_annotation_sha256s"):
+        validate_annotation(payload, panel, expected_role=ROLE_PRIMARY_REVIEWER)
+
+
+@pytest.mark.parametrize(
+    ("input_hashes", "message"),
+    [
+        (None, "input_annotation_sha256s"),
+        (["1" * 64, "2" * 64], "exactly three"),
+        (["1" * 64, "1" * 64, "3" * 64], "distinct"),
+        (["1" * 64, "2" * 64, "A" * 64], "lowercase SHA-256"),
+    ],
+)
+def test_adjudicator_requires_three_distinct_ordered_primary_annotation_hashes(
+    panel: dict,
+    valid_annotation: dict,
+    input_hashes: list[str] | None,
+    message: str,
+) -> None:
+    payload = copy.deepcopy(valid_annotation)
+    payload["role"] = ROLE_ADJUDICATOR
+    if input_hashes is not None:
+        payload["input_annotation_sha256s"] = input_hashes
+
+    with pytest.raises(ValueError, match=message):
+        validate_annotation(payload, panel, expected_role=ROLE_ADJUDICATOR)
+
+
+def test_adjudicator_hash_order_is_preserved_across_idempotent_revalidation(
+    panel: dict, valid_annotation: dict
+) -> None:
+    payload = copy.deepcopy(valid_annotation)
+    payload["role"] = ROLE_ADJUDICATOR
+    payload["input_annotation_sha256s"] = ["3" * 64, "1" * 64, "2" * 64]
+
+    normalized = validate_annotation(payload, panel, expected_role=ROLE_ADJUDICATOR)
+    revalidated = validate_annotation(normalized, panel, expected_role=ROLE_ADJUDICATOR)
+
+    assert revalidated["input_annotation_sha256s"] == ["3" * 64, "1" * 64, "2" * 64]
+    assert revalidated["annotation_sha256"] == normalized["annotation_sha256"]
 
 
 def test_validator_normalizes_duration_bounded_closed_intervals_in_panel_order(
@@ -971,6 +1141,8 @@ def _primary_annotation(panel: dict, reviewer: str, rows: list[dict]) -> dict:
         "role": ROLE_PRIMARY_REVIEWER,
         "rubric_revision": "temporal-required-moment-v1",
         "packet_sha256": _canonical_sha256(panel),
+        "started_at": "2026-07-30T09:00:00Z",
+        "ended_at": "2026-07-30T09:30:00Z",
         "rows": rows,
     }
 
@@ -1163,6 +1335,9 @@ def _adjudicated_annotation(panel: dict, rows: list[dict]) -> dict:
         "role": ROLE_ADJUDICATOR,
         "rubric_revision": "temporal-required-moment-v1",
         "packet_sha256": _canonical_sha256(panel),
+        "started_at": "2026-07-30T10:00:00Z",
+        "ended_at": "2026-07-30T10:30:00Z",
+        "input_annotation_sha256s": ["1" * 64, "2" * 64, "3" * 64],
         "rows": rows,
     }
     return validate_annotation(payload, panel, expected_role=ROLE_ADJUDICATOR)
@@ -1171,6 +1346,7 @@ def _adjudicated_annotation(panel: dict, rows: list[dict]) -> dict:
 def _frame(actual_pts_seconds: float, frame_index: int) -> dict:
     return {
         "actual_pts_seconds": actual_pts_seconds,
+        "stream_index": 0,
         "frame_index": frame_index,
         "time_base": "1/1000",
         "sha256": f"{frame_index:064x}",
@@ -1221,6 +1397,28 @@ def test_selector_recall_requires_every_conjunctive_interval_to_hit(
     assert result["component_recall"] == 0.5
     assert result["row_recall"] == 0.0
     assert result["missed_video_ids"] == ["alpha"]
+
+
+def test_selector_recall_distinguishes_overlapping_indexes_by_stream(
+    panel: dict,
+) -> None:
+    annotation = _adjudicated_annotation(
+        panel,
+        [
+            _labelable("alpha", [[[1.0, 1.1], [4.0, 4.1]]]),
+            {"video_id": "beta", "eligibility": ELIGIBILITY_NOT_VISUALLY_ANSWERABLE},
+        ],
+    )
+    first = _frame(1.0, 7)
+    second = _frame(4.0, 7)
+    second["stream_index"] = 1
+    second["sha256"] = "f" * 64
+
+    result = score_selector_recall(
+        annotation, {"alpha": [first, second]}, tolerance_seconds=0.0
+    )
+
+    assert result["row_recall"] == 1.0
 
 
 def test_selector_recall_accepts_any_complete_alternative_sufficient_set(
@@ -1328,6 +1526,7 @@ def test_selector_recall_rejects_normalized_duration_mutated_after_validation(
 @pytest.mark.parametrize(
     "missing_field",
     [
+        "stream_index",
         "requested_time_seconds",
         "extraction_command_identity",
         "prompt_source_identity",

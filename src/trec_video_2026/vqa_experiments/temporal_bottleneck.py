@@ -8,6 +8,7 @@ import json
 import math
 import re
 from collections.abc import Mapping, Sequence
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +63,7 @@ RECALL_TOLERANCES = frozenset(
 # Scoring consumes post-request extraction records that echo the final request hash.
 REQUIRED_FRAME_PROVENANCE_FIELDS = (
     "actual_pts_seconds",
+    "stream_index",
     "frame_index",
     "time_base",
     "sha256",
@@ -72,6 +74,7 @@ REQUIRED_FRAME_PROVENANCE_FIELDS = (
     "runtime_identity",
 )
 _SHA256 = re.compile(r"[0-9a-f]{64}")
+_UTC_TIMESTAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z")
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -305,6 +308,7 @@ def _bind_slots(
             "slot_kind": slot_kind,
             "desired_time_seconds": desired_time,
             "requested_time_seconds": desired_time,
+            "stream_index": selected["stream_index"],
             "frame_index": selected["frame_index"],
             "actual_pts_seconds": selected["actual_pts_seconds"],
             "time_base": selected["time_base"],
@@ -454,6 +458,7 @@ FRAME_PLAN_BINDING_FIELDS = (
     "slot_kind",
     "desired_time_seconds",
     "requested_time_seconds",
+    "stream_index",
     "frame_index",
     "actual_pts_seconds",
     "time_base",
@@ -575,7 +580,7 @@ def _request_frames(
     frames: list[dict[str, Any]] = []
     hashes: list[str] = []
     timestamps: list[float] = []
-    frame_indexes: set[int] = set()
+    frame_indexes: set[tuple[int, int]] = set()
     for position, record in enumerate(records):
         if not isinstance(record, Mapping):
             raise TypeError(f"{video_id} frame {position} must be an object")
@@ -585,6 +590,13 @@ def _request_frames(
         leaked = _label_material_key(record)
         if leaked is not None:
             raise ValueError(f"forbidden label key in frame plan: {leaked}")
+        stream_index = record.get("stream_index")
+        if (
+            isinstance(stream_index, bool)
+            or not isinstance(stream_index, int)
+            or stream_index < 0
+        ):
+            raise ValueError(f"{video_id} frame {position} has invalid stream_index")
         frame_index = record.get("frame_index")
         if (
             isinstance(frame_index, bool)
@@ -592,9 +604,10 @@ def _request_frames(
             or frame_index < 0
         ):
             raise ValueError(f"{video_id} frame {position} has invalid frame_index")
-        if frame_index in frame_indexes:
+        frame_key = (stream_index, frame_index)
+        if frame_key in frame_indexes:
             raise ValueError(f"{video_id} condition has a duplicate frame_index")
-        frame_indexes.add(frame_index)
+        frame_indexes.add(frame_key)
         timestamp = round(
             _numeric(
                 record.get("actual_pts_seconds"),
@@ -639,6 +652,7 @@ def _request_frames(
             "slot_kind": slot_kind,
             "desired_time_seconds": desired_time,
             "requested_time_seconds": requested_time,
+            "stream_index": stream_index,
             "frame_index": frame_index,
             "actual_pts_seconds": timestamp,
             "time_base": time_base,
@@ -667,6 +681,7 @@ def _request_frames(
             raise ValueError(f"{video_id} frame {position} runtime_identity mismatch")
         frames.append(
             {
+                "stream_index": stream_index,
                 "frame_index": frame_index,
                 "actual_pts_seconds": timestamp,
                 "time_base": time_base,
@@ -942,6 +957,17 @@ def _normalize_interval(
     return [round(start, 1), round(end, 1)]
 
 
+def _utc_timestamp(value: Any, field: str) -> datetime:
+    if not isinstance(value, str) or _UTC_TIMESTAMP.fullmatch(value) is None:
+        raise ValueError(f"{field} must be an ISO-8601 UTC timestamp ending in Z")
+    try:
+        return datetime.fromisoformat(f"{value[:-1]}+00:00")
+    except ValueError as exc:
+        raise ValueError(
+            f"{field} must be an ISO-8601 UTC timestamp ending in Z"
+        ) from exc
+
+
 def validate_annotation(
     payload: dict[str, Any], panel: dict[str, Any], *, expected_role: str
 ) -> dict[str, Any]:
@@ -967,6 +993,30 @@ def validate_annotation(
     for field in ("reviewer", "rubric_revision", "packet_sha256"):
         if not isinstance(payload.get(field), str) or not payload[field].strip():
             raise ValueError(f"{field} must be a nonempty string")
+
+    started_at = _utc_timestamp(payload.get("started_at"), "started_at")
+    ended_at = _utc_timestamp(payload.get("ended_at"), "ended_at")
+    if ended_at <= started_at:
+        raise ValueError("ended_at must be after started_at")
+
+    input_hashes_field = "input_annotation_sha256s"
+    if role == ROLE_PRIMARY_REVIEWER:
+        if input_hashes_field in payload:
+            raise ValueError(
+                "primary reviewer annotation must not contain input_annotation_sha256s"
+            )
+    else:
+        input_hashes = payload.get(input_hashes_field)
+        if not isinstance(input_hashes, list) or len(input_hashes) != 3:
+            raise ValueError(
+                "input_annotation_sha256s must be a list of exactly three hashes"
+            )
+        normalized_input_hashes = [
+            _lowercase_sha256(value, f"input_annotation_sha256s[{index}]")
+            for index, value in enumerate(input_hashes)
+        ]
+        if len(set(normalized_input_hashes)) != 3:
+            raise ValueError("input_annotation_sha256s must contain distinct hashes")
 
     expected_packet_sha256 = _sha256(panel)
     if payload["packet_sha256"] != expected_packet_sha256:
@@ -1260,7 +1310,7 @@ def _actual_pts_records(
     if not isinstance(records, list):
         raise TypeError(f"frames for {video_id} must be a list")
     normalized: list[dict[str, Any]] = []
-    frame_indexes: set[int] = set()
+    frame_indexes: set[tuple[int, int]] = set()
     frame_hashes: set[str] = set()
     for record_index, record in enumerate(records):
         if not isinstance(record, Mapping):
@@ -1280,6 +1330,15 @@ def _actual_pts_records(
             raise ValueError(
                 f"frame record {record_index} actual_pts_seconds is outside duration"
             )
+        stream_index = record["stream_index"]
+        if (
+            isinstance(stream_index, bool)
+            or not isinstance(stream_index, int)
+            or stream_index < 0
+        ):
+            raise ValueError(
+                f"frame record {record_index} stream_index must be a nonnegative integer"
+            )
         frame_index = record["frame_index"]
         if (
             isinstance(frame_index, bool)
@@ -1289,9 +1348,10 @@ def _actual_pts_records(
             raise ValueError(
                 f"frame record {record_index} frame_index must be a nonnegative integer"
             )
-        if frame_index in frame_indexes:
+        frame_key = (stream_index, frame_index)
+        if frame_key in frame_indexes:
             raise ValueError(f"frames for {video_id} contain a duplicate frame_index")
-        frame_indexes.add(frame_index)
+        frame_indexes.add(frame_key)
         time_base = record["time_base"]
         if not isinstance(time_base, str) or not time_base.strip():
             raise ValueError(
