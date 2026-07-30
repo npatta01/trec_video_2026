@@ -160,6 +160,269 @@ def _oracle_plan(
     return planner(duration, sufficient_sets, inventory)
 
 
+def _candidate_plans(
+    duration: float,
+    sufficient_sets: object,
+    preferred_set_index: int,
+    inventory: list[dict],
+) -> dict:
+    planner = getattr(temporal_bottleneck, "relevant_scene_candidate_plans", None)
+    assert callable(planner), "relevant_scene_candidate_plans must be implemented"
+    return planner(duration, sufficient_sets, preferred_set_index, inventory)
+
+
+def _repair_candidate_plan(
+    candidate_plan: dict, inventory: list[dict], repairs: list[dict]
+) -> dict:
+    repairer = getattr(
+        temporal_bottleneck, "repair_relevant_scene_candidate_plan", None
+    )
+    assert callable(repairer), "repair_relevant_scene_candidate_plan must be implemented"
+    return repairer(candidate_plan, inventory, repairs=repairs)
+
+
+def test_candidate_plans_use_exact_preferred_set_and_bind_local_targets() -> None:
+    inventory = _decoded_inventory([index / 10 for index in range(121)])
+    plans = _candidate_plans(
+        12.0,
+        [[[0.2, 0.4]], [[1.0, 2.0], [4.0, 6.0]]],
+        1,
+        inventory,
+    )
+    plan = plans["oracle-local-12"]["frames"]
+
+    assert len(plan) == 12
+    assert {frame["slot_kind"] for frame in plan} == {"local"}
+    assert plans["oracle-local-12"]["preferred_set_index"] == 1
+    assert len({(frame["stream_index"], frame["frame_index"]) for frame in plan}) == 12
+    assert [frame["actual_pts_seconds"] for frame in plan] == sorted(
+        frame["actual_pts_seconds"] for frame in plan
+    )
+    assert all(
+        1.0 <= frame["actual_pts_seconds"] <= 2.0
+        or 4.0 <= frame["actual_pts_seconds"] <= 6.0
+        for frame in plan
+    )
+    assert {frame["audit_target"]["interval_index"] for frame in plan} == {0, 1}
+    assert all(frame["source_media_sha256"] == MEDIA_SHA for frame in plan)
+
+
+def test_candidate_plans_allocate_unequal_intervals_and_hash_audit_targets() -> None:
+    plans = _candidate_plans(
+        12.0,
+        [[[1.0, 2.0], [4.0, 8.0]]],
+        0,
+        _decoded_inventory([index / 10 for index in range(121)]),
+    )
+    local = plans["oracle-local-12"]["frames"]
+
+    assert [
+        sum(frame["audit_target"]["interval_index"] == index for frame in local)
+        for index in range(2)
+    ] == [3, 9]
+    assert all(
+        frame["frame_plan_sha256"]
+        == _canonical_sha256(
+            {key: value for key, value in frame.items() if key != "frame_plan_sha256"}
+        )
+        for frame in local
+    )
+    assert all(
+        set(frame["audit_target"])
+        == {
+            "sufficient_set_index",
+            "interval_index",
+            "interval_start_seconds",
+            "interval_end_seconds",
+            "component_slot",
+        }
+        for frame in local
+    )
+
+
+def test_candidate_plans_prefer_earlier_pts_and_reject_unconstructible_inputs() -> None:
+    inventory = _decoded_inventory(
+        [
+            0.5,
+            1.05,
+            1.2,
+            1.3,
+            1.4,
+            1.5,
+            1.6,
+            1.7,
+            1.8,
+            1.85,
+            1.9,
+            1.95,
+            1.99,
+            2.5,
+            4.5,
+            6.5,
+            8.5,
+            10.5,
+            11.5,
+        ]
+    )
+    plans = _candidate_plans(12.0, [[[0.0, 0.2]], [[1.0, 2.0]]], 1, inventory)
+
+    assert 1.2 in {
+        frame["actual_pts_seconds"]
+        for frame in plans["oracle-hybrid-12"]["frames"]
+        if frame["slot_kind"] == "local"
+    }
+    with pytest.raises(ValueError, match="preferred_set_index"):
+        _candidate_plans(12.0, [[[1.0, 2.0]]], 1, _decoded_inventory([1.0, 2.0]))
+    with pytest.raises(ValueError, match="local.*unique"):
+        _candidate_plans(
+            12.0,
+            [[[1.0, 2.0]]],
+            0,
+            _decoded_inventory([*[1.0 + index / 10 for index in range(11)], 11.0]),
+        )
+
+
+def test_repair_relevant_candidate_replaces_a_local_target_in_its_original_interval() -> None:
+    inventory = _decoded_inventory([index / 10 for index in range(121)])
+    original = _candidate_plans(12.0, [[[1.0, 2.0], [4.0, 6.0]]], 0, inventory)[
+        "oracle-local-12"
+    ]
+    target = next(
+        frame
+        for frame in original["frames"]
+        if frame["audit_target"]["interval_index"] == 0
+    )
+
+    repaired = _repair_candidate_plan(
+        original,
+        inventory,
+        [
+            {
+                "target_frame_plan_sha256": target["frame_plan_sha256"],
+                "resolved_time_seconds": 1.1,
+                "replacement_reason": "not_visible",
+            }
+        ],
+    )
+
+    replacement = next(
+        frame
+        for frame in repaired["frames"]
+        if frame["audit_target"]["interval_index"] == 0
+        and frame["frame_plan_sha256"] != target["frame_plan_sha256"]
+    )
+    assert replacement["requested_time_seconds"] == 1.1
+    assert replacement["actual_pts_seconds"] == 1.2
+    assert replacement["audit_target"] == target["audit_target"]
+    assert (replacement["stream_index"], replacement["frame_index"]) != (
+        target["stream_index"],
+        target["frame_index"],
+    )
+    assert original["frames"] != repaired["frames"]
+    assert repaired["repair"]["original_candidate_plan_sha256"] == original[
+        "candidate_plan_sha256"
+    ]
+    assert repaired["repair"]["repairs"] == [
+        {
+            "target_frame_plan_sha256": target["frame_plan_sha256"],
+            "replacement_frame_plan_sha256": replacement["frame_plan_sha256"],
+            "resolved_time_seconds": 1.1,
+            "replacement_reason": "not_visible",
+        }
+    ]
+    assert repaired["candidate_plan_sha256"] == _canonical_sha256(
+        {key: value for key, value in repaired.items() if key != "candidate_plan_sha256"}
+    )
+
+
+def test_repair_relevant_candidate_avoids_collisions_and_rejects_invalid_repairs() -> None:
+    inventory = _decoded_inventory([index / 10 for index in range(121)])
+    original = _candidate_plans(12.0, [[[0.9, 2.1]]], 0, inventory)["oracle-hybrid-12"]
+    local = next(frame for frame in original["frames"] if frame["slot_kind"] == "local")
+    global_frame = next(frame for frame in original["frames"] if frame["slot_kind"] == "global")
+    collision_time = next(
+        frame["actual_pts_seconds"]
+        for frame in original["frames"]
+        if frame["slot_kind"] == "local" and frame != local
+    )
+    repaired = _repair_candidate_plan(
+        original,
+        inventory,
+        [
+            {
+                "target_frame_plan_sha256": local["frame_plan_sha256"],
+                "resolved_time_seconds": collision_time + 0.1,
+                "replacement_reason": "partial",
+            }
+        ],
+    )
+    assert len({(frame["stream_index"], frame["frame_index"]) for frame in repaired["frames"]}) == 12
+
+    tie_inventory = _decoded_inventory(
+        [
+            0.5,
+            0.95,
+            1.0,
+            1.05,
+            1.2,
+            1.25,
+            1.4,
+            1.45,
+            1.55,
+            1.6,
+            1.7,
+            1.8,
+            1.85,
+            1.9,
+            1.95,
+            2.5,
+            4.5,
+            6.5,
+            8.5,
+            10.5,
+            11.5,
+        ]
+    )
+    tie_original = _candidate_plans(12.0, [[[1.0, 2.0]]], 0, tie_inventory)[
+        "oracle-hybrid-12"
+    ]
+    tie_target = next(
+        frame
+        for frame in tie_original["frames"]
+        if frame["slot_kind"] == "local" and frame["actual_pts_seconds"] == 1.4
+    )
+    tie_repaired = _repair_candidate_plan(
+        tie_original,
+        tie_inventory,
+        [
+            {
+                "target_frame_plan_sha256": tie_target["frame_plan_sha256"],
+                "resolved_time_seconds": 1.5,
+                "replacement_reason": "partial",
+            }
+        ],
+    )
+    assert any(
+        frame["slot_kind"] == "local" and frame["actual_pts_seconds"] == 1.45
+        for frame in tie_repaired["frames"]
+    )
+
+    common = {
+        "target_frame_plan_sha256": local["frame_plan_sha256"],
+        "replacement_reason": "not_visible",
+    }
+    for repair, message in (
+        ({**common, "resolved_time_seconds": 2.2}, "outside"),
+        ({**common, "resolved_time_seconds": 1.05}, "0.1"),
+        ({**common, "target_frame_plan_sha256": "0" * 64, "resolved_time_seconds": 1.1}, "target"),
+        ({"target_frame_plan_sha256": global_frame["frame_plan_sha256"], "resolved_time_seconds": 1.1, "replacement_reason": "not_visible"}, "local"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            _repair_candidate_plan(original, inventory, [repair])
+    with pytest.raises(ValueError, match="already"):
+        _repair_candidate_plan(repaired, inventory, [common | {"resolved_time_seconds": 1.1}])
+
+
 def test_uniform_plan_is_the_literal_twelve_midpoint_decoded_frame_plan() -> None:
     inventory = _decoded_inventory([index + 0.5 for index in range(12)])
 

@@ -453,6 +453,317 @@ def oracle_hybrid_decoded_frame_plan(
     )
 
 
+def _relevant_scene_candidate_plan(
+    duration: float,
+    sufficient_sets: list[list[list[float]]],
+    preferred_set_index: int,
+    inventory: list[dict[str, Any]],
+    *,
+    local_count: int,
+    global_count: int,
+) -> dict[str, Any]:
+    """Bind one preferred set to a candidate and its audit targets."""
+
+    if (
+        isinstance(preferred_set_index, bool)
+        or not isinstance(preferred_set_index, int)
+    ):
+        raise ValueError("preferred_set_index must be an integer")
+    if local_count <= 0 or global_count < 0 or local_count + global_count != 12:
+        raise ValueError("candidate plans must contain twelve frames")
+
+    normalized_duration, normalized_inventory = _planning_inventory(duration, inventory)
+    normalized_sets = _normalized_sufficient_sets(
+        sufficient_sets, duration=normalized_duration
+    )
+    if not 0 <= preferred_set_index < len(normalized_sets):
+        raise ValueError("preferred_set_index is outside sufficient_sets")
+    if len(normalized_inventory) < local_count + global_count:
+        raise ValueError("inventory cannot supply 12 unique decoded frames")
+
+    intervals = normalized_sets[preferred_set_index]
+    allocations = _hamilton_local_allocations(intervals, slot_count=local_count)
+    used: set[tuple[int, int]] = set()
+    local_frames: list[dict[str, Any]] = []
+    for interval_index, (interval, allocation) in enumerate(
+        zip(intervals, allocations, strict=True)
+    ):
+        audit_target = {
+            "sufficient_set_index": preferred_set_index,
+            "interval_index": interval_index,
+            "interval_start_seconds": interval[0],
+            "interval_end_seconds": interval[1],
+            "component_slot": f"interval-{interval_index}",
+        }
+        for desired_time in _desired_times(interval[0], interval[1], allocation):
+            candidates = [
+                frame
+                for frame in normalized_inventory
+                if (frame["stream_index"], frame["frame_index"]) not in used
+                and interval[0] <= frame["actual_pts_seconds"] <= interval[1]
+            ]
+            if not candidates:
+                raise ValueError(
+                    "cannot construct local interval with unique decoded frames"
+                )
+            selected = min(
+                candidates,
+                key=lambda frame: (
+                    abs(frame["actual_pts_seconds"] - desired_time),
+                    frame["actual_pts_seconds"],
+                    frame["stream_index"],
+                    frame["frame_index"],
+                ),
+            )
+            used.add((selected["stream_index"], selected["frame_index"]))
+            frame = {
+                "slot_kind": "local",
+                "desired_time_seconds": desired_time,
+                "requested_time_seconds": desired_time,
+                "stream_index": selected["stream_index"],
+                "frame_index": selected["frame_index"],
+                "actual_pts_seconds": selected["actual_pts_seconds"],
+                "time_base": selected["time_base"],
+                "source_media_sha256": selected["source_media_sha256"],
+                "audit_target": audit_target.copy(),
+            }
+            frame["frame_plan_sha256"] = _sha256(frame)
+            local_frames.append(frame)
+
+    global_slots = (
+        [
+            ("global", desired_time, None)
+            for desired_time in _desired_times(
+                0.0, normalized_duration, global_count
+            )
+        ]
+        if global_count
+        else []
+    )
+    global_frames = _bind_slots(
+        global_slots, normalized_inventory, used_frame_indexes=used
+    )
+    frames = sorted(
+        [*local_frames, *global_frames],
+        key=lambda frame: (
+            frame["actual_pts_seconds"],
+            frame["desired_time_seconds"],
+            frame["slot_kind"],
+        ),
+    )
+    candidate_plan = {
+        "duration_seconds": normalized_duration,
+        "preferred_set_index": preferred_set_index,
+        "frames": frames,
+    }
+    candidate_plan["candidate_plan_sha256"] = _sha256(candidate_plan)
+    return candidate_plan
+
+
+def relevant_scene_candidate_plans(
+    duration: float,
+    sufficient_sets: list[list[list[float]]],
+    preferred_set_index: int,
+    inventory: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Build hybrid and local-only candidates from the exact preferred set."""
+
+    return {
+        "oracle-hybrid-12": _relevant_scene_candidate_plan(
+            duration,
+            sufficient_sets,
+            preferred_set_index,
+            inventory,
+            local_count=6,
+            global_count=6,
+        ),
+        "oracle-local-12": _relevant_scene_candidate_plan(
+            duration,
+            sufficient_sets,
+            preferred_set_index,
+            inventory,
+            local_count=12,
+            global_count=0,
+        ),
+    }
+
+
+def _candidate_plan_hash(candidate_plan: Mapping[str, Any]) -> str:
+    return _sha256(
+        {
+            key: value
+            for key, value in candidate_plan.items()
+            if key != "candidate_plan_sha256"
+        }
+    )
+
+
+def repair_relevant_scene_candidate_plan(
+    candidate_plan: dict[str, Any],
+    inventory: list[dict[str, Any]],
+    *,
+    repairs: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Apply one simultaneous, interval-constrained local-frame repair round."""
+
+    if not isinstance(candidate_plan, Mapping):
+        raise TypeError("candidate_plan must be an object")
+    if "repair" in candidate_plan:
+        raise ValueError("candidate plan has already received its repair round")
+    if candidate_plan.get("candidate_plan_sha256") != _candidate_plan_hash(candidate_plan):
+        raise ValueError("candidate_plan_sha256 does not match candidate plan")
+    frames = candidate_plan.get("frames")
+    if not isinstance(frames, list) or len(frames) != 12:
+        raise ValueError("candidate plan must contain twelve frames")
+    if not isinstance(repairs, list) or not repairs:
+        raise ValueError("repairs must be a nonempty list")
+
+    normalized_duration = _numeric(
+        candidate_plan.get("duration_seconds"), "candidate duration_seconds"
+    )
+    _, normalized_inventory = _planning_inventory(normalized_duration, inventory)
+    frames_by_hash: dict[str, dict[str, Any]] = {}
+    for frame in frames:
+        if not isinstance(frame, Mapping):
+            raise TypeError("candidate frame must be an object")
+        frame_hash = frame.get("frame_plan_sha256")
+        if not isinstance(frame_hash, str) or frame_hash != _sha256(
+            {key: value for key, value in frame.items() if key != "frame_plan_sha256"}
+        ):
+            raise ValueError("candidate frame_plan_sha256 does not match frame")
+        frames_by_hash[frame_hash] = copy.deepcopy(dict(frame))
+    if len(frames_by_hash) != len(frames):
+        raise ValueError("candidate frame_plan_sha256 values must be unique")
+
+    targets: list[tuple[dict[str, Any], float, str]] = []
+    target_hashes: set[str] = set()
+    target_intervals: set[int] = set()
+    required_repair_fields = {
+        "target_frame_plan_sha256",
+        "resolved_time_seconds",
+        "replacement_reason",
+    }
+    for repair in repairs:
+        if not isinstance(repair, Mapping):
+            raise TypeError("repair must be an object")
+        if set(repair) != required_repair_fields:
+            raise ValueError("repair must contain only its bound target and resolution")
+        target_hash = repair.get("target_frame_plan_sha256")
+        target = frames_by_hash.get(target_hash)
+        if target is None:
+            raise ValueError("repair target is not a candidate frame")
+        if target.get("slot_kind") != "local":
+            raise ValueError("only local frames can be repaired")
+        audit_target = target.get("audit_target")
+        if not isinstance(audit_target, Mapping):
+            raise ValueError("repair target is missing its audit target")
+        interval_index = audit_target.get("interval_index")
+        start = _numeric(audit_target.get("interval_start_seconds"), "interval start")
+        end = _numeric(audit_target.get("interval_end_seconds"), "interval end")
+        if (
+            isinstance(interval_index, bool)
+            or not isinstance(interval_index, int)
+            or start >= end
+        ):
+            raise ValueError("repair target has an invalid audit interval")
+        resolved = _numeric(repair.get("resolved_time_seconds"), "resolved_time_seconds")
+        if not math.isclose(resolved * 10, round(resolved * 10), abs_tol=1e-9):
+            raise ValueError("resolved_time_seconds must have 0.1-second precision")
+        if not start <= resolved <= end:
+            raise ValueError("resolved_time_seconds is outside the bound interval")
+        reason = repair.get("replacement_reason")
+        if reason not in {"partial", "not_visible"}:
+            raise ValueError("replacement_reason must be partial or not_visible")
+        if target_hash in target_hashes or interval_index in target_intervals:
+            raise ValueError("each target interval can be repaired only once")
+        target_hashes.add(target_hash)
+        target_intervals.add(interval_index)
+        targets.append((target, resolved, reason))
+
+    used = {
+        (frame["stream_index"], frame["frame_index"])
+        for frame_hash, frame in frames_by_hash.items()
+        if frame_hash not in target_hashes
+    }
+    prior_target_indexes = {
+        (target["stream_index"], target["frame_index"])
+        for target, _, _ in targets
+    }
+    replacements: dict[str, dict[str, Any]] = {}
+    repair_records: list[dict[str, Any]] = []
+    for target, resolved, reason in sorted(
+        targets,
+        key=lambda item: (
+            item[0]["actual_pts_seconds"],
+            item[0]["stream_index"],
+            item[0]["frame_index"],
+        ),
+    ):
+        audit_target = target["audit_target"]
+        start = audit_target["interval_start_seconds"]
+        end = audit_target["interval_end_seconds"]
+        candidates = [
+            frame
+            for frame in normalized_inventory
+            if (frame["stream_index"], frame["frame_index"]) not in used
+            and (frame["stream_index"], frame["frame_index"])
+            not in prior_target_indexes
+            and start <= frame["actual_pts_seconds"] <= end
+        ]
+        if not candidates:
+            raise ValueError("cannot construct local repair with unique decoded frames")
+        selected = min(
+            candidates,
+            key=lambda frame: (
+                abs(frame["actual_pts_seconds"] - resolved),
+                frame["actual_pts_seconds"],
+                frame["stream_index"],
+                frame["frame_index"],
+            ),
+        )
+        used.add((selected["stream_index"], selected["frame_index"]))
+        replacement = {
+            **target,
+            "desired_time_seconds": resolved,
+            "requested_time_seconds": resolved,
+            "stream_index": selected["stream_index"],
+            "frame_index": selected["frame_index"],
+            "actual_pts_seconds": selected["actual_pts_seconds"],
+            "time_base": selected["time_base"],
+            "source_media_sha256": selected["source_media_sha256"],
+        }
+        replacement.pop("frame_plan_sha256")
+        replacement["frame_plan_sha256"] = _sha256(replacement)
+        replacements[target["frame_plan_sha256"]] = replacement
+        repair_records.append(
+            {
+                "target_frame_plan_sha256": target["frame_plan_sha256"],
+                "replacement_frame_plan_sha256": replacement["frame_plan_sha256"],
+                "resolved_time_seconds": resolved,
+                "replacement_reason": reason,
+            }
+        )
+
+    repaired = copy.deepcopy(dict(candidate_plan))
+    repaired["frames"] = sorted(
+        [
+            replacements.get(frame["frame_plan_sha256"], frame)
+            for frame in repaired["frames"]
+        ],
+        key=lambda frame: (
+            frame["actual_pts_seconds"],
+            frame["desired_time_seconds"],
+            frame["slot_kind"],
+        ),
+    )
+    repaired["repair"] = {
+        "original_candidate_plan_sha256": candidate_plan["candidate_plan_sha256"],
+        "repairs": repair_records,
+    }
+    repaired["candidate_plan_sha256"] = _candidate_plan_hash(repaired)
+    return repaired
+
+
 TEMPORAL_CONDITIONS = ("uniform-12", "oracle-hybrid-12")
 FRAME_PLAN_BINDING_FIELDS = (
     "slot_kind",
