@@ -226,6 +226,28 @@ def test_validator_rejects_forbidden_label_or_condition_key_at_any_depth(
         validate_annotation(payload, panel, expected_role=ROLE_PRIMARY_REVIEWER)
 
 
+@pytest.mark.parametrize(
+    "forbidden_key",
+    ["prior_prediction", "previous_grade", "newPrediction", "selectedFrameTimestamps"],
+)
+def test_validator_rejects_compound_blinding_keys_but_allows_provenance_names(
+    panel: dict, valid_annotation: dict, forbidden_key: str
+) -> None:
+    payload = copy.deepcopy(valid_annotation)
+    payload["provenance"] = {
+        "requested_time_seconds": 1.0,
+        "extraction_command_identity": "ffmpeg-extract-v1",
+        "prompt_source_identity": "temporal-panel-prompt-v1",
+        "request_sha256": "b" * 64,
+        "runtime_identity": "cpu-contract-v1",
+        "answerable_media_count": 1,
+        forbidden_key: "secret",
+    }
+
+    with pytest.raises(ValueError, match=forbidden_key):
+        validate_annotation(payload, panel, expected_role=ROLE_PRIMARY_REVIEWER)
+
+
 def _primary_annotation(panel: dict, reviewer: str, rows: list[dict]) -> dict:
     return {
         "schema_version": SCHEMA_VERSION,
@@ -436,6 +458,11 @@ def _frame(actual_pts_seconds: float, frame_index: int) -> dict:
         "frame_index": frame_index,
         "time_base": "1/1000",
         "sha256": f"{frame_index:064x}",
+        "requested_time_seconds": actual_pts_seconds,
+        "extraction_command_identity": "ffmpeg-extract-v1",
+        "prompt_source_identity": "temporal-panel-prompt-v1",
+        "request_sha256": "b" * 64,
+        "runtime_identity": "cpu-contract-v1",
     }
 
 
@@ -542,3 +569,79 @@ def test_selector_recall_rejects_requested_timestamp_substituted_for_actual_pts(
 
     with pytest.raises(ValueError, match="actual_pts_seconds"):
         score_selector_recall(annotation, requested_only, tolerance_seconds=0.0)
+
+
+def test_selector_recall_rejects_annotation_mutated_after_hash_validation(
+    panel: dict,
+) -> None:
+    annotation = _adjudicated_annotation(
+        panel,
+        [
+            _labelable("alpha", [[[1.0, 1.1]]]),
+            {"video_id": "beta", "eligibility": ELIGIBILITY_NOT_VISUALLY_ANSWERABLE},
+        ],
+    )
+    annotation["rows"][0]["sufficient_sets"] = [[[5.0, 5.1]]]
+
+    with pytest.raises(ValueError, match="annotation_sha256"):
+        score_selector_recall(
+            annotation, {"alpha": [_frame(5.0, 1)]}, tolerance_seconds=0.0
+        )
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    [
+        "requested_time_seconds",
+        "extraction_command_identity",
+        "prompt_source_identity",
+        "request_sha256",
+        "runtime_identity",
+    ],
+)
+def test_selector_recall_requires_complete_preinference_frame_provenance(
+    panel: dict, missing_field: str
+) -> None:
+    annotation = _adjudicated_annotation(
+        panel,
+        [
+            _labelable("alpha", [[[1.0, 1.1]]]),
+            {"video_id": "beta", "eligibility": ELIGIBILITY_NOT_VISUALLY_ANSWERABLE},
+        ],
+    )
+    incomplete_frame = _frame(1.0, 1)
+    incomplete_frame.pop(missing_field)
+
+    with pytest.raises(ValueError, match=missing_field):
+        score_selector_recall(
+            annotation, {"alpha": [incomplete_frame]}, tolerance_seconds=0.0
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid_value"),
+    [
+        ("requested_time_seconds", float("nan")),
+        ("extraction_command_identity", ""),
+        ("prompt_source_identity", ""),
+        ("request_sha256", "not-a-sha256"),
+        ("runtime_identity", {}),
+    ],
+)
+def test_selector_recall_rejects_empty_or_invalid_frame_provenance(
+    panel: dict, field: str, invalid_value: object
+) -> None:
+    annotation = _adjudicated_annotation(
+        panel,
+        [
+            _labelable("alpha", [[[1.0, 1.1]]]),
+            {"video_id": "beta", "eligibility": ELIGIBILITY_NOT_VISUALLY_ANSWERABLE},
+        ],
+    )
+    invalid_frame = _frame(1.0, 1)
+    invalid_frame[field] = invalid_value
+
+    with pytest.raises((TypeError, ValueError), match=field):
+        score_selector_recall(
+            annotation, {"alpha": [invalid_frame]}, tolerance_seconds=0.0
+        )

@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import math
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -31,6 +32,21 @@ ELIGIBILITY_VALUES = frozenset(
 FORBIDDEN_KEYS = frozenset(
     {"answer", "reference", "prediction", "grade", "condition", "frame_timestamps"}
 )
+FORBIDDEN_KEY_TOKENS = frozenset(
+    {
+        "answer",
+        "answers",
+        "reference",
+        "references",
+        "prediction",
+        "predictions",
+        "grade",
+        "grades",
+        "condition",
+        "conditions",
+    }
+)
+_KEY_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|[^A-Za-z0-9]+")
 
 MAX_INTERVALS_PER_SUFFICIENT_SET = 6
 MIN_ELIGIBLE_ROWS = 8
@@ -41,6 +57,17 @@ STRICT_RECALL_TOLERANCE_SECONDS = 0.0
 PRIMARY_RECALL_TOLERANCE_SECONDS = 0.5
 RECALL_TOLERANCES = frozenset(
     {STRICT_RECALL_TOLERANCE_SECONDS, PRIMARY_RECALL_TOLERANCE_SECONDS}
+)
+REQUIRED_FRAME_PROVENANCE_FIELDS = (
+    "actual_pts_seconds",
+    "frame_index",
+    "time_base",
+    "sha256",
+    "requested_time_seconds",
+    "extraction_command_identity",
+    "prompt_source_identity",
+    "request_sha256",
+    "runtime_identity",
 )
 
 
@@ -66,8 +93,21 @@ def _numeric(value: Any, field: str) -> float:
 def _forbidden_key(value: Any) -> str | None:
     if isinstance(value, Mapping):
         for key, nested in value.items():
-            if isinstance(key, str) and key.casefold() in FORBIDDEN_KEYS:
-                return key
+            if isinstance(key, str):
+                tokens = {
+                    token.casefold()
+                    for token in _KEY_BOUNDARY.split(key)
+                    if token
+                }
+                frame_timestamp = "frame" in tokens and bool(
+                    tokens & {"timestamp", "timestamps"}
+                )
+                if (
+                    key.casefold() in FORBIDDEN_KEYS
+                    or tokens & FORBIDDEN_KEY_TOKENS
+                    or frame_timestamp
+                ):
+                    return key
             found = _forbidden_key(nested)
             if found is not None:
                 return found
@@ -442,7 +482,7 @@ def _actual_pts_records(
     for record_index, record in enumerate(records):
         if not isinstance(record, Mapping):
             raise TypeError(f"frame record {record_index} for {video_id} must be an object")
-        for field in ("actual_pts_seconds", "frame_index", "time_base", "sha256"):
+        for field in REQUIRED_FRAME_PROVENANCE_FIELDS:
             if field not in record:
                 raise ValueError(
                     f"frame record {record_index} for {video_id} is missing {field}"
@@ -472,14 +512,52 @@ def _actual_pts_records(
         if sha256 in frame_hashes:
             raise ValueError(f"frames for {video_id} contain a duplicate sha256")
         frame_hashes.add(sha256)
-        normalized.append(
-            {
-                "actual_pts_seconds": actual_pts_seconds,
-                "frame_index": frame_index,
-                "time_base": time_base,
-                "sha256": sha256,
-            }
+        requested_time_seconds = _numeric(
+            record["requested_time_seconds"],
+            f"frame record {record_index} requested_time_seconds",
         )
+        if not 0 <= requested_time_seconds <= duration:
+            raise ValueError(
+                f"frame record {record_index} requested_time_seconds is outside duration"
+            )
+        for field in (
+            "extraction_command_identity",
+            "prompt_source_identity",
+            "runtime_identity",
+        ):
+            identity = record[field]
+            if isinstance(identity, str):
+                valid_identity = bool(identity.strip())
+            elif isinstance(identity, (Mapping, list)):
+                valid_identity = bool(identity)
+            else:
+                valid_identity = False
+            if not valid_identity:
+                raise ValueError(
+                    f"frame record {record_index} {field} must be a nonempty identity"
+                )
+            try:
+                _canonical_json(identity)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"frame record {record_index} {field} must be JSON serializable"
+                ) from exc
+        request_sha256 = record["request_sha256"]
+        if (
+            not isinstance(request_sha256, str)
+            or len(request_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in request_sha256
+            )
+        ):
+            raise ValueError(
+                f"frame record {record_index} request_sha256 must be a lowercase SHA-256"
+            )
+        normalized_record = copy.deepcopy(dict(record))
+        normalized_record["actual_pts_seconds"] = actual_pts_seconds
+        normalized_record["requested_time_seconds"] = requested_time_seconds
+        normalized.append(normalized_record)
     return normalized
 
 
@@ -508,8 +586,11 @@ def score_selector_recall(
         raise ValueError(f"schema_version must be {SCHEMA_VERSION}")
     if annotation.get("role") != ROLE_ADJUDICATOR:
         raise ValueError("selector recall requires an adjudicator annotation")
-    if not isinstance(annotation.get("annotation_sha256"), str):
+    annotation_sha256 = annotation.get("annotation_sha256")
+    if not isinstance(annotation_sha256, str):
         raise ValueError("selector recall requires a normalized annotation_sha256")
+    if annotation_sha256 != _sha256(_annotation_hash_payload(annotation)):
+        raise ValueError("annotation_sha256 does not match annotation payload")
     forbidden = _forbidden_key(annotation)
     if forbidden is not None:
         raise ValueError(f"forbidden key in annotation: {forbidden}")
