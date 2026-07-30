@@ -59,6 +59,7 @@ PRIMARY_RECALL_TOLERANCE_SECONDS = 0.5
 RECALL_TOLERANCES = frozenset(
     {STRICT_RECALL_TOLERANCE_SECONDS, PRIMARY_RECALL_TOLERANCE_SECONDS}
 )
+# Scoring consumes post-request extraction records that echo the final request hash.
 REQUIRED_FRAME_PROVENANCE_FIELDS = (
     "actual_pts_seconds",
     "frame_index",
@@ -300,17 +301,17 @@ def _bind_slots(
             ),
         )
         used.add((selected["stream_index"], selected["frame_index"]))
-        plan.append(
-            {
-                "slot_kind": slot_kind,
-                "desired_time_seconds": desired_time,
-                "requested_time_seconds": desired_time,
-                "frame_index": selected["frame_index"],
-                "actual_pts_seconds": selected["actual_pts_seconds"],
-                "time_base": selected["time_base"],
-                "source_media_sha256": selected["source_media_sha256"],
-            }
-        )
+        plan_record = {
+            "slot_kind": slot_kind,
+            "desired_time_seconds": desired_time,
+            "requested_time_seconds": desired_time,
+            "frame_index": selected["frame_index"],
+            "actual_pts_seconds": selected["actual_pts_seconds"],
+            "time_base": selected["time_base"],
+            "source_media_sha256": selected["source_media_sha256"],
+        }
+        plan_record["frame_plan_sha256"] = _sha256(plan_record)
+        plan.append(plan_record)
     return plan
 
 
@@ -449,6 +450,34 @@ def oracle_hybrid_decoded_frame_plan(
 
 
 TEMPORAL_CONDITIONS = ("uniform-12", "oracle-hybrid-12")
+FRAME_PLAN_BINDING_FIELDS = (
+    "slot_kind",
+    "desired_time_seconds",
+    "requested_time_seconds",
+    "frame_index",
+    "actual_pts_seconds",
+    "time_base",
+    "source_media_sha256",
+)
+REQUIRED_PRE_REQUEST_FRAME_PROVENANCE_FIELDS = (
+    *FRAME_PLAN_BINDING_FIELDS,
+    "frame_plan_sha256",
+    "sha256",
+    "extraction_command_identity",
+    "prompt_source_identity",
+    "runtime_identity",
+)
+INFERENCE_IDENTITY_FIELDS = (
+    "model_id",
+    "model_revision",
+    "runtime_image",
+    "prompt_source_identity",
+    "runtime_identity",
+    "decoding",
+    "seed",
+    "image_resolution",
+)
+_PINNED_RUNTIME_IMAGE = re.compile(r".+@sha256:[0-9a-f]{64}")
 
 
 def _label_material_key(value: Any) -> str | None:
@@ -482,8 +511,64 @@ def _label_material_key(value: Any) -> str | None:
     return None
 
 
+def _material_identity(value: Any, field: str) -> dict[str, Any]:
+    if not isinstance(value, Mapping) or not value:
+        raise ValueError(f"{field} must be a material identity object")
+    identity = value.get("identity")
+    if not isinstance(identity, str) or not identity.strip():
+        raise ValueError(f"{field}.identity must be a nonempty string")
+    _lowercase_sha256(value.get("sha256"), f"{field}.sha256")
+    try:
+        _canonical_json(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field} must be JSON serializable") from exc
+    return copy.deepcopy(dict(value))
+
+
+def _validated_inference_identity(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping) or not value:
+        raise ValueError("inference_identity must be a nonempty object")
+    for field in INFERENCE_IDENTITY_FIELDS:
+        if field not in value:
+            raise ValueError(f"inference_identity is missing {field}")
+    for field in ("model_id", "model_revision"):
+        if not isinstance(value[field], str) or not value[field].strip():
+            raise ValueError(f"inference_identity {field} must be nonempty")
+    runtime_image = value["runtime_image"]
+    if (
+        not isinstance(runtime_image, str)
+        or _PINNED_RUNTIME_IMAGE.fullmatch(runtime_image) is None
+    ):
+        raise ValueError("inference_identity runtime_image must be digest-pinned")
+    _material_identity(value["prompt_source_identity"], "prompt_source_identity")
+    _material_identity(value["runtime_identity"], "runtime_identity")
+    decoding = value["decoding"]
+    if not isinstance(decoding, Mapping) or not decoding:
+        raise ValueError("inference_identity decoding must be a nonempty object")
+    seed = value["seed"]
+    if isinstance(seed, bool) or not isinstance(seed, int):
+        raise ValueError("inference_identity seed must be an integer")
+    image_resolution = value["image_resolution"]
+    if (
+        isinstance(image_resolution, bool)
+        or not isinstance(image_resolution, int)
+        or image_resolution <= 0
+    ):
+        raise ValueError("inference_identity image_resolution must be positive")
+    try:
+        _canonical_json(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("inference_identity must be JSON serializable") from exc
+    return copy.deepcopy(dict(value))
+
+
 def _request_frames(
-    records: Any, *, video_id: str, duration: float, media_sha256: str
+    records: Any,
+    *,
+    video_id: str,
+    duration: float,
+    media_sha256: str,
+    inference_identity: Mapping[str, Any],
 ) -> tuple[list[dict[str, Any]], list[str], list[float]]:
     if not isinstance(records, list) or len(records) != 12:
         raise ValueError(f"{video_id} condition must contain exactly 12 frames")
@@ -494,6 +579,9 @@ def _request_frames(
     for position, record in enumerate(records):
         if not isinstance(record, Mapping):
             raise TypeError(f"{video_id} frame {position} must be an object")
+        for field in REQUIRED_PRE_REQUEST_FRAME_PROVENANCE_FIELDS:
+            if field not in record:
+                raise ValueError(f"{video_id} frame {position} is missing {field}")
         leaked = _label_material_key(record)
         if leaked is not None:
             raise ValueError(f"forbidden label key in frame plan: {leaked}")
@@ -516,6 +604,27 @@ def _request_frames(
         )
         if not 0 <= timestamp <= duration:
             raise ValueError(f"{video_id} frame {position} PTS is outside duration")
+        desired_time = round(
+            _numeric(
+                record["desired_time_seconds"],
+                f"{video_id} frame {position} desired_time_seconds",
+            ),
+            6,
+        )
+        requested_time = round(
+            _numeric(
+                record["requested_time_seconds"],
+                f"{video_id} frame {position} requested_time_seconds",
+            ),
+            6,
+        )
+        if not 0 <= desired_time <= duration or not 0 <= requested_time <= duration:
+            raise ValueError(
+                f"{video_id} frame {position} requested time is outside duration"
+            )
+        slot_kind = record["slot_kind"]
+        if slot_kind not in {"global", "local"}:
+            raise ValueError(f"{video_id} frame {position} has invalid slot_kind")
         frame_sha256 = _lowercase_sha256(
             record.get("sha256"), f"{video_id} frame {position} sha256"
         )
@@ -526,6 +635,36 @@ def _request_frames(
         time_base = record.get("time_base")
         if not isinstance(time_base, str) or not time_base.strip():
             raise ValueError(f"{video_id} frame {position} is missing time_base")
+        frame_plan = {
+            "slot_kind": slot_kind,
+            "desired_time_seconds": desired_time,
+            "requested_time_seconds": requested_time,
+            "frame_index": frame_index,
+            "actual_pts_seconds": timestamp,
+            "time_base": time_base,
+            "source_media_sha256": media_sha256,
+        }
+        frame_plan_sha256 = _lowercase_sha256(
+            record["frame_plan_sha256"],
+            f"{video_id} frame {position} frame_plan_sha256",
+        )
+        if frame_plan_sha256 != _sha256(frame_plan):
+            raise ValueError(f"{video_id} frame {position} frame_plan_sha256 mismatch")
+        extraction_command_identity = _material_identity(
+            record["extraction_command_identity"], "extraction_command_identity"
+        )
+        prompt_source_identity = _material_identity(
+            record["prompt_source_identity"], "prompt_source_identity"
+        )
+        runtime_identity = _material_identity(
+            record["runtime_identity"], "runtime_identity"
+        )
+        if prompt_source_identity != inference_identity["prompt_source_identity"]:
+            raise ValueError(
+                f"{video_id} frame {position} prompt_source_identity mismatch"
+            )
+        if runtime_identity != inference_identity["runtime_identity"]:
+            raise ValueError(f"{video_id} frame {position} runtime_identity mismatch")
         frames.append(
             {
                 "frame_index": frame_index,
@@ -533,6 +672,11 @@ def _request_frames(
                 "time_base": time_base,
                 "source_media_sha256": media_sha256,
                 "sha256": frame_sha256,
+                "requested_time_seconds": requested_time,
+                "extraction_command_identity": extraction_command_identity,
+                "prompt_source_identity": prompt_source_identity,
+                "frame_plan_sha256": frame_plan_sha256,
+                "runtime_identity": runtime_identity,
             }
         )
         hashes.append(frame_sha256)
@@ -570,15 +714,10 @@ def build_temporal_requests(
         raise TypeError("condition_frames must be an object")
     if set(condition_frames) != set(TEMPORAL_CONDITIONS):
         raise ValueError(f"condition set must be exactly {set(TEMPORAL_CONDITIONS)}")
-    if not isinstance(inference_identity, Mapping) or not inference_identity:
-        raise ValueError("inference_identity must be a nonempty object")
+    normalized_inference_identity = _validated_inference_identity(inference_identity)
     leaked = _label_material_key(inference_identity)
     if leaked is not None:
         raise ValueError(f"forbidden label key in inference_identity: {leaked}")
-    try:
-        _canonical_json(inference_identity)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("inference_identity must be JSON serializable") from exc
 
     expected_video_ids = {video_id for video_id, _ in panel_rows}
     for condition in TEMPORAL_CONDITIONS:
@@ -602,6 +741,7 @@ def build_temporal_requests(
                 video_id=video_id,
                 duration=duration,
                 media_sha256=media_sha256,
+                inference_identity=normalized_inference_identity,
             )
             request = {
                 "schema_version": SCHEMA_VERSION,
@@ -616,7 +756,7 @@ def build_temporal_requests(
                 "frame_sha256s": frame_sha256s,
                 "frame_timestamps": frame_timestamps,
                 "frame_count": 12,
-                "inference_identity": copy.deepcopy(dict(inference_identity)),
+                "inference_identity": copy.deepcopy(normalized_inference_identity),
                 "transcript": None,
                 "media_path": None,
                 "audio_path": None,

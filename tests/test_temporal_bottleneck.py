@@ -168,14 +168,124 @@ def test_uniform_plan_is_the_literal_twelve_midpoint_decoded_frame_plan() -> Non
     assert plan == [
         {
             "slot_kind": "global",
-            "desired_time_seconds": index + 0.5,
-            "requested_time_seconds": index + 0.5,
-            "frame_index": index,
-            "actual_pts_seconds": index + 0.5,
+            "desired_time_seconds": 0.5,
+            "requested_time_seconds": 0.5,
+            "frame_index": 0,
+            "actual_pts_seconds": 0.5,
             "time_base": "1/1000",
             "source_media_sha256": MEDIA_SHA,
-        }
-        for index in range(12)
+            "frame_plan_sha256": "a4f4f7292d0c919ba8823a7bd44f7a5518459c03edbf8a7dcef401fe2bcb884a",
+        },
+        {
+            "slot_kind": "global",
+            "desired_time_seconds": 1.5,
+            "requested_time_seconds": 1.5,
+            "frame_index": 1,
+            "actual_pts_seconds": 1.5,
+            "time_base": "1/1000",
+            "source_media_sha256": MEDIA_SHA,
+            "frame_plan_sha256": "d6a2270608add5697a8a4cb280a9e598e73de133bcf9a91b387e1b12cf55788f",
+        },
+        {
+            "slot_kind": "global",
+            "desired_time_seconds": 2.5,
+            "requested_time_seconds": 2.5,
+            "frame_index": 2,
+            "actual_pts_seconds": 2.5,
+            "time_base": "1/1000",
+            "source_media_sha256": MEDIA_SHA,
+            "frame_plan_sha256": "506b803e8df691f534f353ee1ff169967802c5c3dbf042595f7928a5d91f1268",
+        },
+        {
+            "slot_kind": "global",
+            "desired_time_seconds": 3.5,
+            "requested_time_seconds": 3.5,
+            "frame_index": 3,
+            "actual_pts_seconds": 3.5,
+            "time_base": "1/1000",
+            "source_media_sha256": MEDIA_SHA,
+            "frame_plan_sha256": "fa57aa232ed044895cab5b5f422c0efd31cb4b56208733c40a0e2fe19cc92864",
+        },
+        {
+            "slot_kind": "global",
+            "desired_time_seconds": 4.5,
+            "requested_time_seconds": 4.5,
+            "frame_index": 4,
+            "actual_pts_seconds": 4.5,
+            "time_base": "1/1000",
+            "source_media_sha256": MEDIA_SHA,
+            "frame_plan_sha256": "d9a288b81b8c614a6a636c43ef4a495c7615f4ee7ac519c9e4712e50f117ce26",
+        },
+        {
+            "slot_kind": "global",
+            "desired_time_seconds": 5.5,
+            "requested_time_seconds": 5.5,
+            "frame_index": 5,
+            "actual_pts_seconds": 5.5,
+            "time_base": "1/1000",
+            "source_media_sha256": MEDIA_SHA,
+            "frame_plan_sha256": "88b1650b53ad493db60db52bfa3ddbc82e969bd6f3d9a4773a307d68313ccd63",
+        },
+        {
+            "slot_kind": "global",
+            "desired_time_seconds": 6.5,
+            "requested_time_seconds": 6.5,
+            "frame_index": 6,
+            "actual_pts_seconds": 6.5,
+            "time_base": "1/1000",
+            "source_media_sha256": MEDIA_SHA,
+            "frame_plan_sha256": "f6d6b6ce5f74083dfa28620e2933c5d7870400ef018b66d35b0c7a3b556f6dd3",
+        },
+        {
+            "slot_kind": "global",
+            "desired_time_seconds": 7.5,
+            "requested_time_seconds": 7.5,
+            "frame_index": 7,
+            "actual_pts_seconds": 7.5,
+            "time_base": "1/1000",
+            "source_media_sha256": MEDIA_SHA,
+            "frame_plan_sha256": "b04891654dde048e4b5ca613c892534c3c0e35f227e7087266c78e97d075a936",
+        },
+        {
+            "slot_kind": "global",
+            "desired_time_seconds": 8.5,
+            "requested_time_seconds": 8.5,
+            "frame_index": 8,
+            "actual_pts_seconds": 8.5,
+            "time_base": "1/1000",
+            "source_media_sha256": MEDIA_SHA,
+            "frame_plan_sha256": "5f307d6ced13a0eca8bf113c7d3f29b7333cc1f54a40349809d31ffe33f63a4b",
+        },
+        {
+            "slot_kind": "global",
+            "desired_time_seconds": 9.5,
+            "requested_time_seconds": 9.5,
+            "frame_index": 9,
+            "actual_pts_seconds": 9.5,
+            "time_base": "1/1000",
+            "source_media_sha256": MEDIA_SHA,
+            "frame_plan_sha256": "3e98a26c418ae4f261320547f045fec34e37cd89456ac7c9f9f2b26130a85576",
+        },
+        {
+            "slot_kind": "global",
+            "desired_time_seconds": 10.5,
+            "requested_time_seconds": 10.5,
+            "frame_index": 10,
+            "actual_pts_seconds": 10.5,
+            "time_base": "1/1000",
+            "source_media_sha256": MEDIA_SHA,
+            "frame_plan_sha256": "5a8857d57e372d01b6d1a3101cb3b28fb16232986575e4001ecacb186e24dc4c",
+        },
+        {
+            "slot_kind": "global",
+            "desired_time_seconds": 11.5,
+            "requested_time_seconds": 11.5,
+            "frame_index": 11,
+            "actual_pts_seconds": 11.5,
+            "time_base": "1/1000",
+            "source_media_sha256": MEDIA_SHA,
+            "frame_plan_sha256": "6d5d2e5961825eec3b8797ad609514f76bd25a6324d306128f76316b3bc21787",
+        },
     ]
 
 
@@ -191,6 +301,19 @@ def test_uniform_plan_recovers_collisions_in_chronological_output_order() -> Non
 
     assert [frame["actual_pts_seconds"] for frame in plan] == [0.0, 0.8, 4.0]
     assert len({frame["frame_index"] for frame in plan}) == 3
+
+
+def test_frame_plans_have_a_stable_non_self_referential_binding_hash() -> None:
+    plan = _uniform_plan(12.0, _decoded_inventory([index + 0.5 for index in range(12)]))
+
+    assert all(
+        frame["frame_plan_sha256"]
+        == _canonical_sha256(
+            {key: value for key, value in frame.items() if key != "frame_plan_sha256"}
+        )
+        for frame in plan
+    )
+    assert all("request_sha256" not in frame for frame in plan)
 
 
 def test_oracle_hybrid_uses_six_global_and_six_interval_local_slots() -> None:
@@ -312,16 +435,32 @@ def _condition_frames() -> dict:
     for condition_index, condition in enumerate(("uniform-12", "oracle-hybrid-12")):
         frames = []
         for index in range(12):
+            plan_record = {
+                "slot_kind": "local" if condition_index and index < 6 else "global",
+                "desired_time_seconds": index + 0.25 + condition_index * 0.1,
+                "requested_time_seconds": index + 0.25 + condition_index * 0.1,
+                "frame_index": index + condition_index * 100,
+                "actual_pts_seconds": index + 0.25 + condition_index * 0.1,
+                "time_base": "1/1000",
+                "source_media_sha256": MEDIA_SHA,
+            }
+            plan_record["frame_plan_sha256"] = _canonical_sha256(plan_record)
             frames.append(
                 {
-                    "slot_kind": "local" if condition_index and index < 6 else "global",
-                    "desired_time_seconds": index + 0.25 + condition_index * 0.1,
-                    "requested_time_seconds": index + 0.25 + condition_index * 0.1,
-                    "frame_index": index + condition_index * 100,
-                    "actual_pts_seconds": index + 0.25 + condition_index * 0.1,
-                    "time_base": "1/1000",
-                    "source_media_sha256": MEDIA_SHA,
+                    **plan_record,
                     "sha256": f"{index + condition_index * 100:064x}",
+                    "extraction_command_identity": {
+                        "identity": "ffmpeg-extract-v1",
+                        "sha256": "b" * 64,
+                    },
+                    "prompt_source_identity": {
+                        "identity": "temporal-question-only-v1",
+                        "sha256": "d" * 64,
+                    },
+                    "runtime_identity": {
+                        "identity": "cpu-contract-v1",
+                        "sha256": "e" * 64,
+                    },
                 }
             )
         conditions[condition] = {"alpha": frames}
@@ -331,9 +470,16 @@ def _condition_frames() -> dict:
 def _inference_identity() -> dict:
     return {
         "model_id": "synthetic/model",
-        "model_revision": "revision-1",
+        "model_revision": "1" * 40,
         "runtime_image": "synthetic@sha256:" + "c" * 64,
-        "prompt_identity": "temporal-question-only-v1",
+        "prompt_source_identity": {
+            "identity": "temporal-question-only-v1",
+            "sha256": "d" * 64,
+        },
+        "runtime_identity": {
+            "identity": "cpu-contract-v1",
+            "sha256": "e" * 64,
+        },
         "decoding": {"do_sample": False, "max_new_tokens": 32},
         "seed": 0,
         "image_resolution": 512,
@@ -373,6 +519,33 @@ def test_temporal_requests_are_matched_label_free_and_stably_hashed() -> None:
     assert all(request["frame_count"] == 12 for request in requests)
     assert all(len(set(request["frame_sha256s"])) == 12 for request in requests)
     assert all(len(set(request["frame_timestamps"])) == 12 for request in requests)
+    assert all(
+        all(
+            set(frame)
+            == {
+                "frame_index",
+                "actual_pts_seconds",
+                "time_base",
+                "source_media_sha256",
+                "sha256",
+                "requested_time_seconds",
+                "extraction_command_identity",
+                "prompt_source_identity",
+                "frame_plan_sha256",
+                "runtime_identity",
+            }
+            for frame in request["frames"]
+        )
+        for request in requests
+    )
+    assert all(
+        all(
+            frame["prompt_source_identity"] == identity["prompt_source_identity"]
+            and frame["runtime_identity"] == identity["runtime_identity"]
+            for frame in request["frames"]
+        )
+        for request in requests
+    )
     assert all(request["transcript"] is None for request in requests)
     assert all(request["media_path"] is None for request in requests)
     assert all(request["audio_path"] is None for request in requests)
@@ -393,9 +566,81 @@ def test_temporal_requests_are_matched_label_free_and_stably_hashed() -> None:
         "preferred_set_index",
         "slot_kind",
         "desired_time_seconds",
-        "requested_time_seconds",
     ):
         assert forbidden not in serialized
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    [
+        "requested_time_seconds",
+        "extraction_command_identity",
+        "prompt_source_identity",
+        "frame_plan_sha256",
+        "runtime_identity",
+    ],
+)
+def test_temporal_requests_require_complete_frame_provenance(
+    missing_field: str,
+) -> None:
+    frames = _condition_frames()
+    frames["uniform-12"]["alpha"][0].pop(missing_field)
+
+    with pytest.raises(ValueError, match=missing_field):
+        _build_temporal_requests(_temporal_panel(), frames, _inference_identity())
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement"),
+    [
+        ("requested_time_seconds", 11.875),
+        (
+            "prompt_source_identity",
+            {"identity": "other-prompt", "sha256": "9" * 64},
+        ),
+        (
+            "runtime_identity",
+            {"identity": "other-runtime", "sha256": "8" * 64},
+        ),
+    ],
+)
+def test_temporal_requests_reject_plan_tampering_or_inference_identity_drift(
+    field: str, replacement: object
+) -> None:
+    frames = _condition_frames()
+    frames["uniform-12"]["alpha"][0][field] = replacement
+
+    with pytest.raises(ValueError, match="frame_plan_sha256|identity"):
+        _build_temporal_requests(_temporal_panel(), frames, _inference_identity())
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (lambda identity: identity.clear(), "inference_identity"),
+        (lambda identity: identity.pop("model_revision"), "model_revision"),
+        (
+            lambda identity: identity.update(runtime_image="synthetic:latest"),
+            "runtime_image",
+        ),
+        (
+            lambda identity: identity.update(prompt_source_identity={}),
+            "prompt_source_identity",
+        ),
+        (
+            lambda identity: identity.update(runtime_identity="cpu-contract-v1"),
+            "runtime_identity",
+        ),
+    ],
+)
+def test_temporal_requests_require_pinned_material_inference_identity(
+    mutation: object, message: str
+) -> None:
+    identity = _inference_identity()
+    mutation(identity)  # type: ignore[operator]
+
+    with pytest.raises(ValueError, match=message):
+        _build_temporal_requests(_temporal_panel(), _condition_frames(), identity)
 
 
 def test_temporal_requests_reject_condition_drift_and_answer_material() -> None:
