@@ -149,7 +149,7 @@ def _annotation_hash_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     hashed = {
         key: copy.deepcopy(value)
         for key, value in payload.items()
-        if key != "annotation_sha256"
+        if key not in {"annotation_sha256", "normalized_annotation_sha256"}
     }
     rows = hashed.get("rows")
     if isinstance(rows, list):
@@ -159,6 +159,16 @@ def _annotation_hash_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
                 # is not reviewer-authored annotation content.
                 row.pop("duration_seconds", None)
     return hashed
+
+
+def _normalized_annotation_hash_payload(
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        key: copy.deepcopy(value)
+        for key, value in payload.items()
+        if key != "normalized_annotation_sha256"
+    }
 
 
 def _normalize_interval(
@@ -239,6 +249,14 @@ def validate_annotation(
     for row_index, row in enumerate(rows):
         normalized = copy.deepcopy(dict(row))
         duration = duration_by_id[row["video_id"]]
+        if "duration_seconds" in row:
+            supplied_duration = _numeric(
+                row["duration_seconds"], f"row {row_index} duration_seconds"
+            )
+            if supplied_duration != duration:
+                raise ValueError(
+                    f"row {row_index} duration_seconds does not match frozen panel"
+                )
         normalized["duration_seconds"] = duration
         eligibility = row.get("eligibility")
         if eligibility not in ELIGIBILITY_VALUES:
@@ -287,6 +305,18 @@ def validate_annotation(
     if supplied_hash is not None and supplied_hash != computed_hash:
         raise ValueError("annotation_sha256 does not match annotation payload")
     normalized_payload["annotation_sha256"] = computed_hash
+    supplied_normalized_hash = payload.get("normalized_annotation_sha256")
+    computed_normalized_hash = _sha256(
+        _normalized_annotation_hash_payload(normalized_payload)
+    )
+    if (
+        supplied_normalized_hash is not None
+        and supplied_normalized_hash != computed_normalized_hash
+    ):
+        raise ValueError(
+            "normalized_annotation_sha256 does not match normalized annotation"
+        )
+    normalized_payload["normalized_annotation_sha256"] = computed_normalized_hash
     return normalized_payload
 
 
@@ -591,6 +621,17 @@ def score_selector_recall(
         raise ValueError("selector recall requires a normalized annotation_sha256")
     if annotation_sha256 != _sha256(_annotation_hash_payload(annotation)):
         raise ValueError("annotation_sha256 does not match annotation payload")
+    normalized_annotation_sha256 = annotation.get("normalized_annotation_sha256")
+    if not isinstance(normalized_annotation_sha256, str):
+        raise ValueError(
+            "selector recall requires a normalized_annotation_sha256 binding"
+        )
+    if normalized_annotation_sha256 != _sha256(
+        _normalized_annotation_hash_payload(annotation)
+    ):
+        raise ValueError(
+            "normalized_annotation_sha256 does not match normalized annotation"
+        )
     forbidden = _forbidden_key(annotation)
     if forbidden is not None:
         raise ValueError(f"forbidden key in annotation: {forbidden}")

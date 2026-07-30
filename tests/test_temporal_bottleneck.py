@@ -83,7 +83,7 @@ def test_validator_normalizes_duration_bounded_closed_intervals_in_panel_order(
     assert annotation["annotation_sha256"] == _canonical_sha256(valid_annotation)
 
 
-def test_validator_revalidates_normalized_annotation_without_rehashing_panel_duration(
+def test_validator_revalidates_unchanged_normalized_annotation_idempotently(
     panel: dict, valid_annotation: dict
 ) -> None:
     normalized = validate_annotation(
@@ -96,6 +96,18 @@ def test_validator_revalidates_normalized_annotation_without_rehashing_panel_dur
 
     assert revalidated["annotation_sha256"] == normalized["annotation_sha256"]
     assert revalidated["rows"] == normalized["rows"]
+
+
+def test_validator_rejects_normalized_duration_mutated_after_panel_binding(
+    panel: dict, valid_annotation: dict
+) -> None:
+    normalized = validate_annotation(
+        valid_annotation, panel, expected_role=ROLE_PRIMARY_REVIEWER
+    )
+    normalized["rows"][0]["duration_seconds"] = 100.0
+
+    with pytest.raises(ValueError, match="duration_seconds.*frozen panel"):
+        validate_annotation(normalized, panel, expected_role=ROLE_PRIMARY_REVIEWER)
 
 
 def test_validator_rejects_annotation_that_omits_a_frozen_panel_row(
@@ -586,6 +598,24 @@ def test_selector_recall_rejects_annotation_mutated_after_hash_validation(
     with pytest.raises(ValueError, match="annotation_sha256"):
         score_selector_recall(
             annotation, {"alpha": [_frame(5.0, 1)]}, tolerance_seconds=0.0
+        )
+
+
+def test_selector_recall_rejects_normalized_duration_mutated_after_validation(
+    panel: dict,
+) -> None:
+    annotation = _adjudicated_annotation(
+        panel,
+        [
+            _labelable("alpha", [[[1.0, 1.1]]]),
+            {"video_id": "beta", "eligibility": ELIGIBILITY_NOT_VISUALLY_ANSWERABLE},
+        ],
+    )
+    annotation["rows"][0]["duration_seconds"] = 100.0
+
+    with pytest.raises(ValueError, match="normalized_annotation_sha256"):
+        score_selector_recall(
+            annotation, {"alpha": [_frame(1.0, 1)]}, tolerance_seconds=0.0
         )
 
 
