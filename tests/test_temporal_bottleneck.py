@@ -335,6 +335,34 @@ def test_repair_relevant_candidate_replaces_a_local_target_in_its_original_inter
     )
 
 
+def test_repair_relevant_candidate_rejects_cross_source_inventory() -> None:
+    inventory = _decoded_inventory([index / 10 for index in range(121)])
+    original = _candidate_plans(12.0, [[[1.0, 2.0], [4.0, 6.0]]], 0, inventory)[
+        "oracle-local-12"
+    ]
+    target = next(
+        frame
+        for frame in original["frames"]
+        if frame["audit_target"]["interval_index"] == 0
+    )
+    other_source_inventory = copy.deepcopy(inventory)
+    for frame in other_source_inventory:
+        frame["source_media_sha256"] = "b" * 64
+
+    with pytest.raises(ValueError, match="source_media_sha256"):
+        _repair_candidate_plan(
+            original,
+            other_source_inventory,
+            [
+                {
+                    "target_frame_plan_sha256": target["frame_plan_sha256"],
+                    "resolved_time_seconds": 1.1,
+                    "replacement_reason": "not_visible",
+                }
+            ],
+        )
+
+
 def test_repair_relevant_candidate_avoids_collisions_and_rejects_invalid_repairs() -> None:
     inventory = _decoded_inventory([index / 10 for index in range(121)])
     original = _candidate_plans(12.0, [[[0.9, 2.1]]], 0, inventory)["oracle-hybrid-12"]

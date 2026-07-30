@@ -621,8 +621,8 @@ def repair_relevant_scene_candidate_plan(
     normalized_duration = _numeric(
         candidate_plan.get("duration_seconds"), "candidate duration_seconds"
     )
-    _, normalized_inventory = _planning_inventory(normalized_duration, inventory)
     frames_by_hash: dict[str, dict[str, Any]] = {}
+    candidate_source_media_sha256: str | None = None
     for frame in frames:
         if not isinstance(frame, Mapping):
             raise TypeError("candidate frame must be an object")
@@ -631,9 +631,21 @@ def repair_relevant_scene_candidate_plan(
             {key: value for key, value in frame.items() if key != "frame_plan_sha256"}
         ):
             raise ValueError("candidate frame_plan_sha256 does not match frame")
+        frame_source_media_sha256 = _lowercase_sha256(
+            frame.get("source_media_sha256"), "candidate source_media_sha256"
+        )
+        if candidate_source_media_sha256 is None:
+            candidate_source_media_sha256 = frame_source_media_sha256
+        elif frame_source_media_sha256 != candidate_source_media_sha256:
+            raise ValueError("candidate frames have mixed source_media_sha256 values")
         frames_by_hash[frame_hash] = copy.deepcopy(dict(frame))
     if len(frames_by_hash) != len(frames):
         raise ValueError("candidate frame_plan_sha256 values must be unique")
+    if candidate_source_media_sha256 is None:
+        raise ValueError("candidate plan must contain source_media_sha256")
+    _, normalized_inventory = _planning_inventory(normalized_duration, inventory)
+    if normalized_inventory[0]["source_media_sha256"] != candidate_source_media_sha256:
+        raise ValueError("repair inventory source_media_sha256 does not match candidate")
 
     targets: list[tuple[dict[str, Any], float, str]] = []
     target_hashes: set[str] = set()
