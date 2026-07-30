@@ -12,6 +12,8 @@ from typing import Any
 from .temporal_bottleneck import (
     ELIGIBILITY_LABELABLE_VISUAL,
     SCHEMA_VERSION,
+    _annotation_hash_payload,
+    _normalized_annotation_hash_payload,
     _sha256,
     freeze_json_artifact,
     verify_json_artifact,
@@ -71,6 +73,12 @@ _FORBIDDEN_AUDIT_KEY_TOKENS = frozenset(
     }
 )
 _CONDITION_IDENTITIES = frozenset({*CANDIDATES, "uniform-12"})
+_CASEFOLDED_CONDITION_IDENTITIES = frozenset(
+    identity.casefold() for identity in _CONDITION_IDENTITIES
+)
+_RELATIVE_PATH = re.compile(
+    r"^(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+(?:\.[A-Za-z0-9]+)?$"
+)
 _CONFIDENCE_VALUES = frozenset({"low", "medium", "high"})
 _RESPONSE_KINDS = frozenset({"answer", "not_answerable"})
 
@@ -158,13 +166,17 @@ def _forbidden_audit_value(
             if forbidden is not None:
                 return forbidden
     elif isinstance(value, str):
-        if value in _CONDITION_IDENTITIES:
+        if value.casefold() in _CASEFOLDED_CONDITION_IDENTITIES:
             return ("condition", value)
         if (
             value.startswith(("/", "~/", "./", "../"))
             or "://" in value
             or "\\" in value
             or re.match(r"^[A-Za-z]:/", value) is not None
+            or (
+                _RELATIVE_PATH.fullmatch(value) is not None
+                and (value.count("/") >= 2 or "." in value.rsplit("/", 1)[-1])
+            )
         ):
             return ("path", value)
     return None
@@ -476,7 +488,25 @@ def _verify_semantics_identity(scene_semantics: Mapping[str, Any]) -> str:
     return semantics_sha256
 
 
-def _verify_frame_first_freeze(freeze: Mapping[str, Any]) -> tuple[str, Any]:
+def _verify_adjudication_identity(adjudication: Mapping[str, Any]) -> str:
+    annotation_sha256 = _sha256_value(
+        adjudication.get("annotation_sha256"), "annotation_sha256"
+    )
+    if annotation_sha256 != _sha256(_annotation_hash_payload(adjudication)):
+        raise ValueError("annotation_sha256 does not match adjudication")
+    normalized_sha256 = adjudication.get("normalized_annotation_sha256")
+    if normalized_sha256 is not None:
+        _sha256_value(normalized_sha256, "normalized_annotation_sha256")
+        if normalized_sha256 != _sha256(
+            _normalized_annotation_hash_payload(adjudication)
+        ):
+            raise ValueError("normalized_annotation_sha256 does not match adjudication")
+    return annotation_sha256
+
+
+def _verify_frame_first_freeze(
+    freeze: Mapping[str, Any],
+) -> tuple[str, Any, str, str]:
     if freeze.get("schema_version") != SCHEMA_VERSION:
         raise ValueError(f"frame-first freeze schema_version must be {SCHEMA_VERSION}")
     if freeze.get("status") != "frozen":
@@ -490,7 +520,11 @@ def _verify_frame_first_freeze(freeze: Mapping[str, Any]) -> tuple[str, Any]:
     audit_sha256 = _sha256_value(bindings.get("audit_sha256"), "audit_sha256")
     ended_at = bindings.get("ended_at")
     _timestamp(ended_at, "frame-first ended_at")
-    return audit_sha256, ended_at
+    reviewer = _nonempty_string(bindings.get("reviewer"), "frame-first reviewer")
+    packet_sha256 = _sha256_value(
+        bindings.get("packet_sha256"), "frame-first packet_sha256"
+    )
+    return audit_sha256, ended_at, reviewer, packet_sha256
 
 
 def _labelable_row_maps(
@@ -719,6 +753,40 @@ def _validate_full_rows(
                 interval_records=interval_records,
                 visibility_by_id=visibility_by_id,
             )
+            if normalized_repairs:
+                if still_representation != "still_frame_representable":
+                    raise ValueError(
+                        "repairs require still_frame_representable evidence"
+                    )
+                if any(
+                    relation["preservation"] != "preserved"
+                    for relation in normalized_relations
+                ):
+                    raise ValueError(
+                        "repairs cannot rescue a relationship preservation failure"
+                    )
+                if answer_sufficiency != "answer_sufficient":
+                    raise ValueError("repairs cannot rescue answer_sufficiency failure")
+                failed_interval_ids = {
+                    interval_id
+                    for interval_id, visibility in visibility_by_id.items()
+                    if visibility != "visible"
+                }
+                repairable_interval_ids = {
+                    interval_id
+                    for interval_id, visibility in visibility_by_id.items()
+                    if visibility in {"partial", "not_visible"}
+                }
+                proposed_interval_ids = {
+                    proposal["opaque_interval_id"] for proposal in normalized_repairs
+                }
+                if (
+                    failed_interval_ids != repairable_interval_ids
+                    or proposed_interval_ids != failed_interval_ids
+                ):
+                    raise ValueError(
+                        "repair proposals must target every failed local interval"
+                    )
 
             all_intervals_visible = all(
                 visibility == "visible" for visibility in visibility_by_id.values()
@@ -762,9 +830,6 @@ _DERIVED_AUDIT_FIELDS = frozenset(
         "all_intervals_visible",
         "all_relationships_preserved",
         "candidate_passes",
-        "raw_agreement_count",
-        "raw_disagreement_count",
-        "raw_comparison_count",
     }
 )
 
@@ -795,6 +860,27 @@ def _finish_audit_hash(
         raise ValueError(f"{field} does not match audit payload")
     normalized[field] = computed
     return normalized
+
+
+def _verify_audit_adjudication_identity(
+    audit_adjudication: Mapping[str, Any],
+) -> str:
+    stored = _sha256_value(
+        audit_adjudication.get("audit_adjudication_sha256"),
+        "audit_adjudication_sha256",
+    )
+    computed = _sha256(
+        _without_derived_audit_fields(
+            {
+                key: value
+                for key, value in audit_adjudication.items()
+                if key != "audit_adjudication_sha256"
+            }
+        )
+    )
+    if stored != computed:
+        raise ValueError("audit_adjudication_sha256 does not match audit adjudication")
+    return stored
 
 
 def validate_full_video_audit(
@@ -831,11 +917,20 @@ def validate_full_video_audit(
     semantics_sha256 = _verify_semantics_identity(scene_semantics)
     if payload.get("scene_semantics_sha256") != semantics_sha256:
         raise ValueError("scene_semantics_sha256 does not match scene semantics")
-    frame_first_sha256, frame_first_ended_at = _verify_frame_first_freeze(
-        frame_first_freeze
-    )
+    (
+        frame_first_sha256,
+        frame_first_ended_at,
+        frame_first_reviewer,
+        frame_first_packet_sha256,
+    ) = _verify_frame_first_freeze(frame_first_freeze)
     if payload.get("frame_first_audit_sha256") != frame_first_sha256:
         raise ValueError("frame_first_audit_sha256 does not match frozen audit")
+    if frame_first_reviewer != expected_reviewer:
+        raise ValueError(
+            "frame-first freeze reviewer does not match full-video reviewer"
+        )
+    if frame_first_packet_sha256 != packet.get("packet_sha256"):
+        raise ValueError("frame-first freeze packet_sha256 does not match packet")
     if _timestamp(payload.get("started_at"), "started_at") <= _timestamp(
         frame_first_ended_at, "frame-first ended_at"
     ):
@@ -851,24 +946,117 @@ def validate_full_video_audit(
     return _finish_audit_hash(payload, normalized, "audit_sha256")
 
 
-def _raw_judgments(audit: Mapping[str, Any]) -> dict[str, Any]:
-    judgments: dict[str, Any] = {}
+_AGREEMENT_DIMENSIONS = (
+    "representability",
+    "interval_visibility",
+    "relationship_preservation",
+    "answer_sufficiency",
+)
+_AGREEMENT_COUNT_FIELDS = frozenset(
+    {"agreement_count", "disagreement_count", "comparison_count"}
+)
+
+
+def _raw_judgments(audit: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    judgments: dict[str, dict[str, Any]] = {
+        dimension: {} for dimension in _AGREEMENT_DIMENSIONS
+    }
     for row in audit["rows"]:
         row_id = row["opaque_row_id"]
-        judgments[f"{row_id}/still_representation"] = row["still_representation"]
-        judgments[f"{row_id}/representation_classes"] = row["representation_classes"]
+        judgments["representability"][row_id] = {
+            "still_representation": row["still_representation"],
+            "representation_classes": row["representation_classes"],
+        }
         for candidate in row["candidates"]:
             candidate_id = candidate["opaque_candidate_id"]
             prefix = f"{row_id}/{candidate_id}"
             for interval in candidate["intervals"]:
-                judgments[f"{prefix}/interval/{interval['opaque_interval_id']}"] = (
-                    interval["visibility"]
-                )
+                judgments["interval_visibility"][
+                    f"{prefix}/interval/{interval['opaque_interval_id']}"
+                ] = interval["visibility"]
             for index, relation in enumerate(candidate["relations"]):
-                judgments[f"{prefix}/relation/{index}"] = relation["preservation"]
-            judgments[f"{prefix}/answer_sufficiency"] = candidate["answer_sufficiency"]
-            judgments[f"{prefix}/repair_proposals"] = candidate["repair_proposals"]
+                judgments["relationship_preservation"][f"{prefix}/relation/{index}"] = (
+                    relation["preservation"]
+                )
+            judgments["answer_sufficiency"][prefix] = candidate["answer_sufficiency"]
     return judgments
+
+
+def _agreement_counts(
+    left: Mapping[str, Mapping[str, Any]],
+    right: Mapping[str, Mapping[str, Any]],
+    final: Mapping[str, Mapping[str, Any]],
+) -> dict[str, dict[str, int]]:
+    counts: dict[str, dict[str, int]] = {}
+    for dimension in _AGREEMENT_DIMENSIONS:
+        left_values = left[dimension]
+        right_values = right[dimension]
+        final_values = final[dimension]
+        if (
+            left_values.keys() != right_values.keys()
+            or left_values.keys() != final_values.keys()
+        ):
+            raise ValueError(
+                f"audit adjudication {dimension} judgments do not match inputs"
+            )
+        agreement_count = 0
+        for key, left_value in left_values.items():
+            if left_value == right_values[key]:
+                agreement_count += 1
+                if final_values[key] != left_value:
+                    raise ValueError(
+                        "audit adjudication may not override auditor agreement"
+                    )
+        comparison_count = len(left_values)
+        counts[dimension] = {
+            "agreement_count": agreement_count,
+            "disagreement_count": comparison_count - agreement_count,
+            "comparison_count": comparison_count,
+        }
+    return counts
+
+
+def _validate_raw_agreement_counts(
+    audit_adjudication: Mapping[str, Any],
+) -> dict[str, dict[str, int]]:
+    dimensions = audit_adjudication.get("raw_agreement_by_dimension")
+    if not isinstance(dimensions, Mapping) or set(dimensions) != set(
+        _AGREEMENT_DIMENSIONS
+    ):
+        raise ValueError("raw agreement must contain exactly four dimensions")
+    normalized: dict[str, dict[str, int]] = {}
+    for dimension in _AGREEMENT_DIMENSIONS:
+        counts = dimensions[dimension]
+        if not isinstance(counts, Mapping) or set(counts) != _AGREEMENT_COUNT_FIELDS:
+            raise ValueError(f"raw {dimension} counts are incomplete")
+        normalized_counts: dict[str, int] = {}
+        for field in _AGREEMENT_COUNT_FIELDS:
+            value = counts[field]
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"raw {dimension} {field} must be nonnegative")
+            normalized_counts[field] = value
+        if (
+            normalized_counts["agreement_count"]
+            + normalized_counts["disagreement_count"]
+            != normalized_counts["comparison_count"]
+        ):
+            raise ValueError(f"raw {dimension} counts do not sum to comparisons")
+        normalized[dimension] = normalized_counts
+    expected_totals = {
+        "raw_agreement_count": sum(
+            counts["agreement_count"] for counts in normalized.values()
+        ),
+        "raw_disagreement_count": sum(
+            counts["disagreement_count"] for counts in normalized.values()
+        ),
+        "raw_comparison_count": sum(
+            counts["comparison_count"] for counts in normalized.values()
+        ),
+    }
+    for field, expected in expected_totals.items():
+        if audit_adjudication.get(field) != expected:
+            raise ValueError(f"{field} does not match raw agreement dimensions")
+    return copy.deepcopy(normalized)
 
 
 def validate_audit_adjudication(
@@ -933,6 +1121,17 @@ def validate_audit_adjudication(
         )
     ):
         raise ValueError("input frozen audit hash does not match audit payload")
+    expected_upstreams = {
+        "packet_sha256": packet.get("packet_sha256"),
+        "adjudication_sha256": adjudication.get("annotation_sha256"),
+        "scene_semantics_sha256": scene_semantics.get("semantics_sha256"),
+    }
+    for side, audit in (("left", left), ("right", right)):
+        for field, expected in expected_upstreams.items():
+            if audit.get(field) != expected:
+                raise ValueError(
+                    f"{side} audit {field} does not match supplied artifact"
+                )
     if payload.get("packet_sha256") != packet.get("packet_sha256"):
         raise ValueError("packet_sha256 does not match frozen packet")
     if payload.get("adjudication_sha256") != adjudication.get("annotation_sha256"):
@@ -960,23 +1159,32 @@ def validate_audit_adjudication(
     left_judgments = _raw_judgments(left)
     right_judgments = _raw_judgments(right)
     final_judgments = _raw_judgments({"rows": normalized_rows})
-    if (
-        left_judgments.keys() != right_judgments.keys()
-        or left_judgments.keys() != final_judgments.keys()
-    ):
-        raise ValueError("audit adjudication judgments do not match input audits")
-    for key, left_value in left_judgments.items():
-        if left_value == right_judgments[key] and final_judgments[key] != left_value:
-            raise ValueError("audit adjudication may not override auditor agreement")
-    raw_agreement_count = sum(
-        left_judgments[key] == right_judgments[key] for key in left_judgments
+    dimension_counts = _agreement_counts(
+        left_judgments, right_judgments, final_judgments
     )
-    raw_comparison_count = len(left_judgments)
+    raw_agreement_count = sum(
+        counts["agreement_count"] for counts in dimension_counts.values()
+    )
+    raw_disagreement_count = sum(
+        counts["disagreement_count"] for counts in dimension_counts.values()
+    )
+    raw_comparison_count = sum(
+        counts["comparison_count"] for counts in dimension_counts.values()
+    )
     normalized = copy.deepcopy(dict(payload))
     normalized["rows"] = normalized_rows
+    normalized["raw_agreement_by_dimension"] = dimension_counts
     normalized["raw_agreement_count"] = raw_agreement_count
-    normalized["raw_disagreement_count"] = raw_comparison_count - raw_agreement_count
+    normalized["raw_disagreement_count"] = raw_disagreement_count
     normalized["raw_comparison_count"] = raw_comparison_count
+    for field in (
+        "raw_agreement_by_dimension",
+        "raw_agreement_count",
+        "raw_disagreement_count",
+        "raw_comparison_count",
+    ):
+        if field in payload and payload[field] != normalized[field]:
+            raise ValueError(f"{field} does not match independent auditor judgments")
     return _finish_audit_hash(payload, normalized, "audit_adjudication_sha256")
 
 
@@ -1166,6 +1374,32 @@ def _stage1_aggregates(
     )
 
 
+def _derive_selection_decision(
+    *, cohort_count: int, candidate_counts: Mapping[str, Mapping[str, int]]
+) -> tuple[str, str]:
+    hybrid_passes = candidate_counts["oracle-hybrid-12"]["final_pass"]
+    local_passes = candidate_counts["oracle-local-12"]["final_pass"]
+    if cohort_count < 8:
+        return (
+            "stop_before_inference",
+            "fewer_than_eight_still_frame_representable_rows",
+        )
+    if hybrid_passes == cohort_count:
+        return (
+            "select_oracle_hybrid_12",
+            "hybrid_passes_every_prospective_paired_row",
+        )
+    if local_passes == cohort_count:
+        return (
+            "select_oracle_local_12",
+            "local_passes_every_prospective_paired_row",
+        )
+    return (
+        "stop_before_inference",
+        "no_candidate_passes_every_prospective_paired_row",
+    )
+
+
 def build_stage2_selection_record(
     adjudication: dict[str, Any],
     scene_semantics: dict[str, Any],
@@ -1187,6 +1421,10 @@ def build_stage2_selection_record(
         )
     ):
         raise TypeError("selection inputs must be objects")
+    _verify_adjudication_identity(adjudication)
+    _verify_semantics_identity(scene_semantics)
+    _verify_audit_adjudication_identity(audit_adjudication)
+    raw_auditor_agreement = _validate_raw_agreement_counts(audit_adjudication)
     normalized_bindings = _verified_bindings(
         bindings,
         adjudication=adjudication,
@@ -1214,20 +1452,9 @@ def build_stage2_selection_record(
         _stage1_aggregates(adjudication, audit_adjudication, mapping)
     )
     cohort_count = still_counts["still_frame_representable"]
-    hybrid_passes = candidate_counts["oracle-hybrid-12"]["final_pass"]
-    local_passes = candidate_counts["oracle-local-12"]["final_pass"]
-    if cohort_count < 8:
-        decision = "stop_before_inference"
-        decision_reason = "fewer_than_eight_still_frame_representable_rows"
-    elif hybrid_passes == cohort_count:
-        decision = "select_oracle_hybrid_12"
-        decision_reason = "hybrid_passes_every_prospective_paired_row"
-    elif local_passes == cohort_count:
-        decision = "select_oracle_local_12"
-        decision_reason = "local_passes_every_prospective_paired_row"
-    else:
-        decision = "stop_before_inference"
-        decision_reason = "no_candidate_passes_every_prospective_paired_row"
+    decision, decision_reason = _derive_selection_decision(
+        cohort_count=cohort_count, candidate_counts=candidate_counts
+    )
 
     record = {
         "schema_version": SCHEMA_VERSION,
@@ -1238,6 +1465,7 @@ def build_stage2_selection_record(
         "candidate_counts": candidate_counts,
         "decision": decision,
         "decision_reason": decision_reason,
+        "raw_auditor_agreement": raw_auditor_agreement,
         "rows": private_rows,
         "candidate_condition_map": mapping,
         "candidate_condition_map_sha256": _sha256(mapping),
@@ -1291,6 +1519,9 @@ def build_stage1_scoreboard(
         for value in (adjudication, audit_adjudication, selection, bindings)
     ):
         raise TypeError("scoreboard inputs must be objects")
+    _verify_adjudication_identity(adjudication)
+    _verify_audit_adjudication_identity(audit_adjudication)
+    raw_auditor_agreement = _validate_raw_agreement_counts(audit_adjudication)
     _reject_private_bindings(bindings)
     normalized_bindings = _verified_bindings(
         bindings,
@@ -1321,7 +1552,26 @@ def build_stage1_scoreboard(
     )
     if candidate_counts != selection.get("candidate_counts"):
         raise ValueError("selection candidate counts do not match audit adjudication")
+    if selection.get("raw_auditor_agreement") != raw_auditor_agreement:
+        raise ValueError(
+            "selection raw_auditor_agreement does not match audit adjudication"
+        )
     labelable_count = eligibility_counts.get(ELIGIBILITY_LABELABLE_VISUAL, 0)
+    cohort_count = still_counts["still_frame_representable"]
+    decision, decision_reason = _derive_selection_decision(
+        cohort_count=cohort_count, candidate_counts=candidate_counts
+    )
+    expected_selection_fields = {
+        "total_row_count": 10,
+        "labelable_row_count": labelable_count,
+        "prospective_paired_cohort_count": cohort_count,
+        "minimum_prospective_paired_cohort_count": 8,
+        "decision": decision,
+        "decision_reason": decision_reason,
+    }
+    for field, expected in expected_selection_fields.items():
+        if selection.get(field) != expected:
+            raise ValueError(f"selection {field} does not match derived decision")
     scoreboard = {
         "schema_version": SCHEMA_VERSION,
         "valid": True,
@@ -1333,7 +1583,7 @@ def build_stage1_scoreboard(
             "selection_sha256": selection_sha256,
             "bindings_sha256": _sha256(normalized_bindings),
         },
-        "decision": selection.get("decision"),
+        "decision": decision,
         "denominators": {
             "all_rows": 10,
             "labelable_rows": labelable_count,
@@ -1342,6 +1592,7 @@ def build_stage1_scoreboard(
         "eligibility_counts": eligibility_counts,
         "still_representation_counts": still_counts,
         "candidate_counts": candidate_counts,
+        "raw_auditor_agreement": raw_auditor_agreement,
     }
     scoreboard["scoreboard_sha256"] = _sha256(scoreboard)
     return scoreboard
