@@ -1,5 +1,8 @@
 """Safety tests for immutable TimeLens2 canary and compatibility tasks."""
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 CANARY = Path("dstack/timelens2-runner-canary.dstack.yml")
@@ -172,3 +175,44 @@ def test_wrapper_runs_media_preflight_before_model_download() -> None:
         run_workload.index("download_model")
     )
     assert 'finalize_and_sync "$preflight_rc"' in run_workload
+
+
+def test_wrapper_accepts_only_authorized_a2_compatibility_identity(
+    tmp_path: Path,
+) -> None:
+    requests = tmp_path / "compatibility-requests.json"
+    requests.write_text("{}\n", encoding="utf-8")
+    python_bin = str(Path(sys.executable).resolve())
+
+    def validate(run_id: str) -> subprocess.CompletedProcess[str]:
+        env = {
+            **os.environ,
+            "PYTHON_BIN": python_bin,
+            "RUN_MODE": "compatibility",
+            "EXPERIMENT_RUN_ID": run_id,
+            "HF_REMOTE_URI": (
+                "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+                f"experiments/{run_id}"
+            ),
+            "RUNTIME_IMAGE": IMAGE,
+            "RUNTIME_IMAGE_DIGEST": IMAGE.split("@", 1)[1],
+            "MODEL_ID": "MCG-NJU/TimeLens2-2B",
+            "MODEL_REVISION": REVISION,
+            "MODEL_DIR": "/dstack/model",
+            "REQUESTS_PATH": str(requests),
+            "OUTPUT_DIR": "/dstack/output",
+        }
+        return subprocess.run(
+            ["bash", str(RUNNER), "validate"],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+
+    accepted = validate("timelens2-selector-pilot-20260730-a2")
+    rejected = validate("timelens2-selector-pilot-20260730-a3")
+
+    assert accepted.returncode == 0, accepted.stderr
+    assert rejected.returncode == 2
+    assert "unexpected compatibility run ID" in rejected.stderr

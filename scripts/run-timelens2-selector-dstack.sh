@@ -47,8 +47,10 @@ validate_environment() {
         || die "unexpected canary run ID"
       ;;
     compatibility)
-      [[ "$EXPERIMENT_RUN_ID" == "timelens2-selector-pilot-20260730-a1" ]] \
-        || die "unexpected compatibility run ID"
+      case "$EXPERIMENT_RUN_ID" in
+        timelens2-selector-pilot-20260730-a1|timelens2-selector-pilot-20260730-a2) ;;
+        *) die "unexpected compatibility run ID" ;;
+      esac
       [[ -f "$REQUESTS_PATH" ]] || die "label-free request manifest is missing"
       ;;
     *) die "RUN_MODE must be canary or compatibility" ;;
@@ -58,7 +60,6 @@ validate_environment() {
   [[ "$HF_REMOTE_URI" == "$expected_remote" ]] || die "remote URI mismatch"
   [[ "$MODEL_DIR" == /dstack/model ]] || die "model directory mismatch"
   [[ "$OUTPUT_DIR" == /dstack/output ]] || die "output directory mismatch"
-  mkdir -p "$MODEL_DIR" "$OUTPUT_DIR"
 }
 
 bootstrap_runtime() {
@@ -149,6 +150,7 @@ run_python_mode() {
 
 run_workload() {
   validate_environment
+  mkdir -p "$MODEL_DIR" "$OUTPUT_DIR"
   bootstrap_runtime
   hf_cli version
   hf_cli auth whoami
@@ -183,6 +185,7 @@ run_workload() {
 }
 
 case "${1:-}" in
+  validate) validate_environment ;;
   run) run_workload ;;
-  *) die "usage: $0 run" ;;
+  *) die "usage: $0 validate|run" ;;
 esac
