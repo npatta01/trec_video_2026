@@ -347,11 +347,12 @@ The expanded follow-up stopped at its predeclared compatibility gate. No
 private panel input was uploaded, no private pilot was submitted, and no
 reference answer or grade was loaded.
 
-The first declined preview failed locally before provider admission because
+The first preview failed locally before provider admission because
 the approved canary experiment identity is 44 characters while dstack 0.20.27
 requires scheduler resource names to match
 `^[a-z][a-z0-9-]{1,40}$`. Its retained output SHA-256 is
 `0a632f9705b86780cab49082198bf1c2f551222b498f70da957d87591eefdf9a`.
+That failed preview used code/config revision `5d08ee9`.
 The single corrective configuration kept the full immutable experiment and
 artifact identity
 `nemotron3-omni-expanded12-canary-20260730-c1`, while using the 39-character
@@ -369,6 +370,8 @@ bounded in-run 20-minute no-capacity traversal terminated with
 `retry_limit_exceeded` and
 `failed_to_start_due_to_no_capacity`. The workload, exact-image interpreter,
 model server, and native audio-video seam therefore never started.
+The corrective preview and submitted task used code/config revision
+`1dec3e2`; terminal scheduler status was `failed`.
 
 The compatibility denominator is **0/3**. The private expanded-pilot
 denominator is **0/24 (not submitted)**. Both the sound-replication and broader
@@ -389,7 +392,7 @@ allocation, and no central reserve was used.
 - Exact pinned image:
   `docker.io/vllm/vllm-openai:v0.20.0@sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc`
 
-The six-file private audit bundle preserves both declined preview outputs, the
+The six-file private audit bundle preserves both preview outputs, the
 sanitized exact-offer observation, the experiment-to-scheduler identity map,
 and terminal status/cost metadata. It was recursively listed, downloaded to a
 fresh directory, and verified against its remote `SHA256SUMS`. It contains no
@@ -437,7 +440,10 @@ raw log.
 - **Shared-report integration:** the primary theme remains models, with native
   audio as a related theme. This isolated branch does not edit the shared
   project-status QMD or generated outputs; the parent integration task owns
-  that update.
+  that update. The canonical claim page and anchor are not yet assigned.
+- **Supersedes / superseded by:** expanded c1 neither supersedes nor is
+  superseded by another claim at the time of this record. It leaves the
+  completed b1 result current for its narrower codec-normalized condition.
 
 ## Codec-normalized b1 observed result
 
