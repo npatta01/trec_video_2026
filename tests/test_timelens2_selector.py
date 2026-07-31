@@ -515,3 +515,23 @@ def test_compatibility_runtime_uses_failure_persisting_wrapper(
     assert returncode == 17
     assert captured["output_dir"] == tmp_path / "output"
     assert callable(captured["workload"])
+
+
+def test_processor_loader_enables_mistral_regex_fix(tmp_path: Path) -> None:
+    marker = object()
+
+    class ProcessorFactory:
+        call: tuple[Path, dict[str, object]] | None = None
+
+        @classmethod
+        def from_pretrained(cls, model_dir: Path, **kwargs: object) -> object:
+            cls.call = (model_dir, kwargs)
+            return marker
+
+    processor = timelens2_selector._load_processor(ProcessorFactory, tmp_path)
+
+    assert processor is marker
+    assert ProcessorFactory.call == (
+        tmp_path,
+        {"local_files_only": True, "fix_mistral_regex": True},
+    )

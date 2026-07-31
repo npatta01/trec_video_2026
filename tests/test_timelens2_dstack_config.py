@@ -14,7 +14,8 @@ PILOT = Path("dstack/timelens2-selector-pilot.dstack.yml")
 RUNNER = Path("scripts/run-timelens2-selector-dstack.sh")
 
 FLEET_GPU_POOL = "A40,A6000,L40,L40S,RTX6000Ada,A100,H100,H200:1:24GB.."
-TASK_GPU_POOL = "A40,A6000,L40,L40S,RTX6000Ada,A100,H100,H200:1:48GB.."
+TASK_GPU_POOL = "A40,A6000,L40,L40S,RTX6000Ada,A100,H100,H200:1:24GB.."
+DEDICATED_GPU_POOL = "A40,A6000,L40,L40S,RTX6000Ada,A100,H100,H200:1:48GB.."
 A6000_GPU = "A6000:1:48GB.."
 TIMELENS_A3_FLEET = "timelens2-48gb-20260731-a3"
 TIMELENS_A4_FLEET = "timelens2-a6000-20260731-a4"
@@ -48,7 +49,7 @@ def test_dedicated_fleet_has_price_capped_up_and_scale_down_configs() -> None:
         assert "backends: [runpod, vastai]" in text
         assert "spot_policy: on-demand" in text
         assert "max_price: 0.55" in text
-        assert f"gpu: {TASK_GPU_POOL}" in text
+        assert f"gpu: {DEDICATED_GPU_POOL}" in text
         assert "disk: 100GB.." in text
     assert "nodes: 1..1" in up
     assert "nodes: 0..1" in down
@@ -80,7 +81,7 @@ def test_a5_fleet_has_one_dollar_cap_and_scale_down_config() -> None:
         assert "backends: [runpod, vastai]" in text
         assert "spot_policy: on-demand" in text
         assert "max_price: 1.00" in text
-        assert f"gpu: {TASK_GPU_POOL}" in text
+        assert f"gpu: {DEDICATED_GPU_POOL}" in text
         assert "disk: 100GB.." in text
     assert "nodes: 1..1" in up
     assert "nodes: 0..1" in down
@@ -89,12 +90,12 @@ def test_a5_fleet_has_one_dollar_cap_and_scale_down_config() -> None:
 def test_canary_is_exact_image_cuda_only_and_has_no_private_media() -> None:
     text = CANARY.read_text()
 
-    assert "name: timelens2-runner-canary-20260731-a5" in text
+    assert "name: timelens2-runner-canary-20260730-a1" in text
     assert f"image: {IMAGE}" in text
     assert f"MODEL_REVISION={REVISION}" in text
     assert "RUN_MODE=canary" in text
     assert f"gpu: {TASK_GPU_POOL}" in text
-    assert "fleets:" not in text
+    assert "fleets: [gpu-marketplace]" in text
     assert "name: [" not in text
     assert "amd" not in text.lower()
     assert "rocm" not in text.lower()
@@ -105,13 +106,15 @@ def test_canary_is_exact_image_cuda_only_and_has_no_private_media() -> None:
     assert "max_duration: 15m" in text
     assert "backends: [runpod, vastai]" in text
     assert "on_events: [no-capacity]" in text
+    assert "memory: 48GB.." in text
+    assert "disk: 100GB" in text
 
 
 def test_compatibility_task_uploads_only_three_videos_and_label_free_requests() -> None:
     text = PILOT.read_text()
     files = text.split("files:\n", 1)[1].split("\ncommands:", 1)[0]
 
-    assert "name: timelens2-selector-pilot-20260731-a5" in text
+    assert "name: timelens2-selector-pilot-20260730-a1" in text
     assert f"image: {IMAGE}" in text
     assert f"MODEL_REVISION={REVISION}" in text
     assert "RUN_MODE=compatibility" in text
@@ -124,9 +127,15 @@ def test_compatibility_task_uploads_only_three_videos_and_label_free_requests() 
     assert "max_price: 1.00" in text
     assert "max_duration: 1h" in text
     assert f"gpu: {TASK_GPU_POOL}" in text
-    assert "fleets:" not in text
+    assert "fleets: [gpu-marketplace]" in text
     assert "backends: [runpod, vastai]" in text
     assert "name: [" not in text
+    assert "memory: 48GB.." in text
+    assert "disk: 100GB" in text
+    assert (
+        ".timelens2-private/timelens2-selector-pilot-20260730-a1/"
+        "compatibility-requests.json"
+    ) in text
 
 
 def test_wrapper_pins_runtime_and_preserves_failure_and_artifact_contracts() -> None:
@@ -141,8 +150,8 @@ def test_wrapper_pins_runtime_and_preserves_failure_and_artifact_contracts() -> 
     assert "SHA256SUMS" in text
     assert "--delete" not in text
     assert "diagnose" not in text
-    assert "timelens2-runner-canary-20260731-a5" in text
-    assert "timelens2-selector-pilot-20260731-a5" in text
+    assert "timelens2-runner-canary-20260730-a1" in text
+    assert "timelens2-selector-pilot-20260730-a1" in text
     assert "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/" in text
     assert (
         'exec "$PYTHON_BIN" -m trec_video_2026.vqa_experiments.timelens2_selector'

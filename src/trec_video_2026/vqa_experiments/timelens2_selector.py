@@ -698,6 +698,14 @@ def run_with_compatibility_evidence(
     return 0 if gate_passed else 1
 
 
+def _load_processor(auto_processor: Any, model_dir: Path) -> Any:
+    return auto_processor.from_pretrained(
+        model_dir,
+        local_files_only=True,
+        fix_mistral_regex=True,
+    )
+
+
 def _run_canary(*, model_dir: Path, output_dir: Path) -> int:
     import torch
     import transformers
@@ -710,7 +718,7 @@ def _run_canary(*, model_dir: Path, output_dir: Path) -> int:
     if not torch.cuda.is_bf16_supported():
         raise RuntimeError("GPU lacks bfloat16 support")
     config = AutoConfig.from_pretrained(model_dir, local_files_only=True)
-    processor = AutoProcessor.from_pretrained(model_dir, local_files_only=True)
+    processor = _load_processor(AutoProcessor, model_dir)
     smoke = parse_raw_interval_result(
         request_id="canary",
         video_id="synthetic-no-media",
@@ -876,7 +884,7 @@ def _run_compatibility(
             attn_implementation="sdpa",
             local_files_only=True,
         )
-        processor = AutoProcessor.from_pretrained(model_dir, local_files_only=True)
+        processor = _load_processor(AutoProcessor, model_dir)
 
         for request in requests:
             request_id = str(request["request_id"])
