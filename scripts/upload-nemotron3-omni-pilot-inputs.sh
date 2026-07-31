@@ -3,13 +3,16 @@ set -euo pipefail
 
 readonly EXPECTED_DATA_TARGET="/home/npatta01/data/competitions/trec_video_2026/data"
 readonly EXPECTED_RUN_ID_A1="nemotron3-omni-pilot-20260730-a1"
+readonly EXPECTED_RUN_ID_B1="nemotron3-omni-pilot-20260730-b1"
 readonly PYTHON_BIN="/usr/bin/python3"
 readonly UV_VERSION="0.11.3"
 readonly HF_CLI_VERSION="1.24.0"
 
 RUN_ID="${1:-$EXPECTED_RUN_ID_A1}"
-[[ "$RUN_ID" == "$EXPECTED_RUN_ID_A1" ]] \
-  || { echo "error: unexpected immutable run ID" >&2; exit 2; }
+case "$RUN_ID" in
+  "$EXPECTED_RUN_ID_A1"|"$EXPECTED_RUN_ID_B1") ;;
+  *) echo "error: unexpected immutable run ID" >&2; exit 2 ;;
+esac
 [[ -z "${HF_TOKEN:-}" ]] \
   || { echo "error: HF_TOKEN must remain unset outside dstack secrets" >&2; exit 2; }
 

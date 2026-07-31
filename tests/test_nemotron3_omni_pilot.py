@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from trec_video_2026.vqa_experiments import nemotron3_omni_pilot
 from trec_video_2026.vqa_experiments.nemotron3_omni_pilot import (
     MODEL_ID,
     TARGET_ROWS,
@@ -74,6 +75,201 @@ def test_contract_selects_exact_rows_and_removes_every_label(tmp_path: Path) -> 
         assert forbidden not in encoded
     assert all(len(row["media_sha256"]) == 64 for row in contract["examples"])
     assert all(row["media_path"].endswith(".mkv") for row in contract["examples"])
+
+
+def test_normalized_contract_preserves_frozen_rows_and_records_both_media_hashes(
+    tmp_path: Path,
+) -> None:
+    """Catches row drift, question drift, or unverified source/derived media."""
+    panel_path, data_root = _write_panel_and_media(tmp_path)
+    source_contract = build_label_free_contract(
+        panel_path=panel_path, data_root=data_root
+    )
+    normalized_root = tmp_path / "normalized"
+    normalized_root.mkdir()
+    for index, (video_id, _category, _role) in enumerate(TARGET_ROWS):
+        (normalized_root / f"{video_id}.mp4").write_bytes(
+            f"normalized-{index}".encode()
+        )
+
+    contract = nemotron3_omni_pilot.build_normalized_contract(
+        source_contract=source_contract,
+        source_media_root=data_root,
+        normalized_media_root=normalized_root,
+        mode="pilot",
+    )
+
+    assert contract["mode"] == "pilot"
+    assert contract["conditions"] == [
+        {"condition_id": "audio-off", "audio_enabled": False},
+        {"condition_id": "audio-on", "audio_enabled": True},
+    ]
+    assert [
+        (row["video_id"], row["category"], row["role"], row["question"])
+        for row in contract["examples"]
+    ] == [
+        (
+            "IRTTtnSRTyY",
+            "Non-speech sound and music",
+            "target",
+            "Question 0?",
+        ),
+        (
+            "IWSPAfCKtV8",
+            "Non-speech sound and music",
+            "target",
+            "Question 1?",
+        ),
+        (
+            "MdMKHhFFqJQ",
+            "Non-speech sound and music",
+            "target",
+            "Question 2?",
+        ),
+        (
+            "OzNdzgQi1CA",
+            "Non-speech sound and music",
+            "target",
+            "Question 3?",
+        ),
+        ("EMI_anpHII4", "Visual controls", "control", "Question 4?"),
+        ("LusRurRrmf0", "Visual controls", "control", "Question 5?"),
+    ]
+    for source, derived in zip(
+        source_contract["examples"], contract["examples"], strict=True
+    ):
+        assert derived["source_media_path"] == source["media_path"]
+        assert derived["source_media_sha256"] == source["media_sha256"]
+        assert derived["media_path"] == f"{source['video_id']}.mp4"
+        assert len(derived["derived_media_sha256"]) == 64
+        assert "media_sha256" not in derived
+
+    (normalized_root / "EMI_anpHII4.mp4").unlink()
+    with pytest.raises(ValueError, match="normalized media is missing: EMI_anpHII4"):
+        nemotron3_omni_pilot.build_normalized_contract(
+            source_contract=source_contract,
+            source_media_root=data_root,
+            normalized_media_root=normalized_root,
+            mode="pilot",
+        )
+
+
+def test_codec_sentinel_runs_exact_three_audio_on_native_video_requests(
+    tmp_path: Path,
+) -> None:
+    """Catches a sentinel that skips an AV1 row or bypasses the native runner."""
+    panel_path, data_root = _write_panel_and_media(tmp_path)
+    source_contract = build_label_free_contract(
+        panel_path=panel_path, data_root=data_root
+    )
+    normalized_root = tmp_path / "normalized"
+    normalized_root.mkdir()
+    for index, (video_id, _category, _role) in enumerate(TARGET_ROWS):
+        (normalized_root / f"{video_id}.mp4").write_bytes(
+            f"normalized-{index}".encode()
+        )
+    contract = nemotron3_omni_pilot.build_normalized_contract(
+        source_contract=source_contract,
+        source_media_root=data_root,
+        normalized_media_root=normalized_root,
+        mode="codec-sentinel",
+    )
+    calls: list[dict[str, object]] = []
+
+    def request(payload: dict[str, object]) -> dict[str, object]:
+        calls.append(payload)
+        return {
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {"content": "A short answer."},
+                }
+            ]
+        }
+
+    summary = run_probe(
+        contract=contract,
+        media_root=normalized_root,
+        output_dir=tmp_path / "output",
+        run_id="nemotron3-omni-codec-sentinel-20260730-b1",
+        request=request,
+    )
+
+    assert [row["video_id"] for row in contract["examples"]] == [
+        "IWSPAfCKtV8",
+        "OzNdzgQi1CA",
+        "EMI_anpHII4",
+    ]
+    assert contract["conditions"] == [
+        {"condition_id": "audio-on", "audio_enabled": True}
+    ]
+    assert summary["mode"] == "codec-sentinel"
+    assert summary["completion"] == {"completed": 3, "expected": 3}
+    assert len(calls) == 3
+    assert all(
+        call["mm_processor_kwargs"] == {"use_audio_in_video": True} for call in calls
+    )
+    assert all(
+        call["chat_template_kwargs"] == {"enable_thinking": False} for call in calls
+    )
+
+
+def test_normalized_contract_cli_writes_a_runnable_twelve_request_pilot(
+    tmp_path: Path,
+) -> None:
+    """Catches a CLI that emits an incomplete or non-runnable pilot contract."""
+    panel_path, data_root = _write_panel_and_media(tmp_path)
+    source_contract = build_label_free_contract(
+        panel_path=panel_path, data_root=data_root
+    )
+    source_contract_path = tmp_path / "source-contract.json"
+    source_contract_path.write_text(json.dumps(source_contract), encoding="utf-8")
+    normalized_root = tmp_path / "normalized"
+    normalized_root.mkdir()
+    for index, (video_id, _category, _role) in enumerate(TARGET_ROWS):
+        (normalized_root / f"{video_id}.mp4").write_bytes(
+            f"normalized-{index}".encode()
+        )
+    output_path = tmp_path / "normalized-contract.json"
+
+    exit_code = nemotron3_omni_pilot.main(
+        [
+            "build-normalized-contract",
+            "--source-contract",
+            str(source_contract_path),
+            "--source-media-root",
+            str(data_root),
+            "--normalized-media-root",
+            str(normalized_root),
+            "--mode",
+            "pilot",
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    assert exit_code == 0
+    contract = json.loads(output_path.read_text(encoding="utf-8"))
+    calls = 0
+
+    def request(_payload: dict[str, object]) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        return {
+            "choices": [
+                {"finish_reason": "stop", "message": {"content": "Short answer."}}
+            ]
+        }
+
+    summary = run_probe(
+        contract=contract,
+        media_root=normalized_root,
+        output_dir=tmp_path / "output",
+        run_id="nemotron3-omni-pilot-20260730-b1",
+        request=request,
+    )
+    assert summary["completion"] == {"completed": 12, "expected": 12}
+    assert calls == 12
 
 
 @pytest.mark.parametrize("audio_enabled", [False, True])

@@ -19,10 +19,14 @@ CANARY_ID = "nemotron3-omni-runner-canary-20260730-a1"
 CANARY_A2_ID = "nemotron3-omni-runner-canary-20260730-a2"
 PILOT_ID = "nemotron3-omni-pilot-20260730-a1"
 RETIRED_PILOT_A2_ID = "nemotron3-omni-pilot-20260730-a2"
+CODEC_SENTINEL_B1_ID = "nemotron3-omni-codec-sentinel-20260730-b1"
+PILOT_B1_ID = "nemotron3-omni-pilot-20260730-b1"
 REMOTE_ROOT = "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments"
 CANARY_CONFIG = Path("dstack/nemotron3-omni-runner-canary-a2.dstack.yml")
 FAILED_CANARY_CONFIG = Path("dstack/nemotron3-omni-runner-canary.dstack.yml")
 PILOT_CONFIG = Path("dstack/nemotron3-omni-pilot.dstack.yml")
+CODEC_SENTINEL_B1_CONFIG = Path("dstack/nemotron3-omni-codec-sentinel-b1.dstack.yml")
+PILOT_B1_CONFIG = Path("dstack/nemotron3-omni-pilot-b1.dstack.yml")
 FLEET_ID = "gpu-marketplace"
 RUNNER = Path("scripts/run-nemotron3-omni-dstack.sh")
 UPLOADER = Path("scripts/upload-nemotron3-omni-pilot-inputs.sh")
@@ -63,6 +67,37 @@ def test_configs_pin_identity_use_cuda_and_fit_the_full_retry_budget() -> None:
     assert f"name: {CANARY_ID}" in _text(FAILED_CANARY_CONFIG)
 
 
+def test_b1_configs_are_sentinel_first_exact_image_cuda_tasks_with_hard_caps() -> None:
+    """Catches identity drift, wrong input prefix, or an over-budget b1 retry."""
+    configs = {
+        CODEC_SENTINEL_B1_ID: (_text(CODEC_SENTINEL_B1_CONFIG), "30m"),
+        PILOT_B1_ID: (_text(PILOT_B1_CONFIG), "45m"),
+    }
+    worst_case = 0.0
+    for run_id, (config, duration) in configs.items():
+        assert "type: task" in config
+        assert f"name: {run_id}" in config
+        assert f"image: {RUNTIME_IMAGE}" in config
+        assert f"EXPERIMENT_RUN_ID={run_id}" in config
+        assert f"HF_REMOTE_URI={REMOTE_ROOT}/{run_id}" in config
+        assert f"HF_INPUT_URI={REMOTE_ROOT}/{PILOT_B1_ID}" in config
+        assert f"MODEL_ID={MODEL_ID}" in config
+        assert f"MODEL_REVISION={MODEL_REVISION}" in config
+        assert "gpu: L40S:1:48GB.." in config
+        assert f"fleets: [{FLEET_ID}]" in config
+        assert "backends: [runpod, vastai]" in config
+        assert "spot_policy: on-demand" in config
+        assert "max_price: 2.00" in config
+        assert f"max_duration: {duration}" in config
+        assert "ports:" not in config
+        assert "../data/" not in config
+        assert "rocm" not in config.lower()
+        worst_case += 2.0 * (0.5 if duration == "30m" else 0.75)
+    assert worst_case == 2.5
+    assert "EXPERIMENT_MODE=codec-sentinel" in configs[CODEC_SENTINEL_B1_ID][0]
+    assert "EXPERIMENT_MODE=pilot" in configs[PILOT_B1_ID][0]
+
+
 def test_runner_uses_real_foreground_wrapper_and_native_server_seam() -> None:
     """Catches a synthetic smoke test, hidden retry loop, or secret-unsafe debug path."""
     runner = _text(RUNNER)
@@ -99,6 +134,28 @@ def test_runner_uses_real_foreground_wrapper_and_native_server_seam() -> None:
     assert "failure_stage" in runner
 
 
+def test_b1_runner_normalizes_all_six_rows_and_validates_both_streams() -> None:
+    """Catches treatment-only transcoding or normalization without decode checks."""
+    runner = _text(RUNNER)
+    assert "normalize_pilot_inputs" in runner
+    assert "-c:v libx264" in runner
+    assert "-pix_fmt yuv420p" in runner
+    assert "-c:a aac" in runner
+    assert "-map_metadata -1" in runner
+    assert "-threads 1" in runner
+    assert 'video_codecs != ["h264"]' in runner
+    assert 'audio_codecs != ["aac"]' in runner
+    assert "ffmpeg" in runner
+    assert "-map 0:v:0" in runner
+    assert "-map 0:a:0" in runner
+    assert "build-normalized-contract" in runner
+    assert runner.index("validate-inputs") < runner.index("normalize_pilot_inputs")
+    assert runner.index("normalize_pilot_inputs") < runner.index("start_server")
+    for video_id, _, _ in TARGET_ROWS:
+        assert video_id in runner
+    assert 'output="$normalized_root/$id.mp4"' in runner
+
+
 def test_private_uploader_selects_only_six_original_media_files_without_token_env() -> (
     None
 ):
@@ -114,6 +171,8 @@ def test_private_uploader_selects_only_six_original_media_files_without_token_en
     for video_id, _, _ in TARGET_ROWS:
         assert video_id in uploader
     assert uploader.count(".mkv:") == 6
+    assert PILOT_B1_ID in uploader
+    assert CODEC_SENTINEL_B1_ID not in uploader
 
 
 def test_collector_downloads_only_outputs_and_checksum_verifies_before_publish() -> (
@@ -129,6 +188,25 @@ def test_collector_downloads_only_outputs_and_checksum_verifies_before_publish()
     assert "refusing to overwrite" in collector
     assert "--diagnose" not in collector
     assert "--delete" not in collector
+
+
+def test_b1_collector_durably_verifies_exact_preview_and_sanitized_run_metadata() -> (
+    None
+):
+    """Catches a local-only audit trail or unchecked immutable audit upload."""
+    collector = _text(COLLECTOR)
+    assert CODEC_SENTINEL_B1_ID in collector
+    assert PILOT_B1_ID in collector
+    assert "preview output is required for b1" in collector
+    assert 'cp -- "$PREVIEW_PATH" "$TEMP_AUDIT_DIR/preview.txt"' in collector
+    assert "dstack run get" in collector
+    assert "dstack_metadata" in collector
+    assert '"${REMOTE_URI}/audit"' in collector
+    assert "immutable audit prefix already exists" in collector
+    assert 'hf_cli buckets sync "$TEMP_AUDIT_DIR" "${REMOTE_URI}/audit"' in collector
+    assert 'hf_cli buckets list "${REMOTE_URI}/audit" --format json' in collector
+    assert 'hf_cli buckets sync "${REMOTE_URI}/audit" "$VERIFY_AUDIT_DIR"' in collector
+    assert collector.count("sha256sum -c SHA256SUMS") >= 3
 
 
 def test_model_shell_scripts_parse() -> None:
@@ -178,3 +256,14 @@ def test_consumed_retry_boundary_rejects_pilot_a2_before_external_work() -> None
             result.stdout,
             result.stderr,
         )
+
+
+def test_b1_scripts_allow_only_the_two_new_identities_before_external_work() -> None:
+    """Catches accidental b2/generalized retry paths while allowing b1 collection."""
+    runner = _text(RUNNER)
+    uploader = _text(UPLOADER)
+    collector = _text(COLLECTOR)
+    assert f"codec-sentinel:{CODEC_SENTINEL_B1_ID}" in runner
+    assert f"pilot:{PILOT_B1_ID}" in runner
+    assert "20260730-b2" not in runner + uploader + collector
+    assert RETIRED_PILOT_A2_ID not in runner + uploader + collector

@@ -14,6 +14,7 @@ readonly INPUT_DIR="/dstack/input"
 MODE="${1:-}"
 EXPERIMENT_RUN_ID="${EXPERIMENT_RUN_ID:-}"
 HF_REMOTE_URI="${HF_REMOTE_URI:-}"
+HF_INPUT_URI="${HF_INPUT_URI:-$HF_REMOTE_URI}"
 RUNTIME_IMAGE="${RUNTIME_IMAGE:-}"
 RUNTIME_IMAGE_DIGEST="${RUNTIME_IMAGE_DIGEST:-}"
 MODEL_ID="${MODEL_ID:-}"
@@ -24,6 +25,8 @@ unset HF_TOKEN
 failure_stage="initializing"
 output_prefix_verified="false"
 finalized="false"
+ACTIVE_CONTRACT="$INPUT_DIR/contract.json"
+ACTIVE_MEDIA_ROOT="$INPUT_DIR"
 
 die() {
   echo "error: $*" >&2
@@ -34,10 +37,21 @@ validate_identity() {
   case "$MODE:$EXPERIMENT_RUN_ID" in
     canary:nemotron3-omni-runner-canary-20260730-a1|canary:nemotron3-omni-runner-canary-20260730-a2) ;;
     pilot:nemotron3-omni-pilot-20260730-a1) ;;
+    codec-sentinel:nemotron3-omni-codec-sentinel-20260730-b1) ;;
+    pilot:nemotron3-omni-pilot-20260730-b1) ;;
     *) die "unexpected immutable mode/run identity" ;;
   esac
   [[ "$HF_REMOTE_URI" == "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/$EXPERIMENT_RUN_ID" ]] \
     || die "unexpected remote URI"
+  case "$EXPERIMENT_RUN_ID" in
+    nemotron3-omni-codec-sentinel-20260730-b1|nemotron3-omni-pilot-20260730-b1)
+      [[ "$HF_INPUT_URI" == "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-pilot-20260730-b1" ]] \
+        || die "unexpected input URI"
+      ;;
+    *)
+      [[ "$HF_INPUT_URI" == "$HF_REMOTE_URI" ]] || die "unexpected input URI"
+      ;;
+  esac
   [[ "$RUNTIME_IMAGE" == "$EXPECTED_RUNTIME_IMAGE" ]] || die "runtime image mismatch"
   [[ "$RUNTIME_IMAGE_DIGEST" == "$EXPECTED_RUNTIME_IMAGE_DIGEST" ]] \
     || die "runtime image digest mismatch"
@@ -127,11 +141,11 @@ download_pilot_inputs() {
   local ids=(IRTTtnSRTyY IWSPAfCKtV8 MdMKHhFFqJQ OzNdzgQi1CA EMI_anpHII4 LusRurRrmf0)
   local id destination
   mkdir -p "$INPUT_DIR/vqa/2025/training/videos_original"
-  hf_cli buckets cp "$HF_REMOTE_URI/inputs/contract.json" "$INPUT_DIR/contract.json"
-  hf_cli buckets cp "$HF_REMOTE_URI/inputs/INPUTS_COMPLETE.json" "$INPUT_DIR/INPUTS_COMPLETE.json"
+  hf_cli buckets cp "$HF_INPUT_URI/inputs/contract.json" "$INPUT_DIR/contract.json"
+  hf_cli buckets cp "$HF_INPUT_URI/inputs/INPUTS_COMPLETE.json" "$INPUT_DIR/INPUTS_COMPLETE.json"
   for id in "${ids[@]}"; do
     destination="$INPUT_DIR/vqa/2025/training/videos_original/$id.mkv"
-    hf_cli buckets cp "$HF_REMOTE_URI/inputs/media/$id.mkv" "$destination"
+    hf_cli buckets cp "$HF_INPUT_URI/inputs/media/$id.mkv" "$destination"
   done
 }
 
@@ -154,6 +168,81 @@ preflight_inputs() {
   fi
   "$PYTHON_BIN" -m trec_video_2026.vqa_experiments.nemotron3_omni_pilot \
     "${args[@]}"
+}
+
+normalize_pilot_inputs() {
+  command -v ffmpeg >/dev/null || die "ffmpeg is required for normalization"
+  command -v ffprobe >/dev/null || die "ffprobe is required for normalization"
+  local source_root="$INPUT_DIR/vqa/2025/training/videos_original"
+  local normalized_root="$INPUT_DIR/normalized"
+  local ids=(IRTTtnSRTyY IWSPAfCKtV8 MdMKHhFFqJQ OzNdzgQi1CA EMI_anpHII4 LusRurRrmf0)
+  local id source output
+  mkdir -p "$normalized_root"
+  for id in "${ids[@]}"; do
+    source="$source_root/$id.mkv"
+    output="$normalized_root/$id.mp4"
+    ffmpeg -nostdin -hide_banner -loglevel error -xerror -n \
+      -i "$source" \
+      -map 0:v:0 -map 0:a:0 -map_metadata -1 -map_chapters -1 \
+      -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -threads 1 \
+      -c:a aac -b:a 192k -ar 48000 -ac 2 \
+      -movflags +faststart -shortest "$output"
+    "$PYTHON_BIN" - "$source" "$output" <<'PY'
+import json
+import subprocess
+import sys
+
+def probe(path):
+    result = subprocess.run(
+        [
+            "ffprobe", "-v", "error", "-show_entries",
+            "stream=codec_type,codec_name:format=duration", "-of", "json", path
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(result.stdout)
+
+source = probe(sys.argv[1])
+derived = probe(sys.argv[2])
+video_codecs = sorted(
+    stream["codec_name"] for stream in derived["streams"]
+    if stream["codec_type"] == "video"
+)
+audio_codecs = sorted(
+    stream["codec_name"] for stream in derived["streams"]
+    if stream["codec_type"] == "audio"
+)
+if video_codecs != ["h264"]:
+    raise RuntimeError(f"normalized video codec mismatch: {video_codecs}")
+if audio_codecs != ["aac"]:
+    raise RuntimeError(f"normalized audio codec mismatch: {audio_codecs}")
+source_duration = float(source["format"]["duration"])
+derived_duration = float(derived["format"]["duration"])
+if abs(source_duration - derived_duration) > 0.5:
+    raise RuntimeError(
+        f"normalized duration drift: source={source_duration}, derived={derived_duration}"
+    )
+PY
+    ffmpeg -nostdin -hide_banner -loglevel error -xerror \
+      -i "$output" -map 0:v:0 -f null -
+    ffmpeg -nostdin -hide_banner -loglevel error -xerror \
+      -i "$output" -map 0:a:0 -f null -
+  done
+  "$PYTHON_BIN" -m trec_video_2026.vqa_experiments.nemotron3_omni_pilot \
+    build-normalized-contract \
+    --source-contract "$INPUT_DIR/contract.json" \
+    --source-media-root "$INPUT_DIR" \
+    --normalized-media-root "$normalized_root" \
+    --mode "$MODE" \
+    --output "$INPUT_DIR/normalized-contract.json"
+  "$PYTHON_BIN" -m trec_video_2026.vqa_experiments.nemotron3_omni_pilot \
+    validate-inputs \
+    --contract "$INPUT_DIR/normalized-contract.json" \
+    --media-root "$normalized_root"
+  ACTIVE_CONTRACT="$INPUT_DIR/normalized-contract.json"
+  ACTIVE_MEDIA_ROOT="$normalized_root"
 }
 
 start_server() {
@@ -206,13 +295,13 @@ PY
 }
 
 run_foreground_wrapper() {
-  local media_root="$INPUT_DIR"
+  local media_root="$ACTIVE_MEDIA_ROOT"
   if [[ "$MODE" == "canary" ]]; then
     media_root="$INPUT_DIR/media"
   fi
   set +e
   "$PYTHON_BIN" -m trec_video_2026.vqa_experiments.nemotron3_omni_pilot run \
-    --contract "$INPUT_DIR/contract.json" \
+    --contract "$ACTIVE_CONTRACT" \
     --media-root "$media_root" \
     --output-dir "$OUTPUT_DIR" \
     --run-id "$EXPERIMENT_RUN_ID"
@@ -299,6 +388,12 @@ main() {
     download_pilot_inputs
   fi
   preflight_inputs
+  case "$EXPERIMENT_RUN_ID" in
+    nemotron3-omni-codec-sentinel-20260730-b1|nemotron3-omni-pilot-20260730-b1)
+      failure_stage="media-normalization"
+      normalize_pilot_inputs
+      ;;
+  esac
   failure_stage="server-startup"
   start_server
   wait_for_server

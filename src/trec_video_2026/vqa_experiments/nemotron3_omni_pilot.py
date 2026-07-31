@@ -33,6 +33,11 @@ CONDITIONS = (
     {"condition_id": "audio-off", "audio_enabled": False},
     {"condition_id": "audio-on", "audio_enabled": True},
 )
+CODEC_SENTINEL_VIDEO_IDS = (
+    "IWSPAfCKtV8",
+    "OzNdzgQi1CA",
+    "EMI_anpHII4",
+)
 FORBIDDEN_LABEL_KEYS = frozenset(
     {"annotation", "correct_answer", "distractor", "distractors", "reference"}
 )
@@ -148,6 +153,84 @@ def build_canary_contract(media_paths: list[Path]) -> dict[str, Any]:
     }
 
 
+def build_normalized_contract(
+    *,
+    source_contract: dict[str, Any],
+    source_media_root: Path,
+    normalized_media_root: Path,
+    mode: str,
+) -> dict[str, Any]:
+    """Bind a frozen pilot contract to verified H.264/AAC-derived MP4 bytes."""
+    if mode not in {"pilot", "codec-sentinel"}:
+        raise ValueError("normalized contract mode must be pilot or codec-sentinel")
+    source_mode, source_examples, _conditions = _validate_run_contract(source_contract)
+    if source_mode != "pilot":
+        raise ValueError("normalized media requires the frozen pilot contract")
+
+    normalized_media_root = normalized_media_root.resolve()
+    normalized_examples = []
+    for source in source_examples:
+        if not isinstance(source, dict):
+            raise TypeError("contract examples must be objects")
+        _resolve_contract_media(source_media_root, source)
+        video_id = source["video_id"]
+        relative = PurePosixPath(f"{video_id}.mp4")
+        candidate = normalized_media_root.joinpath(*relative.parts)
+        if not candidate.is_file():
+            raise ValueError(f"normalized media is missing: {video_id}")
+        resolved = candidate.resolve(strict=True)
+        try:
+            resolved.relative_to(normalized_media_root)
+        except ValueError as error:
+            raise ValueError(f"normalized media escapes root: {video_id}") from error
+        normalized_examples.append(
+            {
+                "video_id": video_id,
+                "category": source["category"],
+                "role": source["role"],
+                "question": source["question"],
+                "source_media_path": source["media_path"],
+                "source_media_sha256": source["media_sha256"],
+                "media_path": relative.as_posix(),
+                "derived_media_sha256": _sha256_file(resolved),
+            }
+        )
+
+    conditions = [dict(condition) for condition in CONDITIONS]
+    panel_id = source_contract.get("panel_id")
+    if mode == "codec-sentinel":
+        normalized_examples = [
+            example
+            for video_id in CODEC_SENTINEL_VIDEO_IDS
+            for example in normalized_examples
+            if example["video_id"] == video_id
+        ]
+        conditions = [{"condition_id": "audio-on", "audio_enabled": True}]
+        panel_id = "nemotron3-omni-codec-sentinel-3"
+
+    contract = {
+        "schema_version": 1,
+        "mode": mode,
+        "panel_id": panel_id,
+        "source_panel_sha256": source_contract.get("source_panel_sha256"),
+        "source_contract_sha256": _contract_sha256(source_contract),
+        "model_id": MODEL_ID,
+        "model_revision": MODEL_REVISION,
+        "media_derivation": {
+            "container": "mp4",
+            "video_codec": "h264",
+            "audio_codec": "aac",
+        },
+        "conditions": conditions,
+        "examples": normalized_examples,
+    }
+    encoded = json.dumps(contract).lower()
+    if any(key in encoded for key in FORBIDDEN_LABEL_KEYS):
+        raise ValueError("label-bearing field leaked into inference contract")
+    _validate_run_contract(contract)
+    return contract
+
+
 def build_chat_request(
     *, media_path: Path, question: str, audio_enabled: bool
 ) -> dict[str, Any]:
@@ -255,17 +338,26 @@ def _resolve_contract_media(media_root: Path, example: dict[str, Any]) -> Path:
         candidate.relative_to(media_root)
     except ValueError as error:
         raise ValueError("contract media_path escapes media_root") from error
-    if _sha256_file(candidate) != example.get("media_sha256"):
+    expected_hash = example.get("derived_media_sha256", example.get("media_sha256"))
+    if _sha256_file(candidate) != expected_hash:
         raise ValueError(f"media hash mismatch for {example.get('video_id')}")
     return candidate
+
+
+def _is_sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
 
 
 def _validate_run_contract(
     contract: dict[str, Any],
 ) -> tuple[str, list[Any], list[Any]]:
     mode = contract.get("mode")
-    if mode not in {"canary", "pilot"}:
-        raise ValueError("contract mode must be canary or pilot")
+    if mode not in {"canary", "pilot", "codec-sentinel"}:
+        raise ValueError("contract mode must be canary, pilot, or codec-sentinel")
     if (
         contract.get("model_id") != MODEL_ID
         or contract.get("model_revision") != MODEL_REVISION
@@ -275,16 +367,26 @@ def _validate_run_contract(
     conditions = contract.get("conditions")
     if not isinstance(examples, list) or not isinstance(conditions, list):
         raise TypeError("contract examples and conditions must be lists")
-    if mode == "pilot":
+    if mode in {"pilot", "codec-sentinel"}:
+        expected_rows = list(TARGET_ROWS)
+        expected_conditions = [dict(condition) for condition in CONDITIONS]
+        row_error = "pilot row identity mismatch"
+        condition_error = "pilot condition identity mismatch"
+        if mode == "codec-sentinel":
+            by_id = {row[0]: row for row in TARGET_ROWS}
+            expected_rows = [by_id[video_id] for video_id in CODEC_SENTINEL_VIDEO_IDS]
+            expected_conditions = [{"condition_id": "audio-on", "audio_enabled": True}]
+            row_error = "codec-sentinel row identity mismatch"
+            condition_error = "codec-sentinel condition identity mismatch"
         actual_rows = [
             (row.get("video_id"), row.get("category"), row.get("role"))
             for row in examples
             if isinstance(row, dict)
         ]
-        if actual_rows != list(TARGET_ROWS):
-            raise ValueError("pilot row identity mismatch")
-        if conditions != [dict(condition) for condition in CONDITIONS]:
-            raise ValueError("pilot condition identity mismatch")
+        if actual_rows != expected_rows:
+            raise ValueError(row_error)
+        if conditions != expected_conditions:
+            raise ValueError(condition_error)
     else:
         expected_ids = [f"public-synthetic-av-{index}" for index in range(1, 4)]
         actual_ids = [row.get("video_id") for row in examples if isinstance(row, dict)]
@@ -292,6 +394,30 @@ def _validate_run_contract(
             raise ValueError("canary row identity mismatch")
         if conditions != [{"condition_id": "audio-on", "audio_enabled": True}]:
             raise ValueError("canary condition identity mismatch")
+
+    derivation = contract.get("media_derivation")
+    if derivation is not None:
+        if derivation != {
+            "container": "mp4",
+            "video_codec": "h264",
+            "audio_codec": "aac",
+        }:
+            raise ValueError("normalized media derivation identity mismatch")
+        if not _is_sha256(contract.get("source_contract_sha256")):
+            raise ValueError("normalized source contract hash is invalid")
+        for example in examples:
+            if not isinstance(example, dict):
+                raise TypeError("contract examples must be objects")
+            video_id = example.get("video_id")
+            if (
+                example.get("media_path") != f"{video_id}.mp4"
+                or not str(example.get("source_media_path", "")).endswith(".mkv")
+                or not _is_sha256(example.get("source_media_sha256"))
+                or not _is_sha256(example.get("derived_media_sha256"))
+            ):
+                raise ValueError(f"normalized media identity mismatch for {video_id}")
+    elif mode == "codec-sentinel":
+        raise ValueError("codec-sentinel requires normalized media")
     return mode, examples, conditions
 
 
@@ -304,7 +430,8 @@ def validate_contract_inputs(
     if not isinstance(contract, dict):
         raise TypeError("contract must be an object")
     mode, examples, conditions = _validate_run_contract(contract)
-    if mode == "pilot":
+    is_normalized = contract.get("media_derivation") is not None
+    if mode == "pilot" and not is_normalized:
         if marker_path is None:
             raise ValueError("pilot input marker is required")
         marker = json.loads(marker_path.read_text(encoding="utf-8"))
@@ -316,7 +443,7 @@ def validate_contract_inputs(
         if marker.get("contract_sha256") != actual_hash:
             raise ValueError("input marker contract hash mismatch")
     elif marker_path is not None:
-        raise ValueError("canary must not use a private input marker")
+        raise ValueError(f"{mode} derived inputs must not use a private input marker")
     for example in examples:
         if not isinstance(example, dict):
             raise TypeError("contract examples must be objects")
@@ -339,7 +466,11 @@ def run_probe(
     """Run one foreground, label-blind request for every declared condition."""
     mode, examples, conditions = _validate_run_contract(contract)
     expected = len(examples) * len(conditions)
-    if (mode, len(examples), expected) not in {("canary", 3, 3), ("pilot", 6, 12)}:
+    if (mode, len(examples), expected) not in {
+        ("canary", 3, 3),
+        ("pilot", 6, 12),
+        ("codec-sentinel", 3, 3),
+    }:
         raise ValueError("contract request denominator is not predeclared")
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -468,6 +599,20 @@ def _main_build_canary(args: argparse.Namespace) -> int:
     return 0
 
 
+def _main_build_normalized(args: argparse.Namespace) -> int:
+    source_contract = json.loads(args.source_contract.read_text(encoding="utf-8"))
+    if not isinstance(source_contract, dict):
+        raise TypeError("source contract must be an object")
+    contract = build_normalized_contract(
+        source_contract=source_contract,
+        source_media_root=args.source_media_root,
+        normalized_media_root=args.normalized_media_root,
+        mode=args.mode,
+    )
+    _write_json_exclusive(args.output, contract)
+    return 0
+
+
 def _main_run(args: argparse.Namespace) -> int:
     contract = json.loads(args.contract.read_text(encoding="utf-8"))
     summary = run_probe(
@@ -501,6 +646,15 @@ def main(argv: list[str] | None = None) -> int:
     canary = subparsers.add_parser("build-canary-contract")
     canary.add_argument("--media", type=Path, action="append", required=True)
     canary.set_defaults(handler=_main_build_canary)
+    normalized = subparsers.add_parser("build-normalized-contract")
+    normalized.add_argument("--source-contract", type=Path, required=True)
+    normalized.add_argument("--source-media-root", type=Path, required=True)
+    normalized.add_argument("--normalized-media-root", type=Path, required=True)
+    normalized.add_argument(
+        "--mode", choices=("pilot", "codec-sentinel"), required=True
+    )
+    normalized.add_argument("--output", type=Path, required=True)
+    normalized.set_defaults(handler=_main_build_normalized)
     validate = subparsers.add_parser("validate-inputs")
     validate.add_argument("--contract", type=Path, required=True)
     validate.add_argument("--media-root", type=Path, required=True)

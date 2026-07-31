@@ -8,8 +8,15 @@ readonly HF_CLI_VERSION="1.24.0"
 
 RUN_ID="${1:-}"
 case "$RUN_ID" in
-  nemotron3-omni-runner-canary-20260730-a1|nemotron3-omni-runner-canary-20260730-a2|nemotron3-omni-pilot-20260730-a1) ;;
+  nemotron3-omni-runner-canary-20260730-a1|nemotron3-omni-runner-canary-20260730-a2|nemotron3-omni-pilot-20260730-a1|nemotron3-omni-codec-sentinel-20260730-b1|nemotron3-omni-pilot-20260730-b1) ;;
   *) echo "error: unexpected immutable run ID" >&2; exit 2 ;;
+esac
+PREVIEW_PATH="${2:-}"
+case "$RUN_ID" in
+  nemotron3-omni-codec-sentinel-20260730-b1|nemotron3-omni-pilot-20260730-b1)
+    [[ -f "$PREVIEW_PATH" ]] \
+      || { echo "error: preview output is required for b1" >&2; exit 2; }
+    ;;
 esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,7 +33,12 @@ OUTPUT_DIR="$DATA_LINK/vqa/benchmarks/nemotron3-omni/$RUN_ID"
 [[ ! -e "$OUTPUT_DIR" ]] || { echo "error: refusing to overwrite $OUTPUT_DIR" >&2; exit 2; }
 mkdir -p "$(dirname "$OUTPUT_DIR")"
 TEMP_OUTPUT_DIR="$(mktemp -d "${OUTPUT_DIR}.tmp.XXXXXX")"
-trap 'rm -rf "$TEMP_OUTPUT_DIR"' EXIT
+TEMP_AUDIT_DIR="$(mktemp -d /tmp/nemotron3-omni-audit.XXXXXX)"
+VERIFY_AUDIT_DIR="$(mktemp -d /tmp/nemotron3-omni-audit-verify.XXXXXX)"
+cleanup() {
+  rm -rf "$TEMP_OUTPUT_DIR" "$TEMP_AUDIT_DIR" "$VERIFY_AUDIT_DIR"
+}
+trap cleanup EXIT
 
 uvx_launcher="$(command -v uvx)"
 [[ "$uvx_launcher" = /* && -x "$uvx_launcher" ]] \
@@ -42,10 +54,36 @@ hf_cli buckets sync "${REMOTE_URI}/outputs" "$TEMP_OUTPUT_DIR"
   cd "$TEMP_OUTPUT_DIR"
   sha256sum -c SHA256SUMS
 )
-dstack run get "$RUN_ID" --json \
+if [[ -n "$PREVIEW_PATH" ]]; then
+  cp -- "$PREVIEW_PATH" "$TEMP_AUDIT_DIR/preview.txt"
+  dstack run get "$RUN_ID" --json \
+    | PYTHONPATH="$REPO_ROOT/src" "$PYTHON_BIN" \
+        -m trec_video_2026.vqa_experiments.dstack_metadata \
+        --run-id "$RUN_ID" --output "$TEMP_AUDIT_DIR/dstack-run.json"
+  cp -- "$TEMP_AUDIT_DIR/dstack-run.json" "$TEMP_OUTPUT_DIR/dstack-run.json"
+  (
+    cd "$TEMP_AUDIT_DIR"
+    find . -type f ! -name SHA256SUMS -print0 \
+      | sort -z | xargs -0 sha256sum >SHA256SUMS
+    sha256sum -c SHA256SUMS
+    chmod a-w ./*
+  )
+  audit_listing="$(hf_cli buckets list "${REMOTE_URI}/audit" --format quiet)"
+  [[ -z "$audit_listing" ]] \
+    || { echo "error: immutable audit prefix already exists" >&2; exit 2; }
+  hf_cli buckets sync "$TEMP_AUDIT_DIR" "${REMOTE_URI}/audit"
+  hf_cli buckets list "${REMOTE_URI}/audit" --format json
+  hf_cli buckets sync "${REMOTE_URI}/audit" "$VERIFY_AUDIT_DIR"
+  (
+    cd "$VERIFY_AUDIT_DIR"
+    sha256sum -c SHA256SUMS
+  )
+else
+  dstack run get "$RUN_ID" --json \
   | PYTHONPATH="$REPO_ROOT/src" "$PYTHON_BIN" \
       -m trec_video_2026.vqa_experiments.dstack_metadata \
       --run-id "$RUN_ID" --output "$TEMP_OUTPUT_DIR/dstack-run.json"
+fi
 (
   cd "$TEMP_OUTPUT_DIR"
   find . -type f ! -name artifact-hashes.sha256 -print0 \
@@ -56,4 +94,5 @@ mv -T --no-clobber "$TEMP_OUTPUT_DIR" "$OUTPUT_DIR"
 [[ -d "$OUTPUT_DIR" && ! -e "$TEMP_OUTPUT_DIR" ]] \
   || { echo "error: refusing to overwrite or nest output" >&2; exit 2; }
 trap - EXIT
+rm -rf "$TEMP_AUDIT_DIR" "$VERIFY_AUDIT_DIR"
 echo "$OUTPUT_DIR"
