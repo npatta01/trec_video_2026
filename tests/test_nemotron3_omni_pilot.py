@@ -687,6 +687,51 @@ def test_short_answer_parser_rejects_reasoning_designated_fields_anywhere_in_env
     )
 
 
+@pytest.mark.parametrize(
+    "reasoning_envelope",
+    [
+        {"analysis": None},
+        {"choices": [{"reasoning": ""}]},
+        {"choices": [{"message": {"reasoning_details": []}}]},
+        {
+            "choices": [
+                {
+                    "message": {
+                        "metadata": {"trace": {"reasoning_content": {"text": ""}}}
+                    }
+                }
+            ]
+        },
+    ],
+)
+def test_short_answer_parser_allows_empty_reasoning_designated_fields(
+    reasoning_envelope: dict[str, object],
+) -> None:
+    """Catches rejecting vLLM's null or empty disabled-thinking envelope fields."""
+    response: dict[str, object] = {
+        "choices": [{"finish_reason": "stop", "message": {"content": "A bell rings."}}]
+    }
+    for key, value in reasoning_envelope.items():
+        if key == "choices":
+            choice = response["choices"]
+            assert isinstance(choice, list)
+            nested = value
+            assert isinstance(nested, list)
+            for target, addition in zip(choice, nested, strict=True):
+                assert isinstance(target, dict)
+                assert isinstance(addition, dict)
+                if "message" in addition:
+                    target_message = target["message"]
+                    assert isinstance(target_message, dict)
+                    target_message.update(addition["message"])
+                else:
+                    target.update(addition)
+        else:
+            response[key] = value
+
+    assert parse_short_answer(response) == "A bell rings."
+
+
 def test_canary_contract_and_foreground_probe_freeze_three_native_av_answers(
     tmp_path: Path,
 ) -> None:

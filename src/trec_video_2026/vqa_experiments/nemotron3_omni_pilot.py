@@ -341,6 +341,21 @@ _REASONING_FIELD_NAMES = frozenset(
 )
 
 
+def _is_empty_reasoning_payload(value: object) -> bool:
+    """Return whether a designated reasoning field carries no reasoning text."""
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return not value.strip()
+    if isinstance(value, Mapping):
+        return not value or all(
+            _is_empty_reasoning_payload(item) for item in value.values()
+        )
+    if isinstance(value, (list, tuple)):
+        return not value or all(_is_empty_reasoning_payload(item) for item in value)
+    return False
+
+
 def _contains_reasoning_field(value: object) -> bool:
     """Return whether an API envelope exposes a reasoning-designated field."""
     if isinstance(value, Mapping):
@@ -348,6 +363,7 @@ def _contains_reasoning_field(value: object) -> bool:
             if (
                 isinstance(key, str)
                 and key.lower().replace("-", "_") in _REASONING_FIELD_NAMES
+                and not _is_empty_reasoning_payload(nested)
             ):
                 return True
             if _contains_reasoning_field(nested):
@@ -538,6 +554,24 @@ def _validate_run_contract(
     conditions = contract.get("conditions")
     if not isinstance(examples, list) or not isinstance(conditions, list):
         raise TypeError("contract examples and conditions must be lists")
+    derivation = contract.get("media_derivation")
+    if mode == "expanded-pilot":
+        expected_fields = {
+            "schema_version",
+            "mode",
+            "panel_id",
+            "source_panel_sha256",
+            "model_id",
+            "model_revision",
+            "conditions",
+            "examples",
+        }
+        if derivation is not None:
+            expected_fields.update({"source_contract_sha256", "media_derivation"})
+        if set(contract) != expected_fields:
+            raise ValueError("expanded-pilot contract schema mismatch")
+        if not _is_sha256(contract.get("source_panel_sha256")):
+            raise ValueError("expanded-pilot source panel SHA-256 is invalid")
     if mode in {"pilot", "codec-sentinel", "expanded-pilot"}:
         expected_rows = list(TARGET_ROWS)
         expected_conditions = [dict(condition) for condition in CONDITIONS]
@@ -570,7 +604,6 @@ def _validate_run_contract(
         if conditions != [{"condition_id": "audio-on", "audio_enabled": True}]:
             raise ValueError("canary condition identity mismatch")
 
-    derivation = contract.get("media_derivation")
     if derivation is not None:
         if derivation != {
             "container": "mp4",

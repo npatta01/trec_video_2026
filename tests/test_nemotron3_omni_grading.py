@@ -276,6 +276,7 @@ def _write_expanded_frozen_artifacts(
         "schema_version": 1,
         "mode": "expanded-pilot",
         "panel_id": "nemotron3-omni-expanded-12",
+        "source_panel_sha256": "d" * 64,
         "model_id": MODEL_ID,
         "model_revision": MODEL_REVISION,
         "conditions": [
@@ -433,6 +434,7 @@ def _refresh_expanded_freeze(
         ("manifest", "contract_sha256", "0" * 64),
         ("manifest", "contract_file_sha256", "0" * 64),
         ("contract", "panel_id", "other-panel"),
+        ("contract", "source_panel_sha256", "not-a-sha256-digest"),
         ("record", "run_id", "other-expanded-run"),
         ("record", "model_id", "other/model"),
         ("record", "model_revision", "0" * 40),
@@ -500,6 +502,47 @@ def test_expanded_freeze_rejects_every_c1_provenance_omission_or_tamper_before_r
     calls: list[tuple[str, ...]] = []
 
     with pytest.raises((TypeError, ValueError)):
+        nemotron3_omni_grading.build_expanded_blind_grading_bundle(
+            predictions_path=predictions_path,
+            manifest_path=manifest_path,
+            checksums_path=checksums_path,
+            reference_loader=_expanded_reference_loader(rows, calls),
+            grader_ids=("expanded-independent-a", "expanded-independent-b"),
+            shuffle_seeds=(1471, 2591),
+        )
+    assert calls == []
+
+
+def test_expanded_freeze_rejects_unexpected_contract_field_before_references(
+    tmp_path: Path,
+) -> None:
+    """Catches an expanded contract that is bound but not from the emitted schema."""
+    rows = _expanded_synthetic_rows()
+    predictions_path, manifest_path, checksums_path = _write_expanded_frozen_artifacts(
+        tmp_path, rows
+    )
+    contract_path = manifest_path.parent / "contract.json"
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    contract["unexpected_field"] = True
+    contract_path.write_text(
+        json.dumps(contract, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["contract_sha256"] = hashlib.sha256(
+        json.dumps(
+            contract, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+    ).hexdigest()
+    manifest["contract_file_sha256"] = hashlib.sha256(
+        contract_path.read_bytes()
+    ).hexdigest()
+    manifest_path.write_text(
+        json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    _refresh_expanded_freeze(predictions_path, manifest_path, checksums_path)
+    calls: list[tuple[str, ...]] = []
+
+    with pytest.raises(ValueError, match="contract schema"):
         nemotron3_omni_grading.build_expanded_blind_grading_bundle(
             predictions_path=predictions_path,
             manifest_path=manifest_path,
