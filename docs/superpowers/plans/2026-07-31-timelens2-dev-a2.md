@@ -43,11 +43,11 @@ Run branch/status, exact data-symlink, ignore, manifest validation, byte-count, 
 
 Add a subprocess test for the runner's side-effect-free `validate` command. Verify RED because `timelens2-selector-pilot-20260730-a2` is not yet accepted, then minimally allow A1/A2 compatibility IDs while continuing to reject other suffixes and run the focused tests GREEN.
 
-- [ ] **Step 3: Create the ignored configuration**
+- [x] **Step 3: Create the ignored configuration**
 
 Use `type: dev-environment`, the pinned image, the same runner inputs/environment, `FORCE_QWENVL_VIDEO_READER=torchvision`, `fleets: [gpu-marketplace]`, `gpu: A40,A6000,L40,L40S,RTX6000Ada,A100,H100,H200:1:48GB..`, and `disk: 100GB..`. Run the committed wrapper as the foreground `init` workload.
 
-- [ ] **Step 4: Validate offers and preview**
+- [x] **Step 4: Validate offers and preview**
 
 Run a read-only `dstack offer` through `gpu-marketplace`, then `echo "n" | dstack apply -f <config>`. Save the complete preview unchanged and require at least two physically distinct compatible offers at or below `$1.00/h`.
 
@@ -60,17 +60,19 @@ Run a read-only `dstack offer` through `gpu-marketplace`, then `echo "n" | dstac
 - Consumes: accepted Task 1 preview.
 - Produces: one detached dstack run and its foreground preflight/compatibility artifacts.
 
-- [ ] **Step 1: Submit once detached**
+- [x] **Step 1: Submit once detached**
 
 Run `dstack apply -f <config> -y -d` exactly once and retain the full submission output.
 
-- [ ] **Step 2: Monitor normal status and logs**
+- [x] **Step 2: Monitor normal status and logs**
 
 Use `dstack ps -v`, allowlisted `dstack run get ... --json`, and ordinary `dstack logs`. Do not use diagnose output. Stop if infrastructure/runtime admission fails; never externally resubmit.
 
-- [ ] **Step 3: Stop the dev environment after capture**
+- [x] **Step 3: Stop the dev environment after capture**
 
 When the runner has uploaded terminal status and checksums, stop the dev environment with `dstack stop timelens2-selector-pilot-20260730-a2 -y` to cap cost.
+
+The foreground init failed terminally and the fleet reported zero remaining instances, so no explicit stop command was applicable.
 
 ### Task 3: Verify evidence and commit the sanitized record
 
@@ -82,14 +84,14 @@ When the runner has uploaded terminal status and checksums, stop the dev environ
 - Consumes: immutable remote artifact prefix and dstack cost/status evidence.
 - Produces: checksum-verified private download plus a sanitized committed result.
 
-- [ ] **Step 1: List, download, and checksum-verify artifacts**
+- [x] **Step 1: List, download, and checksum-verify artifacts**
 
 Use pinned HF CLI, download to the ignored A2 directory, verify `SHA256SUMS`, and record the checksum of the checksum manifest. Keep raw outputs and logs private.
 
-- [ ] **Step 2: Classify the result**
+- [x] **Step 2: Classify the result**
 
 Record preflight and compatibility completion denominators separately. Do not grade quality or run the focused oracle-dependent pilot unless all compatibility requirements independently make it eligible.
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 Run model-specific tests, full tests if code changed, Ruff, Bash syntax, `git diff --check`, data/private tracking checks, and credential-pattern checks. Commit only this plan and the uniquely owned sanitized evidence record unless a test-first code correction was required.
