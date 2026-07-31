@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from trec_video_2026.vqa_experiments import nemotron3_omni_grading
 from trec_video_2026.vqa_experiments.nemotron3_omni_grading import (
     BlindGradingBundle,
     GradeResolution,
@@ -15,6 +16,7 @@ from trec_video_2026.vqa_experiments.nemotron3_omni_grading import (
     score_pilot,
 )
 from trec_video_2026.vqa_experiments.nemotron3_omni_pilot import (
+    EXPANDED_ROWS,
     MODEL_ID,
     MODEL_REVISION,
 )
@@ -192,6 +194,310 @@ def _all_grades(default: str = "C") -> dict[str, str]:
         for index in range(6)
         for condition in ("off", "on")
     }
+
+
+def _expanded_synthetic_rows(*, completed: bool = True) -> list[dict[str, object]]:
+    return [
+        {
+            "row_key": video_id,
+            "category": category,
+            "role": role,
+            "question": f"What happens in expanded synthetic scene {index}?",
+            "reference": f"expanded-reference-{index}",
+            "predictions": {
+                "audio-off": {
+                    "completed": completed or index != 11,
+                    "answer": f"expanded-candidate-{index}-off",
+                },
+                "audio-on": {
+                    "completed": True,
+                    "answer": f"expanded-candidate-{index}-on",
+                },
+            },
+        }
+        for index, (video_id, category, role) in enumerate(EXPANDED_ROWS)
+    ]
+
+
+def _write_expanded_frozen_artifacts(
+    tmp_path: Path,
+    rows: list[dict[str, object]],
+) -> tuple[Path, Path, Path]:
+    predictions_path = tmp_path / "expanded-predictions.jsonl"
+    records: list[dict[str, object]] = []
+    for pair_index, row in enumerate(rows):
+        predictions = row["predictions"]
+        assert isinstance(predictions, Mapping)
+        for condition in ("audio-off", "audio-on"):
+            prediction = predictions[condition]
+            assert isinstance(prediction, Mapping)
+            completed = prediction["completed"]
+            records.append(
+                {
+                    "schema_version": 1,
+                    "mode": "expanded-pilot",
+                    "pair_index": pair_index,
+                    "video_id": row["row_key"],
+                    "category": row["category"],
+                    "role": row["role"],
+                    "condition_id": condition,
+                    "status": "passed" if completed else "failed",
+                    "answer": prediction["answer"] if completed else "",
+                }
+            )
+    predictions_path.write_text(
+        "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
+        encoding="utf-8",
+    )
+    manifest_path = tmp_path / "expanded-manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "mode": "expanded-pilot",
+                "model_id": MODEL_ID,
+                "model_revision": MODEL_REVISION,
+                "frozen": True,
+                "completion": {"completed": len(records), "expected": 24},
+                "predictions_sha256": hashlib.sha256(
+                    predictions_path.read_bytes()
+                ).hexdigest(),
+                "reference_answers_available": False,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    checksums_path = tmp_path / "expanded-SHA256SUMS"
+    checksums_path.write_text(
+        (
+            f"{hashlib.sha256(manifest_path.read_bytes()).hexdigest()}"
+            "  ./manifest.json\n"
+            f"{hashlib.sha256(predictions_path.read_bytes()).hexdigest()}"
+            "  ./predictions.jsonl\n"
+        ),
+        encoding="utf-8",
+    )
+    return predictions_path, manifest_path, checksums_path
+
+
+def _refresh_expanded_freeze(
+    predictions_path: Path,
+    manifest_path: Path,
+    checksums_path: Path,
+) -> None:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["predictions_sha256"] = hashlib.sha256(predictions_path.read_bytes()).hexdigest()
+    manifest_path.write_text(json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8")
+    checksums_path.write_text(
+        (
+            f"{hashlib.sha256(manifest_path.read_bytes()).hexdigest()}"
+            "  ./manifest.json\n"
+            f"{hashlib.sha256(predictions_path.read_bytes()).hexdigest()}"
+            "  ./predictions.jsonl\n"
+        ),
+        encoding="utf-8",
+    )
+
+
+def _expanded_reference_loader(
+    rows: list[dict[str, object]], calls: list[tuple[str, ...]] | None = None
+):
+    return _reference_loader(rows, calls)
+
+
+def _build_expanded_bundle(
+    tmp_path: Path,
+    rows: list[dict[str, object]],
+) -> BlindGradingBundle:
+    predictions_path, manifest_path, checksums_path = _write_expanded_frozen_artifacts(
+        tmp_path, rows
+    )
+    return nemotron3_omni_grading.build_expanded_blind_grading_bundle(
+        predictions_path=predictions_path,
+        manifest_path=manifest_path,
+        checksums_path=checksums_path,
+        reference_loader=_expanded_reference_loader(rows),
+        grader_ids=("expanded-independent-a", "expanded-independent-b"),
+        shuffle_seeds=(1471, 2591),
+    )
+
+
+def _expanded_all_grades(default: str = "C") -> dict[str, str]:
+    return {
+        f"expanded-candidate-{index}-{condition}": default
+        for index in range(12)
+        for condition in ("off", "on")
+    }
+
+
+def test_expanded_freeze_requires_exact_order_and_complete_24_record_denominator(
+    tmp_path: Path,
+) -> None:
+    """Catches wrong expanded membership, ordering, or denominator before labels load."""
+    rows = _expanded_synthetic_rows()
+    predictions_path, manifest_path, checksums_path = _write_expanded_frozen_artifacts(
+        tmp_path, rows
+    )
+    calls: list[tuple[str, ...]] = []
+
+    bundle = nemotron3_omni_grading.build_expanded_blind_grading_bundle(
+        predictions_path=predictions_path,
+        manifest_path=manifest_path,
+        checksums_path=checksums_path,
+        reference_loader=_expanded_reference_loader(rows, calls),
+        grader_ids=("expanded-independent-a", "expanded-independent-b"),
+        shuffle_seeds=(1471, 2591),
+    )
+
+    assert calls == [tuple(video_id for video_id, _category, _role in EXPANDED_ROWS)]
+    first, second = bundle.packets.values()
+    assert [item["candidate_answer"] for item in first["items"]] != [
+        item["candidate_answer"] for item in second["items"]
+    ]
+    for packet in bundle.packets.values():
+        assert len(packet["items"]) == 24
+        assert all(
+            set(item)
+            == {"item_id", "question", "candidate_answer", "reference_answer"}
+            for item in packet["items"]
+        )
+    grader_payload = json.dumps(bundle.packets, sort_keys=True)
+    for video_id, category, role in EXPANDED_ROWS:
+        assert video_id not in grader_payload
+        assert category not in grader_payload
+        assert f'"{role}"' not in grader_payload
+    for forbidden in (
+        '"row_key"',
+        '"video_id"',
+        '"category"',
+        '"role"',
+        '"condition"',
+        '"audio-off"',
+        '"audio-on"',
+        '"reasoning"',
+        '"analysis"',
+    ):
+        assert forbidden not in grader_payload
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["completion"] = {"completed": 24, "expected": 12}
+    manifest_path.write_text(json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8")
+    _refresh_expanded_freeze(predictions_path, manifest_path, checksums_path)
+    calls.clear()
+    with pytest.raises(ValueError, match="24/24"):
+        nemotron3_omni_grading.build_expanded_blind_grading_bundle(
+            predictions_path=predictions_path,
+            manifest_path=manifest_path,
+            checksums_path=checksums_path,
+            reference_loader=_expanded_reference_loader(rows, calls),
+            grader_ids=("expanded-independent-a", "expanded-independent-b"),
+            shuffle_seeds=(1471, 2591),
+        )
+    assert calls == []
+
+
+def test_expanded_freeze_rejects_reordered_pairs_and_tampering_before_references(
+    tmp_path: Path,
+) -> None:
+    """Catches reordered or changed expanded freezes despite valid outer checksums."""
+    rows = _expanded_synthetic_rows()
+    predictions_path, manifest_path, checksums_path = _write_expanded_frozen_artifacts(
+        tmp_path, rows
+    )
+    records = [json.loads(line) for line in predictions_path.read_text().splitlines()]
+    records[:2], records[2:4] = records[2:4], records[:2]
+    predictions_path.write_text(
+        "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
+        encoding="utf-8",
+    )
+    _refresh_expanded_freeze(predictions_path, manifest_path, checksums_path)
+    calls: list[tuple[str, ...]] = []
+
+    with pytest.raises(ValueError, match="order"):
+        nemotron3_omni_grading.build_expanded_blind_grading_bundle(
+            predictions_path=predictions_path,
+            manifest_path=manifest_path,
+            checksums_path=checksums_path,
+            reference_loader=_expanded_reference_loader(rows, calls),
+            grader_ids=("expanded-independent-a", "expanded-independent-b"),
+            shuffle_seeds=(1471, 2591),
+        )
+    assert calls == []
+
+    predictions_path.write_text(
+        predictions_path.read_text(encoding="utf-8") + "{}\n", encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="SHA-256"):
+        nemotron3_omni_grading.build_expanded_blind_grading_bundle(
+            predictions_path=predictions_path,
+            manifest_path=manifest_path,
+            checksums_path=checksums_path,
+            reference_loader=_expanded_reference_loader(rows, calls),
+            grader_ids=("expanded-independent-a", "expanded-independent-b"),
+            shuffle_seeds=(1471, 2591),
+        )
+    assert calls == []
+
+
+def test_expanded_freeze_rejects_inner_manifest_binding_before_references(
+    tmp_path: Path,
+) -> None:
+    """Catches a manifest that is checksummed but does not bind its predictions."""
+    rows = _expanded_synthetic_rows()
+    predictions_path, manifest_path, checksums_path = _write_expanded_frozen_artifacts(
+        tmp_path, rows
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["predictions_sha256"] = "0" * 64
+    manifest_path.write_text(json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8")
+    checksums_path.write_text(
+        (
+            f"{hashlib.sha256(manifest_path.read_bytes()).hexdigest()}"
+            "  ./manifest.json\n"
+            f"{hashlib.sha256(predictions_path.read_bytes()).hexdigest()}"
+            "  ./predictions.jsonl\n"
+        ),
+        encoding="utf-8",
+    )
+    calls: list[tuple[str, ...]] = []
+
+    with pytest.raises(ValueError, match="frozen manifest"):
+        nemotron3_omni_grading.build_expanded_blind_grading_bundle(
+            predictions_path=predictions_path,
+            manifest_path=manifest_path,
+            checksums_path=checksums_path,
+            reference_loader=_expanded_reference_loader(rows, calls),
+            grader_ids=("expanded-independent-a", "expanded-independent-b"),
+            shuffle_seeds=(1471, 2591),
+        )
+    assert calls == []
+
+
+def test_expanded_scoring_reports_sound_and_broader_gates(tmp_path: Path) -> None:
+    """Catches applying the six-row gate to the expanded panel."""
+    rows = _expanded_synthetic_rows()
+    grades = _expanded_all_grades()
+    for index in (2, 3, 4, 5, 6):
+        grades[f"expanded-candidate-{index}-off"] = "W"
+        grades[f"expanded-candidate-{index}-on"] = "P"
+    bundle = _build_expanded_bundle(tmp_path, rows)
+    resolution = reconcile_grades(
+        bundle,
+        [_submission(packet, grades_by_answer=grades) for packet in bundle.packets.values()],
+    )
+
+    score = nemotron3_omni_grading.score_expanded_pilot(rows, resolution)
+
+    assert score.completed == 24
+    assert score.denominator == 24
+    assert score.sound_target_improvements == 4
+    assert score.non_control_improvements == 5
+    assert score.non_control_regressions == 0
+    assert score.visual_control_regressions == 0
+    assert score.sound_replication_passed is True
+    assert score.broader_expansion_passed is True
 
 
 def test_verifies_frozen_hash_before_loading_references(tmp_path: Path) -> None:
