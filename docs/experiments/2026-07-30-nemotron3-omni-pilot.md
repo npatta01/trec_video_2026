@@ -2,9 +2,9 @@
 
 Date: 2026-07-30
 
-Evidence validity: **Incomplete**
+Evidence validity: **Verified**
 
-Decision disposition: **Not promoted under the tested condition**
+Decision disposition: **Routed candidate**
 
 ## Separately authorized b1 retry design
 
@@ -117,7 +117,116 @@ allocation. No central reserve and no automatic b2 correction are authorized.
     verification suite and an independent review, and commit the complete
     model-specific work.
 
-## Scope and predeclared gate
+## Codec-normalized b1 observed result
+
+The separately authorized b1 retry passed its sequential gates. This current
+result does not erase the incomplete a1 attempt below: it tests a new,
+predeclared codec-normalized condition under new immutable identities.
+
+The codec sentinel preview exposed two physically distinct on-demand RunPod
+L40S offers in US-MO-1 and US-TX-4 at `$0.99/hour`. Its retained preview
+SHA-256 is
+`e6e7dfa3c9f362b24566a97c9b73730009c79f30dee83b11abf76ad41c349fb4`.
+The sentinel ran in US-MO-1, normalized and decode-verified all six source
+files, and completed 3/3 native audio-video requests on the three formerly
+failing AV1 rows. It exited successfully and cost `$0.1626` over
+`591.199799` seconds.
+
+After the shared one-node fleet released, the pilot preview showed the same
+two regions and price. Its retained preview SHA-256 is
+`0f5324d91251b681d4b7569a27468ce193c1399afd42eea7c4f17408443848f3`.
+The pilot ran in US-MO-1, independently repeated source verification and
+all-six normalization, and froze **12/12** valid outputs before references
+loaded. It exited successfully and cost `$0.1720` over `625.319866` seconds.
+
+Two independently shuffled blind graders assigned C/P/W grades. They
+disagreed on 10 of 12 items, so a distinct third grader adjudicated exactly
+those 10 disagreements. The finalized comparison found audio-on improvement
+on **2/4 targets** and regression on **0/2 visual controls**. This meets the
+predeclared promotion rule exactly. Because the six-row selected panel is too
+narrow to establish a general default, the condition-bound decision
+disposition is **Routed candidate** rather than **Current default**.
+
+The local dstack control-plane process was terminated by an unrelated parent
+cleanup while the cloud sentinel remained active. The same persisted local
+server state was restored solely to resume monitoring the existing immutable
+run. No cloud run was resubmitted, altered, or retried, and the terminal cloud
+metadata retained the original run identity and submission.
+
+### b1 durable evidence and cost
+
+The b1 runs cost `$0.1626 + $0.1720 = $0.3346`. Including the historical a1
+spend, cumulative model-track spend is `$0.5781`, within the original `$8`
+base allocation. No central reserve was used.
+
+- Sentinel outputs:
+  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-codec-sentinel-20260730-b1/outputs/`
+- Sentinel output `SHA256SUMS` file SHA-256:
+  `20f9ad00517c797d50b1a6e5788e9035fbb3290ca11fd10c5d5de3a52fee79cf`
+- Sentinel frozen predictions SHA-256:
+  `118c6212142aa714d6f3cc9b7cea4b7222b1355a52ae06a60189936b3527cc2b`
+- Sentinel audit:
+  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-codec-sentinel-20260730-b1/audit/`
+- Sentinel audit `SHA256SUMS` file SHA-256:
+  `7d08d7d5fac4aa9b4788aeb24f4e1f012a2e50bf60a6b31dee4e8a51202bb77a`
+- Pilot outputs:
+  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-pilot-20260730-b1/outputs/`
+- Pilot output `SHA256SUMS` file SHA-256:
+  `61069ca2f9565a5fb70bf792d1ab482f203c7cacb28ada6aff2c4bb3d68e2108`
+- Pilot frozen predictions SHA-256:
+  `13caa9add0351f31168bc06a48a4ca582f4d96378d324ce0b3feb6ec14961ae6`
+- Pilot audit:
+  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-pilot-20260730-b1/audit/`
+- Pilot audit `SHA256SUMS` file SHA-256:
+  `8d382e7d8584928f6ea539392aae6dc5bd635dcc66002e7f4ae858db0ce79653`
+- Private blind-grading bundle:
+  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-pilot-20260730-b1/grading/`
+- Grading `SHA256SUMS` file SHA-256:
+  `dfc414ee68868aa819b7b75eda5c93ad13543f65a9c3bef412dcaef33f4a1909`
+
+All three b1 prefixes were recursively listed, downloaded, and verified
+against their remote `SHA256SUMS`. The audit bundles preserve the exact
+preview text and sanitized scheduler, region, duration, price, and actual cost
+metadata. Private media, model answers, references, item-level grades, and raw
+logs remain outside Git and this report.
+
+### b1 validity, limits, and decision
+
+- **Evidence validity:** **Verified**. The declared sequential protocol
+  completed, the sentinel was 3/3, the paired pilot was 12/12, and references
+  loaded only after the frozen manifest and prediction hashes verified.
+- **Decision disposition:** **Routed candidate** for the declared
+  non-speech-sound/music condition. The predeclared pass rule was satisfied,
+  but this selected pilot does not establish a general model default.
+- **Confirmed defect and correction:** the historical a1 OpenCV path could not
+  decode three AV1 video streams. Normalizing all six rows to verified
+  H.264/AAC MP4 removed that technical blocker in b1.
+- **Uncertainty:** the panel contains only four selected targets and two
+  controls. Ten of 12 items required third-party adjudication, showing
+  substantial grader variance even though the final protocol was followed.
+- **Audit gap:** none for the b1 preview, scheduler, region, duration, cost,
+  output-freeze, or grading artifacts. The historical a1 audit gap remains
+  documented below.
+- **Limitations:** normalization changes container and codecs for every row;
+  decode and duration checks do not prove perceptual equivalence. The selected
+  panel cannot estimate prevalence, general visual quality, or performance on
+  other questions, codecs, languages, or media distributions.
+- **What this rules out now:** the hypothesis that the exact pinned
+  codec-normalized Nemotron/vLLM path cannot complete this native AV panel, and
+  the claim that audio-on has no condition-bound benefit on any of its four
+  selected targets.
+- **What it does not rule out:** regressions outside the two controls, failure
+  on a broader representative panel, sensitivity to normalization choices, or
+  a different conclusion under independent human grading.
+- **Reconsider when:** a larger matched panel with more controls, preserved
+  source-to-derived perceptual checks, and lower-variance independent grading
+  either confirms or reverses the two-target benefit.
+- **Supersedes / superseded by:** b1 is the current result for the
+  codec-normalized condition. It does not supersede the incomplete a1
+  observation for the original source-codec path; no later result supersedes
+  b1 at the time of this record.
+
+## Historical a1 scope and predeclared gate
 
 This track tested NVIDIA Nemotron 3 Nano Omni with native video plus optional
 audio on a six-row paired panel. The private panel contained four non-speech
@@ -206,7 +315,7 @@ their remote `SHA256SUMS`. Private media, model answers, reference answers, and
 raw logs remain only in ignored storage and the private bucket; none are
 committed here.
 
-## Evidence validity, limitations, and decision
+## Historical a1 evidence validity, limitations, and decision
 
 - **Evidence validity:** **Incomplete**. The compatibility gate completed, but
   the declared paired pilot produced only 6/12 required outputs. The partial
