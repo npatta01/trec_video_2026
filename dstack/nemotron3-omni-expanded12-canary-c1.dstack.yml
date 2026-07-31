@@ -1,5 +1,5 @@
 type: task
-name: nemotron3-omni-expanded12-canary-20260730-c1
+name: nemotron3-expanded12-canary-20260730-c1
 
 image: docker.io/vllm/vllm-openai:v0.20.0@sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc
 entrypoint: /bin/bash -c

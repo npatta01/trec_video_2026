@@ -22,6 +22,7 @@ RETIRED_PILOT_A2_ID = "nemotron3-omni-pilot-20260730-a2"
 CODEC_SENTINEL_B1_ID = "nemotron3-omni-codec-sentinel-20260730-b1"
 PILOT_B1_ID = "nemotron3-omni-pilot-20260730-b1"
 EXPANDED12_CANARY_C1_ID = "nemotron3-omni-expanded12-canary-20260730-c1"
+EXPANDED12_CANARY_C1_SCHEDULER_ID = "nemotron3-expanded12-canary-20260730-c1"
 EXPANDED12_C1_ID = "nemotron3-omni-expanded12-20260730-c1"
 REMOTE_ROOT = "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments"
 CANARY_CONFIG = Path("dstack/nemotron3-omni-runner-canary-a2.dstack.yml")
@@ -107,12 +108,23 @@ def test_b1_configs_are_sentinel_first_exact_image_cuda_tasks_with_hard_caps() -
 def test_expanded_c1_configs_pin_the_single_canary_and_pilot_envelope() -> None:
     """Catches a mutable c1 submission, an over-cap pool, or wrong pilot mode."""
     configs = {
-        EXPANDED12_CANARY_C1_ID: (_text(EXPANDED12_CANARY_C1_CONFIG), "canary", "30m"),
-        EXPANDED12_C1_ID: (_text(EXPANDED12_C1_CONFIG), "expanded-pilot", "45m"),
+        EXPANDED12_CANARY_C1_ID: (
+            _text(EXPANDED12_CANARY_C1_CONFIG),
+            EXPANDED12_CANARY_C1_SCHEDULER_ID,
+            "canary",
+            "30m",
+        ),
+        EXPANDED12_C1_ID: (
+            _text(EXPANDED12_C1_CONFIG),
+            EXPANDED12_C1_ID,
+            "expanded-pilot",
+            "45m",
+        ),
     }
-    for run_id, (config, mode, duration) in configs.items():
+    for run_id, (config, scheduler_id, mode, duration) in configs.items():
         assert "type: task" in config
-        assert f"name: {run_id}" in config
+        assert f"name: {scheduler_id}" in config
+        assert re.fullmatch(r"[a-z][a-z0-9-]{1,40}", scheduler_id)
         assert f"EXPERIMENT_MODE={mode}" in config
         assert f"EXPERIMENT_RUN_ID={run_id}" in config
         assert f"HF_REMOTE_URI={REMOTE_ROOT}/{run_id}" in config
@@ -155,6 +167,10 @@ def test_expanded_c1_scripts_keep_preview_audit_and_expanded_input_boundaries() 
     assert runner.index("normalize_pilot_inputs") < runner.index("start_server")
     assert EXPANDED12_CANARY_C1_ID in collector
     assert EXPANDED12_C1_ID in collector
+    assert EXPANDED12_CANARY_C1_SCHEDULER_ID in collector
+    assert 'DSTACK_RUN_NAME="$RUN_ID"' in collector
+    assert 'dstack run get "$DSTACK_RUN_NAME" --json' in collector
+    assert '--run-id "$DSTACK_RUN_NAME"' in collector
     assert "preview output is required for c1" in collector
     assert 'cp -- "$PREVIEW_PATH" "$TEMP_AUDIT_DIR/preview.txt"' in collector
     assert 'hf_cli buckets sync "$TEMP_AUDIT_DIR" "${REMOTE_URI}/audit"' in collector
