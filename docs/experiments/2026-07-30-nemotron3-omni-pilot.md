@@ -445,6 +445,46 @@ raw log.
   superseded by another claim at the time of this record. It leaves the
   completed b1 result current for its narrower codec-normalized condition.
 
+## Approved expanded-12 d1 capacity rerun
+
+After reviewing the c1 capacity-only failure, the user explicitly requested
+that the 12-video test proceed. This separately authorizes one fresh attempt
+under new immutable identities:
+
+- public exact-image canary experiment:
+  `nemotron3-omni-expanded12-canary-20260731-d1`
+- canary scheduler alias:
+  `nemotron3-expanded12-canary-20260731-d1`
+- paired expanded pilot:
+  `nemotron3-omni-expanded12-20260731-d1`
+
+The c1 run and its evidence remain immutable. No d2, external submission loop,
+hardware broadening, price increase, spot fallback, or quality-driven rerun is
+authorized. The d1 attempt reuses the exact approved 12-row panel, 24 adjacent
+audio-off/audio-on requests, questions, normalization, non-thinking greedy
+short-answer decoding, model/revision, digest-pinned vLLM 0.20.0 image, scalar
+`L40S:1:48GB..` CUDA requirement, RunPod/Vast on-demand backends, and shared
+`gpu-marketplace` fleet.
+
+The same sequential gates remain binding: submit the pilot only after a 3/3
+public canary; require 24/24 frozen pilot outputs before references load or
+grading begins; use two independent blind C/P/W graders and a third only on
+disagreements; apply the predeclared sound-replication and broader-expansion
+decision rules without rerunning a technically valid low-quality result.
+
+The canary remains capped at 30 minutes and `$2/hour`; the pilot remains capped
+at 45 minutes and `$2/hour`. Additional worst-case spend is `$2.50`, making
+cumulative worst-case model-track spend `$3.0781`, within the original `$8`
+base allocation. No central reserve is authorized. Private inputs and durable
+outputs remain under the new d1 HF experiment prefixes, and every transferred
+bundle must be recursively listed, downloaded, and checksum-verified.
+
+Implementation is limited to new d1 configs, exact model-specific script and
+grading allowlists, focused tests, and this evidence record. Tests must first
+fail for the absent d1 identities and provenance acceptance, then pass before
+any preview or cloud submission. Shared project-status QMD and generated
+surfaces remain outside this branch's ownership.
+
 ## Codec-normalized b1 observed result
 
 The separately authorized b1 retry passed its sequential gates. This current
