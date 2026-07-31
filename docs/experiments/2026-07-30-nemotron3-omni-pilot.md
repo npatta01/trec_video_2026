@@ -485,6 +485,43 @@ fail for the absent d1 identities and provenance acceptance, then pass before
 any preview or cloud submission. Shared project-status QMD and generated
 surfaces remain outside this branch's ownership.
 
+### Task 9: Add exact d1 execution and grading identities
+
+Modify only `scripts/run-nemotron3-omni-dstack.sh`,
+`scripts/upload-nemotron3-omni-pilot-inputs.sh`,
+`scripts/collect-nemotron3-omni-dstack.sh`,
+`src/trec_video_2026/vqa_experiments/nemotron3_omni_grading.py`,
+`tests/test_nemotron3_omni_grading.py`, and
+`tests/test_nemotron3_omni_dstack_config.py`. Add
+`dstack/nemotron3-omni-expanded12-canary-d1.dstack.yml` and
+`dstack/nemotron3-omni-expanded12-d1.dstack.yml`.
+
+1. Add focused failing tests for both exact d1 experiment identities, the
+   valid 39-character canary scheduler alias, full immutable HF prefixes,
+   absence of any d2 identity, and d1 frozen-provenance verification before
+   references load.
+2. Add the minimum explicit d1 allowlist branches without weakening c1 or
+   historical identity rejection. Keep the existing exact image/model/runtime,
+   resource, price, duration, secret, normalization, foreground, and durable
+   collection behavior unchanged.
+3. Generalize expanded grading only enough for a caller to select the exact
+   allowed d1 run identity; retain c1 as the compatibility default and reject
+   any unapproved identity or cross-run artifact before references load.
+4. Run the full Nemotron suite, Ruff, formatting, shell syntax, YAML parsing,
+   privacy/scope scans, and `git diff --check`, then obtain an independent
+   read-only review and commit before cloud work.
+
+### Task 10: Execute the sequential d1 cloud gates
+
+Retain and hash the full declined canary preview, submit the d1 canary detached
+once, monitor without secret-bearing diagnostics, and recursively verify its
+private outputs and audit bundles. Only after 3/3 and fleet release, upload and
+round-trip-verify the exact 13 pilot input objects, retain the pilot preview,
+submit once, and require a verified 24/24 freeze. Grade only after freeze
+verification, upload and round-trip-verify the grading bundle, apply both
+predeclared decision rules, update this sanitized record, and commit. Stop on
+any technical gate failure or valid negative quality result; no d2 exists.
+
 ## Codec-normalized b1 observed result
 
 The separately authorized b1 retry passed its sequential gates. This current
