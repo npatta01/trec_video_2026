@@ -6,11 +6,15 @@ import argparse
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib import request as urllib_request
+
+from trec_video_2026.vqa_benchmark import MediaMetadata, probe_media
 
 MODEL_ID = "nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4"
 MODEL_REVISION = "dc5f0b0bfddf8b6e0f5891475be9af05b80126fe"
@@ -202,6 +206,8 @@ def build_normalized_contract(
     source_media_root: Path,
     normalized_media_root: Path,
     mode: str,
+    media_probe: Callable[[Path], MediaMetadata] = probe_media,
+    decode_runner: Callable[..., Any] = subprocess.run,
 ) -> dict[str, Any]:
     """Bind a frozen pilot contract to verified H.264/AAC-derived MP4 bytes."""
     if mode not in {"pilot", "codec-sentinel", "expanded-pilot"}:
@@ -214,14 +220,16 @@ def build_normalized_contract(
         "expanded-pilot": {"expanded-pilot"},
     }
     if mode not in allowed_modes.get(source_mode, set()):
-        raise ValueError("normalized media requires the frozen pilot contract")
+        raise ValueError(
+            "normalized media requires the matching frozen source contract"
+        )
 
     normalized_media_root = normalized_media_root.resolve()
     normalized_examples = []
     for source in source_examples:
         if not isinstance(source, dict):
             raise TypeError("contract examples must be objects")
-        _resolve_contract_media(source_media_root, source)
+        source_path = _resolve_contract_media(source_media_root, source)
         video_id = source["video_id"]
         relative = PurePosixPath(f"{video_id}.mp4")
         candidate = normalized_media_root.joinpath(*relative.parts)
@@ -232,18 +240,30 @@ def build_normalized_contract(
             resolved.relative_to(normalized_media_root)
         except ValueError as error:
             raise ValueError(f"normalized media escapes root: {video_id}") from error
-        normalized_examples.append(
-            {
-                "video_id": video_id,
-                "category": source["category"],
-                "role": source["role"],
-                "question": source["question"],
-                "source_media_path": source["media_path"],
-                "source_media_sha256": source["media_sha256"],
-                "media_path": relative.as_posix(),
-                "derived_media_sha256": _sha256_file(resolved),
-            }
-        )
+        normalized_example = {
+            "video_id": video_id,
+            "category": source["category"],
+            "role": source["role"],
+            "question": source["question"],
+            "source_media_path": source["media_path"],
+            "source_media_sha256": source["media_sha256"],
+            "media_path": relative.as_posix(),
+            "derived_media_sha256": _sha256_file(resolved),
+        }
+        if mode == "expanded-pilot":
+            source_duration, derived_duration = _validate_normalized_media(
+                source_path=source_path,
+                derived_path=resolved,
+                media_probe=media_probe,
+                decode_runner=decode_runner,
+            )
+            normalized_example.update(
+                {
+                    "source_duration_seconds": source_duration,
+                    "derived_duration_seconds": derived_duration,
+                }
+            )
+        normalized_examples.append(normalized_example)
 
     conditions = [dict(condition) for condition in CONDITIONS]
     panel_id = source_contract.get("panel_id")
@@ -393,6 +413,86 @@ def _resolve_contract_media(media_root: Path, example: dict[str, Any]) -> Path:
     return candidate
 
 
+def _codec_names(metadata: MediaMetadata, codec_type: str) -> list[str]:
+    return sorted(
+        stream.codec_name
+        for stream in metadata.streams
+        if stream.codec_type == codec_type
+    )
+
+
+def _decode_stream(
+    *, path: Path, stream_specifier: str, decode_runner: Callable[..., Any]
+) -> None:
+    try:
+        decode_runner(
+            [
+                "ffmpeg",
+                "-nostdin",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-xerror",
+                "-i",
+                str(path),
+                "-map",
+                stream_specifier,
+                "-f",
+                "null",
+                "-",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ValueError(f"media decode failed for {path.name}") from error
+
+
+def _validate_normalized_media(
+    *,
+    source_path: Path | None,
+    derived_path: Path,
+    media_probe: Callable[[Path], MediaMetadata],
+    decode_runner: Callable[..., Any],
+    source_duration_seconds: float | None = None,
+) -> tuple[float, float]:
+    """Require one decodable H.264/AAC derivation with bounded duration drift."""
+    try:
+        if source_path is not None:
+            source_duration_seconds = media_probe(source_path).duration_seconds
+        derived_metadata = media_probe(derived_path)
+    except (OSError, subprocess.SubprocessError, ValueError, TypeError) as error:
+        raise ValueError(f"media probe failed for {derived_path.name}") from error
+    if (
+        not isinstance(source_duration_seconds, (int, float))
+        or isinstance(source_duration_seconds, bool)
+        or source_duration_seconds <= 0
+        or derived_metadata.duration_seconds <= 0
+    ):
+        raise ValueError(
+            f"normalized media duration is invalid for {derived_path.name}"
+        )
+    video_codecs = _codec_names(derived_metadata, "video")
+    audio_codecs = _codec_names(derived_metadata, "audio")
+    if video_codecs != ["h264"]:
+        raise ValueError(f"normalized video codec mismatch: {video_codecs}")
+    if audio_codecs != ["aac"]:
+        raise ValueError(f"normalized audio codec mismatch: {audio_codecs}")
+    if abs(source_duration_seconds - derived_metadata.duration_seconds) > 0.5:
+        raise ValueError(
+            "normalized duration drift: "
+            f"source={source_duration_seconds}, derived={derived_metadata.duration_seconds}"
+        )
+    _decode_stream(
+        path=derived_path, stream_specifier="0:v:0", decode_runner=decode_runner
+    )
+    _decode_stream(
+        path=derived_path, stream_specifier="0:a:0", decode_runner=decode_runner
+    )
+    return float(source_duration_seconds), derived_metadata.duration_seconds
+
+
 def _is_sha256(value: object) -> bool:
     return (
         isinstance(value, str)
@@ -471,6 +571,17 @@ def _validate_run_contract(
                 or not _is_sha256(example.get("derived_media_sha256"))
             ):
                 raise ValueError(f"normalized media identity mismatch for {video_id}")
+            if mode == "expanded-pilot" and (
+                not isinstance(example.get("source_duration_seconds"), (int, float))
+                or isinstance(example.get("source_duration_seconds"), bool)
+                or example["source_duration_seconds"] <= 0
+                or not isinstance(example.get("derived_duration_seconds"), (int, float))
+                or isinstance(example.get("derived_duration_seconds"), bool)
+                or example["derived_duration_seconds"] <= 0
+            ):
+                raise ValueError(
+                    f"normalized media duration identity mismatch for {video_id}"
+                )
     elif mode == "codec-sentinel":
         raise ValueError("codec-sentinel requires normalized media")
     else:
@@ -528,6 +639,8 @@ def run_probe(
     output_dir: Path,
     run_id: str,
     request: Any,
+    media_probe: Callable[[Path], MediaMetadata] = probe_media,
+    decode_runner: Callable[..., Any] = subprocess.run,
 ) -> dict[str, Any]:
     """Run one foreground, label-blind request for every declared condition."""
     mode, examples, conditions = _validate_run_contract(contract)
@@ -539,6 +652,19 @@ def run_probe(
         ("expanded-pilot", 12, 24),
     }:
         raise ValueError("contract request denominator is not predeclared")
+
+    if mode == "expanded-pilot":
+        for example in examples:
+            if not isinstance(example, dict):
+                raise TypeError("contract examples must be objects")
+            derived_path = _resolve_contract_media(media_root, example)
+            _validate_normalized_media(
+                source_path=None,
+                derived_path=derived_path,
+                source_duration_seconds=example["source_duration_seconds"],
+                media_probe=media_probe,
+                decode_runner=decode_runner,
+            )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     predictions_path = output_dir / "predictions.jsonl"

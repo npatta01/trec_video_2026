@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
 
 import pytest
 
+from trec_video_2026.vqa_benchmark import MediaMetadata, MediaStreamSummary
 from trec_video_2026.vqa_experiments import nemotron3_omni_pilot
 from trec_video_2026.vqa_experiments.nemotron3_omni_pilot import (
     EXPANDED_ROWS,
@@ -56,6 +58,115 @@ def _write_panel_and_media(
     panel_path = tmp_path / "failure-panel.json"
     panel_path.write_text(json.dumps({"examples": examples}), encoding="utf-8")
     return panel_path, data_root
+
+
+def _media_metadata(
+    *,
+    duration_seconds: float = 2.0,
+    video_codec: str = "h264",
+    audio_codec: str = "aac",
+) -> MediaMetadata:
+    return MediaMetadata(
+        duration_seconds=duration_seconds,
+        has_video=True,
+        has_audio=True,
+        stream_types=("video", "audio"),
+        streams=(
+            MediaStreamSummary(codec_type="video", codec_name=video_codec),
+            MediaStreamSummary(codec_type="audio", codec_name=audio_codec),
+        ),
+    )
+
+
+def _expanded_normalized_inputs(tmp_path: Path) -> tuple[dict[str, object], Path, Path]:
+    panel_path, data_root = _write_panel_and_media(tmp_path, rows=EXPANDED_ROWS)
+    source_contract = build_expanded_contract(
+        panel_path=panel_path, data_root=data_root
+    )
+    normalized_root = tmp_path / "normalized"
+    normalized_root.mkdir()
+    for index, (video_id, _category, _role) in enumerate(EXPANDED_ROWS):
+        (normalized_root / f"{video_id}.mp4").write_bytes(
+            f"normalized-{index}".encode()
+        )
+    return source_contract, data_root, normalized_root
+
+
+def _decode_succeeds(
+    *_args: object, **_kwargs: object
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+
+@pytest.mark.parametrize(
+    ("derived_metadata", "message"),
+    [
+        (None, "media probe failed"),
+        (_media_metadata(video_codec="vp9"), "normalized video codec mismatch"),
+        (_media_metadata(audio_codec="mp3"), "normalized audio codec mismatch"),
+        (_media_metadata(duration_seconds=2.6), "normalized duration drift"),
+    ],
+)
+def test_expanded_normalization_rejects_invalid_media_before_inference(
+    tmp_path: Path, derived_metadata: MediaMetadata | None, message: str
+) -> None:
+    """Catches corrupt, incompatible, or duration-drifted expanded media."""
+    source_contract, data_root, normalized_root = _expanded_normalized_inputs(tmp_path)
+
+    def probe(path: Path) -> MediaMetadata:
+        if path.suffix == ".mkv":
+            return _media_metadata()
+        if derived_metadata is None:
+            raise subprocess.CalledProcessError(1, ["ffprobe", str(path)])
+        return derived_metadata
+
+    with pytest.raises(ValueError, match=message):
+        nemotron3_omni_pilot.build_normalized_contract(
+            source_contract=source_contract,
+            source_media_root=data_root,
+            normalized_media_root=normalized_root,
+            mode="expanded-pilot",
+            media_probe=probe,
+            decode_runner=_decode_succeeds,
+        )
+
+
+def test_expanded_probe_rejects_undecodable_media_before_any_request(
+    tmp_path: Path,
+) -> None:
+    """Catches a derived file that probes cleanly but fails stream decode."""
+    source_contract, data_root, normalized_root = _expanded_normalized_inputs(tmp_path)
+    contract = nemotron3_omni_pilot.build_normalized_contract(
+        source_contract=source_contract,
+        source_media_root=data_root,
+        normalized_media_root=normalized_root,
+        mode="expanded-pilot",
+        media_probe=lambda _path: _media_metadata(),
+        decode_runner=_decode_succeeds,
+    )
+    requested = False
+
+    def request(_payload: dict[str, object]) -> dict[str, object]:
+        nonlocal requested
+        requested = True
+        return {}
+
+    def decode_fails(
+        *_args: object, **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        raise subprocess.CalledProcessError(1, ["ffmpeg"])
+
+    with pytest.raises(ValueError, match="media decode failed"):
+        run_probe(
+            contract=contract,
+            media_root=normalized_root,
+            output_dir=tmp_path / "output",
+            run_id="nemotron3-omni-expanded12-20260730-c1",
+            request=request,
+            media_probe=lambda _path: _media_metadata(),
+            decode_runner=decode_fails,
+        )
+    assert requested is False
 
 
 def test_expanded_contract_freezes_the_exact_failure_panel_order_without_labels(
@@ -109,6 +220,8 @@ def test_expanded_normalized_contract_requires_twelve_inputs_and_runs_24_adjacen
         source_media_root=data_root,
         normalized_media_root=normalized_root,
         mode="expanded-pilot",
+        media_probe=lambda _path: _media_metadata(),
+        decode_runner=_decode_succeeds,
     )
     marker_path = tmp_path / "INPUTS_COMPLETE.json"
     marker_path.write_text(
@@ -146,6 +259,8 @@ def test_expanded_normalized_contract_requires_twelve_inputs_and_runs_24_adjacen
         output_dir=output_dir,
         run_id="nemotron3-omni-expanded12-20260730-c1",
         request=request,
+        media_probe=lambda _path: _media_metadata(),
+        decode_runner=_decode_succeeds,
     )
     assert summary["completion"] == {"completed": 24, "expected": 24}
     assert [
