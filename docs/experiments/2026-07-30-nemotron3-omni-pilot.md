@@ -117,6 +117,110 @@ allocation. No central reserve and no automatic b2 correction are authorized.
     verification suite and an independent review, and commit the complete
     model-specific work.
 
+## Approved expanded-12 follow-up design
+
+The user requested a test on at least 10 videos and approved using the complete
+12-row failure panel. This is a new, separately authorized experiment; it does
+not mutate or repeat either b1 run. Its immutable identities are:
+
+- public exact-image canary:
+  `nemotron3-omni-expanded12-canary-20260730-c1`
+- paired expanded pilot:
+  `nemotron3-omni-expanded12-20260730-c1`
+
+No c2 submission or external retry loop is authorized. The retired historical
+pilot a2 identity remains unavailable.
+
+### Question, panel, and decision rules
+
+The question is whether the condition-bound b1 audio benefit replicates on the
+original four non-speech-sound/music targets and extends across a broader
+12-video panel. The label-free panel contains 12 videos and 24 adjacent paired
+requests:
+
+- 2 dialogue and speech targets
+- 4 non-speech sound and music targets
+- 4 temporal and action targets
+- 2 visual controls
+
+The treatment is native video with audio enabled; the matched control is the
+same normalized video bytes with audio disabled. Model, revision, runtime
+image, CUDA/L40S hardware envelope, questions, row order, prompt, greedy
+short-answer decoding, and normalization remain held fixed.
+
+The result has two predeclared interpretation gates:
+
+1. **Sound replication:** 24/24 requests complete, audio-on improves at least
+   2 of the 4 non-speech-sound/music targets, and neither visual control
+   regresses.
+2. **Broader expansion:** sound replication passes, audio-on improves at least
+   4 of all 10 non-control rows, no more than 1 non-control row regresses, and
+   neither visual control regresses.
+
+If only sound replication passes, the decision remains **Routed candidate**
+for the sound-specific condition. If both gates pass, the condition-bound
+decision may expand to **Routed candidate** across the tested target mix. A
+positive result cannot establish **Current default** because the panel is
+small and deliberately failure-selected. Failure of either gate is a valid
+negative result for that gate and must not trigger a technically unnecessary
+rerun.
+
+### Runtime and sequential integrity gates
+
+The runtime remains:
+
+- model:
+  `nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4`
+- model revision:
+  `dc5f0b0bfddf8b6e0f5891475be9af05b80126fe`
+- image:
+  `docker.io/vllm/vllm-openai:v0.20.0@sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc`
+
+The expanded run will:
+
+1. Use tests first to add an exact 12-row label-free contract, a 24-request
+   normalized contract, expanded grading validation, immutable identities, and
+   dstack configs.
+2. Upload only the 12 source media, label-free contract, and completed marker
+   to the new private c1 input prefix, then recursively download and hash-check
+   them.
+3. Preview the public canary with
+   `echo "n" | dstack apply -f ...`, retain the full output, and require
+   multiple physically distinct compatible offers where practical.
+4. Run the pinned image's real foreground interpreter, vLLM server, and native
+   audio-video request seam on three public synthetic H.264/AAC files. Require
+   3/3 valid non-thinking short answers before the private pilot.
+5. After canary verification and fleet release, preview and submit the
+   expanded pilot once. Inside the exact image, source-hash-verify and
+   normalize all 12 files to metadata-stripped H.264/AAC MP4, record derived
+   hashes, validate codecs and duration, and decode-check both streams before
+   model loading.
+6. Freeze all 24 predictions and verify `manifest.json` and
+   `predictions.jsonl` against `SHA256SUMS`, including the manifest-recorded
+   prediction hash and exact row/condition order, before references load.
+7. Obtain two independently shuffled blind C/P/W grades. Use a distinct third
+   grader only for disagreements, then apply both predeclared gates.
+8. Preserve outputs, exact preview text, sanitized terminal dstack
+   scheduler/region/duration/cost metadata, and private grading artifacts under
+   the immutable run prefixes. Recursively list, download, and checksum-verify
+   each bundle.
+
+No request may ask for, save, or expose chain-of-thought. Private media,
+answers, references, item-level grades, raw competition rows, and raw logs
+remain outside Git and sanitized reporting. `HF_TOKEN` remains in dstack
+secrets only.
+
+### Budget and ownership boundary
+
+The public canary is capped at 30 minutes and `$2/hour`; the expanded pilot is
+capped at 45 minutes and `$2/hour`. Incremental worst-case spend is `$2.50`.
+Together with the existing `$0.5781`, cumulative worst case is `$3.0781`,
+inside the original `$8` base allocation. No central reserve is authorized.
+
+This branch may change only Nemotron-specific adapters, configs, scripts,
+tests, and this existing evidence record. The shared project-status QMD and
+generated Markdown/HTML remain the parent integration task's responsibility.
+
 ## Codec-normalized b1 observed result
 
 The separately authorized b1 retry passed its sequential gates. This current
