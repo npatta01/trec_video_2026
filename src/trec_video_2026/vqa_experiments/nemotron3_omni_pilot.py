@@ -9,7 +9,7 @@ import os
 import subprocess
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib import request as urllib_request
@@ -336,6 +336,27 @@ def build_chat_request(
     }
 
 
+_REASONING_FIELD_NAMES = frozenset(
+    {"analysis", "reasoning", "reasoning_content", "reasoning_details"}
+)
+
+
+def _contains_reasoning_field(value: object) -> bool:
+    """Return whether an API envelope exposes a reasoning-designated field."""
+    if isinstance(value, Mapping):
+        for key, nested in value.items():
+            if (
+                isinstance(key, str)
+                and key.lower().replace("-", "_") in _REASONING_FIELD_NAMES
+            ):
+                return True
+            if _contains_reasoning_field(nested):
+                return True
+    elif isinstance(value, (list, tuple)):
+        return any(_contains_reasoning_field(nested) for nested in value)
+    return False
+
+
 def parse_short_answer(response: object) -> str:
     """Return only a valid short answer and refuse any exposed reasoning."""
     try:
@@ -349,8 +370,7 @@ def parse_short_answer(response: object) -> str:
         content = message["content"]
     except (KeyError, IndexError, TypeError) as error:
         raise ValueError("response omitted choices[0].message.content") from error
-    reasoning = message.get("reasoning_content")
-    if reasoning not in (None, ""):
+    if _contains_reasoning_field(response):
         raise ValueError("reasoning content is forbidden")
     if not isinstance(content, str) or not content.strip():
         raise ValueError("answer must be a non-empty string")

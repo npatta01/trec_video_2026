@@ -19,7 +19,12 @@ from trec_video_2026.vqa_experiments.nemotron3_omni_pilot import (
     EXPANDED_ROWS,
     MODEL_ID,
     MODEL_REVISION,
+    RUNTIME_IMAGE,
+    RUNTIME_IMAGE_DIGEST,
 )
+
+
+EXPANDED_C1_RUN_ID = "nemotron3-omni-expanded12-20260730-c1"
 
 
 def _synthetic_rows(*, completed: bool = True) -> list[dict[str, object]]:
@@ -219,11 +224,90 @@ def _expanded_synthetic_rows(*, completed: bool = True) -> list[dict[str, object
     ]
 
 
+def _expanded_c1_request_sha256(
+    *, video_id: str, question: str, audio_enabled: bool
+) -> str:
+    """Hand-derive the c1 runner request hash without using the request builder."""
+    payload = {
+        "model": MODEL_ID,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "video_url",
+                        "video_url": {
+                            "url": f"file:///dstack/input/normalized/{video_id}.mp4"
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": (
+                            f"{question.strip()}\nAnswer in at most 12 words. "
+                            "Return only the answer, with no analysis or explanation."
+                        ),
+                    },
+                ],
+            }
+        ],
+        "temperature": 0.0,
+        "top_p": 1.0,
+        "max_tokens": 32,
+        "stream": False,
+        "top_k": 1,
+        "chat_template_kwargs": {"enable_thinking": False},
+        "mm_processor_kwargs": {"use_audio_in_video": audio_enabled},
+    }
+    return hashlib.sha256(
+        json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 def _write_expanded_frozen_artifacts(
     tmp_path: Path,
     rows: list[dict[str, object]],
 ) -> tuple[Path, Path, Path]:
-    predictions_path = tmp_path / "expanded-predictions.jsonl"
+    output_dir = tmp_path / "expanded-output"
+    output_dir.mkdir()
+    contract_path = output_dir / "contract.json"
+    contract = {
+        "schema_version": 1,
+        "mode": "expanded-pilot",
+        "panel_id": "nemotron3-omni-expanded-12",
+        "model_id": MODEL_ID,
+        "model_revision": MODEL_REVISION,
+        "conditions": [
+            {"condition_id": "audio-off", "audio_enabled": False},
+            {"condition_id": "audio-on", "audio_enabled": True},
+        ],
+        "media_derivation": {
+            "container": "mp4",
+            "video_codec": "h264",
+            "audio_codec": "aac",
+        },
+        "source_contract_sha256": "a" * 64,
+        "examples": [
+            {
+                "video_id": video_id,
+                "category": category,
+                "role": role,
+                "question": row["question"],
+                "media_path": f"{video_id}.mp4",
+                "source_media_path": f"vqa/2025/training/videos_original/{video_id}.mkv",
+                "source_media_sha256": "b" * 64,
+                "derived_media_sha256": "c" * 64,
+                "source_duration_seconds": 2.0,
+                "derived_duration_seconds": 2.0,
+            }
+            for row, (video_id, category, role) in zip(rows, EXPANDED_ROWS, strict=True)
+        ],
+    }
+    contract_path.write_text(
+        json.dumps(contract, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    predictions_path = output_dir / "predictions.jsonl"
     records: list[dict[str, object]] = []
     for pair_index, row in enumerate(rows):
         predictions = row["predictions"]
@@ -235,28 +319,60 @@ def _write_expanded_frozen_artifacts(
             records.append(
                 {
                     "schema_version": 1,
+                    "run_id": EXPANDED_C1_RUN_ID,
                     "mode": "expanded-pilot",
                     "pair_index": pair_index,
                     "video_id": row["row_key"],
                     "category": row["category"],
                     "role": row["role"],
                     "condition_id": condition,
+                    "audio_enabled": condition == "audio-on",
+                    "request_sha256": _expanded_c1_request_sha256(
+                        video_id=str(row["row_key"]),
+                        question=str(row["question"]),
+                        audio_enabled=condition == "audio-on",
+                    ),
+                    "model_id": MODEL_ID,
+                    "model_revision": MODEL_REVISION,
+                    "runtime_image_digest": RUNTIME_IMAGE_DIGEST,
                     "status": "passed" if completed else "failed",
                     "answer": prediction["answer"] if completed else "",
+                    "answer_sha256": hashlib.sha256(
+                        str(prediction["answer"] if completed else "").encode()
+                    ).hexdigest()
+                    if completed
+                    else None,
+                    "error_type": None,
+                    "error_message": None,
+                    "elapsed_seconds": 0.0,
                 }
             )
     predictions_path.write_text(
         "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
         encoding="utf-8",
     )
-    manifest_path = tmp_path / "expanded-manifest.json"
+    manifest_path = output_dir / "manifest.json"
     manifest_path.write_text(
         json.dumps(
             {
                 "schema_version": 1,
+                "run_id": EXPANDED_C1_RUN_ID,
                 "mode": "expanded-pilot",
                 "model_id": MODEL_ID,
                 "model_revision": MODEL_REVISION,
+                "runtime_image": RUNTIME_IMAGE,
+                "runtime_image_digest": RUNTIME_IMAGE_DIGEST,
+                "contract_sha256": hashlib.sha256(
+                    json.dumps(
+                        contract,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        ensure_ascii=False,
+                    ).encode("utf-8")
+                ).hexdigest(),
+                "contract_file_sha256": hashlib.sha256(
+                    contract_path.read_bytes()
+                ).hexdigest(),
                 "frozen": True,
                 "completion": {"completed": len(records), "expected": 24},
                 "predictions_sha256": hashlib.sha256(
@@ -269,7 +385,7 @@ def _write_expanded_frozen_artifacts(
         + "\n",
         encoding="utf-8",
     )
-    checksums_path = tmp_path / "expanded-SHA256SUMS"
+    checksums_path = output_dir / "SHA256SUMS"
     checksums_path.write_text(
         (
             f"{hashlib.sha256(manifest_path.read_bytes()).hexdigest()}"
@@ -303,6 +419,96 @@ def _refresh_expanded_freeze(
         ),
         encoding="utf-8",
     )
+
+
+@pytest.mark.parametrize("operation", ("omit", "tamper"))
+@pytest.mark.parametrize(
+    ("artifact", "field", "tampered_value"),
+    [
+        ("manifest", "run_id", "other-expanded-run"),
+        ("manifest", "model_id", "other/model"),
+        ("manifest", "model_revision", "0" * 40),
+        ("manifest", "runtime_image", "docker.io/example@sha256:" + "0" * 64),
+        ("manifest", "runtime_image_digest", "sha256:" + "0" * 64),
+        ("manifest", "contract_sha256", "0" * 64),
+        ("manifest", "contract_file_sha256", "0" * 64),
+        ("contract", "panel_id", "other-panel"),
+        ("record", "run_id", "other-expanded-run"),
+        ("record", "model_id", "other/model"),
+        ("record", "model_revision", "0" * 40),
+        ("record", "runtime_image_digest", "sha256:" + "0" * 64),
+        ("record", "audio_enabled", True),
+        ("record", "request_sha256", "0" * 64),
+        ("record", "answer_sha256", "0" * 64),
+    ],
+)
+def test_expanded_freeze_rejects_every_c1_provenance_omission_or_tamper_before_references(
+    tmp_path: Path,
+    operation: str,
+    artifact: str,
+    field: str,
+    tampered_value: object,
+) -> None:
+    """Catches checksum-consistent c1 provenance tampering before labels load."""
+    rows = _expanded_synthetic_rows()
+    predictions_path, manifest_path, checksums_path = _write_expanded_frozen_artifacts(
+        tmp_path, rows
+    )
+    path_by_artifact = {
+        "manifest": manifest_path,
+        "contract": manifest_path.parent / "contract.json",
+    }
+    if artifact == "record":
+        records = [
+            json.loads(line) for line in predictions_path.read_text().splitlines()
+        ]
+        if operation == "omit":
+            del records[0][field]
+        else:
+            records[0][field] = tampered_value
+        predictions_path.write_text(
+            "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
+            encoding="utf-8",
+        )
+    else:
+        artifact_path = path_by_artifact[artifact]
+        value = json.loads(artifact_path.read_text(encoding="utf-8"))
+        if operation == "omit":
+            del value[field]
+        else:
+            value[field] = tampered_value
+        artifact_path.write_text(
+            json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        if artifact == "contract":
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["contract_sha256"] = hashlib.sha256(
+                json.dumps(
+                    value,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=False,
+                ).encode("utf-8")
+            ).hexdigest()
+            manifest["contract_file_sha256"] = hashlib.sha256(
+                artifact_path.read_bytes()
+            ).hexdigest()
+            manifest_path.write_text(
+                json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8"
+            )
+    _refresh_expanded_freeze(predictions_path, manifest_path, checksums_path)
+    calls: list[tuple[str, ...]] = []
+
+    with pytest.raises((TypeError, ValueError)):
+        nemotron3_omni_grading.build_expanded_blind_grading_bundle(
+            predictions_path=predictions_path,
+            manifest_path=manifest_path,
+            checksums_path=checksums_path,
+            reference_loader=_expanded_reference_loader(rows, calls),
+            grader_ids=("expanded-independent-a", "expanded-independent-b"),
+            shuffle_seeds=(1471, 2591),
+        )
+    assert calls == []
 
 
 def _expanded_reference_loader(

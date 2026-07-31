@@ -162,7 +162,11 @@ def test_expanded_c1_scripts_keep_preview_audit_and_expanded_input_boundaries() 
     assert "dstack_metadata" in collector
     assert "--diagnose" not in operational
     assert RETIRED_PILOT_A2_ID not in operational
+    c1_config_filenames = [
+        path.name for path in Path("dstack").glob("nemotron3-omni-*.dstack.yml")
+    ]
     assert "20260730-c2" not in operational
+    assert all("20260730-c2" not in filename for filename in c1_config_filenames)
 
 
 def test_runner_uses_real_foreground_wrapper_and_native_server_seam() -> None:

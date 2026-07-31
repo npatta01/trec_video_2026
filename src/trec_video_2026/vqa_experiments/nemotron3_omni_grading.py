@@ -14,9 +14,15 @@ from trec_video_2026.vqa_experiments.nemotron3_omni_pilot import (
     EXPANDED_ROWS,
     MODEL_ID,
     MODEL_REVISION,
+    RUNTIME_IMAGE,
+    RUNTIME_IMAGE_DIGEST,
+    _validate_run_contract,
+    build_chat_request,
 )
 
 _CONDITIONS = ("audio-off", "audio-on")
+_EXPANDED_C1_RUN_ID = "nemotron3-omni-expanded12-20260730-c1"
+_EXPANDED_C1_NORMALIZED_MEDIA_ROOT = Path("/dstack/input/normalized")
 _GRADES = frozenset({"C", "P", "W"})
 _RUBRIC = {
     "C": "Correct",
@@ -287,11 +293,31 @@ def _verified_expanded_frozen_predictions(
         raise ValueError("frozen manifest must be valid JSON") from error
     if not isinstance(manifest, Mapping):
         raise TypeError("frozen manifest must be an object")
+    expected_manifest_fields = {
+        "schema_version",
+        "run_id",
+        "mode",
+        "model_id",
+        "model_revision",
+        "runtime_image",
+        "runtime_image_digest",
+        "contract_sha256",
+        "contract_file_sha256",
+        "predictions_sha256",
+        "frozen",
+        "completion",
+        "reference_answers_available",
+    }
+    if set(manifest) != expected_manifest_fields:
+        raise ValueError("frozen expanded manifest schema mismatch")
     if (
         manifest.get("schema_version") != 1
+        or manifest.get("run_id") != _EXPANDED_C1_RUN_ID
         or manifest.get("mode") != "expanded-pilot"
         or manifest.get("model_id") != MODEL_ID
         or manifest.get("model_revision") != MODEL_REVISION
+        or manifest.get("runtime_image") != RUNTIME_IMAGE
+        or manifest.get("runtime_image_digest") != RUNTIME_IMAGE_DIGEST
         or manifest.get("reference_answers_available") is not False
     ):
         raise ValueError("frozen manifest identity mismatch")
@@ -301,6 +327,42 @@ def _verified_expanded_frozen_predictions(
         raise ValueError("frozen expanded pilot must be 24/24 complete before grading")
     if manifest.get("predictions_sha256") != predictions_sha256:
         raise ValueError("frozen manifest prediction SHA-256 binding mismatch")
+    contract_path = manifest_path.with_name("contract.json")
+    if not contract_path.is_file():
+        raise ValueError("frozen expanded contract must be a file")
+    contract_bytes = contract_path.read_bytes()
+    if (
+        manifest.get("contract_file_sha256")
+        != hashlib.sha256(contract_bytes).hexdigest()
+    ):
+        raise ValueError("frozen expanded contract file SHA-256 binding mismatch")
+    try:
+        contract = json.loads(contract_bytes)
+    except json.JSONDecodeError as error:
+        raise ValueError("frozen expanded contract must be valid JSON") from error
+    if not isinstance(contract, dict):
+        raise TypeError("frozen expanded contract must be an object")
+    contract_sha256 = hashlib.sha256(
+        json.dumps(
+            contract, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+    ).hexdigest()
+    if manifest.get("contract_sha256") != contract_sha256:
+        raise ValueError("frozen expanded contract canonical SHA-256 binding mismatch")
+    if (
+        contract.get("schema_version") != 1
+        or contract.get("mode") != "expanded-pilot"
+        or contract.get("panel_id") != "nemotron3-omni-expanded-12"
+        or contract.get("model_id") != MODEL_ID
+        or contract.get("model_revision") != MODEL_REVISION
+    ):
+        raise ValueError("frozen expanded contract identity mismatch")
+    try:
+        _contract_mode, contract_examples, contract_conditions = _validate_run_contract(
+            contract
+        )
+    except (TypeError, ValueError) as error:
+        raise ValueError("frozen expanded contract schema mismatch") from error
 
     records: list[Mapping[str, Any]] = []
     for line_number, line in enumerate(predictions_bytes.splitlines(), start=1):
@@ -319,21 +381,73 @@ def _verified_expanded_frozen_predictions(
         )
 
     rows: list[dict[str, Any]] = []
+    expected_record_fields = {
+        "schema_version",
+        "run_id",
+        "mode",
+        "pair_index",
+        "video_id",
+        "category",
+        "role",
+        "condition_id",
+        "audio_enabled",
+        "request_sha256",
+        "model_id",
+        "model_revision",
+        "runtime_image_digest",
+        "status",
+        "answer",
+        "answer_sha256",
+        "error_type",
+        "error_message",
+        "elapsed_seconds",
+    }
     for pair_index, (video_id, category, role) in enumerate(EXPANDED_ROWS):
         pair = records[pair_index * 2 : pair_index * 2 + 2]
+        contract_example = contract_examples[pair_index]
+        if not isinstance(contract_example, dict):
+            raise ValueError("frozen expanded contract example schema mismatch")
         predictions: dict[str, dict[str, Any]] = {}
-        for condition_index, (record, condition) in enumerate(
-            zip(pair, _CONDITIONS, strict=True)
+        for condition_index, (record, condition, contract_condition) in enumerate(
+            zip(pair, _CONDITIONS, contract_conditions, strict=True)
         ):
+            if not isinstance(contract_condition, dict):
+                raise ValueError("frozen expanded contract condition schema mismatch")
+            audio_enabled = condition == "audio-on"
+            expected_request = build_chat_request(
+                media_path=_EXPANDED_C1_NORMALIZED_MEDIA_ROOT
+                / contract_example["media_path"],
+                question=contract_example["question"],
+                audio_enabled=audio_enabled,
+            )
+            expected_request_sha256 = hashlib.sha256(
+                json.dumps(
+                    expected_request,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=False,
+                ).encode("utf-8")
+            ).hexdigest()
             if (
-                record.get("schema_version") != 1
+                set(record) != expected_record_fields
+                or record.get("schema_version") != 1
+                or record.get("run_id") != _EXPANDED_C1_RUN_ID
                 or record.get("mode") != "expanded-pilot"
                 or record.get("pair_index") != pair_index
                 or record.get("video_id") != video_id
                 or record.get("category") != category
                 or record.get("role") != role
                 or record.get("condition_id") != condition
+                or record.get("audio_enabled") is not audio_enabled
+                or contract_condition.get("condition_id") != condition
+                or contract_condition.get("audio_enabled") is not audio_enabled
+                or record.get("request_sha256") != expected_request_sha256
+                or record.get("model_id") != MODEL_ID
+                or record.get("model_revision") != MODEL_REVISION
+                or record.get("runtime_image_digest") != RUNTIME_IMAGE_DIGEST
                 or record.get("status") != "passed"
+                or record.get("error_type") is not None
+                or record.get("error_message") is not None
             ):
                 raise ValueError(
                     "frozen expanded prediction order, identity, or completion mismatch"
@@ -343,6 +457,18 @@ def _verified_expanded_frozen_predictions(
                 raise ValueError(
                     f"frozen prediction {pair_index}:{condition_index} has no answer"
                 )
+            if (
+                record.get("answer_sha256")
+                != hashlib.sha256(answer.encode()).hexdigest()
+            ):
+                raise ValueError("frozen expanded prediction answer SHA-256 mismatch")
+            elapsed_seconds = record.get("elapsed_seconds")
+            if (
+                not isinstance(elapsed_seconds, (int, float))
+                or isinstance(elapsed_seconds, bool)
+                or elapsed_seconds < 0
+            ):
+                raise ValueError("frozen expanded prediction elapsed time is invalid")
             predictions[condition] = {"completed": True, "answer": answer}
         rows.append(
             {
