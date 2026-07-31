@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import random
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+from trec_video_2026.vqa_experiments.nemotron3_omni_pilot import (
+    MODEL_ID,
+    MODEL_REVISION,
+)
 
 _CONDITIONS = ("audio-off", "audio-on")
 _GRADES = frozenset({"C", "P", "W"})
@@ -110,20 +117,184 @@ def _completed_count(rows: Sequence[Mapping[str, Any]]) -> int:
     )
 
 
-def build_blind_grading_bundle(
-    rows: Sequence[Mapping[str, Any]],
+def _verified_frozen_predictions(
     *,
-    freeze_verified: bool,
+    predictions_path: Path,
+    manifest_path: Path,
+    checksums_path: Path,
+) -> list[dict[str, Any]]:
+    if (
+        not predictions_path.is_file()
+        or not manifest_path.is_file()
+        or not checksums_path.is_file()
+    ):
+        raise ValueError("frozen predictions, manifest, and checksums must be files")
+    predictions_bytes = predictions_path.read_bytes()
+    manifest_bytes = manifest_path.read_bytes()
+    recorded_checksums: dict[str, str] = {}
+    for line in checksums_path.read_text(encoding="utf-8").splitlines():
+        digest, separator, relative_path = line.partition("  ")
+        if (
+            separator != "  "
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+            or relative_path in recorded_checksums
+        ):
+            raise ValueError("frozen SHA256SUMS is malformed")
+        recorded_checksums[relative_path] = digest
+    if (
+        recorded_checksums.get("./manifest.json")
+        != hashlib.sha256(manifest_bytes).hexdigest()
+    ):
+        raise ValueError("manifest SHA-256 does not match frozen SHA256SUMS")
+    predictions_sha256 = hashlib.sha256(predictions_bytes).hexdigest()
+    if recorded_checksums.get("./predictions.jsonl") != predictions_sha256:
+        raise ValueError("prediction SHA-256 does not match frozen SHA256SUMS")
+    try:
+        manifest = json.loads(manifest_bytes)
+    except json.JSONDecodeError as error:
+        raise ValueError("frozen manifest must be valid JSON") from error
+    if not isinstance(manifest, Mapping):
+        raise TypeError("frozen manifest must be an object")
+    if (
+        manifest.get("schema_version") != 1
+        or manifest.get("mode") != "pilot"
+        or manifest.get("model_id") != MODEL_ID
+        or manifest.get("model_revision") != MODEL_REVISION
+        or manifest.get("reference_answers_available") is not False
+    ):
+        raise ValueError("frozen manifest identity mismatch")
+    if manifest.get("frozen") is not True:
+        raise ValueError("prediction manifest must declare a frozen artifact")
+    if manifest.get("completion") != {"completed": 12, "expected": 12}:
+        raise ValueError("frozen pilot must be 12/12 complete before grading")
+    if manifest.get("predictions_sha256") != predictions_sha256:
+        raise ValueError("prediction file SHA-256 does not match the frozen manifest")
+
+    records: list[Mapping[str, Any]] = []
+    for line_number, line in enumerate(predictions_bytes.splitlines(), start=1):
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError as error:
+            raise ValueError(
+                f"frozen prediction line {line_number} must be valid JSON"
+            ) from error
+        if not isinstance(record, Mapping):
+            raise TypeError("frozen prediction records must be objects")
+        records.append(record)
+    if len(records) != 12:
+        raise ValueError("frozen pilot must contain exactly 12 prediction records")
+
+    rows: list[dict[str, Any]] = []
+    for pair_index in range(6):
+        pair = records[pair_index * 2 : pair_index * 2 + 2]
+        row_key = pair[0].get("video_id")
+        role = pair[0].get("role")
+        if not isinstance(row_key, str) or not row_key:
+            raise ValueError("frozen prediction video identity is invalid")
+        if role not in {"target", "control"}:
+            raise ValueError("frozen prediction role is invalid")
+        predictions: dict[str, dict[str, Any]] = {}
+        for condition_index, (record, condition) in enumerate(
+            zip(pair, _CONDITIONS, strict=True)
+        ):
+            if (
+                record.get("schema_version") != 1
+                or record.get("mode") != "pilot"
+                or record.get("pair_index") != pair_index
+                or record.get("video_id") != row_key
+                or record.get("role") != role
+                or record.get("condition_id") != condition
+                or record.get("status") != "passed"
+            ):
+                raise ValueError(
+                    "frozen prediction order, identity, or completion mismatch"
+                )
+            answer = record.get("answer")
+            if not isinstance(answer, str) or not answer.strip():
+                raise ValueError(
+                    f"frozen prediction {pair_index}:{condition_index} has no answer"
+                )
+            predictions[condition] = {"completed": True, "answer": answer}
+        rows.append(
+            {
+                "row_key": row_key,
+                "role": role,
+                "predictions": predictions,
+            }
+        )
+    if len({row["row_key"] for row in rows}) != 6:
+        raise ValueError("frozen pilot row identities must be unique")
+    if [row["role"] for row in rows].count("target") != 4 or [
+        row["role"] for row in rows
+    ].count("control") != 2:
+        raise ValueError("frozen pilot requires four targets and two controls")
+    return rows
+
+
+def _load_references_after_freeze(
+    *,
+    frozen_rows: list[dict[str, Any]],
+    reference_loader: Callable[
+        [tuple[str, ...]],
+        Sequence[Mapping[str, Any]],
+    ],
+) -> list[dict[str, Any]]:
+    row_keys = tuple(row["row_key"] for row in frozen_rows)
+    reference_rows = reference_loader(row_keys)
+    if len(reference_rows) != 6:
+        raise ValueError("reference loader must return exactly six rows")
+    by_key: dict[str, Mapping[str, Any]] = {}
+    for row in reference_rows:
+        if not isinstance(row, Mapping) or set(row) != {
+            "row_key",
+            "question",
+            "reference",
+        }:
+            raise ValueError(
+                "reference rows require only row_key, question, and reference"
+            )
+        row_key = row["row_key"]
+        if not isinstance(row_key, str) or row_key in by_key:
+            raise ValueError("reference row identities must be unique strings")
+        by_key[row_key] = row
+    if set(by_key) != set(row_keys):
+        raise ValueError("reference rows do not match the frozen prediction rows")
+    return [
+        {
+            **frozen_row,
+            "question": by_key[frozen_row["row_key"]]["question"],
+            "reference": by_key[frozen_row["row_key"]]["reference"],
+        }
+        for frozen_row in frozen_rows
+    ]
+
+
+def build_blind_grading_bundle(
+    *,
+    predictions_path: Path,
+    manifest_path: Path,
+    checksums_path: Path,
+    reference_loader: Callable[
+        [tuple[str, ...]],
+        Sequence[Mapping[str, Any]],
+    ],
     grader_ids: tuple[str, str],
     shuffle_seeds: tuple[int, int],
 ) -> BlindGradingBundle:
-    """Build two grader packets after the caller verifies the external freeze."""
+    """Verify frozen bytes before loading references and building blind packets."""
 
-    if freeze_verified is not True:
-        raise ValueError("external prediction freeze must be verified before grading")
-    panel = _validated_panel(rows)
-    if _completed_count(panel) != 12:
-        raise ValueError("frozen pilot must be 12/12 complete before grading")
+    frozen_rows = _verified_frozen_predictions(
+        predictions_path=predictions_path,
+        manifest_path=manifest_path,
+        checksums_path=checksums_path,
+    )
+    panel = _validated_panel(
+        _load_references_after_freeze(
+            frozen_rows=frozen_rows,
+            reference_loader=reference_loader,
+        )
+    )
     if (
         len(grader_ids) != 2
         or len(set(grader_ids)) != 2

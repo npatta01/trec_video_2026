@@ -230,6 +230,9 @@ def test_canary_contract_and_foreground_probe_freeze_three_native_av_answers(
         set(record).isdisjoint({"response", "reasoning_content"}) for record in records
     )
     assert (output_dir / "contract.json").exists()
+    manifest = json.loads((output_dir / "manifest.json").read_text())
+    assert manifest["frozen"] is True
+    assert manifest["completion"] == {"completed": 3, "expected": 3}
 
 
 def test_pilot_probe_runs_adjacent_audio_off_on_pairs_and_refuses_overwrite(

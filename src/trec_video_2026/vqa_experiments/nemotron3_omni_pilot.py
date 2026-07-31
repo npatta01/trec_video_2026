@@ -443,6 +443,8 @@ def run_probe(
             "contract_sha256": _contract_sha256(contract),
             "contract_file_sha256": _sha256_file(contract_path),
             "predictions_sha256": predictions_sha256,
+            "frozen": True,
+            "completion": {"completed": completed, "expected": expected},
             "reference_answers_available": False,
         },
     )

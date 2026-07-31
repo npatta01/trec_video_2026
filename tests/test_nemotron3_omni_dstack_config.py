@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -10,12 +11,14 @@ from trec_video_2026.vqa_experiments.nemotron3_omni_pilot import (
     MODEL_ID,
     MODEL_REVISION,
     RUNTIME_IMAGE,
+    RUNTIME_IMAGE_DIGEST,
     TARGET_ROWS,
 )
 
 CANARY_ID = "nemotron3-omni-runner-canary-20260730-a1"
 CANARY_A2_ID = "nemotron3-omni-runner-canary-20260730-a2"
 PILOT_ID = "nemotron3-omni-pilot-20260730-a1"
+RETIRED_PILOT_A2_ID = "nemotron3-omni-pilot-20260730-a2"
 REMOTE_ROOT = "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments"
 CANARY_CONFIG = Path("dstack/nemotron3-omni-runner-canary-a2.dstack.yml")
 FAILED_CANARY_CONFIG = Path("dstack/nemotron3-omni-runner-canary.dstack.yml")
@@ -135,3 +138,43 @@ def test_model_shell_scripts_parse() -> None:
             ["bash", "-n", str(script)], capture_output=True, text=True, check=False
         )
         assert result.returncode == 0, result.stderr
+
+
+def test_consumed_retry_boundary_rejects_pilot_a2_before_external_work() -> None:
+    """Catches re-enabling the forbidden pilot retry in any operational script."""
+    poison_token = "test-only-token-that-must-not-reach-an-external-command"
+    cases = (
+        (
+            RUNNER,
+            ["pilot"],
+            {
+                "EXPERIMENT_RUN_ID": RETIRED_PILOT_A2_ID,
+                "HF_REMOTE_URI": f"{REMOTE_ROOT}/{RETIRED_PILOT_A2_ID}",
+                "RUNTIME_IMAGE": RUNTIME_IMAGE,
+                "RUNTIME_IMAGE_DIGEST": RUNTIME_IMAGE_DIGEST,
+                "MODEL_ID": MODEL_ID,
+                "MODEL_REVISION": MODEL_REVISION,
+                "HF_TOKEN": poison_token,
+            },
+        ),
+        (UPLOADER, [RETIRED_PILOT_A2_ID], {"HF_TOKEN": poison_token}),
+        (COLLECTOR, [RETIRED_PILOT_A2_ID], {"HF_TOKEN": poison_token}),
+    )
+
+    for script, args, overrides in cases:
+        env = os.environ.copy()
+        env.update(overrides)
+        result = subprocess.run(
+            ["bash", str(script), *args],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+            timeout=5,
+        )
+        assert result.returncode == 2, (script, result.stdout, result.stderr)
+        assert "unexpected immutable" in result.stderr, (
+            script,
+            result.stdout,
+            result.stderr,
+        )

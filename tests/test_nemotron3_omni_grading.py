@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Mapping
+from pathlib import Path
 
 import pytest
 
@@ -11,6 +13,10 @@ from trec_video_2026.vqa_experiments.nemotron3_omni_grading import (
     build_blind_grading_bundle,
     reconcile_grades,
     score_pilot,
+)
+from trec_video_2026.vqa_experiments.nemotron3_omni_pilot import (
+    MODEL_ID,
+    MODEL_REVISION,
 )
 
 
@@ -58,16 +64,119 @@ def _submission(
     }
 
 
+def _write_frozen_artifacts(
+    tmp_path: Path,
+    rows: list[dict[str, object]],
+    *,
+    frozen: bool = True,
+) -> tuple[Path, Path, Path]:
+    predictions_path = tmp_path / "predictions.jsonl"
+    records: list[dict[str, object]] = []
+    for pair_index, row in enumerate(rows):
+        predictions = row["predictions"]
+        assert isinstance(predictions, Mapping)
+        for condition in ("audio-off", "audio-on"):
+            prediction = predictions[condition]
+            assert isinstance(prediction, Mapping)
+            completed = prediction["completed"]
+            records.append(
+                {
+                    "schema_version": 1,
+                    "mode": "pilot",
+                    "pair_index": pair_index,
+                    "video_id": row["row_key"],
+                    "role": row["role"],
+                    "condition_id": condition,
+                    "status": "passed" if completed else "failed",
+                    "answer": prediction["answer"] if completed else "",
+                }
+            )
+    predictions_path.write_text(
+        "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
+        encoding="utf-8",
+    )
+    completed = sum(record["status"] == "passed" for record in records)
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "mode": "pilot",
+                "model_id": MODEL_ID,
+                "model_revision": MODEL_REVISION,
+                "frozen": frozen,
+                "completion": {"completed": completed, "expected": 12},
+                "predictions_sha256": hashlib.sha256(
+                    predictions_path.read_bytes()
+                ).hexdigest(),
+                "reference_answers_available": False,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    checksums_path = tmp_path / "SHA256SUMS"
+    checksums_path.write_text(
+        (
+            f"{hashlib.sha256(manifest_path.read_bytes()).hexdigest()}"
+            "  ./manifest.json\n"
+            f"{hashlib.sha256(predictions_path.read_bytes()).hexdigest()}"
+            "  ./predictions.jsonl\n"
+        ),
+        encoding="utf-8",
+    )
+    return predictions_path, manifest_path, checksums_path
+
+
+def _reference_loader(
+    rows: list[dict[str, object]],
+    calls: list[tuple[str, ...]] | None = None,
+):
+    by_key = {row["row_key"]: row for row in rows}
+
+    def load(row_keys: tuple[str, ...]) -> list[dict[str, object]]:
+        if calls is not None:
+            calls.append(row_keys)
+        return [
+            {
+                "row_key": row_key,
+                "question": by_key[row_key]["question"],
+                "reference": by_key[row_key]["reference"],
+            }
+            for row_key in row_keys
+        ]
+
+    return load
+
+
+def _build_bundle(
+    tmp_path: Path,
+    rows: list[dict[str, object]],
+    *,
+    grader_ids: tuple[str, str] = ("independent-a", "independent-b"),
+    shuffle_seeds: tuple[int, int] = (104729, 130363),
+) -> BlindGradingBundle:
+    predictions_path, manifest_path, checksums_path = _write_frozen_artifacts(
+        tmp_path,
+        rows,
+    )
+    return build_blind_grading_bundle(
+        predictions_path=predictions_path,
+        manifest_path=manifest_path,
+        checksums_path=checksums_path,
+        reference_loader=_reference_loader(rows),
+        grader_ids=grader_ids,
+        shuffle_seeds=shuffle_seeds,
+    )
+
+
 def _final_resolution(
+    tmp_path: Path,
     rows: list[dict[str, object]],
     grades_by_answer: Mapping[str, str],
 ) -> tuple[BlindGradingBundle, GradeResolution]:
-    bundle = build_blind_grading_bundle(
-        rows,
-        freeze_verified=True,
-        grader_ids=("independent-a", "independent-b"),
-        shuffle_seeds=(104729, 130363),
-    )
+    bundle = _build_bundle(tmp_path, rows)
     submissions = [
         _submission(packet, grades_by_answer=grades_by_answer)
         for packet in bundle.packets.values()
@@ -85,37 +194,96 @@ def _all_grades(default: str = "C") -> dict[str, str]:
     }
 
 
-def test_requires_externally_verified_complete_freeze_before_packet_building() -> None:
+def test_verifies_frozen_hash_before_loading_references(tmp_path: Path) -> None:
+    """Catches reference loading based on a caller assertion or altered predictions."""
     rows = _synthetic_rows()
-
-    with pytest.raises(ValueError, match="freeze"):
-        build_blind_grading_bundle(
-            rows,
-            freeze_verified=False,
-            grader_ids=("independent-a", "independent-b"),
-            shuffle_seeds=(11, 29),
-        )
-
-    with pytest.raises(ValueError, match="12/12"):
-        build_blind_grading_bundle(
-            _synthetic_rows(completed=False),
-            freeze_verified=True,
-            grader_ids=("independent-a", "independent-b"),
-            shuffle_seeds=(11, 29),
-        )
-
-
-def test_builds_two_independently_shuffled_opaque_packets_without_linkage_leaks() -> (
-    None
-):
-    rows = _synthetic_rows()
-
-    bundle = build_blind_grading_bundle(
+    predictions_path, manifest_path, checksums_path = _write_frozen_artifacts(
+        tmp_path,
         rows,
-        freeze_verified=True,
-        grader_ids=("independent-a", "independent-b"),
-        shuffle_seeds=(104729, 130363),
     )
+    predictions_path.write_text(
+        predictions_path.read_text(encoding="utf-8") + "{}\n",
+        encoding="utf-8",
+    )
+    reference_calls: list[tuple[str, ...]] = []
+
+    with pytest.raises(ValueError, match="SHA-256"):
+        build_blind_grading_bundle(
+            predictions_path=predictions_path,
+            manifest_path=manifest_path,
+            checksums_path=checksums_path,
+            reference_loader=_reference_loader(rows, reference_calls),
+            grader_ids=("independent-a", "independent-b"),
+            shuffle_seeds=(11, 29),
+        )
+
+    assert reference_calls == []
+
+
+def test_verifies_manifest_checksum_before_loading_references(tmp_path: Path) -> None:
+    """Catches changing the freeze declaration and recomputing only its inner hash."""
+    rows = _synthetic_rows()
+    predictions_path, manifest_path, checksums_path = _write_frozen_artifacts(
+        tmp_path,
+        rows,
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["run_id"] = "tampered-after-freeze"
+    manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+    reference_calls: list[tuple[str, ...]] = []
+
+    with pytest.raises(ValueError, match="manifest SHA-256"):
+        build_blind_grading_bundle(
+            predictions_path=predictions_path,
+            manifest_path=manifest_path,
+            checksums_path=checksums_path,
+            reference_loader=_reference_loader(rows, reference_calls),
+            grader_ids=("independent-a", "independent-b"),
+            shuffle_seeds=(11, 29),
+        )
+
+    assert reference_calls == []
+
+
+@pytest.mark.parametrize(
+    ("rows", "frozen", "error"),
+    [
+        (_synthetic_rows(), False, "frozen"),
+        (_synthetic_rows(completed=False), True, "12/12"),
+    ],
+)
+def test_rejects_unfrozen_or_incomplete_artifacts_before_loading_references(
+    tmp_path: Path,
+    rows: list[dict[str, object]],
+    frozen: bool,
+    error: str,
+) -> None:
+    predictions_path, manifest_path, checksums_path = _write_frozen_artifacts(
+        tmp_path,
+        rows,
+        frozen=frozen,
+    )
+    reference_calls: list[tuple[str, ...]] = []
+
+    with pytest.raises(ValueError, match=error):
+        build_blind_grading_bundle(
+            predictions_path=predictions_path,
+            manifest_path=manifest_path,
+            checksums_path=checksums_path,
+            reference_loader=_reference_loader(rows, reference_calls),
+            grader_ids=("independent-a", "independent-b"),
+            shuffle_seeds=(11, 29),
+        )
+
+    assert reference_calls == []
+
+
+def test_builds_two_independently_shuffled_opaque_packets_without_linkage_leaks(
+    tmp_path: Path,
+) -> None:
+    rows = _synthetic_rows()
+
+    bundle = _build_bundle(tmp_path, rows)
 
     assert set(bundle.packets) == {"independent-a", "independent-b"}
     first, second = bundle.packets.values()
@@ -154,11 +322,13 @@ def test_builds_two_independently_shuffled_opaque_packets_without_linkage_leaks(
         assert forbidden not in grader_payload
 
 
-def test_rejects_duplicate_grader_identity_and_non_cpw_grades() -> None:
+def test_rejects_duplicate_grader_identity_and_non_cpw_grades(
+    tmp_path: Path,
+) -> None:
     grades = _all_grades()
-    bundle = build_blind_grading_bundle(
+    bundle = _build_bundle(
+        tmp_path,
         _synthetic_rows(),
-        freeze_verified=True,
         grader_ids=("independent-a", "independent-b"),
         shuffle_seeds=(11, 29),
     )
@@ -174,14 +344,16 @@ def test_rejects_duplicate_grader_identity_and_non_cpw_grades() -> None:
         reconcile_grades(bundle, [first_submission, invalid])
 
 
-def test_disagreements_get_exact_third_party_adjudication_packet() -> None:
+def test_disagreements_get_exact_third_party_adjudication_packet(
+    tmp_path: Path,
+) -> None:
     grades_a = _all_grades()
     grades_b = dict(grades_a)
     grades_b["candidate-1-on"] = "P"
     grades_b["candidate-4-off"] = "W"
-    bundle = build_blind_grading_bundle(
+    bundle = _build_bundle(
+        tmp_path,
         _synthetic_rows(),
-        freeze_verified=True,
         grader_ids=("independent-a", "independent-b"),
         shuffle_seeds=(11, 29),
     )
@@ -221,9 +393,11 @@ def test_disagreements_get_exact_third_party_adjudication_packet() -> None:
     assert len(final.final_grades) == 12
 
 
-def test_adjudication_cannot_cover_agreements_or_reuse_an_independent_grader() -> None:
+def test_adjudication_cannot_cover_agreements_or_reuse_an_independent_grader(
+    tmp_path: Path,
+) -> None:
     grades = _all_grades()
-    bundle, resolution = _final_resolution(_synthetic_rows(), grades)
+    bundle, resolution = _final_resolution(tmp_path, _synthetic_rows(), grades)
     submissions = [
         _submission(packet, grades_by_answer=grades)
         for packet in bundle.packets.values()
@@ -256,7 +430,9 @@ def test_adjudication_cannot_cover_agreements_or_reuse_an_independent_grader() -
         reconcile_grades(bundle, submissions, adjudication=adjudication)
 
 
-def test_exactly_two_target_improvements_and_no_control_regression_passes() -> None:
+def test_exactly_two_target_improvements_and_no_control_regression_passes(
+    tmp_path: Path,
+) -> None:
     grades = _all_grades()
     grades.update(
         {
@@ -275,7 +451,7 @@ def test_exactly_two_target_improvements_and_no_control_regression_passes() -> N
         }
     )
     rows = _synthetic_rows()
-    _, resolution = _final_resolution(rows, grades)
+    _, resolution = _final_resolution(tmp_path, rows, grades)
 
     score = score_pilot(rows, resolution)
 
@@ -287,12 +463,14 @@ def test_exactly_two_target_improvements_and_no_control_regression_passes() -> N
     assert score.disposition == "pass"
 
 
-def test_one_target_improvement_is_a_valid_complete_negative() -> None:
+def test_one_target_improvement_is_a_valid_complete_negative(
+    tmp_path: Path,
+) -> None:
     grades = _all_grades()
     grades["candidate-0-off"] = "W"
     grades["candidate-0-on"] = "P"
     rows = _synthetic_rows()
-    _, resolution = _final_resolution(rows, grades)
+    _, resolution = _final_resolution(tmp_path, rows, grades)
 
     score = score_pilot(rows, resolution)
 
@@ -303,7 +481,7 @@ def test_one_target_improvement_is_a_valid_complete_negative() -> None:
     assert score.disposition == "valid_negative"
 
 
-def test_control_regression_is_a_valid_complete_negative() -> None:
+def test_control_regression_is_a_valid_complete_negative(tmp_path: Path) -> None:
     grades = _all_grades()
     grades.update(
         {
@@ -316,7 +494,7 @@ def test_control_regression_is_a_valid_complete_negative() -> None:
         }
     )
     rows = _synthetic_rows()
-    _, resolution = _final_resolution(rows, grades)
+    _, resolution = _final_resolution(tmp_path, rows, grades)
 
     score = score_pilot(rows, resolution)
 

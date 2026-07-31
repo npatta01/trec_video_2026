@@ -33,7 +33,7 @@ die() {
 validate_identity() {
   case "$MODE:$EXPERIMENT_RUN_ID" in
     canary:nemotron3-omni-runner-canary-20260730-a1|canary:nemotron3-omni-runner-canary-20260730-a2) ;;
-    pilot:nemotron3-omni-pilot-20260730-a1|pilot:nemotron3-omni-pilot-20260730-a2) ;;
+    pilot:nemotron3-omni-pilot-20260730-a1) ;;
     *) die "unexpected immutable mode/run identity" ;;
   esac
   [[ "$HF_REMOTE_URI" == "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/$EXPERIMENT_RUN_ID" ]] \
@@ -280,10 +280,10 @@ finalize_and_sync() {
 }
 
 main() {
-  mkdir -p "$OUTPUT_DIR"
-  trap on_exit EXIT
   failure_stage="identity"
   validate_identity
+  mkdir -p "$OUTPUT_DIR"
+  trap on_exit EXIT
   failure_stage="runtime-bootstrap"
   bootstrap_runtime
   failure_stage="artifact-authentication"
