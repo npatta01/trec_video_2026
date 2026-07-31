@@ -221,6 +221,126 @@ This branch may change only Nemotron-specific adapters, configs, scripts,
 tests, and this existing evidence record. The shared project-status QMD and
 generated Markdown/HTML remain the parent integration task's responsibility.
 
+### Executable expanded-12 implementation plan
+
+All implementation tasks use strict RED-GREEN-REFACTOR sequencing. Existing
+a1 and b1 behavior is a compatibility constraint: the expanded path must be
+explicitly selected and must not re-enable any retired identity or retry.
+
+### Task 1: Expand the label-free inference contract
+
+Modify
+`src/trec_video_2026/vqa_experiments/nemotron3_omni_pilot.py` and
+`tests/test_nemotron3_omni_pilot.py`.
+
+1. First add failing tests for the exact 12-row identity, category, role, and
+   panel order; a 12-row label-free source contract; and a normalized contract
+   with exactly 24 adjacent audio-off/audio-on records.
+2. Add an explicit `expanded-pilot` contract mode and
+   `build-expanded-contract` CLI without changing the six-row b1 defaults.
+3. Generalize input validation so this mode requires exactly 12 media files,
+   one contract, and a completed marker. Require exact source and normalized
+   hashes, expected codecs, duration agreement, and decode validation before
+   inference.
+4. Extend the probe only through the explicit expanded mode. Preserve greedy,
+   non-thinking, short-answer decoding and reject any output field intended to
+   carry reasoning.
+5. Run `pytest -q tests/test_nemotron3_omni_pilot.py` after observing the
+   focused RED failure and again after the minimal implementation.
+
+### Task 2: Expand cryptographic freeze verification and blind scoring
+
+Modify
+`src/trec_video_2026/vqa_experiments/nemotron3_omni_grading.py` and
+`tests/test_nemotron3_omni_grading.py`.
+
+1. First add failing tests for exact 12-row/24-record order, wrong denominator,
+   reordered pairs, modified predictions, modified manifest, and references
+   being inaccessible until all hashes and internal manifest bindings verify.
+2. Add an explicit expanded freeze verifier and blind-packet builder while
+   retaining the six-row API behavior.
+3. Extend scoring to report: four sound-target improvements, ten non-control
+   improvements and regressions, two visual-control regressions,
+   `sound_replication_passed`, and `broader_expansion_passed`.
+4. Keep independently shuffled blind packets label-free. Require two complete
+   C/P/W grade sets and accept third-grader adjudication only where those sets
+   disagree.
+5. Run `pytest -q tests/test_nemotron3_omni_grading.py` after the focused RED
+   failure and after implementation.
+
+### Task 3: Add immutable c1 runner, uploader, collector, and dstack configs
+
+Modify `scripts/run-nemotron3-omni-dstack.sh`,
+`scripts/upload-nemotron3-omni-pilot-inputs.sh`,
+`scripts/collect-nemotron3-omni-dstack.sh`, and
+`tests/test_nemotron3_omni_dstack_config.py`. Add
+`dstack/nemotron3-omni-expanded12-canary-c1.dstack.yml` and
+`dstack/nemotron3-omni-expanded12-c1.dstack.yml`.
+
+1. First add failing tests for the two exact c1 identities, absence of any c2
+   or historical pilot-a2 allowlist path, 13 pilot input objects, exact pinned
+   image/model revision, scalar `L40S:1:48GB..`, shared marketplace fleet,
+   on-demand RunPod/Vast backends, `$2/hour` price caps, and 30/45-minute
+   duration caps.
+2. Route the public canary through the existing real foreground wrapper and
+   three synthetic H.264/AAC native audio-video requests. Route the expanded
+   pilot through the new 12-row contract and exact-image normalization path.
+3. Require preview capture for both c1 identities, detached dstack submission,
+   foreground workload execution, completed input marker, durable private
+   workload/audit prefixes, and terminal sanitized scheduler/cost metadata.
+4. Permit collection only for the two immutable c1 identities and existing
+   completed historical identities. Never use secret-bearing diagnosis.
+5. Run the focused config tests plus `bash -n` and YAML parsing.
+
+### Task 4: Complete the local pre-cloud gate
+
+Run all Nemotron-specific tests, the full test suite, Ruff check and format
+check, shell syntax checks, YAML parsing, credential/private-data scans,
+`git diff --check`, and the shared-data symlink check. Obtain an independent
+read-only review of the diff. Resolve only high-confidence findings using new
+RED tests, then commit the complete local implementation before cloud work.
+
+### Task 5: Run and verify the public exact-image canary
+
+Confirm live scalar L40S offers and that the shared fleet is free. Run exactly
+`echo "n" | dstack apply -f dstack/nemotron3-omni-expanded12-canary-c1.dstack.yml`
+and retain the entire output. Require multiple physically distinct compatible
+offers where practical. Submit the immutable c1 canary detached once, monitor
+the foreground workload without `diagnose`, and collect its private workload
+and audit bundles. Recursively list, download, and SHA-256-verify both. Continue
+only if all three public native audio-video requests produce valid short
+answers.
+
+### Task 6: Run and verify the private expanded pilot
+
+Upload exactly the 12 label-free source media, contract, and marker to the
+private c1 input prefix, then list, download, and checksum-verify the upload.
+After canary success and fleet release, retain the full `echo "n"` pilot
+preview, submit the immutable c1 pilot detached once, and monitor without
+secret-bearing diagnostics. Collect and recursively checksum-verify the
+workload and audit bundles. Stop on a technical failure; no c2 exists. Require
+24/24 frozen outputs before grading.
+
+### Task 7: Grade only after cryptographic freeze verification
+
+Download the immutable frozen bundle and independently verify `SHA256SUMS`,
+the manifest-recorded prediction SHA-256, exact 24-record order, and
+denominator before references can load. Produce two independently shuffled
+blind C/P/W packets and obtain two independent complete grade sets. Invoke a
+third independent adjudicator only for disagreements. Score both predeclared
+gates, upload the exact private grading bundle, and recursively list, download,
+and checksum-verify it.
+
+### Task 8: Record and verify the result
+
+Update only this sanitized evidence record with the exact revisions, preview
+hashes, physically distinct offer evidence, actual region/duration/cost,
+completion denominator, both quality gates, Evidence validity, Decision
+disposition, limitations, rules-out/does-not-rule-out, reconsideration
+conditions, private artifact URIs, and checksum-verification status. Run the
+full local verification and a final independent review before the result
+commit. A valid negative result is complete and must not be rerun for quality.
+
 ## Codec-normalized b1 observed result
 
 The separately authorized b1 retry passed its sequential gates. This current
