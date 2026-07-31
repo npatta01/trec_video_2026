@@ -1,5 +1,5 @@
 type: task
-name: timelens2-runner-canary-20260731-a4
+name: timelens2-runner-canary-20260731-a5
 
 image: docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
 entrypoint: /bin/bash -c
@@ -12,8 +12,8 @@ env:
   - PYTHON_BIN=/opt/conda/bin/python
   - PYTHONPATH=/dstack/run/src
   - RUN_MODE=canary
-  - EXPERIMENT_RUN_ID=timelens2-runner-canary-20260731-a4
-  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/timelens2-runner-canary-20260731-a4
+  - EXPERIMENT_RUN_ID=timelens2-runner-canary-20260731-a5
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/timelens2-runner-canary-20260731-a5
   - RUNTIME_IMAGE=docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
   - RUNTIME_IMAGE_DIGEST=sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
   - MODEL_ID=MCG-NJU/TimeLens2-2B
@@ -31,15 +31,14 @@ commands:
     exec bash /dstack/run/scripts/run-timelens2-selector-dstack.sh run
 
 resources:
-  gpu: A6000:1:48GB..
+  gpu: A40,A6000,L40,L40S,RTX6000Ada,A100,H100,H200:1:48GB..
   cpu: 4..
   memory: 16GB..
   disk: 40GB
 
 backends: [runpod, vastai]
-fleets: [timelens2-a6000-20260731-a4]
 spot_policy: on-demand
-max_price: 0.55
+max_price: 1.00
 max_duration: 15m
 retry:
   on_events: [no-capacity]
