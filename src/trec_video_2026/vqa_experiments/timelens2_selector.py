@@ -7,7 +7,7 @@ import hashlib
 import json
 import math
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +21,30 @@ RUNTIME_IMAGE = (
     "c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755"
 )
 RUNTIME_IMAGE_DIGEST = RUNTIME_IMAGE.rsplit("@", 1)[1]
+FROZEN_GATE_SHA256 = "1f00bc94868c29cd58f6b27a73add337ba67c35db0806d99ef2301646858e05f"
+FROZEN_COMPATIBILITY_ROWS = (
+    (
+        "compatibility-01",
+        "BDKkVYmWqdM",
+        "BDKkVYmWqdM.mkv",
+        "7ae4937b33b0caedbe30f6b2790c06affea52f5fb5f9666bb052424cda49a323",
+        "5dfe17948025a8e9407aa9535bc2d308ff9e36bbb298a6fdf7182159946912fa",
+    ),
+    (
+        "compatibility-02",
+        "O60MtMuSpf8",
+        "O60MtMuSpf8.mkv",
+        "46606eb3b9ec901014a4ab2d0f3a8a562356a7af52527b1f16f3df7b88caa2bf",
+        "b70521f9413ecc991631425483fd381e8e244a3db77c2d101325b7537a5383c2",
+    ),
+    (
+        "compatibility-03",
+        "Fk_j6re_Uiw",
+        "Fk_j6re_Uiw.mkv",
+        "aa2e987f61a2962bab5db68940b62e25376078b53c4748cffdfd2cd2c67a5c4b",
+        "806eb114abcca191c0fd0fa6e10991071be7c65d5379bbfad9c522cba4bcb578",
+    ),
+)
 
 _METADATA_FIELDS = {
     "request_sha256",
@@ -232,9 +256,11 @@ def allocate_hamilton(weights: Sequence[float], *, seats: int) -> list[int]:
     ]
     if any(value < 0 for value in clean):
         raise ValueError("weights cannot be negative")
-    if sum(clean) == 0:
-        clean = [1.0] * len(clean)
     total = sum(clean)
+    if total == 0:
+        if seats == 0:
+            return [0] * len(clean)
+        raise ValueError("positive seats require positive total weight")
     quotas = [value * seats / total for value in clean]
     allocation = [math.floor(quota) for quota in quotas]
     remainder_seats = seats - sum(allocation)
@@ -287,24 +313,42 @@ def prepare_compatibility_requests(
     dataset_root: Path,
     output_path: Path,
     container_media_root: Path,
+    expected_gate_sha256: str = FROZEN_GATE_SHA256,
+    expected_rows: Sequence[tuple[str, str, str, str, str]] = (
+        FROZEN_COMPATIBILITY_ROWS
+    ),
 ) -> dict[str, object]:
     """Write a three-row private manifest containing questions but no labels."""
 
     gate_path = gate_path.resolve()
     dataset_root = dataset_root.resolve()
+    gate_sha256 = _file_sha256(gate_path)
+    if gate_sha256 != expected_gate_sha256:
+        raise ValueError("source does not match the frozen compatibility gate")
     gate = json.loads(gate_path.read_text(encoding="utf-8"))
     examples = gate.get("examples")
-    if not isinstance(examples, list) or len(examples) != 3:
-        raise ValueError("compatibility gate must contain exactly three examples")
+    if not isinstance(examples, list) or len(examples) != len(expected_rows):
+        raise ValueError("source does not match the frozen compatibility gate")
 
     requests: list[dict[str, object]] = []
-    for index, example in enumerate(examples):
+    for index, (example, expected) in enumerate(
+        zip(examples, expected_rows, strict=True)
+    ):
         if not isinstance(example, dict):
             raise ValueError(f"gate example {index} must be an object")
+        (
+            expected_request_id,
+            expected_video_id,
+            expected_filename,
+            expected_media_hash,
+            expected_query_hash,
+        ) = expected
         video_id = example.get("video_id")
-        if not isinstance(video_id, str) or not video_id:
-            raise ValueError(f"gate example {index} has no video_id")
+        if video_id != expected_video_id:
+            raise ValueError("source does not match the frozen compatibility gate")
         media_path = _inside(dataset_root, example.get("media"), name="media")
+        if media_path.name != expected_filename:
+            raise ValueError("source does not match the frozen compatibility gate")
         annotation_path = _inside(
             dataset_root, example.get("annotation"), name="annotation"
         )
@@ -312,9 +356,13 @@ def prepare_compatibility_requests(
         question = annotation.get("question")
         if not isinstance(question, str) or not question.strip():
             raise ValueError(f"gate example {index} has no question")
+        if hashlib.sha256(question.encode("utf-8")).hexdigest() != expected_query_hash:
+            raise ValueError("source does not match the frozen compatibility gate")
         media_sha256 = _file_sha256(media_path)
+        if media_sha256 != expected_media_hash:
+            raise ValueError("source does not match the frozen compatibility gate")
         request_identity = {
-            "request_id": f"compatibility-{index + 1:02d}",
+            "request_id": expected_request_id,
             "video_id": video_id,
             "query": question,
             "media_path": str(container_media_root / media_path.name),
@@ -328,7 +376,7 @@ def prepare_compatibility_requests(
         )
     prepared: dict[str, object] = {
         "schema_version": REQUEST_SCHEMA_VERSION,
-        "source_gate_sha256": _file_sha256(gate_path),
+        "source_gate_sha256": gate_sha256,
         "requests": requests,
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -414,20 +462,240 @@ def _file_sha256(path: Path) -> str:
 
 
 def _write_json(path: Path, payload: object) -> None:
-    path.write_text(
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    temporary.replace(path)
 
 
 def _write_jsonl(path: Path, rows: Sequence[Mapping[str, object]]) -> None:
-    path.write_text(
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_text(
         "".join(
             json.dumps(dict(row), ensure_ascii=False, sort_keys=True) + "\n"
             for row in rows
         ),
         encoding="utf-8",
     )
+    temporary.replace(path)
+
+
+class CompatibilityEvidenceStore:
+    """Incrementally persist a three-row compatibility attempt."""
+
+    required = 3
+
+    def __init__(self, output_dir: Path) -> None:
+        self.output_dir = output_dir
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.phase = "setup"
+        self.attempts: list[dict[str, object]] = []
+        self.raw_results: list[dict[str, object]] = []
+        self.normalized_results: list[dict[str, object]] = []
+        self._inflight: dict[str, object] | None = None
+        self._persist_rows()
+        self._write_phase(status="running", failure=None)
+
+    @property
+    def accepted_count(self) -> int:
+        return len(self.raw_results)
+
+    def checkpoint(self, phase: str) -> None:
+        if not isinstance(phase, str) or not phase.strip():
+            raise ValueError("phase must be a non-empty string")
+        self.phase = phase
+        self._write_phase(status="running", failure=None)
+
+    def begin_request(
+        self,
+        request: Mapping[str, object],
+        *,
+        phase: str,
+    ) -> None:
+        if self._inflight is not None:
+            raise RuntimeError("cannot begin a request while another is in flight")
+        identity = {
+            key: request.get(key)
+            for key in ("request_id", "video_id", "request_sha256")
+        }
+        if any(not isinstance(value, str) or not value for value in identity.values()):
+            raise ValueError("request evidence identity is incomplete")
+        self._inflight = identity
+        self.checkpoint(phase)
+
+    def observe_inflight(self, observation: Mapping[str, object]) -> None:
+        """Persist private observations without copying request text or media paths."""
+
+        if self._inflight is None:
+            raise RuntimeError("no request is in flight")
+        forbidden = {"query", "media_path", "media_sha256", "status"}
+        if forbidden.intersection(observation):
+            raise ValueError("in-flight observations contain forbidden request fields")
+        self._inflight.update(observation)
+        self._write_phase(status="running", failure=None)
+
+    def record_attempt(
+        self,
+        attempt: Mapping[str, object],
+        *,
+        raw_result: Mapping[str, object] | None = None,
+        normalized_result: Mapping[str, object] | None = None,
+    ) -> None:
+        if self._inflight is None:
+            raise RuntimeError("no request is in flight")
+        if (
+            attempt.get("request_id"),
+            attempt.get("video_id"),
+            attempt.get("request_sha256"),
+        ) != (
+            self._inflight["request_id"],
+            self._inflight["video_id"],
+            self._inflight["request_sha256"],
+        ):
+            raise ValueError("attempt identity differs from the in-flight request")
+        status = attempt.get("status")
+        if status == "accepted":
+            if raw_result is None or normalized_result is None:
+                raise ValueError("accepted attempts require raw and normalized results")
+            self.raw_results.append(dict(raw_result))
+            self.normalized_results.append(dict(normalized_result))
+        elif status != "rejected":
+            raise ValueError("attempt status must be accepted or rejected")
+        elif raw_result is not None or normalized_result is not None:
+            raise ValueError("rejected attempts cannot add accepted results")
+        self.attempts.append(dict(attempt))
+        self._inflight = None
+        self._persist_rows()
+        self._write_phase(status="running", failure=None)
+
+    def record_inflight_failure(
+        self,
+        failure: Mapping[str, object],
+    ) -> None:
+        if self._inflight is None:
+            return
+        self.attempts.append(
+            {
+                "status": "failed",
+                **self._inflight,
+                **dict(failure),
+            }
+        )
+        self._inflight = None
+        self._persist_rows()
+
+    def finalize(
+        self,
+        *,
+        gate_passed: bool,
+        failure: Mapping[str, object] | None,
+    ) -> bool:
+        complete = (
+            gate_passed and failure is None and self.accepted_count == self.required
+        )
+        completion = self._completion()
+        attempts_freeze = {
+            "status": "frozen",
+            "evidence_status": "complete" if complete else "incomplete",
+            "attempts_sha256": canonical_sha256(self.attempts),
+            "completion": completion,
+        }
+        _write_json(self.output_dir / "attempts-freeze.json", attempts_freeze)
+        if complete:
+            freeze_compatibility_results(
+                raw_results=self.raw_results,
+                normalized_results=self.normalized_results,
+                output_path=self.output_dir / "selector-freeze.json",
+            )
+        final_phase = str(failure["phase"]) if failure is not None else "complete"
+        self.phase = final_phase
+        _write_json(
+            self.output_dir / "compatibility-summary.json",
+            {
+                "compatibility_gate": "passed" if complete else "failed",
+                "completion": completion,
+                "execution_status": "failed" if failure is not None else "completed",
+                "failure": dict(failure) if failure is not None else None,
+                "focused_selector_pilot": "incomplete",
+                "focused_selector_pilot_reason": (
+                    "temporal-relevant-scene-oracle-10 was absent before submission"
+                ),
+                "model_id": MODEL_ID,
+                "model_revision": MODEL_REVISION,
+                "phase": final_phase,
+                "runtime_image": RUNTIME_IMAGE,
+            },
+        )
+        self._persist_rows()
+        self._write_phase(
+            status="failed" if failure is not None else "completed",
+            failure=failure,
+        )
+        return complete
+
+    def _completion(self) -> dict[str, int]:
+        return {
+            "accepted": self.accepted_count,
+            "attempted": len(self.attempts),
+            "required": self.required,
+        }
+
+    def _persist_rows(self) -> None:
+        _write_jsonl(self.output_dir / "raw-attempts.jsonl", self.attempts)
+        _write_jsonl(self.output_dir / "raw-results.jsonl", self.raw_results)
+        _write_jsonl(
+            self.output_dir / "normalized-results.jsonl",
+            self.normalized_results,
+        )
+
+    def _write_phase(
+        self,
+        *,
+        status: str,
+        failure: Mapping[str, object] | None,
+    ) -> None:
+        _write_json(
+            self.output_dir / "phase-status.json",
+            {
+                "status": status,
+                "phase": self.phase,
+                "completion": self._completion(),
+                "failure": dict(failure) if failure is not None else None,
+                "inflight": dict(self._inflight)
+                if self._inflight is not None
+                else None,
+            },
+        )
+
+
+def run_with_compatibility_evidence(
+    output_dir: Path,
+    workload: Callable[[CompatibilityEvidenceStore], bool],
+) -> int:
+    """Always freeze partial compatibility evidence and its denominator."""
+
+    store = CompatibilityEvidenceStore(output_dir)
+    failure: dict[str, object] | None = None
+    gate_passed = False
+    try:
+        gate_passed = workload(store)
+    except Exception as error:
+        failure = {
+            "phase": store.phase,
+            "error_type": type(error).__name__,
+            "error_message": str(error),
+        }
+        store.record_inflight_failure(failure)
+    finally:
+        gate_passed = store.finalize(
+            gate_passed=gate_passed,
+            failure=failure,
+        )
+    return 0 if gate_passed else 1
 
 
 def _run_canary(*, model_dir: Path, output_dir: Path) -> int:
@@ -487,13 +755,44 @@ def _video_duration(path: Path) -> float:
     return len(reader) / fps
 
 
-def _validate_requests(path: Path) -> list[dict[str, object]]:
+def validate_compatibility_requests(
+    path: Path,
+    *,
+    expected_gate_sha256: str = FROZEN_GATE_SHA256,
+    expected_rows: Sequence[tuple[str, str, str, str, str]] = (
+        FROZEN_COMPATIBILITY_ROWS
+    ),
+) -> list[dict[str, object]]:
+    """Validate the exact frozen gate, identities, and mounted media bytes."""
+
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if payload.get("schema_version") != REQUEST_SCHEMA_VERSION:
-        raise ValueError("request manifest has the wrong schema")
+    if set(payload) != {"schema_version", "source_gate_sha256", "requests"}:
+        raise ValueError(
+            "request manifest does not match the frozen compatibility gate"
+        )
+    if (
+        payload.get("schema_version") != REQUEST_SCHEMA_VERSION
+        or payload.get("source_gate_sha256") != expected_gate_sha256
+    ):
+        raise ValueError(
+            "request manifest does not match the frozen compatibility gate"
+        )
     requests = payload.get("requests")
-    if not isinstance(requests, list) or len(requests) != 3:
-        raise ValueError("request manifest must contain exactly three rows")
+    if not isinstance(requests, list) or len(requests) != len(expected_rows):
+        raise ValueError(
+            "request manifest does not match the frozen compatibility gate"
+        )
+    identities = [
+        (request.get("request_id"), request.get("video_id"))
+        for request in requests
+        if isinstance(request, dict)
+    ]
+    if len(identities) != len(expected_rows) or len(set(identities)) != len(
+        expected_rows
+    ):
+        raise ValueError(
+            "request identities do not match the frozen compatibility gate"
+        )
     validated: list[dict[str, object]] = []
     required = {
         "request_id",
@@ -503,9 +802,36 @@ def _validate_requests(path: Path) -> list[dict[str, object]]:
         "media_sha256",
         "request_sha256",
     }
-    for index, request in enumerate(requests):
+    for index, (request, expected) in enumerate(
+        zip(requests, expected_rows, strict=True)
+    ):
         if not isinstance(request, dict) or set(request) != required:
             raise ValueError(f"request {index} has unexpected fields")
+        (
+            expected_request_id,
+            expected_video_id,
+            expected_filename,
+            expected_media_hash,
+            expected_query_hash,
+        ) = expected
+        if (
+            request["request_id"] != expected_request_id
+            or request["video_id"] != expected_video_id
+            or Path(str(request["media_path"])).name != expected_filename
+            or request["media_sha256"] != expected_media_hash
+        ):
+            raise ValueError(
+                f"request {index} does not match the frozen compatibility gate"
+            )
+        if not isinstance(request["query"], str) or not request["query"].strip():
+            raise ValueError(f"request {index} has an empty query")
+        if (
+            hashlib.sha256(request["query"].encode("utf-8")).hexdigest()
+            != expected_query_hash
+        ):
+            raise ValueError(
+                f"request {index} does not match the frozen compatibility gate"
+            )
         identity = {key: request[key] for key in required - {"request_sha256"}}
         if canonical_sha256(identity) != request["request_sha256"]:
             raise ValueError(f"request {index} hash mismatch")
@@ -513,7 +839,9 @@ def _validate_requests(path: Path) -> list[dict[str, object]]:
         if not media_path.is_absolute() or not media_path.is_file():
             raise ValueError(f"request {index} media is missing")
         if _file_sha256(media_path) != request["media_sha256"]:
-            raise ValueError(f"request {index} media hash mismatch")
+            raise ValueError(
+                f"request {index} media does not match the frozen compatibility gate"
+            )
         validated.append(request)
     return validated
 
@@ -524,149 +852,148 @@ def _run_compatibility(
     requests_path: Path,
     output_dir: Path,
 ) -> int:
-    import torch
-    import transformers
-    from qwen_vl_utils import process_vision_info
-    from transformers import AutoModelForImageTextToText, AutoProcessor
+    def workload(store: CompatibilityEvidenceStore) -> bool:
+        store.checkpoint("runtime-imports")
+        import torch
+        import transformers
+        from qwen_vl_utils import process_vision_info
+        from transformers import AutoModelForImageTextToText, AutoProcessor
 
-    if not torch.cuda.is_available() or not torch.version.cuda:
-        raise RuntimeError("NVIDIA CUDA is unavailable")
-    if torch.version.hip is not None:
-        raise RuntimeError("ROCm is not permitted")
-    requests = _validate_requests(requests_path)
-    model = AutoModelForImageTextToText.from_pretrained(
-        model_dir,
-        torch_dtype="auto",
-        device_map="auto",
-        attn_implementation="sdpa",
-        local_files_only=True,
-    )
-    processor = AutoProcessor.from_pretrained(model_dir, local_files_only=True)
-    raw_results: list[dict[str, object]] = []
-    normalized_results: list[dict[str, object]] = []
-    attempts: list[dict[str, object]] = []
+        store.checkpoint("cuda-validation")
+        if not torch.cuda.is_available() or not torch.version.cuda:
+            raise RuntimeError("NVIDIA CUDA is unavailable")
+        if torch.version.hip is not None:
+            raise RuntimeError("ROCm is not permitted")
 
-    for request in requests:
-        media_path = Path(str(request["media_path"]))
-        duration = _video_duration(media_path)
-        messages = build_messages(media_path, str(request["query"]))
-        text = processor.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
+        store.checkpoint("request-validation")
+        requests = validate_compatibility_requests(requests_path)
+
+        store.checkpoint("model-load")
+        model = AutoModelForImageTextToText.from_pretrained(
+            model_dir,
+            torch_dtype="auto",
+            device_map="auto",
+            attn_implementation="sdpa",
+            local_files_only=True,
         )
-        images, videos, video_kwargs = process_vision_info(
-            messages,
-            image_patch_size=16,
-            return_video_kwargs=True,
-            return_video_metadata=True,
-        )
-        if videos is not None:
-            videos, video_metadatas = zip(*videos, strict=True)
-            videos, video_metadatas = list(videos), list(video_metadatas)
-        else:
-            video_metadatas = None
-        inputs = processor(
-            text=text,
-            images=images,
-            videos=videos,
-            video_metadata=video_metadatas,
-            do_resize=False,
-            return_tensors="pt",
-            **video_kwargs,
-        ).to(model.device)
-        torch.cuda.reset_peak_memory_stats()
-        torch.manual_seed(20260730)
-        started = time.monotonic()
-        with torch.inference_mode():
-            output_ids = model.generate(
-                **inputs,
-                max_new_tokens=1024,
-                do_sample=True,
-                temperature=0.01,
-                top_p=0.001,
-                top_k=1,
-                repetition_penalty=1.0,
+        processor = AutoProcessor.from_pretrained(model_dir, local_files_only=True)
+
+        for request in requests:
+            request_id = str(request["request_id"])
+            store.begin_request(
+                request,
+                phase=f"panel:{request_id}:media",
             )
-        latency = time.monotonic() - started
-        output_ids = [
-            output[len(input_ids) :]
-            for input_ids, output in zip(inputs.input_ids, output_ids, strict=True)
-        ]
-        raw_output = processor.batch_decode(
-            output_ids,
-            skip_special_tokens=True,
-            clean_up_tokenization_spaces=False,
-        )[0]
-        metadata = {
-            "request_sha256": request["request_sha256"],
-            "model_id": MODEL_ID,
-            "model_revision": MODEL_REVISION,
-            "runtime_image": RUNTIME_IMAGE,
-            "transformers_version": transformers.__version__,
-            "latency_seconds": latency,
-            "peak_memory_bytes": int(torch.cuda.max_memory_allocated()),
-            "device": torch.cuda.get_device_name(0),
-            "precision": str(model.dtype).removeprefix("torch."),
-        }
-        try:
-            raw = parse_raw_interval_result(
-                request_id=str(request["request_id"]),
-                video_id=str(request["video_id"]),
-                duration_seconds=duration,
-                raw_output=raw_output,
-                metadata=metadata,
+            media_path = Path(str(request["media_path"]))
+            duration = _video_duration(media_path)
+            store.observe_inflight({"duration_seconds": duration})
+
+            store.checkpoint(f"panel:{request_id}:preprocess")
+            messages = build_messages(media_path, str(request["query"]))
+            text = processor.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
             )
-        except ValueError as error:
-            attempts.append(
+            images, videos, video_kwargs = process_vision_info(
+                messages,
+                image_patch_size=16,
+                return_video_kwargs=True,
+                return_video_metadata=True,
+            )
+            if videos is not None:
+                videos, video_metadatas = zip(*videos, strict=True)
+                videos, video_metadatas = list(videos), list(video_metadatas)
+            else:
+                video_metadatas = None
+            inputs = processor(
+                text=text,
+                images=images,
+                videos=videos,
+                video_metadata=video_metadatas,
+                do_resize=False,
+                return_tensors="pt",
+                **video_kwargs,
+            ).to(model.device)
+
+            store.checkpoint(f"panel:{request_id}:inference")
+            torch.cuda.reset_peak_memory_stats()
+            torch.manual_seed(20260730)
+            started = time.monotonic()
+            with torch.inference_mode():
+                output_ids = model.generate(
+                    **inputs,
+                    max_new_tokens=1024,
+                    do_sample=True,
+                    temperature=0.01,
+                    top_p=0.001,
+                    top_k=1,
+                    repetition_penalty=1.0,
+                )
+            latency = time.monotonic() - started
+            output_ids = [
+                output[len(input_ids) :]
+                for input_ids, output in zip(
+                    inputs.input_ids,
+                    output_ids,
+                    strict=True,
+                )
+            ]
+            raw_output = processor.batch_decode(
+                output_ids,
+                skip_special_tokens=True,
+                clean_up_tokenization_spaces=False,
+            )[0]
+            metadata = {
+                "request_sha256": request["request_sha256"],
+                "model_id": MODEL_ID,
+                "model_revision": MODEL_REVISION,
+                "runtime_image": RUNTIME_IMAGE,
+                "transformers_version": transformers.__version__,
+                "latency_seconds": latency,
+                "peak_memory_bytes": int(torch.cuda.max_memory_allocated()),
+                "device": torch.cuda.get_device_name(0),
+                "precision": str(model.dtype).removeprefix("torch."),
+            }
+            store.observe_inflight(
                 {
-                    "status": "rejected",
-                    "request_id": request["request_id"],
-                    "video_id": request["video_id"],
-                    "duration_seconds": duration,
                     "raw_output": raw_output,
                     **metadata,
-                    "error_type": type(error).__name__,
-                    "error_message": str(error),
                 }
             )
-            continue
-        normalized = build_normalized_interval_result(raw)
-        raw_results.append(raw)
-        normalized_results.append(normalized)
-        attempts.append({"status": "accepted", **raw})
+            store.checkpoint(f"panel:{request_id}:parse")
+            try:
+                raw = parse_raw_interval_result(
+                    request_id=request_id,
+                    video_id=str(request["video_id"]),
+                    duration_seconds=duration,
+                    raw_output=raw_output,
+                    metadata=metadata,
+                )
+            except ValueError as error:
+                store.record_attempt(
+                    {
+                        "status": "rejected",
+                        "request_id": request_id,
+                        "video_id": request["video_id"],
+                        "duration_seconds": duration,
+                        "raw_output": raw_output,
+                        **metadata,
+                        "error_type": type(error).__name__,
+                        "error_message": str(error),
+                    }
+                )
+                continue
+            normalized = build_normalized_interval_result(raw)
+            store.record_attempt(
+                {"status": "accepted", **raw},
+                raw_result=raw,
+                normalized_result=normalized,
+            )
 
-    _write_jsonl(output_dir / "raw-attempts.jsonl", attempts)
-    _write_jsonl(output_dir / "raw-results.jsonl", raw_results)
-    _write_jsonl(output_dir / "normalized-results.jsonl", normalized_results)
-    attempts_freeze = {
-        "status": "frozen",
-        "attempts_sha256": canonical_sha256(attempts),
-        "completion": {"accepted": len(raw_results), "required": 3},
-    }
-    _write_json(output_dir / "attempts-freeze.json", attempts_freeze)
-    gate_passed = len(raw_results) == 3
-    if gate_passed:
-        freeze_compatibility_results(
-            raw_results=raw_results,
-            normalized_results=normalized_results,
-            output_path=output_dir / "selector-freeze.json",
-        )
-    _write_json(
-        output_dir / "compatibility-summary.json",
-        {
-            "compatibility_gate": "passed" if gate_passed else "failed",
-            "completion": {"accepted": len(raw_results), "required": 3},
-            "focused_selector_pilot": "incomplete",
-            "focused_selector_pilot_reason": (
-                "temporal-relevant-scene-oracle-10 was absent before submission"
-            ),
-            "model_id": MODEL_ID,
-            "model_revision": MODEL_REVISION,
-            "runtime_image": RUNTIME_IMAGE,
-        },
-    )
-    return 0 if gate_passed else 1
+        return store.accepted_count == store.required
+
+    return run_with_compatibility_evidence(output_dir, workload)
 
 
 def build_parser() -> argparse.ArgumentParser:
