@@ -314,7 +314,9 @@ def _verified_expanded_frozen_predictions(
             raise TypeError("frozen prediction records must be objects")
         records.append(record)
     if len(records) != 24:
-        raise ValueError("frozen expanded pilot must contain exactly 24 prediction records")
+        raise ValueError(
+            "frozen expanded pilot must contain exactly 24 prediction records"
+        )
 
     rows: list[dict[str, Any]] = []
     for pair_index, (video_id, category, role) in enumerate(EXPANDED_ROWS):

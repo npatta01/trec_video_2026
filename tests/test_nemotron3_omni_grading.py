@@ -288,8 +288,12 @@ def _refresh_expanded_freeze(
     checksums_path: Path,
 ) -> None:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["predictions_sha256"] = hashlib.sha256(predictions_path.read_bytes()).hexdigest()
-    manifest_path.write_text(json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8")
+    manifest["predictions_sha256"] = hashlib.sha256(
+        predictions_path.read_bytes()
+    ).hexdigest()
+    manifest_path.write_text(
+        json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8"
+    )
     checksums_path.write_text(
         (
             f"{hashlib.sha256(manifest_path.read_bytes()).hexdigest()}"
@@ -359,8 +363,7 @@ def test_expanded_freeze_requires_exact_order_and_complete_24_record_denominator
     for packet in bundle.packets.values():
         assert len(packet["items"]) == 24
         assert all(
-            set(item)
-            == {"item_id", "question", "candidate_answer", "reference_answer"}
+            set(item) == {"item_id", "question", "candidate_answer", "reference_answer"}
             for item in packet["items"]
         )
     grader_payload = json.dumps(bundle.packets, sort_keys=True)
@@ -383,7 +386,9 @@ def test_expanded_freeze_requires_exact_order_and_complete_24_record_denominator
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["completion"] = {"completed": 24, "expected": 12}
-    manifest_path.write_text(json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8"
+    )
     _refresh_expanded_freeze(predictions_path, manifest_path, checksums_path)
     calls.clear()
     with pytest.raises(ValueError, match="24/24"):
@@ -451,7 +456,9 @@ def test_expanded_freeze_rejects_inner_manifest_binding_before_references(
     )
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["predictions_sha256"] = "0" * 64
-    manifest_path.write_text(json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8"
+    )
     checksums_path.write_text(
         (
             f"{hashlib.sha256(manifest_path.read_bytes()).hexdigest()}"
@@ -485,7 +492,10 @@ def test_expanded_scoring_reports_sound_and_broader_gates(tmp_path: Path) -> Non
     bundle = _build_expanded_bundle(tmp_path, rows)
     resolution = reconcile_grades(
         bundle,
-        [_submission(packet, grades_by_answer=grades) for packet in bundle.packets.values()],
+        [
+            _submission(packet, grades_by_answer=grades)
+            for packet in bundle.packets.values()
+        ],
     )
 
     score = nemotron3_omni_grading.score_expanded_pilot(rows, resolution)
