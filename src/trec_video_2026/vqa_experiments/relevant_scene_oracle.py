@@ -79,6 +79,24 @@ _CASEFOLDED_CONDITION_IDENTITIES = frozenset(
 _RELATIVE_PATH = re.compile(
     r"^(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+(?:\.[A-Za-z0-9]+)?$"
 )
+_ARTIFACT_FILE_EXTENSIONS = frozenset(
+    {
+        "csv",
+        "html",
+        "jpeg",
+        "jpg",
+        "json",
+        "md",
+        "mp4",
+        "png",
+        "qmd",
+        "txt",
+        "webp",
+    }
+)
+_ARTIFACT_DIRECTORIES = frozenset(
+    {"artifacts", "contact-sheets", "frames", "outputs", "private"}
+)
 _CONFIDENCE_VALUES = frozenset({"low", "medium", "high"})
 _RESPONSE_KINDS = frozenset({"answer", "not_answerable"})
 
@@ -146,6 +164,17 @@ def _adjudication_rows(adjudication: Mapping[str, Any]) -> list[Mapping[str, Any
     return rows
 
 
+def _is_relative_artifact_path(value: str) -> bool:
+    if _RELATIVE_PATH.fullmatch(value) is None:
+        return False
+    segments = [segment.casefold() for segment in value.split("/")]
+    filename = segments[-1]
+    extension = filename.rpartition(".")[2] if "." in filename else ""
+    return extension in _ARTIFACT_FILE_EXTENSIONS or bool(
+        set(segments[:-1]) & _ARTIFACT_DIRECTORIES
+    )
+
+
 def _forbidden_audit_value(
     value: Any, *, allowed_keys: frozenset[str] = frozenset()
 ) -> tuple[str, str] | None:
@@ -173,10 +202,7 @@ def _forbidden_audit_value(
             or "://" in value
             or "\\" in value
             or re.match(r"^[A-Za-z]:/", value) is not None
-            or (
-                _RELATIVE_PATH.fullmatch(value) is not None
-                and (value.count("/") >= 2 or "." in value.rsplit("/", 1)[-1])
-            )
+            or _is_relative_artifact_path(value)
         ):
             return ("path", value)
     return None

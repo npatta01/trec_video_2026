@@ -346,6 +346,47 @@ def test_frame_first_audit_preserves_opaque_packet_order_and_is_idempotent(
     )
 
 
+@pytest.mark.parametrize("response", ["yes/no/maybe", "red/green/blue", "up/down/left"])
+def test_frame_first_audit_allows_slash_separated_answer_text(
+    audit_packet: dict, frame_first_payload: dict, response: str
+) -> None:
+    payload = copy.deepcopy(frame_first_payload)
+    payload["rows"][0]["candidates"][1]["response"] = response
+
+    result = validate_frame_first_audit(
+        payload, audit_packet, expected_reviewer="auditor-left"
+    )
+
+    assert result["rows"][0]["candidates"][1]["response"] == response
+    assert result["audit_sha256"] == _sha256(payload)
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        "/private/frame.png",
+        "~/private/frame.png",
+        "./private/frame.png",
+        "../private/frame.png",
+        "https://example.invalid/frame.png",
+        "private\\frame.png",
+        "C:/private/frame.png",
+        "images/frame.png",
+        "private/contact-sheets/row-alpha",
+    ],
+)
+def test_frame_first_audit_rejects_explicit_path_syntax(
+    audit_packet: dict, frame_first_payload: dict, response: str
+) -> None:
+    payload = copy.deepcopy(frame_first_payload)
+    payload["rows"][0]["candidates"][1]["response"] = response
+
+    with pytest.raises(ValueError, match="path identity"):
+        validate_frame_first_audit(
+            payload, audit_packet, expected_reviewer="auditor-left"
+        )
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [
