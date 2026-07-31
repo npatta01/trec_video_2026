@@ -73,6 +73,50 @@ and `$2/hour` hard cap. Their incremental worst case is `$2.50`, bringing the
 existing `$0.2435` spend to at most `$2.7435`, within the original `$8` base
 allocation. No central reserve and no automatic b2 correction are authorized.
 
+### Executable b1 implementation plan
+
+1. Add RED tests for a normalized-media contract that retains the six frozen
+   row identities and questions, records source and derived SHA-256 values,
+   rewrites media paths to MP4, and creates a three-row, audio-on-only codec
+   sentinel for `IWSPAfCKtV8`, `OzNdzgQi1CA`, and `EMI_anpHII4`.
+2. Implement only the contract builder and validation needed to make those
+   tests pass. The real probe must accept the sentinel as exactly 3/3 and the
+   normalized pilot as exactly 12/12 while retaining the no-reasoning,
+   greedy, short-answer request contract.
+3. Add RED tests for the two b1 dstack configs and shell boundaries. Both
+   configs must use the exact pinned image, scalar `L40S:1:48GB..` selector,
+   shared one-node fleet, on-demand CUDA, detached submission compatibility,
+   foreground wrapper, and hard price/duration caps. The scripts must reject
+   the retired pilot a2 and every unrecognized identity.
+4. Implement deterministic in-container normalization of all six verified
+   source MKVs to metadata-stripped H.264/AAC MP4 with one encoding thread.
+   Before model loading, verify source hashes, derived hashes, exact stream
+   codecs, and successful video and audio decode. Run the three-row sentinel
+   through the same foreground interpreter and native audio-video request seam
+   used by the full pilot.
+5. Add RED tests for sanitized immutable audit capture. Collection must require
+   the retained exact preview file for each b1 run, sanitize `dstack run get`
+   output through the existing metadata adapter, checksum the preview and
+   metadata, upload the audit bundle to that run's private HF prefix, then
+   recursively list, download, and checksum-verify it. Never use `diagnose`.
+6. Run the model-specific suite, shell syntax checks, config parsing, privacy
+   scans, and `git diff --check` before any cloud action.
+7. Upload only the original six label-free media plus contract and completion
+   marker to the pilot b1 prefix. Preview the sentinel with
+   `echo "n" | dstack apply -f ...`, retain the complete output, and require
+   multiple physically distinct compatible offers where practical.
+8. Submit the sentinel detached and monitor the foreground workload without
+   secret-bearing diagnostics. Collect and verify both workload and audit
+   artifacts. Stop the track if the sentinel is not 3/3; no b2 is authorized.
+9. Only after a 3/3 sentinel and fleet release, repeat the retained preview,
+   detached submission, monitored foreground execution, and artifact
+   verification for the 12-output b1 pilot.
+10. Only after cryptographic freeze verification, obtain two independent blind
+    C/P/W grades and a third adjudication only for disagreements. Apply the
+    predeclared promotion rule, update this sanitized record, run the full
+    verification suite and an independent review, and commit the complete
+    model-specific work.
+
 ## Scope and predeclared gate
 
 This track tested NVIDIA Nemotron 3 Nano Omni with native video plus optional
