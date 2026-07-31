@@ -9,10 +9,12 @@ import pytest
 
 from trec_video_2026.vqa_experiments import nemotron3_omni_pilot
 from trec_video_2026.vqa_experiments.nemotron3_omni_pilot import (
+    EXPANDED_ROWS,
     MODEL_ID,
     TARGET_ROWS,
     build_canary_contract,
     build_chat_request,
+    build_expanded_contract,
     build_label_free_contract,
     parse_short_answer,
     run_probe,
@@ -20,10 +22,12 @@ from trec_video_2026.vqa_experiments.nemotron3_omni_pilot import (
 )
 
 
-def _write_panel_and_media(tmp_path: Path) -> tuple[Path, Path]:
+def _write_panel_and_media(
+    tmp_path: Path, *, rows: tuple[tuple[str, str, str], ...] = TARGET_ROWS
+) -> tuple[Path, Path]:
     data_root = tmp_path / "data"
     examples = []
-    for index, (video_id, category, role) in enumerate(TARGET_ROWS):
+    for index, (video_id, category, role) in enumerate(rows):
         media_stem = f"vqa/private/{video_id}"
         media_path = data_root / f"{media_stem}.mkv"
         media_path.parent.mkdir(parents=True, exist_ok=True)
@@ -52,6 +56,133 @@ def _write_panel_and_media(tmp_path: Path) -> tuple[Path, Path]:
     panel_path = tmp_path / "failure-panel.json"
     panel_path.write_text(json.dumps({"examples": examples}), encoding="utf-8")
     return panel_path, data_root
+
+
+def test_expanded_contract_freezes_the_exact_failure_panel_order_without_labels(
+    tmp_path: Path,
+) -> None:
+    """Catches expanded-panel row/category/role drift or label leakage."""
+    panel_path, data_root = _write_panel_and_media(tmp_path, rows=EXPANDED_ROWS)
+
+    contract = build_expanded_contract(panel_path=panel_path, data_root=data_root)
+
+    assert EXPANDED_ROWS == (
+        ("NN7G28sBOlY", "Dialogue and speech", "target"),
+        ("NUmb2P3Bzu8", "Dialogue and speech", "target"),
+        ("IRTTtnSRTyY", "Non-speech sound and music", "target"),
+        ("IWSPAfCKtV8", "Non-speech sound and music", "target"),
+        ("MdMKHhFFqJQ", "Non-speech sound and music", "target"),
+        ("OzNdzgQi1CA", "Non-speech sound and music", "target"),
+        ("CH8Dp7EgW4I", "Temporal and action", "target"),
+        ("EtNOkUJd5w8", "Temporal and action", "target"),
+        ("Gp4LVTn3YbY", "Temporal and action", "target"),
+        ("KgOvCPOX-Ms", "Temporal and action", "target"),
+        ("EMI_anpHII4", "Visual controls", "control"),
+        ("LusRurRrmf0", "Visual controls", "control"),
+    )
+    assert contract["mode"] == "expanded-pilot"
+    assert contract["panel_id"] == "nemotron3-omni-expanded-12"
+    assert [
+        (row["video_id"], row["category"], row["role"]) for row in contract["examples"]
+    ] == list(EXPANDED_ROWS)
+    assert "annotation" not in json.dumps(contract).lower()
+
+
+def test_expanded_normalized_contract_requires_twelve_inputs_and_runs_24_adjacent_pairs(
+    tmp_path: Path,
+) -> None:
+    """Catches an expanded run with a wrong input denominator or pair order."""
+    panel_path, data_root = _write_panel_and_media(tmp_path, rows=EXPANDED_ROWS)
+    source_contract = build_expanded_contract(
+        panel_path=panel_path, data_root=data_root
+    )
+    source_contract_path = tmp_path / "source-contract.json"
+    source_contract_path.write_text(json.dumps(source_contract), encoding="utf-8")
+    normalized_root = tmp_path / "normalized"
+    normalized_root.mkdir()
+    for index, (video_id, _category, _role) in enumerate(EXPANDED_ROWS):
+        (normalized_root / f"{video_id}.mp4").write_bytes(
+            f"normalized-{index}".encode()
+        )
+    normalized_contract = nemotron3_omni_pilot.build_normalized_contract(
+        source_contract=source_contract,
+        source_media_root=data_root,
+        normalized_media_root=normalized_root,
+        mode="expanded-pilot",
+    )
+    marker_path = tmp_path / "INPUTS_COMPLETE.json"
+    marker_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "input_count": 13,
+                "contract_sha256": __import__("hashlib")
+                .sha256(source_contract_path.read_bytes())
+                .hexdigest(),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert validate_contract_inputs(
+        contract_path=source_contract_path,
+        media_root=data_root,
+        marker_path=marker_path,
+    ) == {"mode": "expanded-pilot", "media_files": 12, "requests": 24}
+    calls: list[dict[str, object]] = []
+
+    def request(payload: dict[str, object]) -> dict[str, object]:
+        calls.append(payload)
+        return {
+            "choices": [
+                {"finish_reason": "stop", "message": {"content": "Short answer."}}
+            ]
+        }
+
+    output_dir = tmp_path / "output"
+    summary = run_probe(
+        contract=normalized_contract,
+        media_root=normalized_root,
+        output_dir=output_dir,
+        run_id="nemotron3-omni-expanded12-20260730-c1",
+        request=request,
+    )
+    assert summary["completion"] == {"completed": 24, "expected": 24}
+    assert [
+        call["mm_processor_kwargs"]["use_audio_in_video"]  # type: ignore[index]
+        for call in calls
+    ] == [False, True] * 12
+    records = [
+        json.loads(line)
+        for line in (output_dir / "predictions.jsonl").read_text().splitlines()
+    ]
+    assert [(record["pair_index"], record["condition_id"]) for record in records] == [
+        (pair_index, condition_id)
+        for pair_index in range(12)
+        for condition_id in ("audio-off", "audio-on")
+    ]
+
+
+def test_expanded_contract_cli_writes_the_label_free_twelve_row_source_contract(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Catches a CLI that silently builds the historical six-row contract."""
+    panel_path, data_root = _write_panel_and_media(tmp_path, rows=EXPANDED_ROWS)
+
+    exit_code = nemotron3_omni_pilot.main(
+        [
+            "build-expanded-contract",
+            "--panel",
+            str(panel_path),
+            "--data-root",
+            str(data_root),
+        ]
+    )
+
+    assert exit_code == 0
+    contract = json.loads(capsys.readouterr().out)
+    assert contract["mode"] == "expanded-pilot"
+    assert len(contract["examples"]) == 12
 
 
 def test_contract_selects_exact_rows_and_removes_every_label(tmp_path: Path) -> None:
