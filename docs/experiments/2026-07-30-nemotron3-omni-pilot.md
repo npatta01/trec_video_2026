@@ -341,6 +341,104 @@ conditions, private artifact URIs, and checksum-verification status. Run the
 full local verification and a final independent review before the result
 commit. A valid negative result is complete and must not be rerun for quality.
 
+## Expanded-12 c1 observed result
+
+The expanded follow-up stopped at its predeclared compatibility gate. No
+private panel input was uploaded, no private pilot was submitted, and no
+reference answer or grade was loaded.
+
+The first declined preview failed locally before provider admission because
+the approved canary experiment identity is 44 characters while dstack 0.20.27
+requires scheduler resource names to match
+`^[a-z][a-z0-9-]{1,40}$`. Its retained output SHA-256 is
+`0a632f9705b86780cab49082198bf1c2f551222b498f70da957d87591eefdf9a`.
+The single corrective configuration kept the full immutable experiment and
+artifact identity
+`nemotron3-omni-expanded12-canary-20260730-c1`, while using the 39-character
+scheduler alias `nemotron3-expanded12-canary-20260730-c1`. Tests bind that
+mapping in the collector.
+
+The one corrective declined preview passed config validation and showed one
+compatible on-demand RunPod L40S 48 GB offer in US-MO-1 at `$0.99/hour`. A
+second physically distinct compatible machine was not available. The retained
+preview SHA-256 is
+`00fcdd67a78a4f1f2c389eec3f3169e4ec6dc29697d610ccaa77fb98fcf4b22f`.
+The canary was then submitted detached exactly once. It never obtained an
+instance: every provider-admission attempt returned `no offers`, and the
+bounded in-run 20-minute no-capacity traversal terminated with
+`retry_limit_exceeded` and
+`failed_to_start_due_to_no_capacity`. The workload, exact-image interpreter,
+model server, and native audio-video seam therefore never started.
+
+The compatibility denominator is **0/3**. The private expanded-pilot
+denominator is **0/24 (not submitted)**. Both the sound-replication and broader
+expansion quality gates are **not graded**. Expanded c1 incurred **$0.00**;
+cumulative model-track spend remains **$0.5781** of the original `$8` base
+allocation, and no central reserve was used.
+
+### Expanded-12 c1 durable evidence
+
+- Sanitized failure audit:
+  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-expanded12-canary-20260730-c1/audit/`
+- Audit `SHA256SUMS` file SHA-256:
+  `ffea773f734a18df126e79051c54d9374806ae0306f7fdc26e6881ca9a3dc76b`
+- Exact pinned model:
+  `nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4`
+- Exact model revision:
+  `dc5f0b0bfddf8b6e0f5891475be9af05b80126fe`
+- Exact pinned image:
+  `docker.io/vllm/vllm-openai:v0.20.0@sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc`
+
+The six-file private audit bundle preserves both declined preview outputs, the
+sanitized exact-offer observation, the experiment-to-scheduler identity map,
+and terminal status/cost metadata. It was recursively listed, downloaded to a
+fresh directory, and verified against its remote `SHA256SUMS`. It contains no
+credential, private media, competition row, model answer, reference, grade, or
+raw log.
+
+### Expanded-12 c1 validity, limits, and decision
+
+- **Evidence validity:** **Incomplete**. The exact-image compatibility gate did
+  not start and produced 0/3 required answers, so the 24-output paired pilot
+  could not proceed.
+- **Decision disposition:** **Not promoted under the tested condition** for the
+  expanded-12 follow-up. This incomplete infrastructure result does not
+  supersede the completed b1 **Routed candidate** decision for the narrower
+  codec-normalized sound condition.
+- **Persistent error:** provider admission returned `no offers` throughout the
+  bounded internal retry window despite a contemporaneous offer query and
+  declined preview observing one US-MO-1 L40S listing. The immutable run
+  terminated without provisioning or cost. No c2 or external retry exists.
+- **Confirmed defect and correction:** the original canary scheduler name
+  exceeded dstack's 40-character limit. The one corrective preview used a
+  tested short scheduler alias while preserving the full experiment/artifact
+  identity. The corrected preview passed; the subsequent persistent failure
+  was provider capacity, not the name validation.
+- **Audit gap:** no selected region, actual instance, runtime duration, model
+  revision loaded in memory, or workload output exists because no provider
+  admitted the run. This is an absence of execution evidence, not missing
+  metadata for an executed workload. The preview, offer observation, terminal
+  reason, and zero cost are durably reconstructable from the linked bundle.
+- **Limitations:** one marketplace listing is not reserved capacity and does
+  not prove provider admission. Because the canary never ran, this result says
+  nothing about exact-image compatibility, native audio-video correctness,
+  completion, answer quality, audio benefit, control regression, or the two
+  predeclared expanded quality gates.
+- **What this rules out now:** treating expanded c1 as a completed experiment,
+  grading or promoting it, claiming 10-or-more-video coverage, or retrying its
+  quality under the same authorization.
+- **What it does not rule out:** the pinned model/runtime on an admitted L40S,
+  a 3/3 public canary, 24/24 expanded-pilot completion, or either quality gate
+  under a separately authorized future experiment.
+- **Reconsider when:** a new immutable identity is explicitly authorized after
+  the shared fleet and provider can admit an exact compatible L40S, followed
+  by a fresh declined preview, 3/3 public canary, verified 24/24 freeze, and
+  blind grading. The current authorization permits no c2.
+- **Shared-report integration:** the primary theme remains models, with native
+  audio as a related theme. This isolated branch does not edit the shared
+  project-status QMD or generated outputs; the parent integration task owns
+  that update.
+
 ## Codec-normalized b1 observed result
 
 The separately authorized b1 retry passed its sequential gates. This current
