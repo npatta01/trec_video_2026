@@ -972,6 +972,114 @@ def _validated_full_audit(
     )
 
 
+def _repair_audit_payload(payload: dict, proposed_time_seconds: float) -> dict:
+    repaired = copy.deepcopy(payload)
+    candidate = repaired["rows"][0]["candidates"][0]
+    interval_id = candidate["intervals"][0]["opaque_interval_id"]
+    candidate["intervals"][0]["visibility"] = "partial"
+    candidate["repair_proposals"] = [
+        {
+            "opaque_interval_id": interval_id,
+            "proposed_time_seconds": proposed_time_seconds,
+            "replacement_reason": "bind the missed event center",
+        }
+    ]
+    return repaired
+
+
+def _repair_adjudication_case(
+    *,
+    payload: dict,
+    packet: dict,
+    adjudication: dict,
+    semantics: dict,
+    freeze: dict,
+    left_time: float,
+    right_time: float,
+    final_time: float,
+    resolution_rule: str,
+    resolution_reason: str | None = None,
+) -> tuple[dict, dict, dict]:
+    left = _validated_full_audit(
+        _repair_audit_payload(payload, left_time),
+        packet,
+        adjudication,
+        semantics,
+        freeze,
+        "auditor-left",
+    )
+    right = _validated_full_audit(
+        _repair_audit_payload(payload, right_time),
+        packet,
+        adjudication,
+        semantics,
+        freeze,
+        "auditor-right",
+    )
+    rows = copy.deepcopy(left["rows"])
+    proposal = rows[0]["candidates"][0]["repair_proposals"][0]
+    proposal["proposed_time_seconds"] = final_time
+    proposal["input_proposed_time_seconds"] = [left_time, right_time]
+    proposal["resolution_rule"] = resolution_rule
+    if resolution_reason is not None:
+        proposal["resolution_reason"] = resolution_reason
+    third = {
+        "schema_version": 1,
+        "role": "scene_audit_adjudicator",
+        "reviewer": "auditor-third",
+        "round_name": "initial",
+        "packet_sha256": packet["packet_sha256"],
+        "adjudication_sha256": adjudication["annotation_sha256"],
+        "scene_semantics_sha256": semantics["semantics_sha256"],
+        "input_audit_sha256s": [left["audit_sha256"], right["audit_sha256"]],
+        "started_at": "2026-07-30T12:16:00Z",
+        "ended_at": "2026-07-30T12:25:00Z",
+        "rows": rows,
+    }
+    return left, right, third
+
+
+def _plain_adjudication_case(
+    *,
+    payload: dict,
+    packet: dict,
+    adjudication: dict,
+    semantics: dict,
+    freeze: dict,
+    round_name: str,
+) -> tuple[dict, dict, dict]:
+    left = _validated_full_audit(
+        payload,
+        packet,
+        adjudication,
+        semantics,
+        freeze,
+        "auditor-left",
+    )
+    right = _validated_full_audit(
+        payload,
+        packet,
+        adjudication,
+        semantics,
+        freeze,
+        "auditor-right",
+    )
+    third = {
+        "schema_version": 1,
+        "role": "scene_audit_adjudicator",
+        "reviewer": "auditor-third",
+        "round_name": round_name,
+        "packet_sha256": packet["packet_sha256"],
+        "adjudication_sha256": adjudication["annotation_sha256"],
+        "scene_semantics_sha256": semantics["semantics_sha256"],
+        "input_audit_sha256s": [left["audit_sha256"], right["audit_sha256"]],
+        "started_at": "2026-07-30T12:16:00Z",
+        "ended_at": "2026-07-30T12:25:00Z",
+        "rows": copy.deepcopy(left["rows"]),
+    }
+    return left, right, third
+
+
 def _audit_hash_payload(value: object) -> object:
     derived_fields = {
         "all_intervals_visible",
@@ -1089,6 +1197,412 @@ def test_third_auditor_adjudication_binds_two_audits_and_counts_raw_agreement(
         )
         == result
     )
+
+
+@pytest.mark.parametrize(
+    ("left_time", "right_time", "final_time", "rule", "reason", "agreements"),
+    [
+        (1.4, 1.4, 1.4, "agreement", None, 7),
+        (1.4, 1.6, 1.4, "auditor_left", None, 6),
+        (1.4, 1.6, 1.6, "auditor_right", None, 6),
+        (
+            1.4,
+            1.6,
+            1.5,
+            "de_novo_event_center",
+            "the visible event center lies between both proposals",
+            6,
+        ),
+    ],
+)
+def test_third_auditor_repair_resolution_binds_ordered_input_proposals(
+    full_video_payload: dict,
+    full_video_packet: dict,
+    adjudication: dict,
+    validated_semantics: dict,
+    frame_first_freeze: dict,
+    left_time: float,
+    right_time: float,
+    final_time: float,
+    rule: str,
+    reason: str | None,
+    agreements: int,
+) -> None:
+    bound = _bind_full_video_payload(
+        full_video_payload, validated_semantics, frame_first_freeze
+    )
+    left, right, payload = _repair_adjudication_case(
+        payload=bound,
+        packet=full_video_packet,
+        adjudication=adjudication,
+        semantics=validated_semantics,
+        freeze=frame_first_freeze,
+        left_time=left_time,
+        right_time=right_time,
+        final_time=final_time,
+        resolution_rule=rule,
+        resolution_reason=reason,
+    )
+
+    result = validate_audit_adjudication(
+        payload,
+        left,
+        right,
+        full_video_packet,
+        adjudication,
+        validated_semantics,
+        round_name="initial",
+    )
+
+    proposal = result["rows"][0]["candidates"][0]["repair_proposals"][0]
+    assert proposal["input_proposed_time_seconds"] == [left_time, right_time]
+    assert proposal["proposed_time_seconds"] == final_time
+    assert proposal["resolution_rule"] == rule
+    assert result["raw_agreement_by_dimension"]["interval_visibility"] == {
+        "agreement_count": agreements,
+        "disagreement_count": 7 - agreements,
+        "comparison_count": 7,
+    }
+    assert (
+        validate_audit_adjudication(
+            result,
+            left,
+            right,
+            full_video_packet,
+            adjudication,
+            validated_semantics,
+            round_name="initial",
+        )
+        == result
+    )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (
+            lambda proposal: proposal.pop("input_proposed_time_seconds"),
+            "input_proposed_time_seconds",
+        ),
+        (
+            lambda proposal: proposal.__setitem__(
+                "input_proposed_time_seconds", [1.6, 1.4]
+            ),
+            "auditor order",
+        ),
+        (
+            lambda proposal: proposal.__setitem__(
+                "input_proposed_time_seconds", [True, 1.6]
+            ),
+            "numeric auditor proposals",
+        ),
+        (
+            lambda proposal: proposal.__setitem__("resolution_rule", "average"),
+            "resolution_rule",
+        ),
+        (
+            lambda proposal: proposal.__setitem__("proposed_time_seconds", 1.5),
+            "auditor_left",
+        ),
+        (
+            lambda proposal: proposal.__setitem__("resolution_rule", "agreement"),
+            "agreement.*equal",
+        ),
+        (
+            lambda proposal: (
+                proposal.__setitem__("resolution_rule", "de_novo_event_center"),
+                proposal.__setitem__("proposed_time_seconds", 1.5),
+            ),
+            "resolution_reason",
+        ),
+    ],
+)
+def test_third_auditor_rejects_unbound_or_noncanonical_repair_resolution(
+    full_video_payload: dict,
+    full_video_packet: dict,
+    adjudication: dict,
+    validated_semantics: dict,
+    frame_first_freeze: dict,
+    mutation,
+    message: str,
+) -> None:
+    bound = _bind_full_video_payload(
+        full_video_payload, validated_semantics, frame_first_freeze
+    )
+    left, right, payload = _repair_adjudication_case(
+        payload=bound,
+        packet=full_video_packet,
+        adjudication=adjudication,
+        semantics=validated_semantics,
+        freeze=frame_first_freeze,
+        left_time=1.4,
+        right_time=1.6,
+        final_time=1.4,
+        resolution_rule="auditor_left",
+    )
+    proposal = payload["rows"][0]["candidates"][0]["repair_proposals"][0]
+    mutation(proposal)
+
+    with pytest.raises(ValueError, match=message):
+        validate_audit_adjudication(
+            payload,
+            left,
+            right,
+            full_video_packet,
+            adjudication,
+            validated_semantics,
+            round_name="initial",
+        )
+
+
+def test_third_auditor_repair_resolution_binds_interval_identity(
+    full_video_payload: dict,
+    full_video_packet: dict,
+    adjudication: dict,
+    validated_semantics: dict,
+    frame_first_freeze: dict,
+) -> None:
+    bound = _bind_full_video_payload(
+        full_video_payload, validated_semantics, frame_first_freeze
+    )
+    left, right, payload = _repair_adjudication_case(
+        payload=bound,
+        packet=full_video_packet,
+        adjudication=adjudication,
+        semantics=validated_semantics,
+        freeze=frame_first_freeze,
+        left_time=1.4,
+        right_time=1.6,
+        final_time=1.4,
+        resolution_rule="auditor_left",
+    )
+    payload["rows"][0]["candidates"][0]["repair_proposals"].clear()
+
+    with pytest.raises(ValueError, match="interval identities"):
+        validate_audit_adjudication(
+            payload,
+            left,
+            right,
+            full_video_packet,
+            adjudication,
+            validated_semantics,
+            round_name="initial",
+        )
+
+
+def test_third_auditor_cannot_change_agreed_repair_proposal(
+    full_video_payload: dict,
+    full_video_packet: dict,
+    adjudication: dict,
+    validated_semantics: dict,
+    frame_first_freeze: dict,
+) -> None:
+    bound = _bind_full_video_payload(
+        full_video_payload, validated_semantics, frame_first_freeze
+    )
+    left, right, payload = _repair_adjudication_case(
+        payload=bound,
+        packet=full_video_packet,
+        adjudication=adjudication,
+        semantics=validated_semantics,
+        freeze=frame_first_freeze,
+        left_time=1.4,
+        right_time=1.4,
+        final_time=1.5,
+        resolution_rule="agreement",
+    )
+
+    with pytest.raises(ValueError, match="agreement.*same final time"):
+        validate_audit_adjudication(
+            payload,
+            left,
+            right,
+            full_video_packet,
+            adjudication,
+            validated_semantics,
+            round_name="initial",
+        )
+
+
+def test_full_video_auditor_cannot_supply_third_reviewer_resolution_lineage(
+    full_video_payload: dict,
+    full_video_packet: dict,
+    adjudication: dict,
+    validated_semantics: dict,
+    frame_first_freeze: dict,
+) -> None:
+    payload = _repair_audit_payload(
+        _bind_full_video_payload(
+            full_video_payload, validated_semantics, frame_first_freeze
+        ),
+        1.4,
+    )
+    payload["rows"][0]["candidates"][0]["repair_proposals"][0].update(
+        {
+            "input_proposed_time_seconds": [1.4, 1.4],
+            "resolution_rule": "agreement",
+        }
+    )
+
+    with pytest.raises(ValueError, match="resolution lineage"):
+        validate_full_video_audit(
+            payload,
+            full_video_packet,
+            adjudication,
+            validated_semantics,
+            frame_first_freeze,
+            expected_reviewer="auditor-left",
+        )
+
+
+def test_full_video_auditor_cannot_supply_pass_after_repair(
+    full_video_payload: dict,
+    full_video_packet: dict,
+    adjudication: dict,
+    validated_semantics: dict,
+    frame_first_freeze: dict,
+) -> None:
+    payload = _bind_full_video_payload(
+        full_video_payload, validated_semantics, frame_first_freeze
+    )
+    payload["rows"][0]["candidates"][0]["pass_after_repair"] = True
+
+    with pytest.raises(ValueError, match="pass_after_repair.*derived"):
+        validate_full_video_audit(
+            payload,
+            full_video_packet,
+            adjudication,
+            validated_semantics,
+            frame_first_freeze,
+            expected_reviewer="auditor-left",
+        )
+
+
+@pytest.mark.parametrize(
+    ("round_name", "expected"),
+    [("initial", False), ("repair", True)],
+)
+def test_audit_adjudication_derives_pass_after_repair_from_final_round(
+    full_video_payload: dict,
+    full_video_packet: dict,
+    adjudication: dict,
+    validated_semantics: dict,
+    frame_first_freeze: dict,
+    round_name: str,
+    expected: bool,
+) -> None:
+    bound = _bind_full_video_payload(
+        full_video_payload, validated_semantics, frame_first_freeze
+    )
+    left, right, payload = _plain_adjudication_case(
+        payload=bound,
+        packet=full_video_packet,
+        adjudication=adjudication,
+        semantics=validated_semantics,
+        freeze=frame_first_freeze,
+        round_name=round_name,
+    )
+
+    result = validate_audit_adjudication(
+        payload,
+        left,
+        right,
+        full_video_packet,
+        adjudication,
+        validated_semantics,
+        round_name=round_name,
+    )
+
+    for row in result["rows"]:
+        for candidate in row["candidates"]:
+            assert candidate["candidate_passes"] is True
+            assert candidate["pass_after_repair"] is expected
+    assert (
+        validate_audit_adjudication(
+            result,
+            left,
+            right,
+            full_video_packet,
+            adjudication,
+            validated_semantics,
+            round_name=round_name,
+        )
+        == result
+    )
+
+
+def test_fresh_audit_adjudication_cannot_supply_pass_after_repair(
+    full_video_payload: dict,
+    full_video_packet: dict,
+    adjudication: dict,
+    validated_semantics: dict,
+    frame_first_freeze: dict,
+) -> None:
+    bound = _bind_full_video_payload(
+        full_video_payload, validated_semantics, frame_first_freeze
+    )
+    left, right, payload = _plain_adjudication_case(
+        payload=bound,
+        packet=full_video_packet,
+        adjudication=adjudication,
+        semantics=validated_semantics,
+        freeze=frame_first_freeze,
+        round_name="repair",
+    )
+    payload["rows"][0]["candidates"][0]["pass_after_repair"] = True
+
+    with pytest.raises(ValueError, match="pass_after_repair.*derived"):
+        validate_audit_adjudication(
+            payload,
+            left,
+            right,
+            full_video_packet,
+            adjudication,
+            validated_semantics,
+            round_name="repair",
+        )
+
+
+def test_audit_adjudication_rejects_self_rehashed_pass_after_repair_tamper(
+    full_video_payload: dict,
+    full_video_packet: dict,
+    adjudication: dict,
+    validated_semantics: dict,
+    frame_first_freeze: dict,
+) -> None:
+    bound = _bind_full_video_payload(
+        full_video_payload, validated_semantics, frame_first_freeze
+    )
+    left, right, payload = _plain_adjudication_case(
+        payload=bound,
+        packet=full_video_packet,
+        adjudication=adjudication,
+        semantics=validated_semantics,
+        freeze=frame_first_freeze,
+        round_name="repair",
+    )
+    result = validate_audit_adjudication(
+        payload,
+        left,
+        right,
+        full_video_packet,
+        adjudication,
+        validated_semantics,
+        round_name="repair",
+    )
+    result["rows"][0]["candidates"][0]["pass_after_repair"] = False
+    _rehash_audit(result, "audit_adjudication_sha256")
+
+    with pytest.raises(ValueError, match="pass_after_repair.*final audit round"):
+        validate_audit_adjudication(
+            result,
+            left,
+            right,
+            full_video_packet,
+            adjudication,
+            validated_semantics,
+            round_name="repair",
+        )
 
 
 @pytest.mark.parametrize(
@@ -1226,7 +1740,11 @@ def test_audit_adjudication_requires_third_reviewer_round_and_two_frozen_hashes(
 
 
 def _stage1_inputs(
-    cohort: int, hybrid_passes: int, local_passes: int
+    cohort: int,
+    hybrid_passes: int,
+    local_passes: int,
+    *,
+    round_name: str = "repair",
 ) -> tuple[dict, dict, dict, dict, dict]:
     if not 0 <= cohort <= 8:
         raise AssertionError("synthetic cohort must be between zero and eight")
@@ -1282,7 +1800,7 @@ def _stage1_inputs(
                     "all_intervals_visible": passes,
                     "all_relationships_preserved": passes,
                     "candidate_passes": passes,
-                    "pass_after_repair": passes and index % 2 == 0,
+                    "pass_after_repair": passes and round_name == "repair",
                     "repair_proposals": (
                         []
                         if passes
@@ -1309,7 +1827,7 @@ def _stage1_inputs(
         )
     audit_adjudication = {
         "schema_version": 1,
-        "round_name": "repair",
+        "round_name": round_name,
         "raw_agreement_by_dimension": {
             "representability": {
                 "agreement_count": 8,
@@ -1387,10 +1905,47 @@ def test_stage2_selection_is_predeclared(
     assert result["candidate_counts"]["oracle-local-12"]["final_pass"] == local
 
 
+@pytest.mark.parametrize(
+    ("round_name", "expected_hybrid", "expected_local"),
+    [("initial", 0, 0), ("repair", 7, 8)],
+)
+def test_stage2_selection_derives_pass_after_repair_count_from_final_round(
+    round_name: str, expected_hybrid: int, expected_local: int
+) -> None:
+    inputs = _stage1_inputs(8, 7, 8, round_name=round_name)
+
+    result = build_stage2_selection_record(
+        inputs[0], inputs[1], inputs[2], inputs[3], bindings=inputs[4]
+    )
+
+    assert (
+        result["candidate_counts"]["oracle-hybrid-12"]["pass_after_repair"]
+        == expected_hybrid
+    )
+    assert (
+        result["candidate_counts"]["oracle-local-12"]["pass_after_repair"]
+        == expected_local
+    )
+
+
+def test_stage2_selection_rejects_self_rehashed_pass_after_repair_tamper() -> None:
+    inputs = list(_stage1_inputs(8, 8, 8, round_name="repair"))
+    audit = inputs[2]
+    audit["rows"][0]["candidates"][0]["pass_after_repair"] = False
+    _rehash_audit(audit, "audit_adjudication_sha256")
+    inputs[4]["audit_adjudication_sha256"] = audit["audit_adjudication_sha256"]
+
+    with pytest.raises(ValueError, match="pass_after_repair.*final audit round"):
+        build_stage2_selection_record(
+            inputs[0], inputs[1], audit, inputs[3], bindings=inputs[4]
+        )
+
+
 def test_stage2_selection_uses_every_prospective_row_and_exact_candidate_map() -> None:
     inputs = _stage1_inputs(8, 7, 8)
     audit = inputs[2]
     audit["rows"][7]["candidates"][1]["candidate_passes"] = False
+    audit["rows"][7]["candidates"][1]["pass_after_repair"] = False
     audit["rows"][7]["candidates"][1]["all_intervals_visible"] = False
     audit["rows"][7]["candidates"][1]["intervals"][0]["visibility"] = "not_visible"
     _rehash_audit(audit, "audit_adjudication_sha256")
@@ -1588,6 +2143,25 @@ def test_stage1_scoreboard_contains_only_sanitized_all_ten_aggregates() -> None:
             "pass_after_repair",
             "final_pass",
         }
+    assert scoreboard["candidate_counts"]["oracle-hybrid-12"]["pass_after_repair"] == 7
+    assert scoreboard["candidate_counts"]["oracle-local-12"]["pass_after_repair"] == 8
+    assert _contains_forbidden_public_material(scoreboard) is False
+
+
+def test_initial_round_scoreboard_sanitizes_derived_repair_pass_counts() -> None:
+    inputs = _stage1_inputs(8, 7, 8, round_name="initial")
+    selection = build_stage2_selection_record(
+        inputs[0], inputs[1], inputs[2], inputs[3], bindings=inputs[4]
+    )
+
+    scoreboard = build_stage1_scoreboard(
+        inputs[0], inputs[2], selection, bindings=inputs[4]
+    )
+
+    assert all(
+        counts["pass_after_repair"] == 0
+        for counts in scoreboard["candidate_counts"].values()
+    )
     assert _contains_forbidden_public_material(scoreboard) is False
 
 

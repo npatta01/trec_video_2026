@@ -615,6 +615,7 @@ def _validate_repair_proposals(
     *,
     interval_records: Sequence[tuple[str, int, float, float, str]],
     visibility_by_id: Mapping[str, str],
+    allow_resolution_lineage: bool = False,
 ) -> list[dict[str, Any]]:
     if not isinstance(proposals, list):
         raise TypeError("repair_proposals must be a list")
@@ -624,6 +625,15 @@ def _validate_repair_proposals(
     for proposal in proposals:
         if not isinstance(proposal, Mapping):
             raise TypeError("repair proposal must be an object")
+        resolution_fields = {
+            "input_proposed_time_seconds",
+            "resolution_rule",
+            "resolution_reason",
+        }
+        if not allow_resolution_lineage and resolution_fields.intersection(proposal):
+            raise ValueError(
+                "independent auditor repair proposals cannot contain resolution lineage"
+            )
         interval_id = proposal.get("opaque_interval_id")
         if interval_id not in records_by_id:
             raise ValueError("repair proposal must target a preferred-set interval")
@@ -660,6 +670,8 @@ def _validate_full_rows(
     packet_rows: Sequence[Mapping[str, Any]],
     adjudication: Mapping[str, Any],
     scene_semantics: Mapping[str, Any],
+    allow_repair_resolution: bool = False,
+    allow_derived_pass_after_repair: bool = False,
 ) -> list[dict[str, Any]]:
     if not isinstance(rows, list):
         raise TypeError("full-video audit rows must be a list")
@@ -724,6 +736,10 @@ def _validate_full_rows(
                 packet_candidate, Mapping
             ):
                 raise TypeError("candidate audit records must be objects")
+            if "pass_after_repair" in candidate and not allow_derived_pass_after_repair:
+                raise ValueError(
+                    "pass_after_repair is derived and cannot be supplied by an auditor"
+                )
             interval_records = _preferred_packet_intervals(
                 packet_candidate, base_row=base_row
             )
@@ -778,6 +794,7 @@ def _validate_full_rows(
                 candidate.get("repair_proposals"),
                 interval_records=interval_records,
                 visibility_by_id=visibility_by_id,
+                allow_resolution_lineage=allow_repair_resolution,
             )
             if normalized_repairs:
                 if still_representation != "still_frame_representable":
@@ -1000,12 +1017,118 @@ def _raw_judgments(audit: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
                 judgments["interval_visibility"][
                     f"{prefix}/interval/{interval['opaque_interval_id']}"
                 ] = interval["visibility"]
+            for proposal in candidate["repair_proposals"]:
+                judgments["interval_visibility"][
+                    f"{prefix}/repair_proposal/{proposal['opaque_interval_id']}"
+                ] = proposal["proposed_time_seconds"]
             for index, relation in enumerate(candidate["relations"]):
                 judgments["relationship_preservation"][f"{prefix}/relation/{index}"] = (
                     relation["preservation"]
                 )
             judgments["answer_sufficiency"][prefix] = candidate["answer_sufficiency"]
     return judgments
+
+
+def _repair_proposals_by_identity(
+    audit: Mapping[str, Any],
+) -> dict[tuple[str, str, str], Mapping[str, Any]]:
+    proposals: dict[tuple[str, str, str], Mapping[str, Any]] = {}
+    for row in audit["rows"]:
+        row_id = row["opaque_row_id"]
+        for candidate in row["candidates"]:
+            candidate_id = candidate["opaque_candidate_id"]
+            for proposal in candidate["repair_proposals"]:
+                key = (row_id, candidate_id, proposal["opaque_interval_id"])
+                if key in proposals:
+                    raise ValueError(
+                        "repair resolution contains a duplicate interval identity"
+                    )
+                proposals[key] = proposal
+    return proposals
+
+
+def _validate_repair_resolution_lineage(
+    left: Mapping[str, Any],
+    right: Mapping[str, Any],
+    final_rows: Sequence[Mapping[str, Any]],
+) -> None:
+    left_proposals = _repair_proposals_by_identity(left)
+    right_proposals = _repair_proposals_by_identity(right)
+    final_proposals = _repair_proposals_by_identity({"rows": final_rows})
+    if (
+        left_proposals.keys() != right_proposals.keys()
+        or left_proposals.keys() != final_proposals.keys()
+    ):
+        raise ValueError(
+            "repair resolution interval identities must match both auditor proposals"
+        )
+
+    allowed_fields = {
+        "opaque_interval_id",
+        "target_slot_kind",
+        "proposed_time_seconds",
+        "replacement_reason",
+        "input_proposed_time_seconds",
+        "resolution_rule",
+        "resolution_reason",
+    }
+    allowed_rules = {
+        "agreement",
+        "auditor_left",
+        "auditor_right",
+        "de_novo_event_center",
+    }
+    for key, final in final_proposals.items():
+        if not set(final).issubset(allowed_fields):
+            raise ValueError("repair resolution proposal contains an unknown field")
+        left_time = left_proposals[key]["proposed_time_seconds"]
+        right_time = right_proposals[key]["proposed_time_seconds"]
+        inputs = final.get("input_proposed_time_seconds")
+        if not isinstance(inputs, list) or len(inputs) != 2:
+            raise ValueError(
+                "input_proposed_time_seconds must contain two auditor proposals"
+            )
+        if any(
+            isinstance(value, bool) or not isinstance(value, (int, float))
+            for value in inputs
+        ):
+            raise ValueError(
+                "input_proposed_time_seconds must contain numeric auditor proposals"
+            )
+        if inputs != [left_time, right_time]:
+            raise ValueError(
+                "input_proposed_time_seconds must preserve proposals in auditor order"
+            )
+        rule = final.get("resolution_rule")
+        if rule not in allowed_rules:
+            raise ValueError("repair resolution_rule has an invalid value")
+        final_time = final["proposed_time_seconds"]
+        reason_present = "resolution_reason" in final
+        if rule == "agreement":
+            if left_time != right_time or final_time != left_time:
+                raise ValueError(
+                    "agreement requires equal auditor inputs and the same final time"
+                )
+        elif rule == "auditor_left":
+            if left_time == right_time or final_time != left_time:
+                raise ValueError(
+                    "auditor_left requires disagreement and the left auditor time"
+                )
+        elif rule == "auditor_right":
+            if left_time == right_time or final_time != right_time:
+                raise ValueError(
+                    "auditor_right requires disagreement and the right auditor time"
+                )
+        else:
+            if left_time == right_time or final_time in {left_time, right_time}:
+                raise ValueError(
+                    "de_novo_event_center requires another time after disagreement"
+                )
+            _nonempty_string(final.get("resolution_reason"), "resolution_reason")
+        if rule != "de_novo_event_center" and reason_present:
+            raise ValueError(
+                "resolution_reason is allowed only for de_novo_event_center"
+            )
 
 
 def _agreement_counts(
@@ -1181,7 +1304,22 @@ def validate_audit_adjudication(
         packet_rows=packet_rows,
         adjudication=adjudication,
         scene_semantics=scene_semantics,
+        allow_repair_resolution=True,
+        allow_derived_pass_after_repair=("audit_adjudication_sha256" in payload),
     )
+    _validate_repair_resolution_lineage(left, right, normalized_rows)
+    pass_after_repair = round_name == "repair"
+    for row in normalized_rows:
+        for candidate in row["candidates"]:
+            expected = pass_after_repair and candidate["candidate_passes"]
+            if (
+                "pass_after_repair" in candidate
+                and candidate["pass_after_repair"] is not expected
+            ):
+                raise ValueError(
+                    "pass_after_repair does not match the final audit round"
+                )
+            candidate["pass_after_repair"] = expected
     left_judgments = _raw_judgments(left)
     right_judgments = _raw_judgments(right)
     final_judgments = _raw_judgments({"rows": normalized_rows})
@@ -1287,14 +1425,10 @@ def _derived_candidate_metrics(candidate: Mapping[str, Any]) -> dict[str, bool]:
         for relation in relations
     )
     answer_sufficient = candidate.get("answer_sufficiency") == "answer_sufficient"
-    pass_after_repair = candidate.get("pass_after_repair", False)
-    if not isinstance(pass_after_repair, bool):
-        raise ValueError("pass_after_repair must be boolean")
     return {
         "visible": visible,
         "relations_preserved": relations_preserved,
         "answer_sufficient": answer_sufficient,
-        "pass_after_repair": pass_after_repair,
     }
 
 
@@ -1308,6 +1442,9 @@ def _stage1_aggregates(
     rows = _adjudication_rows(adjudication)
     if len(rows) != 10:
         raise ValueError("Stage 1 requires exactly ten frozen adjudication rows")
+    round_name = audit_adjudication.get("round_name")
+    if round_name not in {"initial", "repair"}:
+        raise ValueError("audit adjudication round_name must be initial or repair")
     eligibility_counts: dict[str, int] = {}
     labelable_rows: list[Mapping[str, Any]] = []
     for row in rows:
@@ -1370,10 +1507,20 @@ def _stage1_aggregates(
             supplied_pass = candidate.get("candidate_passes")
             if supplied_pass is not None and supplied_pass is not final_pass:
                 raise ValueError("candidate_passes does not match final judgments")
+            pass_after_repair = round_name == "repair" and final_pass
+            if candidate.get("pass_after_repair") is not pass_after_repair:
+                raise ValueError(
+                    "pass_after_repair does not match the final audit round"
+                )
             for metric, passed in metrics.items():
                 candidate_counts[condition][metric] += int(passed)
+            candidate_counts[condition]["pass_after_repair"] += int(pass_after_repair)
             candidate_counts[condition]["final_pass"] += int(final_pass)
-            row_conditions[condition] = {**metrics, "final_pass": final_pass}
+            row_conditions[condition] = {
+                **metrics,
+                "pass_after_repair": pass_after_repair,
+                "final_pass": final_pass,
+            }
         if set(row_conditions) != set(CANDIDATES):
             raise ValueError("every audit row must contain both candidates")
         private_rows.append(
