@@ -519,13 +519,60 @@ def full_video_packet(audit_packet: dict) -> dict:
                 }
                 for index in range(interval_count)
             ]
+    packet["rows"][0]["required_components"] = [
+        {
+            "opaque_component_id": "opaque-component-alpha-a",
+            "opaque_interval_id": "row-alpha-interval-1",
+            "interval_index": 0,
+        },
+        {
+            "opaque_component_id": "opaque-component-alpha-b",
+            "opaque_interval_id": "row-alpha-interval-2",
+            "interval_index": 1,
+        },
+    ]
+    packet["rows"][0]["required_relationships"] = [
+        {
+            "opaque_relationship_id": "opaque-relation-alpha-ordering",
+            "relation_type": "ordering",
+            "opaque_component_ids": [
+                "opaque-component-alpha-a",
+                "opaque-component-alpha-b",
+            ],
+            "opaque_interval_ids": [
+                "row-alpha-interval-1",
+                "row-alpha-interval-2",
+            ],
+        },
+        {
+            "opaque_relationship_id": "opaque-relation-alpha-transition",
+            "relation_type": "transition",
+            "opaque_component_ids": ["opaque-component-alpha-b"],
+            "opaque_interval_ids": ["row-alpha-interval-2"],
+        },
+    ]
+    packet["rows"][1]["required_components"] = [
+        {
+            "opaque_component_id": "opaque-component-beta-a",
+            "opaque_interval_id": "row-beta-interval-1",
+            "interval_index": 0,
+        }
+    ]
+    packet["rows"][1]["required_relationships"] = [
+        {
+            "opaque_relationship_id": "opaque-relation-beta-motion",
+            "relation_type": "motion",
+            "opaque_component_ids": ["opaque-component-beta-a"],
+            "opaque_interval_ids": ["row-beta-interval-1"],
+        }
+    ]
     return packet
 
 
 def _audit_candidate(
     opaque_candidate_id: str,
     interval_ids: list[str],
-    relation_types: list[str],
+    required_relationships: list[dict],
 ) -> dict:
     return {
         "opaque_candidate_id": opaque_candidate_id,
@@ -534,8 +581,12 @@ def _audit_candidate(
             for interval_id in interval_ids
         ],
         "relations": [
-            {"relation": relation, "preservation": "preserved"}
-            for relation in relation_types
+            {
+                **copy.deepcopy(relationship),
+                "relation": relationship["relation_type"],
+                "preservation": "preserved",
+            }
+            for relationship in required_relationships
         ],
         "answer_sufficiency": "answer_sufficient",
         "repair_proposals": [],
@@ -553,6 +604,7 @@ def full_video_payload(full_video_packet: dict, adjudication: dict) -> dict:
         rows.append(
             {
                 "opaque_row_id": packet_row["opaque_row_id"],
+                "candidate_order": copy.deepcopy(packet_row["candidate_order"]),
                 "still_representation": "still_frame_representable",
                 "representation_classes": relations.copy(),
                 "candidates": [
@@ -562,7 +614,7 @@ def full_video_payload(full_video_packet: dict, adjudication: dict) -> dict:
                             interval["opaque_interval_id"]
                             for interval in candidate["intervals"]
                         ],
-                        relations,
+                        packet_row["required_relationships"],
                     )
                     for candidate in packet_row["candidates"]
                 ],
@@ -657,6 +709,14 @@ def test_full_video_audit_derives_exact_preferred_set_candidate_passes(
     ("mutation", "message"),
     [
         (
+            lambda payload: payload["rows"][0].pop("candidate_order"),
+            "candidate_order",
+        ),
+        (
+            lambda payload: payload["rows"][0]["candidate_order"].reverse(),
+            "candidate_order",
+        ),
+        (
             lambda payload: payload["rows"][0]["candidates"][0]["intervals"].pop(),
             "preferred-set intervals",
         ),
@@ -722,6 +782,126 @@ def test_full_video_audit_rejects_nonexact_or_noncanonical_judgments(
         validate_full_video_audit(
             payload,
             full_video_packet,
+            adjudication,
+            validated_semantics,
+            frame_first_freeze,
+            expected_reviewer="auditor-left",
+        )
+
+
+def _duplicate_motion_contract(
+    full_video_payload: dict,
+    full_video_packet: dict,
+    validated_semantics: dict,
+    frame_first_freeze: dict,
+) -> tuple[dict, dict, dict]:
+    semantics = copy.deepcopy(validated_semantics)
+    semantics.pop("semantics_sha256")
+    semantics["rows"][0]["required_relationships"] = [
+        {
+            "relationship_id": "duplicate-motion-source-a",
+            "type": "motion",
+            "component_ids": ["component-1a"],
+        },
+        {
+            "relationship_id": "duplicate-motion-source-b",
+            "type": "motion",
+            "component_ids": ["component-1b"],
+        },
+    ]
+    semantics["semantics_sha256"] = _sha256(semantics)
+
+    packet = copy.deepcopy(full_video_packet)
+    packet["rows"][0]["required_relationships"] = [
+        {
+            "opaque_relationship_id": "opaque-duplicate-motion-a",
+            "relation_type": "motion",
+            "opaque_component_ids": ["opaque-component-alpha-a"],
+            "opaque_interval_ids": ["row-alpha-interval-1"],
+        },
+        {
+            "opaque_relationship_id": "opaque-duplicate-motion-b",
+            "relation_type": "motion",
+            "opaque_component_ids": ["opaque-component-alpha-b"],
+            "opaque_interval_ids": ["row-alpha-interval-2"],
+        },
+    ]
+
+    payload = copy.deepcopy(full_video_payload)
+    payload["rows"][0]["representation_classes"] = ["motion"]
+    for candidate in payload["rows"][0]["candidates"]:
+        candidate["relations"] = [
+            {
+                **copy.deepcopy(relationship),
+                "relation": "motion",
+                "preservation": "preserved",
+            }
+            for relationship in packet["rows"][0]["required_relationships"]
+        ]
+    payload = _bind_full_video_payload(payload, semantics, frame_first_freeze)
+    return payload, packet, semantics
+
+
+@pytest.mark.parametrize("mutation", ["order", "bindings"])
+def test_full_video_audit_rejects_swapped_duplicate_relation_identity_or_bindings(
+    full_video_payload: dict,
+    full_video_packet: dict,
+    adjudication: dict,
+    validated_semantics: dict,
+    frame_first_freeze: dict,
+    mutation: str,
+) -> None:
+    payload, packet, semantics = _duplicate_motion_contract(
+        full_video_payload,
+        full_video_packet,
+        validated_semantics,
+        frame_first_freeze,
+    )
+    assert validate_full_video_audit(
+        payload,
+        packet,
+        adjudication,
+        semantics,
+        frame_first_freeze,
+        expected_reviewer="auditor-left",
+    )["rows"][0]["candidates"][0]["candidate_passes"] is True
+    if mutation == "order":
+        payload["rows"][0]["candidates"][0]["relations"].reverse()
+    else:
+        payload["rows"][0]["candidates"][0]["relations"][0][
+            "opaque_component_ids"
+        ] = ["opaque-component-alpha-b"]
+
+    with pytest.raises(ValueError, match="exact frozen relationship bindings"):
+        validate_full_video_audit(
+            payload,
+            packet,
+            adjudication,
+            semantics,
+            frame_first_freeze,
+            expected_reviewer="auditor-left",
+        )
+
+
+def test_full_video_packet_relationship_bindings_must_match_frozen_semantics(
+    full_video_payload: dict,
+    full_video_packet: dict,
+    adjudication: dict,
+    validated_semantics: dict,
+    frame_first_freeze: dict,
+) -> None:
+    payload = _bind_full_video_payload(
+        full_video_payload, validated_semantics, frame_first_freeze
+    )
+    packet = copy.deepcopy(full_video_packet)
+    packet["rows"][0]["required_relationships"][0][
+        "opaque_component_ids"
+    ].reverse()
+
+    with pytest.raises(ValueError, match="scene semantics bindings"):
+        validate_full_video_audit(
+            payload,
+            packet,
             adjudication,
             validated_semantics,
             frame_first_freeze,

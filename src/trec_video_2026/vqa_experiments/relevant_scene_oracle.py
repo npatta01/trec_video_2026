@@ -664,6 +664,116 @@ def _validate_repair_proposals(
     return normalized
 
 
+_RELATION_IDENTITY_FIELDS = (
+    "opaque_relationship_id",
+    "relation_type",
+    "opaque_component_ids",
+    "opaque_interval_ids",
+)
+
+
+def _packet_required_relationships(
+    packet_row: Mapping[str, Any],
+    *,
+    semantics_row: Mapping[str, Any],
+    base_row: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Validate and return the condition-neutral opaque relation contract."""
+
+    semantic_components = semantics_row["components"]
+    packet_components = packet_row.get("required_components")
+    if (
+        not isinstance(packet_components, list)
+        or len(packet_components) != len(semantic_components)
+    ):
+        raise ValueError("packet required components must match scene semantics")
+    source_component_ids = {
+        component["component_id"] for component in semantic_components
+    }
+    opaque_component_ids: set[str] = set()
+    component_by_source: dict[str, Mapping[str, Any]] = {}
+    for packet_component, semantic_component in zip(
+        packet_components, semantic_components, strict=True
+    ):
+        if not isinstance(packet_component, Mapping) or set(packet_component) != {
+            "opaque_component_id",
+            "opaque_interval_id",
+            "interval_index",
+        }:
+            raise ValueError("packet required component schema is not exact")
+        opaque_component_id = _nonempty_string(
+            packet_component.get("opaque_component_id"),
+            "opaque_component_id",
+        )
+        opaque_interval_id = _nonempty_string(
+            packet_component.get("opaque_interval_id"),
+            "opaque_interval_id",
+        )
+        interval_index = semantic_component["interval_index"]
+        if (
+            packet_component.get("interval_index") != interval_index
+            or opaque_component_id in opaque_component_ids
+            or opaque_component_id in source_component_ids
+        ):
+            raise ValueError("packet required components must match scene semantics")
+        opaque_component_ids.add(opaque_component_id)
+        component_by_source[semantic_component["component_id"]] = packet_component
+        for packet_candidate in packet_row["candidates"]:
+            candidate_intervals = _preferred_packet_intervals(
+                packet_candidate, base_row=base_row
+            )
+            if candidate_intervals[interval_index][0] != opaque_interval_id:
+                raise ValueError(
+                    "packet required component interval binding does not match"
+                )
+
+    semantic_relationships = semantics_row["required_relationships"]
+    packet_relationships = packet_row.get("required_relationships")
+    if (
+        not isinstance(packet_relationships, list)
+        or len(packet_relationships) != len(semantic_relationships)
+    ):
+        raise ValueError("packet required relationships must match scene semantics")
+    source_relationship_ids = {
+        relationship["relationship_id"]
+        for relationship in semantic_relationships
+    }
+    opaque_relationship_ids: set[str] = set()
+    normalized: list[dict[str, Any]] = []
+    for packet_relationship, semantic_relationship in zip(
+        packet_relationships, semantic_relationships, strict=True
+    ):
+        if (
+            not isinstance(packet_relationship, Mapping)
+            or set(packet_relationship) != set(_RELATION_IDENTITY_FIELDS)
+        ):
+            raise ValueError("packet required relationship schema is not exact")
+        opaque_relationship_id = _nonempty_string(
+            packet_relationship.get("opaque_relationship_id"),
+            "opaque_relationship_id",
+        )
+        bound_components = [
+            component_by_source[source_id]
+            for source_id in semantic_relationship["component_ids"]
+        ]
+        if (
+            opaque_relationship_id in opaque_relationship_ids
+            or opaque_relationship_id in source_relationship_ids
+            or packet_relationship.get("relation_type")
+            != semantic_relationship["type"]
+            or packet_relationship.get("opaque_component_ids")
+            != [component["opaque_component_id"] for component in bound_components]
+            or packet_relationship.get("opaque_interval_ids")
+            != [component["opaque_interval_id"] for component in bound_components]
+        ):
+            raise ValueError(
+                "packet required relationships must match scene semantics bindings"
+            )
+        opaque_relationship_ids.add(opaque_relationship_id)
+        normalized.append(copy.deepcopy(dict(packet_relationship)))
+    return normalized
+
+
 def _validate_full_rows(
     rows: Any,
     *,
@@ -710,12 +820,16 @@ def _validate_full_rows(
         video_id = packet_row["video_id"]
         base_row = base_by_video[video_id]
         semantics_row = semantics_by_video[video_id]
-        expected_relations = [
-            relation["type"] for relation in semantics_row["required_relationships"]
-        ]
+        expected_relationships = _packet_required_relationships(
+            packet_row,
+            semantics_row=semantics_row,
+            base_row=base_row,
+        )
         packet_candidate_ids = _opaque_candidate_ids(
             packet_row, source=f"packet row {row_index}"
         )
+        if row.get("candidate_order") != packet_row.get("candidate_order"):
+            raise ValueError("full-video candidate_order must match frozen packet")
         candidates = row.get("candidates")
         if not isinstance(candidates, list):
             raise TypeError("full-video audit candidates must be a list")
@@ -770,15 +884,24 @@ def _validate_full_rows(
             relations = candidate.get("relations")
             if not isinstance(relations, list):
                 raise TypeError("candidate relations must be a list")
-            actual_relations = [
-                relation.get("relation") if isinstance(relation, Mapping) else None
-                for relation in relations
-            ]
-            if actual_relations != expected_relations:
+            if len(relations) != len(expected_relationships):
                 raise ValueError("candidate relations must match frozen relationships")
             normalized_relations: list[dict[str, Any]] = []
-            for relation in relations:
-                assert isinstance(relation, Mapping)
+            for relation, expected_relationship in zip(
+                relations, expected_relationships, strict=True
+            ):
+                if (
+                    not isinstance(relation, Mapping)
+                    or relation.get("relation")
+                    != expected_relationship["relation_type"]
+                    or any(
+                        relation.get(field) != expected_relationship[field]
+                        for field in _RELATION_IDENTITY_FIELDS
+                    )
+                ):
+                    raise ValueError(
+                        "candidate relations must match exact frozen relationship bindings"
+                    )
                 preservation = relation.get("preservation")
                 if preservation not in PRESERVATION_VALUES:
                     raise ValueError("relation preservation has an invalid value")
