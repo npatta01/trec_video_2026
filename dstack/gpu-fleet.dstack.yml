@@ -1,9 +1,9 @@
 type: fleet
 name: gpu-marketplace
-nodes: 0..1
+nodes: 0..4
 idle_duration: 5m
 backends: [runpod, vastai]
 spot_policy: on-demand
 resources:
-  gpu: 16GB..
+  gpu: A40,A6000,L40,L40S,RTX6000Ada,A100,H100,H200:1:24GB..
   disk: 100GB..
