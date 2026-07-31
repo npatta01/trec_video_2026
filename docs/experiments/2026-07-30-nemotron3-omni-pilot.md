@@ -184,11 +184,12 @@ base allocation. No central reserve was used.
 - Grading `SHA256SUMS` file SHA-256:
   `dfc414ee68868aa819b7b75eda5c93ad13543f65a9c3bef412dcaef33f4a1909`
 
-All three b1 prefixes were recursively listed, downloaded, and verified
-against their remote `SHA256SUMS`. The audit bundles preserve the exact
-preview text and sanitized scheduler, region, duration, price, and actual cost
-metadata. Private media, model answers, references, item-level grades, and raw
-logs remain outside Git and this report.
+All five b1 artifact subprefixes were recursively listed, downloaded, and
+verified against their remote `SHA256SUMS`: sentinel outputs, sentinel audit,
+pilot outputs, pilot audit, and pilot grading. The audit bundles preserve the
+exact preview text and sanitized scheduler, region, duration, price, and
+actual cost metadata. Private media, model answers, references, item-level
+grades, and raw logs remain outside Git and this report.
 
 ### b1 validity, limits, and decision
 
@@ -207,6 +208,13 @@ logs remain outside Git and this report.
 - **Audit gap:** none for the b1 preview, scheduler, region, duration, cost,
   output-freeze, or grading artifacts. The historical a1 audit gap remains
   documented below.
+- **Shared-report integration:** the primary theme is models, with native audio
+  as a related theme. The canonical claim page and anchor are **not yet
+  assigned** because this isolated workstream is prohibited from editing the
+  shared project-status QMD or generated surfaces. The parent integration task
+  must update the currently stale Nemotron entry in
+  `docs/project-status/research-models.qmd`. This reporting handoff does not
+  change the b1 artifact validity or create an artifact audit gap.
 - **Limitations:** normalization changes container and codecs for every row;
   decode and duration checks do not prove perceptual equivalence. The selected
   panel cannot estimate prevalence, general visual quality, or performance on
