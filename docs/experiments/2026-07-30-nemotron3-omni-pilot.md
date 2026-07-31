@@ -522,6 +522,126 @@ verification, upload and round-trip-verify the grading bundle, apply both
 predeclared decision rules, update this sanitized record, and commit. Stop on
 any technical gate failure or valid negative quality result; no d2 exists.
 
+## Expanded d1 observed result
+
+The separately authorized d1 capacity attempt completed both sequential cloud
+gates without a corrective submission. The declined canary preview exposed
+four physically distinct on-demand RunPod L40S offers across EU-NL-1,
+EUR-IS-2, US-MO-1, and US-TX-4 at `$0.99/hour`; its retained preview SHA-256
+is `724d630448ea14f7048b9d628f790bcd400589735ef98805524f0afbf5f1fa8e`.
+The canary ran in EU-NL-1, exercised the exact foreground wrapper and native
+audio-video request seam on public media, completed **3/3**, and cost `$0.1233`
+over `448.465498` seconds.
+
+Only after that gate passed, the exact label-free 12-media input bundle was
+uploaded and round-trip verified. All 12 remote media SHA-256 values matched
+their local sources, and the completion marker bound the contract SHA-256
+`442a1d26f2ca546502dacd02d4217233266732e7120d337acf8872ad88445855`.
+The pilot preview again exposed the same four regions at `$0.99/hour`; its
+retained preview SHA-256 is
+`7e9a8693a9514fd4c384d94b61377ec3dfc29f31b3f8ecf8c271c948ef949259`.
+The pilot ran in EU-NL-1 and froze **24/24** outputs: adjacent audio-off and
+audio-on answers for all 12 predeclared rows. It cost `$0.2958` over
+`1075.614327` seconds.
+
+The frozen prediction file SHA-256
+`3c9a3220583d98ddc44788e25c19a130a71c905de989e8675e6ebc27173138de`
+matched both the manifest and `SHA256SUMS` before references loaded. The two
+independently shuffled blind C/P/W graders each assigned 6 C, 6 P, and 12 W
+grades and agreed on every item, so third-grader adjudication was forbidden
+and not performed. Audio-on improved **2/4** non-speech sound/music targets
+and regressed **0** visual controls, satisfying the predeclared sound
+replication rule. Across all ten non-control rows it improved **3**, regressed
+**1**, and left the remainder unchanged. That misses the stricter broader
+expansion rule requiring at least four non-control improvements, so the
+machine disposition is `sound_replication_pass`, not
+`broader_expansion_pass`.
+
+Inference used source revision `4698be71b6f10c8c2a218854dc2988ca93f4c705`,
+model `nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4` at revision
+`dc5f0b0bfddf8b6e0f5891475be9af05b80126fe`, and official image
+`docker.io/vllm/vllm-openai:v0.20.0@sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc`.
+Decoding remained non-thinking, greedy, and short-answer; no chain-of-thought
+field was requested, saved, graded, or exposed.
+
+### d1 durable evidence and cost
+
+The d1 runs cost `$0.1233 + $0.2958 = $0.4191`. Including the previously
+recorded `$0.5781`, cumulative model-track spend is `$0.9972`, within the
+original `$8` base allocation. No central reserve was used.
+
+- Canary outputs:
+  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-expanded12-canary-20260731-d1/outputs/`
+- Canary output `SHA256SUMS` file SHA-256:
+  `783d560383b1c37bf14a43b30166961b2a44820fbf33c393b2ff3c6950c696b4`
+- Canary frozen predictions SHA-256:
+  `05b27ce9715fdec33881edae4f06dadc7f321aa0e9972edc47fd28932e4072c2`
+- Canary audit:
+  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-expanded12-canary-20260731-d1/audit/`
+- Canary audit `SHA256SUMS` file SHA-256:
+  `5503ba4d5a061e98cd08c1b020596d1171c8bae18523d8e0ac261779fa9f562c`
+- Pilot inputs:
+  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-expanded12-20260731-d1/inputs/`
+- Pilot outputs:
+  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-expanded12-20260731-d1/outputs/`
+- Pilot output `SHA256SUMS` file SHA-256:
+  `9f260cde1f8b76abab6a84a4b7efb05307646ef5ef1c44a562355b114f1931e1`
+- Pilot audit:
+  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-expanded12-20260731-d1/audit/`
+- Pilot audit `SHA256SUMS` file SHA-256:
+  `86212a78623fb9505d4692006a944a9de3e13e00e09ffa0b08415d8cde922e8a`
+- Private blind-grading bundle:
+  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-expanded12-20260731-d1/grading/`
+- Grading `SHA256SUMS` file SHA-256:
+  `8ec50caad3049b6b4f87dbbd67df4a5766c935ce650e8f88e033e59721c97319`
+
+The canary outputs, canary audit, pilot inputs, pilot outputs, pilot audit,
+and grading prefixes were listed and downloaded after upload. Their declared
+checksums verified; the 12 downloaded media objects also matched their local
+source hashes. Private media, answers, references, item-level grades, and raw
+logs remain outside Git and this sanitized record.
+
+### d1 validity, limits, and decision
+
+- **Evidence validity:** **Verified**. The sequential protocol completed, the
+  public canary was 3/3, the paired expanded pilot was 24/24, and references
+  loaded only after the immutable manifest, contract, prediction, and checksum
+  bindings verified.
+- **Decision disposition:** **Routed candidate** for the declared
+  non-speech-sound/music condition. The original sound rule replicated, but
+  the stricter broader-expansion rule did not pass, so this is not a general
+  model default.
+- **Decision rule predeclared:** yes. Sound replication required at least two
+  improvements among four sound targets and no visual-control regression;
+  broader expansion additionally required at least four non-control
+  improvements and at most one non-control regression.
+- **Gate outcome / completion denominator:** compatibility **3/3**; paired
+  pilot **24/24**; sound replication **pass**; broader expansion **not passed**.
+- **Audit gap:** none for preview offers, scheduler region, duration, price,
+  actual cost, input transfer, output freeze, or blind-grading artifacts.
+- **Limitations:** the 12 rows are a deliberately selected failure panel, not
+  a representative sample. C/P/W judgments compress answer nuance, and this
+  single matched run cannot estimate variance across prompts, hardware,
+  decoding choices, languages, codecs, or the competition distribution.
+- **What this rules out now:** the claim that the b1 sound benefit cannot
+  replicate on its four targets inside the larger declared panel, and the
+  hypothesis that the exact pinned CUDA/vLLM path cannot complete all 24
+  paired requests.
+- **What it does not rule out:** weak or negative audio effects outside the
+  selected rows, broader regressions, sensitivity to normalization, or a
+  different result under a representative panel or independent human study.
+- **Reconsider when:** a larger matched representative panel with more visual
+  controls and repeated independent runs either clears the broader expansion
+  threshold or reverses the condition-bound sound benefit.
+- **Canonical claim page and anchor / shared evidence bundle:** not yet
+  assigned in shared project-status QMD; integration remains the parent task's
+  responsibility. The immutable HF prefixes above are the private evidence
+  bundle.
+- **Supersedes / superseded by:** d1 supersedes the c1 capacity-only outcome as
+  the current result for the expanded 12-row panel. It does not erase c1's
+  historical infrastructure observation or supersede b1's narrower completed
+  condition; no later result supersedes d1 at the time of this record.
+
 ## Codec-normalized b1 observed result
 
 The separately authorized b1 retry passed its sequential gates. This current
