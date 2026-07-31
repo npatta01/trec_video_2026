@@ -43,11 +43,11 @@ validate_environment() {
   [[ "$MODEL_REVISION" == "$EXPECTED_MODEL_REVISION" ]] || die "model revision mismatch"
   case "$RUN_MODE" in
     canary)
-      [[ "$EXPERIMENT_RUN_ID" == "timelens2-runner-canary-20260730-a2" ]] \
+      [[ "$EXPERIMENT_RUN_ID" == "timelens2-runner-canary-20260731-a3" ]] \
         || die "unexpected canary run ID"
       ;;
     compatibility)
-      [[ "$EXPERIMENT_RUN_ID" == "timelens2-selector-pilot-20260730-a2" ]] \
+      [[ "$EXPERIMENT_RUN_ID" == "timelens2-selector-pilot-20260731-a3" ]] \
         || die "unexpected compatibility run ID"
       [[ -f "$REQUESTS_PATH" ]] || die "label-free request manifest is missing"
       ;;
