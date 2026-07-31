@@ -6,6 +6,73 @@ Evidence validity: **Incomplete**
 
 Decision disposition: **Not promoted under the tested condition**
 
+## Separately authorized b1 retry design
+
+The user separately authorized a fresh retry after the a1 track stopped. This
+does not reopen the retired `nemotron3-omni-pilot-20260730-a2` identity. The new
+immutable run identities are:
+
+- codec sentinel: `nemotron3-omni-codec-sentinel-20260730-b1`
+- paired pilot: `nemotron3-omni-pilot-20260730-b1`
+
+The root-cause pattern is exact: all three AV1/Opus MKVs failed both a1
+conditions, while all three VP9/Opus MKVs passed both conditions. Because Opus
+is shared across the successful and failed groups, the b1 hypothesis is that
+vLLM's tested OpenCV path cannot decode the panel's AV1 video streams. The
+falsifier is any failed native audio-video request after normalization, or any
+failure to complete the later 12-request paired contract.
+
+### Treatment, controls, and held-fixed variables
+
+All six original MKVs will be downloaded and hash-verified before model
+loading, then normalized inside the exact pinned runtime image to H.264/AAC
+MP4. Normalization will strip metadata, use one CPU encoding thread, fix the
+pixel and audio formats, record every derived hash, and verify that video and
+audio both decode. Normalizing all six avoids introducing a treatment-specific
+codec path. Each row's audio-off and audio-on requests will use the same
+normalized bytes.
+
+The model ID and revision, vLLM image and version, L40S CUDA hardware class,
+non-thinking greedy short-answer request, six-row panel, row order, questions,
+and promotion rule remain unchanged from a1. No chain-of-thought will be
+requested or stored.
+
+### Sequential gates
+
+1. Upload only the existing six label-free source media, contract, and marker
+   to the new pilot b1 input prefix.
+2. Preview the exact-image codec-sentinel config and retain the complete offer
+   output. Submit it detached only when multiple compatible offers are
+   available where practical.
+3. Normalize all six files, verify their derived hashes and decodability, then
+   exercise the real foreground wrapper with native audio-video requests on
+   the three formerly failing AV1 rows. Require 3/3 valid short answers.
+4. Stop without a pilot if the codec sentinel is not 3/3. No b2 retry is
+   authorized.
+5. After sentinel success and fleet release, preview and submit the pilot b1
+   config. Require all 12 adjacent audio-off/audio-on outputs.
+6. Freeze outputs before loading any references. Blind grading must verify
+   `manifest.json` and `predictions.jsonl` against frozen `SHA256SUMS`, verify
+   the manifest-recorded prediction hash and exact 12-record structure, and
+   only then invoke the reference loader.
+7. Obtain two independent C/P/W grades and a distinct third adjudicator only
+   for disagreements. Promotion still requires at least two of four target
+   improvements and no control regression.
+
+### Evidence, privacy, and operational boundary
+
+The sentinel and pilot will each use their own private HF experiment prefix.
+In addition to workload outputs, a sanitized checksummed audit bundle will
+durably preserve the exact preview output and post-run dstack
+scheduler/region/duration/cost metadata. The audit bundle will be listed,
+downloaded, and checksum-verified. Private media, raw answers, references, and
+raw logs remain outside Git and outside sanitized reporting.
+
+The sentinel has a 30-minute and `$2/hour` hard cap; the pilot has a 45-minute
+and `$2/hour` hard cap. Their incremental worst case is `$2.50`, bringing the
+existing `$0.2435` spend to at most `$2.7435`, within the original `$8` base
+allocation. No central reserve and no automatic b2 correction are authorized.
+
 ## Scope and predeclared gate
 
 This track tested NVIDIA Nemotron 3 Nano Omni with native video plus optional
