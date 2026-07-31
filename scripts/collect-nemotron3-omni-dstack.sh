@@ -8,7 +8,7 @@ readonly HF_CLI_VERSION="1.24.0"
 
 RUN_ID="${1:-}"
 case "$RUN_ID" in
-  nemotron3-omni-runner-canary-20260730-a1|nemotron3-omni-runner-canary-20260730-a2|nemotron3-omni-pilot-20260730-a1|nemotron3-omni-codec-sentinel-20260730-b1|nemotron3-omni-pilot-20260730-b1) ;;
+  nemotron3-omni-runner-canary-20260730-a1|nemotron3-omni-runner-canary-20260730-a2|nemotron3-omni-pilot-20260730-a1|nemotron3-omni-codec-sentinel-20260730-b1|nemotron3-omni-pilot-20260730-b1|nemotron3-omni-expanded12-canary-20260730-c1|nemotron3-omni-expanded12-20260730-c1) ;;
   *) echo "error: unexpected immutable run ID" >&2; exit 2 ;;
 esac
 PREVIEW_PATH="${2:-}"
@@ -16,6 +16,10 @@ case "$RUN_ID" in
   nemotron3-omni-codec-sentinel-20260730-b1|nemotron3-omni-pilot-20260730-b1)
     [[ -f "$PREVIEW_PATH" ]] \
       || { echo "error: preview output is required for b1" >&2; exit 2; }
+    ;;
+  nemotron3-omni-expanded12-canary-20260730-c1|nemotron3-omni-expanded12-20260730-c1)
+    [[ -f "$PREVIEW_PATH" ]] \
+      || { echo "error: preview output is required for c1" >&2; exit 2; }
     ;;
 esac
 

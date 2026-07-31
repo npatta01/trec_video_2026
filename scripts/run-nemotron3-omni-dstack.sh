@@ -39,6 +39,8 @@ validate_identity() {
     pilot:nemotron3-omni-pilot-20260730-a1) ;;
     codec-sentinel:nemotron3-omni-codec-sentinel-20260730-b1) ;;
     pilot:nemotron3-omni-pilot-20260730-b1) ;;
+    canary:nemotron3-omni-expanded12-canary-20260730-c1) ;;
+    expanded-pilot:nemotron3-omni-expanded12-20260730-c1) ;;
     *) die "unexpected immutable mode/run identity" ;;
   esac
   [[ "$HF_REMOTE_URI" == "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/$EXPERIMENT_RUN_ID" ]] \
@@ -139,6 +141,9 @@ PY
 
 download_pilot_inputs() {
   local ids=(IRTTtnSRTyY IWSPAfCKtV8 MdMKHhFFqJQ OzNdzgQi1CA EMI_anpHII4 LusRurRrmf0)
+  if [[ "$MODE" == "expanded-pilot" ]]; then
+    ids=(NN7G28sBOlY NUmb2P3Bzu8 IRTTtnSRTyY IWSPAfCKtV8 MdMKHhFFqJQ OzNdzgQi1CA CH8Dp7EgW4I EtNOkUJd5w8 Gp4LVTn3YbY KgOvCPOX-Ms EMI_anpHII4 LusRurRrmf0)
+  fi
   local id destination
   mkdir -p "$INPUT_DIR/vqa/2025/training/videos_original"
   hf_cli buckets cp "$HF_INPUT_URI/inputs/contract.json" "$INPUT_DIR/contract.json"
@@ -176,6 +181,9 @@ normalize_pilot_inputs() {
   local source_root="$INPUT_DIR/vqa/2025/training/videos_original"
   local normalized_root="$INPUT_DIR/normalized"
   local ids=(IRTTtnSRTyY IWSPAfCKtV8 MdMKHhFFqJQ OzNdzgQi1CA EMI_anpHII4 LusRurRrmf0)
+  if [[ "$MODE" == "expanded-pilot" ]]; then
+    ids=(NN7G28sBOlY NUmb2P3Bzu8 IRTTtnSRTyY IWSPAfCKtV8 MdMKHhFFqJQ OzNdzgQi1CA CH8Dp7EgW4I EtNOkUJd5w8 Gp4LVTn3YbY KgOvCPOX-Ms EMI_anpHII4 LusRurRrmf0)
+  fi
   local id source output
   mkdir -p "$normalized_root"
   for id in "${ids[@]}"; do
@@ -389,7 +397,7 @@ main() {
   fi
   preflight_inputs
   case "$EXPERIMENT_RUN_ID" in
-    nemotron3-omni-codec-sentinel-20260730-b1|nemotron3-omni-pilot-20260730-b1)
+    nemotron3-omni-codec-sentinel-20260730-b1|nemotron3-omni-pilot-20260730-b1|nemotron3-omni-expanded12-20260730-c1)
       failure_stage="media-normalization"
       normalize_pilot_inputs
       ;;

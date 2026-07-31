@@ -21,12 +21,18 @@ PILOT_ID = "nemotron3-omni-pilot-20260730-a1"
 RETIRED_PILOT_A2_ID = "nemotron3-omni-pilot-20260730-a2"
 CODEC_SENTINEL_B1_ID = "nemotron3-omni-codec-sentinel-20260730-b1"
 PILOT_B1_ID = "nemotron3-omni-pilot-20260730-b1"
+EXPANDED12_CANARY_C1_ID = "nemotron3-omni-expanded12-canary-20260730-c1"
+EXPANDED12_C1_ID = "nemotron3-omni-expanded12-20260730-c1"
 REMOTE_ROOT = "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments"
 CANARY_CONFIG = Path("dstack/nemotron3-omni-runner-canary-a2.dstack.yml")
 FAILED_CANARY_CONFIG = Path("dstack/nemotron3-omni-runner-canary.dstack.yml")
 PILOT_CONFIG = Path("dstack/nemotron3-omni-pilot.dstack.yml")
 CODEC_SENTINEL_B1_CONFIG = Path("dstack/nemotron3-omni-codec-sentinel-b1.dstack.yml")
 PILOT_B1_CONFIG = Path("dstack/nemotron3-omni-pilot-b1.dstack.yml")
+EXPANDED12_CANARY_C1_CONFIG = Path(
+    "dstack/nemotron3-omni-expanded12-canary-c1.dstack.yml"
+)
+EXPANDED12_C1_CONFIG = Path("dstack/nemotron3-omni-expanded12-c1.dstack.yml")
 FLEET_ID = "gpu-marketplace"
 RUNNER = Path("scripts/run-nemotron3-omni-dstack.sh")
 UPLOADER = Path("scripts/upload-nemotron3-omni-pilot-inputs.sh")
@@ -96,6 +102,67 @@ def test_b1_configs_are_sentinel_first_exact_image_cuda_tasks_with_hard_caps() -
     assert worst_case == 2.5
     assert "EXPERIMENT_MODE=codec-sentinel" in configs[CODEC_SENTINEL_B1_ID][0]
     assert "EXPERIMENT_MODE=pilot" in configs[PILOT_B1_ID][0]
+
+
+def test_expanded_c1_configs_pin_the_single_canary_and_pilot_envelope() -> None:
+    """Catches a mutable c1 submission, an over-cap pool, or wrong pilot mode."""
+    configs = {
+        EXPANDED12_CANARY_C1_ID: (_text(EXPANDED12_CANARY_C1_CONFIG), "canary", "30m"),
+        EXPANDED12_C1_ID: (_text(EXPANDED12_C1_CONFIG), "expanded-pilot", "45m"),
+    }
+    for run_id, (config, mode, duration) in configs.items():
+        assert "type: task" in config
+        assert f"name: {run_id}" in config
+        assert f"EXPERIMENT_MODE={mode}" in config
+        assert f"EXPERIMENT_RUN_ID={run_id}" in config
+        assert f"HF_REMOTE_URI={REMOTE_ROOT}/{run_id}" in config
+        assert f"HF_INPUT_URI={REMOTE_ROOT}/{run_id}" in config
+        assert f"image: {RUNTIME_IMAGE}" in config
+        assert f"RUNTIME_IMAGE={RUNTIME_IMAGE}" in config
+        assert f"RUNTIME_IMAGE_DIGEST={RUNTIME_IMAGE_DIGEST}" in config
+        assert f"MODEL_ID={MODEL_ID}" in config
+        assert f"MODEL_REVISION={MODEL_REVISION}" in config
+        assert "gpu: L40S:1:48GB.." in config
+        assert f"fleets: [{FLEET_ID}]" in config
+        assert "backends: [runpod, vastai]" in config
+        assert "spot_policy: on-demand" in config
+        assert "max_price: 2.00" in config
+        assert f"max_duration: {duration}" in config
+        assert "ports:" not in config
+        assert "../data/" not in config
+        assert "rocm" not in config.lower()
+        assert "HF_TOKEN=${{ secrets.hf_token }}" in config
+
+
+def test_expanded_c1_scripts_keep_preview_audit_and_expanded_input_boundaries() -> None:
+    """Catches skipped preview evidence, incomplete inputs, or unnormalized expanded media."""
+    runner = _text(RUNNER)
+    uploader = _text(UPLOADER)
+    collector = _text(COLLECTOR)
+    operational = runner + uploader + collector
+
+    assert f"canary:{EXPANDED12_CANARY_C1_ID}" in runner
+    assert f"expanded-pilot:{EXPANDED12_C1_ID}" in runner
+    assert "build-expanded-contract" in uploader
+    assert "input_count=13" in uploader
+    expanded_uploader = uploader.split(
+        'if [[ "$RUN_ID" == "$EXPECTED_RUN_ID_C1" ]]', 1
+    )[1]
+    assert expanded_uploader.split("fi", 1)[0].count(".mkv:") == 12
+    assert "expanded-pilot" in runner
+    assert "normalize_pilot_inputs" in runner
+    assert runner.count("ids=(NN7G28sBOlY NUmb2P3Bzu8") == 2
+    assert runner.index("normalize_pilot_inputs") < runner.index("start_server")
+    assert EXPANDED12_CANARY_C1_ID in collector
+    assert EXPANDED12_C1_ID in collector
+    assert "preview output is required for c1" in collector
+    assert 'cp -- "$PREVIEW_PATH" "$TEMP_AUDIT_DIR/preview.txt"' in collector
+    assert 'hf_cli buckets sync "$TEMP_AUDIT_DIR" "${REMOTE_URI}/audit"' in collector
+    assert "dstack run get" in collector
+    assert "dstack_metadata" in collector
+    assert "--diagnose" not in operational
+    assert RETIRED_PILOT_A2_ID not in operational
+    assert "20260730-c2" not in operational
 
 
 def test_runner_uses_real_foreground_wrapper_and_native_server_seam() -> None:
@@ -170,7 +237,10 @@ def test_private_uploader_selects_only_six_original_media_files_without_token_en
     assert "hf_cli buckets cp" in uploader
     for video_id, _, _ in TARGET_ROWS:
         assert video_id in uploader
-    assert uploader.count(".mkv:") == 6
+    historical_uploader = uploader.split(
+        'if [[ "$RUN_ID" == "$EXPECTED_RUN_ID_C1" ]]', 1
+    )[0]
+    assert historical_uploader.count(".mkv:") == 6
     assert PILOT_B1_ID in uploader
     assert CODEC_SENTINEL_B1_ID not in uploader
 
