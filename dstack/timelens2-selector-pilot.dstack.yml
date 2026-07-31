@@ -1,5 +1,5 @@
 type: task
-name: timelens2-selector-pilot-20260731-a3
+name: timelens2-selector-pilot-20260731-a4
 
 image: docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
 entrypoint: /bin/bash -c
@@ -12,8 +12,8 @@ env:
   - PYTHON_BIN=/opt/conda/bin/python
   - PYTHONPATH=/dstack/run/src
   - RUN_MODE=compatibility
-  - EXPERIMENT_RUN_ID=timelens2-selector-pilot-20260731-a3
-  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/timelens2-selector-pilot-20260731-a3
+  - EXPERIMENT_RUN_ID=timelens2-selector-pilot-20260731-a4
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/timelens2-selector-pilot-20260731-a4
   - RUNTIME_IMAGE=docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
   - RUNTIME_IMAGE_DIGEST=sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
   - MODEL_ID=MCG-NJU/TimeLens2-2B
@@ -25,7 +25,7 @@ env:
 files:
   - ../scripts/run-timelens2-selector-dstack.sh:/dstack/run/scripts/run-timelens2-selector-dstack.sh
   - ../src/trec_video_2026:/dstack/run/src/trec_video_2026
-  - ../.timelens2-private/timelens2-selector-pilot-20260731-a3/compatibility-requests.json:/dstack/input/compatibility-requests.json
+  - ../.timelens2-private/timelens2-selector-pilot-20260731-a4/compatibility-requests.json:/dstack/input/compatibility-requests.json
   - ../data/vqa/2025/training/videos_original/BDKkVYmWqdM.mkv:/dstack/input/media/BDKkVYmWqdM.mkv
   - ../data/vqa/2025/training/videos_original/O60MtMuSpf8.mkv:/dstack/input/media/O60MtMuSpf8.mkv
   - ../data/vqa/2025/training/videos_original/Fk_j6re_Uiw.mkv:/dstack/input/media/Fk_j6re_Uiw.mkv
@@ -36,13 +36,13 @@ commands:
     exec bash /dstack/run/scripts/run-timelens2-selector-dstack.sh run
 
 resources:
-  gpu: A40,A6000,L40,L40S,RTX6000Ada,A100,H100,H200:1:48GB..
+  gpu: A6000:1:48GB..
   cpu: 8..
   memory: 32GB..
   disk: 50GB
 
 backends: [runpod, vastai]
-fleets: [timelens2-48gb-20260731-a3]
+fleets: [timelens2-a6000-20260731-a4]
 spot_policy: on-demand
 max_price: 0.65
 max_duration: 1h
