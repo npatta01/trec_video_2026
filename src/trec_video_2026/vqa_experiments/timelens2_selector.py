@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import gc
 import hashlib
 import json
 import math
+import os
+import resource
 import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
@@ -14,6 +17,7 @@ from typing import Any
 RAW_SCHEMA_VERSION = "timelens2-raw-interval-result-v1"
 NORMALIZED_SCHEMA_VERSION = "timelens2-normalized-interval-result-v1"
 REQUEST_SCHEMA_VERSION = "timelens2-compatibility-requests-v1"
+MEDIA_PREFLIGHT_SCHEMA_VERSION = "timelens2-media-preflight-v1"
 MODEL_ID = "MCG-NJU/TimeLens2-2B"
 MODEL_REVISION = "90dd30b3eeff3520a30c830eff2209f4ad788ca9"
 RUNTIME_IMAGE = (
@@ -763,6 +767,103 @@ def _video_duration(path: Path) -> float:
     return len(reader) / fps
 
 
+def run_media_preflight_requests(
+    *,
+    requests: Sequence[Mapping[str, object]],
+    output_path: Path,
+    process_vision_info: Callable[..., tuple[object, object, object]],
+    video_duration: Callable[[Path], float] = _video_duration,
+) -> int:
+    """Decode the frozen panel sequentially and reject backend fallback."""
+
+    required = 3
+    if len(requests) != required:
+        raise ValueError("media preflight requires exactly three requests")
+    summary: dict[str, object] = {
+        "schema_version": MEDIA_PREFLIGHT_SCHEMA_VERSION,
+        "status": "running",
+        "forced_backend": "torchvision",
+        "runtime_image": RUNTIME_IMAGE,
+        "completion": {"accepted": 0, "attempted": 0, "required": required},
+        "rows": [],
+        "failure": None,
+    }
+    _write_json(output_path, summary)
+
+    completion = summary["completion"]
+    rows = summary["rows"]
+    assert isinstance(completion, dict)
+    assert isinstance(rows, list)
+    for request in requests:
+        identity = {
+            key: request.get(key)
+            for key in ("request_id", "video_id", "request_sha256")
+        }
+        if any(not isinstance(value, str) or not value for value in identity.values()):
+            raise ValueError("media preflight request identity is incomplete")
+        completion["attempted"] = int(completion["attempted"]) + 1
+        started = time.monotonic()
+        try:
+            media_path = Path(str(request["media_path"]))
+            duration = _finite_number(
+                video_duration(media_path),
+                name="duration_seconds",
+            )
+            if duration <= 0:
+                raise ValueError("duration_seconds must be positive")
+            messages = build_messages(media_path, str(request["query"]))
+            _, videos, _ = process_vision_info(
+                messages,
+                image_patch_size=16,
+                return_video_kwargs=True,
+                return_video_metadata=True,
+            )
+            if not isinstance(videos, Sequence) or len(videos) != 1:
+                raise RuntimeError("media preflight requires exactly one video")
+            video_record = videos[0]
+            if not isinstance(video_record, Sequence) or len(video_record) != 2:
+                raise RuntimeError("media preflight requires video metadata")
+            video, metadata = video_record
+            if not isinstance(metadata, Mapping):
+                raise RuntimeError("media preflight requires video metadata")
+            backend = metadata.get("video_backend")
+            if backend != "torchvision":
+                raise RuntimeError("media preflight requires torchvision backend")
+            shape = [int(value) for value in getattr(video, "shape", ())]
+            if len(shape) != 4 or any(value <= 0 for value in shape):
+                raise RuntimeError("media preflight returned an invalid video tensor")
+            completion["accepted"] = int(completion["accepted"]) + 1
+            rows.append(
+                {
+                    "status": "accepted",
+                    **identity,
+                    "backend": backend,
+                    "duration_seconds": duration,
+                    "frames": shape[0],
+                    "shape": shape,
+                    "latency_seconds": time.monotonic() - started,
+                    "max_rss_kib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
+                }
+            )
+            del video, videos
+            gc.collect()
+        except Exception as error:
+            failure = {
+                "error_type": type(error).__name__,
+                "error_message": str(error),
+            }
+            rows.append({"status": "failed", **identity, **failure})
+            summary["status"] = "failed"
+            summary["failure"] = failure
+            _write_json(output_path, summary)
+            return 1
+        _write_json(output_path, summary)
+
+    summary["status"] = "passed"
+    _write_json(output_path, summary)
+    return 0
+
+
 def validate_compatibility_requests(
     path: Path,
     *,
@@ -1004,6 +1105,19 @@ def _run_compatibility(
     return run_with_compatibility_evidence(output_dir, workload)
 
 
+def _run_media_preflight(*, requests_path: Path, output_dir: Path) -> int:
+    if os.environ.get("FORCE_QWENVL_VIDEO_READER") != "torchvision":
+        raise RuntimeError("media preflight must force torchvision before import")
+    from qwen_vl_utils import process_vision_info
+
+    requests = validate_compatibility_requests(requests_path)
+    return run_media_preflight_requests(
+        requests=requests,
+        output_path=output_dir / "media-preflight.json",
+        process_vision_info=process_vision_info,
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1017,7 +1131,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("/dstack/input/media"),
     )
     run = subparsers.add_parser("run")
-    run.add_argument("--mode", choices=("canary", "compatibility"), required=True)
+    run.add_argument(
+        "--mode",
+        choices=("canary", "media-preflight", "compatibility"),
+        required=True,
+    )
     run.add_argument("--model-dir", type=Path, required=True)
     run.add_argument("--requests", type=Path)
     run.add_argument("--output-dir", type=Path, required=True)
@@ -1050,7 +1168,12 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("canary must not receive private requests")
         return _run_canary(model_dir=args.model_dir, output_dir=args.output_dir)
     if args.requests is None:
-        raise ValueError("compatibility mode requires --requests")
+        raise ValueError(f"{args.mode} mode requires --requests")
+    if args.mode == "media-preflight":
+        return _run_media_preflight(
+            requests_path=args.requests,
+            output_dir=args.output_dir,
+        )
     return _run_compatibility(
         model_dir=args.model_dir,
         requests_path=args.requests,

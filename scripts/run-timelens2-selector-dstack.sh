@@ -138,21 +138,45 @@ finalize_and_sync() {
   return "$sync_rc"
 }
 
+run_python_mode() {
+  local mode="$1"
+  local argv=(run --mode "$mode" --model-dir "$MODEL_DIR" --output-dir "$OUTPUT_DIR")
+  if [[ "$mode" != canary ]]; then
+    argv+=(--requests "$REQUESTS_PATH")
+  fi
+  (exec "$PYTHON_BIN" -m trec_video_2026.vqa_experiments.timelens2_selector "${argv[@]}")
+}
+
 run_workload() {
   validate_environment
   bootstrap_runtime
   hf_cli version
   hf_cli auth whoami
   remote_prefix_is_empty
-  download_model
 
-  local argv=(run --mode "$RUN_MODE" --model-dir "$MODEL_DIR" --output-dir "$OUTPUT_DIR")
   if [[ "$RUN_MODE" == compatibility ]]; then
     chmod -R a-w /dstack/input
-    argv+=(--requests "$REQUESTS_PATH")
+    set +e
+    run_python_mode "media-preflight"
+    local preflight_rc=$?
+    set -e
+    if (( preflight_rc != 0 )); then
+      finalize_and_sync "$preflight_rc"
+      return
+    fi
   fi
+
   set +e
-  (exec "$PYTHON_BIN" -m trec_video_2026.vqa_experiments.timelens2_selector "${argv[@]}")
+  download_model
+  local download_rc=$?
+  set -e
+  if (( download_rc != 0 )); then
+    finalize_and_sync "$download_rc"
+    return
+  fi
+
+  set +e
+  run_python_mode "$RUN_MODE"
   local workload_rc=$?
   set -e
   finalize_and_sync "$workload_rc"

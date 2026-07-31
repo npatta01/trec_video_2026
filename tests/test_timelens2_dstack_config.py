@@ -132,6 +132,7 @@ def test_compatibility_task_uploads_only_three_videos_and_label_free_requests() 
     assert "name: [" not in text
     assert "memory: 48GB.." in text
     assert "disk: 100GB" in text
+    assert "FORCE_QWENVL_VIDEO_READER=torchvision" in text
     assert (
         ".timelens2-private/timelens2-selector-pilot-20260730-a1/"
         "compatibility-requests.json"
@@ -160,3 +161,14 @@ def test_wrapper_pins_runtime_and_preserves_failure_and_artifact_contracts() -> 
     assert "remote_prefix_is_empty" in text
     assert "workload_rc" in text
     assert "sync_rc" in text
+
+
+def test_wrapper_runs_media_preflight_before_model_download() -> None:
+    text = RUNNER.read_text()
+    run_workload = text.split("run_workload() {\n", 1)[1].split("\n}\n", 1)[0]
+
+    assert 'run_python_mode "media-preflight"' in run_workload
+    assert run_workload.index('run_python_mode "media-preflight"') < (
+        run_workload.index("download_model")
+    )
+    assert 'finalize_and_sync "$preflight_rc"' in run_workload

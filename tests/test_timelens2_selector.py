@@ -535,3 +535,115 @@ def test_processor_loader_enables_mistral_regex_fix(tmp_path: Path) -> None:
         tmp_path,
         {"local_files_only": True, "fix_mistral_regex": True},
     )
+
+
+def _preflight_requests(tmp_path: Path) -> list[dict[str, object]]:
+    requests = []
+    for index in range(3):
+        media_path = (tmp_path / f"video-{index}.mkv").resolve()
+        media_path.write_bytes(f"media-{index}".encode())
+        requests.append(
+            {
+                "request_id": f"compatibility-{index + 1:02d}",
+                "video_id": f"video-{index}",
+                "request_sha256": f"{index + 1:064x}",
+                "query": f"question {index}",
+                "media_path": str(media_path),
+            }
+        )
+    return requests
+
+
+class _FakeVideo:
+    shape = (12, 3, 352, 640)
+
+
+def test_media_preflight_accepts_exact_three_torchvision_rows(tmp_path: Path) -> None:
+    calls = []
+
+    def process_vision_info(messages: object, **kwargs: object) -> tuple[object, ...]:
+        calls.append((messages, kwargs))
+        return (
+            None,
+            [(_FakeVideo(), {"video_backend": "torchvision"})],
+            {"do_sample_frames": False},
+        )
+
+    output_path = tmp_path / "media-preflight.json"
+    returncode = timelens2_selector.run_media_preflight_requests(
+        requests=_preflight_requests(tmp_path),
+        output_path=output_path,
+        process_vision_info=process_vision_info,
+        video_duration=lambda _path: 21.0,
+    )
+
+    assert returncode == 0
+    result = json.loads(output_path.read_text())
+    assert result["status"] == "passed"
+    assert result["completion"] == {"accepted": 3, "attempted": 3, "required": 3}
+    assert [row["backend"] for row in result["rows"]] == ["torchvision"] * 3
+    assert [row["shape"] for row in result["rows"]] == [[12, 3, 352, 640]] * 3
+    assert len(calls) == 3
+
+
+def test_media_preflight_rejects_non_torchvision_backend(tmp_path: Path) -> None:
+    def process_vision_info(_messages: object, **_kwargs: object) -> tuple[object, ...]:
+        return (
+            None,
+            [(_FakeVideo(), {"video_backend": "decord"})],
+            {"do_sample_frames": False},
+        )
+
+    output_path = tmp_path / "media-preflight.json"
+    returncode = timelens2_selector.run_media_preflight_requests(
+        requests=_preflight_requests(tmp_path),
+        output_path=output_path,
+        process_vision_info=process_vision_info,
+        video_duration=lambda _path: 21.0,
+    )
+
+    assert returncode == 1
+    result = json.loads(output_path.read_text())
+    assert result["status"] == "failed"
+    assert result["completion"] == {"accepted": 0, "attempted": 1, "required": 3}
+    assert result["rows"] == [
+        {
+            "status": "failed",
+            "request_id": "compatibility-01",
+            "video_id": "video-0",
+            "request_sha256": f"{1:064x}",
+            "error_type": "RuntimeError",
+            "error_message": "media preflight requires torchvision backend",
+        }
+    ]
+
+
+def test_media_preflight_mode_requires_forced_torchvision_before_import(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("FORCE_QWENVL_VIDEO_READER", raising=False)
+
+    with pytest.raises(RuntimeError, match="must force torchvision"):
+        timelens2_selector._run_media_preflight(
+            requests_path=tmp_path / "requests.json",
+            output_dir=tmp_path / "output",
+        )
+
+
+def test_parser_accepts_model_free_media_preflight_mode(tmp_path: Path) -> None:
+    args = timelens2_selector.build_parser().parse_args(
+        [
+            "run",
+            "--mode",
+            "media-preflight",
+            "--model-dir",
+            str(tmp_path / "unused-model"),
+            "--requests",
+            str(tmp_path / "requests.json"),
+            "--output-dir",
+            str(tmp_path / "output"),
+        ]
+    )
+
+    assert args.mode == "media-preflight"

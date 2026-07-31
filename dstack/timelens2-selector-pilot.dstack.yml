@@ -9,6 +9,7 @@ working_dir: /dstack/run
 env:
   - HF_TOKEN=${{ secrets.hf_token }}
   - HF_HUB_DISABLE_TELEMETRY=1
+  - FORCE_QWENVL_VIDEO_READER=torchvision
   - PYTHON_BIN=/opt/conda/bin/python
   - PYTHONPATH=/dstack/run/src
   - RUN_MODE=compatibility
