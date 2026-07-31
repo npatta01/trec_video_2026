@@ -22,6 +22,8 @@ from trec_video_2026.vqa_experiments.nemotron3_omni_pilot import (
 
 _CONDITIONS = ("audio-off", "audio-on")
 _EXPANDED_C1_RUN_ID = "nemotron3-omni-expanded12-20260730-c1"
+_EXPANDED_D1_RUN_ID = "nemotron3-omni-expanded12-20260731-d1"
+_ALLOWED_EXPANDED_RUN_IDS = frozenset({_EXPANDED_C1_RUN_ID, _EXPANDED_D1_RUN_ID})
 _EXPANDED_C1_NORMALIZED_MEDIA_ROOT = Path("/dstack/input/normalized")
 _GRADES = frozenset({"C", "P", "W"})
 _RUBRIC = {
@@ -257,6 +259,7 @@ def _verified_expanded_frozen_predictions(
     predictions_path: Path,
     manifest_path: Path,
     checksums_path: Path,
+    expected_run_id: str,
 ) -> list[dict[str, Any]]:
     """Verify the exact expanded-12 freeze before any reference access."""
 
@@ -312,7 +315,7 @@ def _verified_expanded_frozen_predictions(
         raise ValueError("frozen expanded manifest schema mismatch")
     if (
         manifest.get("schema_version") != 1
-        or manifest.get("run_id") != _EXPANDED_C1_RUN_ID
+        or manifest.get("run_id") != expected_run_id
         or manifest.get("mode") != "expanded-pilot"
         or manifest.get("model_id") != MODEL_ID
         or manifest.get("model_revision") != MODEL_REVISION
@@ -431,7 +434,7 @@ def _verified_expanded_frozen_predictions(
             if (
                 set(record) != expected_record_fields
                 or record.get("schema_version") != 1
-                or record.get("run_id") != _EXPANDED_C1_RUN_ID
+                or record.get("run_id") != expected_run_id
                 or record.get("mode") != "expanded-pilot"
                 or record.get("pair_index") != pair_index
                 or record.get("video_id") != video_id
@@ -669,13 +672,18 @@ def build_expanded_blind_grading_bundle(
     ],
     grader_ids: tuple[str, str],
     shuffle_seeds: tuple[int, int],
+    run_id: str = _EXPANDED_C1_RUN_ID,
 ) -> BlindGradingBundle:
-    """Build two label-free packets only after the exact expanded freeze verifies."""
+    """Build packets for one explicitly selected, frozen expanded run."""
+
+    if run_id not in _ALLOWED_EXPANDED_RUN_IDS:
+        raise ValueError("expanded grading run ID is not authorized")
 
     frozen_rows = _verified_expanded_frozen_predictions(
         predictions_path=predictions_path,
         manifest_path=manifest_path,
         checksums_path=checksums_path,
+        expected_run_id=run_id,
     )
     panel = _validated_expanded_panel(
         _load_references_after_freeze(

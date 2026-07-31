@@ -24,6 +24,9 @@ PILOT_B1_ID = "nemotron3-omni-pilot-20260730-b1"
 EXPANDED12_CANARY_C1_ID = "nemotron3-omni-expanded12-canary-20260730-c1"
 EXPANDED12_CANARY_C1_SCHEDULER_ID = "nemotron3-expanded12-canary-20260730-c1"
 EXPANDED12_C1_ID = "nemotron3-omni-expanded12-20260730-c1"
+EXPANDED12_CANARY_D1_ID = "nemotron3-omni-expanded12-canary-20260731-d1"
+EXPANDED12_CANARY_D1_SCHEDULER_ID = "nemotron3-expanded12-canary-20260731-d1"
+EXPANDED12_D1_ID = "nemotron3-omni-expanded12-20260731-d1"
 REMOTE_ROOT = "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments"
 CANARY_CONFIG = Path("dstack/nemotron3-omni-runner-canary-a2.dstack.yml")
 FAILED_CANARY_CONFIG = Path("dstack/nemotron3-omni-runner-canary.dstack.yml")
@@ -34,6 +37,10 @@ EXPANDED12_CANARY_C1_CONFIG = Path(
     "dstack/nemotron3-omni-expanded12-canary-c1.dstack.yml"
 )
 EXPANDED12_C1_CONFIG = Path("dstack/nemotron3-omni-expanded12-c1.dstack.yml")
+EXPANDED12_CANARY_D1_CONFIG = Path(
+    "dstack/nemotron3-omni-expanded12-canary-d1.dstack.yml"
+)
+EXPANDED12_D1_CONFIG = Path("dstack/nemotron3-omni-expanded12-d1.dstack.yml")
 FLEET_ID = "gpu-marketplace"
 RUNNER = Path("scripts/run-nemotron3-omni-dstack.sh")
 UPLOADER = Path("scripts/upload-nemotron3-omni-pilot-inputs.sh")
@@ -146,6 +153,57 @@ def test_expanded_c1_configs_pin_the_single_canary_and_pilot_envelope() -> None:
         assert "HF_TOKEN=${{ secrets.hf_token }}" in config
 
 
+def test_expanded_d1_configs_pin_the_authorized_canary_and_pilot_envelope() -> None:
+    """Catches drift from the exact d1 identity, prefix, or bounded c1 envelope."""
+    configs = {
+        EXPANDED12_CANARY_D1_ID: (
+            _text(EXPANDED12_CANARY_D1_CONFIG),
+            EXPANDED12_CANARY_D1_SCHEDULER_ID,
+            "canary",
+            "30m",
+        ),
+        EXPANDED12_D1_ID: (
+            _text(EXPANDED12_D1_CONFIG),
+            EXPANDED12_D1_ID,
+            "expanded-pilot",
+            "45m",
+        ),
+    }
+    for run_id, (config, scheduler_id, mode, duration) in configs.items():
+        assert "type: task" in config
+        assert f"name: {scheduler_id}" in config
+        assert re.fullmatch(r"[a-z][a-z0-9-]{1,40}", scheduler_id)
+        assert f"EXPERIMENT_MODE={mode}" in config
+        assert f"EXPERIMENT_RUN_ID={run_id}" in config
+        assert f"HF_REMOTE_URI={REMOTE_ROOT}/{run_id}" in config
+        assert f"HF_INPUT_URI={REMOTE_ROOT}/{run_id}" in config
+        assert f"image: {RUNTIME_IMAGE}" in config
+        assert f"RUNTIME_IMAGE={RUNTIME_IMAGE}" in config
+        assert f"RUNTIME_IMAGE_DIGEST={RUNTIME_IMAGE_DIGEST}" in config
+        assert f"MODEL_ID={MODEL_ID}" in config
+        assert f"MODEL_REVISION={MODEL_REVISION}" in config
+        assert "gpu: L40S:1:48GB.." in config
+        assert f"fleets: [{FLEET_ID}]" in config
+        assert "backends: [runpod, vastai]" in config
+        assert "spot_policy: on-demand" in config
+        assert "max_price: 2.00" in config
+        assert f"max_duration: {duration}" in config
+        assert "  on_events: [no-capacity]" in config
+        assert "  duration: 20m" in config
+        assert "ports:" not in config
+        assert "../data/" not in config
+        assert "rocm" not in config.lower()
+        assert "HF_TOKEN=${{ secrets.hf_token }}" in config
+
+    assert len(EXPANDED12_CANARY_D1_SCHEDULER_ID) == 39
+
+    operational = _text(RUNNER) + _text(UPLOADER) + _text(COLLECTOR)
+    assert f"canary:{EXPANDED12_CANARY_D1_ID}" in operational
+    assert f"expanded-pilot:{EXPANDED12_D1_ID}" in operational
+    assert EXPANDED12_CANARY_D1_SCHEDULER_ID in operational
+    assert "expanded12-20260731-d2" not in operational
+
+
 def test_expanded_c1_scripts_keep_preview_audit_and_expanded_input_boundaries() -> None:
     """Catches skipped preview evidence, incomplete inputs, or unnormalized expanded media."""
     runner = _text(RUNNER)
@@ -158,7 +216,8 @@ def test_expanded_c1_scripts_keep_preview_audit_and_expanded_input_boundaries() 
     assert "build-expanded-contract" in uploader
     assert "input_count=13" in uploader
     expanded_uploader = uploader.split(
-        'if [[ "$RUN_ID" == "$EXPECTED_RUN_ID_C1" ]]', 1
+        'if [[ "$RUN_ID" == "$EXPECTED_RUN_ID_C1" || "$RUN_ID" == "$EXPECTED_RUN_ID_D1" ]]',
+        1,
     )[1]
     assert expanded_uploader.split("fi", 1)[0].count(".mkv:") == 12
     assert "expanded-pilot" in runner
@@ -186,6 +245,8 @@ def test_expanded_c1_scripts_keep_preview_audit_and_expanded_input_boundaries() 
         "nemotron3-omni-codec-sentinel-b1.dstack.yml",
         "nemotron3-omni-expanded12-c1.dstack.yml",
         "nemotron3-omni-expanded12-canary-c1.dstack.yml",
+        "nemotron3-omni-expanded12-canary-d1.dstack.yml",
+        "nemotron3-omni-expanded12-d1.dstack.yml",
         "nemotron3-omni-pilot-b1.dstack.yml",
         "nemotron3-omni-pilot.dstack.yml",
         "nemotron3-omni-runner-canary-a2.dstack.yml",
@@ -274,7 +335,8 @@ def test_private_uploader_selects_only_six_original_media_files_without_token_en
     for video_id, _, _ in TARGET_ROWS:
         assert video_id in uploader
     historical_uploader = uploader.split(
-        'if [[ "$RUN_ID" == "$EXPECTED_RUN_ID_C1" ]]', 1
+        'if [[ "$RUN_ID" == "$EXPECTED_RUN_ID_C1" || "$RUN_ID" == "$EXPECTED_RUN_ID_D1" ]]',
+        1,
     )[0]
     assert historical_uploader.count(".mkv:") == 6
     assert PILOT_B1_ID in uploader

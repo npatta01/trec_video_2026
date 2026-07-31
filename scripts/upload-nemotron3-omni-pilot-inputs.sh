@@ -5,13 +5,14 @@ readonly EXPECTED_DATA_TARGET="/home/npatta01/data/competitions/trec_video_2026/
 readonly EXPECTED_RUN_ID_A1="nemotron3-omni-pilot-20260730-a1"
 readonly EXPECTED_RUN_ID_B1="nemotron3-omni-pilot-20260730-b1"
 readonly EXPECTED_RUN_ID_C1="nemotron3-omni-expanded12-20260730-c1"
+readonly EXPECTED_RUN_ID_D1="nemotron3-omni-expanded12-20260731-d1"
 readonly PYTHON_BIN="/usr/bin/python3"
 readonly UV_VERSION="0.11.3"
 readonly HF_CLI_VERSION="1.24.0"
 
 RUN_ID="${1:-$EXPECTED_RUN_ID_A1}"
 case "$RUN_ID" in
-  "$EXPECTED_RUN_ID_A1"|"$EXPECTED_RUN_ID_B1"|"$EXPECTED_RUN_ID_C1") ;;
+  "$EXPECTED_RUN_ID_A1"|"$EXPECTED_RUN_ID_B1"|"$EXPECTED_RUN_ID_C1"|"$EXPECTED_RUN_ID_D1") ;;
   *) echo "error: unexpected immutable run ID" >&2; exit 2 ;;
 esac
 [[ -z "${HF_TOKEN:-}" ]] \
@@ -33,7 +34,7 @@ media_specs=(
   "EMI_anpHII4.mkv:vqa/2025/training/videos_original/EMI_anpHII4.mkv"
   "LusRurRrmf0.mkv:vqa/2025/training/videos_original/LusRurRrmf0.mkv"
 )
-if [[ "$RUN_ID" == "$EXPECTED_RUN_ID_C1" ]]; then
+if [[ "$RUN_ID" == "$EXPECTED_RUN_ID_C1" || "$RUN_ID" == "$EXPECTED_RUN_ID_D1" ]]; then
   media_specs=(
     "NN7G28sBOlY.mkv:vqa/2025/training/videos_original/NN7G28sBOlY.mkv"
     "NUmb2P3Bzu8.mkv:vqa/2025/training/videos_original/NUmb2P3Bzu8.mkv"
@@ -69,7 +70,7 @@ contract="$temp_dir/contract.json"
 marker="$temp_dir/INPUTS_COMPLETE.json"
 contract_command="build-contract"
 input_count=7
-if [[ "$RUN_ID" == "$EXPECTED_RUN_ID_C1" ]]; then
+if [[ "$RUN_ID" == "$EXPECTED_RUN_ID_C1" || "$RUN_ID" == "$EXPECTED_RUN_ID_D1" ]]; then
   contract_command="build-expanded-contract"
   input_count=13
 fi

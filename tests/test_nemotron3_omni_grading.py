@@ -25,6 +25,7 @@ from trec_video_2026.vqa_experiments.nemotron3_omni_pilot import (
 
 
 EXPANDED_C1_RUN_ID = "nemotron3-omni-expanded12-20260730-c1"
+EXPANDED_D1_RUN_ID = "nemotron3-omni-expanded12-20260731-d1"
 
 
 def _synthetic_rows(*, completed: bool = True) -> list[dict[str, object]]:
@@ -268,6 +269,8 @@ def _expanded_c1_request_sha256(
 def _write_expanded_frozen_artifacts(
     tmp_path: Path,
     rows: list[dict[str, object]],
+    *,
+    run_id: str = EXPANDED_C1_RUN_ID,
 ) -> tuple[Path, Path, Path]:
     output_dir = tmp_path / "expanded-output"
     output_dir.mkdir()
@@ -320,7 +323,7 @@ def _write_expanded_frozen_artifacts(
             records.append(
                 {
                     "schema_version": 1,
-                    "run_id": EXPANDED_C1_RUN_ID,
+                    "run_id": run_id,
                     "mode": "expanded-pilot",
                     "pair_index": pair_index,
                     "video_id": row["row_key"],
@@ -357,7 +360,7 @@ def _write_expanded_frozen_artifacts(
         json.dumps(
             {
                 "schema_version": 1,
-                "run_id": EXPANDED_C1_RUN_ID,
+                "run_id": run_id,
                 "mode": "expanded-pilot",
                 "model_id": MODEL_ID,
                 "model_revision": MODEL_REVISION,
@@ -563,9 +566,11 @@ def _expanded_reference_loader(
 def _build_expanded_bundle(
     tmp_path: Path,
     rows: list[dict[str, object]],
+    *,
+    run_id: str = EXPANDED_C1_RUN_ID,
 ) -> BlindGradingBundle:
     predictions_path, manifest_path, checksums_path = _write_expanded_frozen_artifacts(
-        tmp_path, rows
+        tmp_path, rows, run_id=run_id
     )
     return nemotron3_omni_grading.build_expanded_blind_grading_bundle(
         predictions_path=predictions_path,
@@ -574,7 +579,68 @@ def _build_expanded_bundle(
         reference_loader=_expanded_reference_loader(rows),
         grader_ids=("expanded-independent-a", "expanded-independent-b"),
         shuffle_seeds=(1471, 2591),
+        run_id=run_id,
     )
+
+
+def test_expanded_grading_requires_explicit_d1_selection_and_checks_d1_provenance_before_references(
+    tmp_path: Path,
+) -> None:
+    """Catches d1 grading that silently uses c1 or loads labels before identity checks."""
+    rows = _expanded_synthetic_rows()
+    predictions_path, manifest_path, checksums_path = _write_expanded_frozen_artifacts(
+        tmp_path, rows, run_id=EXPANDED_D1_RUN_ID
+    )
+    calls: list[tuple[str, ...]] = []
+
+    bundle = nemotron3_omni_grading.build_expanded_blind_grading_bundle(
+        predictions_path=predictions_path,
+        manifest_path=manifest_path,
+        checksums_path=checksums_path,
+        reference_loader=_expanded_reference_loader(rows, calls),
+        grader_ids=("expanded-independent-a", "expanded-independent-b"),
+        shuffle_seeds=(1471, 2591),
+        run_id=EXPANDED_D1_RUN_ID,
+    )
+
+    assert set(bundle.packets) == {"expanded-independent-a", "expanded-independent-b"}
+    assert calls == [tuple(row["row_key"] for row in rows)]
+
+    calls.clear()
+    with pytest.raises(ValueError):
+        nemotron3_omni_grading.build_expanded_blind_grading_bundle(
+            predictions_path=predictions_path,
+            manifest_path=manifest_path,
+            checksums_path=checksums_path,
+            reference_loader=_expanded_reference_loader(rows, calls),
+            grader_ids=("expanded-independent-a", "expanded-independent-b"),
+            shuffle_seeds=(1471, 2591),
+        )
+    assert calls == []
+
+
+def test_expanded_grading_rejects_unapproved_or_cross_run_id_before_references(
+    tmp_path: Path,
+) -> None:
+    """Catches a broad run-id selector or cross-run artifact grading."""
+    rows = _expanded_synthetic_rows()
+    predictions_path, manifest_path, checksums_path = _write_expanded_frozen_artifacts(
+        tmp_path, rows
+    )
+    calls: list[tuple[str, ...]] = []
+
+    for run_id in (EXPANDED_D1_RUN_ID, "nemotron3-omni-expanded12-20260731-d2"):
+        with pytest.raises(ValueError):
+            nemotron3_omni_grading.build_expanded_blind_grading_bundle(
+                predictions_path=predictions_path,
+                manifest_path=manifest_path,
+                checksums_path=checksums_path,
+                reference_loader=_expanded_reference_loader(rows, calls),
+                grader_ids=("expanded-independent-a", "expanded-independent-b"),
+                shuffle_seeds=(1471, 2591),
+                run_id=run_id,
+            )
+    assert calls == []
 
 
 def _expanded_all_grades(default: str = "C") -> dict[str, str]:

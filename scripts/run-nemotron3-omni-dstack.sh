@@ -41,6 +41,8 @@ validate_identity() {
     pilot:nemotron3-omni-pilot-20260730-b1) ;;
     canary:nemotron3-omni-expanded12-canary-20260730-c1) ;;
     expanded-pilot:nemotron3-omni-expanded12-20260730-c1) ;;
+    canary:nemotron3-omni-expanded12-canary-20260731-d1) ;;
+    expanded-pilot:nemotron3-omni-expanded12-20260731-d1) ;;
     *) die "unexpected immutable mode/run identity" ;;
   esac
   [[ "$HF_REMOTE_URI" == "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/$EXPERIMENT_RUN_ID" ]] \
@@ -397,7 +399,7 @@ main() {
   fi
   preflight_inputs
   case "$EXPERIMENT_RUN_ID" in
-    nemotron3-omni-codec-sentinel-20260730-b1|nemotron3-omni-pilot-20260730-b1|nemotron3-omni-expanded12-20260730-c1)
+    nemotron3-omni-codec-sentinel-20260730-b1|nemotron3-omni-pilot-20260730-b1|nemotron3-omni-expanded12-20260730-c1|nemotron3-omni-expanded12-20260731-d1)
       failure_stage="media-normalization"
       normalize_pilot_inputs
       ;;
