@@ -747,6 +747,42 @@ def test_adjudication_submission_must_bind_to_exact_disagreement_packet(
     assert final.status == "final"
 
 
+@pytest.mark.parametrize("assigned_grader_index", [0, 1])
+def test_original_private_grader_cannot_adjudicate_a_disagreement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    assigned_grader_index: int,
+) -> None:
+    """Catches losing first-round private identities during alias translation."""
+    bundle = _bundle(tmp_path, monkeypatch)
+    packets = list(bundle.packets.values())
+    assignments = bundle._grader_assignment_artifact["assignments"]
+    disputed_answer = packets[0]["items"][0]["candidate_answer"]
+    submissions = [
+        _packet_submission(packets[0], grader_id=assignments[0]["grader_id"]),
+        _packet_submission(
+            packets[1],
+            {disputed_answer: "C"},
+            grader_id=assignments[1]["grader_id"],
+        ),
+    ]
+    pending = frozen30.reconcile_frozen30_grades(bundle, submissions)
+
+    with pytest.raises(ValueError, match="distinct third grader"):
+        frozen30.reconcile_frozen30_grades(
+            bundle,
+            submissions,
+            adjudication={
+                "grader_id": assignments[assigned_grader_index]["grader_id"],
+                "packet_id": pending.adjudication_packet["packet_id"],
+                "grades": [
+                    {"case_id": item["case_id"], "grade": "C"}
+                    for item in pending.adjudication_packet["items"]
+                ],
+            },
+        )
+
+
 def test_private_grader_assignment_binds_identity_alias_and_packet_content(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -814,6 +814,11 @@ def reconcile_frozen30_grades(
         raise ValueError("adjudication requires an exact packet ID binding")
     if adjudication.get("packet_id") != bound_packet["packet_id"]:
         raise ValueError("adjudication packet ID mismatch")
+    assigned_grader_ids = {
+        row["grader_id"] for row in bundle._grader_assignment_artifact["assignments"]
+    }
+    if adjudication.get("grader_id") in assigned_grader_ids:
+        raise ValueError("adjudication requires a distinct third grader")
     return _reconcile_shared_grades(
         bundle,
         stripped_submissions,
