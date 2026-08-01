@@ -4,7 +4,7 @@
 
 **Goal:** Determine whether Qwen3.5-4B answers the frozen ten temporal questions better when given the r4-audited `oracle-hybrid-12` frames than when given matched `uniform-12` frames.
 
-**Architecture:** Keep inference and grading in separate ignored/private controllers. A small staged in-container wrapper applies and attests seed `0`, verifies the canonical request and every mounted PNG byte immediately before generation, and augments the pinned base runner's result with source/prompt/runtime provenance. The inference controller can read questions and selected frame provenance but has no reference-answer input; it runs a six-output compatibility gate, then a complete 20-output paired run, and freezes predictions. Only after that freeze independently verifies may a new grading controller resolve the predeclared ten-file reference allowlist, create a cryptographically randomized condition-blind packet, collect two isolated C/P/W grades plus third-party disagreement adjudication, and unblind exactly once. The existing Visual Evidence claim owns the sanitized result.
+**Architecture:** Keep inference and grading in separate ignored/private controllers. A small staged in-container wrapper applies and attests seed `0`, reads each mounted PNG once, verifies its hash, snapshots those exact bytes to container-private paths, and makes the pinned base runner consume only those snapshots; it augments results with the source-to-snapshot, prompt, source, and runtime provenance. The inference controller can read questions and selected frame provenance but has no reference-answer input; it uses atomically published phase bundles, runs a six-output compatibility gate, then a complete 20-output paired run, and freezes predictions. Only after that freeze independently verifies may a new grading controller resolve the predeclared ten-file reference allowlist, create a cryptographically randomized condition-blind packet, collect two isolated C/P/W grades plus third-party disagreement adjudication, and unblind exactly once. The existing Visual Evidence claim owns the sanitized result.
 
 **Tech Stack:** Python 3.12, pytest, SHA-256 JSON sidecars, rootless Podman, pinned ROCm Transformers runtime, Qwen3.5-4B, Quarto.
 
@@ -21,6 +21,7 @@
 - Model is `Qwen/Qwen3.5-4B` revision `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`.
 - Runtime is `localhost/trec-vqa-gate-rocm@sha256:510e4ca0a165b60a50abf3a1f24545b8f4bd561f9643f0295e7d82212fe801d5`.
 - Apply Python, NumPy, Torch CPU, and Torch accelerator seed `0` inside the container before model load. Record the applied seed and deterministic-runtime flags in every output. Use greedy decoding, `max_new_tokens=32`, and processor bounds `256*256` through `512*512` pixels per frame.
+- Require every model parameter to be BF16 on CUDA:0 and every registered buffer to be on CUDA:0. Record buffer dtypes without requiring integer or FP32 buffers to be BF16.
 - Use the existing temporal question-plus-images prompt with `transcript: null`; do not create, load, mount, or run transcript material.
 - Use only cached local model/runtime assets and rootless ROCm. Set offline variables, disable container networking, do not pull, do not install, and do not expose a service.
 - Compatibility uses the first three paired rows in frozen panel order: exactly six outputs. Full inference is allowed only if all six pass runtime, provenance, completeness, and nonempty-answer checks.
@@ -31,6 +32,7 @@
 - Score `C=2`, `P=1`, `W=0`. The answer gate passes only with at least two improved rows, zero regressed rows, and treatment ordinal gain at least two.
 - Passing is exploratory support for retrieval research only. It does not promote an oracle, change uniform-12 as the baseline, or establish generalization.
 - Refuse overwrite for every evidence artifact. Give every JSON artifact a verified SHA-256 sidecar or a freeze record that binds upstream artifacts.
+- Publish each mutating phase as one same-filesystem atomic directory rename containing all evidence, sidecars, and its predecessor-bound phase record. Preserve and reject/resume interrupted staging transactions; verification must reject empty state, orphan files/sidecars/derived trees, missing phase evidence, and later unrecorded artifacts.
 - Keep questions, references, answers, predictions, grades, video IDs, frame paths, media, and raw logs out of tracked reports and rendered portal artifacts.
 - A failed compatibility gate or partial full run is a terminal incomplete branch: preserve the denominator and failure record, never load references, never compute C/P/W, and report no completed paired comparison.
 - Share the final visual-test result before any transcript work; this plan ends without transcript work.
@@ -49,7 +51,7 @@
 **Interfaces:**
 - Consumes immutable r4 `protocol.json`, `selection.json`, `stage1-scoreboard-sanitized.json`, `extracted-frame-manifest.json`, and the prior label-free `annotation-packet.json` question order.
 - Produces `build_protocol() -> dict[str, object]`, `build_requests() -> list[dict[str, object]]`, `validate_runner_results(requests, results) -> list[dict[str, object]]`, and CLI actions `preflight`, `build`, `compatibility`, `run`, `freeze`, and `verify`.
-- The staged `stage2_runner.py` consumes the JSON request batch on stdin, verifies canonical request hashes and PNG bytes, applies seed `0`, invokes the pinned base runner in-process, and emits augmented result JSON on stdout.
+- The staged `stage2_runner.py` consumes exactly one JSON request batch on stdin, rejects any non-contract or label-like key, verifies canonical request hashes and mounted PNG bytes, snapshots those bytes into container-private temporary files, rewrites only the internal execution batch to those snapshots, applies seed `0`, invokes the pinned base runner in-process under complete stdout capture, and emits exactly one augmented result JSON value on stdout while retaining original request identities.
 - Writes no reference, grading, or transcript artifact.
 
 - [ ] **Step 1: Write the failing private contract tests**
@@ -83,9 +85,9 @@
 
 - [ ] **Step 3: Implement the minimal inference controller**
 
-  Use canonical JSON (`sort_keys=True`, compact separators) for semantic hashes and byte SHA-256 for file bindings. Implement the exact Stage 1 bounded-dimension/PNG24 derivation for uniform controls and test it against hand-calculated dimensions plus a synthetic ImageMagick fixture without executing the real 120-frame build. `build_requests()` must join the frozen question order to the frozen Stage 2 `uniform-bounded-manifest.json` and r4 `bounded-frame-manifest.json` by video ID, emit `uniform-12` then `oracle-hybrid-12` for each row, use `actual_pts_seconds`, and bind each request with `request_sha256`.
+  Use canonical JSON (`sort_keys=True`, compact separators) for semantic hashes and byte SHA-256 for file bindings. Implement the exact Stage 1 bounded-dimension/PNG24 derivation for uniform controls. Each source must be read once into a private verified snapshot; ImageMagick `identify` and `resize` operate only on that snapshot. An end-to-end synthetic builder test uses a small real PNG and controlled ImageMagick, then reloads the manifest and independently proves source/order identity, exact expected dimensions, identify/resize argv/tool identities, PNG24 signature/color type, decoded output dimensions/hash, ten-by-twelve coverage, and 120 distinct hashes. `build_requests()` must revalidate every record one-to-one and in order against the frozen extraction manifest before joining the frozen question order to the frozen Stage 2 `uniform-bounded-manifest.json` and r4 `bounded-frame-manifest.json` by video ID; it emits `uniform-12` then `oracle-hybrid-12`, uses `actual_pts_seconds`, and binds each request with `request_sha256`.
 
-  Write the staged wrapper only after a failing wrapper-contract test. The test must run it against a fake in-process base runner so that deleting seed application, changing a PNG byte, changing the canonical request, omitting source/prompt/runtime attestation, or emitting a different pixel bound fails without loading a real model.
+  Write the staged wrapper only after failing wrapper-contract tests. The fake in-process base runner must mutate every original host path during its callback and prove it can read only container-private snapshots with the originally verified bytes. Separate integration tests call wrapper `main()` through a fake importable base-runner module and prove complete stdin/stdout capture, stream restoration, exactly one JSON output, and rejection of nonzero status, exceptions, malformed output, multiple JSON values, extra keys, and label-like canonical requests without loading a real model.
 
   `runner_command()` must return the literal prefix/environment/image/module argv below and an exact read-only mount allowlist. Tests compare the argv list, not a joined substring. The only mounts are wrapper directory, pinned base runtime source, the ten sorted parent directories named by r4 `oracle-hybrid-12` bounded paths (mounted to the identical absolute paths), the new Stage 2 uniform-bounded root (mounted to its identical absolute path), and the one cached Qwen model repository: 14 mounts total. The controller must prove the ten treatment parents equal the selected hybrid set in the bound manifest and are disjoint from all `oracle-local-12` parents.
 
@@ -128,13 +130,13 @@
   ])
   ```
 
-  Before importing/invoking the base runner, the wrapper must call `random.seed(0)`, `numpy.random.seed(0)`, `torch.manual_seed(0)`, and `torch.cuda.manual_seed_all(0)`, then set `torch.backends.cudnn.benchmark = False` and `torch.backends.cudnn.deterministic = True`. It must open each frame through its mounted path immediately before base-runner invocation, SHA-256 the bytes, compare them to the request, and emit the verified hashes. It must emit the canonical request hash, all four seed applications, `PYTHONHASHSEED`, both backend flags, greedy flag, pixel bounds, runtime-image digest, wrapper/base-runner/prompt-source byte hashes, prompt contract ID, and request identity.
+  Before importing/invoking the base runner, the wrapper must call `random.seed(0)`, `numpy.random.seed(0)`, `torch.manual_seed(0)`, and `torch.cuda.manual_seed_all(0)`, then set `torch.backends.cudnn.benchmark = False` and `torch.backends.cudnn.deterministic = True`. It must read each source path once, hash those bytes, compare them to the request, write them with exclusive creation to a container-private temporary directory, hash the snapshots, and pass only snapshot paths to the base runner. It must emit the canonical original request hash, source-to-snapshot hashes, all four seed applications, `PYTHONHASHSEED`, both backend flags, greedy flag, pixel bounds, runtime-image digest, wrapper/base-runner/prompt-source byte hashes, prompt contract ID, and original request identity.
 
   `validate_runner_results()` must require exact count/order, `status == "passed"`, nonempty normalized answer, pinned model/revision, `device == "cuda:0 (ROCm)"`, `precision == "bfloat16"`, a nonempty `runtime_attestation.torch_hip`, CUDA:0 parameter/buffer placement, exact in-container verified request/frame hashes, seed/runtime/source/prompt/pixel attestations, and the literal runtime image. It must reject controller-added provenance that was not emitted by the wrapper, any mismatch, or any overwrite attempt.
 
 - [ ] **Step 4: Verify GREEN and negative boundaries**
 
-  Add cases for altered frame bytes/hash, full-resolution treatment path/hash, an `oracle-local-12` path, changed uniform resize rule/tool/provenance, altered canonical request, reordered result, empty answer, wrong revision, missing/wrong seed attestation, missing HIP attestation, wrong runtime/source/prompt hash, wrong pixel bound, incomplete pair, reference-like input, an argv/mount outside the exact allowlist, forbidden r4 subtrees being reachable, existing destination, and any non-null transcript. Run the private test, then:
+  Add cases for altered frame bytes/hash, host-path mutation after wrapper verification, full-resolution treatment path/hash, an `oracle-local-12` path, changed uniform resize rule/tool/per-frame provenance, invalid PNG24 signature/color type/dimensions, non-120-distinct condition hashes, altered canonical request, label-like/extra wrapper input, wrapper stdin/stdout/import failures, reordered result, empty answer, wrong revision, missing/wrong seed attestation, missing HIP attestation, wrong runtime/source/prompt hash, wrong pixel bound, legitimate mixed buffer dtypes, incomplete pair, reference-like input, an argv/mount outside the independently calculated exact allowlist, forbidden r4 subtrees or wrapper-directory extras being reachable, existing destination, timeouts/launch/partial-output failures, and any non-null transcript. Add fault-injection tests around every artifact/sidecar/phase publication boundary and verification tests for empty/orphan/later-unrecorded state. Run the private test, then:
 
   ```bash
   uv run pytest -q
@@ -160,7 +162,7 @@
 ### Task 2: Run the compatibility gate, full paired inference, and prediction freeze
 
 **Files:**
-- Create, ignored/private under the Stage 2 run: `grading-rubric.json`, `protocol.json`, `uniform-bounded-manifest.json`, `frames/bounded/uniform-12/**/*.png`, `requests.json`, `preflight.json`, `preflight-pass.json`, `compatibility-predictions.json`, `compatibility-pass.json`, `predictions.json`, `prediction-freeze.json`, terminal failure record when applicable, `phase-state/*.json`, and SHA-256 sidecars
+- Create, ignored/private under the Stage 2 run: `.transactions/`; atomically published `phase-bundles/0001-preflight/` through the completed normal phase or one terminal bundle; and within those bundles the logical evidence (`grading-rubric.json`, `protocol.json`, `uniform-bounded-manifest.json`, `frames/bounded/uniform-12/**/*.png`, `requests.json`, preflight/pass, compatibility predictions/pass, full predictions, prediction freeze, or terminal failure record), all SHA-256 sidecars, and one predecessor-bound `phase-state.json`
 - Create, private: `.superpowers/sdd/2026-08-01-relevant-scene-stage2/task-2-report.md`
 
 **Interfaces:**
@@ -171,19 +173,19 @@
 
   Verify the `data` symlink resolves exactly to `/home/npatta01/data/competitions/trec_video_2026/data`; the exact Podman digest exists without pull; Podman is rootless; `/dev/kfd` and `/dev/dri/renderD128` are accessible; the exact model snapshot and all symlink targets exist; wrapper/base-runner/prompt-source hashes match the protocol; r4 extraction and bounded manifests plus every selected treatment PNG/sidecar verify; the pinned ImageMagick executable/version identity matches the r4 resize tool; the question source matches its predeclared hash; the rubric is frozen; the exact dynamic 14-mount allowlist passes; forbidden full-resolution/unselected r4 subtrees are not mounted/reachable; and no Stage 2 reference/grade/transcript artifact exists. Freeze an explicit `preflight-pass.json` bound to these checks.
 
-  Run controller `preflight`, then `build`. During `build`, derive all 120 uniform bounded controls once with the exact frozen Stage 1 dimension/PNG24 rule, refuse any pre-existing output, freeze `uniform-bounded-manifest.json` with source/tool/argv/output provenance, then construct requests from those outputs and immutable r4 bounded hybrid frames. Verify both conditions contain 120 distinct PNG hashes, no full-resolution treatment path/hash appears, no `oracle-local-12` path appears, and all outputs/sidecars verify with controller `verify`.
+  Run controller `preflight`, then `build`. During `build`, snapshot each verified uniform source once and derive all 120 bounded controls from those snapshots with the exact frozen Stage 1 dimension/PNG24 rule. Atomically publish the build bundle containing output PNGs, their sidecars, `uniform-bounded-manifest.json` with per-record source/order/dimension/tool/argv/output provenance, protocol, requests, and phase record. Re-read and independently validate the complete bundle before request use. Verify both conditions contain 120 distinct valid PNG hashes, no full-resolution treatment path/hash appears, no `oracle-local-12` path appears, and all bundle bindings verify. After each action, require `.transactions/` to be empty and controller `verify` to accept exactly the published phase prefix while rejecting empty state, orphan files/sidecars/derived trees, missing bundle evidence, predecessor drift, or any later unrecorded artifact.
 
 - [ ] **Step 2: Run and freeze the six-output compatibility subset**
 
   Run controller `compatibility`. It must select the first three panel rows and both conditions in pair order. Require 6/6 passed with exact in-container request/frame provenance, applied seed, runtime/source/prompt/pixel attestations, nonempty answers, ROCm/BF16 attestation, correct model/revision/runtime, and no label/reference mount. Freeze both the compatibility artifact and an explicit `compatibility-pass.json` bound to it, then re-run controller `verify`.
 
-  If any check fails, preserve the output and stop Task 2 before full inference.
+  If launch, timeout, return-code, parse, completeness, provenance, or attestation checks fail, atomically publish a terminal compatibility bundle containing attempted and completed denominators, captured stdout/stderr hashes and bounded diagnostic tails, failure class, all upstream hashes, and `references_loaded: false`; do not run full inference.
 
 - [ ] **Step 3: Run the complete paired panel**
 
   Run controller `run` once for all 20 requests. Refuse pre-existing output. Preserve wall time, per-row inference time, peak allocated memory, runtime version, device, precision, and attestation. Require exactly 20/20 passed results with ten complete pairs.
 
-  If the run is partial, preserve it as incomplete and do not retry in place, score, or load references.
+  If launch, timeout, return-code, parse, completeness, provenance, or attestation checks fail, atomically publish a terminal full-run bundle with attempted/completed denominators and the same failure/upstream/reference fields. Preserve it as incomplete and do not retry in place, score, or load references.
 
 - [ ] **Step 4: Freeze and independently verify predictions**
 
@@ -197,7 +199,7 @@
 
 - [ ] **Step 6: Freeze a terminal record for any incomplete branch**
 
-  If compatibility is not 6/6 or full inference is not 20/20 with ten pairs, write a hash-bound terminal failure record containing the completed denominator, failed check, preserved artifact hashes, and `references_loaded: false`. Skip Task 3 and branch directly to Task 4's incomplete-report path; do not stop before that reporting/portal workflow finishes.
+  If compatibility is not 6/6 or full inference is not 20/20 with ten pairs, verify the atomically published terminal bundle contains exact attempted/completed denominators, failed check/class, preserved artifact hashes, captured process evidence, predecessor binding, and `references_loaded: false`. Skip Task 3 and branch directly to Task 4's incomplete-report path; do not stop before that reporting/portal workflow finishes.
 
 ### Task 3: Build the post-freeze blind grading controller and adjudicate
 
