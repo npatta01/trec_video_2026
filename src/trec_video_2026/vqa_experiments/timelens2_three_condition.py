@@ -161,6 +161,40 @@ class ThreeConditionEvidenceStore:
         )
 
 
+def build_selector_failure_attempt(
+    *,
+    request: Mapping[str, object],
+    phase: str,
+    error: BaseException,
+    raw_output: str | None = None,
+    duration_seconds: float | None = None,
+    metadata: Mapping[str, object] | None = None,
+) -> dict[str, object]:
+    """Build a durable per-row rejection without discarding model evidence."""
+
+    if not phase:
+        raise ValueError("phase must be non-empty text")
+    record: dict[str, object] = dict(metadata) if metadata is not None else {}
+    record.update({
+        "status": "rejected",
+        "phase": phase,
+        "request_id": request["request_id"],
+        "video_id": request["video_id"],
+        "request_sha256": request["request_sha256"],
+    })
+    if duration_seconds is not None:
+        record["duration_seconds"] = float(duration_seconds)
+    if raw_output is not None:
+        record["raw_output"] = raw_output
+    record.update(
+        {
+            "error_type": type(error).__name__,
+            "error_message": str(error),
+        }
+    )
+    return record
+
+
 def make_ffmpeg_frame_decoder(
     ffmpeg_executable: str,
 ) -> Callable[[Path, float, Path], None]:
@@ -191,6 +225,10 @@ def make_ffmpeg_frame_decoder(
             ],
             check=True,
         )
+        if not output_path.is_file() or output_path.stat().st_size == 0:
+            raise RuntimeError(
+                f"ffmpeg did not produce a non-empty frame at {timestamp:.6f}s"
+            )
 
     return decode
 
@@ -242,7 +280,11 @@ def build_synthetic_canary_assets(
     )
     decoder = make_ffmpeg_frame_decoder(str(executable))
     frame_paths = []
-    timestamps = [3.0 * (index + 0.5) / 18 for index in range(18)]
+    # The 3-second, 6 fps fixture has frames at PTS 0 through 17/6. Request
+    # those actual PTS values instead of a final bin midpoint (35/12), which
+    # lies after the last decodable frame even though it is inside the
+    # container duration.
+    timestamps = [index / 6.0 for index in range(18)]
     for index, timestamp in enumerate(timestamps, start=1):
         path = output_dir / "synthetic-frames" / f"frame-{index:02d}.png"
         decoder(video_path, timestamp, path)
@@ -281,6 +323,22 @@ def ffprobe_duration(
     if not math.isfinite(duration) or duration <= 0:
         raise ValueError("ffprobe returned an invalid duration")
     return duration
+
+
+def validate_runtime_duration(
+    *, frozen_duration: float, measured_duration: float
+) -> float:
+    """Accept sub-frame duration deltas between FFprobe and PyAV packet timing."""
+
+    frozen = float(frozen_duration)
+    measured = float(measured_duration)
+    if not math.isfinite(frozen) or frozen <= 0:
+        raise ValueError("frozen duration must be finite and positive")
+    if not math.isfinite(measured) or measured <= 0:
+        raise ValueError("runtime duration must be finite and positive")
+    if abs(measured - frozen) > 0.1:
+        raise ValueError("runtime duration differs from frozen duration")
+    return measured
 
 
 def _reject_label_keys(value: object, *, location: str = "source") -> None:
@@ -1119,13 +1177,19 @@ def run_three_condition_inference(
         normalized_results: list[dict[str, object]] = []
         for request in requests:
             request_id = str(request["request_id"])
-            store.checkpoint(f"selector:{request_id}:preprocess")
+            phase = f"selector:{request_id}:duration-validation"
+            raw_output: str | None = None
+            measured_duration: float | None = None
+            metadata: dict[str, object] | None = None
+            store.checkpoint(phase)
             try:
                 media_path = Path(str(request["media_path"]))
-                measured_duration = _video_duration(media_path)
-                frozen_duration = float(request["duration_seconds"])
-                if abs(measured_duration - frozen_duration) > 0.05:
-                    raise ValueError("runtime duration differs from frozen duration")
+                measured_duration = validate_runtime_duration(
+                    frozen_duration=float(request["duration_seconds"]),
+                    measured_duration=_video_duration(media_path),
+                )
+                phase = f"selector:{request_id}:inference"
+                store.checkpoint(phase)
                 torch.cuda.reset_peak_memory_stats()
                 started = time.monotonic()
                 raw_output = _selector_completion(
@@ -1148,6 +1212,8 @@ def run_three_condition_inference(
                     "device": torch.cuda.get_device_name(0),
                     "precision": str(selector_model.dtype).removeprefix("torch."),
                 }
+                phase = f"selector:{request_id}:raw-parse"
+                store.checkpoint(phase)
                 raw = parse_raw_interval_result(
                     request_id=request_id,
                     video_id=str(request["video_id"]),
@@ -1155,6 +1221,8 @@ def run_three_condition_inference(
                     raw_output=raw_output,
                     metadata=metadata,
                 )
+                phase = f"selector:{request_id}:normalize"
+                store.checkpoint(phase)
                 normalized = build_normalized_interval_result(raw)
                 normalized["request_sha256"] = request["request_sha256"]
                 raw_results.append(raw)
@@ -1166,14 +1234,14 @@ def run_three_condition_inference(
                 )
             except Exception as error:  # noqa: BLE001 - retain per-row failure
                 store.record_selector_attempt(
-                    {
-                        "status": "rejected",
-                        "request_id": request_id,
-                        "video_id": request["video_id"],
-                        "request_sha256": request["request_sha256"],
-                        "error_type": type(error).__name__,
-                        "error_message": str(error),
-                    }
+                    build_selector_failure_attempt(
+                        request=request,
+                        phase=phase,
+                        error=error,
+                        raw_output=raw_output,
+                        duration_seconds=measured_duration,
+                        metadata=metadata,
+                    )
                 )
             finally:
                 gc.collect()
@@ -1181,6 +1249,7 @@ def run_three_condition_inference(
         del selector_model, selector_processor
         gc.collect()
         torch.cuda.empty_cache()
+        store.checkpoint("selector:completion-gate")
         if len(raw_results) != EXPECTED_ROWS:
             raise RuntimeError("selector phase did not complete all 30 rows")
 

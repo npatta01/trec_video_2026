@@ -12,6 +12,7 @@ import pytest
 from trec_video_2026.vqa_experiments.timelens2_three_condition import (
     CONDITIONS,
     ThreeConditionEvidenceStore,
+    build_selector_failure_attempt,
     build_synthetic_canary_assets,
     build_blind_grading_packet,
     build_three_condition_recipes,
@@ -21,6 +22,7 @@ from trec_video_2026.vqa_experiments.timelens2_three_condition import (
     make_ffmpeg_frame_decoder,
     prepare_frozen30_source,
     score_blind_judgments,
+    validate_runtime_duration,
     validate_runtime_requests,
 )
 
@@ -382,6 +384,40 @@ def test_evidence_store_persists_partial_completion(tmp_path: Path) -> None:
     assert (tmp_path / "answer-attempts.jsonl").is_file()
 
 
+def test_selector_failure_attempt_preserves_raw_output_and_exact_phase() -> None:
+    record = build_selector_failure_attempt(
+        request={
+            "request_id": "frozen30-30",
+            "video_id": "video-30",
+            "request_sha256": "a" * 64,
+        },
+        phase="selector:frozen30-30:raw-parse",
+        error=ValueError("interval 0 is outside video duration"),
+        raw_output="[[0.0, 15.0]]",
+        duration_seconds=14.933,
+        metadata={
+            "model_revision": "b" * 40,
+            "latency_seconds": 1.25,
+            "peak_memory_bytes": 4_677_764_096,
+        },
+    )
+
+    assert record == {
+        "status": "rejected",
+        "phase": "selector:frozen30-30:raw-parse",
+        "request_id": "frozen30-30",
+        "video_id": "video-30",
+        "request_sha256": "a" * 64,
+        "duration_seconds": 14.933,
+        "raw_output": "[[0.0, 15.0]]",
+        "model_revision": "b" * 40,
+        "latency_seconds": 1.25,
+        "peak_memory_bytes": 4_677_764_096,
+        "error_type": "ValueError",
+        "error_message": "interval 0 is outside video duration",
+    }
+
+
 @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg unavailable")
 def test_synthetic_canary_assets_and_real_frame_decoder(tmp_path: Path) -> None:
     ffmpeg = shutil.which("ffmpeg")
@@ -392,6 +428,12 @@ def test_synthetic_canary_assets_and_real_frame_decoder(tmp_path: Path) -> None:
     )
     assert Path(assets["video_path"]).is_file()
     assert len(assets["frame_paths"]) == 18
+    frame_paths = [Path(path) for path in assets["frame_paths"]]
+    assert all(path.is_file() for path in frame_paths)
+    assert all(path.stat().st_size > 0 for path in frame_paths)
+    assert sorted(path.name for path in frame_paths) == [
+        f"frame-{index:02d}.png" for index in range(1, 19)
+    ]
     decoder = make_ffmpeg_frame_decoder(ffmpeg)
     decoded = tmp_path / "decoded.png"
 
@@ -399,6 +441,20 @@ def test_synthetic_canary_assets_and_real_frame_decoder(tmp_path: Path) -> None:
 
     assert decoded.is_file()
     assert decoded.stat().st_size > 0
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg unavailable")
+def test_real_frame_decoder_rejects_timestamp_without_a_frame(tmp_path: Path) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    assert ffmpeg is not None
+    assets = build_synthetic_canary_assets(
+        output_dir=tmp_path,
+        ffmpeg_executable=ffmpeg,
+    )
+    decoder = make_ffmpeg_frame_decoder(ffmpeg)
+
+    with pytest.raises(RuntimeError, match="did not produce a non-empty frame"):
+        decoder(Path(assets["video_path"]), 30.0, tmp_path / "missing.png")
 
 
 @pytest.mark.skipif(
@@ -420,3 +476,18 @@ def test_ffprobe_duration_reads_generated_video(tmp_path: Path) -> None:
     )
 
     assert duration == pytest.approx(3.0, abs=0.01)
+
+
+def test_runtime_duration_accepts_small_probe_method_delta() -> None:
+    assert validate_runtime_duration(
+        frozen_duration=10.542,
+        measured_duration=10.466,
+    ) == pytest.approx(10.466)
+
+
+def test_runtime_duration_rejects_material_delta() -> None:
+    with pytest.raises(ValueError, match="differs from frozen duration"):
+        validate_runtime_duration(
+            frozen_duration=10.542,
+            measured_duration=10.441,
+        )

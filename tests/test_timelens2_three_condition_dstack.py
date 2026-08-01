@@ -27,15 +27,15 @@ SOURCE_SHA256 = "12fb622607be2bff0fc07789f5002fb14a51755bd18adabd9fb508d19230c49
 GPU = "A40,A6000,L40,L40S,RTX6000Ada,A100,H100,H200:1:48GB.."
 CASES = (
     (
-        "tl2-3cond-canary-20260801-a2",
-        "timelens2-three-condition-canary-20260801-a2",
+        "tl2-3cond-canary-20260801-a3",
+        "timelens2-three-condition-canary-20260801-a3",
         Path("dstack/timelens2-three-condition-canary.dstack.yml"),
         Path("scripts/run-timelens2-three-condition-canary-dstack.sh"),
         "30m",
     ),
     (
-        "tl2-3cond-frozen30-20260801-a1",
-        "timelens2-three-condition-frozen30-20260801-a1",
+        "tl2-3cond-frozen30-20260801-a2",
+        "timelens2-three-condition-frozen30-20260801-a2",
         Path("dstack/timelens2-three-condition-frozen30.dstack.yml"),
         Path("scripts/run-timelens2-three-condition-dstack.sh"),
         "2h",
@@ -127,7 +127,10 @@ def test_runner_validate_executes_without_network_or_secret_output(
     }
     if "frozen30" in run_id:
         env["SOURCE_SHA256"] = SOURCE_SHA256
-        env["HF_INPUT_URI"] = f"{remote}/input"
+        env["HF_INPUT_URI"] = (
+            "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/"
+            "timelens2-three-condition-frozen30-20260801-a1/input"
+        )
     completed = subprocess.run(
         ["bash", str(runner_path), "validate"],
         cwd=Path.cwd(),

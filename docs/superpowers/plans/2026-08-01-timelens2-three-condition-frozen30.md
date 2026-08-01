@@ -11,13 +11,13 @@
 0.0.14, PyAV 16.0.1, imageio-ffmpeg 0.6.0, dstack, and Hugging Face CLI
 1.26.0.
 
-**Final status (2026-08-01):** Stopped at the exact-image canary after the
-single corrective A2 attempt. A1 exposed that Transformers 4.57.6 lacks dense
-Qwen3.5 support. A2 pinned official Transformers revision
-`cbf4d720ec734edb77d25452b2790c7e4be2f8d7` and passed the live runtime/model
-load gate, but failed because its 18-frame synthetic branch referenced a frame
-the near-end decoder request did not produce. The frozen-30 workload was not
-submitted, labels were never opened, and quality remains incomplete. See
+**Final status (2026-08-01):** A test-first A3 correction passed the exact-image
+canary with 1/1 selectors and 2/2 Qwen answers. Frozen A1 preserved 26/30
+selectors before exposing a 50 ms FFprobe/PyAV duration-consistency defect.
+Corrective frozen A2 accepted 29/30 strict interval results; one TimeLens output
+was out of duration, so frame extraction and all 90 answers were withheld.
+Labels were never opened. Selector compatibility was not promoted and matched
+answer quality remains incomplete. See
 `docs/experiments/2026-08-01-timelens2-three-condition-frozen30.md`.
 
 ## Global Constraints
@@ -27,8 +27,8 @@ submitted, labels were never opened, and quality remains incomplete. See
 - Selector is `MCG-NJU/TimeLens2-2B@90dd30b3eeff3520a30c830eff2209f4ad788ca9`.
 - Answer model is `Qwen/Qwen3.5-4B@851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`.
 - Image is `docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755`.
-- Durable artifact IDs are `timelens2-three-condition-canary-20260801-a1` (with corrective `-a2`) and `timelens2-three-condition-frozen30-20260801-a1`. Valid dstack resource names are `tl2-3cond-canary-20260801-a1`/`-a2` and `tl2-3cond-frozen30-20260801-a1` because dstack limits resource names to 41 characters.
-- Use CUDA only, one A40-or-better 48 GB GPU, at least 96 GB RAM, on demand, `max_price: 1.00`, and total remaining base allocation `$3.1414`.
+- Durable artifact IDs reached `timelens2-three-condition-canary-20260801-a3` and `timelens2-three-condition-frozen30-20260801-a2`; the exact immutable A1 input is reused by frozen A2. Valid dstack resource names use the matching shortened `tl2-3cond-*` identities because dstack limits resource names to 41 characters.
+- Use CUDA only, one A40-or-better 48 GB GPU, at least 96 GB RAM, on demand, and `max_price: 1.00`. Final TimeLens2 spend is `$1.0902 / $4.00`.
 - Keep labels out of inference, keep `HF_TOKEN` only in dstack secrets, never use secret-bearing diagnose output, and keep `.timelens2-private/` ignored.
 - Do not edit shared project-status QMD or generated Markdown/HTML.
 
