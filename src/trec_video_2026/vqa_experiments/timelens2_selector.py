@@ -758,13 +758,24 @@ def _run_canary(*, model_dir: Path, output_dir: Path) -> int:
 
 
 def _video_duration(path: Path) -> float:
-    from decord import VideoReader
+    import av
 
-    reader = VideoReader(str(path))
-    fps = float(reader.get_avg_fps())
-    if not math.isfinite(fps) or fps <= 0 or len(reader) <= 0:
+    duration = 0.0
+    with av.open(str(path)) as container:
+        if not container.streams.video:
+            raise ValueError("video has invalid duration metadata")
+        stream = container.streams.video[0]
+        for packet in container.demux(stream):
+            if packet.pts is None or packet.time_base is None:
+                continue
+            packet_end = float(
+                (packet.pts + (packet.duration or 0)) * packet.time_base
+            )
+            if math.isfinite(packet_end):
+                duration = max(duration, packet_end)
+    if not math.isfinite(duration) or duration <= 0:
         raise ValueError("video has invalid duration metadata")
-    return len(reader) / fps
+    return duration
 
 
 def run_media_preflight_requests(

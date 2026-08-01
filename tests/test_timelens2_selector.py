@@ -3,7 +3,10 @@
 import hashlib
 import json
 import math
+import sys
+from fractions import Fraction
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -552,6 +555,41 @@ def _preflight_requests(tmp_path: Path) -> list[dict[str, object]]:
             }
         )
     return requests
+
+
+def test_video_duration_uses_video_packet_timestamps_without_decord(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Container:
+        streams = SimpleNamespace(video=[object()])
+
+        def __enter__(self) -> "Container":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def demux(self, _stream: object) -> list[object]:
+            return [
+                SimpleNamespace(pts=0, duration=1, time_base=Fraction(1, 2)),
+                SimpleNamespace(pts=1, duration=2, time_base=Fraction(1, 2)),
+            ]
+
+    fake_av = SimpleNamespace(open=lambda _path: Container())
+
+    class RejectDecord:
+        def __init__(self, _path: str) -> None:
+            raise AssertionError("duration probing must not use Decord")
+
+    monkeypatch.setitem(sys.modules, "av", fake_av)
+    monkeypatch.setitem(
+        sys.modules,
+        "decord",
+        SimpleNamespace(VideoReader=RejectDecord),
+    )
+
+    assert timelens2_selector._video_duration(tmp_path / "video.mkv") == 1.5
 
 
 class _FakeVideo:

@@ -149,6 +149,7 @@ def test_wrapper_pins_runtime_and_preserves_failure_and_artifact_contracts() -> 
     assert IMAGE in text
     assert 'readonly TRANSFORMERS_VERSION="4.57.6"' in text
     assert 'readonly QWEN_VL_UTILS_VERSION="0.0.14"' in text
+    assert 'readonly PYAV_VERSION="16.0.1"' in text
     assert 'uvx --from "huggingface-hub==$HF_CLI_VERSION" hf "$@"' in text
     assert "buckets sync" in text
     assert "SHA256SUMS" in text

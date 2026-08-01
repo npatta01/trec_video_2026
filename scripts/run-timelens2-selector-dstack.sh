@@ -7,6 +7,7 @@ readonly EXPECTED_MODEL_ID="MCG-NJU/TimeLens2-2B"
 readonly EXPECTED_MODEL_REVISION="90dd30b3eeff3520a30c830eff2209f4ad788ca9"
 readonly TRANSFORMERS_VERSION="4.57.6"
 readonly QWEN_VL_UTILS_VERSION="0.0.14"
+readonly PYAV_VERSION="16.0.1"
 readonly ACCELERATE_VERSION="1.12.0"
 readonly UV_VERSION="0.11.3"
 readonly HF_CLI_VERSION="1.26.0"
@@ -68,14 +69,16 @@ bootstrap_runtime() {
   "$PYTHON_BIN" -m pip install --no-cache-dir --only-binary=:all: \
     "transformers==$TRANSFORMERS_VERSION" \
     "qwen-vl-utils[decord]==$QWEN_VL_UTILS_VERSION" \
+    "av==$PYAV_VERSION" \
     "accelerate==$ACCELERATE_VERSION"
-  "$PYTHON_BIN" - "$TRANSFORMERS_VERSION" "$QWEN_VL_UTILS_VERSION" <<'PY'
+  "$PYTHON_BIN" - "$TRANSFORMERS_VERSION" "$QWEN_VL_UTILS_VERSION" "$PYAV_VERSION" <<'PY'
 import importlib.metadata
 import sys
 import torch
 
 assert importlib.metadata.version("transformers") == sys.argv[1]
 assert importlib.metadata.version("qwen-vl-utils") == sys.argv[2]
+assert importlib.metadata.version("av") == sys.argv[3]
 assert torch.cuda.is_available()
 assert torch.version.cuda
 assert torch.version.hip is None
