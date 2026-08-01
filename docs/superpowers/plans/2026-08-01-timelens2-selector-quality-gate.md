@@ -286,3 +286,29 @@ Run tracked-content scans for `.timelens2-private`, panel IDs, raw outputs, labe
 - [ ] **Step 7: Commit final evidence**
 
 Commit: `docs: record TimeLens2 selector quality result`
+
+---
+
+## Execution outcome
+
+Status: **complete with a non-promotion disposition and a persistent technical
+error in the matched-answer phase**.
+
+- `timelens2-selector-quality-20260801-a1` selected a RunPod A40 48 GB
+  node at $0.44/hour. It preserved 7/10 selector attempts before exit 137;
+  the evidence points to host-memory exhaustion, not GPU-memory exhaustion.
+- The sole corrective run, `timelens2-selector-quality-20260801-a2`, raised
+  minimum host memory from 48 GB to 96 GB. It selected a Vast.ai RTX 6000 Ada
+  48 GB node at $0.82074/hour and completed all 10 selector rows.
+- The corrected run covered every required component in 7/10 rows and 14/17
+  components overall. This misses the predeclared minimum of 8/10 rows, so
+  TimeLens2 hybrid-12 is not promoted and no 30-video expansion is warranted.
+- Matched answer grading remains incomplete: both runs produced 0/20 answers.
+  The corrected run stopped during frame extraction because distinct requested
+  timestamps decoded to identical frame bytes. The one allowed corrective
+  attempt was already consumed, so no further infrastructure run was made.
+- Actual incremental cost was $0.1113, bringing total TimeLens2 spend to
+  $0.7693 of the $4 base allocation. The central reserve was not used.
+- Private inputs, outputs, logs, and evaluation payloads remain excluded from
+  Git. Durable Hugging Face Bucket copies were listed, downloaded, and
+  checksum-verified; only sanitized aggregate evidence is committed.
