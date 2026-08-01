@@ -853,6 +853,201 @@ def run_quality_inference(
     return 0 if succeeded else 1
 
 
+def component_coverage(
+    adjudicated_row: Mapping[str, object],
+    timestamps_seconds: Sequence[float],
+) -> dict[str, object]:
+    """Score whether timestamps touch every interval in the preferred set."""
+
+    sufficient_sets = adjudicated_row.get("sufficient_sets")
+    preferred_index = adjudicated_row.get("preferred_set_index")
+    if not isinstance(sufficient_sets, list) or not sufficient_sets:
+        raise ValueError("adjudicated row has no sufficient sets")
+    if (
+        isinstance(preferred_index, bool)
+        or not isinstance(preferred_index, int)
+        or preferred_index < 0
+        or preferred_index >= len(sufficient_sets)
+    ):
+        raise ValueError("adjudicated row has invalid preferred_set_index")
+    preferred = sufficient_sets[preferred_index]
+    if not isinstance(preferred, list) or not preferred:
+        raise ValueError("preferred sufficient set must contain components")
+    timestamps = [float(value) for value in timestamps_seconds]
+    if any(not math.isfinite(value) or value < 0 for value in timestamps):
+        raise ValueError("frame timestamp must be finite and non-negative")
+    coverage: list[bool] = []
+    for index, interval in enumerate(preferred):
+        if not isinstance(interval, list) or len(interval) != 2:
+            raise ValueError(f"component interval {index} must contain two numbers")
+        start = float(interval[0])
+        end = float(interval[1])
+        if not math.isfinite(start) or not math.isfinite(end) or start > end:
+            raise ValueError(f"component interval {index} is invalid")
+        coverage.append(any(start <= timestamp <= end for timestamp in timestamps))
+    covered = sum(coverage)
+    return {
+        "component_count": len(coverage),
+        "covered_component_count": covered,
+        "all_components_covered": covered == len(coverage),
+        "component_coverage": coverage,
+    }
+
+
+def quality_decision(
+    *,
+    completed_rows: int,
+    answers_complete: bool,
+    rows_with_all_components: int,
+    improved_rows: int,
+    regressed_rows: int,
+) -> str:
+    """Apply the predeclared full selector promotion rule."""
+
+    values = (
+        completed_rows,
+        rows_with_all_components,
+        improved_rows,
+        regressed_rows,
+    )
+    if any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in values):
+        raise ValueError("quality decision counts must be non-negative integers")
+    if not isinstance(answers_complete, bool):
+        raise TypeError("answers_complete must be boolean")
+    if completed_rows != EXPECTED_ROW_COUNT or not answers_complete:
+        return "incomplete"
+    if rows_with_all_components >= 8 and improved_rows >= 2 and regressed_rows <= 1:
+        return "pass"
+    return "valid-negative"
+
+
+def _verified_selector_artifacts(
+    run_output_dir: Path,
+    *,
+    expected_run_manifest_sha256: str,
+) -> None:
+    manifest_path = run_output_dir / "SHA256SUMS"
+    if (
+        not _SHA256.fullmatch(expected_run_manifest_sha256)
+        or not manifest_path.is_file()
+        or _file_sha256(manifest_path) != expected_run_manifest_sha256
+    ):
+        raise ValueError("verified selector freeze is unavailable")
+    entries: dict[str, str] = {}
+    for line in manifest_path.read_text(encoding="utf-8").splitlines():
+        digest, separator, relative = line.partition("  ")
+        normalized = relative.removeprefix("./")
+        if not separator or not _SHA256.fullmatch(digest) or not normalized:
+            raise ValueError("verified selector freeze has an invalid checksum manifest")
+        entries[normalized] = digest
+    required = {
+        "selector-attempts.jsonl",
+        "frame-recipes.jsonl",
+        "quality-summary.json",
+        "terminal-status.json",
+    }
+    if not required.issubset(entries):
+        raise ValueError("verified selector freeze is incomplete")
+    for relative in required:
+        path = run_output_dir / relative
+        if path.is_symlink() or not path.is_file() or _file_sha256(path) != entries[relative]:
+            raise ValueError("verified selector freeze does not match live artifacts")
+
+
+def evaluate_selector_coverage(
+    *,
+    run_output_dir: Path,
+    expected_run_manifest_sha256: str,
+    adjudication_path: Path,
+    expected_adjudication_sha256: str,
+    output_path: Path,
+) -> dict[str, object]:
+    """Reveal accepted scene labels only after a verified selector freeze."""
+
+    _verified_selector_artifacts(
+        run_output_dir,
+        expected_run_manifest_sha256=expected_run_manifest_sha256,
+    )
+    selector_attempts = [
+        json.loads(line)
+        for line in (run_output_dir / "selector-attempts.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    recipes = [
+        json.loads(line)
+        for line in (run_output_dir / "frame-recipes.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    summary = json.loads(
+        (run_output_dir / "quality-summary.json").read_text(encoding="utf-8")
+    )
+    completion = summary.get("completion", {}).get("videos", {})
+    if (
+        len(selector_attempts) != EXPECTED_ROW_COUNT
+        or len(recipes) != EXPECTED_ROW_COUNT
+        or any(row.get("status") != "accepted" for row in selector_attempts)
+        or completion.get("accepted") != EXPECTED_ROW_COUNT
+        or completion.get("required") != EXPECTED_ROW_COUNT
+    ):
+        raise ValueError("verified selector freeze lacks ten accepted rows")
+
+    # Label-access boundary: no adjudication bytes are read before all selector
+    # artifacts and their completion denominator verify above.
+    if (
+        not _SHA256.fullmatch(expected_adjudication_sha256)
+        or _file_sha256(adjudication_path) != expected_adjudication_sha256
+    ):
+        raise ValueError("accepted adjudication checksum mismatch")
+    adjudication = json.loads(adjudication_path.read_text(encoding="utf-8"))
+    if not isinstance(adjudication, dict) or not isinstance(adjudication.get("rows"), list):
+        raise ValueError("accepted adjudication has the wrong schema")
+    adjudicated_rows = adjudication["rows"]
+    if len(adjudicated_rows) != EXPECTED_ROW_COUNT:
+        raise ValueError("accepted adjudication must contain exactly ten rows")
+    adjudication_index = {str(row.get("video_id")): row for row in adjudicated_rows}
+    recipe_index = {str(row.get("video_id")): row for row in recipes}
+    if len(adjudication_index) != 10 or set(adjudication_index) != set(recipe_index):
+        raise ValueError("adjudication and selector identities do not match")
+
+    rows: list[dict[str, object]] = []
+    for recipe in recipes:
+        video_id = str(recipe["video_id"])
+        conditions = recipe.get("conditions")
+        if not isinstance(conditions, dict):
+            raise ValueError(f"{video_id} recipe conditions are invalid")
+        hybrid = conditions.get("hybrid-12")
+        if not isinstance(hybrid, dict):
+            raise ValueError(f"{video_id} hybrid recipe is missing")
+        timestamps = hybrid.get("timestamps_seconds")
+        if not isinstance(timestamps, list) or len(timestamps) != 12:
+            raise ValueError(f"{video_id} hybrid recipe must contain twelve timestamps")
+        rows.append(
+            {
+                "video_id": video_id,
+                **component_coverage(adjudication_index[video_id], timestamps),
+            }
+        )
+    result: dict[str, object] = {
+        "schema_version": "timelens2-selector-coverage-v1",
+        "selector_freeze_sha256": expected_run_manifest_sha256,
+        "adjudication_sha256": expected_adjudication_sha256,
+        "label_access_after_verified_selector_freeze": True,
+        "completion": {"accepted": 10, "required": 10},
+        "rows_with_all_components_covered": sum(
+            bool(row["all_components_covered"]) for row in rows
+        ),
+        "covered_component_count": sum(
+            int(row["covered_component_count"]) for row in rows
+        ),
+        "component_count": sum(int(row["component_count"]) for row in rows),
+        "rows": rows,
+    }
+    _write_json(output_path, result)
+    return result
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)

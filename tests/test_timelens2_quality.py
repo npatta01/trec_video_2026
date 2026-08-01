@@ -12,9 +12,12 @@ import pytest
 from trec_video_2026.vqa_experiments.timelens2_quality import (
     QualityEvidenceStore,
     build_matched_recipes,
+    component_coverage,
+    evaluate_selector_coverage,
     extract_recipe_frames,
     freeze_quality_inference,
     prepare_quality_requests,
+    quality_decision,
     run_quality_inference,
 )
 from trec_video_2026.vqa_experiments.timelens2_selector import (
@@ -369,3 +372,86 @@ def test_quality_inference_has_no_label_or_adjudication_input() -> None:
     assert "labels" not in parameters
     assert "adjudication" not in parameters
     assert "references" not in parameters
+
+
+def test_component_coverage_uses_preferred_sufficient_set_and_inclusive_bounds() -> None:
+    row = {
+        "video_id": "synthetic-video",
+        "eligibility": "labelable_visual",
+        "sufficient_sets": [
+            [[1.0, 2.0]],
+            [[3.0, 4.0], [7.0, 8.0]],
+        ],
+        "preferred_set_index": 1,
+    }
+
+    coverage = component_coverage(row, [0.5, 3.0, 7.5, 9.0])
+
+    assert coverage == {
+        "component_count": 2,
+        "covered_component_count": 2,
+        "all_components_covered": True,
+        "component_coverage": [True, True],
+    }
+
+
+def test_component_coverage_reports_missing_component() -> None:
+    row = {
+        "video_id": "synthetic-video",
+        "eligibility": "labelable_visual",
+        "sufficient_sets": [[[1.0, 2.0], [3.0, 4.0]]],
+        "preferred_set_index": 0,
+    }
+
+    coverage = component_coverage(row, [1.5, 5.0])
+
+    assert coverage["covered_component_count"] == 1
+    assert coverage["all_components_covered"] is False
+    assert coverage["component_coverage"] == [True, False]
+
+
+def test_quality_decision_requires_complete_answers_coverage_and_transitions() -> None:
+    assert (
+        quality_decision(
+            completed_rows=10,
+            answers_complete=True,
+            rows_with_all_components=8,
+            improved_rows=2,
+            regressed_rows=1,
+        )
+        == "pass"
+    )
+    assert (
+        quality_decision(
+            completed_rows=10,
+            answers_complete=True,
+            rows_with_all_components=7,
+            improved_rows=2,
+            regressed_rows=1,
+        )
+        == "valid-negative"
+    )
+    assert (
+        quality_decision(
+            completed_rows=10,
+            answers_complete=False,
+            rows_with_all_components=10,
+            improved_rows=10,
+            regressed_rows=0,
+        )
+        == "incomplete"
+    )
+
+
+def test_selector_coverage_evaluator_refuses_unfrozen_output(tmp_path: Path) -> None:
+    adjudication = tmp_path / "adjudicated.json"
+    adjudication.write_text(json.dumps({"rows": []}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="verified selector freeze"):
+        evaluate_selector_coverage(
+            run_output_dir=tmp_path / "run",
+            expected_run_manifest_sha256="0" * 64,
+            adjudication_path=adjudication,
+            expected_adjudication_sha256=_sha256_bytes(adjudication.read_bytes()),
+            output_path=tmp_path / "coverage.json",
+        )
