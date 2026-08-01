@@ -10,7 +10,7 @@ import math
 import re
 import subprocess
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +23,7 @@ from .timelens2_selector import (
     build_messages,
     build_normalized_interval_result,
     canonical_sha256,
+    normalize_intervals,
     parse_raw_interval_result,
 )
 from trec_video_2026.vqa_transformers_runner import (
@@ -194,6 +195,22 @@ def build_matched_recipes(
     )
     global_timestamps = list(hybrid["global"])
     local_timestamps = list(hybrid["local"])
+    intervals = normalize_intervals(normalized_intervals)
+    local_allocations: list[dict[str, object]] = []
+    offset = 0
+    for interval_index, ((start, end), count) in enumerate(
+        zip(intervals, hybrid["local_counts"], strict=True)
+    ):
+        interval_timestamps = local_timestamps[offset : offset + count]
+        offset += count
+        local_allocations.extend(
+            {
+                "interval_index": interval_index,
+                "interval_seconds": [start, end],
+                "requested_timestamp_seconds": timestamp,
+            }
+            for timestamp in interval_timestamps
+        )
     combined = sorted(global_timestamps + local_timestamps)
     if len(combined) != 12 or len(set(combined)) != 12:
         raise ValueError("hybrid-12 requires twelve distinct timestamps")
@@ -207,6 +224,7 @@ def build_matched_recipes(
             "global_timestamps_seconds": global_timestamps,
             "local_timestamps_seconds": local_timestamps,
             "local_counts": list(hybrid["local_counts"]),
+            "local_allocations": local_allocations,
             "interval_padding_seconds": 0.0,
             "frame_count": 12,
         },
@@ -236,6 +254,25 @@ def _write_jsonl(path: Path, rows: Sequence[Mapping[str, object]]) -> None:
     temporary.replace(path)
 
 
+def _video_frame_timestamps(media_path: Path) -> list[float]:
+    """Return sorted finite frame PTS values from the pinned PyAV runtime."""
+
+    import av
+
+    timestamps: list[float] = []
+    with av.open(str(media_path)) as container:
+        stream = container.streams.video[0]
+        for frame in container.decode(stream):
+            if frame.pts is None:
+                continue
+            timestamp = float(frame.pts * stream.time_base)
+            if math.isfinite(timestamp) and timestamp >= 0:
+                timestamps.append(timestamp)
+    if not timestamps:
+        raise ValueError("video has no finite decoded frame timestamps")
+    return sorted(set(timestamps))
+
+
 def extract_recipe_frames(
     *,
     video_id: str,
@@ -244,6 +281,9 @@ def extract_recipe_frames(
     output_dir: Path,
     ffmpeg_executable: str,
     runner: Any = subprocess.run,
+    frame_timestamps_provider: Callable[[Path], Sequence[float]] = (
+        _video_frame_timestamps
+    ),
 ) -> dict[str, object]:
     """Extract and hash the union of two exact timestamp recipes."""
 
@@ -262,13 +302,52 @@ def extract_recipe_frames(
         condition_timestamps[condition] = timestamps
 
     unique_timestamps = sorted(
-        set(condition_timestamps["uniform-12"])
-        | set(condition_timestamps["hybrid-12"])
+        set(condition_timestamps["uniform-12"]) | set(condition_timestamps["hybrid-12"])
     )
+    hybrid_recipe = recipes["hybrid-12"]
+    local_values = hybrid_recipe.get("local_timestamps_seconds", [])
+    local_allocations = hybrid_recipe.get("local_allocations", [])
+    global_values = hybrid_recipe.get("global_timestamps_seconds", [])
+    if not isinstance(local_values, list) or not isinstance(global_values, list):
+        raise ValueError("hybrid local/global timestamps must be lists")
+    if not isinstance(local_allocations, list):
+        raise ValueError("hybrid local allocations must be a list")
+    local_bounds: dict[float, tuple[float, float]] = {}
+    if local_values or local_allocations:
+        if len(local_values) != len(local_allocations):
+            raise ValueError("hybrid local allocation provenance is incomplete")
+        for allocation in local_allocations:
+            if not isinstance(allocation, Mapping):
+                raise ValueError("hybrid local allocation must be an object")
+            requested = float(allocation.get("requested_timestamp_seconds"))
+            interval = allocation.get("interval_seconds")
+            if not isinstance(interval, list) or len(interval) != 2:
+                raise ValueError("hybrid local allocation interval is invalid")
+            start, end = (float(interval[0]), float(interval[1]))
+            if (
+                not all(math.isfinite(value) for value in (requested, start, end))
+                or start >= requested
+                or requested >= end
+            ):
+                raise ValueError("hybrid local allocation must be interval-interior")
+            local_bounds[requested] = (start, end)
+        if set(local_bounds) != set(float(value) for value in local_values):
+            raise ValueError("hybrid local allocation timestamps do not match")
+
+    nonlocal_timestamps = set(condition_timestamps["uniform-12"]) | set(
+        float(value) for value in global_values
+    )
+    resolvable_local_timestamps = set(local_bounds) - nonlocal_timestamps
     output_dir.mkdir(parents=True, exist_ok=True)
     by_timestamp: dict[float, dict[str, object]] = {}
-    all_frames: list[dict[str, object]] = []
-    for index, timestamp in enumerate(unique_timestamps, start=1):
+    used_hashes: set[str] = set()
+    source_frame_timestamps: list[float] | None = None
+    index_by_timestamp = {
+        timestamp: index for index, timestamp in enumerate(unique_timestamps, start=1)
+    }
+
+    def decode_frame(*, requested: float, resolved: float) -> dict[str, object]:
+        index = index_by_timestamp[requested]
         frame_path = (output_dir / f"frame-{index:02d}.png").resolve()
         runner(
             [
@@ -277,7 +356,7 @@ def extract_recipe_frames(
                 "-loglevel",
                 "error",
                 "-ss",
-                f"{timestamp:.6f}",
+                f"{resolved:.6f}",
                 "-i",
                 str(media_path),
                 "-map",
@@ -293,20 +372,73 @@ def extract_recipe_frames(
         if not frame_path.is_file():
             raise RuntimeError(f"ffmpeg did not create frame {index}")
         row: dict[str, object] = {
-            "timestamp_seconds": timestamp,
+            "requested_timestamp_seconds": requested,
+            "timestamp_seconds": resolved,
+            "resolution": (
+                "requested" if resolved == requested else "nearest-unused-source-pts"
+            ),
             "path": str(frame_path),
             "sha256": _file_sha256(frame_path),
         }
+        return row
+
+    processing_order = sorted(
+        unique_timestamps,
+        key=lambda timestamp: (timestamp in resolvable_local_timestamps, timestamp),
+    )
+    for timestamp in processing_order:
+        row = decode_frame(requested=timestamp, resolved=timestamp)
+        frame_hash = str(row["sha256"])
+        if frame_hash in used_hashes:
+            if timestamp not in resolvable_local_timestamps:
+                raise ValueError(
+                    "matched recipes must decode to distinct decoded frames"
+                )
+            if source_frame_timestamps is None:
+                source_frame_timestamps = sorted(
+                    {
+                        float(value)
+                        for value in frame_timestamps_provider(media_path)
+                        if math.isfinite(float(value)) and float(value) >= 0
+                    }
+                )
+            start, end = local_bounds[timestamp]
+            candidates = sorted(
+                (
+                    value
+                    for value in source_frame_timestamps
+                    if start < value < end and value != timestamp
+                ),
+                key=lambda value: (abs(value - timestamp), value),
+            )
+            for candidate in candidates:
+                candidate_row = decode_frame(
+                    requested=timestamp,
+                    resolved=candidate,
+                )
+                if str(candidate_row["sha256"]) not in used_hashes:
+                    row = candidate_row
+                    frame_hash = str(row["sha256"])
+                    break
+            else:
+                raise ValueError(
+                    "local frame collision has no unused source frame inside interval"
+                )
         by_timestamp[timestamp] = row
-        all_frames.append(row)
+        used_hashes.add(frame_hash)
+
+    all_frames = [by_timestamp[timestamp] for timestamp in unique_timestamps]
     hashes = [str(row["sha256"]) for row in all_frames]
     if len(set(hashes)) != len(hashes):
         raise ValueError("matched recipes must decode to distinct decoded frames")
     return {
-        "schema_version": "timelens2-quality-frame-manifest-v1",
+        "schema_version": "timelens2-quality-frame-manifest-v2",
         "video_id": video_id,
         "media_sha256": _file_sha256(media_path),
         "requested_unique_timestamps": len(unique_timestamps),
+        "resolved_local_collisions": sum(
+            row["resolution"] == "nearest-unused-source-pts" for row in all_frames
+        ),
         "frames": all_frames,
         "conditions": {
             condition: [dict(by_timestamp[value]) for value in timestamps]

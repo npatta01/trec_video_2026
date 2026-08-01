@@ -162,6 +162,38 @@ def test_build_matched_recipes_uses_no_padding_and_distinct_frames() -> None:
     assert len(hybrid["local_timestamps_seconds"]) == 6
     assert all(3.0 < value < 6.0 for value in hybrid["local_timestamps_seconds"])
     assert hybrid["interval_padding_seconds"] == 0.0
+    assert hybrid["local_allocations"] == [
+        {
+            "interval_index": 0,
+            "interval_seconds": [3.0, 6.0],
+            "requested_timestamp_seconds": 3.25,
+        },
+        {
+            "interval_index": 0,
+            "interval_seconds": [3.0, 6.0],
+            "requested_timestamp_seconds": 3.75,
+        },
+        {
+            "interval_index": 0,
+            "interval_seconds": [3.0, 6.0],
+            "requested_timestamp_seconds": 4.25,
+        },
+        {
+            "interval_index": 0,
+            "interval_seconds": [3.0, 6.0],
+            "requested_timestamp_seconds": 4.75,
+        },
+        {
+            "interval_index": 0,
+            "interval_seconds": [3.0, 6.0],
+            "requested_timestamp_seconds": 5.25,
+        },
+        {
+            "interval_index": 0,
+            "interval_seconds": [3.0, 6.0],
+            "requested_timestamp_seconds": 5.75,
+        },
+    ]
 
 
 def test_build_matched_recipes_rejects_global_local_timestamp_collision() -> None:
@@ -342,6 +374,63 @@ def test_extract_recipe_frames_records_exact_timestamps_and_distinct_hashes(
     assert len(manifest["conditions"]["hybrid-12"]) == 12
     assert len({row["sha256"] for row in manifest["frames"]}) == 24
     assert all(Path(row["path"]).is_file() for row in manifest["frames"])
+
+
+def test_extract_recipe_frames_resolves_local_collision_on_source_pts(
+    tmp_path: Path,
+) -> None:
+    media = tmp_path / "video.mkv"
+    media.write_bytes(b"video")
+    global_timestamps = [1.0, 3.0, 5.0, 7.0, 9.0, 17.26358333333333]
+    local_timestamps = [15.25, 15.75, 16.25, 16.75, 17.25, 17.75]
+    recipes = {
+        "uniform-12": {"timestamps_seconds": [index + 0.5 for index in range(12)]},
+        "hybrid-12": {
+            "timestamps_seconds": sorted(global_timestamps + local_timestamps),
+            "global_timestamps_seconds": global_timestamps,
+            "local_timestamps_seconds": local_timestamps,
+            "local_allocations": [
+                {
+                    "interval_index": 0,
+                    "interval_seconds": [15.0, 18.0],
+                    "requested_timestamp_seconds": timestamp,
+                }
+                for timestamp in local_timestamps
+            ],
+        },
+    }
+
+    def colliding_runner(argv: list[str], **kwargs: object) -> None:
+        timestamp = argv[argv.index("-ss") + 1]
+        decoded = (
+            "same-source-frame"
+            if timestamp in {"17.250000", "17.263583"}
+            else f"frame at {timestamp}"
+        )
+        Path(argv[-1]).write_bytes(decoded.encode())
+
+    manifest = extract_recipe_frames(
+        video_id="synthetic-video",
+        media_path=media,
+        recipes=recipes,
+        output_dir=tmp_path / "frames",
+        ffmpeg_executable="/pinned/ffmpeg",
+        runner=colliding_runner,
+        frame_timestamps_provider=lambda _: [17.233, 17.267],
+    )
+
+    hybrid = manifest["conditions"]["hybrid-12"]
+    resolved = next(
+        row for row in hybrid if row["requested_timestamp_seconds"] == 17.25
+    )
+    preserved_global = next(
+        row for row in hybrid if row["requested_timestamp_seconds"] == 17.26358333333333
+    )
+    assert resolved["timestamp_seconds"] == 17.233
+    assert resolved["resolution"] == "nearest-unused-source-pts"
+    assert preserved_global["timestamp_seconds"] == 17.26358333333333
+    assert preserved_global["resolution"] == "requested"
+    assert len({row["sha256"] for row in hybrid}) == 12
 
 
 def test_extract_recipe_frames_rejects_duplicate_decoded_images(tmp_path: Path) -> None:

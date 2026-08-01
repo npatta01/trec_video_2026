@@ -312,3 +312,16 @@ error in the matched-answer phase**.
 - Private inputs, outputs, logs, and evaluation payloads remain excluded from
   Git. Durable Hugging Face Bucket copies were listed, downloaded, and
   checksum-verified; only sanitized aggregate evidence is committed.
+
+### Post-close technical follow-up
+
+The separately authorized dstack development run
+`timelens2-frame-dedup-dev-20260801-d1` reproduced the A2 duplicate-frame
+failure without models or labels. The collision was one global/local hybrid
+pair separated by less than one source-frame period, not an OOM or decoder
+failure. A test-first resolver now records interval provenance and moves only a
+colliding local request to the nearest unused actual frame PTS strictly inside
+its original interval. Exact-image validation ran the production resolver twice
+with identical results, kept every global timestamp fixed, and restored 12
+distinct hybrid frames. This does not change the frozen 7/10 selector result or
+authorize another matched quality run on the revealed panel.
