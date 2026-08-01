@@ -1,0 +1,64 @@
+schema_version: videochat3-runtime-cert-retired-v1
+status: retired-consumed-runtime-stop
+submission_allowed: false
+run_name: videochat3-runtime-cert-20260731-a1
+run_id: e7d2c5aa-dc15-4f09-aa18-ec81970781eb
+reason: >-
+  The bounded development environment completed dependency preparation, the
+  pinned model download, and basic NVIDIA CUDA readiness. It then terminated
+  before the interactive synthetic certification started. This consumed
+  identity is sanitized provenance and cannot submit work.
+
+submitted_snapshot:
+  submitted_at_utc: "2026-07-31T12:12:00.061045Z"
+  git_commit: a42aa06c02b934a7def21d95808aa50069ea5fe0
+  source_config_sha256: 54056c9d3a61e17d4172f15ce057f4357a6dae120489f726129bd0b8185368ae
+  prep_script_sha256: d2feeb42048a333f36b045dcb033a11b64aad8564f20f52ae417accf74cdd587
+  runner_script_sha256: 5711b03c2d4f367d21e73a333173df2f9734f7f52d2b921be99dcd520021859b
+  verifier_script_sha256: ba2c3801ac743a8db8e7f5f23b23c97d559682655fca8f859a732fd881486dbe
+  source_snapshot_sha256: 3039526f2ace8104fb25a1a989d3046281a5499c39a6b4ded439481c20eb9529
+  requirements_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+  image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+  model_id: MCG-NJU/VideoChat3-4B
+  model_revision: 37fa901ec5913f84bc31108ebc1e60ad1903634c
+  transformers_revision: cbf4d720ec734edb77d25452b2790c7e4be2f8d7
+  private_media_uploaded: false
+  resources:
+    gpu_selector: A40:1:24GB..
+    backends: [runpod, vastai]
+    spot_policy: on-demand
+    max_price_usd_per_hour: 1.00
+    max_duration: 30m
+    inactivity_duration: 10m
+
+observed_execution:
+  selected_offer:
+    backend: runpod
+    region: CA-MTL-1
+    gpu: NVIDIA A40 48GB
+    price_usd_per_hour: 0.44
+  finished_at_utc: "2026-07-31T12:16:08.416555Z"
+  exit_status: 0
+  termination_reason: done_by_runner
+  dependency_check: passed
+  model_download: passed
+  cuda_device: NVIDIA A40
+  torch_version: 2.10.0+cu128
+  preparation_marker: passed
+  synthetic_certification_started: false
+
+actual_cost_usd: 0.0304
+cumulative_videochat3_cost_usd: 0.1101
+completion: 0/1
+evidence_validity: Incomplete
+decision_disposition: Not promoted under the tested condition
+failure_cause: >-
+  The log attachment was interrupted after preparation. The dstack job then
+  became terminal with done_by_runner before a second interactive attachment
+  could execute the certification runner.
+audit_gap: >-
+  The interactive runner never started, so no immutable remote certificate or
+  checksum manifest exists. Model loading, processor input handling, BF16
+  parameter attestation, synthetic generation, answer completion, and remote
+  artifact synchronization cannot be reconstructed from this run.
+retained_private_log_sha256: 1054d732a80bb14b1495d0c45266c998c02b564b8d5f35844b176e36d5bc7601

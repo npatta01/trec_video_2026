@@ -1,0 +1,73 @@
+record_type: dstack-retired-run-provenance
+run_name: videochat3-gate-20260801-a1
+run_id: a14b9052-0a3d-418b-9f1a-b1212b47a154
+status: retired-consumed-run
+submission_allowed: false
+submitted_snapshot:
+  git_commit: 28f02ecdcf812cd132154a3a10f8bc6748968b90
+  image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+  videochat_model_id: MCG-NJU/VideoChat3-4B
+  videochat_revision: 37fa901ec5913f84bc31108ebc1e60ad1903634c
+  transformers_revision: cbf4d720ec734edb77d25452b2790c7e4be2f8d7
+  requirements_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+  source_snapshot_sha256: 10af2f9e86cc9a828aa4604fb943416887ad48e9e1580b705a0dbd678bc749ec
+  frozen_plan_sha256: 1b93016a7db769bd7fdb63b6b08a062bd0dce81ccdc7fafcdbeeb9df0dbd895c
+  gate_requests_sha256: 1f476fb3a0f7f5cac3bd3a790348bc6a3eed91c16311e79909f48f8c9760a772
+  ordered_row_set_sha256: 1f476fb3a0f7f5cac3bd3a790348bc6a3eed91c16311e79909f48f8c9760a772
+source_config_sha256: 37b2e1b844946bff1aeb13ee3eeee9c1d7cbb96991486ceed520d0adf9e84ff6
+preview:
+  sha256: f3218d05898b6547d28dab5c80faada2d19e6e3887f23e378e3b382a0a8921f9
+  compatible_physical_offers: 3
+  offers:
+    - backend: runpod
+      region: CA-MTL-1
+      gpu: NVIDIA A40 48GB
+      price_usd_per_hour: 0.44
+    - backend: runpod
+      region: EU-SE-1
+      gpu: NVIDIA A40 48GB
+      price_usd_per_hour: 0.44
+    - backend: runpod
+      region: US-MO-1
+      gpu: NVIDIA A40 48GB
+      price_usd_per_hour: 0.44
+execution:
+  submitted_at: 2026-08-01T05:57:44.494865+00:00
+  finished_at: 2026-08-01T06:01:43.763814+00:00
+  backend: runpod
+  region: CA-MTL-1
+  instance_type: NVIDIA A40
+  instance_id: in8y79h4tk7m0b
+  price_usd_per_hour: 0.44
+  max_price_usd_per_hour: 1.00
+  max_duration: 1h
+  exit_status: 0
+actual_cost_usd: 0.0292
+completion: 3/3
+gate_passed: true
+runtime:
+  accelerator_backend: nvidia-cuda
+  precision: bfloat16
+  cuda_device_name: NVIDIA A40
+  torch_cuda: "12.8"
+  output_head_tied: true
+artifact:
+  sha256s_sha256: 273bc721ad0d4f5c3f8fa54594f7bb8806bc066af6d013d2baa9673080e95206
+  predictions_sha256: ac82a3bff4a1cdce3d423ae4b10032ee20c906d6e8da95c02db48ca43d9301d8
+  listed_downloaded_and_checksum_verified: true
+evidence_validity: Invalid
+decision_disposition: Open hypothesis
+what_this_rules_out_now: >-
+  Using this completed gate as evidence that the exact-input VideoChat3 adapter
+  satisfies the declared compatibility condition.
+what_this_does_not_rule_out: >-
+  Compatibility or semantic quality after exact timestamps are retained through
+  the pinned processor boundary in a fresh isolated run.
+validity_concerns:
+  confirmed_defect: >-
+    The processor reconstructed treatment metadata from serializable fields and
+    replaced the frozen timestamps with 0.0 through 11.0.
+  audit_gap: >-
+    The immutable prediction record attested the pre-conversion metadata object,
+    so final processor prompt tokens are not present in the bundle.
+  uncertainty: the three selected rows estimate compatibility only

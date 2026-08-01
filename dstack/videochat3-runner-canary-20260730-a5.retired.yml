@@ -1,0 +1,66 @@
+schema_version: videochat3-retired-dstack-run-v1
+status: retired-consumed-run
+submission_allowed: false
+run_name: videochat3-runner-canary-20260730-a5
+run_id: 02b9d381-15a4-4092-9728-5329f759513c
+reason: >-
+  This immutable identity was consumed by the terminal 2026-07-30 canary.
+  The corrected dependency bootstrap and model download passed, but the
+  workload rejected the adapter's custom video metadata object. The a5 stop
+  rule ends this path. This is sanitized provenance metadata and cannot be
+  submitted as a dstack task.
+
+submitted_snapshot:
+  submitted_at_utc: "2026-07-31T02:21:47.026717Z"
+  source_config_sha256: 8ade2881e16a70722beefe6b2734a35339bdfffecf9489c6a67a98e1dcf7f64f
+  image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+  task_kind: runner-canary
+  model_id: MCG-NJU/VideoChat3-4B
+  model_revision: 37fa901ec5913f84bc31108ebc1e60ad1903634c
+  requirements_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+  private_media_mounted: false
+  resources:
+    gpu_selector: A40:1:24GB..
+    cpu: 8..
+    memory: 32GB..
+    disk: 100GB
+  backends:
+    - runpod
+    - vastai
+  spot_policy: on-demand
+  max_price_usd_per_hour: 1.00
+  max_duration: 30m
+  no_capacity_retry_duration: 15m
+
+observed_execution:
+  selected_offer:
+    backend: runpod
+    region: CA-MTL-1
+    gpu: NVIDIA A40 48GB
+    price_usd_per_hour: 0.44
+  dependency_check: passed
+  model_download: passed
+  model_weights_loaded: true
+  actual_cost_usd: 0.0283
+  cumulative_videochat3_cost_usd: 0.0797
+  exit_status: 1
+  failure_phase: workload
+  failure_contract:
+    field: video_metadata
+    metadata_object: ExactTimestampMetadata
+    accepted_metadata_types: VideoMetadata-or-dict
+    failure: strict processor metadata type validation
+
+verified_failure_bundle:
+  object_count: 6
+  listing_verified: true
+  download_verified: true
+  checksum_verification: passed
+  bundle_manifest_sha256: 4a1765a9ce2414c2186660ad4499969b7ec9155774ee574f99206a9b626fc3b7
+  frozen_plan_source_sha256: 94b21f3dd83050f199fdb3b235a62f93be1d063fc0d2b56ff794e6aa37e74dcd
+  payload_sha256s:
+    frozen_plan: 861a00e39b2a3585186987ec4d5495b6563f633c3d7bf387a514c7047d418c50
+    terminal_phase: 5d99ff7ae6b66d715481d05411a61df1dd7ce9d9b3b15b92f0fbb873ca5dae51
+    terminal_status: cdc71b4e6b9d7d10c6a72dbb026588c2de2c48716a2d179858482fba8c13af77
+    workload_stderr: 6deb571fa0e552c4574de267648d5e7ad8e1d47b51eb5e77d092588a7a51c3da
+    workload_stdout: 16908f388c51242d9841109524e4057456e87f78dad5c52569388b3410cd15fe
