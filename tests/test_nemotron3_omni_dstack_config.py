@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
+
+import pytest
 
 from trec_video_2026.vqa_experiments.nemotron3_omni_pilot import (
     EXPANDED_ROWS,
@@ -80,6 +84,195 @@ def _yaml(path: Path) -> dict[str, object]:
     value = json.loads(result.stdout)
     assert isinstance(value, dict)
     return value
+
+
+def _write_checksums(root: Path, relative_paths: list[str]) -> None:
+    (root / "SHA256SUMS").write_text(
+        "".join(
+            f"{hashlib.sha256((root / relative).read_bytes()).hexdigest()}  ./{relative}\n"
+            for relative in relative_paths
+        ),
+        encoding="utf-8",
+    )
+
+
+def _collector_harness(
+    tmp_path: Path, *, technical_error: bool, extra_location: str | None = None
+) -> tuple[Path, dict[str, str], Path, Path, Path]:
+    repo = tmp_path / "repo"
+    scripts = repo / "scripts"
+    scripts.mkdir(parents=True)
+    collector = scripts / COLLECTOR.name
+    shutil.copy2(COLLECTOR, collector)
+    module_dir = repo / "src/trec_video_2026/vqa_experiments"
+    module_dir.mkdir(parents=True)
+    (repo / "src/trec_video_2026/__init__.py").write_text("")
+    (module_dir / "__init__.py").write_text("")
+    shutil.copy2(
+        "src/trec_video_2026/vqa_experiments/dstack_metadata.py",
+        module_dir / "dstack_metadata.py",
+    )
+    data_target = tmp_path / "data-target"
+    data_target.mkdir()
+    (repo / "data").symlink_to(data_target, target_is_directory=True)
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_root = tmp_path / "remote"
+    fake_log = tmp_path / "calls.log"
+    fake_uvx = fake_bin / "uvx"
+    fake_uvx.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+while [[ "$1" != hf ]]; do shift; done
+shift
+printf '%s\t' "$@" >>"$FAKE_CALL_LOG"
+printf '\n' >>"$FAKE_CALL_LOG"
+command="$2"
+shift 2
+remote_path() {
+  printf '%s/%s' "$FAKE_HF_ROOT" "${1#hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/}"
+}
+case "$command" in
+  list)
+    target="$(remote_path "$1")"
+    if [[ "$*" == *"--format quiet"* ]]; then
+      [[ ! -d "$target" ]] || find "$target" -type f
+    else
+      printf '[]\n'
+    fi
+    ;;
+  sync)
+    if [[ "$1" == hf://* ]]; then
+      source="$(remote_path "$1")"
+      if [[ "${INJECT_AUDIT_EXTRA:-0}" == 1 && "$1" == */audit ]]; then
+        printf 'unlisted audit object\n' >"$source/unlisted-audit.txt"
+      fi
+      destination="$2"
+    else
+      source="$1"
+      destination="$(remote_path "$2")"
+    fi
+    mkdir -p "$destination"
+    cp -a "$source/." "$destination/"
+    ;;
+  *) exit 97 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    fake_uvx.chmod(0o755)
+    fake_readlink = fake_bin / "readlink"
+    fake_readlink.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" == -f && "$2" == "$FAKE_DATA_LINK" ]]; then
+  printf '%s\n' /home/npatta01/data/competitions/trec_video_2026/data
+else
+  exec /usr/bin/readlink "$@"
+fi
+""",
+        encoding="utf-8",
+    )
+    fake_readlink.chmod(0o755)
+    fake_dstack = fake_bin / "dstack"
+    fake_dstack.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\t' "$@" >>"$FAKE_CALL_LOG"
+printf '\n' >>"$FAKE_CALL_LOG"
+cat "$FAKE_DSTACK_JSON"
+""",
+        encoding="utf-8",
+    )
+    fake_dstack.chmod(0o755)
+
+    run_id = FROZEN30_ID
+    outputs = fake_root / run_id / "outputs"
+    outputs.mkdir(parents=True)
+    checksum_paths: list[str] = []
+    if technical_error:
+        technical = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "failure_stage": "media-normalization",
+            "exit_status": 2,
+            "credentials_recorded": False,
+        }
+        (outputs / "technical-error.json").write_text(
+            json.dumps(technical, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        checksum_paths.append("technical-error.json")
+    else:
+        normalized = outputs / "normalized"
+        normalized.mkdir()
+        for index in range(30):
+            relative = f"normalized/media-{index:02d}.mp4"
+            (outputs / relative).write_bytes(f"normalized-{index}".encode())
+            checksum_paths.append(relative)
+        (outputs / "manifest.json").write_text(
+            '{"completion":{"completed":60,"expected":60}}\n'
+        )
+        checksum_paths.append("manifest.json")
+    _write_checksums(outputs, checksum_paths)
+    if extra_location == "workload":
+        (outputs / "unlisted-workload.txt").write_text("private unlisted object\n")
+
+    preview = tmp_path / "preview.txt"
+    preview.write_text("exact declined preview\n", encoding="utf-8")
+    raw_metadata = {
+        "id": "run-uuid",
+        "run_spec": {"run_name": run_id},
+        "status": "failed" if technical_error else "done",
+        "status_message": "terminal",
+        "termination_reason": "job-failed" if technical_error else None,
+        "submitted_at": "2026-08-01T12:00:00+00:00",
+        "cost": 0.5,
+        "latest_job_submission": {
+            "termination_reason": "job-failed" if technical_error else None,
+            "finished_at": "2026-08-01T12:10:00+00:00",
+            "exit_status": 2 if technical_error else 0,
+            "job_provisioning_data": {
+                "backend": "runpod",
+                "region": "US-TX-3",
+                "price": 2.0,
+                "instance_type": {
+                    "name": "NVIDIA L40S",
+                    "resources": {
+                        "cpus": 8,
+                        "memory_mib": 65536,
+                        "gpus": [
+                            {
+                                "name": "L40S",
+                                "memory_mib": 49152,
+                                "vendor": "nvidia",
+                            }
+                        ],
+                        "disk": {"size_mib": 102400},
+                        "spot": False,
+                    },
+                },
+            },
+            "job_runtime_data": {
+                "offer": {"backend": "runpod", "region": "US-TX-3", "price": 2.0}
+            },
+        },
+    }
+    metadata_path = tmp_path / "dstack.json"
+    metadata_path.write_text(json.dumps(raw_metadata), encoding="utf-8")
+    env = os.environ.copy()
+    env.pop("HF_TOKEN", None)
+    env.update(
+        {
+            "PATH": f"{fake_bin}:{env['PATH']}",
+            "FAKE_HF_ROOT": str(fake_root),
+            "FAKE_CALL_LOG": str(fake_log),
+            "FAKE_DATA_LINK": str(repo / "data"),
+            "FAKE_DSTACK_JSON": str(metadata_path),
+            "INJECT_AUDIT_EXTRA": "1" if extra_location == "audit" else "0",
+        }
+    )
+    return collector, env, preview, data_target, fake_root
 
 
 def test_configs_pin_identity_use_cuda_and_fit_the_full_retry_budget() -> None:
@@ -466,6 +659,124 @@ def test_frozen30_runner_and_collector_preserve_independently_hashable_media() -
     assert "--diagnose" not in operational
 
 
+def test_frozen30_collector_preserves_terminal_technical_error_without_normalized_media(
+    tmp_path: Path,
+) -> None:
+    """Catches stranding a valid pre-normalization failure before audit collection."""
+    collector, env, preview, data_target, fake_root = _collector_harness(
+        tmp_path, technical_error=True
+    )
+    result = subprocess.run(
+        ["bash", str(collector), FROZEN30_ID, str(preview)],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+        timeout=10,
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    collected = data_target / "vqa/benchmarks/nemotron3-omni" / FROZEN30_ID
+    technical = json.loads((collected / "technical-error.json").read_text())
+    assert technical["failure_stage"] == "media-normalization"
+    assert technical["exit_status"] == 2
+    assert not (collected / "normalized").exists()
+    assert (collected / "dstack-run.json").is_file()
+    assert (collected / "artifact-hashes.sha256").is_file()
+    status = json.loads((collected / "collection-status.json").read_text())
+    assert status == {
+        "schema_version": 1,
+        "run_id": FROZEN30_ID,
+        "collection_kind": "terminal-non-scoreable",
+        "scoreable": False,
+        "reason": "technical-error",
+    }
+    audit = fake_root / FROZEN30_ID / "audit"
+    assert (audit / "preview.txt").read_text() == preview.read_text()
+    assert (audit / "dstack-run.json").is_file()
+    assert json.loads((audit / "collection-status.json").read_text()) == status
+    assert (audit / "SHA256SUMS").is_file()
+
+
+@pytest.mark.parametrize("extra_location", ["workload", "audit"])
+def test_frozen30_collector_rejects_unlisted_recursive_bundle_objects(
+    tmp_path: Path, extra_location: str
+) -> None:
+    """Catches accepting privacy-sensitive extras absent from the producer checksum."""
+    collector, env, preview, data_target, _fake_root = _collector_harness(
+        tmp_path, technical_error=False, extra_location=extra_location
+    )
+    result = subprocess.run(
+        ["bash", str(collector), FROZEN30_ID, str(preview)],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+        timeout=10,
+    )
+    assert result.returncode != 0, (result.stdout, result.stderr)
+    assert "checksum file set mismatch" in result.stderr
+    collected = data_target / "vqa/benchmarks/nemotron3-omni" / FROZEN30_ID
+    assert not collected.exists()
+
+
+def test_frozen30_collector_requires_30_normalized_files_for_non_failure_bundle(
+    tmp_path: Path,
+) -> None:
+    """Catches treating a 29-media non-failure bundle as scoreable."""
+    collector, env, preview, data_target, fake_root = _collector_harness(
+        tmp_path, technical_error=False
+    )
+    missing = fake_root / FROZEN30_ID / "outputs/normalized/media-29.mp4"
+    missing.unlink()
+    _write_checksums(
+        fake_root / FROZEN30_ID / "outputs",
+        [
+            "manifest.json",
+            *(f"normalized/media-{index:02d}.mp4" for index in range(29)),
+        ],
+    )
+    result = subprocess.run(
+        ["bash", str(collector), FROZEN30_ID, str(preview)],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+        timeout=10,
+    )
+    assert result.returncode != 0
+    assert "exactly 30 normalized artifacts" in result.stderr
+    collected = data_target / "vqa/benchmarks/nemotron3-omni" / FROZEN30_ID
+    assert not collected.exists()
+
+
+def test_frozen30_collector_keeps_completed_candidate_pending_independent_verification(
+    tmp_path: Path,
+) -> None:
+    """Catches either blocking 60/60 collection or prematurely declaring it scoreable."""
+    collector, env, preview, data_target, _fake_root = _collector_harness(
+        tmp_path, technical_error=False
+    )
+    result = subprocess.run(
+        ["bash", str(collector), FROZEN30_ID, str(preview)],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+        timeout=10,
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    collected = data_target / "vqa/benchmarks/nemotron3-omni" / FROZEN30_ID
+    assert len(list((collected / "normalized").glob("*.mp4"))) == 30
+    status = json.loads((collected / "collection-status.json").read_text())
+    assert status == {
+        "schema_version": 1,
+        "run_id": FROZEN30_ID,
+        "collection_kind": "completed-candidate",
+        "scoreable": False,
+        "reason": "pending-independent-freeze-verification",
+    }
+
+
 def test_expanded_c1_scripts_keep_preview_audit_and_expanded_input_boundaries() -> None:
     """Catches skipped preview evidence, incomplete inputs, or unnormalized expanded media."""
     runner = _text(RUNNER)
@@ -638,7 +949,8 @@ def test_b1_collector_durably_verifies_exact_preview_and_sanitized_run_metadata(
     assert 'hf_cli buckets sync "$TEMP_AUDIT_DIR" "${REMOTE_URI}/audit"' in collector
     assert 'hf_cli buckets list "${REMOTE_URI}/audit" --format json' in collector
     assert 'hf_cli buckets sync "${REMOTE_URI}/audit" "$VERIFY_AUDIT_DIR"' in collector
-    assert collector.count("sha256sum -c SHA256SUMS") >= 3
+    assert collector.count("verify_checksum_bundle") >= 3
+    assert collector.count("sha256sum -c SHA256SUMS") >= 2
 
 
 def test_model_shell_scripts_parse() -> None:

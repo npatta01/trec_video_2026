@@ -69,15 +69,125 @@ hf_cli() {
     --from "huggingface-hub==$HF_CLI_VERSION" hf "$@"
 }
 
+verify_checksum_bundle() {
+  local bundle_dir="$1"
+  local bundle_name="$2"
+  "$PYTHON_BIN" - "$bundle_dir" "$bundle_name" <<'PY'
+import sys
+from pathlib import Path, PurePosixPath
+
+root = Path(sys.argv[1])
+bundle_name = sys.argv[2]
+checksum_path = root / "SHA256SUMS"
+if not checksum_path.is_file():
+    raise RuntimeError(f"{bundle_name} checksum file is missing")
+declared = set()
+for line in checksum_path.read_text(encoding="utf-8").splitlines():
+    digest, separator, relative = line.partition("  ")
+    path = PurePosixPath(relative)
+    if (
+        separator != "  "
+        or len(digest) != 64
+        or any(character not in "0123456789abcdef" for character in digest)
+        or not relative.startswith("./")
+        or path.is_absolute()
+        or ".." in path.parts
+        or relative == "./SHA256SUMS"
+        or relative in declared
+    ):
+        raise RuntimeError(f"{bundle_name} checksum manifest is malformed")
+    declared.add(relative)
+actual = {
+    f"./{path.relative_to(root).as_posix()}"
+    for path in root.rglob("*")
+    if path.is_file() or path.is_symlink()
+}
+expected = {"./SHA256SUMS", *declared}
+if actual != expected:
+    missing = sorted(expected - actual)
+    extra = sorted(actual - expected)
+    raise RuntimeError(
+        f"{bundle_name} checksum file set mismatch: missing={missing}, extra={extra}"
+    )
+PY
+  (
+    cd "$bundle_dir"
+    sha256sum -c SHA256SUMS
+  )
+}
+
+classify_frozen30_bundle() {
+  local bundle_dir="$1"
+  "$PYTHON_BIN" - "$bundle_dir" "$RUN_ID" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+run_id = sys.argv[2]
+technical_path = root / "technical-error.json"
+status = {
+    "schema_version": 1,
+    "run_id": run_id,
+    "collection_kind": "terminal-non-scoreable",
+    "scoreable": False,
+}
+if technical_path.exists():
+    technical = json.loads(technical_path.read_text(encoding="utf-8"))
+    if (
+        set(technical)
+        != {
+            "schema_version",
+            "run_id",
+            "failure_stage",
+            "exit_status",
+            "credentials_recorded",
+        }
+        or technical.get("schema_version") != 1
+        or technical.get("run_id") != run_id
+        or not isinstance(technical.get("failure_stage"), str)
+        or not technical["failure_stage"]
+        or type(technical.get("exit_status")) is not int
+        or technical["exit_status"] == 0
+        or technical.get("credentials_recorded") is not False
+    ):
+        raise RuntimeError("frozen30 technical-error artifact is invalid")
+    status["reason"] = "technical-error"
+else:
+    manifest_path = root / "manifest.json"
+    if not manifest_path.is_file():
+        raise RuntimeError("frozen30 terminal bundle omits manifest and technical-error")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("completion") == {"completed": 60, "expected": 60}:
+        normalized_root = root / "normalized"
+        normalized = sorted(
+            path.relative_to(normalized_root).as_posix()
+            for path in normalized_root.rglob("*")
+            if path.is_file()
+        ) if normalized_root.is_dir() else []
+        if len(normalized) != 30 or any("/" in path or not path.endswith(".mp4") for path in normalized):
+            raise RuntimeError(
+                "completed frozen30 bundle must preserve exactly 30 normalized artifacts"
+            )
+        status.update(
+            {
+                "collection_kind": "completed-candidate",
+                "reason": "pending-independent-freeze-verification",
+            }
+        )
+    else:
+        status["reason"] = "incomplete-workload"
+(root / "collection-status.json").write_text(
+    json.dumps(status, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+)
+PY
+}
+
 hf_cli buckets list "${REMOTE_URI}/outputs" --format json >/dev/null
 hf_cli buckets sync "${REMOTE_URI}/outputs" "$TEMP_OUTPUT_DIR"
-(
-  cd "$TEMP_OUTPUT_DIR"
-  sha256sum -c SHA256SUMS
-)
+verify_checksum_bundle "$TEMP_OUTPUT_DIR" "workload"
 if [[ "$RUN_ID" == "nemotron3-omni-frozen30-20260801-a1" ]]; then
-  [[ "$(find "$TEMP_OUTPUT_DIR/normalized" -maxdepth 1 -type f -name '*.mp4' | wc -l)" -eq 30 ]] \
-    || { echo "error: collected bundle must preserve exactly 30 normalized artifacts" >&2; exit 2; }
+  classify_frozen30_bundle "$TEMP_OUTPUT_DIR"
 fi
 if [[ -n "$PREVIEW_PATH" ]]; then
   cp -- "$PREVIEW_PATH" "$TEMP_AUDIT_DIR/preview.txt"
@@ -85,6 +195,10 @@ if [[ -n "$PREVIEW_PATH" ]]; then
     | PYTHONPATH="$REPO_ROOT/src" "$PYTHON_BIN" \
         -m trec_video_2026.vqa_experiments.dstack_metadata \
         --run-id "$DSTACK_RUN_NAME" --output "$TEMP_AUDIT_DIR/dstack-run.json"
+  if [[ -f "$TEMP_OUTPUT_DIR/collection-status.json" ]]; then
+    cp -- "$TEMP_OUTPUT_DIR/collection-status.json" \
+      "$TEMP_AUDIT_DIR/collection-status.json"
+  fi
   cp -- "$TEMP_AUDIT_DIR/dstack-run.json" "$TEMP_OUTPUT_DIR/dstack-run.json"
   (
     cd "$TEMP_AUDIT_DIR"
@@ -99,10 +213,7 @@ if [[ -n "$PREVIEW_PATH" ]]; then
   hf_cli buckets sync "$TEMP_AUDIT_DIR" "${REMOTE_URI}/audit"
   hf_cli buckets list "${REMOTE_URI}/audit" --format json
   hf_cli buckets sync "${REMOTE_URI}/audit" "$VERIFY_AUDIT_DIR"
-  (
-    cd "$VERIFY_AUDIT_DIR"
-    sha256sum -c SHA256SUMS
-  )
+  verify_checksum_bundle "$VERIFY_AUDIT_DIR" "audit"
 else
   dstack run get "$DSTACK_RUN_NAME" --json \
   | PYTHONPATH="$REPO_ROOT/src" "$PYTHON_BIN" \
