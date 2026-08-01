@@ -246,4 +246,3 @@ objects); upload, list, download, and checksum-verify it before the full run.
    branch, commits, run names, exact revisions, offer/cost evidence,
    completion denominator, quality result, artifact URI/checksums, files,
    tests, and persistent errors.
-

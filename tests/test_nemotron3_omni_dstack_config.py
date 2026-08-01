@@ -156,6 +156,12 @@ case "$command" in
     mkdir -p "$destination"
     cp -a "$source/." "$destination/"
     ;;
+  cp)
+    source="$(remote_path "$1")"
+    destination="$2"
+    mkdir -p "$(dirname "$destination")"
+    cp -- "$source" "$destination"
+    ;;
   *) exit 97 ;;
 esac
 """,
@@ -217,6 +223,18 @@ cat "$FAKE_DSTACK_JSON"
     _write_checksums(outputs, checksum_paths)
     if extra_location == "workload":
         (outputs / "unlisted-workload.txt").write_text("private unlisted object\n")
+    inputs = fake_root / run_id / "inputs"
+    inputs.mkdir()
+    input_contract = inputs / "contract.json"
+    input_contract.write_text('{"mode":"frozen30-paired"}\n')
+    marker = {
+        "schema_version": 1,
+        "input_count": 31,
+        "object_count": 32,
+        "contract_sha256": hashlib.sha256(input_contract.read_bytes()).hexdigest(),
+        "objects": {},
+    }
+    (inputs / "INPUTS_COMPLETE.json").write_text(json.dumps(marker) + "\n")
 
     preview = tmp_path / "preview.txt"
     preview.write_text("exact declined preview\n", encoding="utf-8")
@@ -719,6 +737,40 @@ def test_frozen30_collector_rejects_unlisted_recursive_bundle_objects(
     assert not collected.exists()
 
 
+def test_frozen30_collector_rejects_checksum_declared_symlink(
+    tmp_path: Path,
+) -> None:
+    """Catches sha256sum following a workload link outside the downloaded bundle."""
+    collector, env, preview, data_target, fake_root = _collector_harness(
+        tmp_path, technical_error=False
+    )
+    outputs = fake_root / FROZEN30_ID / "outputs"
+    linked = outputs / "normalized/media-00.mp4"
+    outside = tmp_path / "outside-private-media.mp4"
+    outside.write_bytes(linked.read_bytes())
+    linked.unlink()
+    linked.symlink_to(outside)
+    relative_paths = sorted(
+        path.relative_to(outputs).as_posix()
+        for path in outputs.rglob("*")
+        if path.is_file() and path.name != "SHA256SUMS"
+    )
+    _write_checksums(outputs, relative_paths)
+
+    result = subprocess.run(
+        ["bash", str(collector), FROZEN30_ID, str(preview)],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+        timeout=10,
+    )
+    assert result.returncode != 0, (result.stdout, result.stderr)
+    assert "symlink" in result.stderr
+    collected = data_target / "vqa/benchmarks/nemotron3-omni" / FROZEN30_ID
+    assert not collected.exists()
+
+
 def test_frozen30_collector_requires_30_normalized_files_for_non_failure_bundle(
     tmp_path: Path,
 ) -> None:
@@ -774,6 +826,57 @@ def test_frozen30_collector_keeps_completed_candidate_pending_independent_verifi
         "collection_kind": "completed-candidate",
         "scoreable": False,
         "reason": "pending-independent-freeze-verification",
+    }
+
+
+def test_frozen30_collector_retains_exact_anchor_and_audit_outside_candidate(
+    tmp_path: Path,
+) -> None:
+    """Catches a self-anchored candidate or an unretained/mutable audit bundle."""
+    collector, env, preview, data_target, _fake_root = _collector_harness(
+        tmp_path, technical_error=False
+    )
+    result = subprocess.run(
+        ["bash", str(collector), FROZEN30_ID, str(preview)],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+        timeout=10,
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    candidate = data_target / "vqa/benchmarks/nemotron3-omni" / FROZEN30_ID
+    audit = data_target / "vqa/benchmarks/nemotron3-omni" / f"{FROZEN30_ID}-audit"
+    assert audit.is_dir()
+    assert not (candidate / "workload-anchor.json").exists()
+    anchor_path = audit / "workload-anchor.json"
+    anchor = json.loads(anchor_path.read_text())
+    assert anchor["run_id"] == FROZEN30_ID
+    expected_candidate_files = {
+        f"./{path.relative_to(candidate).as_posix()}": hashlib.sha256(
+            path.read_bytes()
+        ).hexdigest()
+        for path in candidate.rglob("*")
+        if path.is_file()
+    }
+    assert anchor["candidate_file_count"] == len(expected_candidate_files)
+    assert anchor["candidate_files"] == expected_candidate_files
+    assert set(anchor["audit_evidence_files"]) == {
+        "./INPUTS_COMPLETE.json",
+        "./collection-status.json",
+        "./dstack-run.json",
+        "./input-contract.json",
+        "./preview.txt",
+    }
+    audit_files = {f"./{path.name}" for path in audit.iterdir() if path.is_file()}
+    assert audit_files == {
+        "./INPUTS_COMPLETE.json",
+        "./SHA256SUMS",
+        "./collection-status.json",
+        "./dstack-run.json",
+        "./input-contract.json",
+        "./preview.txt",
+        "./workload-anchor.json",
     }
 
 
@@ -924,7 +1027,9 @@ def test_collector_downloads_only_outputs_and_checksum_verifies_before_publish()
     """Catches exposure of input media or publication of unverified artifacts."""
     collector = _text(COLLECTOR)
     assert "${REMOTE_URI}/outputs" in collector
-    assert "${REMOTE_URI}/inputs" not in collector
+    assert 'buckets sync "${REMOTE_URI}/inputs"' not in collector
+    assert "${REMOTE_URI}/inputs/INPUTS_COMPLETE.json" in collector
+    assert "${REMOTE_URI}/inputs/contract.json" in collector
     assert "sha256sum -c SHA256SUMS" in collector
     assert "dstack run get" in collector
     assert "dstack_metadata" in collector

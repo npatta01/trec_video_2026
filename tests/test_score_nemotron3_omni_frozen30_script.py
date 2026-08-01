@@ -42,6 +42,8 @@ def test_script_requires_path_based_freezes_and_private_output_directory() -> No
             "/private/source-media",
             "--normalized-media-root",
             "/private/downloaded-candidate-bundle/normalized",
+            "--audit-bundle-root",
+            "/private/retained-audit",
             "--output-dir",
             "/private/grading",
             "--grader-id",
@@ -65,6 +67,7 @@ def test_script_requires_path_based_freezes_and_private_output_directory() -> No
     assert args.normalized_media_root == Path(
         "/private/downloaded-candidate-bundle/normalized"
     )
+    assert args.audit_bundle_root == Path("/private/retained-audit")
 
 
 def test_score_requires_private_grader_assignment_artifact() -> None:
@@ -87,6 +90,8 @@ def test_score_requires_private_grader_assignment_artifact() -> None:
         "/private/source-media",
         "--normalized-media-root",
         "/private/downloaded-candidate-bundle/normalized",
+        "--audit-bundle-root",
+        "/private/retained-audit",
         "--output-dir",
         "/private/grading",
         "--grader-id",
@@ -108,8 +113,8 @@ def test_score_requires_private_grader_assignment_artifact() -> None:
             "/private/b.json",
             "--grader-assignments",
             "/private/grader-assignments.json",
-            "--operational-evidence",
-            "/private/operational.json",
+            "--privacy-review",
+            "/private/privacy-review.json",
         ]
     )
 
@@ -173,22 +178,17 @@ def test_script_refuses_output_inside_any_other_git_repository(tmp_path: Path) -
     assert not (repository / "private").exists()
 
 
-def test_script_operational_evidence_requires_exact_schema(tmp_path: Path) -> None:
+def test_script_rejects_caller_authored_operational_metrics_sidecar(
+    tmp_path: Path,
+) -> None:
     module = _load_script()
-    path = tmp_path / "operational.json"
-    path.write_text(
-        json.dumps(
-            {
-                "completed": 60,
-                "expected": 60,
-                "duration_minutes": 59.0,
-                "compute_cost_usd": 1.0,
-                "artifacts_verified": True,
-                "privacy_or_audit_gap": False,
-                "caller_verified": True,
-            }
-        )
-    )
+    parser = module.build_parser()
+    score_action = next(
+        action for action in parser._actions if action.dest == "command"
+    ).choices["score"]
+    option_strings = {
+        option for action in score_action._actions for option in action.option_strings
+    }
 
-    with pytest.raises(ValueError, match="schema"):
-        module._operational(path)
+    assert "--privacy-review" in option_strings
+    assert "--operational-evidence" not in option_strings

@@ -10,8 +10,8 @@ import subprocess
 from typing import Any, Sequence
 
 from trec_video_2026.vqa_experiments.nemotron3_omni_frozen30 import (
-    OperationalEvidence,
     build_blind_grading_bundle,
+    derive_operational_evidence,
     reconcile_frozen30_grades,
     score_replacement,
     validate_private_grader_assignments,
@@ -60,6 +60,7 @@ def _common_parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-manifest", type=Path, required=True)
     parser.add_argument("--source-media-root", type=Path, required=True)
     parser.add_argument("--normalized-media-root", type=Path, required=True)
+    parser.add_argument("--audit-bundle-root", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--grader-id", action="append", required=True)
     parser.add_argument("--shuffle-seed", action="append", type=int, required=True)
@@ -77,7 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
     score.add_argument("--grader-submission", action="append", type=Path, required=True)
     score.add_argument("--grader-assignments", type=Path, required=True)
     score.add_argument("--adjudication", type=Path)
-    score.add_argument("--operational-evidence", type=Path, required=True)
+    score.add_argument("--privacy-review", type=Path, required=True)
     score.set_defaults(handler=_score)
     return parser
 
@@ -119,6 +120,7 @@ def _bundle(args: argparse.Namespace):
         candidate_checksums_path=args.candidate_checksums,
         source_media_root=args.source_media_root,
         normalized_media_root=args.normalized_media_root,
+        audit_bundle_root=args.audit_bundle_root,
         reference_loader=_reference_loader(args.references),
         grader_ids=tuple(args.grader_id),
         shuffle_seeds=tuple(args.shuffle_seed),
@@ -154,30 +156,6 @@ def _meteor(prediction: str, reference: str) -> float:
     return float(meteor_score([word_tokenize(reference)], word_tokenize(prediction)))
 
 
-def _operational(path: Path) -> OperationalEvidence:
-    value = _load_json(path)
-    if not isinstance(value, dict):
-        raise ValueError("operational evidence must be an object")
-    expected_fields = {
-        "completed",
-        "expected",
-        "duration_minutes",
-        "compute_cost_usd",
-        "artifacts_verified",
-        "privacy_or_audit_gap",
-    }
-    if set(value) != expected_fields:
-        raise ValueError("operational evidence schema mismatch")
-    return OperationalEvidence(
-        completed=value["completed"],
-        expected=value["expected"],
-        duration_minutes=value["duration_minutes"],
-        compute_cost_usd=value["compute_cost_usd"],
-        artifacts_verified=value["artifacts_verified"],
-        privacy_or_audit_gap=value["privacy_or_audit_gap"],
-    )
-
-
 def _score(args: argparse.Namespace) -> int:
     output_dir = require_private_output_directory(args.output_dir)
     bundle = _bundle(args)
@@ -200,7 +178,12 @@ def _score(args: argparse.Namespace) -> int:
         bundle,
         resolution,
         meteor_fn=_meteor,
-        operational=_operational(args.operational_evidence),
+        operational=derive_operational_evidence(
+            candidate_predictions_path=args.candidate_predictions,
+            candidate_manifest_path=args.candidate_manifest,
+            audit_bundle_root=args.audit_bundle_root,
+            privacy_review_path=args.privacy_review,
+        ),
     )
     _write_json(output_dir / "private-score-report.json", report)
     return 0

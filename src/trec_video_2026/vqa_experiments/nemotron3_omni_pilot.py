@@ -99,7 +99,38 @@ CODEC_SENTINEL_VIDEO_IDS = (
     "EMI_anpHII4",
 )
 FORBIDDEN_LABEL_KEYS = frozenset(
-    {"annotation", "correct_answer", "distractor", "distractors", "reference"}
+    {
+        "answer_key",
+        "annotation",
+        "annotations",
+        "correct_answer",
+        "distractor",
+        "distractors",
+        "expected_answer",
+        "ground_truth",
+        "label",
+        "labels",
+        "reference",
+        "reference_answer",
+        "reference_answers",
+    }
+)
+FROZEN30_SOURCE_EXAMPLE_FIELDS = frozenset(
+    {"video_id", "category", "role", "question", "media_path", "media_sha256"}
+)
+FROZEN30_NORMALIZED_EXAMPLE_FIELDS = frozenset(
+    {
+        "video_id",
+        "category",
+        "role",
+        "question",
+        "source_media_path",
+        "source_media_sha256",
+        "media_path",
+        "derived_media_sha256",
+        "source_duration_seconds",
+        "derived_duration_seconds",
+    }
 )
 
 
@@ -768,9 +799,16 @@ def _validate_run_contract(
             source_media_field = (
                 "source_media_path" if derivation is not None else "media_path"
             )
+            expected_example_fields = (
+                FROZEN30_NORMALIZED_EXAMPLE_FIELDS
+                if derivation is not None
+                else FROZEN30_SOURCE_EXAMPLE_FIELDS
+            )
             for example in examples:
                 if not isinstance(example, dict):
                     raise TypeError("contract examples must be objects")
+                if set(example) != expected_example_fields:
+                    raise ValueError("frozen30-paired example schema mismatch")
                 if example.get(source_media_field) != FROZEN30_SOURCE_MEDIA_PATHS.get(
                     example.get("video_id")
                 ):

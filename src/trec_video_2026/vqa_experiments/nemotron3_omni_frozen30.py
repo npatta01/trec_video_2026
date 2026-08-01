@@ -8,6 +8,7 @@ import math
 import random
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path, PurePosixPath
 from statistics import fmean
@@ -22,12 +23,14 @@ from trec_video_2026.vqa_experiments.nemotron3_omni_grading import (
 from trec_video_2026.vqa_experiments.nemotron3_omni_pilot import (
     CONDITIONS,
     FROZEN30_INFERENCE_MANIFEST_SHA256,
+    FROZEN30_NORMALIZED_EXAMPLE_FIELDS,
     FROZEN30_ROWS,
     FROZEN30_SOURCE_MEDIA_PATHS,
     MODEL_ID,
     MODEL_REVISION,
     RUNTIME_IMAGE,
     RUNTIME_IMAGE_DIGEST,
+    FORBIDDEN_LABEL_KEYS,
     _validate_run_contract,
     build_chat_request,
 )
@@ -55,64 +58,69 @@ _ALL_CONDITIONS = ("qwen12", *_CANDIDATE_CONDITIONS)
 _GRADES = frozenset({"C", "P", "W"})
 _GRADE_RANK = {"W": 0, "P": 1, "C": 2}
 _RUBRIC = {"C": "Correct", "P": "Partially correct", "W": "Wrong"}
-_LABEL_KEYS = frozenset(
-    {
-        "answer_key",
-        "annotation",
-        "annotations",
-        "correct_answer",
-        "distractor",
-        "distractors",
-        "expected_answer",
-        "ground_truth",
-        "label",
-        "labels",
-        "reference",
-        "reference_answer",
-        "reference_answers",
-    }
-)
+_LABEL_KEYS = FORBIDDEN_LABEL_KEYS
 _NORMALIZED_MEDIA_ROOT = Path("/dstack/input/normalized")
 _DEFAULT_SOURCE_MANIFEST = (
     Path(__file__).resolve().parents[3]
     / "configs/vqa/native_audio_benchmark_30_inference.json"
 )
-_NORMALIZED_EXAMPLE_FIELDS = {
-    "video_id",
-    "category",
-    "role",
-    "question",
-    "source_media_path",
-    "source_media_sha256",
-    "media_path",
-    "derived_media_sha256",
-    "source_duration_seconds",
-    "derived_duration_seconds",
-}
+_NORMALIZED_EXAMPLE_FIELDS = FROZEN30_NORMALIZED_EXAMPLE_FIELDS
+_VERIFIED_OPERATIONAL_TOKEN = object()
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class OperationalEvidence:
     completed: int
     expected: int
+    run_status: str
     duration_minutes: float
+    hourly_price_usd: float
     compute_cost_usd: float
     artifacts_verified: bool
     privacy_or_audit_gap: bool
+    workload_anchor_sha256: str
+    reviewer_id: str
+    reviewed_at: str
+    _verification_token: object
 
-    def __post_init__(self) -> None:
-        if type(self.completed) is not int or type(self.expected) is not int:
-            raise TypeError("operational completion counts must be integers")
-        if self.completed != 60 or self.expected != 60:
-            raise ValueError("operational completion must match verified 60/60 freeze")
-        for name in ("duration_minutes", "compute_cost_usd"):
-            value = getattr(self, name)
-            if type(value) not in {int, float} or not math.isfinite(value) or value < 0:
-                raise ValueError(f"operational {name} must be finite and non-negative")
-        if type(self.artifacts_verified) is not bool:
-            raise TypeError("artifacts_verified must be a boolean")
-        if type(self.privacy_or_audit_gap) is not bool:
-            raise TypeError("privacy_or_audit_gap must be a boolean")
+    @classmethod
+    def _from_verified_artifacts(
+        cls,
+        *,
+        completed: int,
+        expected: int,
+        run_status: str,
+        duration_minutes: float,
+        hourly_price_usd: float,
+        compute_cost_usd: float,
+        privacy_or_audit_gap: bool,
+        workload_anchor_sha256: str,
+        reviewer_id: str,
+        reviewed_at: str,
+        verification_token: object,
+    ) -> OperationalEvidence:
+        """Construct only after the retained artifact boundary has validated."""
+
+        if verification_token is not _VERIFIED_OPERATIONAL_TOKEN:
+            raise TypeError("operational evidence requires verified retained artifacts")
+        value = object.__new__(cls)
+        fields = {
+            "completed": completed,
+            "expected": expected,
+            "run_status": run_status,
+            "duration_minutes": duration_minutes,
+            "hourly_price_usd": hourly_price_usd,
+            "compute_cost_usd": compute_cost_usd,
+            "artifacts_verified": True,
+            "privacy_or_audit_gap": privacy_or_audit_gap,
+            "workload_anchor_sha256": workload_anchor_sha256,
+            "reviewer_id": reviewer_id,
+            "reviewed_at": reviewed_at,
+            "_verification_token": verification_token,
+        }
+        for name, field_value in fields.items():
+            object.__setattr__(value, name, field_value)
+        return value
 
 
 @dataclass(frozen=True, repr=False)
@@ -267,12 +275,190 @@ def _checksum_entries(path: Path) -> dict[str, str]:
             or not _is_sha256(digest)
             or relative in entries
             or not relative.startswith("./")
+            or PurePosixPath(relative).is_absolute()
+            or ".." in PurePosixPath(relative).parts
+            or relative == "./SHA256SUMS"
         ):
             raise ValueError("candidate SHA256SUMS is malformed")
         entries[relative] = digest
-    if not {"./manifest.json", "./predictions.jsonl"}.issubset(entries):
-        raise ValueError("candidate SHA256SUMS omits frozen artifacts")
     return entries
+
+
+_AUDIT_EVIDENCE_FILES = frozenset(
+    {
+        "./INPUTS_COMPLETE.json",
+        "./collection-status.json",
+        "./dstack-run.json",
+        "./input-contract.json",
+        "./preview.txt",
+    }
+)
+_AUDIT_FILES = frozenset(
+    {"./SHA256SUMS", "./workload-anchor.json", *_AUDIT_EVIDENCE_FILES}
+)
+_COLLECTOR_CANDIDATE_FILES = frozenset(
+    {"./artifact-hashes.sha256", "./collection-status.json", "./dstack-run.json"}
+)
+
+
+def _file_hashes(root: Path, *, description: str) -> dict[str, str]:
+    if not root.is_dir():
+        raise ValueError(f"{description} root must be a directory")
+    result: dict[str, str] = {}
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            raise ValueError(f"{description} must not contain symlinks")
+        if path.is_file():
+            relative = f"./{path.relative_to(root).as_posix()}"
+            result[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return result
+
+
+def _load_json_object(path: Path, *, description: str) -> dict[str, Any]:
+    if not path.is_file() or path.is_symlink():
+        raise ValueError(f"{description} must be a retained regular file")
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"{description} must be valid UTF-8 JSON") from error
+    if not isinstance(value, dict):
+        raise ValueError(f"{description} must be an object")
+    return value
+
+
+def _validate_audit_bundle(
+    audit_bundle_root: Path,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str]:
+    """Validate the fixed audit set, checksums, and independently retained anchor."""
+
+    actual = _file_hashes(audit_bundle_root, description="audit bundle")
+    if set(actual) != _AUDIT_FILES:
+        raise ValueError("audit bundle exact file set mismatch")
+    checksums = _checksum_entries(audit_bundle_root / "SHA256SUMS")
+    if set(checksums) != _AUDIT_FILES - {"./SHA256SUMS"}:
+        raise ValueError("audit checksum exact file set mismatch")
+    for relative, digest in checksums.items():
+        if actual.get(relative) != digest:
+            raise ValueError(f"audit checksum mismatch: {relative}")
+
+    anchor_path = audit_bundle_root / "workload-anchor.json"
+    anchor = _load_json_object(anchor_path, description="workload anchor")
+    if set(anchor) != {
+        "schema_version",
+        "anchor_type",
+        "run_id",
+        "candidate_file_count",
+        "candidate_files",
+        "audit_evidence_file_count",
+        "audit_evidence_files",
+    }:
+        raise ValueError("workload anchor schema mismatch")
+    candidate_files = anchor.get("candidate_files")
+    audit_evidence_files = anchor.get("audit_evidence_files")
+    if (
+        anchor.get("schema_version") != 1
+        or anchor.get("anchor_type") != "nemotron3-frozen30-collected-workload"
+        or anchor.get("run_id") != CANDIDATE_RUN_ID
+        or not isinstance(candidate_files, dict)
+        or anchor.get("candidate_file_count") != len(candidate_files)
+        or not isinstance(audit_evidence_files, dict)
+        or anchor.get("audit_evidence_file_count") != len(audit_evidence_files)
+        or set(audit_evidence_files) != _AUDIT_EVIDENCE_FILES
+        or not all(
+            isinstance(relative, str) and _is_sha256(digest)
+            for relative, digest in candidate_files.items()
+        )
+        or not all(
+            isinstance(relative, str) and _is_sha256(digest)
+            for relative, digest in audit_evidence_files.items()
+        )
+    ):
+        raise ValueError("workload anchor identity mismatch")
+    for relative, digest in audit_evidence_files.items():
+        if actual.get(relative) != digest:
+            raise ValueError(f"workload anchor audit evidence mismatch: {relative}")
+
+    status = _load_json_object(
+        audit_bundle_root / "collection-status.json",
+        description="collection status",
+    )
+    dstack = _load_json_object(
+        audit_bundle_root / "dstack-run.json", description="dstack run evidence"
+    )
+    return anchor, status, dstack, hashlib.sha256(anchor_path.read_bytes()).hexdigest()
+
+
+def _validate_candidate_anchor(
+    *,
+    candidate_root: Path,
+    audit_bundle_root: Path,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str]:
+    anchor, status, dstack, anchor_sha = _validate_audit_bundle(audit_bundle_root)
+    actual = _file_hashes(candidate_root, description="candidate bundle")
+    if anchor["candidate_files"] != actual:
+        raise ValueError("candidate bundle differs from retained workload anchor")
+    return anchor, status, dstack, anchor_sha
+
+
+def _validate_input_evidence(
+    *,
+    audit_bundle_root: Path,
+    contract: Mapping[str, Any],
+    source_media_root: Path,
+) -> None:
+    input_contract_path = audit_bundle_root / "input-contract.json"
+    input_contract = _load_json_object(
+        input_contract_path, description="retained input contract"
+    )
+    try:
+        mode, input_examples, input_conditions = _validate_run_contract(input_contract)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"retained input contract is invalid: {error}") from error
+    marker = _load_json_object(
+        audit_bundle_root / "INPUTS_COMPLETE.json", description="retained input marker"
+    )
+    if set(marker) != {
+        "schema_version",
+        "input_count",
+        "object_count",
+        "contract_sha256",
+        "objects",
+    }:
+        raise ValueError("retained input marker schema mismatch")
+    objects = marker.get("objects")
+    expected_objects = {
+        "contract.json",
+        *(example["media_path"] for example in input_examples),
+    }
+    if (
+        mode != "frozen30-paired"
+        or input_conditions != [dict(condition) for condition in CONDITIONS]
+        or marker.get("schema_version") != 1
+        or marker.get("input_count") != 31
+        or marker.get("object_count") != 32
+        or not isinstance(objects, dict)
+        or set(objects) != expected_objects
+        or not all(_is_sha256(digest) for digest in objects.values())
+        or marker.get("contract_sha256") != objects.get("contract.json")
+        or objects.get("contract.json")
+        != hashlib.sha256(input_contract_path.read_bytes()).hexdigest()
+    ):
+        raise ValueError("retained input marker identity mismatch")
+    if (
+        contract.get("source_contract_sha256")
+        != hashlib.sha256(_canonical_json(input_contract)).hexdigest()
+    ):
+        raise ValueError("candidate does not bind the retained input contract")
+    for example in input_examples:
+        expected_sha = objects[example["media_path"]]
+        if example["media_sha256"] != expected_sha:
+            raise ValueError("retained input marker source media mismatch")
+        _verified_media_sha256(
+            media_root=source_media_root,
+            relative_path=example["media_path"],
+            expected_sha256=expected_sha,
+            description="retained input source",
+        )
 
 
 def _source_contract_from_normalized(
@@ -361,15 +547,39 @@ def verify_candidate_freeze(
     checksums_path: Path,
     source_media_root: Path,
     normalized_media_root: Path,
+    audit_bundle_root: Path,
     source_manifest_path: Path = _DEFAULT_SOURCE_MANIFEST,
 ) -> tuple[dict[str, Any], ...]:
     """Recompute all candidate hashes, bindings, identities, and pair order."""
 
+    candidate_root = checksums_path.parent.resolve()
+    expected_paths = {
+        "predictions": candidate_root / "predictions.jsonl",
+        "manifest": candidate_root / "manifest.json",
+        "checksums": candidate_root / "SHA256SUMS",
+        "normalized": candidate_root / "normalized",
+    }
+    if (
+        predictions_path.resolve() != expected_paths["predictions"]
+        or manifest_path.resolve() != expected_paths["manifest"]
+        or checksums_path.resolve() != expected_paths["checksums"]
+        or normalized_media_root.resolve() != expected_paths["normalized"]
+    ):
+        raise ValueError("candidate paths must resolve inside one exact bundle")
     if not predictions_path.is_file() or not manifest_path.is_file():
         raise ValueError("candidate predictions and manifest must be files")
     prediction_bytes = predictions_path.read_bytes()
     manifest_bytes = manifest_path.read_bytes()
     checksums = _checksum_entries(checksums_path)
+    candidate_hashes = _file_hashes(candidate_root, description="candidate bundle")
+    expected_checksum_files = (
+        set(candidate_hashes) - {"./SHA256SUMS"} - _COLLECTOR_CANDIDATE_FILES
+    )
+    if set(checksums) != expected_checksum_files:
+        raise ValueError("candidate checksum exact file set mismatch")
+    for relative, digest in checksums.items():
+        if candidate_hashes.get(relative) != digest:
+            raise ValueError(f"candidate checksum mismatch: {relative}")
     prediction_sha = hashlib.sha256(prediction_bytes).hexdigest()
     manifest_sha = hashlib.sha256(manifest_bytes).hexdigest()
     if checksums["./predictions.jsonl"] != prediction_sha:
@@ -454,6 +664,11 @@ def verify_candidate_freeze(
         != hashlib.sha256(_canonical_json(source_contract)).hexdigest()
     ):
         raise ValueError("normalized source contract SHA-256 mismatch")
+    _validate_input_evidence(
+        audit_bundle_root=audit_bundle_root,
+        contract=contract,
+        source_media_root=source_media_root,
+    )
     for example in examples:
         _verified_media_sha256(
             media_root=source_media_root,
@@ -542,6 +757,7 @@ def verify_candidate_freeze(
                 or record.get("error_message") is not None
                 or not isinstance(elapsed, (int, float))
                 or isinstance(elapsed, bool)
+                or not math.isfinite(elapsed)
                 or elapsed < 0
             ):
                 raise ValueError("candidate prediction request provenance mismatch")
@@ -557,6 +773,10 @@ def verify_candidate_freeze(
         )
     if len(seen) != 30:
         raise ValueError("candidate duplicate pair identity")
+    _validate_candidate_anchor(
+        candidate_root=candidate_root,
+        audit_bundle_root=audit_bundle_root,
+    )
     return tuple(result)
 
 
@@ -601,6 +821,7 @@ def build_blind_grading_bundle(
     candidate_checksums_path: Path,
     source_media_root: Path,
     normalized_media_root: Path,
+    audit_bundle_root: Path,
     reference_loader: Callable[[tuple[str, ...]], Sequence[Mapping[str, Any]]],
     grader_ids: tuple[str, str],
     shuffle_seeds: tuple[int, int],
@@ -615,6 +836,7 @@ def build_blind_grading_bundle(
         checksums_path=candidate_checksums_path,
         source_media_root=source_media_root,
         normalized_media_root=normalized_media_root,
+        audit_bundle_root=audit_bundle_root,
         source_manifest_path=source_manifest_path,
     )
     keys = tuple(video_id for video_id, _category, _role in FROZEN30_ROWS)
@@ -736,6 +958,150 @@ def validate_private_grader_assignments(
         raise ValueError("private grader assignment artifact mismatch")
 
 
+def derive_operational_evidence(
+    *,
+    candidate_predictions_path: Path,
+    candidate_manifest_path: Path,
+    audit_bundle_root: Path,
+    privacy_review_path: Path,
+) -> OperationalEvidence:
+    """Derive promotion inputs only from retained, anchor-bound artifacts."""
+
+    candidate_root = candidate_manifest_path.parent.resolve()
+    if candidate_predictions_path.resolve() != candidate_root / "predictions.jsonl":
+        raise ValueError("operational candidate paths must share the exact bundle")
+    _anchor, status, dstack, anchor_sha = _validate_candidate_anchor(
+        candidate_root=candidate_root,
+        audit_bundle_root=audit_bundle_root,
+    )
+    manifest = _load_json_object(
+        candidate_manifest_path, description="candidate manifest"
+    )
+    records = _parse_jsonl(
+        candidate_predictions_path.read_bytes(), description="candidate predictions"
+    )
+    completed = sum(record.get("status") == "passed" for record in records)
+    if (
+        manifest.get("run_id") != CANDIDATE_RUN_ID
+        or manifest.get("completion") != {"completed": 60, "expected": 60}
+        or len(records) != completed
+        or completed != 60
+    ):
+        raise ValueError("operational completion differs from the verified candidate")
+
+    expected_status_fields = {
+        "schema_version",
+        "run_id",
+        "collection_kind",
+        "scoreable",
+        "reason",
+    }
+    if (
+        set(status) != expected_status_fields
+        or status.get("schema_version") != 1
+        or status.get("run_id") != CANDIDATE_RUN_ID
+        or status.get("collection_kind") != "completed-candidate"
+        or status.get("scoreable") is not False
+        or status.get("reason") != "pending-independent-freeze-verification"
+    ):
+        raise ValueError(
+            "collection status is not the anchor-bound completed candidate"
+        )
+
+    expected_dstack_fields = {
+        "schema_version",
+        "run_id",
+        "id",
+        "status",
+        "status_message",
+        "termination_reason",
+        "job_termination_reason",
+        "submitted_at",
+        "finished_at",
+        "elapsed_seconds",
+        "cost",
+        "backend",
+        "region",
+        "price",
+        "instance_type",
+        "cpu_count",
+        "gpu_count",
+        "gpu_name",
+        "gpu_vendor",
+        "gpu_memory_mib",
+        "host_memory_mib",
+        "disk_mib",
+        "spot",
+        "exit_status",
+    }
+    elapsed = dstack.get("elapsed_seconds")
+    cost = dstack.get("cost")
+    price = dstack.get("price")
+    if (
+        set(dstack) != expected_dstack_fields
+        or dstack.get("schema_version") != 1
+        or dstack.get("run_id") != CANDIDATE_RUN_ID
+        or dstack.get("status") != "done"
+        or dstack.get("exit_status") != 0
+        or dstack.get("gpu_count") != 1
+        or dstack.get("gpu_name") != "L40S"
+        or dstack.get("gpu_vendor") != "nvidia"
+        or dstack.get("spot") is not False
+        or any(
+            type(value) not in {int, float} or not math.isfinite(value) or value < 0
+            for value in (elapsed, cost, price)
+        )
+    ):
+        raise ValueError(
+            "dstack run evidence is not a verified successful frozen30 run"
+        )
+
+    review = _load_json_object(
+        privacy_review_path, description="privacy and audit review"
+    )
+    expected_review_fields = {
+        "schema_version",
+        "review_type",
+        "run_id",
+        "workload_anchor_sha256",
+        "reviewer_id",
+        "reviewed_at",
+        "determination",
+    }
+    reviewer_id = review.get("reviewer_id")
+    reviewed_at = review.get("reviewed_at")
+    try:
+        parsed_reviewed_at = datetime.fromisoformat(reviewed_at)
+    except (TypeError, ValueError) as error:
+        raise ValueError("privacy review timestamp must be ISO-8601") from error
+    if (
+        set(review) != expected_review_fields
+        or review.get("schema_version") != 1
+        or review.get("review_type") != "nemotron3-frozen30-privacy-audit"
+        or review.get("run_id") != CANDIDATE_RUN_ID
+        or review.get("workload_anchor_sha256") != anchor_sha
+        or not isinstance(reviewer_id, str)
+        or not reviewer_id.strip()
+        or parsed_reviewed_at.utcoffset() is None
+        or review.get("determination")
+        not in {"no-load-bearing-gap", "load-bearing-gap"}
+    ):
+        raise ValueError("privacy review is not bound to this run and workload anchor")
+    return OperationalEvidence._from_verified_artifacts(
+        completed=completed,
+        expected=60,
+        run_status=dstack["status"],
+        duration_minutes=float(elapsed) / 60,
+        hourly_price_usd=float(price),
+        compute_cost_usd=float(cost),
+        privacy_or_audit_gap=review["determination"] == "load-bearing-gap",
+        workload_anchor_sha256=anchor_sha,
+        reviewer_id=reviewer_id,
+        reviewed_at=reviewed_at,
+        verification_token=_VERIFIED_OPERATIONAL_TOKEN,
+    )
+
+
 def _bound_adjudication_packet(packet: Mapping[str, Any]) -> dict[str, Any]:
     content = {key: value for key, value in packet.items() if key != "packet_id"}
     return {
@@ -842,7 +1208,10 @@ def apply_decision_rule(
 ) -> dict[str, Any]:
     """Apply the preregistered semantic and operational boundaries verbatim."""
 
-    if not isinstance(operational, OperationalEvidence):
+    if (
+        not isinstance(operational, OperationalEvidence)
+        or operational._verification_token is not _VERIFIED_OPERATIONAL_TOKEN
+    ):
         raise TypeError("operational must be validated OperationalEvidence")
     semantic = (
         improvements >= 6

@@ -101,6 +101,21 @@ def _decode_succeeds(
 FROZEN30_INFERENCE_MANIFEST = (
     Path(__file__).parents[1] / "configs/vqa/native_audio_benchmark_30_inference.json"
 )
+LABEL_BEARING_ALIASES = (
+    "answer_key",
+    "annotation",
+    "annotations",
+    "correct_answer",
+    "distractor",
+    "distractors",
+    "expected_answer",
+    "ground_truth",
+    "label",
+    "labels",
+    "reference",
+    "reference_answer",
+    "reference_answers",
+)
 
 
 def _frozen30_panel_and_media(tmp_path: Path) -> tuple[Path, Path]:
@@ -202,6 +217,51 @@ def test_frozen30_contract_rejects_label_bearing_source_manifest(
             panel_path=panel_path,
             data_root=data_root,
         )
+
+
+@pytest.mark.parametrize("label_key", LABEL_BEARING_ALIASES)
+@pytest.mark.parametrize("normalized", [False, True], ids=["source", "normalized"])
+def test_frozen30_preinference_rejects_every_label_alias_and_nonexact_schema(
+    tmp_path: Path, label_key: str, normalized: bool
+) -> None:
+    """Catches any supported label alias crossing either frozen-30 contract seam."""
+    source_contract, data_root, normalized_root = _frozen30_normalized_inputs(tmp_path)
+    contract = source_contract
+    if normalized:
+        contract = nemotron3_omni_pilot.build_normalized_contract(
+            source_contract=source_contract,
+            source_media_root=data_root,
+            normalized_media_root=normalized_root,
+            mode="frozen30-paired",
+            media_probe=lambda _path: _media_metadata(),
+            decode_runner=_decode_succeeds,
+        )
+    contract["examples"][0][label_key] = "private label"
+
+    with pytest.raises(ValueError, match="label-bearing|schema"):
+        nemotron3_omni_pilot._validate_run_contract(contract)
+
+
+@pytest.mark.parametrize("normalized", [False, True], ids=["source", "normalized"])
+def test_frozen30_preinference_requires_exact_example_schema(
+    tmp_path: Path, normalized: bool
+) -> None:
+    """Catches unknown non-label fields persisted at the inference boundary."""
+    source_contract, data_root, normalized_root = _frozen30_normalized_inputs(tmp_path)
+    contract = source_contract
+    if normalized:
+        contract = nemotron3_omni_pilot.build_normalized_contract(
+            source_contract=source_contract,
+            source_media_root=data_root,
+            normalized_media_root=normalized_root,
+            mode="frozen30-paired",
+            media_probe=lambda _path: _media_metadata(),
+            decode_runner=_decode_succeeds,
+        )
+    contract["examples"][0]["unexpected"] = "unbound"
+
+    with pytest.raises(ValueError, match="schema"):
+        nemotron3_omni_pilot._validate_run_contract(contract)
 
 
 def test_frozen30_contract_requires_one_source_and_records_unique_qfl_mp4(
