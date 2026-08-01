@@ -4,7 +4,7 @@ from pathlib import Path
 
 CONFIG = Path("dstack/timelens2-selector-quality-10.dstack.yml")
 RUNNER = Path("scripts/run-timelens2-selector-quality-dstack.sh")
-RUN_ID = "timelens2-selector-quality-20260801-a1"
+RUN_ID = "timelens2-selector-quality-20260801-a2"
 IMAGE = (
     "docker.io/pytorch/pytorch@sha256:"
     "c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755"
@@ -32,7 +32,7 @@ def test_quality_task_is_exact_image_cuda_and_budget_bounded() -> None:
     assert f"SOURCE_SHA256={SOURCE_SHA256}" in text
     assert f"gpu: {GPU_POOL}:1:48GB.." in text
     assert "cpu: 8.." in text
-    assert "memory: 48GB.." in text
+    assert "memory: 96GB.." in text
     assert "disk: 100GB.." in text
     assert "fleets: [gpu-marketplace]" in text
     assert "backends: [runpod, vastai]" in text
