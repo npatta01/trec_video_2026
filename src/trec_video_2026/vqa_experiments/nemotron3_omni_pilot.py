@@ -82,6 +82,13 @@ FROZEN30_ROWS = (
 FROZEN30_INFERENCE_MANIFEST_SHA256 = (
     "12fb622607be2bff0fc07789f5002fb14a51755bd18adabd9fb508d19230c499"
 )
+FROZEN30_SOURCE_MEDIA_PATHS = {
+    video_id: (
+        f"vqa/2025/training/videos_original/{video_id}"
+        f"{'.mp4' if video_id == 'QFljXc4WpFA' else '.mkv'}"
+    )
+    for video_id, _category, _role in FROZEN30_ROWS
+}
 CONDITIONS = (
     {"condition_id": "audio-off", "audio_enabled": False},
     {"condition_id": "audio-on", "audio_enabled": True},
@@ -291,7 +298,7 @@ def build_frozen30_contract(*, panel_path: Path, data_root: Path) -> dict[str, A
                 "media_sha256": _sha256_file(resolved_media),
             }
         )
-    return {
+    contract = {
         "schema_version": 1,
         "mode": "frozen30-paired",
         "panel_id": "nemotron3-omni-frozen30",
@@ -301,6 +308,8 @@ def build_frozen30_contract(*, panel_path: Path, data_root: Path) -> dict[str, A
         "conditions": [dict(condition) for condition in CONDITIONS],
         "examples": examples,
     }
+    _validate_run_contract(contract)
+    return contract
 
 
 def build_canary_contract(media_paths: list[Path]) -> dict[str, Any]:
@@ -755,6 +764,17 @@ def _validate_run_contract(
             raise ValueError(row_error)
         if conditions != expected_conditions:
             raise ValueError(condition_error)
+        if mode == "frozen30-paired":
+            source_media_field = (
+                "source_media_path" if derivation is not None else "media_path"
+            )
+            for example in examples:
+                if not isinstance(example, dict):
+                    raise TypeError("contract examples must be objects")
+                if example.get(source_media_field) != FROZEN30_SOURCE_MEDIA_PATHS.get(
+                    example.get("video_id")
+                ):
+                    raise ValueError("frozen30-paired source media binding mismatch")
     else:
         expected_ids = [f"public-synthetic-av-{index}" for index in range(1, 4)]
         actual_ids = [row.get("video_id") for row in examples if isinstance(row, dict)]

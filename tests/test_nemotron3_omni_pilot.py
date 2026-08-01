@@ -240,6 +240,34 @@ def test_frozen30_contract_requires_one_source_and_records_unique_qfl_mp4(
         )
 
 
+@pytest.mark.parametrize("target_id", ("LKiaCf1QZFw", "QFljXc4WpFA"))
+def test_frozen30_normalization_rejects_substituted_source_media_path_and_hash(
+    tmp_path: Path, target_id: str
+) -> None:
+    """Catches a row borrowing another source path/hash, including QFl's MP4."""
+    source_contract, data_root, normalized_root = _frozen30_normalized_inputs(tmp_path)
+    examples = source_contract["examples"]
+    assert isinstance(examples, list)
+    target = next(example for example in examples if example["video_id"] == target_id)
+    replacement = next(
+        example for example in examples if example["video_id"] == "Ie-KCtcZ7uc"
+    )
+    target["media_path"] = replacement["media_path"]
+    target["media_sha256"] = replacement["media_sha256"]
+
+    with pytest.raises(
+        ValueError, match="frozen30-paired source media binding mismatch"
+    ):
+        nemotron3_omni_pilot.build_normalized_contract(
+            source_contract=source_contract,
+            source_media_root=data_root,
+            normalized_media_root=normalized_root,
+            mode="frozen30-paired",
+            media_probe=lambda _path: _media_metadata(),
+            decode_runner=_decode_succeeds,
+        )
+
+
 def test_frozen30_probe_requires_verified_normalization_and_decode_before_requests(
     tmp_path: Path,
 ) -> None:
