@@ -1,5 +1,5 @@
 type: task
-name: timelens2-three-condition-canary-20260801-a1
+name: tl2-3cond-canary-20260801-a2
 
 image: docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
 entrypoint: /bin/bash -c
@@ -12,8 +12,8 @@ env:
   - FORCE_QWENVL_VIDEO_READER=torchvision
   - PYTHON_BIN=/opt/conda/bin/python
   - PYTHONPATH=/dstack/run/src
-  - EXPERIMENT_RUN_ID=timelens2-three-condition-canary-20260801-a1
-  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/timelens2-three-condition-canary-20260801-a1
+  - EXPERIMENT_RUN_ID=timelens2-three-condition-canary-20260801-a2
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/timelens2-three-condition-canary-20260801-a2
   - RUNTIME_IMAGE=docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
   - SELECTOR_MODEL_ID=MCG-NJU/TimeLens2-2B
   - SELECTOR_MODEL_REVISION=90dd30b3eeff3520a30c830eff2209f4ad788ca9
