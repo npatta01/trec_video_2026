@@ -6,14 +6,15 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import subprocess
 from typing import Any, Sequence
 
 from trec_video_2026.vqa_experiments.nemotron3_omni_frozen30 import (
     OperationalEvidence,
     build_blind_grading_bundle,
+    reconcile_frozen30_grades,
     score_replacement,
 )
-from trec_video_2026.vqa_experiments.nemotron3_omni_grading import reconcile_grades
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +26,26 @@ def require_private_output_directory(path: Path) -> Path:
     resolved = path.expanduser().resolve()
     if resolved == REPOSITORY_ROOT or resolved.is_relative_to(REPOSITORY_ROOT):
         raise ValueError("private output directory must be outside the repository")
+    existing = resolved
+    while not existing.exists() and existing != existing.parent:
+        existing = existing.parent
+    result = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(existing),
+            "rev-parse",
+            "--is-inside-work-tree",
+            "--is-inside-git-dir",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0 and "true" in result.stdout.splitlines():
+        raise ValueError(
+            "private output directory must be outside every Git repository"
+        )
     return resolved
 
 
@@ -35,6 +56,7 @@ def _common_parser() -> argparse.ArgumentParser:
     parser.add_argument("--candidate-manifest", type=Path, required=True)
     parser.add_argument("--candidate-checksums", type=Path, required=True)
     parser.add_argument("--references", type=Path, required=True)
+    parser.add_argument("--source-manifest", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--grader-id", action="append", required=True)
     parser.add_argument("--shuffle-seed", action="append", type=int, required=True)
@@ -94,6 +116,7 @@ def _bundle(args: argparse.Namespace):
         reference_loader=_reference_loader(args.references),
         grader_ids=tuple(args.grader_id),
         shuffle_seeds=tuple(args.shuffle_seed),
+        source_manifest_path=args.source_manifest,
     )
 
 
@@ -125,6 +148,16 @@ def _operational(path: Path) -> OperationalEvidence:
     value = _load_json(path)
     if not isinstance(value, dict):
         raise ValueError("operational evidence must be an object")
+    expected_fields = {
+        "completed",
+        "expected",
+        "duration_minutes",
+        "compute_cost_usd",
+        "artifacts_verified",
+        "privacy_or_audit_gap",
+    }
+    if set(value) != expected_fields:
+        raise ValueError("operational evidence schema mismatch")
     return OperationalEvidence(
         completed=value["completed"],
         expected=value["expected"],
@@ -142,7 +175,9 @@ def _score(args: argparse.Namespace) -> int:
     if len(submissions) != 2:
         raise ValueError("exactly two grader submissions are required")
     adjudication = _load_json(args.adjudication) if args.adjudication else None
-    resolution = reconcile_grades(bundle, submissions, adjudication=adjudication)
+    resolution = reconcile_frozen30_grades(
+        bundle, submissions, adjudication=adjudication
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     if resolution.status == "adjudication_required":
         _write_json(

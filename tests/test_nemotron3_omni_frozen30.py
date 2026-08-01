@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from pathlib import Path
+import random
+from types import SimpleNamespace
 
 import pytest
 
@@ -21,6 +24,10 @@ from trec_video_2026.vqa_experiments.nemotron3_omni_pilot import (
     RUNTIME_IMAGE,
     RUNTIME_IMAGE_DIGEST,
     build_chat_request,
+)
+
+SOURCE_MANIFEST = (
+    Path(__file__).parents[1] / "configs/vqa/native_audio_benchmark_30_inference.json"
 )
 
 
@@ -69,12 +76,36 @@ def _write_qwen(path: Path, *, mutation: str | None = None) -> str:
 
 
 def _candidate_contract() -> dict[str, object]:
+    source_rows = json.loads(SOURCE_MANIFEST.read_text())["examples"]
+    source_examples = [
+        {
+            "video_id": video_id,
+            "category": category,
+            "role": role,
+            "question": source_rows[index]["question"].strip(),
+            "media_path": FROZEN30_SOURCE_MEDIA_PATHS[video_id],
+            "media_sha256": "5" * 64,
+        }
+        for index, (video_id, category, role) in enumerate(FROZEN30_ROWS)
+    ]
+    source_contract = {
+        "schema_version": 1,
+        "mode": "frozen30-paired",
+        "panel_id": "nemotron3-omni-frozen30",
+        "source_manifest_sha256": FROZEN30_INFERENCE_MANIFEST_SHA256,
+        "model_id": MODEL_ID,
+        "model_revision": MODEL_REVISION,
+        "conditions": [dict(condition) for condition in CONDITIONS],
+        "examples": source_examples,
+    }
     return {
         "schema_version": 1,
         "mode": "frozen30-paired",
         "panel_id": "nemotron3-omni-frozen30",
         "source_manifest_sha256": FROZEN30_INFERENCE_MANIFEST_SHA256,
-        "source_contract_sha256": "7" * 64,
+        "source_contract_sha256": hashlib.sha256(
+            _canonical(source_contract)
+        ).hexdigest(),
         "media_derivation": {
             "container": "mp4",
             "video_codec": "h264",
@@ -88,7 +119,7 @@ def _candidate_contract() -> dict[str, object]:
                 "video_id": video_id,
                 "category": category,
                 "role": role,
-                "question": f"question {index}",
+                "question": source_rows[index]["question"].strip(),
                 "source_media_path": FROZEN30_SOURCE_MEDIA_PATHS[video_id],
                 "source_media_sha256": "5" * 64,
                 "media_path": f"{video_id}.mp4",
@@ -172,13 +203,43 @@ def _refresh_checksums(predictions: Path, manifest: Path, checksums: Path) -> No
     )
 
 
+def _refresh_candidate_bindings(
+    predictions: Path, manifest: Path, checksums: Path
+) -> None:
+    contract = json.loads(manifest.with_name("contract.json").read_text())
+    records = [json.loads(line) for line in predictions.read_text().splitlines()]
+    for record in records:
+        example = contract["examples"][record["pair_index"]]
+        request = build_chat_request(
+            media_path=Path("/dstack/input/normalized") / example["media_path"],
+            question=example["question"],
+            audio_enabled=record["audio_enabled"],
+        )
+        record["request_sha256"] = hashlib.sha256(_canonical(request)).hexdigest()
+    predictions.write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in records)
+    )
+    body = json.loads(manifest.read_text())
+    body["contract_file_sha256"] = hashlib.sha256(
+        manifest.with_name("contract.json").read_bytes()
+    ).hexdigest()
+    body["contract_sha256"] = hashlib.sha256(_canonical(contract)).hexdigest()
+    body["predictions_sha256"] = hashlib.sha256(predictions.read_bytes()).hexdigest()
+    manifest.write_text(json.dumps(body, sort_keys=True) + "\n")
+    _refresh_checksums(predictions, manifest, checksums)
+
+
 def _references(keys: tuple[str, ...]) -> list[dict[str, str]]:
     by_id = {video_id: category for video_id, category, _role in FROZEN30_ROWS}
+    questions = {
+        row["video_id"]: row["question"].strip()
+        for row in json.loads(SOURCE_MANIFEST.read_text())["examples"]
+    }
     return [
         {
             "row_key": key,
             "category": by_id[key],
-            "question": f"question {index}",
+            "question": questions[key],
             "reference": f"reference {index}",
         }
         for index, key in enumerate(keys)
@@ -343,6 +404,56 @@ def test_candidate_recomputes_request_provenance_from_manifest_bound_contract(
         )
 
 
+@pytest.mark.parametrize("mutation", ["question", "ground_truth", "source_hash"])
+def test_candidate_normalized_contract_is_anchored_to_pinned_source_manifest(
+    tmp_path: Path, mutation: str
+) -> None:
+    """Catches coherent relabeling or question replacement across all inner hashes."""
+    predictions, manifest, checksums = _write_candidate(tmp_path)
+    contract_path = tmp_path / "contract.json"
+    contract = json.loads(contract_path.read_text())
+    if mutation == "question":
+        contract["examples"][0]["question"] = "A different grading question?"
+        contract["source_contract_sha256"] = "a" * 64
+    elif mutation == "ground_truth":
+        contract["examples"][0]["ground_truth"] = "secret label"
+    else:
+        contract["source_contract_sha256"] = "a" * 64
+    contract_path.write_text(json.dumps(contract, sort_keys=True) + "\n")
+    _refresh_candidate_bindings(predictions, manifest, checksums)
+
+    with pytest.raises(ValueError, match="source|question|label-bearing|schema"):
+        frozen30.verify_candidate_freeze(
+            predictions_path=predictions,
+            manifest_path=manifest,
+            checksums_path=checksums,
+        )
+
+
+def test_candidate_and_reference_questions_must_match_exactly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    qwen = tmp_path / "qwen.jsonl"
+    monkeypatch.setattr(frozen30, "QWEN_FULL_FREEZE_SHA256", _write_qwen(qwen))
+    predictions, manifest, checksums = _write_candidate(tmp_path)
+
+    def mismatched(keys: tuple[str, ...]):
+        rows = _references(keys)
+        rows[0]["question"] = "A different grading question?"
+        return rows
+
+    with pytest.raises(ValueError, match="question"):
+        frozen30.build_blind_grading_bundle(
+            qwen_predictions_path=qwen,
+            candidate_predictions_path=predictions,
+            candidate_manifest_path=manifest,
+            candidate_checksums_path=checksums,
+            reference_loader=mismatched,
+            grader_ids=("grader-a", "grader-b"),
+            shuffle_seeds=(1709, 2903),
+        )
+
+
 def test_blind_packets_hide_condition_and_row_identity_and_use_two_seeds(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -360,6 +471,63 @@ def test_blind_packets_hide_condition_and_row_identity_and_use_two_seeds(
         assert f'"{role}"' not in payload
     for forbidden in ("qwen", "nemotron", "audio-off", "audio-on", '"condition"'):
         assert forbidden not in payload.lower()
+
+
+def test_packet_identity_does_not_reveal_seed_or_caller_grader_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    qwen = tmp_path / "qwen.jsonl"
+    monkeypatch.setattr(frozen30, "QWEN_FULL_FREEZE_SHA256", _write_qwen(qwen))
+    predictions, manifest, checksums = _write_candidate(tmp_path)
+    bundle = frozen30.build_blind_grading_bundle(
+        qwen_predictions_path=qwen,
+        candidate_predictions_path=predictions,
+        candidate_manifest_path=manifest,
+        candidate_checksums_path=checksums,
+        reference_loader=_references,
+        grader_ids=("nemotron-reviewer", "audio-on-reviewer"),
+        shuffle_seeds=(1709, 2903),
+    )
+
+    assert set(bundle.packets) == {"grader-1", "grader-2"}
+    payload = json.dumps(bundle.packets, sort_keys=True).lower()
+    assert "nemotron-reviewer" not in payload
+    assert "audio-on-reviewer" not in payload
+    observed = bundle.packets["grader-1"]["packet_id"]
+    recovered = [
+        seed
+        for seed in range(10_000)
+        if "blind-1-"
+        + hashlib.sha256(f"1:nemotron-reviewer:{seed}".encode()).hexdigest()[:12]
+        == observed
+    ]
+    assert recovered == []
+
+
+def test_public_question_order_cannot_verify_low_entropy_seed_guesses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = _bundle(tmp_path, monkeypatch)
+    packet = bundle.packets["grader-1"]
+    observed_questions = [item["question"] for item in packet["items"]]
+    questions = {
+        row["video_id"]: row["question"].strip()
+        for row in json.loads(SOURCE_MANIFEST.read_text())["examples"]
+    }
+    canonical = [
+        (video_id, condition)
+        for video_id, _category, _role in FROZEN30_ROWS
+        for condition in ("qwen12", "audio-off", "audio-on")
+    ]
+    recovered = []
+    for seed in range(10_000):
+        order = list(canonical)
+        random.Random(seed).shuffle(order)
+        if [
+            questions[video_id] for video_id, _condition in order
+        ] == observed_questions:
+            recovered.append(seed)
+    assert recovered == []
 
 
 def test_reference_stratum_mismatch_fails_after_both_freezes(
@@ -405,6 +573,76 @@ def test_adjudication_packet_contains_only_disagreements(
     result = reconcile_grades(bundle, submissions)
     assert result.status == "adjudication_required"
     assert len(result.adjudication_packet["items"]) == 1
+
+
+def _packet_submission(packet: dict[str, object], grades: dict[str, str] | None = None):
+    grades = grades or {}
+    return {
+        "grader_id": packet["grader_id"],
+        "packet_id": packet["packet_id"],
+        "grades": [
+            {
+                "item_id": item["item_id"],
+                "grade": grades.get(item["candidate_answer"], "P"),
+            }
+            for item in packet["items"]
+        ],
+    }
+
+
+def test_grader_submission_must_bind_to_exact_packet_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = _bundle(tmp_path, monkeypatch)
+    resolver = getattr(frozen30, "reconcile_frozen30_grades", reconcile_grades)
+    submissions = [_packet_submission(packet) for packet in bundle.packets.values()]
+    assert resolver(bundle, submissions).status == "final"
+    submissions[0]["packet_id"] = "blind-wrong"
+
+    with pytest.raises(ValueError, match="packet ID"):
+        resolver(bundle, submissions)
+
+
+def test_adjudication_submission_must_bind_to_exact_disagreement_packet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = _bundle(tmp_path, monkeypatch)
+    resolver = getattr(frozen30, "reconcile_frozen30_grades", reconcile_grades)
+    packets = list(bundle.packets.values())
+    disputed_answer = packets[0]["items"][0]["candidate_answer"]
+    submissions = [
+        _packet_submission(packets[0]),
+        _packet_submission(packets[1], {disputed_answer: "C"}),
+    ]
+    pending = resolver(bundle, submissions)
+    assert pending.status == "adjudication_required"
+
+    with pytest.raises(ValueError, match="packet ID"):
+        resolver(
+            bundle,
+            submissions,
+            adjudication={
+                "grader_id": "grader-3",
+                "packet_id": "adjudication-wrong",
+                "grades": [
+                    {"case_id": item["case_id"], "grade": "C"}
+                    for item in pending.adjudication_packet["items"]
+                ],
+            },
+        )
+    final = resolver(
+        bundle,
+        submissions,
+        adjudication={
+            "grader_id": "grader-3",
+            "packet_id": pending.adjudication_packet["packet_id"],
+            "grades": [
+                {"case_id": item["case_id"], "grade": "C"}
+                for item in pending.adjudication_packet["items"]
+            ],
+        },
+    )
+    assert final.status == "final"
 
 
 @pytest.mark.parametrize(
@@ -479,7 +717,7 @@ def test_semantic_pass_without_operational_pass_is_routed_candidate() -> None:
     assert decision["disposition"] == "Routed candidate"
 
 
-def test_metric_boundary_tolerates_only_binary_floating_point_noise() -> None:
+def test_metric_boundary_rejects_value_below_exact_negative_point_zero_two() -> None:
     decision = frozen30.apply_decision_rule(
         improvements=6,
         regressions=2,
@@ -497,7 +735,59 @@ def test_metric_boundary_tolerates_only_binary_floating_point_noise() -> None:
             privacy_or_audit_gap=False,
         ),
     )
-    assert decision["semantic_gate_passed"] is True
+    assert decision["semantic_gate_passed"] is False
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"completed": True},
+        {"expected": 59},
+        {"duration_minutes": -0.01},
+        {"duration_minutes": math.nan},
+        {"duration_minutes": math.inf},
+        {"compute_cost_usd": -0.01},
+        {"compute_cost_usd": math.nan},
+        {"artifacts_verified": 1},
+        {"privacy_or_audit_gap": 0},
+    ],
+)
+def test_operational_evidence_rejects_malformed_or_inconsistent_values(
+    changes: dict[str, object],
+) -> None:
+    values = {
+        "completed": 60,
+        "expected": 60,
+        "duration_minutes": 60.0,
+        "compute_cost_usd": 1.25,
+        "artifacts_verified": True,
+        "privacy_or_audit_gap": False,
+    }
+    values.update(changes)
+    with pytest.raises((TypeError, ValueError)):
+        frozen30.OperationalEvidence(**values)
+
+
+def test_decision_rule_rejects_unvalidated_operational_objects() -> None:
+    malformed = SimpleNamespace(
+        completed=60,
+        expected=60,
+        duration_minutes=-1,
+        compute_cost_usd=-1,
+        artifacts_verified=1,
+        privacy_or_audit_gap=0,
+    )
+    with pytest.raises(TypeError, match="OperationalEvidence"):
+        frozen30.apply_decision_rule(
+            improvements=6,
+            regressions=2,
+            category_regressions_exceed_improvements=False,
+            visual_control_regressions=0,
+            exact_match_delta_rows=-1,
+            token_f1_delta=-0.02,
+            meteor_delta=-0.02,
+            operational=malformed,
+        )
 
 
 def test_private_score_reports_automatic_cpw_category_and_completion_summaries(

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import random
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 from statistics import fmean
 from typing import Any
@@ -15,10 +17,13 @@ from trec_video_2026.vqa_evaluation import normalized_exact_match, token_f1
 from trec_video_2026.vqa_experiments.nemotron3_omni_grading import (
     BlindGradingBundle,
     GradeResolution,
+    reconcile_grades as _reconcile_shared_grades,
 )
 from trec_video_2026.vqa_experiments.nemotron3_omni_pilot import (
     CONDITIONS,
+    FROZEN30_INFERENCE_MANIFEST_SHA256,
     FROZEN30_ROWS,
+    FROZEN30_SOURCE_MEDIA_PATHS,
     MODEL_ID,
     MODEL_REVISION,
     RUNTIME_IMAGE,
@@ -51,9 +56,39 @@ _GRADES = frozenset({"C", "P", "W"})
 _GRADE_RANK = {"W": 0, "P": 1, "C": 2}
 _RUBRIC = {"C": "Correct", "P": "Partially correct", "W": "Wrong"}
 _LABEL_KEYS = frozenset(
-    {"annotation", "correct_answer", "distractor", "distractors", "reference"}
+    {
+        "answer_key",
+        "annotation",
+        "annotations",
+        "correct_answer",
+        "distractor",
+        "distractors",
+        "expected_answer",
+        "ground_truth",
+        "label",
+        "labels",
+        "reference",
+        "reference_answer",
+        "reference_answers",
+    }
 )
 _NORMALIZED_MEDIA_ROOT = Path("/dstack/input/normalized")
+_DEFAULT_SOURCE_MANIFEST = (
+    Path(__file__).resolve().parents[3]
+    / "configs/vqa/native_audio_benchmark_30_inference.json"
+)
+_NORMALIZED_EXAMPLE_FIELDS = {
+    "video_id",
+    "category",
+    "role",
+    "question",
+    "source_media_path",
+    "source_media_sha256",
+    "media_path",
+    "derived_media_sha256",
+    "source_duration_seconds",
+    "derived_duration_seconds",
+}
 
 
 @dataclass(frozen=True)
@@ -64,6 +99,20 @@ class OperationalEvidence:
     compute_cost_usd: float
     artifacts_verified: bool
     privacy_or_audit_gap: bool
+
+    def __post_init__(self) -> None:
+        if type(self.completed) is not int or type(self.expected) is not int:
+            raise TypeError("operational completion counts must be integers")
+        if self.completed != 60 or self.expected != 60:
+            raise ValueError("operational completion must match verified 60/60 freeze")
+        for name in ("duration_minutes", "compute_cost_usd"):
+            value = getattr(self, name)
+            if type(value) not in {int, float} or not math.isfinite(value) or value < 0:
+                raise ValueError(f"operational {name} must be finite and non-negative")
+        if type(self.artifacts_verified) is not bool:
+            raise TypeError("artifacts_verified must be a boolean")
+        if type(self.privacy_or_audit_gap) is not bool:
+            raise TypeError("privacy_or_audit_gap must be a boolean")
 
 
 @dataclass(frozen=True, repr=False)
@@ -192,8 +241,91 @@ def _checksum_entries(path: Path) -> dict[str, str]:
     return entries
 
 
+def _source_contract_from_normalized(
+    contract: Mapping[str, Any], *, source_manifest_path: Path
+) -> dict[str, Any]:
+    """Reconstruct the source contract from its pinned label-free manifest."""
+
+    if not source_manifest_path.is_file():
+        raise ValueError("pinned source manifest must be a file")
+    source_bytes = source_manifest_path.read_bytes()
+    if hashlib.sha256(source_bytes).hexdigest() != FROZEN30_INFERENCE_MANIFEST_SHA256:
+        raise ValueError("pinned source manifest SHA-256 mismatch")
+    try:
+        source_manifest = json.loads(source_bytes)
+    except json.JSONDecodeError as error:
+        raise ValueError("pinned source manifest must be valid JSON") from error
+    source_rows = (
+        source_manifest.get("examples")
+        if isinstance(source_manifest, Mapping)
+        else None
+    )
+    normalized_rows = contract.get("examples")
+    if not isinstance(source_rows, list) or len(source_rows) != 30:
+        raise ValueError("pinned source manifest must contain exactly 30 rows")
+    if not isinstance(normalized_rows, list) or len(normalized_rows) != 30:
+        raise ValueError("normalized contract must contain exactly 30 rows")
+
+    source_examples: list[dict[str, Any]] = []
+    for index, ((video_id, category, role), source, normalized) in enumerate(
+        zip(FROZEN30_ROWS, source_rows, normalized_rows, strict=True)
+    ):
+        if not isinstance(source, Mapping) or set(source) != {
+            "video_id",
+            "category",
+            "question",
+            "media",
+        }:
+            raise ValueError("pinned source manifest row schema mismatch")
+        if not isinstance(normalized, Mapping):
+            raise ValueError("normalized contract rows must be objects")
+        if set(normalized) != _NORMALIZED_EXAMPLE_FIELDS:
+            raise ValueError("normalized contract example schema mismatch")
+        question = source.get("question")
+        expected_media = FROZEN30_SOURCE_MEDIA_PATHS[video_id]
+        if (
+            source.get("video_id") != video_id
+            or source.get("category") != category
+            or source.get("media") != expected_media.rsplit(".", 1)[0]
+            or not isinstance(question, str)
+            or not question.strip()
+            or normalized.get("video_id") != video_id
+            or normalized.get("category") != category
+            or normalized.get("role") != role
+            or normalized.get("question") != question.strip()
+            or normalized.get("source_media_path") != expected_media
+        ):
+            raise ValueError(
+                f"normalized source identity or question mismatch at {index}"
+            )
+        source_examples.append(
+            {
+                "video_id": video_id,
+                "category": category,
+                "role": role,
+                "question": question.strip(),
+                "media_path": expected_media,
+                "media_sha256": normalized["source_media_sha256"],
+            }
+        )
+    return {
+        "schema_version": 1,
+        "mode": "frozen30-paired",
+        "panel_id": "nemotron3-omni-frozen30",
+        "source_manifest_sha256": FROZEN30_INFERENCE_MANIFEST_SHA256,
+        "model_id": MODEL_ID,
+        "model_revision": MODEL_REVISION,
+        "conditions": [dict(condition) for condition in CONDITIONS],
+        "examples": source_examples,
+    }
+
+
 def verify_candidate_freeze(
-    *, predictions_path: Path, manifest_path: Path, checksums_path: Path
+    *,
+    predictions_path: Path,
+    manifest_path: Path,
+    checksums_path: Path,
+    source_manifest_path: Path = _DEFAULT_SOURCE_MANIFEST,
 ) -> tuple[dict[str, Any], ...]:
     """Recompute all candidate hashes, bindings, identities, and pair order."""
 
@@ -261,6 +393,8 @@ def verify_candidate_freeze(
         raise ValueError("candidate contract must be valid JSON") from error
     if not isinstance(contract, dict):
         raise ValueError("candidate contract must be an object")
+    if _contains_label(contract):
+        raise ValueError("label-bearing field leaked into candidate contract")
     if (
         manifest.get("contract_sha256")
         != hashlib.sha256(_canonical_json(contract)).hexdigest()
@@ -276,6 +410,14 @@ def verify_candidate_freeze(
         or contract.get("media_derivation") is None
     ):
         raise ValueError("candidate contract provenance mismatch")
+    source_contract = _source_contract_from_normalized(
+        contract, source_manifest_path=source_manifest_path
+    )
+    if (
+        contract.get("source_contract_sha256")
+        != hashlib.sha256(_canonical_json(source_contract)).hexdigest()
+    ):
+        raise ValueError("normalized source contract SHA-256 mismatch")
 
     records = _parse_jsonl(prediction_bytes, description="candidate predictions")
     if len(records) != 60:
@@ -411,6 +553,7 @@ def build_blind_grading_bundle(
     reference_loader: Callable[[tuple[str, ...]], Sequence[Mapping[str, Any]]],
     grader_ids: tuple[str, str],
     shuffle_seeds: tuple[int, int],
+    source_manifest_path: Path = _DEFAULT_SOURCE_MANIFEST,
 ) -> Frozen30GradingBundle:
     """Verify both immutable freezes before making references accessible."""
 
@@ -419,6 +562,7 @@ def build_blind_grading_bundle(
         predictions_path=candidate_predictions_path,
         manifest_path=candidate_manifest_path,
         checksums_path=candidate_checksums_path,
+        source_manifest_path=source_manifest_path,
     )
     keys = tuple(video_id for video_id, _category, _role in FROZEN30_ROWS)
     references = _validate_references(keys, reference_loader(keys))
@@ -430,6 +574,10 @@ def build_blind_grading_bundle(
         raise ValueError("exactly two independent grader identities are required")
     if len(shuffle_seeds) != 2 or shuffle_seeds[0] == shuffle_seeds[1]:
         raise ValueError("two distinct shuffle seeds are required")
+    # Salt caller seeds with a private frozen-artifact digest. This remains
+    # deterministic for score-time reconstruction without giving packet
+    # recipients a low-entropy seed oracle through the observable item order.
+    shuffle_nonce = hashlib.sha256(candidate_predictions_path.read_bytes()).digest()
 
     private_rows: list[dict[str, Any]] = []
     canonical_keys: list[tuple[str, str]] = []
@@ -439,6 +587,8 @@ def build_blind_grading_bundle(
     ):
         video_id, category, role = FROZEN30_ROWS[index]
         reference = references[video_id]
+        if candidate_row["question"] != reference["question"]:
+            raise ValueError("candidate and reference question mismatch")
         predictions = {
             "qwen12": {"completed": True, "answer": qwen_row["answer"]},
             **candidate_row["predictions"],
@@ -464,33 +614,42 @@ def build_blind_grading_bundle(
     packets: dict[str, dict[str, Any]] = {}
     answer_keys: dict[str, dict[str, tuple[str, str]]] = {}
     prior: list[tuple[str, str]] | None = None
-    for packet_index, (grader_id, seed) in enumerate(
+    for packet_index, (_private_grader_id, seed) in enumerate(
         zip(grader_ids, shuffle_seeds, strict=True), start=1
     ):
         order = list(canonical_keys)
-        random.Random(seed).shuffle(order)
+        protected_seed = int.from_bytes(
+            hashlib.sha256(
+                shuffle_nonce
+                + packet_index.to_bytes(1, "big")
+                + str(seed).encode("ascii")
+            ).digest()
+        )
+        random.Random(protected_seed).shuffle(order)
         if order == prior:
             order = order[1:] + order[:1]
         prior = order
-        packet_id = "blind-%d-%s" % (
-            packet_index,
-            hashlib.sha256(f"{packet_index}:{grader_id}:{seed}".encode()).hexdigest()[
-                :12
-            ],
-        )
+        grader_alias = f"grader-{packet_index}"
         answer_key = {}
         items = []
         for item_index, key in enumerate(order, start=1):
             item_id = f"item-{item_index:03d}"
             answer_key[item_id] = key
             items.append({"item_id": item_id, **item_content[key]})
-        packets[grader_id] = {
-            "packet_id": packet_id,
-            "grader_id": grader_id,
+        public_content = {
+            "grader_id": grader_alias,
             "rubric": dict(_RUBRIC),
             "items": items,
         }
-        answer_keys[grader_id] = answer_key
+        packet_id = (
+            f"blind-{packet_index}-"
+            f"{hashlib.sha256(_canonical_json(public_content)).hexdigest()[:16]}"
+        )
+        packets[grader_alias] = {
+            "packet_id": packet_id,
+            **public_content,
+        }
+        answer_keys[grader_alias] = answer_key
     return Frozen30GradingBundle(
         packets=packets,
         _answer_keys=answer_keys,
@@ -500,27 +659,98 @@ def build_blind_grading_bundle(
     )
 
 
+def _bound_adjudication_packet(packet: Mapping[str, Any]) -> dict[str, Any]:
+    content = {key: value for key, value in packet.items() if key != "packet_id"}
+    return {
+        "packet_id": "adjudication-"
+        + hashlib.sha256(_canonical_json(content)).hexdigest()[:16],
+        **content,
+    }
+
+
+def reconcile_frozen30_grades(
+    bundle: Frozen30GradingBundle,
+    submissions: Sequence[Mapping[str, Any]],
+    *,
+    adjudication: Mapping[str, Any] | None = None,
+) -> GradeResolution:
+    """Resolve grades only when every submission binds to its exact packet."""
+
+    if len(submissions) != 2:
+        raise ValueError("exactly two independent grader submissions are required")
+    stripped_submissions = []
+    for submission in submissions:
+        if not isinstance(submission, Mapping) or set(submission) != {
+            "grader_id",
+            "packet_id",
+            "grades",
+        }:
+            raise ValueError("grader submissions require exact packet ID bindings")
+        grader_id = submission.get("grader_id")
+        packet = bundle.packets.get(grader_id)
+        if packet is None or submission.get("packet_id") != packet["packet_id"]:
+            raise ValueError("grader submission packet ID mismatch")
+        stripped_submissions.append(
+            {"grader_id": grader_id, "grades": submission.get("grades")}
+        )
+
+    pending = _reconcile_shared_grades(bundle, stripped_submissions)
+    if pending.status == "final":
+        if adjudication is not None:
+            raise ValueError(
+                "adjudication is forbidden when there are no disagreements"
+            )
+        return pending
+    if pending.adjudication_packet is None:
+        raise RuntimeError("shared reconciler omitted disagreement packet")
+    bound_packet = _bound_adjudication_packet(pending.adjudication_packet)
+    if adjudication is None:
+        return GradeResolution(
+            status="adjudication_required",
+            final_grades=None,
+            adjudication_packet=bound_packet,
+        )
+    if not isinstance(adjudication, Mapping) or set(adjudication) != {
+        "grader_id",
+        "packet_id",
+        "grades",
+    }:
+        raise ValueError("adjudication requires an exact packet ID binding")
+    if adjudication.get("packet_id") != bound_packet["packet_id"]:
+        raise ValueError("adjudication packet ID mismatch")
+    return _reconcile_shared_grades(
+        bundle,
+        stripped_submissions,
+        adjudication={
+            "grader_id": adjudication.get("grader_id"),
+            "grades": adjudication.get("grades"),
+        },
+    )
+
+
 def apply_decision_rule(
     *,
     improvements: int,
     regressions: int,
     category_regressions_exceed_improvements: bool,
     visual_control_regressions: int,
-    exact_match_delta_rows: float,
-    token_f1_delta: float,
-    meteor_delta: float,
+    exact_match_delta_rows: float | Decimal,
+    token_f1_delta: float | Decimal,
+    meteor_delta: float | Decimal,
     operational: OperationalEvidence,
 ) -> dict[str, Any]:
     """Apply the preregistered semantic and operational boundaries verbatim."""
 
+    if not isinstance(operational, OperationalEvidence):
+        raise TypeError("operational must be validated OperationalEvidence")
     semantic = (
         improvements >= 6
         and regressions <= 2
         and not category_regressions_exceed_improvements
         and visual_control_regressions == 0
-        and exact_match_delta_rows >= -1
-        and token_f1_delta >= -0.02 - 1e-12
-        and meteor_delta >= -0.02 - 1e-12
+        and Decimal(str(exact_match_delta_rows)) >= Decimal("-1")
+        and Decimal(str(token_f1_delta)) >= Decimal("-0.02")
+        and Decimal(str(meteor_delta)) >= Decimal("-0.02")
     )
     operational_passed = (
         operational.completed == operational.expected == 60
@@ -628,6 +858,14 @@ def score_replacement(
         }
         for category, conditions in category_values.items()
     }
+    token_f1_delta = (
+        sum(Decimal(str(value)) for value in condition_values["audio-on"]["token_f1"])
+        - sum(Decimal(str(value)) for value in condition_values["qwen12"]["token_f1"])
+    ) / Decimal(30)
+    meteor_delta = (
+        sum(Decimal(str(value)) for value in condition_values["audio-on"]["meteor"])
+        - sum(Decimal(str(value)) for value in condition_values["qwen12"]["meteor"])
+    ) / Decimal(30)
     decision = apply_decision_rule(
         improvements=improvements,
         regressions=regressions,
@@ -640,10 +878,8 @@ def score_replacement(
             sum(condition_values["audio-on"]["exact_match"])
             - sum(condition_values["qwen12"]["exact_match"])
         ),
-        token_f1_delta=(
-            aggregate["audio-on"]["token_f1"] - aggregate["qwen12"]["token_f1"]
-        ),
-        meteor_delta=(aggregate["audio-on"]["meteor"] - aggregate["qwen12"]["meteor"]),
+        token_f1_delta=token_f1_delta,
+        meteor_delta=meteor_delta,
         operational=operational,
     )
     return {
