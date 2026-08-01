@@ -44,7 +44,6 @@ def test_prepare_quality_requests_binds_exact_frozen_ten_rows(tmp_path):
         dataset_root=dataset,
         output_path=output,
         expected_source_sha256=SOURCE_SHA256,
-        expected_rows=EXPECTED_ROWS,
     )
     assert prepared["schema_version"] == "timelens2-quality-requests-v1"
     assert len(prepared["requests"]) == 10
@@ -64,7 +63,13 @@ Expected: collection fails because `timelens2_quality` does not exist.
 
 - [ ] **Step 3: Implement the minimal request contract**
 
-Implement exact constants for the source SHA and ten tuples of `(video_id, question_sha256, media_sha256, duration_seconds)`. Reject nested label keys, require ten distinct identities, resolve each media file under the canonical dataset root, verify file hashes, and write a canonical request hash per row. The serialized request contains questions but no answers, labels, oracle intervals, or distractors.
+Implement an exact constant for the complete frozen source-file SHA-256. That
+digest cryptographically binds all ten private identities, questions, media
+hashes, and durations without tracking those values individually. Reject
+nested label keys, require ten distinct identities, resolve each media file
+under the canonical dataset root, verify file hashes, and write a canonical
+request hash per row. The serialized request contains questions but no
+answers, labels, oracle intervals, or distractors.
 
 - [ ] **Step 4: Write failing matched-recipe and freeze tests**
 
