@@ -45,7 +45,10 @@ Use uniform-12 as the current default: it takes midpoint frames from 12
 equal time bins. Uniform-24 applies the same whole-video coverage with
 twice the frame proxy. Do not make the tested directed-12 or
 dense-burst-12 diagnostic a default; each is **Not promoted under the
-tested condition**.
+tested condition**. A clean r4 Stage 1 audit selected oracle-hybrid-12
+for a future matched inference test, but this extraction/representation
+result does not yet change the operational default or establish answer
+quality.
 
 <div class="theme-decision-strip"
 aria-label="Visual-evidence decisions">
@@ -55,9 +58,9 @@ aria-label="Visual-evidence decisions">
   heuristics.
 - **Still possible:** learned, hybrid, shot/event, OCR, or
   coarse-to-fine retrieval.
-- **Next test:** calibrate the required-moment rubric, collect fresh
-  blind annotations, and retry the agreement gate before selector
-  recall.
+- **Next test:** compare the r4-selected oracle-hybrid-12 with
+  uniform-12 in a matched inference test; Stage 2/model answering has
+  not started.
 
 </div>
 
@@ -66,8 +69,9 @@ aria-label="Visual-evidence decisions">
 - **Strongest evidence:** matched uniform-12 versus uniform-24 on
   frozen-30 v2.
 - **Diagnostic evidence:** ten selected temporal rows for directed-12
-  and two rows for dense-burst-12; a separate ten-row required-moment
-  diagnostic stopped at its primary annotation-agreement gate.
+  and two rows for dense-burst-12; the historical primary
+  annotation-agreement stop remains separate from the verified r4
+  ten-row representation audit.
 - **Audit gaps:** no tracked general-workflow caller for directed-12;
   the exact dense-burst implementation is absent.
 - **Condition boundary:** none of these results rejects smarter visual
@@ -158,7 +162,70 @@ GitHub](https://github.com/npatta01/trec_video_2026/blob/main/tests/test_tempora
 document the narrow contract.
 </details>
 
-### Required-moment oracle diagnostic
+### r4 required-moment Stage 1 representation audit
+
+- **Reason for testing:** determine whether fixed-budget oracle frame
+  candidates could represent the frozen preferred evidence before any
+  model answer comparison.
+- **Tested condition and panel:** a frame-first then full-video
+  independent audit of all ten selected temporal development rows.
+  Oracle-hybrid-12 uses six global and six local frames; oracle-local-12
+  uses 12 local frames.
+- **Observed result:** r4 had `10/10` labelable and
+  still-frame-representable rows, zero incompatible/uncertain rows, and
+  zero repair replacements. Hybrid was visible, relationship-preserving,
+  answer-sufficient, and a final pass for `10/10`; local-only was `9/10`
+  for each measure. The independently reviewed sanitized extraction
+  aggregate (`r4-stage1-extraction-summary-sanitized.json`, SHA-256
+  `a5d069160df74a315a290767932c68c13af72d01c80d7592157f24dce3d91bfe`)
+  reports 360 real frames and 120 unique PNGs per condition, with all 60
+  hybrid local frames and all 120 local-only frames inside frozen target
+  intervals.
+- **Current condition-bound status:** **Verified** Stage 1
+  representation evidence. The hybrid-first rule selected
+  `oracle-hybrid-12` for the next matched Stage 2 test; uniform-12
+  remains the **Current default**.
+- **What this rules out now:** advancing oracle-local-12 as the selected
+  candidate for this exact Stage 2 comparison.
+- **What it does not rule out:** whether any model uses the represented
+  evidence well enough to improve answers, whether the oracle condition
+  is deployable, or whether retrieval is the dominant end-to-end
+  bottleneck.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—this
+  is a selected ten-row representation audit, not a model-answer or
+  generalization result.
+- **Reconsider when:** the frozen matched inference comparison reports a
+  predeclared paired improvement and non-regression result against
+  uniform-12.
+
+<details>
+
+<summary>
+
+Method, result, validity risks, and evidence
+</summary>
+
+The clean r4 evidence bundle is the sole evidence-of-record. Independent
+raw auditor agreement was `10/10` representability, `33/34` interval
+visibility, `40/42` relationship preservation, and `19/20` answer
+sufficiency. The candidate table is intentionally the primary visual:
+with two candidates and four exact audit measures, a chart would add no
+useful relationship. r1 (incomplete full-audit packet contract), r2
+(illegal reviewer order), and r3 (unbound Python bytecode before the
+correct freeze) are invalid operational attempts, not scientific rows or
+evidence for this claim. No GPU/model inference, predictions,
+references, grades, or transcript work ran; Stage 2 has not started.
+Before report edits, full r4 verification passed at the frozen original
+worktree path with 1,162 sidecars validated and forbidden artifacts
+absent. It now correctly refuses this dirty reporting worktree; an
+alternate checkout cannot reproduce the path-bound protocol because it
+binds absolute dataset, prior-bundle, and script paths. This is a
+verifier portability limitation, not r4 artifact drift. See the [dated
+evidence
+record](../experiments/2026-07-30-temporal-required-moment-oracle.md).
+</details>
+
+### Historical primary annotation-agreement stop
 
 - **Reason for testing:** separate missing-moment retrieval from
   downstream answering by labeling the minimal visual evidence needed
@@ -310,9 +377,14 @@ bottleneck dominates without matched evidence.
 - A manual crop can add spatial pixels without repairing an answer; that
   is a reason to route and diagnose detail needs rather than tile
   globally.
-- The required-moment diagnostic shows that structural agreement alone
-  is not enough to support boundary-sensitive selector recall; temporal
-  overlap must also pass before labels control an oracle comparison.
+- The r4 audit shows that oracle-hybrid-12 can represent the frozen
+  preferred evidence for all ten selected rows, whereas oracle-local-12
+  did so for nine; it supports the narrow Stage 2 candidate selection
+  only.
+- The historical required-moment diagnostic shows that structural
+  agreement alone was not enough for its original boundary-sensitive
+  selector-recall branch; that agreement stop remains historical and
+  separate from r4.
 
 ### What it does not rule out
 
@@ -325,9 +397,9 @@ bottleneck dominates without matched evidence.
   selection schedules.
 - The crop diagnostic does not rule out category-routed spatial detail
   or OCR.
-- The failed required-moment agreement gate does not show that oracle
-  sampling would fail or identify retrieval as—or as not—the dominant
-  bottleneck.
+- Neither the historical agreement stop nor the r4 representation audit
+  shows that oracle sampling improves model answers or identifies
+  retrieval as—or as not—the dominant bottleneck.
 
 <span id="possible-bugs-confounds-and-audit-gaps"
 class="legacy-fragment-alias" aria-hidden="true"></span>
@@ -339,9 +411,9 @@ class="legacy-fragment-alias" aria-hidden="true"></span>
   confirmed execution bug.
 - **Audit gap:** dense-burst-12’s exact implementation and schedule are
   absent from tracked source; only its two-row aggregate is recoverable.
-- **Uncertainty:** a ten-row required-moment annotation attempt exists,
-  but its primary temporal-overlap gate failed; selector recall and
-  oracle-frame answer quality therefore remain unmeasured.
+- **Uncertainty:** r4 selects oracle-hybrid-12 only for a future matched
+  inference test. Selector recall and oracle-frame answer quality remain
+  unmeasured, and Stage 2/model answering has not started.
 - **Uncertainty:** manual spatial crops are targeted and non-scalable,
   so their negative result cannot rank global tiling or OCR routes.
 
@@ -357,28 +429,24 @@ class="legacy-fragment-alias" aria-hidden="true"></span>
 
 ## Cheapest valid next experiments
 
-### Required moments, selector recall, and oracle frames
+### Matched r4 oracle-hybrid-12 inference comparison
 
-- **Hypothesis:** a calibrated rubric can produce sufficiently
-  consistent minimal-evidence intervals to support boundary-sensitive
-  selector recall.
-- **Smallest valid panel or work item:** run a small calibration
-  exercise for eligibility, preferred-set topology, temporal-order
-  anchor/event coverage, and boundary placement; then collect three
-  fresh blind annotations on the frozen ten-row panel and retry the
-  primary agreement gate.
-- **Matched controls and integrity safeguards:** keep reviewers blind to
-  references, predictions, selector timestamps, condition outcomes, and
-  one another until all files freeze; do not adjudicate or score recall
-  unless the structural and median-tIoU requirements both pass.
-- **Decision or promotion rule:** resume adjudication and the CPU recall
-  gate only if at least `8/10` primary rows structurally match and
-  median tIoU is at least `0.50`; later selector and answer gates remain
-  unchanged.
+- **Hypothesis:** the r4-selected oracle-hybrid-12 condition can improve
+  answers over uniform-12 when both conditions hold the model and fixed
+  12-frame/pixel budget constant.
+- **Smallest valid panel or work item:** run the predeclared matched
+  Stage 2 inference comparison on the frozen ten-row r4 cohort; it has
+  not started.
+- **Matched controls and integrity safeguards:** keep model revision,
+  prompt, decoding, seed, frame/pixel budget, and label-after-freeze
+  scoring fixed; retain the r4 evidence binding and do not expose
+  adjudicated material to the model prompt.
+- **Decision or promotion rule:** promote only if the declared paired
+  improvement and non-regression threshold against uniform-12 is met.
 - **Boundary on what a positive result would establish:** it would
-  establish label reliability for this selected panel, not selector
-  benefit or general temporal accuracy; those require the still-unrun
-  downstream stages.
+  support one oracle condition on this selected panel, not a deployable
+  selector, general temporal accuracy, or a replacement for uniform-12
+  without further evidence.
 
 ### Fixed-budget temporal selector comparison
 

@@ -3326,9 +3326,9 @@ break-inside: avoid;
 <div class="legacy-fragment-alias-group" aria-hidden="true"><span id="global-default"></span><span id="directed-temporal-sampling"></span><span id="dense-burst-sampling"></span></div>
 <section id="visual-and-temporal-evidence" class="level3">
 <h3 class="anchored" data-anchor-id="visual-and-temporal-evidence"><a href="./research-visual-evidence.html">Visual and temporal evidence</a></h3>
-<p><strong>Working answer:</strong> uniform-12 remains the default; global 24 frames and the tested directed/burst heuristics were not promoted under their tested conditions.</p>
+<p><strong>Working answer:</strong> uniform-12 remains the default; global 24 frames and the tested directed/burst heuristics were not promoted under their tested conditions. A verified r4 representation audit selected oracle-hybrid-12 only for a future matched inference test; Stage 2/model answering has not started.</p>
 <p><strong>Strongest evidence:</strong> <a href="./research-visual-evidence.html#frozen-30-protocol-v2">matched frozen-30 frame-budget comparison; smaller 10-row and 2-row temporal diagnostics</a>.</p>
-<p><strong>Open question:</strong> can a calibrated rubric first establish reliable required-moment labels, then support a fixed-budget selector comparison?</p>
+<p><strong>Open question:</strong> does the r4-selected oracle-hybrid-12 improve answers over uniform-12 in the frozen matched inference comparison?</p>
 </section>
 </div>
 <div class="theme-card">
@@ -3396,10 +3396,10 @@ break-inside: avoid;
 <tr class="even">
 <td><a href="./research-visual-evidence.html#current-working-answer">Visual</a></td>
 <td>Finds the useful moment within a frame budget</td>
-<td><a href="./research-visual-evidence.html#directed-temporal-sampling">Uniform/directed/burst</a>; <a href="./research-visual-evidence.html#temporal-required-moment-oracle">agreement gate</a></td>
-<td><strong>Use:</strong> uniform-12; <strong>Diagnostic:</strong> required-moment rubric needs calibration</td>
+<td><a href="./research-visual-evidence.html#directed-temporal-sampling">Uniform/directed/burst</a>; <a href="./research-visual-evidence.html#temporal-required-moment-oracle">r4 representation audit</a></td>
+<td><strong>Use:</strong> uniform-12; <strong>Selected for test:</strong> oracle-hybrid-12</td>
 <td><strong>Possible:</strong> learned or hybrid retrieval</td>
-<td><a href="./research-visual-evidence.html#required-moments-selector-recall-and-oracle-frames">Calibrate and reannotate</a></td>
+<td><a href="./research-visual-evidence.html#matched-r4-oracle-hybrid-12-inference-comparison">Matched oracle inference</a></td>
 </tr>
 <tr class="odd">
 <td><a href="./research-speech-transcripts.html#current-working-answer">Speech</a></td>
@@ -3458,7 +3458,8 @@ Expand named experiments by theme
 <ul>
 <li><a href="./research-visual-evidence.html#frozen-30-protocol-v2">Frozen-30 protocol v2: global frame budget</a></li>
 <li><a href="./research-visual-evidence.html#directed-temporal-sampling">Directed temporal sampling</a></li>
-<li><a href="./research-visual-evidence.html#temporal-required-moment-oracle">Required-moment oracle diagnostic</a></li>
+<li><a href="./research-visual-evidence.html#temporal-required-moment-oracle">r4 required-moment Stage 1 representation audit</a></li>
+<li><a href="./research-visual-evidence.html#historical-annotation-agreement-stop">Historical primary annotation-agreement stop</a></li>
 <li><a href="./research-visual-evidence.html#dense-burst-sampling">Dense-burst sampling</a></li>
 <li><a href="./research-visual-evidence.html#spatial-crop-diagnostic">Spatial-crop diagnostic</a></li>
 </ul>
@@ -3528,7 +3529,7 @@ Expand named experiments by theme
 <h2 class="anchored" data-anchor-id="branch-complete-next-test-queue">Branch-complete next-test queue</h2>
 <p>These branches are independent choices; their numbering is for reference, not a prescribed research sequence.</p>
 <ol type="1">
-<li><strong>Smarter visual sampling/retrieval:</strong> <a href="./research-visual-evidence.html#required-moments-selector-recall-and-oracle-frames">calibrate the required-moment rubric, reannotate blindly, and retry agreement before fixed-budget selector recall</a>.</li>
+<li><strong>Smarter visual sampling/retrieval:</strong> <a href="./research-visual-evidence.html#matched-r4-oracle-hybrid-12-inference-comparison">run the matched oracle-hybrid-12 versus uniform-12 inference test</a>; Stage 2/model answering has not started.</li>
 <li><strong>Alternative ASR:</strong> <a href="./research-speech-transcripts.html#alternative-or-multilingual-asr-matched-panel">compare an alternative or multilingual ASR on one frozen, source-language-aware panel</a>.</li>
 <li><strong>Human/reference transcript controls:</strong> <a href="./research-speech-transcripts.html#label-blind-human-transcript-upper-bound">produce an independently reviewed, label-blind upper bound</a>.</li>
 <li><strong>Routed native audio/sound:</strong> <a href="./research-native-audio.html#matched-native-audio-specialist-panel">test prosody and non-speech strata with abstention and matched controls</a>.</li>
@@ -3755,7 +3756,7 @@ Expand the six-milestone chronology
 </tr>
 <tr class="even">
 <td>July 30</td>
-<td>Required-moment annotation agreement stop</td>
+<td>Historical required-moment annotation agreement stop; separate r4 Stage 1 representation selection</td>
 <td><a href="./research-visual-evidence.html#temporal-required-moment-oracle">Visual evidence</a></td>
 </tr>
 </tbody>
