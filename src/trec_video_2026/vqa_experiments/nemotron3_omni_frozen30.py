@@ -77,10 +77,9 @@ _TRUST_ROOT_SIGNING_PUBLIC_KEY = (
 _TRUST_ROOT_SIGNING_KEY_FINGERPRINT = (
     "SHA256:+w0DSDr+utElA1L6qX7urVSOt8r9kb221ZA8QDm3Gcc"
 )
-# Set these to the full attestation commit and its exact path blob in a focused
-# post-collection pin commit. Until then, all candidate verification fails closed.
-_TRUST_ROOT_COMMIT: str | None = None
-_TRUST_ROOT_BLOB: str | None = None
+# Pinned after the signed post-collection review attestation commit.
+_TRUST_ROOT_COMMIT: str | None = "10c3747e47a2fe1209401698e402d07b664a8818"
+_TRUST_ROOT_BLOB: str | None = "bd4a518b3e498a09ff6745329c696eb25e6012c3"
 _FROZEN_BACKENDS = frozenset({"runpod", "RunPod", "vastai", "Vast.ai"})
 _FROZEN_MAX_HOURLY_PRICE_USD = 2.0
 _FROZEN_MIN_CPU_COUNT = 8
