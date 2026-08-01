@@ -4,7 +4,7 @@
 
 **Goal:** Determine whether Qwen3.5-4B answers the frozen ten temporal questions better when given the r4-audited `oracle-hybrid-12` frames than when given matched `uniform-12` frames.
 
-**Architecture:** Keep inference and grading in separate ignored/private controllers. The inference controller can read questions and selected frame provenance but has no reference-answer input; it runs a six-output compatibility gate, then a complete 20-output paired run, and freezes predictions. Only after that freeze verifies may a new grading controller load references, create a cryptographically randomized condition-blind packet, collect two independent C/P/W grades plus third-party disagreement adjudication, and unblind exactly once. The existing Visual Evidence claim owns the sanitized result.
+**Architecture:** Keep inference and grading in separate ignored/private controllers. A small staged in-container wrapper applies and attests seed `0`, verifies the canonical request and every mounted PNG byte immediately before generation, and augments the pinned base runner's result with source/prompt/runtime provenance. The inference controller can read questions and selected frame provenance but has no reference-answer input; it runs a six-output compatibility gate, then a complete 20-output paired run, and freezes predictions. Only after that freeze independently verifies may a new grading controller resolve the predeclared ten-file reference allowlist, create a cryptographically randomized condition-blind packet, collect two isolated C/P/W grades plus third-party disagreement adjudication, and unblind exactly once. The existing Visual Evidence claim owns the sanitized result.
 
 **Tech Stack:** Python 3.12, pytest, SHA-256 JSON sidecars, rootless Podman, pinned ROCm Transformers runtime, Qwen3.5-4B, Quarto.
 
@@ -14,19 +14,24 @@
 - Treat `data/vqa/benchmarks/temporal-relevant-scene-oracle-10-r4/` as immutable Stage 1 evidence; never change it.
 - Use a new ignored/private run directory: `data/vqa/benchmarks/temporal-relevant-scene-oracle-10-stage2-r1/`.
 - Bind Stage 1 protocol SHA-256 `514c17d4cd56f05f07d6e0b80219d6edd5f7e53675ce3dfe4838618cf892758c`, extraction manifest file SHA-256 `212a41bfff3f35af3c7fc571c9b7e269b84da11f20821c8ad8ae7234aa7558a5`, selection file SHA-256 `27465d50b80833bf9a488408371fa33908d6c55b7068b1c8050795d3d11097b9`, and sanitized scoreboard file SHA-256 `355b65aab8f5b316b04a623dbce3baabdd300700414986cdf5e643251f656524`.
+- Bind the label-free question-order source `data/vqa/benchmarks/temporal-required-moment-oracle-10/annotation-packet.json` at file SHA-256 `f7e57def9f296f5c1d4804a45b802ed4abee30bf1d7c1690bc9dc5e39861a122`.
+- Bind the staged base runner SHA-256 `a1e0ccbf1bc15fda04fe811110d47eebc1f91b9c23a6a89c457ced0ab98340a6` and prompt/model-message source SHA-256 `ed2b85245551dedc484df8fd2e38a560429c795df89c0a270ed2150e3423c9cb` before any run.
 - Treatment is `oracle-hybrid-12`; control is `uniform-12`; use all ten rows in frozen panel order.
 - Model is `Qwen/Qwen3.5-4B` revision `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`.
 - Runtime is `localhost/trec-vqa-gate-rocm@sha256:510e4ca0a165b60a50abf3a1f24545b8f4bd561f9643f0295e7d82212fe801d5`.
-- Use seed `0`, greedy decoding, `max_new_tokens=32`, and processor bounds `256*256` through `512*512` pixels per frame.
+- Apply Python, NumPy, Torch CPU, and Torch accelerator seed `0` inside the container before model load. Record the applied seed and deterministic-runtime flags in every output. Use greedy decoding, `max_new_tokens=32`, and processor bounds `256*256` through `512*512` pixels per frame.
 - Use the existing temporal question-plus-images prompt with `transcript: null`; do not create, load, mount, or run transcript material.
 - Use only cached local model/runtime assets and rootless ROCm. Set offline variables, disable container networking, do not pull, do not install, and do not expose a service.
 - Compatibility uses the first three paired rows in frozen panel order: exactly six outputs. Full inference is allowed only if all six pass runtime, provenance, completeness, and nonempty-answer checks.
-- Predictions must be complete and frozen before any reference-answer path is discovered, loaded, mounted, or passed to code.
-- Grader packets must contain only an opaque row ID, reference answer, and randomized candidate A/B answers. Keep the condition map separate and withheld until two grade files and any third-party adjudication are frozen.
+- Predictions must be complete and frozen before any predeclared reference-answer file is opened, hashed, parsed, mounted, or passed to code.
+- The non-content-bearing reference locator is predeclared as exactly `data/vqa/2025/training/annotations/{video_id}.json`, limited to the ten frozen video IDs, with answer JSON pointer `/correct_answer`. Knowing this locator is allowed before prediction freeze; opening, hashing, parsing, or mounting any matching file is forbidden until the freeze independently passes. The post-freeze resolver must reject symlinks, path escape, missing/extra IDs, non-object JSON, or an absent/empty/non-string `correct_answer`; no repository exploration is allowed after predictions exist.
+- Freeze this answer-only rubric before inference: `C` means factually and temporally correct and directly answers the question, allowing harmless paraphrase; `P` means some correct relevant content but an essential temporal relation/detail is missing or ambiguous, or correct and incorrect claims are mixed so the reference is not fully satisfied; `W` means incorrect, temporally contradictory, unrelated, or nonresponsive. Every grader/adjudicator material manifest and grade file binds the rubric hash.
+- Grader packets must contain only an opaque row ID, reference answer, and randomized candidate A/B answers. Keep the condition map outside the grader handoff and withheld until two grade files and a conditional adjudication-or-no-disagreement record are frozen. Fresh graders receive the frozen rubric and packet content directly in a no-context prompt, are told not to use tools or inspect the workspace, and receive no run-directory path. Freeze the exact material manifest/brief supplied to each grader and adjudicator.
 - Score `C=2`, `P=1`, `W=0`. The answer gate passes only with at least two improved rows, zero regressed rows, and treatment ordinal gain at least two.
 - Passing is exploratory support for retrieval research only. It does not promote an oracle, change uniform-12 as the baseline, or establish generalization.
 - Refuse overwrite for every evidence artifact. Give every JSON artifact a verified SHA-256 sidecar or a freeze record that binds upstream artifacts.
 - Keep questions, references, answers, predictions, grades, video IDs, frame paths, media, and raw logs out of tracked reports and rendered portal artifacts.
+- A failed compatibility gate or partial full run is a terminal incomplete branch: preserve the denominator and failure record, never load references, never compute C/P/W, and report no completed paired comparison.
 - Share the final visual-test result before any transcript work; this plan ends without transcript work.
 
 ---
@@ -35,6 +40,7 @@
 
 **Files:**
 - Create, ignored/private: `data/vqa/benchmarks/temporal-relevant-scene-oracle-10-stage2-r1/run_relevant_scene_stage2.py`
+- Create, ignored/private staged runtime: `data/vqa/benchmarks/temporal-relevant-scene-oracle-10-stage2-r1/runtime-src/stage2_runner.py`
 - Create, private test: `.superpowers/sdd/2026-08-01-relevant-scene-stage2/task-1-private-test.py`
 - Create, private coordination: `.superpowers/sdd/2026-08-01-relevant-scene-stage2/progress.md`
 - Create, tracked plan: `docs/superpowers/plans/2026-08-01-relevant-scene-stage2.md`
@@ -42,11 +48,12 @@
 **Interfaces:**
 - Consumes immutable r4 `protocol.json`, `selection.json`, `stage1-scoreboard-sanitized.json`, `extracted-frame-manifest.json`, and the prior label-free `annotation-packet.json` question order.
 - Produces `build_protocol() -> dict[str, object]`, `build_requests() -> list[dict[str, object]]`, `validate_runner_results(requests, results) -> list[dict[str, object]]`, and CLI actions `preflight`, `build`, `compatibility`, `run`, `freeze`, and `verify`.
+- The staged `stage2_runner.py` consumes the JSON request batch on stdin, verifies canonical request hashes and PNG bytes, applies seed `0`, invokes the pinned base runner in-process, and emits augmented result JSON on stdout.
 - Writes no reference, grading, or transcript artifact.
 
 - [ ] **Step 1: Write the failing private contract tests**
 
-  Test exact Stage 1 hashes and decision, frozen order, two requests per row, 12 actual extracted frames per request, matching PNG hashes and actual PTS values, within-row unique `(stream_index, frame_index)` identities, `transcript is None`, pinned model/runtime/decoding, and absence of keys containing `reference`, `answer`, `grade`, or `transcript` except the required null `transcript` request field.
+  Test exact Stage 1/question/base-runner/prompt-source hashes and decision, frozen order, two requests per row, 12 actual extracted frames per request, matching PNG hashes and actual PTS values, within-row unique `(stream_index, frame_index)` identities, `transcript is None`, pinned model/runtime/decoding, the frozen answer-only rubric, and absence of keys containing `reference`, `answer`, `grade`, or `transcript` except the required null `transcript` request field.
 
   ```python
   def test_build_requests_is_complete_paired_and_label_isolated(controller):
@@ -77,26 +84,39 @@
 
   Use canonical JSON (`sort_keys=True`, compact separators) for semantic hashes and byte SHA-256 for file bindings. `build_requests()` must join the frozen question order to `extracted-frame-manifest.json` by video ID, emit `uniform-12` then `oracle-hybrid-12` for each row, use `actual_pts_seconds`, and bind each request with `request_sha256`.
 
-  `runner_command()` must mount only the staged temporal runtime source, r4 frame tree, and Hugging Face cache; include:
+  Write the staged wrapper only after a failing wrapper-contract test. The test must run it against a fake in-process base runner so that deleting seed application, changing a PNG byte, changing the canonical request, omitting source/prompt/runtime attestation, or emitting a different pixel bound fails without loading a real model.
 
-  ```text
-  podman run --rm -i --network=none
-    --device /dev/kfd --device /dev/dri --group-add keep-groups
-    -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1
-    -e PYTHONDONTWRITEBYTECODE=1
-    <pinned-image>
-    python -m trec_video_2026.vqa_transformers_runner
-    --model-class image-text
-    --model-id Qwen/Qwen3.5-4B
-    --revision 851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a
+  `runner_command()` must return this exact argv; tests compare the argv list, not a joined substring. It must use the literal pinned image and exactly four read-only mounts: wrapper directory, pinned base runtime source, `frames/full-resolution` only, and the one cached Qwen model repository.
+
+  ```bash
+  podman run --pull=never --rm -i --network=none \
+    --device /dev/kfd --device /dev/dri --group-add keep-groups \
+    -v /home/npatta01/.codex/worktrees/4abe/trec_video_2026/data/vqa/benchmarks/temporal-relevant-scene-oracle-10-stage2-r1/runtime-src:/opt/trec-stage2-wrapper:ro \
+    -v /home/npatta01/.codex/worktrees/4abe/trec_video_2026/data/vqa/benchmarks/runs/native-audio-benchmark-v2/runtime-src:/opt/trec-base:ro \
+    -v /home/npatta01/.codex/worktrees/4abe/trec_video_2026/data/vqa/benchmarks/temporal-relevant-scene-oracle-10-r4/frames/full-resolution:/home/npatta01/.codex/worktrees/4abe/trec_video_2026/data/vqa/benchmarks/temporal-relevant-scene-oracle-10-r4/frames/full-resolution:ro \
+    -v "/home/npatta01/.cache/huggingface/hub/models--Qwen--Qwen3.5-4B:/root/.cache/huggingface/hub/models--Qwen--Qwen3.5-4B:ro" \
+    -w /opt/trec-base \
+    -e PYTHONPATH=/opt/trec-stage2-wrapper:/opt/trec-base \
+    -e PYTHONDONTWRITEBYTECODE=1 \
+    -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 \
+    -e HF_DATASETS_OFFLINE=1 -e PYTHONHASHSEED=0 \
+    -e VQA_RUNTIME_IMAGE=localhost/trec-vqa-gate-rocm@sha256:510e4ca0a165b60a50abf3a1f24545b8f4bd561f9643f0295e7d82212fe801d5 \
+    -e STAGE2_SEED=0 \
+    localhost/trec-vqa-gate-rocm@sha256:510e4ca0a165b60a50abf3a1f24545b8f4bd561f9643f0295e7d82212fe801d5 \
+    python -m stage2_runner \
+    --model-class image-text \
+    --model-id Qwen/Qwen3.5-4B \
+    --revision 851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a \
     --max-new-tokens 32
   ```
 
-  `validate_runner_results()` must require exact count/order, `status == "passed"`, nonempty normalized answer, pinned model/revision, `device == "cuda:0 (ROCm)"`, `precision == "bfloat16"`, a nonempty `runtime_attestation.torch_hip`, CUDA:0 parameter/buffer placement, and request/frame hashes copied from the frozen requests. It must reject any mismatch or overwrite attempt.
+  Before importing/invoking the base runner, the wrapper must call `random.seed(0)`, `numpy.random.seed(0)`, `torch.manual_seed(0)`, and `torch.cuda.manual_seed_all(0)`, then set `torch.backends.cudnn.benchmark = False` and `torch.backends.cudnn.deterministic = True`. It must open each frame through its mounted path immediately before base-runner invocation, SHA-256 the bytes, compare them to the request, and emit the verified hashes. It must emit the canonical request hash, all four seed applications, `PYTHONHASHSEED`, both backend flags, greedy flag, pixel bounds, runtime-image digest, wrapper/base-runner/prompt-source byte hashes, prompt contract ID, and request identity.
+
+  `validate_runner_results()` must require exact count/order, `status == "passed"`, nonempty normalized answer, pinned model/revision, `device == "cuda:0 (ROCm)"`, `precision == "bfloat16"`, a nonempty `runtime_attestation.torch_hip`, CUDA:0 parameter/buffer placement, exact in-container verified request/frame hashes, seed/runtime/source/prompt/pixel attestations, and the literal runtime image. It must reject controller-added provenance that was not emitted by the wrapper, any mismatch, or any overwrite attempt.
 
 - [ ] **Step 4: Verify GREEN and negative boundaries**
 
-  Add cases for altered frame hash, reordered result, empty answer, wrong revision, missing HIP attestation, incomplete pair, reference-like input, existing destination, and any non-null transcript. Run the private test, then:
+  Add cases for altered frame bytes/hash, altered canonical request, reordered result, empty answer, wrong revision, missing/wrong seed attestation, missing HIP attestation, wrong runtime/source/prompt hash, wrong pixel bound, incomplete pair, reference-like input, an argv/mount outside the exact allowlist, forbidden r4 subtrees being reachable, existing destination, and any non-null transcript. Run the private test, then:
 
   ```bash
   uv run pytest -q
@@ -122,7 +142,7 @@
 ### Task 2: Run the compatibility gate, full paired inference, and prediction freeze
 
 **Files:**
-- Create, ignored/private under the Stage 2 run: `protocol.json`, `requests.json`, `preflight.json`, `compatibility-predictions.json`, `predictions.json`, `prediction-freeze.json`, `phase-state/*.json`, and SHA-256 sidecars
+- Create, ignored/private under the Stage 2 run: `grading-rubric.json`, `protocol.json`, `requests.json`, `preflight.json`, `preflight-pass.json`, `compatibility-predictions.json`, `compatibility-pass.json`, `predictions.json`, `prediction-freeze.json`, terminal failure record when applicable, `phase-state/*.json`, and SHA-256 sidecars
 - Create, private: `.superpowers/sdd/2026-08-01-relevant-scene-stage2/task-2-report.md`
 
 **Interfaces:**
@@ -131,13 +151,13 @@
 
 - [ ] **Step 1: Verify the cheapest no-pull preflight**
 
-  Verify the `data` symlink resolves exactly to `/home/npatta01/data/competitions/trec_video_2026/data`; the exact Podman digest exists; Podman is rootless; `/dev/kfd` and `/dev/dri/renderD128` are accessible; the exact model snapshot and all symlink targets exist; runtime source hashes match the protocol; every selected PNG and sidecar verifies; no Stage 2 reference/grade/transcript artifact exists.
+  Verify the `data` symlink resolves exactly to `/home/npatta01/data/competitions/trec_video_2026/data`; the exact Podman digest exists without pull; Podman is rootless; `/dev/kfd` and `/dev/dri/renderD128` are accessible; the exact model snapshot and all symlink targets exist; wrapper/base-runner/prompt-source hashes match the protocol; every selected PNG and sidecar verifies; the question source matches its predeclared hash; the rubric is frozen; the exact argv/mount allowlist passes; forbidden r4 subtrees are not mounted/reachable; and no Stage 2 reference/grade/transcript artifact exists. Freeze an explicit `preflight-pass.json` bound to these checks.
 
   Run controller `preflight`, then `build`. Verify both outputs and sidecars with controller `verify`.
 
 - [ ] **Step 2: Run and freeze the six-output compatibility subset**
 
-  Run controller `compatibility`. It must select the first three panel rows and both conditions in pair order. Require 6/6 passed with exact request/frame provenance, nonempty answers, ROCm/BF16 attestation, correct model/revision/runtime, and no label/reference mount. Freeze the compatibility artifact and re-run controller `verify`.
+  Run controller `compatibility`. It must select the first three panel rows and both conditions in pair order. Require 6/6 passed with exact in-container request/frame provenance, applied seed, runtime/source/prompt/pixel attestations, nonempty answers, ROCm/BF16 attestation, correct model/revision/runtime, and no label/reference mount. Freeze both the compatibility artifact and an explicit `compatibility-pass.json` bound to it, then re-run controller `verify`.
 
   If any check fails, preserve the output and stop Task 2 before full inference.
 
@@ -149,29 +169,33 @@
 
 - [ ] **Step 4: Freeze and independently verify predictions**
 
-  Run controller `freeze`, then `verify`. `prediction-freeze.json` must bind protocol, r4 selection, r4 manifest, requests, runtime source hashes, full prediction bytes, row count `20`, pair count `10`, condition counts `10/10`, and completeness `true`.
+  Run controller `freeze`, then `verify`. `prediction-freeze.json` must bind the exact question-order source/hash, Stage 2 protocol, controller and wrapper bytes, frozen rubric, preflight result/pass, compatibility predictions/pass, phase-state predecessor, r4 protocol/selection/manifest/scoreboard, requests, base-runner/prompt-source hashes, full prediction bytes, row count `20`, pair count `10`, condition counts `10/10`, and completeness `true`.
 
-  Dispatch a fresh read-only reviewer to recompute every hash, verify request/result joins and runtime attestations, scan the inference controller and container mount list for label/reference/transcript access, and write a PASS/FAIL review. Only PASS permits Task 3.
+  Dispatch a fresh read-only reviewer to recompute every hash, verify the predecessor chain, request/result joins and in-container provenance/runtime attestations, scan controller/wrapper/argv/mounts for label/reference/transcript access, and write a PASS/FAIL review. Only PASS permits Task 3.
 
 - [ ] **Step 5: Share the pre-grading checkpoint**
 
   Tell the user whether compatibility passed, whether the full run completed, exact denominator, elapsed wall time, and that predictions are frozen. Do not show model answers or inspect references yet.
+
+- [ ] **Step 6: Freeze a terminal record for any incomplete branch**
+
+  If compatibility is not 6/6 or full inference is not 20/20 with ten pairs, write a hash-bound terminal failure record containing the completed denominator, failed check, preserved artifact hashes, and `references_loaded: false`. Update the sanitized report as **Incomplete** without C/P/W, ordinal scores, or an answer-gate conclusion; then stop this plan.
 
 ### Task 3: Build the post-freeze blind grading controller and adjudicate
 
 **Files:**
 - Create only after Task 2 freeze verification, ignored/private: `data/vqa/benchmarks/temporal-relevant-scene-oracle-10-stage2-r1/grade_relevant_scene_stage2.py`
 - Create only after Task 2 freeze verification, private test: `.superpowers/sdd/2026-08-01-relevant-scene-stage2/task-3-private-test.py`
-- Create, ignored/private: `reference-binding.json`, `blind-grade-packet.json`, `secret-condition-map.json`, `grader-left.json`, `grader-right.json`, `grade-adjudication.json`, `unblind-record.json`, `final-evaluation.json`, and SHA-256 sidecars
+- Create, ignored/private: `reference-binding.json`, `blind-grade-packet.json`, per-grader/adjudicator material manifests and briefs, `secret-condition-map.json`, `grader-left.json`, `grader-right.json`, `grade-adjudication-or-agreement.json`, `unblind-record.json`, `final-evaluation.json`, and SHA-256 sidecars
 - Create, private: `.superpowers/sdd/2026-08-01-relevant-scene-stage2/task-3-report.md`
 
 **Interfaces:**
-- Consumes the independently verified complete prediction freeze before discovering/loading the existing frozen development-reference source.
+- Consumes the independently verified complete prediction freeze before opening/hashing/parsing the predeclared `data/vqa/2025/training/annotations/{video_id}.json` allowlist and `/correct_answer` fields.
 - Produces `build_blind_grade_packet(predictions, references, *, random_bytes) -> tuple[dict, dict]`, `validate_grades(packet, grades) -> dict`, and `evaluate_paired_grades(adjudicated, condition_map) -> dict`.
 
-- [ ] **Step 1: Reverify freeze before reference discovery**
+- [ ] **Step 1: Reverify freeze before resolving the reference allowlist**
 
-  Run the Task 2 controller `verify` in a clean process. Record the successful freeze hash check in phase state. Only then inspect the existing temporal diagnostic scoring workflow to bind the same frozen development-reference source; do not use prior predictions or grades.
+  Run the Task 2 controller `verify` in a clean process. Record the successful freeze hash check in phase state. Only then resolve exactly the ten allowlisted regular files under `data/vqa/2025/training/annotations/`, reject symlinks/path escape/missing/extra IDs/schema violations, read only `/correct_answer`, and freeze each file hash plus the resolver/controller hash. Do not inspect repository scoring workflows, prior predictions, prior grades, or any other annotation key after predictions exist.
 
 - [ ] **Step 2: Write failing blind-packet and decision tests**
 
@@ -188,34 +212,41 @@
       assert "condition" not in json.dumps(packet).lower()
       assert len(secret["rows"]) == 10
 
-  def test_answer_gate_requires_two_gains_no_losses_and_gain_two(grader):
-      result = grader.evaluate_paired_grades(adjudicated(), condition_map())
-      assert result["answer_gate"] == (
-          result["improved_rows"] >= 2
-          and result["regressed_rows"] == 0
-          and result["treatment_ordinal_gain"] >= 2
+  def test_answer_gate_arithmetic_from_literal_pairs(grader):
+      # Control -> treatment: W->P, P->C, C->C, P->P.
+      result = grader.evaluate_paired_grades(
+          literal_adjudicated_pairs([("W", "P"), ("P", "C"), ("C", "C"), ("P", "P")]),
+          literal_condition_map(),
       )
+      assert result["transitions"] == {"W->P": 1, "P->C": 1, "C->C": 1, "P->P": 1}
+      assert result["control"] == {"C": 1, "P": 2, "W": 1, "ordinal": 4}
+      assert result["treatment"] == {"C": 2, "P": 2, "W": 0, "ordinal": 6}
+      assert result["improved_rows"] == 2
+      assert result["regressed_rows"] == 0
+      assert result["tied_rows"] == 2
+      assert result["treatment_ordinal_gain"] == 2
+      assert result["answer_gate"] is True
   ```
 
-  Add negative cases for changed freeze, missing reference, duplicate opaque ID, leaking video/condition identity, non-C/P/W grade, incomplete grader file, same grader identity twice, adjudicator not fresh, adjudicating an agreement row, and unblinding before grade/adjudication freezes.
+  Add fixed-vector tests for SHA-256 domain-separated expansion, row permutation, independent A/B permutation, opaque-ID derivation, bijection, exact stable mapping for fixed random bytes, and every prediction appearing exactly once. Add literal arithmetic fixtures covering `score(C)=2`, `score(P)=1`, `score(W)=0`, every transition direction, per-condition totals, treatment-minus-control gain, and separate answer-gate failures for one improvement, one regression, and gain below two. Add negative cases for changed freeze, non-allowlisted/symlinked/malformed reference, missing reference, duplicate opaque ID, leaking video/condition identity, non-C/P/W grade, incomplete grader file, same grader identity twice, adjudicator not fresh, adjudicating an agreement row, and unblinding before grade/adjudication-or-agreement freezes.
 
 - [ ] **Step 3: Verify RED, implement minimally, and verify GREEN**
 
-  Use `secrets.token_bytes()` for a fresh run seed, SHA-256 counter expansion for deterministic packet construction from that secret, independently permute pair order and candidate A/B order, and store seed/mappings only in `secret-condition-map.json`. Bind the packet and map to prediction-freeze and reference hashes. Never expose panel order, video ID, condition ID, runtime, or frame identity in the grader packet.
+  Use `secrets.token_bytes()` for a fresh run seed and domain-separated SHA-256 counter expansion (`row-order`, `candidate-order`, and `opaque-id` domains) for deterministic construction from that secret. Independently permute pair order and candidate A/B order, prove a one-to-one mapping, and bind packet/map commitments to prediction-freeze, reference, and rubric hashes. Never expose panel order, video ID, condition ID, runtime, or frame identity in the grader packet.
 
   Run the private tests, full tests, Ruff, and `git diff --check`. Review the controller for one-way phase enforcement.
 
 - [ ] **Step 4: Build and freeze the blind packet/map**
 
-  Load only references for the ten frozen questions, verify one-to-one coverage, and write/freeze packet and map. The controller keeps the map withheld. Compute semantic metrics only as a secondary post-freeze diagnostic; never use them to infer C/P/W grades.
+  Load only `/correct_answer` from the ten frozen allowlisted files, verify one-to-one coverage, and write/freeze the packet plus a cryptographic commitment to the withheld map. Keep the actual map outside every grader handoff; it may be stored by the root controller but no grader prompt may name its path. Compute semantic metrics only as a secondary post-freeze diagnostic; never use them to infer C/P/W grades.
 
 - [ ] **Step 5: Collect two independent blind grades**
 
-  Dispatch two fresh graders. Each sees only the rubric and `blind-grade-packet.json`. Grade every candidate answer independently as `C`, `P`, or `W`, with a concise answer-specific rationale. Freeze and validate both complete grade files before comparing them.
+  Build and freeze a separate material manifest/brief for each grader containing the exact rubric hash, packet hash/content, grader identity, and prohibition on tools/workspace inspection. Dispatch two fresh no-context graders by embedding only those materials in the prompt; provide no filesystem/run path. Each grader uses no tools and grades every candidate independently as `C`, `P`, or `W`, with a concise answer-specific rationale. Freeze and validate both complete grade files before comparing them.
 
 - [ ] **Step 6: Adjudicate disagreements without condition identities**
 
-  If the two grade files disagree anywhere, dispatch a fresh third grader with only the disagreement rows, rubric, reference, randomized candidates, and the two rationales. The third grader must not see the map. Freeze adjudication and validate it cannot override agreement rows.
+  If the two grade files disagree anywhere, freeze an adjudicator material manifest/brief and dispatch a fresh no-context third grader with only disagreement rows, rubric, references, randomized candidates, and the two rationales; provide no path and allow no tools. Validate that the adjudicator cannot override agreement rows. If there are no disagreements, freeze an explicit no-disagreement record. In either branch, `grade-adjudication-or-agreement.json` must exist and verify before unblinding.
 
 - [ ] **Step 7: Unblind once and freeze the decision**
 
@@ -229,6 +260,7 @@
 - Modify authored ledger: `docs/project-status/experiment-ledger.qmd`
 - Regenerate only: sibling Markdown and `reports/project-status/*.html`
 - Refresh only sanitized derived HTML: `/home/npatta01/codex-rendered/plans/trecvid-vqa-current-state/`
+- Modify portal index only when the sanitized report changes: `/home/npatta01/codex-rendered/index.html`
 - Create, private: `.superpowers/sdd/2026-08-01-relevant-scene-stage2/task-4-report.md`
 
 **Interfaces:**
@@ -237,22 +269,22 @@
 
 - [ ] **Step 1: Update authored report sources only**
 
-  Record extraction gate, representation gate, 20/20 or actual inference denominator, compatibility outcome, runtime, control/treatment C/P/W, ordinal scores, exact paired transitions, improved/regressed rows, ordinal gain, answer-gate result, evidence validity, decision disposition, immutable private artifact hashes, limitations, and next decision. State explicitly that no transcript was used or run. Do not copy private questions, references, answers, grades, IDs, paths, frames, media, or logs.
+  For a complete verified run, record extraction gate, representation gate, 20/20 inference denominator, compatibility outcome, runtime, control/treatment C/P/W, ordinal scores, exact paired transitions, improved/regressed rows, ordinal gain, answer-gate result, evidence validity, decision disposition, immutable private artifact hashes, limitations, and next decision. For a compatibility failure or partial full run, record only the completed denominator, failed gate, preserved hashes, and **Incomplete** validity; state that references were not loaded and do not report C/P/W, ordinal scores, or an answer-gate conclusion. In every branch state explicitly that no transcript was used or run. Do not copy private questions, references, answers, grades, IDs, paths, frames, media, or logs.
 
 - [ ] **Step 2: Regenerate report outputs**
 
-  Render GFM and HTML from QMD. Never hand-edit generated Markdown or HTML. Update the tailnet-only portal with only sanitized derived HTML.
+  Render GFM and HTML from QMD. Never hand-edit generated Markdown or HTML. Update the tailnet-only portal with only sanitized derived HTML and refresh `/home/npatta01/codex-rendered/index.html` to the intended artifact.
 
 - [ ] **Step 3: Verify and independently review**
 
-  Run focused/full tests, Ruff, `git diff --check`, link/fragment checks, privacy scans, isolated regeneration comparison, responsive/accessibility checks, and exact arithmetic/hash review. Confirm the portal URL returns the intended artifact and the Tailscale mapping remains tailnet-only.
+  Run focused/full tests, Ruff, `git diff --check`, link/fragment checks, privacy scans of both rendered artifact and portal index, isolated regeneration comparison, responsive/accessibility checks, and exact arithmetic/hash review. Confirm the exact HTTPS artifact and portal index return the intended sanitized content and the Tailscale mapping remains tailnet-only.
 
 - [ ] **Step 4: Commit the scoped report and share results**
 
-  Commit only tracked report/QMD/generated surfaces. Share the three gates separately: whether relevant scenes were extracted, whether their relationships were represented, and whether Qwen3.5-4B answered better. Include exact C/P/W transitions and runtime, then stop. Do not begin transcript work.
+  Commit only tracked report/QMD/generated surfaces. Share the three gates separately: whether relevant scenes were extracted, whether their relationships were represented, and—only for a complete graded run—whether Qwen3.5-4B answered better. Include exact C/P/W transitions and runtime only when valid. Handoff both the canonical repository source path and the working tailnet-only portal URL, then stop. Do not begin transcript work.
 
 ## Plan Self-Review
 
-- Spec coverage: all pinned inference values, Stage 1 prerequisite, first-three paired compatibility gate, complete prediction freeze, delayed reference access, two graders plus third adjudicator, one-time unblind, exact answer gate, reporting boundary, and no-transcript stop have explicit tasks.
-- Placeholder scan: no deferred implementation placeholders are present; post-freeze reference discovery is an intentional label-isolation gate tied to the existing scoring workflow.
+- Spec coverage: all pinned inference values including applied/attested seed, Stage 1/question/runtime/prompt prerequisites, exact no-pull mounts, in-container request/PNG provenance, first-three paired compatibility gate, complete expanded prediction freeze, predeclared post-freeze reference allowlist, frozen rubric, isolated two-graders-plus-third adjudicator, one-time unblind, literal answer arithmetic, terminal incomplete branch, portal handoff, and no-transcript stop have explicit tasks.
+- Placeholder scan: no deferred implementation placeholders are present; the exact reference locator/schema is predeclared while all file contents and hashes remain post-freeze only.
 - Type consistency: Task 1 produces the request/prediction freeze consumed by Task 3; Task 3 function and artifact names are consistent through evaluation and reporting.
