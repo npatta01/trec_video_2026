@@ -86,6 +86,7 @@ _FROZEN_MIN_CPU_COUNT = 8
 _FROZEN_MIN_GPU_MEMORY_MIB = 49_152
 _FROZEN_MIN_HOST_MEMORY_MIB = 65_536
 _FROZEN_MIN_DISK_MIB = 102_400
+_FROZEN_SUCCESS_TERMINATION_REASONS = frozenset({("all_jobs_done", "done_by_runner")})
 
 
 @dataclass(frozen=True, init=False)
@@ -1234,6 +1235,10 @@ def derive_operational_evidence(
     elapsed = dstack.get("elapsed_seconds")
     cost = dstack.get("cost")
     price = dstack.get("price")
+    termination_reasons = (
+        dstack.get("termination_reason"),
+        dstack.get("job_termination_reason"),
+    )
     resource_fields = {
         "cpu_count": _FROZEN_MIN_CPU_COUNT,
         "gpu_memory_mib": _FROZEN_MIN_GPU_MEMORY_MIB,
@@ -1247,8 +1252,8 @@ def derive_operational_evidence(
         or dstack.get("status") != "done"
         or type(dstack.get("exit_status")) is not int
         or dstack.get("exit_status") != 0
-        or dstack.get("termination_reason") is not None
-        or dstack.get("job_termination_reason") is not None
+        or termination_reasons
+        not in {(None, None), *_FROZEN_SUCCESS_TERMINATION_REASONS}
         or dstack.get("backend") not in _FROZEN_BACKENDS
         or dstack.get("instance_type") != "NVIDIA L40S"
         or type(dstack.get("gpu_count")) is not int

@@ -1615,6 +1615,36 @@ def test_canonical_frozen30_backends_are_allowed(tmp_path: Path, backend: str) -
 
 
 @pytest.mark.parametrize(
+    ("termination_reason", "job_termination_reason"),
+    [("all_jobs_done", "done_by_runner")],
+)
+def test_successful_runner_termination_reasons_are_allowed(
+    tmp_path: Path,
+    termination_reason: str,
+    job_termination_reason: str,
+) -> None:
+    """Accept dstack's explicit successful terminal reasons, not just nulls."""
+    predictions, manifest, _checksums = _write_candidate(tmp_path)
+    _write_retained_audit(
+        tmp_path,
+        dstack_changes={
+            "termination_reason": termination_reason,
+            "job_termination_reason": job_termination_reason,
+        },
+    )
+    _write_trust_root(tmp_path)
+
+    operational = frozen30.derive_operational_evidence(
+        candidate_predictions_path=predictions,
+        candidate_manifest_path=manifest,
+        audit_bundle_root=_audit_root(tmp_path),
+        privacy_review_path=_write_privacy_review(tmp_path),
+    )
+
+    assert operational.run_status == "done"
+
+
+@pytest.mark.parametrize(
     "mutation",
     ["generic-sidecar", "anchor", "reviewer", "timestamp", "run", "audit"],
 )

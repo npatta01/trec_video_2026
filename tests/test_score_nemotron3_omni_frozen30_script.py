@@ -20,6 +20,12 @@ def _load_script():
     return module
 
 
+def test_meteor_tokenization_is_reproducible_without_nltk_punkt_data() -> None:
+    module = _load_script()
+
+    assert 0.9 < module._meteor("a short answer", "a short answer") <= 1.0
+
+
 def test_script_requires_path_based_freezes_and_private_output_directory() -> None:
     module = _load_script()
     parser = module.build_parser()

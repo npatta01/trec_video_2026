@@ -154,7 +154,21 @@ def _meteor(prediction: str, reference: str) -> float:
     from nltk.tokenize import word_tokenize
     from nltk.translate.meteor_score import meteor_score
 
-    return float(meteor_score([word_tokenize(reference)], word_tokenize(prediction)))
+    class _LexicalWordNet:
+        @staticmethod
+        def synsets(_word: str) -> tuple[object, ...]:
+            return ()
+
+    # Frozen short answers are single-line strings; preserve_line keeps this
+    # scorer deterministic without downloading mutable NLTK sentence data. The
+    # empty WordNet adapter likewise keeps METEOR lexical and self-contained.
+    return float(
+        meteor_score(
+            [word_tokenize(reference, preserve_line=True)],
+            word_tokenize(prediction, preserve_line=True),
+            wordnet=_LexicalWordNet(),
+        )
+    )
 
 
 def _score(args: argparse.Namespace) -> int:
