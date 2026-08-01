@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly EXPECTED_RUN_ID="timelens2-three-condition-frozen30-20260801-a1"
+readonly EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/$EXPECTED_RUN_ID"
+readonly EXPECTED_INPUT_URI="$EXPECTED_REMOTE_URI/input"
+readonly EXPECTED_RUNTIME_IMAGE="docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755"
+readonly EXPECTED_SELECTOR_ID="MCG-NJU/TimeLens2-2B"
+readonly EXPECTED_SELECTOR_REVISION="90dd30b3eeff3520a30c830eff2209f4ad788ca9"
+readonly EXPECTED_ANSWER_ID="Qwen/Qwen3.5-4B"
+readonly EXPECTED_ANSWER_REVISION="851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
+readonly EXPECTED_SOURCE_SHA256="12fb622607be2bff0fc07789f5002fb14a51755bd18adabd9fb508d19230c499"
+readonly TRANSFORMERS_VERSION="4.57.6"
+readonly QWEN_VL_UTILS_VERSION="0.0.14"
+readonly PYAV_VERSION="16.0.1"
+readonly ACCELERATE_VERSION="1.12.0"
+readonly IMAGEIO_FFMPEG_VERSION="0.6.0"
+readonly UV_VERSION="0.11.3"
+readonly HF_CLI_VERSION="1.26.0"
+
+HF_ACCESS_TOKEN="${HF_TOKEN:-}"
+readonly HF_ACCESS_TOKEN
+unset HF_TOKEN
+PYTHON_BIN="${PYTHON_BIN:-/opt/conda/bin/python}"
+INPUT_DIR="/dstack/input"
+OUTPUT_DIR="/dstack/output"
+SELECTOR_MODEL_DIR="/dstack/models/timelens2"
+ANSWER_MODEL_DIR="/dstack/models/qwen35"
+
+die() { echo "error: $*" >&2; exit 2; }
+
+validate_environment() {
+  [[ -n "$HF_ACCESS_TOKEN" ]] || die "HF_TOKEN is unavailable"
+  [[ "$PYTHON_BIN" = /* && -x "$PYTHON_BIN" ]] || die "invalid image interpreter"
+  [[ "${EXPERIMENT_RUN_ID:-}" == "$EXPECTED_RUN_ID" ]] || die "run ID mismatch"
+  [[ "${HF_REMOTE_URI:-}" == "$EXPECTED_REMOTE_URI" ]] || die "remote URI mismatch"
+  [[ "${HF_INPUT_URI:-}" == "$EXPECTED_INPUT_URI" ]] || die "input URI mismatch"
+  [[ "${RUNTIME_IMAGE:-}" == "$EXPECTED_RUNTIME_IMAGE" ]] || die "runtime image mismatch"
+  [[ "${SELECTOR_MODEL_ID:-}" == "$EXPECTED_SELECTOR_ID" ]] || die "selector model mismatch"
+  [[ "${SELECTOR_MODEL_REVISION:-}" == "$EXPECTED_SELECTOR_REVISION" ]] || die "selector revision mismatch"
+  [[ "${ANSWER_MODEL_ID:-}" == "$EXPECTED_ANSWER_ID" ]] || die "answer model mismatch"
+  [[ "${ANSWER_MODEL_REVISION:-}" == "$EXPECTED_ANSWER_REVISION" ]] || die "answer revision mismatch"
+  [[ "${SOURCE_SHA256:-}" == "$EXPECTED_SOURCE_SHA256" ]] || die "source hash mismatch"
+}
+
+bootstrap_runtime() {
+  "$PYTHON_BIN" -m pip install --no-cache-dir --only-binary=:all: "uv==$UV_VERSION"
+  "$PYTHON_BIN" -m pip install --no-cache-dir --only-binary=:all: \
+    "transformers==$TRANSFORMERS_VERSION" "qwen-vl-utils[decord]==$QWEN_VL_UTILS_VERSION" \
+    "av==$PYAV_VERSION" "accelerate==$ACCELERATE_VERSION" \
+    "imageio-ffmpeg==$IMAGEIO_FFMPEG_VERSION"
+  "$PYTHON_BIN" - <<'PY'
+import torch
+assert torch.cuda.is_available() and torch.version.cuda and torch.version.hip is None
+assert torch.cuda.is_bf16_supported()
+PY
+}
+
+hf_cli() { HF_TOKEN="$HF_ACCESS_TOKEN" uvx --from "huggingface-hub==$HF_CLI_VERSION" hf "$@"; }
+
+finalize() {
+  local workload_rc="$1"
+  mkdir -p "$OUTPUT_DIR"
+  "$PYTHON_BIN" - "$OUTPUT_DIR/terminal-status.json" "$workload_rc" <<'PY'
+import json, sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps({"workload_returncode": int(sys.argv[2])}, sort_keys=True) + "\n")
+PY
+  (cd "$OUTPUT_DIR" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum >SHA256SUMS)
+  set +e
+  hf_cli buckets sync "$OUTPUT_DIR" "$EXPECTED_REMOTE_URI/output"
+  local sync_rc=$?
+  set -e
+  (( workload_rc == 0 )) || return "$workload_rc"
+  return "$sync_rc"
+}
+
+run_workload() {
+  validate_environment
+  bootstrap_runtime
+  hf_cli version
+  hf_cli auth whoami
+  local input_listing output_listing
+  input_listing="$(hf_cli buckets list "$EXPECTED_INPUT_URI" --format quiet)" || die "could not list input"
+  [[ -n "$input_listing" ]] || die "immutable input prefix is empty"
+  output_listing="$(hf_cli buckets list "$EXPECTED_REMOTE_URI/output" --format quiet)" || die "could not list output"
+  [[ -z "$output_listing" ]] || die "immutable output prefix already exists"
+  mkdir -p "$INPUT_DIR" "$OUTPUT_DIR" "$SELECTOR_MODEL_DIR" "$ANSWER_MODEL_DIR"
+  hf_cli buckets sync "$EXPECTED_INPUT_URI" "$INPUT_DIR"
+  [[ -f "$INPUT_DIR/SHA256SUMS" ]] || die "input checksums are missing"
+  (cd "$INPUT_DIR" && sha256sum -c SHA256SUMS)
+  if find "$INPUT_DIR" -type l -print -quit | grep -q .; then die "input contains symlink"; fi
+  chmod -R a-w "$INPUT_DIR"
+  hf_cli download "$EXPECTED_SELECTOR_ID" --revision "$EXPECTED_SELECTOR_REVISION" --local-dir "$SELECTOR_MODEL_DIR"
+  hf_cli download "$EXPECTED_ANSWER_ID" --revision "$EXPECTED_ANSWER_REVISION" --local-dir "$ANSWER_MODEL_DIR"
+  local ffmpeg
+  ffmpeg="$("$PYTHON_BIN" -c 'from imageio_ffmpeg import get_ffmpeg_exe; print(get_ffmpeg_exe())')"
+  exec "$PYTHON_BIN" -m trec_video_2026.vqa_experiments.timelens2_three_condition run \
+    --requests "$INPUT_DIR/source/prepared-requests.json" \
+    --expected-source-sha256 "$EXPECTED_SOURCE_SHA256" \
+    --selector-model-dir "$SELECTOR_MODEL_DIR" --answer-model-dir "$ANSWER_MODEL_DIR" \
+    --output-dir "$OUTPUT_DIR" --ffmpeg "$ffmpeg"
+}
+
+case "${1:-}" in
+  validate) validate_environment ;;
+  run)
+    mkdir -p "$OUTPUT_DIR"
+    set +e
+    (set -euo pipefail; run_workload)
+    workload_rc=$?
+    set -e
+    finalize "$workload_rc"
+    ;;
+  *) die "usage: $0 validate|run" ;;
+esac

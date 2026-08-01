@@ -4,18 +4,23 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from pathlib import Path
 
 import pytest
 
 from trec_video_2026.vqa_experiments.timelens2_three_condition import (
     CONDITIONS,
+    ThreeConditionEvidenceStore,
+    build_synthetic_canary_assets,
     build_blind_grading_packet,
     build_three_condition_recipes,
     extract_three_condition_frames,
     freeze_three_condition_inference,
+    make_ffmpeg_frame_decoder,
     prepare_frozen30_source,
     score_blind_judgments,
+    validate_runtime_requests,
 )
 
 
@@ -306,3 +311,69 @@ def test_blind_packet_and_scoring_preserve_condition_hiding(tmp_path: Path) -> N
     assert scored["completion"] == {"accepted": 90, "required": 90}
     assert scored["conditions"]["uniform-12"] == {"C": 30, "P": 0, "W": 0}
     assert scored["paired"]["hybrid-12"] == {"improved": 0, "regressed": 0, "tied": 30}
+
+
+def test_validate_runtime_requests_binds_source_and_media(tmp_path: Path) -> None:
+    source = _source(tmp_path)
+    prepared_path = tmp_path / "prepared.json"
+    prepared = prepare_frozen30_source(
+        source_path=source,
+        dataset_root=tmp_path,
+        output_path=prepared_path,
+        container_media_root=tmp_path / "runtime-media",
+        expected_source_sha256=_sha256(source),
+        duration_provider=lambda _: 12.0,
+    )
+    runtime_media = tmp_path / "runtime-media"
+    runtime_media.mkdir()
+    for row in prepared["requests"]:
+        source_media = tmp_path / "media" / f"{row['video_id']}.mkv"
+        (runtime_media / source_media.name).write_bytes(source_media.read_bytes())
+
+    validated = validate_runtime_requests(
+        prepared_path,
+        expected_source_sha256=_sha256(source),
+    )
+
+    assert len(validated) == 30
+    assert validated[0]["request_sha256"] == prepared["requests"][0]["request_sha256"]
+
+
+def test_evidence_store_persists_partial_completion(tmp_path: Path) -> None:
+    store = ThreeConditionEvidenceStore(tmp_path)
+    store.checkpoint("selector:row-01")
+    store.record_selector_attempt({"status": "accepted", "video_id": "row-01"})
+    store.record_answer_attempt(
+        {"status": "failed", "video_id": "row-01", "condition_id": "uniform-12"}
+    )
+    store.finalize(
+        failure={"phase": "answer:row-01:uniform-12", "error_type": "RuntimeError"}
+    )
+
+    summary = json.loads((tmp_path / "three-condition-summary.json").read_text())
+    assert summary["status"] == "failed"
+    assert summary["completion"] == {
+        "videos": {"accepted": 1, "attempted": 1, "required": 30},
+        "answers": {"accepted": 0, "attempted": 1, "required": 90},
+    }
+    assert (tmp_path / "selector-attempts.jsonl").is_file()
+    assert (tmp_path / "answer-attempts.jsonl").is_file()
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg unavailable")
+def test_synthetic_canary_assets_and_real_frame_decoder(tmp_path: Path) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    assert ffmpeg is not None
+    assets = build_synthetic_canary_assets(
+        output_dir=tmp_path,
+        ffmpeg_executable=ffmpeg,
+    )
+    assert Path(assets["video_path"]).is_file()
+    assert len(assets["frame_paths"]) == 18
+    decoder = make_ffmpeg_frame_decoder(ffmpeg)
+    decoded = tmp_path / "decoded.png"
+
+    decoder(Path(assets["video_path"]), 1.0, decoded)
+
+    assert decoded.is_file()
+    assert decoded.stat().st_size > 0

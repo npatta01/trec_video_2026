@@ -2,20 +2,36 @@
 
 from __future__ import annotations
 
+import argparse
+import gc
 import hashlib
 import json
 import math
 import random
 import re
+import subprocess
+import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from .timelens2_selector import (
+    MODEL_ID as SELECTOR_MODEL_ID,
+    MODEL_REVISION as SELECTOR_MODEL_REVISION,
+    RUNTIME_IMAGE,
     _video_duration,
+    build_messages,
+    build_normalized_interval_result,
     build_hybrid_timestamps,
     canonical_sha256,
     normalize_intervals,
+    parse_raw_interval_result,
+)
+from trec_video_2026.vqa_transformers_runner import (
+    MAX_PIXELS_PER_FRAME,
+    MIN_PIXELS_PER_FRAME,
+    generate_answer,
+    validate_bfloat16_accelerator,
 )
 
 CONDITIONS = ("uniform-12", "hybrid-12", "combined-18")
@@ -28,6 +44,8 @@ REQUEST_SCHEMA_VERSION = "timelens2-three-condition-requests-v1"
 FREEZE_SCHEMA_VERSION = "timelens2-three-condition-inference-freeze-v1"
 EXPECTED_ROWS = 30
 EXPECTED_ANSWERS = EXPECTED_ROWS * len(CONDITIONS)
+ANSWER_MODEL_ID = "Qwen/Qwen3.5-4B"
+ANSWER_MODEL_REVISION = "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _FORBIDDEN_LABEL_KEYS = {
     "annotation",
@@ -59,6 +77,181 @@ def _write_json(path: Path, value: object) -> None:
         json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+
+def _write_jsonl(path: Path, rows: Sequence[Mapping[str, object]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "".join(
+            json.dumps(dict(row), ensure_ascii=False, sort_keys=True) + "\n"
+            for row in rows
+        ),
+        encoding="utf-8",
+    )
+
+
+class ThreeConditionEvidenceStore:
+    """Incrementally retain phase, attempt, and completion evidence."""
+
+    def __init__(self, output_dir: Path) -> None:
+        self.output_dir = output_dir
+        self.phase = "initializing"
+        self.selector_attempts: list[dict[str, object]] = []
+        self.answer_attempts: list[dict[str, object]] = []
+        self._persist(status="running", failure=None)
+
+    def checkpoint(self, phase: str) -> None:
+        if not isinstance(phase, str) or not phase:
+            raise ValueError("phase must be non-empty text")
+        self.phase = phase
+        self._persist(status="running", failure=None)
+
+    def record_selector_attempt(self, attempt: Mapping[str, object]) -> None:
+        self.selector_attempts.append(dict(attempt))
+        self._persist(status="running", failure=None)
+
+    def record_answer_attempt(self, attempt: Mapping[str, object]) -> None:
+        self.answer_attempts.append(dict(attempt))
+        self._persist(status="running", failure=None)
+
+    def _completion(self) -> dict[str, dict[str, int]]:
+        return {
+            "videos": {
+                "accepted": sum(
+                    row.get("status") == "accepted" for row in self.selector_attempts
+                ),
+                "attempted": len(self.selector_attempts),
+                "required": EXPECTED_ROWS,
+            },
+            "answers": {
+                "accepted": sum(
+                    row.get("status") == "passed" for row in self.answer_attempts
+                ),
+                "attempted": len(self.answer_attempts),
+                "required": EXPECTED_ANSWERS,
+            },
+        }
+
+    def _persist(
+        self, *, status: str, failure: Mapping[str, object] | None
+    ) -> None:
+        _write_jsonl(self.output_dir / "selector-attempts.jsonl", self.selector_attempts)
+        _write_jsonl(self.output_dir / "answer-attempts.jsonl", self.answer_attempts)
+        _write_json(
+            self.output_dir / "phase-status.json",
+            {
+                "status": status,
+                "phase": self.phase,
+                "completion": self._completion(),
+                "failure": dict(failure) if failure is not None else None,
+            },
+        )
+
+    def finalize(self, *, failure: Mapping[str, object] | None) -> None:
+        status = "failed" if failure is not None else "completed"
+        self._persist(status=status, failure=failure)
+        _write_json(
+            self.output_dir / "three-condition-summary.json",
+            {
+                "status": status,
+                "phase": self.phase,
+                "completion": self._completion(),
+                "failure": dict(failure) if failure is not None else None,
+            },
+        )
+
+
+def make_ffmpeg_frame_decoder(
+    ffmpeg_executable: str,
+) -> Callable[[Path, float, Path], None]:
+    """Return the exact one-frame decoder used by the CUDA workload."""
+
+    executable = Path(ffmpeg_executable)
+    if not executable.is_absolute() or not executable.is_file():
+        raise ValueError("ffmpeg executable must be an absolute file")
+
+    def decode(media_path: Path, timestamp: float, output_path: Path) -> None:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            [
+                str(executable),
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-ss",
+                f"{timestamp:.6f}",
+                "-i",
+                str(media_path),
+                "-map",
+                "0:v:0",
+                "-frames:v",
+                "1",
+                "-y",
+                str(output_path),
+            ],
+            check=True,
+        )
+
+    return decode
+
+
+def _video_frame_timestamps(media_path: Path) -> list[float]:
+    import av
+
+    timestamps: list[float] = []
+    with av.open(str(media_path)) as container:
+        if not container.streams.video:
+            raise ValueError("media has no video stream")
+        stream = container.streams.video[0]
+        for frame in container.decode(stream):
+            if frame.pts is not None and stream.time_base is not None:
+                timestamps.append(float(frame.pts * stream.time_base))
+    if not timestamps:
+        raise ValueError("media has no timestamped video frames")
+    return timestamps
+
+
+def build_synthetic_canary_assets(
+    *, output_dir: Path, ffmpeg_executable: str
+) -> dict[str, object]:
+    """Generate a tiny non-private video and 18 frames for runtime validation."""
+
+    executable = Path(ffmpeg_executable)
+    if not executable.is_absolute() or not executable.is_file():
+        raise ValueError("ffmpeg executable must be an absolute file")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    video_path = output_dir / "synthetic-canary.mp4"
+    subprocess.run(
+        [
+            str(executable),
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=size=320x240:rate=6",
+            "-t",
+            "3",
+            "-pix_fmt",
+            "yuv420p",
+            "-y",
+            str(video_path),
+        ],
+        check=True,
+    )
+    decoder = make_ffmpeg_frame_decoder(str(executable))
+    frame_paths = []
+    timestamps = [3.0 * (index + 0.5) / 18 for index in range(18)]
+    for index, timestamp in enumerate(timestamps, start=1):
+        path = output_dir / "synthetic-frames" / f"frame-{index:02d}.png"
+        decoder(video_path, timestamp, path)
+        frame_paths.append(str(path.resolve()))
+    return {
+        "video_path": str(video_path.resolve()),
+        "frame_paths": frame_paths,
+        "frame_timestamps": timestamps,
+    }
 
 
 def _reject_label_keys(value: object, *, location: str = "source") -> None:
@@ -148,6 +341,57 @@ def prepare_frozen30_source(
     }
     _write_json(output_path, prepared)
     return prepared
+
+
+def validate_runtime_requests(
+    path: Path, *, expected_source_sha256: str
+) -> list[dict[str, object]]:
+    """Validate the exact prepared source and runtime media before model load."""
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or payload.get("schema_version") != REQUEST_SCHEMA_VERSION:
+        raise ValueError("runtime request manifest has the wrong schema")
+    if payload.get("source_sha256") != expected_source_sha256:
+        raise ValueError("runtime requests do not bind the expected source")
+    requests = payload.get("requests")
+    if not isinstance(requests, list) or len(requests) != EXPECTED_ROWS:
+        raise ValueError("runtime request manifest must contain exactly 30 rows")
+    required = {
+        "request_id",
+        "video_id",
+        "category",
+        "query",
+        "duration_seconds",
+        "media_sha256",
+        "media_path",
+        "source_sha256",
+        "request_sha256",
+    }
+    seen: set[str] = set()
+    validated: list[dict[str, object]] = []
+    for index, request in enumerate(requests, start=1):
+        if not isinstance(request, dict) or set(request) != required:
+            raise ValueError(f"runtime request {index} has the wrong schema")
+        _reject_label_keys(request, location=f"runtime request {index}")
+        video_id = request.get("video_id")
+        if not isinstance(video_id, str) or not video_id or video_id in seen:
+            raise ValueError("runtime requests require 30 distinct identities")
+        seen.add(video_id)
+        if request.get("source_sha256") != expected_source_sha256:
+            raise ValueError(f"runtime request {index} source hash mismatch")
+        identity = {key: value for key, value in request.items() if key != "request_sha256"}
+        if request.get("request_sha256") != canonical_sha256(identity):
+            raise ValueError(f"runtime request {index} hash mismatch")
+        media_path = Path(str(request.get("media_path")))
+        if not media_path.is_absolute() or not media_path.is_file():
+            raise ValueError(f"runtime request {index} media is missing")
+        if request.get("media_sha256") != _file_sha256(media_path):
+            raise ValueError(f"runtime request {index} media hash mismatch")
+        duration = float(request.get("duration_seconds", 0.0))
+        if not math.isfinite(duration) or duration <= 0:
+            raise ValueError(f"runtime request {index} duration is invalid")
+        validated.append(request)
+    return validated
 
 
 def _uniform_midpoints(duration: float, count: int) -> list[float]:
@@ -591,3 +835,492 @@ def score_blind_judgments(
         "conditions": counts,
         "paired": paired,
     }
+
+
+def _selector_completion(
+    *,
+    processor: Any,
+    model: Any,
+    media_path: Path,
+    query: str,
+    process_vision_info: Callable[..., Any],
+    torch: Any,
+    max_new_tokens: int = 1024,
+) -> str:
+    messages = build_messages(media_path, query)
+    rendered = processor.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True,
+    )
+    images, videos, video_kwargs = process_vision_info(
+        messages,
+        image_patch_size=16,
+        return_video_kwargs=True,
+        return_video_metadata=True,
+    )
+    if videos is not None:
+        videos, video_metadatas = zip(*videos, strict=True)
+        videos, video_metadatas = list(videos), list(video_metadatas)
+    else:
+        video_metadatas = None
+    inputs = processor(
+        text=rendered,
+        images=images,
+        videos=videos,
+        video_metadata=video_metadatas,
+        do_resize=False,
+        return_tensors="pt",
+        **video_kwargs,
+    ).to(model.device)
+    torch.manual_seed(20260801)
+    with torch.inference_mode():
+        generated = model.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            do_sample=True,
+            temperature=0.01,
+            top_p=0.001,
+            top_k=1,
+            repetition_penalty=1.0,
+        )
+    answer_ids = [
+        output[len(input_ids) :]
+        for input_ids, output in zip(inputs.input_ids, generated, strict=True)
+    ]
+    return processor.batch_decode(
+        answer_ids,
+        skip_special_tokens=True,
+        clean_up_tokenization_spaces=False,
+    )[0]
+
+
+def _validate_cuda(torch: Any) -> None:
+    if not torch.cuda.is_available() or not torch.version.cuda:
+        raise RuntimeError("NVIDIA CUDA is unavailable")
+    if torch.version.hip is not None:
+        raise RuntimeError("non-CUDA accelerator runtime is not permitted")
+    if not torch.cuda.is_bf16_supported():
+        raise RuntimeError("GPU lacks bfloat16 support")
+
+
+def run_canary(
+    *,
+    selector_model_dir: Path,
+    answer_model_dir: Path,
+    output_dir: Path,
+    ffmpeg_executable: str,
+) -> int:
+    """Exercise exact selector and 12/18-frame answer paths on synthetic media."""
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    failure: dict[str, object] | None = None
+    result: dict[str, object] = {
+        "schema_version": "timelens2-three-condition-canary-v1",
+        "status": "running",
+        "selector_model_id": SELECTOR_MODEL_ID,
+        "selector_model_revision": SELECTOR_MODEL_REVISION,
+        "answer_model_id": ANSWER_MODEL_ID,
+        "answer_model_revision": ANSWER_MODEL_REVISION,
+        "runtime_image": RUNTIME_IMAGE,
+    }
+    try:
+        import torch
+        import transformers
+        from qwen_vl_utils import process_vision_info
+        from transformers import AutoModelForImageTextToText, AutoProcessor
+
+        _validate_cuda(torch)
+        assets = build_synthetic_canary_assets(
+            output_dir=output_dir / "synthetic",
+            ffmpeg_executable=ffmpeg_executable,
+        )
+        selector_processor = AutoProcessor.from_pretrained(
+            selector_model_dir,
+            local_files_only=True,
+            fix_mistral_regex=True,
+        )
+        selector_model = AutoModelForImageTextToText.from_pretrained(
+            selector_model_dir,
+            torch_dtype="auto",
+            device_map="auto",
+            attn_implementation="sdpa",
+            local_files_only=True,
+        )
+        torch.cuda.reset_peak_memory_stats()
+        started = time.monotonic()
+        selector_output = _selector_completion(
+            processor=selector_processor,
+            model=selector_model,
+            media_path=Path(str(assets["video_path"])),
+            query="Where do visible colors or patterns change?",
+            process_vision_info=process_vision_info,
+            torch=torch,
+            max_new_tokens=128,
+        )
+        if not selector_output.strip():
+            raise RuntimeError("selector canary returned empty output")
+        result["selector"] = {
+            "raw_output": selector_output,
+            "latency_seconds": time.monotonic() - started,
+            "peak_memory_bytes": int(torch.cuda.max_memory_allocated()),
+            "device": torch.cuda.get_device_name(0),
+            "precision": str(selector_model.dtype).removeprefix("torch."),
+        }
+        del selector_model, selector_processor
+        gc.collect()
+        torch.cuda.empty_cache()
+
+        answer_processor = AutoProcessor.from_pretrained(
+            answer_model_dir,
+            local_files_only=True,
+            min_pixels=MIN_PIXELS_PER_FRAME,
+            max_pixels=MAX_PIXELS_PER_FRAME,
+        )
+        answer_model = AutoModelForImageTextToText.from_pretrained(
+            answer_model_dir,
+            local_files_only=True,
+            dtype=torch.bfloat16,
+            device_map="cuda:0",
+            attn_implementation="sdpa",
+        )
+        device, precision, attestation = validate_bfloat16_accelerator(
+            answer_model, torch
+        )
+        answer_results = []
+        all_paths = [Path(value) for value in assets["frame_paths"]]
+        all_timestamps = [float(value) for value in assets["frame_timestamps"]]
+        for count in (12, 18):
+            torch.cuda.reset_peak_memory_stats()
+            started = time.monotonic()
+            answer = generate_answer(
+                processor=answer_processor,
+                model=answer_model,
+                question="What visual pattern is shown?",
+                frame_paths=tuple(all_paths[:count]),
+                frame_timestamps=tuple(all_timestamps[:count]),
+                transcript=None,
+                max_new_tokens=32,
+            )
+            if not answer.strip():
+                raise RuntimeError(f"{count}-frame canary returned empty answer")
+            answer_results.append(
+                {
+                    "frame_count": count,
+                    "answer": answer,
+                    "latency_seconds": time.monotonic() - started,
+                    "peak_memory_bytes": int(torch.cuda.max_memory_allocated()),
+                    "device": device,
+                    "precision": precision,
+                }
+            )
+        result.update(
+            {
+                "status": "passed",
+                "transformers_version": transformers.__version__,
+                "runtime_attestation": attestation,
+                "answers": answer_results,
+            }
+        )
+    except Exception as error:  # noqa: BLE001 - durable canary failure
+        failure = {
+            "error_type": type(error).__name__,
+            "error_message": str(error),
+        }
+        result.update({"status": "failed", "failure": failure})
+    finally:
+        _write_json(output_dir / "canary.json", result)
+    return 0 if failure is None else 1
+
+
+def run_three_condition_inference(
+    *,
+    requests_path: Path,
+    expected_source_sha256: str,
+    selector_model_dir: Path,
+    answer_model_dir: Path,
+    output_dir: Path,
+    ffmpeg_executable: str,
+) -> int:
+    """Run 30 selectors and 90 answers without accepting any label input."""
+
+    store = ThreeConditionEvidenceStore(output_dir)
+    failure: dict[str, object] | None = None
+    succeeded = False
+    try:
+        store.checkpoint("runtime-imports")
+        import torch
+        import transformers
+        from qwen_vl_utils import process_vision_info
+        from transformers import AutoModelForImageTextToText, AutoProcessor
+
+        store.checkpoint("cuda-validation")
+        _validate_cuda(torch)
+        store.checkpoint("request-validation")
+        requests = validate_runtime_requests(
+            requests_path,
+            expected_source_sha256=expected_source_sha256,
+        )
+        decoder = make_ffmpeg_frame_decoder(ffmpeg_executable)
+
+        store.checkpoint("selector:model-load")
+        selector_model = AutoModelForImageTextToText.from_pretrained(
+            selector_model_dir,
+            torch_dtype="auto",
+            device_map="auto",
+            attn_implementation="sdpa",
+            local_files_only=True,
+        )
+        selector_processor = AutoProcessor.from_pretrained(
+            selector_model_dir,
+            local_files_only=True,
+            fix_mistral_regex=True,
+        )
+        raw_results: list[dict[str, object]] = []
+        normalized_results: list[dict[str, object]] = []
+        for request in requests:
+            request_id = str(request["request_id"])
+            store.checkpoint(f"selector:{request_id}:preprocess")
+            try:
+                media_path = Path(str(request["media_path"]))
+                measured_duration = _video_duration(media_path)
+                frozen_duration = float(request["duration_seconds"])
+                if abs(measured_duration - frozen_duration) > 0.001:
+                    raise ValueError("runtime duration differs from frozen duration")
+                torch.cuda.reset_peak_memory_stats()
+                started = time.monotonic()
+                raw_output = _selector_completion(
+                    processor=selector_processor,
+                    model=selector_model,
+                    media_path=media_path,
+                    query=str(request["query"]),
+                    process_vision_info=process_vision_info,
+                    torch=torch,
+                )
+                latency = time.monotonic() - started
+                metadata = {
+                    "request_sha256": request["request_sha256"],
+                    "model_id": SELECTOR_MODEL_ID,
+                    "model_revision": SELECTOR_MODEL_REVISION,
+                    "runtime_image": RUNTIME_IMAGE,
+                    "transformers_version": transformers.__version__,
+                    "latency_seconds": latency,
+                    "peak_memory_bytes": int(torch.cuda.max_memory_allocated()),
+                    "device": torch.cuda.get_device_name(0),
+                    "precision": str(selector_model.dtype).removeprefix("torch."),
+                }
+                raw = parse_raw_interval_result(
+                    request_id=request_id,
+                    video_id=str(request["video_id"]),
+                    duration_seconds=measured_duration,
+                    raw_output=raw_output,
+                    metadata=metadata,
+                )
+                normalized = build_normalized_interval_result(raw)
+                normalized["request_sha256"] = request["request_sha256"]
+                raw_results.append(raw)
+                normalized_results.append(normalized)
+                store.record_selector_attempt({"status": "accepted", **raw})
+                _write_jsonl(output_dir / "raw-results.jsonl", raw_results)
+                _write_jsonl(
+                    output_dir / "normalized-results.jsonl", normalized_results
+                )
+            except Exception as error:  # noqa: BLE001 - retain per-row failure
+                store.record_selector_attempt(
+                    {
+                        "status": "rejected",
+                        "request_id": request_id,
+                        "video_id": request["video_id"],
+                        "request_sha256": request["request_sha256"],
+                        "error_type": type(error).__name__,
+                        "error_message": str(error),
+                    }
+                )
+            finally:
+                gc.collect()
+                torch.cuda.empty_cache()
+        del selector_model, selector_processor
+        gc.collect()
+        torch.cuda.empty_cache()
+        if len(raw_results) != EXPECTED_ROWS:
+            raise RuntimeError("selector phase did not complete all 30 rows")
+
+        store.checkpoint("frame-recipes")
+        recipes: list[dict[str, object]] = []
+        for request, normalized in zip(requests, normalized_results, strict=True):
+            conditions = build_three_condition_recipes(
+                duration_seconds=float(normalized["duration_seconds"]),
+                normalized_intervals=normalized["intervals"],  # type: ignore[arg-type]
+            )
+            recipes.append({"video_id": request["video_id"], "conditions": conditions})
+            _write_jsonl(output_dir / "frame-recipes.jsonl", recipes)
+
+        store.checkpoint("frame-extraction")
+        frame_manifests: list[dict[str, object]] = []
+        for request, recipe in zip(requests, recipes, strict=True):
+            manifest = extract_three_condition_frames(
+                video_id=str(request["video_id"]),
+                media_path=Path(str(request["media_path"])),
+                recipes=recipe["conditions"],  # type: ignore[arg-type]
+                output_dir=output_dir / "frames" / str(request["request_id"]),
+                frame_decoder=decoder,
+                frame_timestamps_provider=_video_frame_timestamps,
+            )
+            frame_manifests.append(manifest)
+            _write_jsonl(output_dir / "frame-manifests.jsonl", frame_manifests)
+
+        store.checkpoint("answer:model-load")
+        answer_processor = AutoProcessor.from_pretrained(
+            answer_model_dir,
+            local_files_only=True,
+            min_pixels=MIN_PIXELS_PER_FRAME,
+            max_pixels=MAX_PIXELS_PER_FRAME,
+        )
+        answer_model = AutoModelForImageTextToText.from_pretrained(
+            answer_model_dir,
+            local_files_only=True,
+            dtype=torch.bfloat16,
+            device_map="cuda:0",
+            attn_implementation="sdpa",
+        )
+        answer_device, answer_precision, answer_attestation = (
+            validate_bfloat16_accelerator(answer_model, torch)
+        )
+        frame_by_video = {str(row["video_id"]): row for row in frame_manifests}
+        answers: list[dict[str, object]] = []
+        for request in requests:
+            video_id = str(request["video_id"])
+            for condition in CONDITIONS:
+                store.checkpoint(f"answer:{request['request_id']}:{condition}")
+                frames = frame_by_video[video_id]["conditions"][condition]  # type: ignore[index]
+                torch.cuda.reset_peak_memory_stats()
+                started = time.monotonic()
+                try:
+                    answer_text = generate_answer(
+                        processor=answer_processor,
+                        model=answer_model,
+                        question=str(request["query"]),
+                        frame_paths=tuple(Path(str(row["path"])) for row in frames),
+                        frame_timestamps=tuple(
+                            float(row["timestamp_seconds"]) for row in frames
+                        ),
+                        transcript=None,
+                        max_new_tokens=32,
+                    )
+                    result: dict[str, object] = {
+                        "video_id": video_id,
+                        "condition_id": condition,
+                        "request_sha256": request["request_sha256"],
+                        "status": "passed",
+                        "answer": answer_text,
+                        "model_id": ANSWER_MODEL_ID,
+                        "model_revision": ANSWER_MODEL_REVISION,
+                        "runtime_image": RUNTIME_IMAGE,
+                        "runtime": (
+                            f"transformers {transformers.__version__}; "
+                            f"torch {torch.__version__}"
+                        ),
+                        "latency_seconds": time.monotonic() - started,
+                        "peak_memory_bytes": int(torch.cuda.max_memory_allocated()),
+                        "device": answer_device,
+                        "precision": answer_precision,
+                        "runtime_attestation": answer_attestation,
+                    }
+                    answers.append(result)
+                except Exception as error:  # noqa: BLE001 - retain answer failure
+                    result = {
+                        "video_id": video_id,
+                        "condition_id": condition,
+                        "request_sha256": request["request_sha256"],
+                        "status": "failed",
+                        "answer": None,
+                        "model_id": ANSWER_MODEL_ID,
+                        "model_revision": ANSWER_MODEL_REVISION,
+                        "latency_seconds": time.monotonic() - started,
+                        "peak_memory_bytes": int(torch.cuda.max_memory_allocated()),
+                        "device": answer_device,
+                        "precision": answer_precision,
+                        "error_type": type(error).__name__,
+                        "error_message": str(error),
+                    }
+                store.record_answer_attempt(result)
+                _write_jsonl(output_dir / "answers.jsonl", answers)
+                gc.collect()
+                torch.cuda.empty_cache()
+        del answer_model, answer_processor
+        gc.collect()
+        torch.cuda.empty_cache()
+
+        store.checkpoint("inference-freeze")
+        freeze_three_condition_inference(
+            requests=requests,
+            raw_results=raw_results,
+            normalized_results=normalized_results,
+            recipes=recipes,
+            frame_manifests=frame_manifests,
+            answers=answers,
+            output_path=output_dir / "inference-freeze.json",
+        )
+        succeeded = True
+    except Exception as error:  # noqa: BLE001 - structured terminal failure
+        failure = {
+            "phase": store.phase,
+            "error_type": type(error).__name__,
+            "error_message": str(error),
+        }
+    finally:
+        store.finalize(failure=failure)
+    return 0 if succeeded else 1
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    prepare = commands.add_parser("prepare")
+    prepare.add_argument("--source", type=Path, required=True)
+    prepare.add_argument("--dataset-root", type=Path, required=True)
+    prepare.add_argument("--output", type=Path, required=True)
+    prepare.add_argument("--container-media-root", type=Path, required=True)
+    prepare.add_argument("--expected-source-sha256", required=True)
+    for name in ("canary", "run"):
+        command = commands.add_parser(name)
+        command.add_argument("--selector-model-dir", type=Path, required=True)
+        command.add_argument("--answer-model-dir", type=Path, required=True)
+        command.add_argument("--output-dir", type=Path, required=True)
+        command.add_argument("--ffmpeg", required=True)
+        if name == "run":
+            command.add_argument("--requests", type=Path, required=True)
+            command.add_argument("--expected-source-sha256", required=True)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    if args.command == "prepare":
+        prepare_frozen30_source(
+            source_path=args.source,
+            dataset_root=args.dataset_root,
+            output_path=args.output,
+            container_media_root=args.container_media_root,
+            expected_source_sha256=args.expected_source_sha256,
+        )
+        return 0
+    if args.command == "canary":
+        return run_canary(
+            selector_model_dir=args.selector_model_dir,
+            answer_model_dir=args.answer_model_dir,
+            output_dir=args.output_dir,
+            ffmpeg_executable=args.ffmpeg,
+        )
+    return run_three_condition_inference(
+        requests_path=args.requests,
+        expected_source_sha256=args.expected_source_sha256,
+        selector_model_dir=args.selector_model_dir,
+        answer_model_dir=args.answer_model_dir,
+        output_dir=args.output_dir,
+        ffmpeg_executable=args.ffmpeg,
+    )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
