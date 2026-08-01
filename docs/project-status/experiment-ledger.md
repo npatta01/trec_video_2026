@@ -225,6 +225,8 @@ Expand named experiments by theme
 - [Three-video compatibility
   gate](research-models.md#compatibility-gate-models)
 - [Failure-selected Qwen3.6 screen](research-models.md#failure-panel)
+- [VideoChat3 Temporal/Action specialist
+  screen](research-models.md#videochat3-temporal-specialist)
 - [Phi and Gemma semantic
   screen](research-models.md#phi-gemma-semantic-stop)
 - [MiniCPM-o 4.5 fast
@@ -433,6 +435,13 @@ provenance, not substitutes for the current condition-bound conclusions.
   recovery [PR \#20 · Issue/PR history ·
   GitHub](https://github.com/npatta01/trec_video_2026/pull/20) preserve
   the gate-specific trail.
+- **VideoChat3 Temporal/Action specialist screen — [Models and
+  adaptation](research-models.md#videochat3-temporal-specialist):** the
+  [sanitized terminal retired record · Evidence of record ·
+  GitHub](https://github.com/npatta01/trec_video_2026/blob/b8f80f00fa97fbdaddd08a143b4809a38809e456/dstack/videochat3-24frame-dev-20260801-a1.retired.yml)
+  preserves both fixed-frame conclusions, terminal completion and cost,
+  evidence validity, and the condition-bound negative decision without
+  private rows, answers, or artifact locators.
 
 </details>
 
@@ -461,14 +470,14 @@ Expand six supersession records
 
 ### Chronology index
 
-Five milestones preserve the date-ordered audit trail without making
+Six milestones preserve the date-ordered audit trail without making
 chronology the primary reading path.
 
 <details>
 
 <summary>
 
-Expand the five-milestone chronology
+Expand the six-milestone chronology
 </summary>
 
 | Date | Milestone | Thematic home |
@@ -478,5 +487,6 @@ Expand the five-milestone chronology
 | July 21 | Audio/spatial diagnostics and frozen-30 | [Visual evidence](research-visual-evidence.md); [native audio](research-native-audio.md) |
 | July 24 | Routing, temporal, and model diagnostics | [Routing](research-routing.md); [visual evidence](research-visual-evidence.md); [models](research-models.md) |
 | July 25 | Strict Qwen3-Omni quality result | [Models and adaptation](research-models.md#qwen3-omni-quality) |
+| August 1 | VideoChat3 Temporal/Action specialist screen | [Models and adaptation](research-models.md#videochat3-temporal-specialist) |
 
 </details>
