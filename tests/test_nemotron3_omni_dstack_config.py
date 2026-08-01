@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
 from pathlib import Path
 
 from trec_video_2026.vqa_experiments.nemotron3_omni_pilot import (
+    EXPANDED_ROWS,
+    FROZEN30_ROWS,
     MODEL_ID,
     MODEL_REVISION,
     RUNTIME_IMAGE,
@@ -27,6 +30,9 @@ EXPANDED12_C1_ID = "nemotron3-omni-expanded12-20260730-c1"
 EXPANDED12_CANARY_D1_ID = "nemotron3-omni-expanded12-canary-20260731-d1"
 EXPANDED12_CANARY_D1_SCHEDULER_ID = "nemotron3-expanded12-canary-20260731-d1"
 EXPANDED12_D1_ID = "nemotron3-omni-expanded12-20260731-d1"
+FROZEN30_CANARY_ID = "nemotron3-omni-frozen30-canary-20260801-a1"
+FROZEN30_CANARY_SCHEDULER_ID = "nemotron3-f30-canary-20260801-a1"
+FROZEN30_ID = "nemotron3-omni-frozen30-20260801-a1"
 REMOTE_ROOT = "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments"
 CANARY_CONFIG = Path("dstack/nemotron3-omni-runner-canary-a2.dstack.yml")
 FAILED_CANARY_CONFIG = Path("dstack/nemotron3-omni-runner-canary.dstack.yml")
@@ -41,6 +47,8 @@ EXPANDED12_CANARY_D1_CONFIG = Path(
     "dstack/nemotron3-omni-expanded12-canary-d1.dstack.yml"
 )
 EXPANDED12_D1_CONFIG = Path("dstack/nemotron3-omni-expanded12-d1.dstack.yml")
+FROZEN30_CANARY_CONFIG = Path("dstack/nemotron3-omni-frozen30-canary-a1.dstack.yml")
+FROZEN30_CONFIG = Path("dstack/nemotron3-omni-frozen30-a1.dstack.yml")
 FLEET_ID = "gpu-marketplace"
 RUNNER = Path("scripts/run-nemotron3-omni-dstack.sh")
 UPLOADER = Path("scripts/upload-nemotron3-omni-pilot-inputs.sh")
@@ -49,6 +57,29 @@ COLLECTOR = Path("scripts/collect-nemotron3-omni-dstack.sh")
 
 def _text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def _env_mapping(config: dict[str, object]) -> dict[str, str]:
+    values = config["env"]
+    assert isinstance(values, list)
+    return dict(str(value).split("=", 1) for value in values)
+
+
+def _yaml(path: Path) -> dict[str, object]:
+    result = subprocess.run(
+        [
+            "/usr/bin/python3",
+            "-c",
+            "import json,sys,yaml; print(json.dumps(yaml.safe_load(open(sys.argv[1]))))",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    value = json.loads(result.stdout)
+    assert isinstance(value, dict)
+    return value
 
 
 def test_configs_pin_identity_use_cuda_and_fit_the_full_retry_budget() -> None:
@@ -204,6 +235,237 @@ def test_expanded_d1_configs_pin_the_authorized_canary_and_pilot_envelope() -> N
     assert "expanded12-20260731-d2" not in operational
 
 
+def test_frozen30_configs_pin_exact_a1_foreground_cuda_budget_envelopes() -> None:
+    """Catches an unpinned runtime, broadened GPU pool, or detached-incompatible wrapper."""
+    cases = {
+        FROZEN30_CANARY_ID: (
+            FROZEN30_CANARY_CONFIG,
+            FROZEN30_CANARY_SCHEDULER_ID,
+            "canary",
+            "30m",
+        ),
+        FROZEN30_ID: (FROZEN30_CONFIG, FROZEN30_ID, "frozen30-paired", "60m"),
+    }
+    for run_id, (path, scheduler_id, mode, duration) in cases.items():
+        config = _yaml(path)
+        assert config["type"] == "task"
+        assert config["name"] == scheduler_id
+        assert re.fullmatch(r"[a-z][a-z0-9-]{1,40}", scheduler_id)
+        assert config["image"] == RUNTIME_IMAGE
+        assert config["entrypoint"] == "/bin/bash -c"
+        assert config["shell"] == "bash"
+        assert config["working_dir"] == "/dstack/run"
+        env = _env_mapping(config)
+        assert env == {
+            "HF_TOKEN": "${{ secrets.hf_token }}",
+            "HF_HUB_DISABLE_TELEMETRY": "1",
+            "PYTHON_BIN": "/usr/bin/python3",
+            "PYTHONPATH": "/dstack/run/src",
+            "EXPERIMENT_MODE": mode,
+            "EXPERIMENT_RUN_ID": run_id,
+            "HF_REMOTE_URI": f"{REMOTE_ROOT}/{run_id}",
+            "HF_INPUT_URI": f"{REMOTE_ROOT}/{run_id}",
+            "RUNTIME_IMAGE": RUNTIME_IMAGE,
+            "RUNTIME_IMAGE_DIGEST": RUNTIME_IMAGE_DIGEST,
+            "MODEL_ID": MODEL_ID,
+            "MODEL_REVISION": MODEL_REVISION,
+        }
+        assert config["commands"] == [
+            'set -euo pipefail\nexec bash /dstack/run/scripts/run-nemotron3-omni-dstack.sh "$EXPERIMENT_MODE"\n'
+        ]
+        assert config["fleets"] == [FLEET_ID]
+        resources = config["resources"]
+        assert resources["gpu"] == "L40S:1:48GB.."
+        assert isinstance(resources["gpu"], str)
+        assert config["backends"] == ["runpod", "vastai"]
+        assert config["spot_policy"] == "on-demand"
+        assert config["max_price"] == 2.0
+        assert config["max_duration"] == duration
+        assert config["retry"] == {
+            "on_events": ["no-capacity"],
+            "duration": "20m",
+        }
+        assert "ports" not in config
+    assert len(FROZEN30_CANARY_SCHEDULER_ID) <= 41
+
+
+def test_frozen30_scripts_reject_all_uncreated_a2_identities_before_external_work() -> (
+    None
+):
+    """Catches accidental pre-authorization of either hypothetical a2 retry."""
+    poison_token = "test-only-token-that-must-not-reach-an-external-command"
+    hypothetical_ids = (
+        ("canary", "nemotron3-omni-frozen30-canary-20260801-a2"),
+        ("frozen30-paired", "nemotron3-omni-frozen30-20260801-a2"),
+    )
+    for mode, run_id in hypothetical_ids:
+        runner_env = os.environ.copy()
+        runner_env.update(
+            {
+                "EXPERIMENT_RUN_ID": run_id,
+                "HF_REMOTE_URI": f"{REMOTE_ROOT}/{run_id}",
+                "RUNTIME_IMAGE": RUNTIME_IMAGE,
+                "RUNTIME_IMAGE_DIGEST": RUNTIME_IMAGE_DIGEST,
+                "MODEL_ID": MODEL_ID,
+                "MODEL_REVISION": MODEL_REVISION,
+                "HF_TOKEN": poison_token,
+            }
+        )
+        cases = (
+            (RUNNER, [mode], runner_env),
+            (UPLOADER, [run_id], {**os.environ, "HF_TOKEN": poison_token}),
+            (COLLECTOR, [run_id], {**os.environ, "HF_TOKEN": poison_token}),
+        )
+        for script, args, env in cases:
+            result = subprocess.run(
+                ["bash", str(script), *args],
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+                timeout=5,
+            )
+            assert result.returncode == 2, (script, result.stdout, result.stderr)
+            assert "unexpected immutable" in result.stderr
+
+    operational = _text(RUNNER) + _text(UPLOADER) + _text(COLLECTOR)
+    assert "frozen30-canary-20260801-a2" not in operational
+    assert "frozen30-20260801-a2" not in operational
+
+
+def test_frozen30_uploader_emits_contract_derived_checksummed_32_object_bundle(
+    tmp_path: Path,
+) -> None:
+    """Catches a second media list, a missing MP4, or an unverifiable remote bundle."""
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_root = tmp_path / "remote"
+    fake_log = tmp_path / "hf.log"
+    fake_uvx = fake_bin / "uvx"
+    fake_uvx.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+while [[ \"$1\" != hf ]]; do shift; done
+shift
+printf '%s\\t' \"$@\" >>\"$FAKE_HF_LOG\"
+printf '\\n' >>\"$FAKE_HF_LOG\"
+[[ \"$1:$2\" == buckets:list || \"$1:$2\" == buckets:cp || \"$1:$2\" == buckets:sync ]]
+command=\"$2\"
+shift 2
+remote_path() {
+  printf '%s/%s' \"$FAKE_HF_ROOT\" \"${1#hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/}\"
+}
+case \"$command\" in
+  list)
+    target=\"$(remote_path \"$1\")\"
+    if [[ \"$*\" == *\"--format quiet\"* ]]; then
+      [[ ! -d \"$target\" ]] || find \"$target\" -type f -o -type l
+    else
+      printf '[]\\n'
+    fi
+    ;;
+  cp)
+    source=\"$1\"
+    target=\"$(remote_path \"$2\")\"
+    mkdir -p \"$(dirname \"$target\")\"
+    if [[ \"$(basename \"$source\")\" == contract.json || \"$(basename \"$source\")\" == INPUTS_COMPLETE.json ]]; then
+      cp -- \"$source\" \"$target\"
+    else
+      ln -s \"$(readlink -f \"$source\")\" \"$target\"
+    fi
+    ;;
+  sync)
+    source=\"$(remote_path \"$1\")\"
+    destination=\"$2\"
+    mkdir -p \"$destination\"
+    cp -a \"$source/.\" \"$destination/\"
+    ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    fake_uvx.chmod(0o755)
+    env = os.environ.copy()
+    env.pop("HF_TOKEN", None)
+    env.update(
+        {
+            "PATH": f"{fake_bin}:{env['PATH']}",
+            "FAKE_HF_ROOT": str(fake_root),
+            "FAKE_HF_LOG": str(fake_log),
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(UPLOADER), FROZEN30_ID],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+        timeout=30,
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+
+    uploaded = fake_root / FROZEN30_ID / "inputs"
+    remote_files = sorted(
+        path.relative_to(uploaded).as_posix()
+        for path in uploaded.rglob("*")
+        if path.is_file()
+    )
+    assert len(remote_files) == 32
+    assert remote_files[0:2] == ["INPUTS_COMPLETE.json", "contract.json"]
+    contract = json.loads((uploaded / "contract.json").read_text())
+    expected_media = sorted(example["media_path"] for example in contract["examples"])
+    assert len(expected_media) == len(set(expected_media)) == 30
+    assert "vqa/2025/training/videos_original/QFljXc4WpFA.mp4" in expected_media
+    assert remote_files[2:] == expected_media
+    marker = json.loads((uploaded / "INPUTS_COMPLETE.json").read_text())
+    assert marker["object_count"] == 32
+    assert marker["input_count"] == 31
+    assert sorted(marker["objects"]) == ["contract.json", *expected_media]
+
+    calls = fake_log.read_text().splitlines()
+    copy_calls = [line for line in calls if line.startswith("buckets\tcp\t")]
+    assert len(copy_calls) == 32
+    assert any(line.startswith("buckets\tsync\t") for line in calls)
+    assert any("buckets\tlist\t" in line and "--recursive" in line for line in calls)
+
+
+def test_frozen30_runner_and_collector_preserve_independently_hashable_media() -> None:
+    """Catches duplicated media identities or a predictions-only collected bundle."""
+    runner = _text(RUNNER)
+    uploader = _text(UPLOADER)
+    collector = _text(COLLECTOR)
+    operational = runner + uploader + collector
+
+    assert f"canary:{FROZEN30_CANARY_ID}" in runner
+    assert f"frozen30-paired:{FROZEN30_ID}" in runner
+    assert "build-frozen30-contract" in uploader
+    assert "native_audio_benchmark_30_inference.json" in uploader
+    historical_ids = {row[0] for row in TARGET_ROWS} | {row[0] for row in EXPANDED_ROWS}
+    for video_id, _category, _role in FROZEN30_ROWS:
+        if video_id in historical_ids:
+            continue
+        assert video_id not in uploader
+        assert video_id not in runner
+    assert "contract_media_records" in runner
+    assert 'preserve_normalized_media "$normalized_root"' in runner
+    assert "OUTPUT_DIR/normalized" in runner
+    assert runner.index("preflight_inputs") < runner.index("normalize_pilot_inputs")
+    assert runner.index("normalize_pilot_inputs") < runner.index("start_server")
+    assert "find . -type f ! -name SHA256SUMS" in runner
+    assert "sha256sum -c SHA256SUMS" in runner
+
+    assert FROZEN30_CANARY_ID in collector
+    assert FROZEN30_CANARY_SCHEDULER_ID in collector
+    assert FROZEN30_ID in collector
+    assert "preview output is required for frozen30 a1" in collector
+    assert 'cp -- "$PREVIEW_PATH" "$TEMP_AUDIT_DIR/preview.txt"' in collector
+    assert 'dstack run get "$DSTACK_RUN_NAME" --json' in collector
+    assert 'hf_cli buckets sync "${REMOTE_URI}/outputs" "$TEMP_OUTPUT_DIR"' in collector
+    assert "sha256sum -c SHA256SUMS" in collector
+    assert "--diagnose" not in operational
+
+
 def test_expanded_c1_scripts_keep_preview_audit_and_expanded_input_boundaries() -> None:
     """Catches skipped preview evidence, incomplete inputs, or unnormalized expanded media."""
     runner = _text(RUNNER)
@@ -247,6 +509,8 @@ def test_expanded_c1_scripts_keep_preview_audit_and_expanded_input_boundaries() 
         "nemotron3-omni-expanded12-canary-c1.dstack.yml",
         "nemotron3-omni-expanded12-canary-d1.dstack.yml",
         "nemotron3-omni-expanded12-d1.dstack.yml",
+        "nemotron3-omni-frozen30-a1.dstack.yml",
+        "nemotron3-omni-frozen30-canary-a1.dstack.yml",
         "nemotron3-omni-pilot-b1.dstack.yml",
         "nemotron3-omni-pilot.dstack.yml",
         "nemotron3-omni-runner-canary-a2.dstack.yml",

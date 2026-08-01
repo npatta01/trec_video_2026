@@ -43,6 +43,8 @@ validate_identity() {
     expanded-pilot:nemotron3-omni-expanded12-20260730-c1) ;;
     canary:nemotron3-omni-expanded12-canary-20260731-d1) ;;
     expanded-pilot:nemotron3-omni-expanded12-20260731-d1) ;;
+    canary:nemotron3-omni-frozen30-canary-20260801-a1) ;;
+    frozen30-paired:nemotron3-omni-frozen30-20260801-a1) ;;
     *) die "unexpected immutable mode/run identity" ;;
   esac
   [[ "$HF_REMOTE_URI" == "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/$EXPERIMENT_RUN_ID" ]] \
@@ -156,6 +158,77 @@ download_pilot_inputs() {
   done
 }
 
+verify_frozen30_input_bundle() {
+  "$PYTHON_BIN" - "$INPUT_DIR" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+marker = json.loads((root / "INPUTS_COMPLETE.json").read_text(encoding="utf-8"))
+objects = marker.get("objects")
+if set(marker) != {"schema_version", "input_count", "object_count", "contract_sha256", "objects"}:
+    raise RuntimeError("frozen30 input marker schema mismatch")
+if (
+    marker.get("schema_version") != 1
+    or marker.get("input_count") != 31
+    or marker.get("object_count") != 32
+    or not isinstance(objects, dict)
+    or len(objects) != 31
+):
+    raise RuntimeError("frozen30 input marker identity mismatch")
+actual = sorted(
+    path.relative_to(root).as_posix()
+    for path in root.rglob("*")
+    if path.is_file()
+)
+if actual != sorted(["INPUTS_COMPLETE.json", *objects]):
+    raise RuntimeError("frozen30 input object set mismatch")
+for relative, expected_digest in objects.items():
+    digest = hashlib.sha256((root / relative).read_bytes()).hexdigest()
+    if digest != expected_digest:
+        raise RuntimeError(f"frozen30 input hash mismatch: {relative}")
+if marker["contract_sha256"] != objects["contract.json"]:
+    raise RuntimeError("frozen30 marker contract hash mismatch")
+PY
+}
+
+download_frozen30_inputs() {
+  mkdir -p "$INPUT_DIR"
+  hf_cli buckets sync "$HF_INPUT_URI/inputs" "$INPUT_DIR"
+  verify_frozen30_input_bundle
+}
+
+contract_media_records() {
+  local contract="$1"
+  "$PYTHON_BIN" - "$contract" <<'PY'
+import json
+import sys
+from pathlib import PurePosixPath
+
+contract = json.load(open(sys.argv[1], encoding="utf-8"))
+examples = contract.get("examples")
+if contract.get("mode") != "frozen30-paired" or not isinstance(examples, list) or len(examples) != 30:
+    raise RuntimeError("frozen30 contract must declare exactly 30 media")
+seen = set()
+for example in examples:
+    video_id = example.get("video_id") if isinstance(example, dict) else None
+    relative = example.get("media_path") if isinstance(example, dict) else None
+    path = PurePosixPath(relative) if isinstance(relative, str) else PurePosixPath("/")
+    if (
+        not isinstance(video_id, str)
+        or not video_id
+        or video_id in seen
+        or path.is_absolute()
+        or ".." in path.parts
+    ):
+        raise RuntimeError("frozen30 contract media identity is invalid")
+    seen.add(video_id)
+    sys.stdout.buffer.write(video_id.encode() + b"\0" + path.as_posix().encode() + b"\0")
+PY
+}
+
 preflight_inputs() {
   local media_root="$INPUT_DIR"
   local args=(
@@ -186,10 +259,21 @@ normalize_pilot_inputs() {
   if [[ "$MODE" == "expanded-pilot" ]]; then
     ids=(NN7G28sBOlY NUmb2P3Bzu8 IRTTtnSRTyY IWSPAfCKtV8 MdMKHhFFqJQ OzNdzgQi1CA CH8Dp7EgW4I EtNOkUJd5w8 Gp4LVTn3YbY KgOvCPOX-Ms EMI_anpHII4 LusRurRrmf0)
   fi
-  local id source output
+  local media_records=()
+  local id source output index
+  if [[ "$MODE" == "frozen30-paired" ]]; then
+    mapfile -d '' -t media_records < <(contract_media_records "$INPUT_DIR/contract.json")
+    [[ "${#media_records[@]}" -eq 60 ]] \
+      || die "frozen30 contract did not yield exactly 30 media records"
+  else
+    for id in "${ids[@]}"; do
+      media_records+=("$id" "vqa/2025/training/videos_original/$id.mkv")
+    done
+  fi
   mkdir -p "$normalized_root"
-  for id in "${ids[@]}"; do
-    source="$source_root/$id.mkv"
+  for ((index = 0; index < ${#media_records[@]}; index += 2)); do
+    id="${media_records[$index]}"
+    source="$INPUT_DIR/${media_records[$((index + 1))]}"
     output="$normalized_root/$id.mp4"
     ffmpeg -nostdin -hide_banner -loglevel error -xerror -n \
       -i "$source" \
@@ -253,6 +337,19 @@ PY
     --media-root "$normalized_root"
   ACTIVE_CONTRACT="$INPUT_DIR/normalized-contract.json"
   ACTIVE_MEDIA_ROOT="$normalized_root"
+  if [[ "$MODE" == "frozen30-paired" ]]; then
+    preserve_normalized_media "$normalized_root"
+  fi
+}
+
+preserve_normalized_media() {
+  local normalized_root="$1"
+  local preserved_root="$OUTPUT_DIR/normalized"
+  [[ ! -e "$preserved_root" ]] || die "normalized artifact destination already exists"
+  mkdir -p "$preserved_root"
+  cp --reflink=auto -- "$normalized_root"/*.mp4 "$preserved_root/"
+  [[ "$(find "$preserved_root" -maxdepth 1 -type f -name '*.mp4' | wc -l)" -eq 30 ]] \
+    || die "exactly 30 normalized artifacts must be preserved"
 }
 
 start_server() {
@@ -395,11 +492,15 @@ main() {
   if [[ "$MODE" == "canary" ]]; then
     create_canary_inputs
   else
-    download_pilot_inputs
+    if [[ "$MODE" == "frozen30-paired" ]]; then
+      download_frozen30_inputs
+    else
+      download_pilot_inputs
+    fi
   fi
   preflight_inputs
   case "$EXPERIMENT_RUN_ID" in
-    nemotron3-omni-codec-sentinel-20260730-b1|nemotron3-omni-pilot-20260730-b1|nemotron3-omni-expanded12-20260730-c1|nemotron3-omni-expanded12-20260731-d1)
+    nemotron3-omni-codec-sentinel-20260730-b1|nemotron3-omni-pilot-20260730-b1|nemotron3-omni-expanded12-20260730-c1|nemotron3-omni-expanded12-20260731-d1|nemotron3-omni-frozen30-20260801-a1)
       failure_stage="media-normalization"
       normalize_pilot_inputs
       ;;

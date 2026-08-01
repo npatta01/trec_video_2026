@@ -7,10 +7,11 @@ readonly UV_VERSION="0.11.3"
 readonly HF_CLI_VERSION="1.24.0"
 readonly EXPANDED12_CANARY_C1_SCHEDULER_ID="nemotron3-expanded12-canary-20260730-c1"
 readonly EXPANDED12_CANARY_D1_SCHEDULER_ID="nemotron3-expanded12-canary-20260731-d1"
+readonly FROZEN30_CANARY_SCHEDULER_ID="nemotron3-f30-canary-20260801-a1"
 
 RUN_ID="${1:-}"
 case "$RUN_ID" in
-  nemotron3-omni-runner-canary-20260730-a1|nemotron3-omni-runner-canary-20260730-a2|nemotron3-omni-pilot-20260730-a1|nemotron3-omni-codec-sentinel-20260730-b1|nemotron3-omni-pilot-20260730-b1|nemotron3-omni-expanded12-canary-20260730-c1|nemotron3-omni-expanded12-20260730-c1|nemotron3-omni-expanded12-canary-20260731-d1|nemotron3-omni-expanded12-20260731-d1) ;;
+  nemotron3-omni-runner-canary-20260730-a1|nemotron3-omni-runner-canary-20260730-a2|nemotron3-omni-pilot-20260730-a1|nemotron3-omni-codec-sentinel-20260730-b1|nemotron3-omni-pilot-20260730-b1|nemotron3-omni-expanded12-canary-20260730-c1|nemotron3-omni-expanded12-20260730-c1|nemotron3-omni-expanded12-canary-20260731-d1|nemotron3-omni-expanded12-20260731-d1|nemotron3-omni-frozen30-canary-20260801-a1|nemotron3-omni-frozen30-20260801-a1) ;;
   *) echo "error: unexpected immutable run ID" >&2; exit 2 ;;
 esac
 DSTACK_RUN_NAME="$RUN_ID"
@@ -19,6 +20,9 @@ if [[ "$RUN_ID" == "nemotron3-omni-expanded12-canary-20260730-c1" ]]; then
 fi
 if [[ "$RUN_ID" == "nemotron3-omni-expanded12-canary-20260731-d1" ]]; then
   DSTACK_RUN_NAME="$EXPANDED12_CANARY_D1_SCHEDULER_ID"
+fi
+if [[ "$RUN_ID" == "nemotron3-omni-frozen30-canary-20260801-a1" ]]; then
+  DSTACK_RUN_NAME="$FROZEN30_CANARY_SCHEDULER_ID"
 fi
 PREVIEW_PATH="${2:-}"
 case "$RUN_ID" in
@@ -29,6 +33,10 @@ case "$RUN_ID" in
   nemotron3-omni-expanded12-canary-20260730-c1|nemotron3-omni-expanded12-20260730-c1|nemotron3-omni-expanded12-canary-20260731-d1|nemotron3-omni-expanded12-20260731-d1)
     [[ -f "$PREVIEW_PATH" ]] \
       || { echo "error: preview output is required for c1" >&2; exit 2; }
+    ;;
+  nemotron3-omni-frozen30-canary-20260801-a1|nemotron3-omni-frozen30-20260801-a1)
+    [[ -f "$PREVIEW_PATH" ]] \
+      || { echo "error: preview output is required for frozen30 a1" >&2; exit 2; }
     ;;
 esac
 
@@ -67,6 +75,10 @@ hf_cli buckets sync "${REMOTE_URI}/outputs" "$TEMP_OUTPUT_DIR"
   cd "$TEMP_OUTPUT_DIR"
   sha256sum -c SHA256SUMS
 )
+if [[ "$RUN_ID" == "nemotron3-omni-frozen30-20260801-a1" ]]; then
+  [[ "$(find "$TEMP_OUTPUT_DIR/normalized" -maxdepth 1 -type f -name '*.mp4' | wc -l)" -eq 30 ]] \
+    || { echo "error: collected bundle must preserve exactly 30 normalized artifacts" >&2; exit 2; }
+fi
 if [[ -n "$PREVIEW_PATH" ]]; then
   cp -- "$PREVIEW_PATH" "$TEMP_AUDIT_DIR/preview.txt"
   dstack run get "$DSTACK_RUN_NAME" --json \
