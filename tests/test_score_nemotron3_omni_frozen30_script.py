@@ -44,6 +44,8 @@ def test_script_requires_path_based_freezes_and_private_output_directory() -> No
             "/private/downloaded-candidate-bundle/normalized",
             "--audit-bundle-root",
             "/private/retained-audit",
+            "--input-bundle-root",
+            "/private/retained-inputs",
             "--output-dir",
             "/private/grading",
             "--grader-id",
@@ -68,6 +70,7 @@ def test_script_requires_path_based_freezes_and_private_output_directory() -> No
         "/private/downloaded-candidate-bundle/normalized"
     )
     assert args.audit_bundle_root == Path("/private/retained-audit")
+    assert args.input_bundle_root == Path("/private/retained-inputs")
 
 
 def test_score_requires_private_grader_assignment_artifact() -> None:
@@ -92,6 +95,8 @@ def test_score_requires_private_grader_assignment_artifact() -> None:
         "/private/downloaded-candidate-bundle/normalized",
         "--audit-bundle-root",
         "/private/retained-audit",
+        "--input-bundle-root",
+        "/private/retained-inputs",
         "--output-dir",
         "/private/grading",
         "--grader-id",
@@ -113,8 +118,6 @@ def test_score_requires_private_grader_assignment_artifact() -> None:
             "/private/b.json",
             "--grader-assignments",
             "/private/grader-assignments.json",
-            "--privacy-review",
-            "/private/privacy-review.json",
         ]
     )
 
@@ -190,5 +193,8 @@ def test_script_rejects_caller_authored_operational_metrics_sidecar(
         option for action in score_action._actions for option in action.option_strings
     }
 
-    assert "--privacy-review" in option_strings
+    assert "--privacy-review" not in option_strings
+    assert "--trust-root-commit" not in option_strings
+    assert "--trust-root-blob" not in option_strings
+    assert "--trust-root-repository" not in option_strings
     assert "--operational-evidence" not in option_strings

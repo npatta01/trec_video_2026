@@ -52,18 +52,27 @@ DATA_LINK="$REPO_ROOT/data"
 REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/$RUN_ID"
 OUTPUT_DIR="$DATA_LINK/vqa/benchmarks/nemotron3-omni/$RUN_ID"
 AUDIT_DIR="$DATA_LINK/vqa/benchmarks/nemotron3-omni/$RUN_ID-audit"
+TRUST_ROOT_INPUTS_PATH=""
+TEMP_TRUST_ROOT_INPUTS=""
 [[ ! -e "$OUTPUT_DIR" ]] \
   || { echo "error: refusing to overwrite $OUTPUT_DIR" >&2; exit 2; }
 if [[ "$RUN_ID" == "nemotron3-omni-frozen30-20260801-a1" ]]; then
+  TRUST_ROOT_INPUTS_PATH="$DATA_LINK/vqa/benchmarks/nemotron3-omni/$RUN_ID-trust-root-inputs.json"
   [[ ! -e "$AUDIT_DIR" ]] \
     || { echo "error: refusing to overwrite $AUDIT_DIR" >&2; exit 2; }
+  [[ ! -e "$TRUST_ROOT_INPUTS_PATH" ]] \
+    || { echo "error: refusing to overwrite $TRUST_ROOT_INPUTS_PATH" >&2; exit 2; }
 fi
 mkdir -p "$(dirname "$OUTPUT_DIR")"
 TEMP_OUTPUT_DIR="$(mktemp -d "${OUTPUT_DIR}.tmp.XXXXXX")"
 TEMP_AUDIT_DIR="$(mktemp -d /tmp/nemotron3-omni-audit.XXXXXX)"
 VERIFY_AUDIT_DIR="$(mktemp -d /tmp/nemotron3-omni-audit-verify.XXXXXX)"
+if [[ -n "$TRUST_ROOT_INPUTS_PATH" ]]; then
+  TEMP_TRUST_ROOT_INPUTS="$(mktemp /tmp/nemotron3-frozen30-trust-root-inputs.XXXXXX)"
+fi
 cleanup() {
   rm -rf "$TEMP_OUTPUT_DIR" "$TEMP_AUDIT_DIR" "$VERIFY_AUDIT_DIR"
+  [[ -z "$TEMP_TRUST_ROOT_INPUTS" ]] || rm -f "$TEMP_TRUST_ROOT_INPUTS"
 }
 trap cleanup EXIT
 
@@ -145,7 +154,6 @@ evidence_names = (
     "INPUTS_COMPLETE.json",
     "collection-status.json",
     "dstack-run.json",
-    "input-contract.json",
     "preview.txt",
 )
 for root, description in ((candidate, "candidate"), (audit, "audit")):
@@ -193,10 +201,10 @@ expected_audit = {
     "SHA256SUMS",
     "collection-status.json",
     "dstack-run.json",
-    "input-contract.json",
     "preview.txt",
     "workload-anchor.json",
 }
+
 actual_audit = {path.name for path in audit.iterdir() if path.is_file()}
 if actual_audit != expected_audit or any(path.is_dir() for path in audit.iterdir()):
     raise RuntimeError("audit exact file set mismatch")
@@ -216,6 +224,51 @@ for relative, digest in anchor.get("audit_evidence_files", {}).items():
     path = audit / relative.removeprefix("./")
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
         raise RuntimeError("retained workload audit evidence mismatch")
+PY
+}
+
+create_trust_root_inputs() {
+  local audit_dir="$1"
+  local output_path="$2"
+  "$PYTHON_BIN" - "$audit_dir" "$output_path" "$RUN_ID" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+audit = Path(sys.argv[1])
+output = Path(sys.argv[2])
+run_id = sys.argv[3]
+anchor_path = audit / "workload-anchor.json"
+marker_path = audit / "INPUTS_COMPLETE.json"
+marker = json.loads(marker_path.read_text(encoding="utf-8"))
+audit_hashes = {
+    f"./{path.name}": hashlib.sha256(path.read_bytes()).hexdigest()
+    for path in audit.iterdir()
+    if path.is_file() and path.name != "SHA256SUMS"
+}
+contract_sha = marker.get("contract_sha256")
+if (
+    not isinstance(contract_sha, str)
+    or len(contract_sha) != 64
+    or any(character not in "0123456789abcdef" for character in contract_sha)
+):
+    raise RuntimeError("input marker contract hash is invalid")
+value = {
+    "schema_version": 1,
+    "run_id": run_id,
+    "workload_anchor_sha256": hashlib.sha256(anchor_path.read_bytes()).hexdigest(),
+    "audit_bundle_schema_version": 1,
+    "audit_bundle_sha256": hashlib.sha256(
+        json.dumps(audit_hashes, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest(),
+    "input_marker_sha256": hashlib.sha256(marker_path.read_bytes()).hexdigest(),
+    "input_contract_sha256": contract_sha,
+}
+output.write_text(
+    json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+)
+output.chmod(0o444)
 PY
 }
 
@@ -306,8 +359,6 @@ if [[ -n "$PREVIEW_PATH" ]]; then
   if [[ "$RUN_ID" == "nemotron3-omni-frozen30-20260801-a1" ]]; then
     hf_cli buckets cp "${REMOTE_URI}/inputs/INPUTS_COMPLETE.json" \
       "$TEMP_AUDIT_DIR/INPUTS_COMPLETE.json"
-    hf_cli buckets cp "${REMOTE_URI}/inputs/contract.json" \
-      "$TEMP_AUDIT_DIR/input-contract.json"
   fi
 else
   dstack run get "$DSTACK_RUN_NAME" --json \
@@ -341,6 +392,7 @@ if [[ -n "$PREVIEW_PATH" ]]; then
   verify_checksum_bundle "$VERIFY_AUDIT_DIR" "audit"
   if [[ "$RUN_ID" == "nemotron3-omni-frozen30-20260801-a1" ]]; then
     verify_workload_anchor "$TEMP_OUTPUT_DIR" "$VERIFY_AUDIT_DIR"
+    create_trust_root_inputs "$VERIFY_AUDIT_DIR" "$TEMP_TRUST_ROOT_INPUTS"
   fi
 fi
 mv -T --no-clobber "$TEMP_OUTPUT_DIR" "$OUTPUT_DIR"
@@ -350,6 +402,9 @@ if [[ "$RUN_ID" == "nemotron3-omni-frozen30-20260801-a1" ]]; then
   mv -T --no-clobber "$VERIFY_AUDIT_DIR" "$AUDIT_DIR"
   [[ -d "$AUDIT_DIR" && ! -e "$VERIFY_AUDIT_DIR" ]] \
     || { echo "error: refusing to overwrite or nest audit" >&2; exit 2; }
+  mv -T --no-clobber "$TEMP_TRUST_ROOT_INPUTS" "$TRUST_ROOT_INPUTS_PATH"
+  [[ -f "$TRUST_ROOT_INPUTS_PATH" && ! -e "$TEMP_TRUST_ROOT_INPUTS" ]] \
+    || { echo "error: refusing to overwrite trust-root inputs" >&2; exit 2; }
 fi
 trap - EXIT
 rm -rf "$TEMP_AUDIT_DIR" "$VERIFY_AUDIT_DIR"

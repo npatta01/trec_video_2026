@@ -226,7 +226,15 @@ cat "$FAKE_DSTACK_JSON"
     inputs = fake_root / run_id / "inputs"
     inputs.mkdir()
     input_contract = inputs / "contract.json"
-    input_contract.write_text('{"mode":"frozen30-paired"}\n')
+    input_contract.write_text(
+        json.dumps(
+            {
+                "mode": "frozen30-paired",
+                "question": "PRIVATE_QUESTION_MUST_NOT_ENTER_AUDIT",
+            }
+        )
+        + "\n"
+    )
     marker = {
         "schema_version": 1,
         "input_count": 31,
@@ -486,7 +494,12 @@ def test_frozen30_configs_pin_exact_a1_foreground_cuda_budget_envelopes() -> Non
         ]
         assert config["fleets"] == [FLEET_ID]
         resources = config["resources"]
-        assert resources["gpu"] == "L40S:1:48GB.."
+        assert resources == {
+            "gpu": "L40S:1:48GB..",
+            "cpu": "8..",
+            "memory": "64GB..",
+            "disk": "100GB",
+        }
         assert isinstance(resources["gpu"], str)
         assert config["backends"] == ["runpod", "vastai"]
         assert config["spot_policy"] == "on-demand"
@@ -865,7 +878,6 @@ def test_frozen30_collector_retains_exact_anchor_and_audit_outside_candidate(
         "./INPUTS_COMPLETE.json",
         "./collection-status.json",
         "./dstack-run.json",
-        "./input-contract.json",
         "./preview.txt",
     }
     audit_files = {f"./{path.name}" for path in audit.iterdir() if path.is_file()}
@@ -874,10 +886,37 @@ def test_frozen30_collector_retains_exact_anchor_and_audit_outside_candidate(
         "./SHA256SUMS",
         "./collection-status.json",
         "./dstack-run.json",
-        "./input-contract.json",
         "./preview.txt",
         "./workload-anchor.json",
     }
+    trust_inputs_path = (
+        data_target
+        / "vqa/benchmarks/nemotron3-omni"
+        / f"{FROZEN30_ID}-trust-root-inputs.json"
+    )
+    trust_inputs = json.loads(trust_inputs_path.read_text())
+    marker_path = audit / "INPUTS_COMPLETE.json"
+    marker = json.loads(marker_path.read_text())
+    audit_hashes = {
+        f"./{path.name}": hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in audit.iterdir()
+        if path.is_file() and path.name != "SHA256SUMS"
+    }
+    assert trust_inputs == {
+        "schema_version": 1,
+        "run_id": FROZEN30_ID,
+        "workload_anchor_sha256": hashlib.sha256(anchor_path.read_bytes()).hexdigest(),
+        "audit_bundle_schema_version": 1,
+        "audit_bundle_sha256": hashlib.sha256(
+            json.dumps(audit_hashes, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+        "input_marker_sha256": hashlib.sha256(marker_path.read_bytes()).hexdigest(),
+        "input_contract_sha256": marker["contract_sha256"],
+    }
+    for path in audit.iterdir():
+        if path.is_file():
+            assert "PRIVATE_QUESTION_MUST_NOT_ENTER_AUDIT" not in path.read_text()
+    assert "PRIVATE_QUESTION_MUST_NOT_ENTER_AUDIT" not in trust_inputs_path.read_text()
 
 
 def test_expanded_c1_scripts_keep_preview_audit_and_expanded_input_boundaries() -> None:
@@ -1029,7 +1068,6 @@ def test_collector_downloads_only_outputs_and_checksum_verifies_before_publish()
     assert "${REMOTE_URI}/outputs" in collector
     assert 'buckets sync "${REMOTE_URI}/inputs"' not in collector
     assert "${REMOTE_URI}/inputs/INPUTS_COMPLETE.json" in collector
-    assert "${REMOTE_URI}/inputs/contract.json" in collector
     assert "sha256sum -c SHA256SUMS" in collector
     assert "dstack run get" in collector
     assert "dstack_metadata" in collector

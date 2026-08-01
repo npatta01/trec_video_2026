@@ -61,6 +61,7 @@ def _common_parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-media-root", type=Path, required=True)
     parser.add_argument("--normalized-media-root", type=Path, required=True)
     parser.add_argument("--audit-bundle-root", type=Path, required=True)
+    parser.add_argument("--input-bundle-root", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--grader-id", action="append", required=True)
     parser.add_argument("--shuffle-seed", action="append", type=int, required=True)
@@ -78,7 +79,6 @@ def build_parser() -> argparse.ArgumentParser:
     score.add_argument("--grader-submission", action="append", type=Path, required=True)
     score.add_argument("--grader-assignments", type=Path, required=True)
     score.add_argument("--adjudication", type=Path)
-    score.add_argument("--privacy-review", type=Path, required=True)
     score.set_defaults(handler=_score)
     return parser
 
@@ -121,6 +121,7 @@ def _bundle(args: argparse.Namespace):
         source_media_root=args.source_media_root,
         normalized_media_root=args.normalized_media_root,
         audit_bundle_root=args.audit_bundle_root,
+        input_bundle_root=args.input_bundle_root,
         reference_loader=_reference_loader(args.references),
         grader_ids=tuple(args.grader_id),
         shuffle_seeds=tuple(args.shuffle_seed),
@@ -182,7 +183,6 @@ def _score(args: argparse.Namespace) -> int:
             candidate_predictions_path=args.candidate_predictions,
             candidate_manifest_path=args.candidate_manifest,
             audit_bundle_root=args.audit_bundle_root,
-            privacy_review_path=args.privacy_review,
         ),
     )
     _write_json(output_dir / "private-score-report.json", report)

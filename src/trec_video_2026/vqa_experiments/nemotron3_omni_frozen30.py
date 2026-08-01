@@ -6,6 +6,8 @@ import hashlib
 import json
 import math
 import random
+import subprocess
+import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -66,6 +68,25 @@ _DEFAULT_SOURCE_MANIFEST = (
 )
 _NORMALIZED_EXAMPLE_FIELDS = FROZEN30_NORMALIZED_EXAMPLE_FIELDS
 _VERIFIED_OPERATIONAL_TOKEN = object()
+_TRUST_ROOT_PATH = "configs/vqa/nemotron3_frozen30_trust_root.json"
+_TRUST_ROOT_REPOSITORY = Path(__file__).resolve().parents[3]
+_TRUST_ROOT_REVIEWER_ID = "1314528+npatta01@users.noreply.github.com"
+_TRUST_ROOT_SIGNING_PUBLIC_KEY = (
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBr9W8B8bSDKcpgO6XXE1Y6cpcgtaPumuEjW/shnQB5O"
+)
+_TRUST_ROOT_SIGNING_KEY_FINGERPRINT = (
+    "SHA256:+w0DSDr+utElA1L6qX7urVSOt8r9kb221ZA8QDm3Gcc"
+)
+# Set these to the full attestation commit and its exact path blob in a focused
+# post-collection pin commit. Until then, all candidate verification fails closed.
+_TRUST_ROOT_COMMIT: str | None = None
+_TRUST_ROOT_BLOB: str | None = None
+_FROZEN_BACKENDS = frozenset({"runpod", "RunPod", "vastai", "Vast.ai"})
+_FROZEN_MAX_HOURLY_PRICE_USD = 2.0
+_FROZEN_MIN_CPU_COUNT = 8
+_FROZEN_MIN_GPU_MEMORY_MIB = 49_152
+_FROZEN_MIN_HOST_MEMORY_MIB = 65_536
+_FROZEN_MIN_DISK_MIB = 102_400
 
 
 @dataclass(frozen=True, init=False)
@@ -79,7 +100,11 @@ class OperationalEvidence:
     artifacts_verified: bool
     privacy_or_audit_gap: bool
     workload_anchor_sha256: str
+    audit_bundle_sha256: str
+    trust_root_commit: str
+    trust_root_blob: str
     reviewer_id: str
+    reviewer_key_fingerprint: str
     reviewed_at: str
     _verification_token: object
 
@@ -95,7 +120,11 @@ class OperationalEvidence:
         compute_cost_usd: float,
         privacy_or_audit_gap: bool,
         workload_anchor_sha256: str,
+        audit_bundle_sha256: str,
+        trust_root_commit: str,
+        trust_root_blob: str,
         reviewer_id: str,
+        reviewer_key_fingerprint: str,
         reviewed_at: str,
         verification_token: object,
     ) -> OperationalEvidence:
@@ -114,7 +143,11 @@ class OperationalEvidence:
             "artifacts_verified": True,
             "privacy_or_audit_gap": privacy_or_audit_gap,
             "workload_anchor_sha256": workload_anchor_sha256,
+            "audit_bundle_sha256": audit_bundle_sha256,
+            "trust_root_commit": trust_root_commit,
+            "trust_root_blob": trust_root_blob,
             "reviewer_id": reviewer_id,
+            "reviewer_key_fingerprint": reviewer_key_fingerprint,
             "reviewed_at": reviewed_at,
             "_verification_token": verification_token,
         }
@@ -289,7 +322,6 @@ _AUDIT_EVIDENCE_FILES = frozenset(
         "./INPUTS_COMPLETE.json",
         "./collection-status.json",
         "./dstack-run.json",
-        "./input-contract.json",
         "./preview.txt",
     }
 )
@@ -326,9 +358,97 @@ def _load_json_object(path: Path, *, description: str) -> dict[str, Any]:
     return value
 
 
+def _load_trusted_attestation() -> dict[str, Any]:
+    """Load the attestation only through an exact immutable Git commit/blob pin."""
+
+    repository = _TRUST_ROOT_REPOSITORY
+    commit = _TRUST_ROOT_COMMIT
+    blob = _TRUST_ROOT_BLOB
+    if not (
+        isinstance(commit, str)
+        and len(commit) in {40, 64}
+        and all(character in "0123456789abcdef" for character in commit)
+        and isinstance(blob, str)
+        and len(blob) in {40, 64}
+        and all(character in "0123456789abcdef" for character in blob)
+    ):
+        raise ValueError("trust root requires full lowercase Git commit and blob pins")
+    resolved_repository = repository.resolve()
+
+    def git(*arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+        result = subprocess.run(
+            [
+                "git",
+                "--no-replace-objects",
+                "-C",
+                str(resolved_repository),
+                *arguments,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if check and result.returncode != 0:
+            raise ValueError("trusted attestation Git identity is unavailable")
+        return result
+
+    top_level = git("rev-parse", "--show-toplevel").stdout.strip()
+    if Path(top_level).resolve() != resolved_repository:
+        raise ValueError("trust root repository must be its exact Git top level")
+    if git("rev-parse", "--verify", f"{commit}^{{commit}}").stdout.strip() != commit:
+        raise ValueError("trusted attestation commit pin mismatch")
+    if git("merge-base", "--is-ancestor", commit, "HEAD", check=False).returncode != 0:
+        raise ValueError("trusted attestation commit must be reachable from HEAD")
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as allowed_signers:
+        allowed_signers.write(
+            f'{_TRUST_ROOT_REVIEWER_ID} namespaces="git" '
+            f"{_TRUST_ROOT_SIGNING_PUBLIC_KEY}\n"
+        )
+        allowed_signers.flush()
+        signature = git(
+            "-c",
+            f"gpg.ssh.allowedSignersFile={allowed_signers.name}",
+            "verify-commit",
+            commit,
+            check=False,
+        )
+    if signature.returncode != 0:
+        raise ValueError("trusted attestation commit signature is not authorized")
+    changed_paths = git(
+        "diff-tree", "--root", "--no-commit-id", "--name-only", "-r", commit
+    ).stdout.splitlines()
+    if changed_paths != [_TRUST_ROOT_PATH]:
+        raise ValueError("trusted attestation commit must change only its fixed path")
+    resolved_blob = git("rev-parse", f"{commit}:{_TRUST_ROOT_PATH}").stdout.strip()
+    if resolved_blob != blob:
+        raise ValueError("trusted attestation blob pin mismatch")
+    tree_entry = git("ls-tree", commit, "--", _TRUST_ROOT_PATH).stdout.strip()
+    if tree_entry != f"100644 blob {blob}\t{_TRUST_ROOT_PATH}":
+        raise ValueError("trusted attestation must be a regular committed blob")
+    data = git("cat-file", "blob", blob).stdout
+    try:
+        value = json.loads(data)
+    except json.JSONDecodeError as error:
+        raise ValueError("trusted attestation must be valid UTF-8 JSON") from error
+    if not isinstance(value, dict):
+        raise ValueError("trusted attestation must be an object")
+    return value
+
+
+def _audit_bundle_sha256(file_hashes: Mapping[str, str]) -> str:
+    """Hash the exact non-manifest audit file map without filesystem metadata."""
+
+    evidence = {
+        relative: digest
+        for relative, digest in file_hashes.items()
+        if relative != "./SHA256SUMS"
+    }
+    return hashlib.sha256(_canonical_json(evidence)).hexdigest()
+
+
 def _validate_audit_bundle(
     audit_bundle_root: Path,
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str]:
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str, str]:
     """Validate the fixed audit set, checksums, and independently retained anchor."""
 
     actual = _file_hashes(audit_bundle_root, description="audit bundle")
@@ -385,28 +505,92 @@ def _validate_audit_bundle(
     dstack = _load_json_object(
         audit_bundle_root / "dstack-run.json", description="dstack run evidence"
     )
-    return anchor, status, dstack, hashlib.sha256(anchor_path.read_bytes()).hexdigest()
+    return (
+        anchor,
+        status,
+        dstack,
+        hashlib.sha256(anchor_path.read_bytes()).hexdigest(),
+        _audit_bundle_sha256(actual),
+    )
 
 
 def _validate_candidate_anchor(
     *,
     candidate_root: Path,
     audit_bundle_root: Path,
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str]:
-    anchor, status, dstack, anchor_sha = _validate_audit_bundle(audit_bundle_root)
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str, str]:
+    anchor, status, dstack, anchor_sha, audit_sha = _validate_audit_bundle(
+        audit_bundle_root
+    )
     actual = _file_hashes(candidate_root, description="candidate bundle")
     if anchor["candidate_files"] != actual:
         raise ValueError("candidate bundle differs from retained workload anchor")
-    return anchor, status, dstack, anchor_sha
+    return anchor, status, dstack, anchor_sha, audit_sha
+
+
+def _validate_trusted_attestation(
+    *,
+    attestation: Mapping[str, Any],
+    audit_bundle_root: Path,
+    dstack: Mapping[str, Any],
+    workload_anchor_sha256: str,
+    audit_bundle_sha256: str,
+) -> None:
+    marker_path = audit_bundle_root / "INPUTS_COMPLETE.json"
+    marker = _load_json_object(marker_path, description="retained input marker")
+    reviewer_id = attestation.get("reviewer_id")
+    reviewed_at = attestation.get("reviewed_at")
+    try:
+        parsed_reviewed_at = datetime.fromisoformat(reviewed_at)
+        finished_at = datetime.fromisoformat(dstack.get("finished_at"))
+    except (TypeError, ValueError) as error:
+        raise ValueError("trusted review timestamps must be ISO-8601") from error
+    expected_fields = {
+        "schema_version",
+        "attestation_type",
+        "run_id",
+        "workload_anchor_sha256",
+        "audit_bundle_schema_version",
+        "audit_bundle_sha256",
+        "input_marker_sha256",
+        "input_contract_sha256",
+        "reviewer_id",
+        "reviewer_key_fingerprint",
+        "reviewed_at",
+        "determination",
+    }
+    if (
+        set(attestation) != expected_fields
+        or attestation.get("schema_version") != 1
+        or attestation.get("attestation_type")
+        != "nemotron3-frozen30-post-collection-review"
+        or attestation.get("run_id") != CANDIDATE_RUN_ID
+        or attestation.get("workload_anchor_sha256") != workload_anchor_sha256
+        or attestation.get("audit_bundle_schema_version") != 1
+        or attestation.get("audit_bundle_sha256") != audit_bundle_sha256
+        or attestation.get("input_marker_sha256")
+        != hashlib.sha256(marker_path.read_bytes()).hexdigest()
+        or attestation.get("input_contract_sha256") != marker.get("contract_sha256")
+        or reviewer_id != _TRUST_ROOT_REVIEWER_ID
+        or attestation.get("reviewer_key_fingerprint")
+        != _TRUST_ROOT_SIGNING_KEY_FINGERPRINT
+        or parsed_reviewed_at.utcoffset() is None
+        or finished_at.utcoffset() is None
+        or parsed_reviewed_at <= finished_at
+        or attestation.get("determination")
+        not in {"no-load-bearing-gap", "load-bearing-gap"}
+    ):
+        raise ValueError("trusted attestation does not bind the collected workload")
 
 
 def _validate_input_evidence(
     *,
     audit_bundle_root: Path,
+    input_bundle_root: Path,
     contract: Mapping[str, Any],
     source_media_root: Path,
 ) -> None:
-    input_contract_path = audit_bundle_root / "input-contract.json"
+    input_contract_path = input_bundle_root / "contract.json"
     input_contract = _load_json_object(
         input_contract_path, description="retained input contract"
     )
@@ -548,6 +732,7 @@ def verify_candidate_freeze(
     source_media_root: Path,
     normalized_media_root: Path,
     audit_bundle_root: Path,
+    input_bundle_root: Path,
     source_manifest_path: Path = _DEFAULT_SOURCE_MANIFEST,
 ) -> tuple[dict[str, Any], ...]:
     """Recompute all candidate hashes, bindings, identities, and pair order."""
@@ -666,6 +851,7 @@ def verify_candidate_freeze(
         raise ValueError("normalized source contract SHA-256 mismatch")
     _validate_input_evidence(
         audit_bundle_root=audit_bundle_root,
+        input_bundle_root=input_bundle_root,
         contract=contract,
         source_media_root=source_media_root,
     )
@@ -773,10 +959,20 @@ def verify_candidate_freeze(
         )
     if len(seen) != 30:
         raise ValueError("candidate duplicate pair identity")
-    _validate_candidate_anchor(
+    _anchor, _status, dstack, anchor_sha, audit_sha = _validate_candidate_anchor(
         candidate_root=candidate_root,
         audit_bundle_root=audit_bundle_root,
     )
+    attestation = _load_trusted_attestation()
+    _validate_trusted_attestation(
+        attestation=attestation,
+        audit_bundle_root=audit_bundle_root,
+        dstack=dstack,
+        workload_anchor_sha256=anchor_sha,
+        audit_bundle_sha256=audit_sha,
+    )
+    if attestation["determination"] != "no-load-bearing-gap":
+        raise ValueError("trusted review blocks reference access")
     return tuple(result)
 
 
@@ -822,6 +1018,7 @@ def build_blind_grading_bundle(
     source_media_root: Path,
     normalized_media_root: Path,
     audit_bundle_root: Path,
+    input_bundle_root: Path,
     reference_loader: Callable[[tuple[str, ...]], Sequence[Mapping[str, Any]]],
     grader_ids: tuple[str, str],
     shuffle_seeds: tuple[int, int],
@@ -837,6 +1034,7 @@ def build_blind_grading_bundle(
         source_media_root=source_media_root,
         normalized_media_root=normalized_media_root,
         audit_bundle_root=audit_bundle_root,
+        input_bundle_root=input_bundle_root,
         source_manifest_path=source_manifest_path,
     )
     keys = tuple(video_id for video_id, _category, _role in FROZEN30_ROWS)
@@ -963,14 +1161,14 @@ def derive_operational_evidence(
     candidate_predictions_path: Path,
     candidate_manifest_path: Path,
     audit_bundle_root: Path,
-    privacy_review_path: Path,
+    privacy_review_path: Path | None = None,
 ) -> OperationalEvidence:
     """Derive promotion inputs only from retained, anchor-bound artifacts."""
 
     candidate_root = candidate_manifest_path.parent.resolve()
     if candidate_predictions_path.resolve() != candidate_root / "predictions.jsonl":
         raise ValueError("operational candidate paths must share the exact bundle")
-    _anchor, status, dstack, anchor_sha = _validate_candidate_anchor(
+    _anchor, status, dstack, anchor_sha, audit_sha = _validate_candidate_anchor(
         candidate_root=candidate_root,
         audit_bundle_root=audit_bundle_root,
     )
@@ -1037,56 +1235,65 @@ def derive_operational_evidence(
     elapsed = dstack.get("elapsed_seconds")
     cost = dstack.get("cost")
     price = dstack.get("price")
+    resource_fields = {
+        "cpu_count": _FROZEN_MIN_CPU_COUNT,
+        "gpu_memory_mib": _FROZEN_MIN_GPU_MEMORY_MIB,
+        "host_memory_mib": _FROZEN_MIN_HOST_MEMORY_MIB,
+        "disk_mib": _FROZEN_MIN_DISK_MIB,
+    }
     if (
         set(dstack) != expected_dstack_fields
         or dstack.get("schema_version") != 1
         or dstack.get("run_id") != CANDIDATE_RUN_ID
         or dstack.get("status") != "done"
+        or type(dstack.get("exit_status")) is not int
         or dstack.get("exit_status") != 0
+        or dstack.get("termination_reason") is not None
+        or dstack.get("job_termination_reason") is not None
+        or dstack.get("backend") not in _FROZEN_BACKENDS
+        or dstack.get("instance_type") != "NVIDIA L40S"
+        or type(dstack.get("gpu_count")) is not int
         or dstack.get("gpu_count") != 1
         or dstack.get("gpu_name") != "L40S"
         or dstack.get("gpu_vendor") != "nvidia"
         or dstack.get("spot") is not False
         or any(
+            type(dstack.get(field)) is not int or dstack[field] < minimum
+            for field, minimum in resource_fields.items()
+        )
+        or any(
             type(value) not in {int, float} or not math.isfinite(value) or value < 0
             for value in (elapsed, cost, price)
         )
+        or price > _FROZEN_MAX_HOURLY_PRICE_USD
     ):
         raise ValueError(
             "dstack run evidence is not a verified successful frozen30 run"
         )
 
-    review = _load_json_object(
-        privacy_review_path, description="privacy and audit review"
+    attestation = _load_trusted_attestation()
+    _validate_trusted_attestation(
+        attestation=attestation,
+        audit_bundle_root=audit_bundle_root,
+        dstack=dstack,
+        workload_anchor_sha256=anchor_sha,
+        audit_bundle_sha256=audit_sha,
     )
-    expected_review_fields = {
-        "schema_version",
-        "review_type",
-        "run_id",
-        "workload_anchor_sha256",
-        "reviewer_id",
-        "reviewed_at",
-        "determination",
-    }
-    reviewer_id = review.get("reviewer_id")
-    reviewed_at = review.get("reviewed_at")
-    try:
-        parsed_reviewed_at = datetime.fromisoformat(reviewed_at)
-    except (TypeError, ValueError) as error:
-        raise ValueError("privacy review timestamp must be ISO-8601") from error
-    if (
-        set(review) != expected_review_fields
-        or review.get("schema_version") != 1
-        or review.get("review_type") != "nemotron3-frozen30-privacy-audit"
-        or review.get("run_id") != CANDIDATE_RUN_ID
-        or review.get("workload_anchor_sha256") != anchor_sha
-        or not isinstance(reviewer_id, str)
-        or not reviewer_id.strip()
-        or parsed_reviewed_at.utcoffset() is None
-        or review.get("determination")
-        not in {"no-load-bearing-gap", "load-bearing-gap"}
-    ):
-        raise ValueError("privacy review is not bound to this run and workload anchor")
+    if privacy_review_path is not None:
+        review = _load_json_object(
+            privacy_review_path, description="privacy and audit review copy"
+        )
+        expected_review_copy = {
+            "schema_version": 1,
+            "review_type": "nemotron3-frozen30-privacy-audit",
+            "run_id": CANDIDATE_RUN_ID,
+            "workload_anchor_sha256": anchor_sha,
+            "reviewer_id": attestation["reviewer_id"],
+            "reviewed_at": attestation["reviewed_at"],
+            "determination": attestation["determination"],
+        }
+        if review != expected_review_copy:
+            raise ValueError("privacy review copy differs from trusted attestation")
     return OperationalEvidence._from_verified_artifacts(
         completed=completed,
         expected=60,
@@ -1094,10 +1301,14 @@ def derive_operational_evidence(
         duration_minutes=float(elapsed) / 60,
         hourly_price_usd=float(price),
         compute_cost_usd=float(cost),
-        privacy_or_audit_gap=review["determination"] == "load-bearing-gap",
+        privacy_or_audit_gap=attestation["determination"] == "load-bearing-gap",
         workload_anchor_sha256=anchor_sha,
-        reviewer_id=reviewer_id,
-        reviewed_at=reviewed_at,
+        audit_bundle_sha256=audit_sha,
+        trust_root_commit=_TRUST_ROOT_COMMIT,
+        trust_root_blob=_TRUST_ROOT_BLOB,
+        reviewer_id=attestation["reviewer_id"],
+        reviewer_key_fingerprint=attestation["reviewer_key_fingerprint"],
+        reviewed_at=attestation["reviewed_at"],
         verification_token=_VERIFIED_OPERATIONAL_TOKEN,
     )
 
@@ -1224,7 +1435,9 @@ def apply_decision_rule(
     )
     operational_passed = (
         operational.completed == operational.expected == 60
+        and operational.run_status == "done"
         and operational.duration_minutes <= 60
+        and operational.hourly_price_usd <= _FROZEN_MAX_HOURLY_PRICE_USD
         and operational.compute_cost_usd <= 1.25
         and operational.artifacts_verified
         and not operational.privacy_or_audit_gap
@@ -1354,6 +1567,20 @@ def score_replacement(
     )
     return {
         "completion": {"completed": operational.completed, "expected": 60},
+        "operational_evidence": {
+            "run_status": operational.run_status,
+            "duration_minutes": operational.duration_minutes,
+            "hourly_price_usd": operational.hourly_price_usd,
+            "compute_cost_usd": operational.compute_cost_usd,
+            "workload_anchor_sha256": operational.workload_anchor_sha256,
+            "audit_bundle_sha256": operational.audit_bundle_sha256,
+            "trust_root_commit": operational.trust_root_commit,
+            "trust_root_blob": operational.trust_root_blob,
+            "reviewer_id": operational.reviewer_id,
+            "reviewer_key_fingerprint": operational.reviewer_key_fingerprint,
+            "reviewed_at": operational.reviewed_at,
+            "privacy_or_audit_gap": operational.privacy_or_audit_gap,
+        },
         "conditions": aggregate,
         "grade_counts": grade_counts,
         "category_metrics": category_metrics,

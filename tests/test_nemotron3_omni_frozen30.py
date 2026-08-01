@@ -5,6 +5,7 @@ import json
 import math
 from pathlib import Path
 import random
+import subprocess
 from types import SimpleNamespace
 
 import pytest
@@ -84,6 +85,147 @@ def _media_roots(root: Path) -> dict[str, Path]:
 
 def _audit_root(root: Path) -> Path:
     return root / "retained-audit"
+
+
+def _input_bundle_root(root: Path) -> Path:
+    return root / "retained-private-input"
+
+
+def _audit_bundle_sha256(root: Path) -> str:
+    audit_root = _audit_root(root)
+    hashes = {
+        f"./{path.name}": hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in audit_root.iterdir()
+        if path.is_file() and path.name != "SHA256SUMS"
+    }
+    return hashlib.sha256(_canonical(hashes)).hexdigest()
+
+
+def _write_trust_root(root: Path, *, gap: bool = False) -> None:
+    audit_root = _audit_root(root)
+    marker_path = audit_root / "INPUTS_COMPLETE.json"
+    marker = json.loads(marker_path.read_text())
+    repository = root / "trusted-repository"
+    signing_key = root / "test-reviewer-key"
+    if not signing_key.with_suffix(".pub").is_file():
+        subprocess.run(
+            [
+                "ssh-keygen",
+                "-q",
+                "-t",
+                "ed25519",
+                "-N",
+                "",
+                "-C",
+                "reviewer@example.org",
+                "-f",
+                str(signing_key),
+            ],
+            check=True,
+        )
+    public_key = " ".join(signing_key.with_suffix(".pub").read_text().split()[:2])
+    fingerprint = subprocess.run(
+        ["ssh-keygen", "-lf", str(signing_key.with_suffix(".pub")), "-E", "sha256"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.split()[1]
+    config = repository / "configs/vqa/nemotron3_frozen30_trust_root.json"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    if not (repository / ".git").is_dir():
+        subprocess.run(["git", "init", "-q", str(repository)], check=True)
+        subprocess.run(
+            ["git", "-C", str(repository), "config", "user.name", "Test Reviewer"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repository), "config", "gpg.format", "ssh"],
+            check=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository),
+                "config",
+                "user.signingkey",
+                str(signing_key),
+            ],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repository), "config", "commit.gpgsign", "true"],
+            check=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository),
+                "config",
+                "user.email",
+                "reviewer@example.org",
+            ],
+            check=True,
+        )
+    config.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "attestation_type": "nemotron3-frozen30-post-collection-review",
+                "run_id": frozen30.CANDIDATE_RUN_ID,
+                "workload_anchor_sha256": hashlib.sha256(
+                    (audit_root / "workload-anchor.json").read_bytes()
+                ).hexdigest(),
+                "audit_bundle_schema_version": 1,
+                "audit_bundle_sha256": _audit_bundle_sha256(root),
+                "input_marker_sha256": hashlib.sha256(
+                    marker_path.read_bytes()
+                ).hexdigest(),
+                "input_contract_sha256": marker["contract_sha256"],
+                "reviewer_id": "reviewer@example.org",
+                "reviewer_key_fingerprint": fingerprint,
+                "reviewed_at": "2026-08-01T18:00:00+00:00",
+                "determination": ("load-bearing-gap" if gap else "no-load-bearing-gap"),
+            },
+            sort_keys=True,
+        )
+        + "\n"
+    )
+    subprocess.run(["git", "-C", str(repository), "add", str(config)], check=True)
+    staged = subprocess.run(
+        ["git", "-C", str(repository), "diff", "--cached", "--quiet"],
+        check=False,
+    )
+    if staged.returncode == 1:
+        subprocess.run(
+            ["git", "-C", str(repository), "commit", "-q", "-m", "attest run"],
+            check=True,
+        )
+    commit = subprocess.run(
+        ["git", "-C", str(repository), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    blob = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "rev-parse",
+            f"{commit}:configs/vqa/nemotron3_frozen30_trust_root.json",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    frozen30._TRUST_ROOT_REPOSITORY = repository
+    frozen30._TRUST_ROOT_COMMIT = commit
+    frozen30._TRUST_ROOT_BLOB = blob
+    frozen30._TRUST_ROOT_REVIEWER_ID = "reviewer@example.org"
+    frozen30._TRUST_ROOT_SIGNING_PUBLIC_KEY = public_key
+    frozen30._TRUST_ROOT_SIGNING_KEY_FINGERPRINT = fingerprint
 
 
 def _candidate_contract(root: Path) -> dict[str, object]:
@@ -226,6 +368,7 @@ def _write_candidate(root: Path) -> tuple[Path, Path, Path]:
     checksums_path = bundle_root / "SHA256SUMS"
     _refresh_checksums(predictions_path, manifest_path, checksums_path)
     _write_retained_audit(root)
+    _write_trust_root(root)
     return predictions_path, manifest_path, checksums_path
 
 
@@ -244,11 +387,17 @@ def _refresh_checksums(predictions: Path, manifest: Path, checksums: Path) -> No
 
 
 def _write_retained_audit(
-    root: Path, *, elapsed_seconds: float = 3540.0, cost: float = 1.2
+    root: Path,
+    *,
+    elapsed_seconds: float = 3540.0,
+    cost: float = 1.2,
+    dstack_changes: dict[str, object] | None = None,
 ) -> Path:
     bundle_root = root / "candidate-bundle"
     audit_root = _audit_root(root)
     audit_root.mkdir(exist_ok=True)
+    input_bundle_root = _input_bundle_root(root)
+    input_bundle_root.mkdir(exist_ok=True)
     contract = json.loads((bundle_root / "contract.json").read_text())
     source_contract = {
         "schema_version": 1,
@@ -270,7 +419,7 @@ def _write_retained_audit(
             for example in contract["examples"]
         ],
     }
-    input_contract_path = audit_root / "input-contract.json"
+    input_contract_path = input_bundle_root / "contract.json"
     input_contract_path.write_text(json.dumps(source_contract, sort_keys=True) + "\n")
     input_objects = {
         "contract.json": hashlib.sha256(input_contract_path.read_bytes()).hexdigest(),
@@ -302,37 +451,35 @@ def _write_retained_audit(
         )
         + "\n"
     )
+    dstack = {
+        "schema_version": 1,
+        "run_id": frozen30.CANDIDATE_RUN_ID,
+        "id": "run-uuid",
+        "status": "done",
+        "status_message": "terminal",
+        "termination_reason": None,
+        "job_termination_reason": None,
+        "submitted_at": "2026-08-01T12:00:00+00:00",
+        "finished_at": "2026-08-01T12:59:00+00:00",
+        "elapsed_seconds": elapsed_seconds,
+        "cost": cost,
+        "backend": "runpod",
+        "region": "US-TX-3",
+        "price": 2.0,
+        "instance_type": "NVIDIA L40S",
+        "cpu_count": 8,
+        "gpu_count": 1,
+        "gpu_name": "L40S",
+        "gpu_vendor": "nvidia",
+        "gpu_memory_mib": 49152,
+        "host_memory_mib": 65536,
+        "disk_mib": 102400,
+        "spot": False,
+        "exit_status": 0,
+    }
+    dstack.update(dstack_changes or {})
     (audit_root / "dstack-run.json").write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "run_id": frozen30.CANDIDATE_RUN_ID,
-                "id": "run-uuid",
-                "status": "done",
-                "status_message": "terminal",
-                "termination_reason": None,
-                "job_termination_reason": None,
-                "submitted_at": "2026-08-01T12:00:00+00:00",
-                "finished_at": "2026-08-01T12:59:00+00:00",
-                "elapsed_seconds": elapsed_seconds,
-                "cost": cost,
-                "backend": "runpod",
-                "region": "US-TX-3",
-                "price": 2.0,
-                "instance_type": "NVIDIA L40S",
-                "cpu_count": 8,
-                "gpu_count": 1,
-                "gpu_name": "L40S",
-                "gpu_vendor": "nvidia",
-                "gpu_memory_mib": 49152,
-                "host_memory_mib": 65536,
-                "disk_mib": 102400,
-                "spot": False,
-                "exit_status": 0,
-            },
-            sort_keys=True,
-        )
-        + "\n"
+        json.dumps(dstack, sort_keys=True) + "\n"
     )
     candidate_files = {
         f"./{path.relative_to(bundle_root).as_posix()}": hashlib.sha256(
@@ -347,7 +494,6 @@ def _write_retained_audit(
             "INPUTS_COMPLETE.json",
             "collection-status.json",
             "dstack-run.json",
-            "input-contract.json",
             "preview.txt",
         )
     }
@@ -380,6 +526,7 @@ def _retained_candidate_args(root: Path) -> dict[str, Path]:
     return {
         **_media_roots(root),
         "audit_bundle_root": _audit_root(root),
+        "input_bundle_root": _input_bundle_root(root),
     }
 
 
@@ -420,11 +567,11 @@ def _derived_operational(
         predictions = bundle_root / "predictions.jsonl"
         manifest = bundle_root / "manifest.json"
     _write_retained_audit(root, elapsed_seconds=elapsed_seconds, cost=cost)
+    _write_trust_root(root, gap=gap)
     return frozen30.derive_operational_evidence(
         candidate_predictions_path=predictions,
         candidate_manifest_path=manifest,
         audit_bundle_root=_audit_root(root),
-        privacy_review_path=_write_privacy_review(root, gap=gap),
     )
 
 
@@ -645,6 +792,163 @@ def test_retained_anchor_rejects_coherent_or_exact_set_candidate_substitution(
             checksums_path=checksums,
             **_retained_candidate_args(tmp_path),
         )
+
+
+def test_committed_trust_root_rejects_coherent_candidate_audit_and_review_rewrite(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Catches replacing every mutable artifact while the trusted pin stays fixed."""
+    qwen = tmp_path / "qwen.jsonl"
+    monkeypatch.setattr(frozen30, "QWEN_FULL_FREEZE_SHA256", _write_qwen(qwen))
+    predictions, manifest, checksums = _write_candidate(tmp_path)
+    contract_path = manifest.with_name("contract.json")
+    contract = json.loads(contract_path.read_text())
+    media_path = manifest.parent / "normalized" / contract["examples"][0]["media_path"]
+    media_path.write_bytes(b"coherently rewritten media after signed attestation")
+    contract["examples"][0]["derived_media_sha256"] = hashlib.sha256(
+        media_path.read_bytes()
+    ).hexdigest()
+    contract_path.write_text(json.dumps(contract, sort_keys=True) + "\n")
+    _refresh_candidate_bindings(predictions, manifest, checksums)
+    _write_retained_audit(tmp_path)
+    _write_privacy_review(tmp_path)
+    reference_calls: list[tuple[str, ...]] = []
+
+    with pytest.raises(ValueError, match="trusted attestation"):
+        frozen30.build_blind_grading_bundle(
+            qwen_predictions_path=qwen,
+            candidate_predictions_path=predictions,
+            candidate_manifest_path=manifest,
+            candidate_checksums_path=checksums,
+            **_retained_candidate_args(tmp_path),
+            reference_loader=lambda keys: reference_calls.append(keys)
+            or _references(keys),
+            grader_ids=("grader-a", "grader-b"),
+            shuffle_seeds=(1709, 2903),
+        )
+
+    assert reference_calls == []
+
+
+def test_untrusted_signer_cannot_authorize_the_committed_attestation(
+    tmp_path: Path,
+) -> None:
+    predictions, manifest, checksums = _write_candidate(tmp_path)
+    repository = frozen30._TRUST_ROOT_REPOSITORY
+    rogue_key = tmp_path / "rogue-reviewer-key"
+    subprocess.run(
+        [
+            "ssh-keygen",
+            "-q",
+            "-t",
+            "ed25519",
+            "-N",
+            "",
+            "-C",
+            "rogue@example.org",
+            "-f",
+            str(rogue_key),
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "config",
+            "user.signingkey",
+            str(rogue_key),
+        ],
+        check=True,
+    )
+    config = repository / "configs/vqa/nemotron3_frozen30_trust_root.json"
+    attestation = json.loads(config.read_text())
+    attestation["reviewed_at"] = "2026-08-01T18:01:00+00:00"
+    config.write_text(json.dumps(attestation, sort_keys=True) + "\n")
+    subprocess.run(["git", "-C", str(repository), "add", str(config)], check=True)
+    subprocess.run(
+        ["git", "-C", str(repository), "commit", "-q", "-m", "rogue attestation"],
+        check=True,
+    )
+    frozen30._TRUST_ROOT_COMMIT = subprocess.run(
+        ["git", "-C", str(repository), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    frozen30._TRUST_ROOT_BLOB = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "rev-parse",
+            f"{frozen30._TRUST_ROOT_COMMIT}:"
+            "configs/vqa/nemotron3_frozen30_trust_root.json",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    with pytest.raises(ValueError, match="signature"):
+        frozen30.verify_candidate_freeze(
+            predictions_path=predictions,
+            manifest_path=manifest,
+            checksums_path=checksums,
+            **_retained_candidate_args(tmp_path),
+        )
+
+
+def test_trusted_gap_determination_blocks_reference_access(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    qwen = tmp_path / "qwen.jsonl"
+    monkeypatch.setattr(frozen30, "QWEN_FULL_FREEZE_SHA256", _write_qwen(qwen))
+    predictions, manifest, checksums = _write_candidate(tmp_path)
+    _write_trust_root(tmp_path, gap=True)
+    reference_calls: list[tuple[str, ...]] = []
+
+    with pytest.raises(ValueError, match="blocks reference access"):
+        frozen30.build_blind_grading_bundle(
+            qwen_predictions_path=qwen,
+            candidate_predictions_path=predictions,
+            candidate_manifest_path=manifest,
+            candidate_checksums_path=checksums,
+            **_retained_candidate_args(tmp_path),
+            reference_loader=lambda keys: reference_calls.append(keys)
+            or _references(keys),
+            grader_ids=("grader-a", "grader-b"),
+            shuffle_seeds=(1709, 2903),
+        )
+
+    assert reference_calls == []
+
+
+def test_unset_post_collection_pins_fail_closed_before_reference_access(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    qwen = tmp_path / "qwen.jsonl"
+    monkeypatch.setattr(frozen30, "QWEN_FULL_FREEZE_SHA256", _write_qwen(qwen))
+    predictions, manifest, checksums = _write_candidate(tmp_path)
+    monkeypatch.setattr(frozen30, "_TRUST_ROOT_COMMIT", None)
+    monkeypatch.setattr(frozen30, "_TRUST_ROOT_BLOB", None)
+    reference_calls: list[tuple[str, ...]] = []
+
+    with pytest.raises(ValueError, match="commit and blob pins"):
+        frozen30.build_blind_grading_bundle(
+            qwen_predictions_path=qwen,
+            candidate_predictions_path=predictions,
+            candidate_manifest_path=manifest,
+            candidate_checksums_path=checksums,
+            **_retained_candidate_args(tmp_path),
+            reference_loader=lambda keys: reference_calls.append(keys)
+            or _references(keys),
+            grader_ids=("grader-a", "grader-b"),
+            shuffle_seeds=(1709, 2903),
+        )
+
+    assert reference_calls == []
 
 
 def test_canonical_source_bytes_must_match_retained_input_marker(
@@ -1258,6 +1562,59 @@ def test_operational_evidence_is_derived_from_anchor_bound_run_and_review_artifa
 
 
 @pytest.mark.parametrize(
+    "dstack_changes",
+    [
+        {"backend": "unapproved-cloud"},
+        {"backend": "RUNPOD"},
+        {"price": 2.000001},
+        {"status": "failed"},
+        {"exit_status": 1},
+        {"spot": True},
+        {"gpu_count": 2},
+        {"gpu_memory_mib": 49151},
+        {"cpu_count": 7},
+        {"host_memory_mib": 65535},
+        {"disk_mib": 102399},
+        {"elapsed_seconds": -0.001},
+        {"elapsed_seconds": math.nan},
+        {"cost": -0.001},
+        {"cost": math.nan},
+    ],
+)
+def test_off_policy_anchor_bound_resources_cannot_reach_operational_evidence(
+    tmp_path: Path, dstack_changes: dict[str, object]
+) -> None:
+    """Catches promotion of a coherent run outside the frozen cloud envelope."""
+    predictions, manifest, _checksums = _write_candidate(tmp_path)
+    _write_retained_audit(tmp_path, dstack_changes=dstack_changes)
+    _write_trust_root(tmp_path)
+
+    with pytest.raises(ValueError, match="frozen30 run"):
+        frozen30.derive_operational_evidence(
+            candidate_predictions_path=predictions,
+            candidate_manifest_path=manifest,
+            audit_bundle_root=_audit_root(tmp_path),
+            privacy_review_path=_write_privacy_review(tmp_path),
+        )
+
+
+@pytest.mark.parametrize("backend", ["runpod", "RunPod", "vastai", "Vast.ai"])
+def test_canonical_frozen30_backends_are_allowed(tmp_path: Path, backend: str) -> None:
+    predictions, manifest, _checksums = _write_candidate(tmp_path)
+    _write_retained_audit(tmp_path, dstack_changes={"backend": backend})
+    _write_trust_root(tmp_path)
+
+    operational = frozen30.derive_operational_evidence(
+        candidate_predictions_path=predictions,
+        candidate_manifest_path=manifest,
+        audit_bundle_root=_audit_root(tmp_path),
+        privacy_review_path=_write_privacy_review(tmp_path),
+    )
+
+    assert operational.run_status == "done"
+
+
+@pytest.mark.parametrize(
     "mutation",
     ["generic-sidecar", "anchor", "reviewer", "timestamp", "run", "audit"],
 )
@@ -1308,7 +1665,9 @@ def test_forged_or_unbound_review_and_audit_cannot_authorize_promotion(
             )
         )
 
-    with pytest.raises(ValueError, match="schema|anchor|reviewer|timestamp|run|audit"):
+    with pytest.raises(
+        ValueError, match="schema|anchor|reviewer|timestamp|run|audit|attestation"
+    ):
         frozen30.derive_operational_evidence(
             candidate_predictions_path=predictions,
             candidate_manifest_path=manifest,
@@ -1360,6 +1719,22 @@ def test_private_score_reports_automatic_cpw_category_and_completion_summaries(
     )
 
     assert report["completion"] == {"completed": 60, "expected": 60}
+    assert report["operational_evidence"] == {
+        "run_status": "done",
+        "duration_minutes": 59.0,
+        "hourly_price_usd": 2.0,
+        "compute_cost_usd": 1.2,
+        "workload_anchor_sha256": hashlib.sha256(
+            (_audit_root(tmp_path) / "workload-anchor.json").read_bytes()
+        ).hexdigest(),
+        "audit_bundle_sha256": _audit_bundle_sha256(tmp_path),
+        "trust_root_commit": frozen30._TRUST_ROOT_COMMIT,
+        "trust_root_blob": frozen30._TRUST_ROOT_BLOB,
+        "reviewer_id": "reviewer@example.org",
+        "reviewer_key_fingerprint": frozen30._TRUST_ROOT_SIGNING_KEY_FINGERPRINT,
+        "reviewed_at": "2026-08-01T18:00:00+00:00",
+        "privacy_or_audit_gap": False,
+    }
     assert set(report["conditions"]) == {"qwen12", "audio-off", "audio-on"}
     assert set(report["conditions"]["audio-on"]) == {
         "exact_match",
