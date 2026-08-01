@@ -178,7 +178,7 @@ def test_wrapper_runs_media_preflight_before_model_download() -> None:
     assert 'finalize_and_sync "$preflight_rc"' in run_workload
 
 
-def test_wrapper_accepts_only_authorized_a2_compatibility_identity(
+def test_wrapper_accepts_only_authorized_compatibility_identities(
     tmp_path: Path,
 ) -> None:
     requests = tmp_path / "compatibility-requests.json"
@@ -211,9 +211,11 @@ def test_wrapper_accepts_only_authorized_a2_compatibility_identity(
             env=env,
         )
 
-    accepted = validate("timelens2-selector-pilot-20260730-a2")
+    accepted_a2 = validate("timelens2-selector-pilot-20260730-a2")
+    accepted_cuda_fix = validate("timelens2-selector-pilot-20260801-a1")
     rejected = validate("timelens2-selector-pilot-20260730-a3")
 
-    assert accepted.returncode == 0, accepted.stderr
+    assert accepted_a2.returncode == 0, accepted_a2.stderr
+    assert accepted_cuda_fix.returncode == 0, accepted_cuda_fix.stderr
     assert rejected.returncode == 2
     assert "unexpected compatibility run ID" in rejected.stderr

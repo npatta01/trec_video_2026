@@ -49,7 +49,7 @@ validate_environment() {
       ;;
     compatibility)
       case "$EXPERIMENT_RUN_ID" in
-        timelens2-selector-pilot-20260730-a1|timelens2-selector-pilot-20260730-a2) ;;
+        timelens2-selector-pilot-20260730-a1|timelens2-selector-pilot-20260730-a2|timelens2-selector-pilot-20260801-a1) ;;
         *) die "unexpected compatibility run ID" ;;
       esac
       [[ -f "$REQUESTS_PATH" ]] || die "label-free request manifest is missing"
