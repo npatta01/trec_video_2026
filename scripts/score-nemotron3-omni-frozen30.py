@@ -14,6 +14,7 @@ from trec_video_2026.vqa_experiments.nemotron3_omni_frozen30 import (
     build_blind_grading_bundle,
     reconcile_frozen30_grades,
     score_replacement,
+    validate_private_grader_assignments,
 )
 
 
@@ -57,6 +58,8 @@ def _common_parser() -> argparse.ArgumentParser:
     parser.add_argument("--candidate-checksums", type=Path, required=True)
     parser.add_argument("--references", type=Path, required=True)
     parser.add_argument("--source-manifest", type=Path, required=True)
+    parser.add_argument("--source-media-root", type=Path, required=True)
+    parser.add_argument("--normalized-media-root", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--grader-id", action="append", required=True)
     parser.add_argument("--shuffle-seed", action="append", type=int, required=True)
@@ -72,6 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.set_defaults(handler=_prepare)
     score = subparsers.add_parser("score", parents=[_common_parser()])
     score.add_argument("--grader-submission", action="append", type=Path, required=True)
+    score.add_argument("--grader-assignments", type=Path, required=True)
     score.add_argument("--adjudication", type=Path)
     score.add_argument("--operational-evidence", type=Path, required=True)
     score.set_defaults(handler=_score)
@@ -113,6 +117,8 @@ def _bundle(args: argparse.Namespace):
         candidate_predictions_path=args.candidate_predictions,
         candidate_manifest_path=args.candidate_manifest,
         candidate_checksums_path=args.candidate_checksums,
+        source_media_root=args.source_media_root,
+        normalized_media_root=args.normalized_media_root,
         reference_loader=_reference_loader(args.references),
         grader_ids=tuple(args.grader_id),
         shuffle_seeds=tuple(args.shuffle_seed),
@@ -134,6 +140,10 @@ def _prepare(args: argparse.Namespace) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     for index, packet in enumerate(bundle.packets.values(), start=1):
         _write_json(output_dir / f"blind-grading-packet-{index}.json", packet)
+    _write_json(
+        output_dir / "private-grader-assignments.json",
+        bundle._grader_assignment_artifact,
+    )
     return 0
 
 
@@ -171,6 +181,7 @@ def _operational(path: Path) -> OperationalEvidence:
 def _score(args: argparse.Namespace) -> int:
     output_dir = require_private_output_directory(args.output_dir)
     bundle = _bundle(args)
+    validate_private_grader_assignments(bundle, _load_json(args.grader_assignments))
     submissions = [_load_json(path) for path in args.grader_submission]
     if len(submissions) != 2:
         raise ValueError("exactly two grader submissions are required")

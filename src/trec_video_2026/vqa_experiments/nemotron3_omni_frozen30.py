@@ -9,7 +9,7 @@ import random
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from statistics import fmean
 from typing import Any
 
@@ -120,6 +120,7 @@ class Frozen30GradingBundle(BlindGradingBundle):
     """Opaque grader packets plus private verified rows for final scoring."""
 
     _rows: tuple[dict[str, Any], ...]
+    _grader_assignment_artifact: dict[str, Any]
 
 
 def _is_sha256(value: object) -> bool:
@@ -163,6 +164,39 @@ def _contains_label(value: object) -> bool:
     if isinstance(value, (list, tuple)):
         return any(_contains_label(item) for item in value)
     return False
+
+
+def _verified_media_sha256(
+    *,
+    media_root: Path,
+    relative_path: object,
+    expected_sha256: object,
+    description: str,
+) -> str:
+    """Hash one independently supplied media file without permitting root escape."""
+
+    if not media_root.is_dir():
+        raise ValueError(f"{description} root must be a directory")
+    if not isinstance(relative_path, str) or not relative_path:
+        raise ValueError(f"{description} path must be a non-empty relative path")
+    relative = PurePosixPath(relative_path)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError(f"{description} path escapes its media root")
+    resolved_root = media_root.resolve()
+    try:
+        media_path = resolved_root.joinpath(*relative.parts).resolve(strict=True)
+        media_path.relative_to(resolved_root)
+    except (FileNotFoundError, ValueError) as error:
+        raise ValueError(
+            f"{description} artifact is missing or escapes its root"
+        ) from error
+    if not media_path.is_file():
+        raise ValueError(f"{description} artifact must be a file")
+    with media_path.open("rb") as handle:
+        actual_sha256 = hashlib.file_digest(handle, "sha256").hexdigest()
+    if actual_sha256 != expected_sha256:
+        raise ValueError(f"{description} media hash mismatch")
+    return actual_sha256
 
 
 def verify_qwen_freeze(predictions_path: Path) -> tuple[dict[str, Any], ...]:
@@ -325,6 +359,8 @@ def verify_candidate_freeze(
     predictions_path: Path,
     manifest_path: Path,
     checksums_path: Path,
+    source_media_root: Path,
+    normalized_media_root: Path,
     source_manifest_path: Path = _DEFAULT_SOURCE_MANIFEST,
 ) -> tuple[dict[str, Any], ...]:
     """Recompute all candidate hashes, bindings, identities, and pair order."""
@@ -418,6 +454,19 @@ def verify_candidate_freeze(
         != hashlib.sha256(_canonical_json(source_contract)).hexdigest()
     ):
         raise ValueError("normalized source contract SHA-256 mismatch")
+    for example in examples:
+        _verified_media_sha256(
+            media_root=source_media_root,
+            relative_path=example["source_media_path"],
+            expected_sha256=example["source_media_sha256"],
+            description="source",
+        )
+        _verified_media_sha256(
+            media_root=normalized_media_root,
+            relative_path=example["media_path"],
+            expected_sha256=example["derived_media_sha256"],
+            description="normalized",
+        )
 
     records = _parse_jsonl(prediction_bytes, description="candidate predictions")
     if len(records) != 60:
@@ -550,6 +599,8 @@ def build_blind_grading_bundle(
     candidate_predictions_path: Path,
     candidate_manifest_path: Path,
     candidate_checksums_path: Path,
+    source_media_root: Path,
+    normalized_media_root: Path,
     reference_loader: Callable[[tuple[str, ...]], Sequence[Mapping[str, Any]]],
     grader_ids: tuple[str, str],
     shuffle_seeds: tuple[int, int],
@@ -562,6 +613,8 @@ def build_blind_grading_bundle(
         predictions_path=candidate_predictions_path,
         manifest_path=candidate_manifest_path,
         checksums_path=candidate_checksums_path,
+        source_media_root=source_media_root,
+        normalized_media_root=normalized_media_root,
         source_manifest_path=source_manifest_path,
     )
     keys = tuple(video_id for video_id, _category, _role in FROZEN30_ROWS)
@@ -613,8 +666,9 @@ def build_blind_grading_bundle(
 
     packets: dict[str, dict[str, Any]] = {}
     answer_keys: dict[str, dict[str, tuple[str, str]]] = {}
+    assignments: list[dict[str, str]] = []
     prior: list[tuple[str, str]] | None = None
-    for packet_index, (_private_grader_id, seed) in enumerate(
+    for packet_index, (private_grader_id, seed) in enumerate(
         zip(grader_ids, shuffle_seeds, strict=True), start=1
     ):
         order = list(canonical_keys)
@@ -650,13 +704,36 @@ def build_blind_grading_bundle(
             **public_content,
         }
         answer_keys[grader_alias] = answer_key
+        assignments.append(
+            {
+                "grader_id": private_grader_id,
+                "grader_alias": grader_alias,
+                "packet_id": packet_id,
+                "packet_sha256": hashlib.sha256(
+                    _canonical_json(packets[grader_alias])
+                ).hexdigest(),
+            }
+        )
     return Frozen30GradingBundle(
         packets=packets,
         _answer_keys=answer_keys,
         _canonical_keys=tuple(canonical_keys),
         _item_content=item_content,
         _rows=tuple(private_rows),
+        _grader_assignment_artifact={
+            "schema_version": 1,
+            "assignments": assignments,
+        },
     )
+
+
+def validate_private_grader_assignments(
+    bundle: Frozen30GradingBundle, artifact: object
+) -> None:
+    """Require the independently retained grader assignment for this bundle."""
+
+    if artifact != bundle._grader_assignment_artifact:
+        raise ValueError("private grader assignment artifact mismatch")
 
 
 def _bound_adjudication_packet(packet: Mapping[str, Any]) -> dict[str, Any]:
@@ -687,11 +764,30 @@ def reconcile_frozen30_grades(
         }:
             raise ValueError("grader submissions require exact packet ID bindings")
         grader_id = submission.get("grader_id")
-        packet = bundle.packets.get(grader_id)
+        assignment = next(
+            (
+                row
+                for row in bundle._grader_assignment_artifact["assignments"]
+                if row["grader_id"] == grader_id
+            ),
+            None,
+        )
+        if assignment is None:
+            raise ValueError(
+                "submission does not match an independently assigned grader"
+            )
+        grader_alias = assignment["grader_alias"]
+        packet = bundle.packets.get(grader_alias)
         if packet is None or submission.get("packet_id") != packet["packet_id"]:
             raise ValueError("grader submission packet ID mismatch")
+        if (
+            assignment["packet_id"] != packet["packet_id"]
+            or assignment["packet_sha256"]
+            != hashlib.sha256(_canonical_json(packet)).hexdigest()
+        ):
+            raise ValueError("private grader assignment packet binding mismatch")
         stripped_submissions.append(
-            {"grader_id": grader_id, "grades": submission.get("grades")}
+            {"grader_id": grader_alias, "grades": submission.get("grades")}
         )
 
     pending = _reconcile_shared_grades(bundle, stripped_submissions)

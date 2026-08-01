@@ -75,8 +75,16 @@ def _write_qwen(path: Path, *, mutation: str | None = None) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _candidate_contract() -> dict[str, object]:
+def _media_roots(root: Path) -> dict[str, Path]:
+    return {
+        "source_media_root": root / "source-media",
+        "normalized_media_root": root / "candidate-bundle" / "normalized",
+    }
+
+
+def _candidate_contract(root: Path) -> dict[str, object]:
     source_rows = json.loads(SOURCE_MANIFEST.read_text())["examples"]
+    roots = _media_roots(root)
     source_examples = [
         {
             "video_id": video_id,
@@ -84,7 +92,11 @@ def _candidate_contract() -> dict[str, object]:
             "role": role,
             "question": source_rows[index]["question"].strip(),
             "media_path": FROZEN30_SOURCE_MEDIA_PATHS[video_id],
-            "media_sha256": "5" * 64,
+            "media_sha256": hashlib.sha256(
+                (
+                    roots["source_media_root"] / FROZEN30_SOURCE_MEDIA_PATHS[video_id]
+                ).read_bytes()
+            ).hexdigest(),
         }
         for index, (video_id, category, role) in enumerate(FROZEN30_ROWS)
     ]
@@ -121,9 +133,16 @@ def _candidate_contract() -> dict[str, object]:
                 "role": role,
                 "question": source_rows[index]["question"].strip(),
                 "source_media_path": FROZEN30_SOURCE_MEDIA_PATHS[video_id],
-                "source_media_sha256": "5" * 64,
+                "source_media_sha256": hashlib.sha256(
+                    (
+                        roots["source_media_root"]
+                        / FROZEN30_SOURCE_MEDIA_PATHS[video_id]
+                    ).read_bytes()
+                ).hexdigest(),
                 "media_path": f"{video_id}.mp4",
-                "derived_media_sha256": "8" * 64,
+                "derived_media_sha256": hashlib.sha256(
+                    (roots["normalized_media_root"] / f"{video_id}.mp4").read_bytes()
+                ).hexdigest(),
                 "source_duration_seconds": 10.0,
                 "derived_duration_seconds": 10.0,
             }
@@ -133,7 +152,15 @@ def _candidate_contract() -> dict[str, object]:
 
 
 def _write_candidate(root: Path) -> tuple[Path, Path, Path]:
-    contract = _candidate_contract()
+    roots = _media_roots(root)
+    for video_id, _category, _role in FROZEN30_ROWS:
+        source = roots["source_media_root"] / FROZEN30_SOURCE_MEDIA_PATHS[video_id]
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(f"canonical-source:{video_id}".encode())
+        normalized = roots["normalized_media_root"] / f"{video_id}.mp4"
+        normalized.parent.mkdir(parents=True, exist_ok=True)
+        normalized.write_bytes(f"normalized-h264-aac:{video_id}".encode())
+    contract = _candidate_contract(root)
     contract_path = root / "contract.json"
     contract_path.write_text(json.dumps(contract, sort_keys=True) + "\n")
     records = []
@@ -256,6 +283,7 @@ def _bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         candidate_predictions_path=predictions,
         candidate_manifest_path=manifest,
         candidate_checksums_path=checksums,
+        **_media_roots(tmp_path),
         reference_loader=_references,
         grader_ids=("grader-a", "grader-b"),
         shuffle_seeds=(1709, 2903),
@@ -278,6 +306,7 @@ def test_qwen_full_file_hash_is_recomputed_before_structure_or_labels(
             candidate_predictions_path=predictions,
             candidate_manifest_path=manifest,
             candidate_checksums_path=checksums,
+            **_media_roots(tmp_path),
             reference_loader=lambda keys: calls.append(keys) or _references(keys),
             grader_ids=("grader-a", "grader-b"),
             shuffle_seeds=(1709, 2903),
@@ -321,6 +350,7 @@ def test_candidate_prediction_manifest_and_checksums_mutation_fail_before_labels
             candidate_predictions_path=predictions,
             candidate_manifest_path=manifest,
             candidate_checksums_path=checksums,
+            **_media_roots(tmp_path),
             reference_loader=lambda keys: calls.append(keys) or _references(keys),
             grader_ids=("grader-a", "grader-b"),
             shuffle_seeds=(1709, 2903),
@@ -355,6 +385,7 @@ def test_candidate_requires_exact_adjacent_unique_pairs(
             predictions_path=predictions,
             manifest_path=manifest,
             checksums_path=checksums,
+            **_media_roots(tmp_path),
         )
 
 
@@ -379,6 +410,7 @@ def test_label_leakage_and_reference_stratum_mismatch_are_rejected(
             predictions_path=predictions,
             manifest_path=manifest,
             checksums_path=checksums,
+            **_media_roots(tmp_path),
         )
 
 
@@ -401,6 +433,7 @@ def test_candidate_recomputes_request_provenance_from_manifest_bound_contract(
             predictions_path=predictions,
             manifest_path=manifest,
             checksums_path=checksums,
+            **_media_roots(tmp_path),
         )
 
 
@@ -427,6 +460,55 @@ def test_candidate_normalized_contract_is_anchored_to_pinned_source_manifest(
             predictions_path=predictions,
             manifest_path=manifest,
             checksums_path=checksums,
+            **_media_roots(tmp_path),
+        )
+
+
+@pytest.mark.parametrize("field", ["source_media_sha256", "derived_media_sha256"])
+def test_candidate_media_hashes_are_checked_against_independent_artifact_bytes(
+    tmp_path: Path, field: str
+) -> None:
+    """Catches trusting a coherently refreshed contract instead of media bytes."""
+    predictions, manifest, checksums = _write_candidate(tmp_path)
+    contract_path = tmp_path / "contract.json"
+    contract = json.loads(contract_path.read_text())
+    contract["examples"][0][field] = "a" * 64
+    if field == "source_media_sha256":
+        source_rows = json.loads(SOURCE_MANIFEST.read_text())["examples"]
+        source_contract = {
+            "schema_version": 1,
+            "mode": "frozen30-paired",
+            "panel_id": "nemotron3-omni-frozen30",
+            "source_manifest_sha256": FROZEN30_INFERENCE_MANIFEST_SHA256,
+            "model_id": MODEL_ID,
+            "model_revision": MODEL_REVISION,
+            "conditions": [dict(condition) for condition in CONDITIONS],
+            "examples": [
+                {
+                    "video_id": video_id,
+                    "category": category,
+                    "role": role,
+                    "question": source_rows[index]["question"].strip(),
+                    "media_path": FROZEN30_SOURCE_MEDIA_PATHS[video_id],
+                    "media_sha256": example["source_media_sha256"],
+                }
+                for index, ((video_id, category, role), example) in enumerate(
+                    zip(FROZEN30_ROWS, contract["examples"], strict=True)
+                )
+            ],
+        }
+        contract["source_contract_sha256"] = hashlib.sha256(
+            _canonical(source_contract)
+        ).hexdigest()
+    contract_path.write_text(json.dumps(contract, sort_keys=True) + "\n")
+    _refresh_candidate_bindings(predictions, manifest, checksums)
+
+    with pytest.raises(ValueError, match="media.*hash|hash.*media"):
+        frozen30.verify_candidate_freeze(
+            predictions_path=predictions,
+            manifest_path=manifest,
+            checksums_path=checksums,
+            **_media_roots(tmp_path),
         )
 
 
@@ -448,6 +530,7 @@ def test_candidate_and_reference_questions_must_match_exactly(
             candidate_predictions_path=predictions,
             candidate_manifest_path=manifest,
             candidate_checksums_path=checksums,
+            **_media_roots(tmp_path),
             reference_loader=mismatched,
             grader_ids=("grader-a", "grader-b"),
             shuffle_seeds=(1709, 2903),
@@ -484,6 +567,7 @@ def test_packet_identity_does_not_reveal_seed_or_caller_grader_name(
         candidate_predictions_path=predictions,
         candidate_manifest_path=manifest,
         candidate_checksums_path=checksums,
+        **_media_roots(tmp_path),
         reference_loader=_references,
         grader_ids=("nemotron-reviewer", "audio-on-reviewer"),
         shuffle_seeds=(1709, 2903),
@@ -548,6 +632,7 @@ def test_reference_stratum_mismatch_fails_after_both_freezes(
             candidate_predictions_path=predictions,
             candidate_manifest_path=manifest,
             candidate_checksums_path=checksums,
+            **_media_roots(tmp_path),
             reference_loader=wrong,
             grader_ids=("grader-a", "grader-b"),
             shuffle_seeds=(1709, 2903),
@@ -575,10 +660,15 @@ def test_adjudication_packet_contains_only_disagreements(
     assert len(result.adjudication_packet["items"]) == 1
 
 
-def _packet_submission(packet: dict[str, object], grades: dict[str, str] | None = None):
+def _packet_submission(
+    packet: dict[str, object],
+    grades: dict[str, str] | None = None,
+    *,
+    grader_id: str | None = None,
+):
     grades = grades or {}
     return {
-        "grader_id": packet["grader_id"],
+        "grader_id": grader_id or packet["grader_id"],
         "packet_id": packet["packet_id"],
         "grades": [
             {
@@ -595,7 +685,14 @@ def test_grader_submission_must_bind_to_exact_packet_id(
 ) -> None:
     bundle = _bundle(tmp_path, monkeypatch)
     resolver = getattr(frozen30, "reconcile_frozen30_grades", reconcile_grades)
-    submissions = [_packet_submission(packet) for packet in bundle.packets.values()]
+    assignments = bundle._grader_assignment_artifact["assignments"]
+    submissions = [
+        _packet_submission(
+            bundle.packets[assignment["grader_alias"]],
+            grader_id=assignment["grader_id"],
+        )
+        for assignment in assignments
+    ]
     assert resolver(bundle, submissions).status == "final"
     submissions[0]["packet_id"] = "blind-wrong"
 
@@ -609,10 +706,15 @@ def test_adjudication_submission_must_bind_to_exact_disagreement_packet(
     bundle = _bundle(tmp_path, monkeypatch)
     resolver = getattr(frozen30, "reconcile_frozen30_grades", reconcile_grades)
     packets = list(bundle.packets.values())
+    assignments = bundle._grader_assignment_artifact["assignments"]
     disputed_answer = packets[0]["items"][0]["candidate_answer"]
     submissions = [
-        _packet_submission(packets[0]),
-        _packet_submission(packets[1], {disputed_answer: "C"}),
+        _packet_submission(packets[0], grader_id=assignments[0]["grader_id"]),
+        _packet_submission(
+            packets[1],
+            {disputed_answer: "C"},
+            grader_id=assignments[1]["grader_id"],
+        ),
     ]
     pending = resolver(bundle, submissions)
     assert pending.status == "adjudication_required"
@@ -643,6 +745,39 @@ def test_adjudication_submission_must_bind_to_exact_disagreement_packet(
         },
     )
     assert final.status == "final"
+
+
+def test_private_grader_assignment_binds_identity_alias_and_packet_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Catches discarding caller identities after generating public aliases."""
+    bundle = _bundle(tmp_path, monkeypatch)
+    artifact = bundle._grader_assignment_artifact
+
+    assert artifact["schema_version"] == 1
+    assert [row["grader_id"] for row in artifact["assignments"]] == [
+        "grader-a",
+        "grader-b",
+    ]
+    assert [row["grader_alias"] for row in artifact["assignments"]] == [
+        "grader-1",
+        "grader-2",
+    ]
+    for assignment in artifact["assignments"]:
+        packet = bundle.packets[assignment["grader_alias"]]
+        assert assignment["packet_id"] == packet["packet_id"]
+        assert (
+            assignment["packet_sha256"]
+            == hashlib.sha256(_canonical(packet)).hexdigest()
+        )
+    assert "grader-a" not in json.dumps(bundle.packets)
+    assert "grader-b" not in json.dumps(bundle.packets)
+
+    alias_submissions = [
+        _packet_submission(packet) for packet in bundle.packets.values()
+    ]
+    with pytest.raises(ValueError, match="assigned grader"):
+        frozen30.reconcile_frozen30_grades(bundle, alias_submissions)
 
 
 @pytest.mark.parametrize(

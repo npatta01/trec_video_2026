@@ -4,6 +4,7 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 
 import pytest
 
@@ -37,6 +38,10 @@ def test_script_requires_path_based_freezes_and_private_output_directory() -> No
             "/private/references.json",
             "--source-manifest",
             "/repo/configs/vqa/native_audio_benchmark_30_inference.json",
+            "--source-media-root",
+            "/private/source-media",
+            "--normalized-media-root",
+            "/private/downloaded-candidate-bundle/normalized",
             "--output-dir",
             "/private/grading",
             "--grader-id",
@@ -56,6 +61,93 @@ def test_script_requires_path_based_freezes_and_private_output_directory() -> No
     assert args.source_manifest == Path(
         "/repo/configs/vqa/native_audio_benchmark_30_inference.json"
     )
+    assert args.source_media_root == Path("/private/source-media")
+    assert args.normalized_media_root == Path(
+        "/private/downloaded-candidate-bundle/normalized"
+    )
+
+
+def test_score_requires_private_grader_assignment_artifact() -> None:
+    module = _load_script()
+    parser = module.build_parser()
+    common = [
+        "--qwen-predictions",
+        "/private/qwen.jsonl",
+        "--candidate-predictions",
+        "/private/predictions.jsonl",
+        "--candidate-manifest",
+        "/private/manifest.json",
+        "--candidate-checksums",
+        "/private/SHA256SUMS",
+        "--references",
+        "/private/references.json",
+        "--source-manifest",
+        "/repo/configs/vqa/native_audio_benchmark_30_inference.json",
+        "--source-media-root",
+        "/private/source-media",
+        "--normalized-media-root",
+        "/private/downloaded-candidate-bundle/normalized",
+        "--output-dir",
+        "/private/grading",
+        "--grader-id",
+        "a",
+        "--grader-id",
+        "b",
+        "--shuffle-seed",
+        "1709",
+        "--shuffle-seed",
+        "2903",
+    ]
+    args = parser.parse_args(
+        [
+            "score",
+            *common,
+            "--grader-submission",
+            "/private/a.json",
+            "--grader-submission",
+            "/private/b.json",
+            "--grader-assignments",
+            "/private/grader-assignments.json",
+            "--operational-evidence",
+            "/private/operational.json",
+        ]
+    )
+
+    assert args.grader_assignments == Path("/private/grader-assignments.json")
+
+
+def test_prepare_retains_private_grader_assignment_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_script()
+    packet = {"packet_id": "blind-1-abcd", "grader_id": "grader-1", "items": []}
+    artifact = {
+        "schema_version": 1,
+        "assignments": [
+            {
+                "grader_id": "Alice",
+                "grader_alias": "grader-1",
+                "packet_id": "blind-1-abcd",
+                "packet_sha256": "a" * 64,
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        module,
+        "_bundle",
+        lambda args: SimpleNamespace(
+            packets={"grader-1": packet},
+            _grader_assignment_artifact=artifact,
+        ),
+    )
+    monkeypatch.setattr(module, "require_private_output_directory", lambda path: path)
+
+    assert module._prepare(SimpleNamespace(output_dir=tmp_path / "private")) == 0
+    written = json.loads(
+        (tmp_path / "private" / "private-grader-assignments.json").read_text()
+    )
+    assert written == artifact
+    assert "Alice" not in json.dumps(packet)
 
 
 def test_script_refuses_output_paths_inside_repository(tmp_path: Path) -> None:
