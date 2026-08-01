@@ -162,7 +162,7 @@
 ### Task 2: Run the compatibility gate, full paired inference, and prediction freeze
 
 **Files:**
-- Create, ignored/private under the Stage 2 run: `.transactions/`; atomically published `phase-bundles/0001-preflight/` through the completed normal phase or one terminal bundle; and within those bundles the logical evidence (`grading-rubric.json`, `protocol.json`, `uniform-bounded-manifest.json`, `frames/bounded/uniform-12/**/*.png`, `requests.json`, preflight/pass, compatibility predictions/pass, full predictions, prediction freeze, or terminal failure record), all SHA-256 sidecars, and one predecessor-bound `phase-state.json`
+- Create, ignored/private under the Stage 2 run: `.transactions/`; `.quarantine/`; atomically published `phase-bundles/0001-preflight/` through the completed normal phase or one terminal bundle; and within those bundles the logical evidence (`grading-rubric.json`, `protocol.json`, `uniform-bounded-manifest.json`, `frames/bounded/uniform-12/**/*.png`, `requests.json`, preflight/pass, compatibility predictions/pass, full predictions, prediction freeze, or terminal failure record), all SHA-256 sidecars, and one predecessor-bound `phase-state.json`. The sole emergency fallback is the exact root path `recovery-required.json`; no other recovery-marker path is permitted.
 - Create, private: `.superpowers/sdd/2026-08-01-relevant-scene-stage2/task-2-report.md`
 
 **Interfaces:**
@@ -199,7 +199,7 @@
 
 - [ ] **Step 6: Freeze a terminal record for any incomplete branch**
 
-  If compatibility is not 6/6 or full inference is not 20/20 with ten pairs, verify the atomically published terminal bundle contains exact attempted/completed denominators, failed check/class, preserved artifact hashes, captured process evidence, predecessor binding, and `references_loaded: false`. Skip Task 3 and branch directly to Task 4's incomplete-report path; do not stop before that reporting/portal workflow finishes.
+  If compatibility is not 6/6 or full inference is not 20/20 with ten pairs, verify the atomically published terminal bundle contains exact attempted/completed denominators, failed check/class, preserved artifact hashes, captured process evidence, predecessor binding, and `references_loaded: false`. If and only if a post-rename error also makes terminal publication uncertain, require an exclusively created, fd-written/fsynced canonical `recovery-required.json` with the exact top-level keys `schema_version`, `status`, `phase_index`, `intended_phase`, `predecessor_phase_state_sha256`, `failure_class`, `failure_message_sha256`, `references_loaded`, `normal_destination`, `attempted_terminal`, `transaction`, `quarantines`, `upstream_bindings`, and `payload_sha256`; require `schema_version == "stage2-recovery-required-v1"`, `status == "incomplete-recovery-required"`, `references_loaded is false`, and `payload_sha256` to equal the semantic SHA-256 of the other exact fields. Each destination/transaction/quarantine object has the exact keys `relative_path`, `state`, `st_dev`, `st_ino`, and `inventory_sha256`; paths must be relative, no-follow, contained in the Stage 2 run, distinct, and one-to-one with the actual `.transactions/`/`.quarantine/` inventory. `upstream_bindings` exactly binds the last accepted phase state, preflight pass, controller, frozen wrapper snapshot, and frozen runner argv semantic hashes. `verify` accepts this marker only as a terminal incomplete/non-resumable lineage, rejects any later artifact or unbound normal destination, and reports the marker byte hash plus bound quarantine inventories. Skip Task 3 and branch directly to Task 4's incomplete-report path with either the verified terminal bundle or verified recovery-required lineage; do not stop before that reporting/portal workflow finishes.
 
 ### Task 3: Build the post-freeze blind grading controller and adjudicate
 
@@ -284,12 +284,12 @@
 - Create, private: `.superpowers/sdd/2026-08-01-relevant-scene-stage2/task-4-report.md`
 
 **Interfaces:**
-- Consumes either `(frozen Stage 1 scoreboard + terminal failure record)` for the incomplete path or `(frozen Stage 1 scoreboard + verified prediction freeze + blind grades/adjudication + independently verified final evaluation)` for the complete path.
+- Consumes either `(frozen Stage 1 scoreboard + verified terminal failure record or verified recovery-required lineage)` for the incomplete path or `(frozen Stage 1 scoreboard + verified prediction freeze + blind grades/adjudication + independently verified final evaluation)` for the complete path.
 - Produces one sanitized answering result under the existing Visual Evidence claim and a user-facing result before any transcript work.
 
 - [ ] **Step 1: Update authored report sources only**
 
-  For a complete verified run, record extraction gate, representation gate, 20/20 inference denominator, compatibility outcome, runtime, control/treatment C/P/W, ordinal scores, exact paired transitions, improved/regressed rows, ordinal gain, answer-gate result, evidence validity, decision disposition, immutable private artifact hashes, limitations, and next decision. For a compatibility failure or partial full run, record only the completed denominator, failed gate, preserved hashes, and **Incomplete** validity; state that references were not loaded and do not report C/P/W, ordinal scores, or an answer-gate conclusion. In every branch state explicitly that no transcript was used or run. Do not copy private questions, references, answers, grades, IDs, paths, frames, media, or logs.
+  For a complete verified run, record extraction gate, representation gate, 20/20 inference denominator, compatibility outcome, runtime, control/treatment C/P/W, ordinal scores, exact paired transitions, improved/regressed rows, ordinal gain, answer-gate result, evidence validity, decision disposition, immutable private artifact hashes, limitations, and next decision. For a compatibility failure, partial full run, or recovery-required lineage, record only the completed denominator when known, failed gate/recovery state, preserved terminal-or-recovery marker hash, and **Incomplete** validity; state that references were not loaded and do not report C/P/W, ordinal scores, or an answer-gate conclusion. In every branch state explicitly that no transcript was used or run. Do not copy private questions, references, answers, grades, IDs, paths, frames, media, or logs.
 
 - [ ] **Step 2: Regenerate report outputs**
 
