@@ -1,6 +1,14 @@
 {
+  "audit_bundle_schema_version": 1,
+  "audit_bundle_sha256": "f3cf15c213f2f81b0e7f712e0eeeb883869fa3296f00bc18e1b1b6aebf9b2438",
   "attestation_type": "nemotron3-frozen30-post-collection-review",
+  "determination": "no-load-bearing-gap",
+  "input_contract_sha256": "582ef65dfa76ca933a8a728bf76b064c51f01dc360f68546dcc6d150e58a70b8",
+  "input_marker_sha256": "6b63a2be268a3341d0fabf827b2ac532868f608023e11ca961566cdd58e8ae0e",
+  "reviewed_at": "2026-08-01T11:19:48+00:00",
+  "reviewer_id": "1314528+npatta01@users.noreply.github.com",
+  "reviewer_key_fingerprint": "SHA256:+w0DSDr+utElA1L6qX7urVSOt8r9kb221ZA8QDm3Gcc",
   "run_id": "nemotron3-omni-frozen30-20260801-a1",
   "schema_version": 1,
-  "state": "pending-real-collection"
+  "workload_anchor_sha256": "c7d6ab5dcb75069f64618ecd8028a44e40ef26f76137780a9fde1ec71aff9e53"
 }
