@@ -47,6 +47,41 @@ EXPANDED_ROWS = (
     ("EMI_anpHII4", "Visual controls", "control"),
     ("LusRurRrmf0", "Visual controls", "control"),
 )
+FROZEN30_ROWS = (
+    ("LKiaCf1QZFw", "Dialogue and speech", "target"),
+    ("Ie-KCtcZ7uc", "Dialogue and speech", "target"),
+    ("J1CS47pBX_M", "Dialogue and speech", "target"),
+    ("Mi-NpnCBegw", "Dialogue and speech", "target"),
+    ("NN7G28sBOlY", "Dialogue and speech", "target"),
+    ("NUmb2P3Bzu8", "Dialogue and speech", "target"),
+    ("IRTTtnSRTyY", "Non-speech sound and music", "target"),
+    ("IWSPAfCKtV8", "Non-speech sound and music", "target"),
+    ("Jc_vZjKwtvg", "Non-speech sound and music", "target"),
+    ("MdMKHhFFqJQ", "Non-speech sound and music", "target"),
+    ("NkXPPJoZ-h8", "Non-speech sound and music", "target"),
+    ("OzNdzgQi1CA", "Non-speech sound and music", "target"),
+    ("CH8Dp7EgW4I", "Temporal and action", "target"),
+    ("EtNOkUJd5w8", "Temporal and action", "target"),
+    ("Gp4LVTn3YbY", "Temporal and action", "target"),
+    ("KgOvCPOX-Ms", "Temporal and action", "target"),
+    ("PcDuz7j9LL8", "Temporal and action", "target"),
+    ("C4j3Pp79KSg", "Temporal and action", "target"),
+    ("Hw0bRvn1ZIo", "Spatial, OCR, and color", "target"),
+    ("J-sG9vePDmI", "Spatial, OCR, and color", "target"),
+    ("Jc2BdtyAF48", "Spatial, OCR, and color", "target"),
+    ("HyOKrz1C4zU", "Spatial, OCR, and color", "target"),
+    ("Msbpqv5aOxk", "Spatial, OCR, and color", "target"),
+    ("JOClNGH6yL8", "Spatial, OCR, and color", "target"),
+    ("EMI_anpHII4", "Visual controls", "control"),
+    ("IGL7j9-JRG4", "Visual controls", "control"),
+    ("JSOh_pKFq84", "Visual controls", "control"),
+    ("QFljXc4WpFA", "Visual controls", "control"),
+    ("PiIrinu42DQ", "Visual controls", "control"),
+    ("LusRurRrmf0", "Visual controls", "control"),
+)
+FROZEN30_INFERENCE_MANIFEST_SHA256 = (
+    "12fb622607be2bff0fc07789f5002fb14a51755bd18adabd9fb508d19230c499"
+)
 CONDITIONS = (
     {"condition_id": "audio-off", "audio_enabled": False},
     {"condition_id": "audio-on", "audio_enabled": True},
@@ -86,6 +121,35 @@ def _resolve_media(data_root: Path, media_stem: object) -> tuple[str, Path]:
     return relative.as_posix(), resolved
 
 
+def _resolve_frozen30_media(data_root: Path, media_stem: object) -> tuple[str, Path]:
+    """Resolve exactly one pinned frozen-30 source container without guessing."""
+    if not isinstance(media_stem, str) or not media_stem:
+        raise ValueError("media must be a non-empty data-root-relative path")
+    data_root = data_root.resolve()
+    candidates: list[tuple[PurePosixPath, Path]] = []
+    for suffix in (".mkv", ".mp4"):
+        relative = PurePosixPath(f"{media_stem}{suffix}")
+        if (
+            relative.is_absolute()
+            or ".." in relative.parts
+            or not relative.parts
+            or relative.parts[0] != "vqa"
+        ):
+            raise ValueError("media must be a safe vqa-relative path")
+        candidate = data_root.joinpath(*relative.parts)
+        if candidate.is_file():
+            resolved = candidate.resolve(strict=True)
+            try:
+                resolved.relative_to(data_root)
+            except ValueError as error:
+                raise ValueError("media escapes data_root") from error
+            candidates.append((relative, resolved))
+    if len(candidates) != 1:
+        raise ValueError(f"exactly one source media is required: {media_stem}")
+    relative, resolved = candidates[0]
+    return relative.as_posix(), resolved
+
+
 def _panel_rows(panel: object) -> dict[str, dict[str, Any]]:
     if not isinstance(panel, dict) or not isinstance(panel.get("examples"), list):
         raise TypeError("failure panel must contain an examples list")
@@ -99,6 +163,18 @@ def _panel_rows(panel: object) -> dict[str, dict[str, Any]]:
                 raise ValueError(f"duplicate video_id: {video_id}")
             rows[video_id] = row
     return rows
+
+
+def _contains_label_bearing_field(value: object) -> bool:
+    if isinstance(value, Mapping):
+        for key, nested in value.items():
+            if isinstance(key, str) and key.lower() in FORBIDDEN_LABEL_KEYS:
+                return True
+            if _contains_label_bearing_field(nested):
+                return True
+    elif isinstance(value, (list, tuple)):
+        return any(_contains_label_bearing_field(item) for item in value)
+    return False
 
 
 def _build_label_free_contract(
@@ -171,6 +247,62 @@ def build_expanded_contract(*, panel_path: Path, data_root: Path) -> dict[str, A
     )
 
 
+def build_frozen30_contract(*, panel_path: Path, data_root: Path) -> dict[str, Any]:
+    """Freeze the pinned label-free 30-row source manifest for paired inference."""
+    panel_bytes = panel_path.read_bytes()
+    panel = json.loads(panel_bytes)
+    if _contains_label_bearing_field(panel):
+        raise ValueError("label-bearing field leaked into frozen30 source manifest")
+    if hashlib.sha256(panel_bytes).hexdigest() != FROZEN30_INFERENCE_MANIFEST_SHA256:
+        raise ValueError("frozen30 source manifest SHA-256 mismatch")
+    if not isinstance(panel, dict) or not isinstance(panel.get("examples"), list):
+        raise TypeError("frozen30 source manifest must contain an examples list")
+    source_examples = panel["examples"]
+    actual_rows = [
+        (row.get("video_id"), row.get("category"))
+        for row in source_examples
+        if isinstance(row, dict)
+    ]
+    expected_rows = [
+        (video_id, category) for video_id, category, _role in FROZEN30_ROWS
+    ]
+    if actual_rows != expected_rows or len(source_examples) != len(FROZEN30_ROWS):
+        raise ValueError("frozen30-paired row identity mismatch")
+
+    examples = []
+    for source, (video_id, category, role) in zip(
+        source_examples, FROZEN30_ROWS, strict=True
+    ):
+        if not isinstance(source, dict):
+            raise TypeError("frozen30 source rows must be objects")
+        question = source.get("question")
+        if not isinstance(question, str) or not question.strip():
+            raise ValueError(f"question is missing for {video_id}")
+        media_path, resolved_media = _resolve_frozen30_media(
+            data_root, source.get("media")
+        )
+        examples.append(
+            {
+                "video_id": video_id,
+                "category": category,
+                "role": role,
+                "question": question.strip(),
+                "media_path": media_path,
+                "media_sha256": _sha256_file(resolved_media),
+            }
+        )
+    return {
+        "schema_version": 1,
+        "mode": "frozen30-paired",
+        "panel_id": "nemotron3-omni-frozen30",
+        "source_manifest_sha256": FROZEN30_INFERENCE_MANIFEST_SHA256,
+        "model_id": MODEL_ID,
+        "model_revision": MODEL_REVISION,
+        "conditions": [dict(condition) for condition in CONDITIONS],
+        "examples": examples,
+    }
+
+
 def build_canary_contract(media_paths: list[Path]) -> dict[str, Any]:
     """Build a public synthetic three-request native audio-video contract."""
     if len(media_paths) != 3:
@@ -210,14 +342,15 @@ def build_normalized_contract(
     decode_runner: Callable[..., Any] = subprocess.run,
 ) -> dict[str, Any]:
     """Bind a frozen pilot contract to verified H.264/AAC-derived MP4 bytes."""
-    if mode not in {"pilot", "codec-sentinel", "expanded-pilot"}:
+    if mode not in {"pilot", "codec-sentinel", "expanded-pilot", "frozen30-paired"}:
         raise ValueError(
-            "normalized contract mode must be pilot, codec-sentinel, or expanded-pilot"
+            "normalized contract mode must be pilot, codec-sentinel, expanded-pilot, or frozen30-paired"
         )
     source_mode, source_examples, _conditions = _validate_run_contract(source_contract)
     allowed_modes = {
         "pilot": {"pilot", "codec-sentinel"},
         "expanded-pilot": {"expanded-pilot"},
+        "frozen30-paired": {"frozen30-paired"},
     }
     if mode not in allowed_modes.get(source_mode, set()):
         raise ValueError(
@@ -250,7 +383,7 @@ def build_normalized_contract(
             "media_path": relative.as_posix(),
             "derived_media_sha256": _sha256_file(resolved),
         }
-        if mode == "expanded-pilot":
+        if mode in {"expanded-pilot", "frozen30-paired"}:
             source_duration, derived_duration = _validate_normalized_media(
                 source_path=source_path,
                 derived_path=resolved,
@@ -281,7 +414,6 @@ def build_normalized_contract(
         "schema_version": 1,
         "mode": mode,
         "panel_id": panel_id,
-        "source_panel_sha256": source_contract.get("source_panel_sha256"),
         "source_contract_sha256": _contract_sha256(source_contract),
         "model_id": MODEL_ID,
         "model_revision": MODEL_REVISION,
@@ -293,6 +425,12 @@ def build_normalized_contract(
         "conditions": conditions,
         "examples": normalized_examples,
     }
+    if mode == "frozen30-paired":
+        contract["source_manifest_sha256"] = source_contract.get(
+            "source_manifest_sha256"
+        )
+    else:
+        contract["source_panel_sha256"] = source_contract.get("source_panel_sha256")
     encoded = json.dumps(contract).lower()
     if any(key in encoded for key in FORBIDDEN_LABEL_KEYS):
         raise ValueError("label-bearing field leaked into inference contract")
@@ -540,10 +678,18 @@ def _is_sha256(value: object) -> bool:
 def _validate_run_contract(
     contract: dict[str, Any],
 ) -> tuple[str, list[Any], list[Any]]:
+    if _contains_label_bearing_field(contract):
+        raise ValueError("label-bearing field leaked into inference contract")
     mode = contract.get("mode")
-    if mode not in {"canary", "pilot", "codec-sentinel", "expanded-pilot"}:
+    if mode not in {
+        "canary",
+        "pilot",
+        "codec-sentinel",
+        "expanded-pilot",
+        "frozen30-paired",
+    }:
         raise ValueError(
-            "contract mode must be canary, pilot, codec-sentinel, or expanded-pilot"
+            "contract mode must be canary, pilot, codec-sentinel, expanded-pilot, or frozen30-paired"
         )
     if (
         contract.get("model_id") != MODEL_ID
@@ -555,24 +701,33 @@ def _validate_run_contract(
     if not isinstance(examples, list) or not isinstance(conditions, list):
         raise TypeError("contract examples and conditions must be lists")
     derivation = contract.get("media_derivation")
-    if mode == "expanded-pilot":
+    if mode in {"expanded-pilot", "frozen30-paired"}:
         expected_fields = {
             "schema_version",
             "mode",
             "panel_id",
-            "source_panel_sha256",
             "model_id",
             "model_revision",
             "conditions",
             "examples",
         }
+        source_anchor = "source_panel_sha256"
+        if mode == "frozen30-paired":
+            source_anchor = "source_manifest_sha256"
+        expected_fields.add(source_anchor)
         if derivation is not None:
             expected_fields.update({"source_contract_sha256", "media_derivation"})
         if set(contract) != expected_fields:
-            raise ValueError("expanded-pilot contract schema mismatch")
-        if not _is_sha256(contract.get("source_panel_sha256")):
-            raise ValueError("expanded-pilot source panel SHA-256 is invalid")
-    if mode in {"pilot", "codec-sentinel", "expanded-pilot"}:
+            raise ValueError(f"{mode} contract schema mismatch")
+        if not _is_sha256(contract.get(source_anchor)):
+            raise ValueError(f"{mode} source manifest SHA-256 is invalid")
+        if (
+            mode == "frozen30-paired"
+            and contract.get("source_manifest_sha256")
+            != FROZEN30_INFERENCE_MANIFEST_SHA256
+        ):
+            raise ValueError("frozen30-paired source manifest SHA-256 mismatch")
+    if mode in {"pilot", "codec-sentinel", "expanded-pilot", "frozen30-paired"}:
         expected_rows = list(TARGET_ROWS)
         expected_conditions = [dict(condition) for condition in CONDITIONS]
         row_error = "pilot row identity mismatch"
@@ -581,6 +736,10 @@ def _validate_run_contract(
             expected_rows = list(EXPANDED_ROWS)
             row_error = "expanded-pilot row identity mismatch"
             condition_error = "expanded-pilot condition identity mismatch"
+        if mode == "frozen30-paired":
+            expected_rows = list(FROZEN30_ROWS)
+            row_error = "frozen30-paired row identity mismatch"
+            condition_error = "frozen30-paired condition identity mismatch"
         if mode == "codec-sentinel":
             by_id = {row[0]: row for row in TARGET_ROWS}
             expected_rows = [by_id[video_id] for video_id in CODEC_SENTINEL_VIDEO_IDS]
@@ -619,12 +778,21 @@ def _validate_run_contract(
             video_id = example.get("video_id")
             if (
                 example.get("media_path") != f"{video_id}.mp4"
-                or not str(example.get("source_media_path", "")).endswith(".mkv")
+                or (
+                    mode != "frozen30-paired"
+                    and not str(example.get("source_media_path", "")).endswith(".mkv")
+                )
+                or (
+                    mode == "frozen30-paired"
+                    and not str(example.get("source_media_path", "")).endswith(
+                        (".mkv", ".mp4")
+                    )
+                )
                 or not _is_sha256(example.get("source_media_sha256"))
                 or not _is_sha256(example.get("derived_media_sha256"))
             ):
                 raise ValueError(f"normalized media identity mismatch for {video_id}")
-            if mode == "expanded-pilot" and (
+            if mode in {"expanded-pilot", "frozen30-paired"} and (
                 not isinstance(example.get("source_duration_seconds"), (int, float))
                 or isinstance(example.get("source_duration_seconds"), bool)
                 or example["source_duration_seconds"] <= 0
@@ -658,7 +826,7 @@ def validate_contract_inputs(
         raise TypeError("contract must be an object")
     mode, examples, conditions = _validate_run_contract(contract)
     is_normalized = contract.get("media_derivation") is not None
-    if mode in {"pilot", "expanded-pilot"} and not is_normalized:
+    if mode in {"pilot", "expanded-pilot", "frozen30-paired"} and not is_normalized:
         if marker_path is None:
             raise ValueError("pilot input marker is required")
         marker = json.loads(marker_path.read_text(encoding="utf-8"))
@@ -703,10 +871,11 @@ def run_probe(
         ("pilot", 6, 12),
         ("codec-sentinel", 3, 3),
         ("expanded-pilot", 12, 24),
+        ("frozen30-paired", 30, 60),
     }:
         raise ValueError("contract request denominator is not predeclared")
 
-    if mode == "expanded-pilot":
+    if mode in {"expanded-pilot", "frozen30-paired"}:
         for example in examples:
             if not isinstance(example, dict):
                 raise TypeError("contract examples must be objects")
@@ -848,6 +1017,16 @@ def _main_build_expanded_contract(args: argparse.Namespace) -> int:
     return 0
 
 
+def _main_build_frozen30_contract(args: argparse.Namespace) -> int:
+    contract = build_frozen30_contract(
+        panel_path=args.panel,
+        data_root=args.data_root,
+    )
+    json.dump(contract, sys.stdout, indent=2, sort_keys=True)
+    sys.stdout.write("\n")
+    return 0
+
+
 def _main_build_canary(args: argparse.Namespace) -> int:
     contract = build_canary_contract(args.media)
     json.dump(contract, sys.stdout, indent=2, sort_keys=True)
@@ -903,6 +1082,10 @@ def main(argv: list[str] | None = None) -> int:
     expanded.add_argument("--panel", type=Path, required=True)
     expanded.add_argument("--data-root", type=Path, required=True)
     expanded.set_defaults(handler=_main_build_expanded_contract)
+    frozen30 = subparsers.add_parser("build-frozen30-contract")
+    frozen30.add_argument("--panel", type=Path, required=True)
+    frozen30.add_argument("--data-root", type=Path, required=True)
+    frozen30.set_defaults(handler=_main_build_frozen30_contract)
     canary = subparsers.add_parser("build-canary-contract")
     canary.add_argument("--media", type=Path, action="append", required=True)
     canary.set_defaults(handler=_main_build_canary)
@@ -911,7 +1094,9 @@ def main(argv: list[str] | None = None) -> int:
     normalized.add_argument("--source-media-root", type=Path, required=True)
     normalized.add_argument("--normalized-media-root", type=Path, required=True)
     normalized.add_argument(
-        "--mode", choices=("pilot", "codec-sentinel", "expanded-pilot"), required=True
+        "--mode",
+        choices=("pilot", "codec-sentinel", "expanded-pilot", "frozen30-paired"),
+        required=True,
     )
     normalized.add_argument("--output", type=Path, required=True)
     normalized.set_defaults(handler=_main_build_normalized)

@@ -98,6 +98,281 @@ def _decode_succeeds(
     return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
 
 
+FROZEN30_INFERENCE_MANIFEST = (
+    Path(__file__).parents[1] / "configs/vqa/native_audio_benchmark_30_inference.json"
+)
+
+
+def _frozen30_panel_and_media(tmp_path: Path) -> tuple[Path, Path]:
+    """Copy the pinned public inference manifest with private-like source bytes."""
+    panel_path = tmp_path / "native_audio_benchmark_30_inference.json"
+    panel_path.write_bytes(FROZEN30_INFERENCE_MANIFEST.read_bytes())
+    data_root = tmp_path / "data"
+    manifest = json.loads(panel_path.read_text(encoding="utf-8"))
+    for index, example in enumerate(manifest["examples"]):
+        suffix = ".mp4" if example["video_id"] == "QFljXc4WpFA" else ".mkv"
+        media_path = data_root / f"{example['media']}{suffix}"
+        media_path.parent.mkdir(parents=True, exist_ok=True)
+        media_path.write_bytes(f"frozen30-media-{index}".encode())
+    return panel_path, data_root
+
+
+def _frozen30_normalized_inputs(
+    tmp_path: Path,
+) -> tuple[dict[str, object], Path, Path]:
+    panel_path, data_root = _frozen30_panel_and_media(tmp_path)
+    source_contract = nemotron3_omni_pilot.build_frozen30_contract(
+        panel_path=panel_path,
+        data_root=data_root,
+    )
+    normalized_root = tmp_path / "normalized"
+    normalized_root.mkdir()
+    for index, example in enumerate(source_contract["examples"]):
+        (normalized_root / f"{example['video_id']}.mp4").write_bytes(
+            f"frozen30-normalized-{index}".encode()
+        )
+    return source_contract, data_root, normalized_root
+
+
+def test_frozen30_contract_rejects_wrong_thirty_row_identity_or_order(
+    tmp_path: Path,
+) -> None:
+    """Catches a paired contract that changes the pinned 30-row panel or order."""
+    panel_path, data_root = _frozen30_panel_and_media(tmp_path)
+
+    contract = nemotron3_omni_pilot.build_frozen30_contract(
+        panel_path=panel_path,
+        data_root=data_root,
+    )
+
+    assert [
+        (example["video_id"], example["category"], example["role"])
+        for example in contract["examples"]
+    ] == [
+        ("LKiaCf1QZFw", "Dialogue and speech", "target"),
+        ("Ie-KCtcZ7uc", "Dialogue and speech", "target"),
+        ("J1CS47pBX_M", "Dialogue and speech", "target"),
+        ("Mi-NpnCBegw", "Dialogue and speech", "target"),
+        ("NN7G28sBOlY", "Dialogue and speech", "target"),
+        ("NUmb2P3Bzu8", "Dialogue and speech", "target"),
+        ("IRTTtnSRTyY", "Non-speech sound and music", "target"),
+        ("IWSPAfCKtV8", "Non-speech sound and music", "target"),
+        ("Jc_vZjKwtvg", "Non-speech sound and music", "target"),
+        ("MdMKHhFFqJQ", "Non-speech sound and music", "target"),
+        ("NkXPPJoZ-h8", "Non-speech sound and music", "target"),
+        ("OzNdzgQi1CA", "Non-speech sound and music", "target"),
+        ("CH8Dp7EgW4I", "Temporal and action", "target"),
+        ("EtNOkUJd5w8", "Temporal and action", "target"),
+        ("Gp4LVTn3YbY", "Temporal and action", "target"),
+        ("KgOvCPOX-Ms", "Temporal and action", "target"),
+        ("PcDuz7j9LL8", "Temporal and action", "target"),
+        ("C4j3Pp79KSg", "Temporal and action", "target"),
+        ("Hw0bRvn1ZIo", "Spatial, OCR, and color", "target"),
+        ("J-sG9vePDmI", "Spatial, OCR, and color", "target"),
+        ("Jc2BdtyAF48", "Spatial, OCR, and color", "target"),
+        ("HyOKrz1C4zU", "Spatial, OCR, and color", "target"),
+        ("Msbpqv5aOxk", "Spatial, OCR, and color", "target"),
+        ("JOClNGH6yL8", "Spatial, OCR, and color", "target"),
+        ("EMI_anpHII4", "Visual controls", "control"),
+        ("IGL7j9-JRG4", "Visual controls", "control"),
+        ("JSOh_pKFq84", "Visual controls", "control"),
+        ("QFljXc4WpFA", "Visual controls", "control"),
+        ("PiIrinu42DQ", "Visual controls", "control"),
+        ("LusRurRrmf0", "Visual controls", "control"),
+    ]
+    contract["examples"][0], contract["examples"][1] = (
+        contract["examples"][1],
+        contract["examples"][0],
+    )
+    with pytest.raises(ValueError, match="frozen30-paired row identity mismatch"):
+        nemotron3_omni_pilot._validate_run_contract(contract)
+
+
+def test_frozen30_contract_rejects_label_bearing_source_manifest(
+    tmp_path: Path,
+) -> None:
+    """Catches references or annotations reaching the frozen inference boundary."""
+    panel_path, data_root = _frozen30_panel_and_media(tmp_path)
+    manifest = json.loads(panel_path.read_text(encoding="utf-8"))
+    manifest["examples"][0]["reference"] = "private answer"
+    panel_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="label-bearing field"):
+        nemotron3_omni_pilot.build_frozen30_contract(
+            panel_path=panel_path,
+            data_root=data_root,
+        )
+
+
+def test_frozen30_contract_requires_one_source_and_records_unique_qfl_mp4(
+    tmp_path: Path,
+) -> None:
+    """Catches missing or ambiguous source media and ignoring QFl's sole MP4."""
+    panel_path, data_root = _frozen30_panel_and_media(tmp_path)
+
+    contract = nemotron3_omni_pilot.build_frozen30_contract(
+        panel_path=panel_path,
+        data_root=data_root,
+    )
+    qfl = next(
+        example
+        for example in contract["examples"]
+        if example["video_id"] == "QFljXc4WpFA"
+    )
+    assert qfl["media_path"].endswith("QFljXc4WpFA.mp4")
+    assert len(qfl["media_sha256"]) == 64
+
+    missing = data_root / "vqa/2025/training/videos_original/LKiaCf1QZFw.mkv"
+    missing.unlink()
+    with pytest.raises(ValueError, match="exactly one source media"):
+        nemotron3_omni_pilot.build_frozen30_contract(
+            panel_path=panel_path,
+            data_root=data_root,
+        )
+
+    missing.write_bytes(b"restored")
+    ambiguous = data_root / "vqa/2025/training/videos_original/QFljXc4WpFA.mkv"
+    ambiguous.write_bytes(b"ambiguous")
+    with pytest.raises(ValueError, match="exactly one source media"):
+        nemotron3_omni_pilot.build_frozen30_contract(
+            panel_path=panel_path,
+            data_root=data_root,
+        )
+
+
+def test_frozen30_probe_requires_verified_normalization_and_decode_before_requests(
+    tmp_path: Path,
+) -> None:
+    """Catches a 30-row probe that reaches inference without normalized AV checks."""
+    source_contract, data_root, normalized_root = _frozen30_normalized_inputs(tmp_path)
+    contract = nemotron3_omni_pilot.build_normalized_contract(
+        source_contract=source_contract,
+        source_media_root=data_root,
+        normalized_media_root=normalized_root,
+        mode="frozen30-paired",
+        media_probe=lambda _path: _media_metadata(),
+        decode_runner=_decode_succeeds,
+    )
+    requested = False
+
+    def request(_payload: dict[str, object]) -> dict[str, object]:
+        nonlocal requested
+        requested = True
+        return {}
+
+    def decode_fails(
+        *_args: object, **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        raise subprocess.CalledProcessError(1, ["ffmpeg"])
+
+    with pytest.raises(ValueError, match="media decode failed"):
+        run_probe(
+            contract=contract,
+            media_root=normalized_root,
+            output_dir=tmp_path / "output",
+            run_id="nemotron3-omni-frozen30-20260801-a1",
+            request=request,
+            media_probe=lambda _path: _media_metadata(),
+            decode_runner=decode_fails,
+        )
+    assert requested is False
+
+
+def test_frozen30_probe_runs_sixty_adjacent_pairs_and_rejects_reasoning_output(
+    tmp_path: Path,
+) -> None:
+    """Catches non-adjacent pairs, a wrong 60-request denominator, or saved reasoning."""
+    source_contract, data_root, normalized_root = _frozen30_normalized_inputs(tmp_path)
+    contract = nemotron3_omni_pilot.build_normalized_contract(
+        source_contract=source_contract,
+        source_media_root=data_root,
+        normalized_media_root=normalized_root,
+        mode="frozen30-paired",
+        media_probe=lambda _path: _media_metadata(),
+        decode_runner=_decode_succeeds,
+    )
+    calls: list[dict[str, object]] = []
+
+    def request(payload: dict[str, object]) -> dict[str, object]:
+        calls.append(payload)
+        if len(calls) == 2:
+            return {
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "content": "Short answer.",
+                            "reasoning_content": "private reasoning",
+                        },
+                    }
+                ]
+            }
+        return {
+            "choices": [
+                {"finish_reason": "stop", "message": {"content": "Short answer."}}
+            ]
+        }
+
+    output_dir = tmp_path / "output"
+    summary = run_probe(
+        contract=contract,
+        media_root=normalized_root,
+        output_dir=output_dir,
+        run_id="nemotron3-omni-frozen30-20260801-a1",
+        request=request,
+        media_probe=lambda _path: _media_metadata(),
+        decode_runner=_decode_succeeds,
+    )
+
+    assert summary["completion"] == {"completed": 59, "expected": 60}
+    assert [
+        call["mm_processor_kwargs"]["use_audio_in_video"]  # type: ignore[index]
+        for call in calls
+    ] == [False, True] * 30
+    records = [
+        json.loads(line)
+        for line in (output_dir / "predictions.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert [(record["pair_index"], record["condition_id"]) for record in records] == [
+        (pair_index, condition_id)
+        for pair_index in range(30)
+        for condition_id in ("audio-off", "audio-on")
+    ]
+    assert records[1]["status"] == "failed"
+    assert (
+        "private reasoning"
+        not in (output_dir / "predictions.jsonl").read_text(encoding="utf-8").lower()
+    )
+
+
+def test_frozen30_contract_cli_builds_the_pinned_label_free_source_contract(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Catches a CLI path that emits another pilot identity or leaks labels."""
+    panel_path, data_root = _frozen30_panel_and_media(tmp_path)
+
+    assert (
+        nemotron3_omni_pilot.main(
+            [
+                "build-frozen30-contract",
+                "--panel",
+                str(panel_path),
+                "--data-root",
+                str(data_root),
+            ]
+        )
+        == 0
+    )
+
+    contract = json.loads(capsys.readouterr().out)
+    assert contract["mode"] == "frozen30-paired"
+    assert contract["panel_id"] == "nemotron3-omni-frozen30"
+    assert len(contract["examples"]) == 30
+    assert "reference" not in json.dumps(contract).lower()
+
+
 @pytest.mark.parametrize(
     ("derived_metadata", "message"),
     [
