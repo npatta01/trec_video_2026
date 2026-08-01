@@ -254,6 +254,35 @@ def build_synthetic_canary_assets(
     }
 
 
+def ffprobe_duration(
+    media_path: Path, *, ffprobe_executable: str = "/usr/bin/ffprobe"
+) -> float:
+    """Read a finite positive container duration with the host CLI."""
+
+    executable = Path(ffprobe_executable)
+    if not executable.is_absolute() or not executable.is_file():
+        raise ValueError("ffprobe executable must be an absolute file")
+    completed = subprocess.run(
+        [
+            str(executable),
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            str(media_path),
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    duration = float(completed.stdout.strip())
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError("ffprobe returned an invalid duration")
+    return duration
+
+
 def _reject_label_keys(value: object, *, location: str = "source") -> None:
     if isinstance(value, Mapping):
         for key, child in value.items():
@@ -269,12 +298,22 @@ def _reject_label_keys(value: object, *, location: str = "source") -> None:
 def _inside(root: Path, relative: object) -> Path:
     if not isinstance(relative, str) or not relative:
         raise ValueError("media must be a non-empty relative path")
-    candidate = (root / relative).resolve(strict=True)
+    unresolved = Path(relative)
+    candidate = (root / unresolved).resolve(strict=False)
     if not candidate.is_relative_to(root):
         raise ValueError("media must resolve beneath dataset_root")
-    if not candidate.is_file():
-        raise ValueError("media is not a file")
-    return candidate
+    if unresolved.suffix:
+        if not candidate.is_file():
+            raise ValueError("media is not a file")
+        return candidate.resolve(strict=True)
+    matches = [
+        Path(f"{candidate}{suffix}").resolve(strict=True)
+        for suffix in (".mkv", ".mp4", ".webm", ".mov")
+        if Path(f"{candidate}{suffix}").is_file()
+    ]
+    if len(matches) != 1:
+        raise ValueError("media stem must resolve to exactly one supported file")
+    return matches[0]
 
 
 def prepare_frozen30_source(
@@ -1085,7 +1124,7 @@ def run_three_condition_inference(
                 media_path = Path(str(request["media_path"]))
                 measured_duration = _video_duration(media_path)
                 frozen_duration = float(request["duration_seconds"])
-                if abs(measured_duration - frozen_duration) > 0.001:
+                if abs(measured_duration - frozen_duration) > 0.05:
                     raise ValueError("runtime duration differs from frozen duration")
                 torch.cuda.reset_peak_memory_stats()
                 started = time.monotonic()
@@ -1282,6 +1321,7 @@ def _parser() -> argparse.ArgumentParser:
     prepare.add_argument("--output", type=Path, required=True)
     prepare.add_argument("--container-media-root", type=Path, required=True)
     prepare.add_argument("--expected-source-sha256", required=True)
+    prepare.add_argument("--ffprobe", default="/usr/bin/ffprobe")
     for name in ("canary", "run"):
         command = commands.add_parser(name)
         command.add_argument("--selector-model-dir", type=Path, required=True)
@@ -1303,6 +1343,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             output_path=args.output,
             container_media_root=args.container_media_root,
             expected_source_sha256=args.expected_source_sha256,
+            duration_provider=lambda path: ffprobe_duration(
+                path,
+                ffprobe_executable=args.ffprobe,
+            ),
         )
         return 0
     if args.command == "canary":

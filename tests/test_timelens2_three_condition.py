@@ -16,6 +16,7 @@ from trec_video_2026.vqa_experiments.timelens2_three_condition import (
     build_blind_grading_packet,
     build_three_condition_recipes,
     extract_three_condition_frames,
+    ffprobe_duration,
     freeze_three_condition_inference,
     make_ffmpeg_frame_decoder,
     prepare_frozen30_source,
@@ -117,6 +118,27 @@ def test_prepare_frozen30_source_rejects_label_path(tmp_path: Path) -> None:
             expected_source_sha256=_sha256(source),
             duration_provider=lambda _: 12.0,
         )
+
+
+def test_prepare_frozen30_source_resolves_unique_extensionless_media(
+    tmp_path: Path,
+) -> None:
+    source = _source(tmp_path)
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    for row in payload["examples"]:
+        row["media"] = row["media"].removesuffix(".mkv")
+    source.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+
+    prepared = prepare_frozen30_source(
+        source_path=source,
+        dataset_root=tmp_path,
+        output_path=tmp_path / "prepared.json",
+        container_media_root=Path("/dstack/input/data"),
+        expected_source_sha256=_sha256(source),
+        duration_provider=lambda _: 12.0,
+    )
+
+    assert prepared["requests"][0]["media_path"] == "/dstack/input/data/video-00.mkv"
 
 
 def test_three_condition_recipes_share_uniform_and_local_slots() -> None:
@@ -377,3 +399,24 @@ def test_synthetic_canary_assets_and_real_frame_decoder(tmp_path: Path) -> None:
 
     assert decoded.is_file()
     assert decoded.stat().st_size > 0
+
+
+@pytest.mark.skipif(
+    shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None,
+    reason="ffmpeg/ffprobe unavailable",
+)
+def test_ffprobe_duration_reads_generated_video(tmp_path: Path) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    ffprobe = shutil.which("ffprobe")
+    assert ffmpeg is not None and ffprobe is not None
+    assets = build_synthetic_canary_assets(
+        output_dir=tmp_path,
+        ffmpeg_executable=ffmpeg,
+    )
+
+    duration = ffprobe_duration(
+        Path(assets["video_path"]),
+        ffprobe_executable=ffprobe,
+    )
+
+    assert duration == pytest.approx(3.0, abs=0.01)
