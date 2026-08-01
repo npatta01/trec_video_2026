@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 from pathlib import Path
 
@@ -11,8 +12,10 @@ import pytest
 from trec_video_2026.vqa_experiments.timelens2_quality import (
     QualityEvidenceStore,
     build_matched_recipes,
+    extract_recipe_frames,
     freeze_quality_inference,
     prepare_quality_requests,
+    run_quality_inference,
 )
 from trec_video_2026.vqa_experiments.timelens2_selector import (
     build_normalized_interval_result,
@@ -303,3 +306,66 @@ def test_quality_evidence_store_persists_partial_failure_and_denominator(
         "answers": {"accepted": 0, "attempted": 0, "required": 20},
     }
     assert summary["failure"]["error_type"] == "RuntimeError"
+
+
+def test_extract_recipe_frames_records_exact_timestamps_and_distinct_hashes(
+    tmp_path: Path,
+) -> None:
+    media = tmp_path / "video.mkv"
+    media.write_bytes(b"video")
+    recipes = {
+        "uniform-12": {"timestamps_seconds": [index + 0.5 for index in range(12)]},
+        "hybrid-12": {"timestamps_seconds": [index + 0.25 for index in range(12)]},
+    }
+
+    def fake_runner(argv: list[str], **kwargs: object) -> None:
+        assert kwargs == {"check": True, "capture_output": True}
+        timestamp = argv[argv.index("-ss") + 1]
+        Path(argv[-1]).write_bytes(f"frame at {timestamp}".encode())
+
+    manifest = extract_recipe_frames(
+        video_id="synthetic-video",
+        media_path=media,
+        recipes=recipes,
+        output_dir=tmp_path / "frames",
+        ffmpeg_executable="/pinned/ffmpeg",
+        runner=fake_runner,
+    )
+
+    assert manifest["video_id"] == "synthetic-video"
+    assert manifest["requested_unique_timestamps"] == 24
+    assert manifest["conditions"]["uniform-12"][0]["timestamp_seconds"] == 0.5
+    assert len(manifest["conditions"]["uniform-12"]) == 12
+    assert len(manifest["conditions"]["hybrid-12"]) == 12
+    assert len({row["sha256"] for row in manifest["frames"]}) == 24
+    assert all(Path(row["path"]).is_file() for row in manifest["frames"])
+
+
+def test_extract_recipe_frames_rejects_duplicate_decoded_images(tmp_path: Path) -> None:
+    media = tmp_path / "video.mkv"
+    media.write_bytes(b"video")
+    recipes = {
+        condition: {"timestamps_seconds": [index + offset for index in range(12)]}
+        for condition, offset in (("uniform-12", 0.1), ("hybrid-12", 0.2))
+    }
+
+    def duplicate_runner(argv: list[str], **kwargs: object) -> None:
+        Path(argv[-1]).write_bytes(b"same decoded image")
+
+    with pytest.raises(ValueError, match="distinct decoded frames"):
+        extract_recipe_frames(
+            video_id="synthetic-video",
+            media_path=media,
+            recipes=recipes,
+            output_dir=tmp_path / "frames",
+            ffmpeg_executable="/pinned/ffmpeg",
+            runner=duplicate_runner,
+        )
+
+
+def test_quality_inference_has_no_label_or_adjudication_input() -> None:
+    parameters = inspect.signature(run_quality_inference).parameters
+
+    assert "labels" not in parameters
+    assert "adjudication" not in parameters
+    assert "references" not in parameters

@@ -2,18 +2,41 @@
 
 from __future__ import annotations
 
+import argparse
+import gc
 import hashlib
 import json
 import math
 import re
+import subprocess
+import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from .timelens2_selector import build_hybrid_timestamps, canonical_sha256
+from .timelens2_selector import (
+    MODEL_ID as SELECTOR_MODEL_ID,
+    MODEL_REVISION as SELECTOR_MODEL_REVISION,
+    RUNTIME_IMAGE,
+    _video_duration,
+    build_hybrid_timestamps,
+    build_messages,
+    build_normalized_interval_result,
+    canonical_sha256,
+    parse_raw_interval_result,
+)
+from trec_video_2026.vqa_transformers_runner import (
+    MAX_PIXELS_PER_FRAME,
+    MIN_PIXELS_PER_FRAME,
+    generate_answer,
+    validate_bfloat16_accelerator,
+)
 
 QUALITY_REQUEST_SCHEMA_VERSION = "timelens2-quality-requests-v1"
 EXPECTED_ROW_COUNT = 10
+EXPECTED_SOURCE_SHA256 = "d2cfec431652bcf7c6c83be59a4932fc0ed75016d6a3dc973e49cebdd9ed0241"
+ANSWER_MODEL_ID = "Qwen/Qwen3.5-4B"
+ANSWER_MODEL_REVISION = "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _FORBIDDEN_LABEL_KEYS = {
     "answer",
@@ -213,6 +236,85 @@ def _write_jsonl(path: Path, rows: Sequence[Mapping[str, object]]) -> None:
     temporary.replace(path)
 
 
+def extract_recipe_frames(
+    *,
+    video_id: str,
+    media_path: Path,
+    recipes: Mapping[str, Mapping[str, object]],
+    output_dir: Path,
+    ffmpeg_executable: str,
+    runner: Any = subprocess.run,
+) -> dict[str, object]:
+    """Extract and hash the union of two exact timestamp recipes."""
+
+    if set(recipes) != {"uniform-12", "hybrid-12"}:
+        raise ValueError("frame extraction requires both matched conditions")
+    condition_timestamps: dict[str, list[float]] = {}
+    for condition, recipe in recipes.items():
+        values = recipe.get("timestamps_seconds")
+        if not isinstance(values, list) or len(values) != 12:
+            raise ValueError(f"{condition} requires twelve timestamps")
+        timestamps = [float(value) for value in values]
+        if any(not math.isfinite(value) or value < 0 for value in timestamps):
+            raise ValueError(f"{condition} contains an invalid timestamp")
+        if timestamps != sorted(timestamps) or len(set(timestamps)) != 12:
+            raise ValueError(f"{condition} timestamps must be distinct and ordered")
+        condition_timestamps[condition] = timestamps
+
+    unique_timestamps = sorted(
+        set(condition_timestamps["uniform-12"])
+        | set(condition_timestamps["hybrid-12"])
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    by_timestamp: dict[float, dict[str, object]] = {}
+    all_frames: list[dict[str, object]] = []
+    for index, timestamp in enumerate(unique_timestamps, start=1):
+        frame_path = (output_dir / f"frame-{index:02d}.png").resolve()
+        runner(
+            [
+                ffmpeg_executable,
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-ss",
+                f"{timestamp:.6f}",
+                "-i",
+                str(media_path),
+                "-map",
+                "0:v:0",
+                "-frames:v",
+                "1",
+                "-y",
+                str(frame_path),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        if not frame_path.is_file():
+            raise RuntimeError(f"ffmpeg did not create frame {index}")
+        row: dict[str, object] = {
+            "timestamp_seconds": timestamp,
+            "path": str(frame_path),
+            "sha256": _file_sha256(frame_path),
+        }
+        by_timestamp[timestamp] = row
+        all_frames.append(row)
+    hashes = [str(row["sha256"]) for row in all_frames]
+    if len(set(hashes)) != len(hashes):
+        raise ValueError("matched recipes must decode to distinct decoded frames")
+    return {
+        "schema_version": "timelens2-quality-frame-manifest-v1",
+        "video_id": video_id,
+        "media_sha256": _file_sha256(media_path),
+        "requested_unique_timestamps": len(unique_timestamps),
+        "frames": all_frames,
+        "conditions": {
+            condition: [dict(by_timestamp[value]) for value in timestamps]
+            for condition, timestamps in condition_timestamps.items()
+        },
+    }
+
+
 def freeze_quality_inference(
     *,
     requests: Sequence[Mapping[str, object]],
@@ -285,7 +387,14 @@ def freeze_quality_inference(
         }:
             raise ValueError(f"{video_id} frame conditions are incomplete")
         for condition in ("uniform-12", "hybrid-12"):
-            frame_hashes = frame_conditions[condition]
+            frame_rows = frame_conditions[condition]
+            if isinstance(frame_rows, list):
+                frame_hashes = [
+                    row.get("sha256") if isinstance(row, Mapping) else row
+                    for row in frame_rows
+                ]
+            else:
+                frame_hashes = frame_rows
             if (
                 not isinstance(frame_hashes, list)
                 or len(frame_hashes) != 12
@@ -422,3 +531,368 @@ class QualityEvidenceStore:
                 "failure": dict(failure) if failure is not None else None,
             },
         )
+
+
+def validate_quality_requests(path: Path) -> list[dict[str, object]]:
+    """Validate the runtime copy produced from the exact frozen source."""
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or payload.get("schema_version") != QUALITY_REQUEST_SCHEMA_VERSION:
+        raise ValueError("quality request manifest has the wrong schema")
+    if payload.get("source_sha256") != EXPECTED_SOURCE_SHA256:
+        raise ValueError("quality requests do not bind the frozen ten-row source")
+    requests = payload.get("requests")
+    if not isinstance(requests, list) or len(requests) != EXPECTED_ROW_COUNT:
+        raise ValueError("quality request manifest must contain exactly ten rows")
+    seen: set[str] = set()
+    validated: list[dict[str, object]] = []
+    required = {
+        "request_id",
+        "video_id",
+        "query",
+        "duration_seconds",
+        "media_sha256",
+        "media_path",
+        "source_sha256",
+        "request_sha256",
+    }
+    for index, request in enumerate(requests, start=1):
+        if not isinstance(request, dict) or set(request) != required:
+            raise ValueError(f"quality request {index} has the wrong schema")
+        _reject_label_keys(request, location=f"request[{index}]")
+        video_id = request.get("video_id")
+        if not isinstance(video_id, str) or not video_id or video_id in seen:
+            raise ValueError("quality requests require ten distinct video identities")
+        seen.add(video_id)
+        if request.get("source_sha256") != EXPECTED_SOURCE_SHA256:
+            raise ValueError(f"quality request {index} source hash mismatch")
+        identity = {key: value for key, value in request.items() if key != "request_sha256"}
+        if request.get("request_sha256") != canonical_sha256(identity):
+            raise ValueError(f"quality request {index} hash mismatch")
+        media_path = Path(str(request.get("media_path")))
+        if not media_path.is_absolute() or not media_path.is_file():
+            raise ValueError(f"quality request {index} media is missing")
+        if request.get("media_sha256") != _file_sha256(media_path):
+            raise ValueError(f"quality request {index} media hash mismatch")
+        _finite_positive(
+            request.get("duration_seconds"),
+            name=f"quality request {index} duration_seconds",
+        )
+        validated.append(request)
+    return validated
+
+
+def run_quality_inference(
+    *,
+    requests_path: Path,
+    selector_model_dir: Path,
+    answer_model_dir: Path,
+    output_dir: Path,
+    ffmpeg_executable: str,
+) -> int:
+    """Run selector and matched answers without accepting any label input."""
+
+    store = QualityEvidenceStore(output_dir)
+    failure: dict[str, object] | None = None
+    succeeded = False
+    try:
+        store.checkpoint("runtime-imports")
+        import torch
+        import transformers
+        from qwen_vl_utils import process_vision_info
+        from transformers import AutoModelForImageTextToText, AutoProcessor
+
+        store.checkpoint("cuda-validation")
+        if not torch.cuda.is_available() or not torch.version.cuda:
+            raise RuntimeError("NVIDIA CUDA is unavailable")
+        if torch.version.hip is not None:
+            raise RuntimeError("ROCm is not permitted")
+        if not torch.cuda.is_bf16_supported():
+            raise RuntimeError("GPU lacks bfloat16 support")
+
+        store.checkpoint("request-validation")
+        requests = validate_quality_requests(requests_path)
+
+        store.checkpoint("selector:model-load")
+        selector_model = AutoModelForImageTextToText.from_pretrained(
+            selector_model_dir,
+            torch_dtype="auto",
+            device_map="auto",
+            attn_implementation="sdpa",
+            local_files_only=True,
+        )
+        selector_processor = AutoProcessor.from_pretrained(
+            selector_model_dir,
+            local_files_only=True,
+            fix_mistral_regex=True,
+        )
+        raw_results: list[dict[str, object]] = []
+        normalized_results: list[dict[str, object]] = []
+        for request in requests:
+            request_id = str(request["request_id"])
+            store.checkpoint(f"selector:{request_id}:preprocess")
+            try:
+                media_path = Path(str(request["media_path"]))
+                duration = _video_duration(media_path)
+                messages = build_messages(media_path, str(request["query"]))
+                rendered = selector_processor.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=True,
+                )
+                images, videos, video_kwargs = process_vision_info(
+                    messages,
+                    image_patch_size=16,
+                    return_video_kwargs=True,
+                    return_video_metadata=True,
+                )
+                if videos is not None:
+                    videos, video_metadatas = zip(*videos, strict=True)
+                    videos, video_metadatas = list(videos), list(video_metadatas)
+                else:
+                    video_metadatas = None
+                inputs = selector_processor(
+                    text=rendered,
+                    images=images,
+                    videos=videos,
+                    video_metadata=video_metadatas,
+                    do_resize=False,
+                    return_tensors="pt",
+                    **video_kwargs,
+                ).to(selector_model.device)
+                store.checkpoint(f"selector:{request_id}:inference")
+                torch.cuda.reset_peak_memory_stats()
+                torch.manual_seed(20260730)
+                started = time.monotonic()
+                with torch.inference_mode():
+                    generated = selector_model.generate(
+                        **inputs,
+                        max_new_tokens=1024,
+                        do_sample=True,
+                        temperature=0.01,
+                        top_p=0.001,
+                        top_k=1,
+                        repetition_penalty=1.0,
+                    )
+                latency = time.monotonic() - started
+                answer_ids = [
+                    output[len(input_ids) :]
+                    for input_ids, output in zip(inputs.input_ids, generated, strict=True)
+                ]
+                raw_output = selector_processor.batch_decode(
+                    answer_ids,
+                    skip_special_tokens=True,
+                    clean_up_tokenization_spaces=False,
+                )[0]
+                metadata = {
+                    "request_sha256": request["request_sha256"],
+                    "model_id": SELECTOR_MODEL_ID,
+                    "model_revision": SELECTOR_MODEL_REVISION,
+                    "runtime_image": RUNTIME_IMAGE,
+                    "transformers_version": transformers.__version__,
+                    "latency_seconds": latency,
+                    "peak_memory_bytes": int(torch.cuda.max_memory_allocated()),
+                    "device": torch.cuda.get_device_name(0),
+                    "precision": str(selector_model.dtype).removeprefix("torch."),
+                }
+                raw = parse_raw_interval_result(
+                    request_id=request_id,
+                    video_id=str(request["video_id"]),
+                    duration_seconds=duration,
+                    raw_output=raw_output,
+                    metadata=metadata,
+                )
+                normalized = build_normalized_interval_result(raw)
+                raw_results.append(raw)
+                normalized_results.append(normalized)
+                store.record_selector_attempt({"status": "accepted", **raw})
+                _write_jsonl(output_dir / "raw-results.jsonl", raw_results)
+                _write_jsonl(
+                    output_dir / "normalized-results.jsonl",
+                    normalized_results,
+                )
+            except Exception as error:  # noqa: BLE001 - retain per-row failure
+                store.record_selector_attempt(
+                    {
+                        "status": "rejected",
+                        "request_id": request_id,
+                        "video_id": request["video_id"],
+                        "request_sha256": request["request_sha256"],
+                        "error_type": type(error).__name__,
+                        "error_message": str(error),
+                    }
+                )
+        del selector_model, selector_processor
+        gc.collect()
+        torch.cuda.empty_cache()
+        if len(raw_results) != EXPECTED_ROW_COUNT:
+            raise RuntimeError("selector gate did not complete all ten rows")
+
+        store.checkpoint("frame-recipes")
+        recipes: list[dict[str, object]] = []
+        for request, normalized in zip(requests, normalized_results, strict=True):
+            recipe = build_matched_recipes(
+                duration_seconds=float(normalized["duration_seconds"]),
+                normalized_intervals=normalized["intervals"],  # type: ignore[arg-type]
+            )
+            recipes.append({"video_id": request["video_id"], "conditions": recipe})
+            _write_jsonl(output_dir / "frame-recipes.jsonl", recipes)
+
+        store.checkpoint("frame-extraction")
+        frame_manifests: list[dict[str, object]] = []
+        for request, recipe in zip(requests, recipes, strict=True):
+            manifest = extract_recipe_frames(
+                video_id=str(request["video_id"]),
+                media_path=Path(str(request["media_path"])),
+                recipes=recipe["conditions"],  # type: ignore[arg-type]
+                output_dir=output_dir / "frames" / str(request["request_id"]),
+                ffmpeg_executable=ffmpeg_executable,
+            )
+            frame_manifests.append(manifest)
+            _write_jsonl(output_dir / "frame-manifests.jsonl", frame_manifests)
+
+        store.checkpoint("answer:model-load")
+        answer_processor = AutoProcessor.from_pretrained(
+            answer_model_dir,
+            local_files_only=True,
+            min_pixels=MIN_PIXELS_PER_FRAME,
+            max_pixels=MAX_PIXELS_PER_FRAME,
+        )
+        answer_model = AutoModelForImageTextToText.from_pretrained(
+            answer_model_dir,
+            local_files_only=True,
+            dtype=torch.bfloat16,
+            device_map="cuda:0",
+            attn_implementation="sdpa",
+        )
+        answer_device, answer_precision, answer_attestation = (
+            validate_bfloat16_accelerator(answer_model, torch)
+        )
+        answers: list[dict[str, object]] = []
+        frame_by_video = {str(row["video_id"]): row for row in frame_manifests}
+        for request in requests:
+            video_id = str(request["video_id"])
+            for condition in ("uniform-12", "hybrid-12"):
+                store.checkpoint(f"answer:{request['request_id']}:{condition}")
+                frames = frame_by_video[video_id]["conditions"][condition]  # type: ignore[index]
+                started = time.monotonic()
+                torch.cuda.reset_peak_memory_stats()
+                try:
+                    answer_text = generate_answer(
+                        processor=answer_processor,
+                        model=answer_model,
+                        question=str(request["query"]),
+                        frame_paths=tuple(Path(str(row["path"])) for row in frames),
+                        frame_timestamps=tuple(
+                            float(row["timestamp_seconds"]) for row in frames
+                        ),
+                        transcript=None,
+                        max_new_tokens=32,
+                    )
+                    result: dict[str, object] = {
+                        "video_id": video_id,
+                        "condition_id": condition,
+                        "request_sha256": request["request_sha256"],
+                        "status": "passed",
+                        "answer": answer_text,
+                        "model_id": ANSWER_MODEL_ID,
+                        "model_revision": ANSWER_MODEL_REVISION,
+                        "runtime_image": RUNTIME_IMAGE,
+                        "runtime": (
+                            f"transformers {transformers.__version__}; "
+                            f"torch {torch.__version__}"
+                        ),
+                        "latency_seconds": time.monotonic() - started,
+                        "peak_memory_bytes": int(torch.cuda.max_memory_allocated()),
+                        "device": answer_device,
+                        "precision": answer_precision,
+                        "runtime_attestation": answer_attestation,
+                    }
+                    answers.append(result)
+                except Exception as error:  # noqa: BLE001 - retain per-row failure
+                    result = {
+                        "video_id": video_id,
+                        "condition_id": condition,
+                        "request_sha256": request["request_sha256"],
+                        "status": "failed",
+                        "answer": None,
+                        "model_id": ANSWER_MODEL_ID,
+                        "model_revision": ANSWER_MODEL_REVISION,
+                        "latency_seconds": time.monotonic() - started,
+                        "peak_memory_bytes": int(torch.cuda.max_memory_allocated()),
+                        "device": answer_device,
+                        "precision": answer_precision,
+                        "error_type": type(error).__name__,
+                        "error_message": str(error),
+                    }
+                store.record_answer_attempt(result)
+                _write_jsonl(output_dir / "answers.jsonl", answers)
+        del answer_model, answer_processor
+        gc.collect()
+        torch.cuda.empty_cache()
+
+        store.checkpoint("inference-freeze")
+        freeze_quality_inference(
+            requests=requests,
+            raw_results=raw_results,
+            normalized_results=normalized_results,
+            recipes=recipes,
+            frame_manifests=frame_manifests,
+            answers=answers,
+            output_path=output_dir / "inference-freeze.json",
+        )
+        succeeded = True
+    except Exception as error:  # noqa: BLE001 - structured terminal failure
+        failure = {
+            "phase": store.phase,
+            "error_type": type(error).__name__,
+            "error_message": str(error),
+        }
+    finally:
+        store.finalize(failure=failure)
+    return 0 if succeeded else 1
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    prepare = subparsers.add_parser("prepare")
+    prepare.add_argument("--source", type=Path, required=True)
+    prepare.add_argument("--dataset-root", type=Path, required=True)
+    prepare.add_argument("--container-media-root", type=Path, required=True)
+    prepare.add_argument("--output", type=Path, required=True)
+    prepare.add_argument(
+        "--expected-source-sha256",
+        default=EXPECTED_SOURCE_SHA256,
+    )
+    run = subparsers.add_parser("run")
+    run.add_argument("--requests", type=Path, required=True)
+    run.add_argument("--selector-model-dir", type=Path, required=True)
+    run.add_argument("--answer-model-dir", type=Path, required=True)
+    run.add_argument("--output-dir", type=Path, required=True)
+    run.add_argument("--ffmpeg", required=True)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    if args.command == "prepare":
+        prepare_quality_requests(
+            source_path=args.source,
+            dataset_root=args.dataset_root,
+            output_path=args.output,
+            container_media_root=args.container_media_root,
+            expected_source_sha256=args.expected_source_sha256,
+        )
+        return 0
+    return run_quality_inference(
+        requests_path=args.requests,
+        selector_model_dir=args.selector_model_dir,
+        answer_model_dir=args.answer_model_dir,
+        output_dir=args.output_dir,
+        ffmpeg_executable=args.ffmpeg,
+    )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
