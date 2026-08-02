@@ -1,0 +1,55 @@
+schema_version: videochat3-retired-dstack-run-v1
+status: retired-unsubmitted-control-plane-stop
+submission_allowed: false
+submitted: false
+run_name: videochat3-debug-20260731-a1
+reason: >-
+  Both the mandatory declined preview and the single corrective preview failed
+  before planning because the loopback dstack server was unreachable. The
+  persistent-error rule ends this interactive path. This is sanitized
+  provenance metadata and cannot be submitted as a dstack run.
+
+source_config_sha256: c76304e7997b8c93fc021383dcdc44481a0d57c31688fb469de10655c9d3ad5e
+debug_prep_script_sha256: ddde9da05ac8eb8481ff33383d7345570347c3f6bb88cfcb1784b047618e8558
+frozen_plan_source_sha256: a519fbcd9e358c2f18d6f7209e9cef45cba95f97306449b32a78972246f0e6e5
+requirements_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+model_id: MCG-NJU/VideoChat3-4B
+model_revision: 37fa901ec5913f84bc31108ebc1e60ad1903634c
+
+planned_bounds:
+  gpu_selector: A40:1:24GB..
+  backends: [runpod, vastai]
+  spot_policy: on-demand
+  max_price_usd_per_hour: 1.00
+  max_duration: 30m
+  inactivity_duration: 10m
+  no_capacity_retry_duration: 15m
+  private_media: none
+
+preview_attempts: 2
+preview_result: server-connection-failed
+preview_sha256: 8ec63b7b920423b7a978cd8cdb26b045bd646f13c4411599eef78a97fe9a48ad
+corrective_action: >-
+  Started the configured local server once on 127.0.0.1:3100 and observed an
+  HTTP 200 readiness response before the corrective preview.
+persistent_error: >-
+  The local server process and listener were absent again when the corrective
+  preview connected. No offer plan was produced and no cloud instance was
+  requested.
+uncertainty: >-
+  The server exited without a retained non-secret traceback, so whether the
+  process was terminated by its launch-session lifetime or an internal server
+  condition cannot be reconstructed.
+
+security_remediation:
+  incident: generated local admin token appeared in a temporary startup log
+  exposed_value_preserved: false
+  temporary_log_deleted: true
+  admin_token_rotated: true
+  replacement_server_bound_to_loopback: true
+  replacement_server_http_status: 200
+
+actual_cost_usd: 0.0000
+cumulative_videochat3_cost_usd: 0.0797
+remote_artifact_state: not-applicable-no-run-submitted

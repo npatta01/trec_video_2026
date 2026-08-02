@@ -1,0 +1,103 @@
+schema_version: videochat3-runtime-cert-retired-v1
+status: retired-consumed-runtime-result
+submission_allowed: false
+run_name: videochat3-runtime-cert-20260731-a3
+run_id: a4661ded-80a9-4f4f-a210-8aee2ad19d2f
+reason: >-
+  The explicitly authorized development environment completed one synthetic
+  CUDA BF16 inference after interactive, test-covered adapter corrections. The
+  frozen output was incoherent and the model load reported a newly initialized
+  missing language-model head. The exact tested condition is not promoted, the
+  private competition pilot remains retired, and this consumed identity cannot
+  submit work.
+
+submitted_snapshot:
+  submitted_at_utc: "2026-07-31T16:55:09.509162Z"
+  git_commit: 2f1f1616935039cfcc63cb3302562361e1681ac4
+  source_config_sha256: 4191cfc0bf872081932e08b3906853b0e2537feeeb49924b9a323445f0483356
+  prep_script_sha256: f028503ada46f0ba409e6e45c9ce189895c77adc380ee9d67cdbd4cba21e297c
+  runner_script_sha256: 47fe3ac676e2519566d55f67bce8debd462ccf0bc594ec5585862fd8dec34cd7
+  verifier_script_sha256: ba2c3801ac743a8db8e7f5f23b23c97d559682655fca8f859a732fd881486dbe
+  source_snapshot_sha256: 3039526f2ace8104fb25a1a989d3046281a5499c39a6b4ded439481c20eb9529
+  requirements_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+  image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+  model_id: MCG-NJU/VideoChat3-4B
+  model_revision: 37fa901ec5913f84bc31108ebc1e60ad1903634c
+  transformers_revision: cbf4d720ec734edb77d25452b2790c7e4be2f8d7
+  private_media_uploaded: false
+  resources:
+    gpu_selector: A40:1:24GB..
+    backends: [runpod, vastai]
+    spot_policy: on-demand
+    max_price_usd_per_hour: 1.00
+    max_duration: 30m
+    inactivity_duration: 10m
+
+preview:
+  retained_output_sha256: b0bc9bb05fbea198982d4115fec2492415382a0740c53fe27ea4491f9abe9295
+  submission_output_sha256: e21281afa13a765e41e593011f43f6b5e8c71208fd906f7d6974088ad2435920
+  compatible_offers:
+    - backend: runpod
+      region: CA-MTL-1
+      gpu: NVIDIA A40 48GB
+      price_usd_per_hour: 0.44
+    - backend: runpod
+      region: EU-SE-1
+      gpu: NVIDIA A40 48GB
+      price_usd_per_hour: 0.44
+
+observed_execution:
+  selected_offer:
+    backend: runpod
+    region: CA-MTL-1
+    gpu: NVIDIA A40 48GB
+    price_usd_per_hour: 0.44
+  finished_at_utc: "2026-07-31T17:24:40.773139Z"
+  termination_reason: stopped_by_user
+  environment_keepalive: passed
+  dependency_check: passed
+  model_download: passed
+  cuda_bf16: passed
+  model_parameters_bfloat16: passed
+  synthetic_generation_completed: true
+  submitted_source_snapshot_sha256: 3039526f2ace8104fb25a1a989d3046281a5499c39a6b4ded439481c20eb9529
+  interactive_source_snapshot_sha256: dfe460cc993fc6d9dc77e53a9a16fc1b7ab023639714bbcaaf1c03fe7a6034a0
+  interactive_corrections:
+    - forwarded complete processor defaults with normalized size metadata
+    - retained exact timestamps without unsupported metadata fields
+    - removed processor-only metadata before generation
+    - bridged the pinned generation cache interface
+    - selected the model-provided SDPA vision implementation
+    - cleared video inputs after the cached prefill
+  load_warning: lm_head.weight missing and newly initialized
+  output_disposition: incoherent multilingual token sequence at the 32-token cap
+
+artifact:
+  checksum_verified: true
+  source_snapshot_sha256: dfe460cc993fc6d9dc77e53a9a16fc1b7ab023639714bbcaaf1c03fe7a6034a0
+  prediction_sha256: b7abd5c772def49fd97221fa5b65630520b97a892efd3a0f8e3fe4683106b9bd
+  certificate_sha256: d67e66fdd1a4b61272f1c6e61592f2d16ce6431e84074a64f07ff004c6006174
+  checksum_manifest_sha256: 76bc9bdd27dced81d82c615c48a069bc7437b1f0cd418216f2b51559e09a52a2
+  answer_length_characters: 130
+  max_new_tokens: 32
+
+actual_cost_usd: 0.2165
+incremental_runtime_certification_cost_usd: 0.2738
+cumulative_videochat3_cost_usd: 0.3535
+completion: 1/1
+evidence_validity: Compatibility-only
+decision_disposition: Not promoted under the tested condition
+audit_gap: >-
+  The final prediction, certificate, hashes, model and runtime pins, source
+  snapshot, offer, and cost are reconstructable. The raw interactive terminal
+  transcript and intermediate failed output directories were not uploaded
+  before the instance was stopped, so their exact full text and timing cannot
+  be reconstructed from the immutable bundle.
+rules_out: >-
+  This rules out inability to load the pinned model in BF16, process the fixed
+  tensor-plus-metadata video form, run its vision tower with the provided SDPA
+  path, generate tokens, and durably freeze a synthetic result in this runtime.
+does_not_rule_out: >-
+  This does not establish answer quality on any competition row, the 3/3
+  compatibility gate, the matched six-row comparison, or the behavior of a
+  different official dependency combination or checkpoint export.

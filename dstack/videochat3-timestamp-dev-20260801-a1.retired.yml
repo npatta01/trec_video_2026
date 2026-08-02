@@ -1,0 +1,60 @@
+record_type: dstack-retired-run-provenance
+run_name: videochat3-timestamp-dev-20260801-a1
+run_id: 65785a53-a647-42a7-9ad0-54a039b12c21
+status: retired-consumed-runtime-failure
+submission_allowed: false
+submitted: true
+source_config_sha256: 4dfee796d186c5300f698b19644b4c9fa1eb10ccdf761f75ff1f5efb28849d5a
+
+executed_dependency_snapshot:
+  image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+  runner_sha256: 5b7f93ffc96a84699271df32ea985e0e9e0e07aab9dd84f2577ecc9367c2e2ae
+  requirements_file_planned_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+  requirements_env_submitted: 9d4cb01013132aac5304911ad7844b03fb3edb685fa6248da8ab969a502dde6
+  source_snapshot_sha256: 529318f1bdab5a2da474f966f81088085247dce311e3526a40a6da06ffe125c8
+  frozen_plan_sha256: 843a8f00b31973b7b19eb22c1dc90e96df7bdb86fa16209ffbbc94111612cbd6
+  videochat_revision: 37fa901ec5913f84bc31108ebc1e60ad1903634c
+  qwen_revision: 851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a
+
+offer_and_runtime:
+  backend: runpod
+  region: CA-MTL-1
+  gpu: NVIDIA A40 48GB
+  price_usd_per_hour: 0.44
+  exit_status: 2
+  termination_reason: container_exited_with_error
+  finished_at: 2026-08-01T08:16:41.448155Z
+
+root_cause:
+  classification: confirmed_config_defect
+  missing_hex_character:
+    zero_based_position: 37
+    expected_requirements_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+    submitted_requirements_pin: 9d4cb01013132aac5304911ad7844b03fb3edb685fa6248da8ab969a502dde6
+  effect: >-
+    The fail-closed runner rejected the malformed environment pin before
+    dependency installation, model download, processor execution, or private
+    input transfer.
+
+completion:
+  dev_initialization: 0/1
+  synthetic_canary: 0/1
+  gate: 0/3
+  videochat3_pilot: 0/6
+  qwen_pilot: 0/6
+actual_cost_usd: 0.0369
+cumulative_videochat3_cost_usd: 0.4915
+remote_artifact_state: not-created
+evidence_validity: Incomplete
+decision_disposition: Diagnostic signal
+audit_gap: >-
+  Initialization stopped at the first environment-pin comparison, so no
+  immutable remote bundle exists. In-container file hashes, CUDA/BF16
+  attestation, installed-package state, and processor behavior cannot be
+  reconstructed from this failed attempt.
+what_this_rules_out_now: >-
+  Reusing the consumed a1 dev configuration or treating it as runtime or
+  scientific evidence.
+what_this_does_not_rule_out: >-
+  The exact-timestamp adapter, pinned processor, pinned models, or the one
+  newly authorized corrective dev identity with the verified full hash.

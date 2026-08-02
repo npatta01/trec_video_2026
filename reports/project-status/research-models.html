@@ -3310,11 +3310,11 @@ break-inside: avoid;
 </section>
 <section id="current-working-answer" class="level2">
 <h2 class="anchored" data-anchor-id="current-working-answer">Current working answer</h2>
-<p>Use the frozen-30 protocol-v2 comparison for current model selection. Keep Qwen3.5-4B with 12 frames as the <strong>Current default</strong> for accuracy and MiniCPM-o 4.5 audio-off as the <strong>Fast alternate</strong>. Treat newer/larger candidates as <strong>Diagnostic signal</strong>, <strong>Routed candidate</strong>, or <strong>Open hypothesis</strong> until they complete a matched, label-isolated quality comparison.</p>
+<p>Use the frozen-30 protocol-v2 comparison for current model selection. Keep Qwen3.5-4B with 12 frames as the <strong>Current default</strong> for accuracy and MiniCPM-o 4.5 audio-off as the <strong>Fast alternate</strong>. Treat newer/larger candidates as <strong>Diagnostic signal</strong>, <strong>Routed candidate</strong>, or <strong>Open hypothesis</strong> until they complete a matched, label-isolated quality comparison. VideoChat3-4B completed such a focused comparison but did not earn a Temporal/Action specialist role.</p>
 <div class="theme-decision-strip" aria-label="Model decisions">
 <ul>
 <li><strong>Use now:</strong> Qwen3.5-4B with 12 frames; use MiniCPM-o audio-off for speed.</li>
-<li><strong>Do not default:</strong> later candidates based on compatibility or selected screens alone.</li>
+<li><strong>Do not default:</strong> the pinned VideoChat3-4B checkpoint under either tested fixed-12- or fixed-24-frame condition, or later candidates based on compatibility or selected screens alone.</li>
 <li><strong>Still possible:</strong> repaired Omni, specialist models, and bottleneck-first adaptation.</li>
 <li><strong>Next test:</strong> repair the strict output path, then diagnose retrieval versus fusion before training.</li>
 </ul>
@@ -3325,6 +3325,7 @@ break-inside: avoid;
 <ul>
 <li><strong>Strongest comparison:</strong> frozen-30 protocol v2 supports the current Qwen and MiniCPM roles on labeled 2025 training data.</li>
 <li><strong>Selected diagnostics:</strong> Qwen3.6, Phi, Gemma, and Omni screens do not rank their families globally.</li>
+<li><strong>Verified negative:</strong> at both 12 and 24 fixed frames, VideoChat3-4B improved only <code>1/4</code> selected Temporal/Action targets and regressed both Visual controls against the matched Qwen3.5-4B baseline.</li>
 <li><strong>Confirmed defect:</strong> one Qwen3-Omni strict output missed the 20/20 completion gate.</li>
 <li><strong>Condition boundary:</strong> no small screen permanently disqualifies a model, checkpoint, evidence route, or later adaptation.</li>
 </ul>
@@ -3367,6 +3368,27 @@ The compatibility gate checks that a combined request can execute; it does not s
 Method, result, validity risks, and evidence
 </summary>
 The run itself was technically clean, so this is not a runtime failure. The failure-selected panel can reveal recovery patterns but cannot estimate full test accuracy; the 24-frame local winner on this panel is superseded as a global default by frozen-30. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md">failure-panel report · Evidence of record · Evidence report · GitHub</a>.
+</details>
+</section>
+<section id="videochat3-temporal-specialist" class="level3">
+<h3 class="anchored" data-anchor-id="videochat3-temporal-specialist">VideoChat3 Temporal/Action specialist screen</h3>
+<ul>
+<li><strong>Canonical model-eligibility claim:</strong> this record owns the project decision for the pinned VideoChat3-4B fixed-12- and fixed-24-frame conditions.</li>
+<li><strong>Reason for testing:</strong> upstream presents VideoChat3-4B as an efficient, fully open generalist video model with an I3D video encoder, adaptive frame resolution, and general, long-form, and streaming-video training. The project tested the narrower hypothesis that those video-centric capabilities would recover known Temporal/Action failures better than Qwen3.5-4B. This was a project hypothesis, not an upstream guarantee of superiority on this VQA slice.</li>
+<li><strong>Tested condition and panel:</strong> four predeclared Temporal/Action targets and two Visual controls first used identical cached 12-frame evidence for both pinned models. A three-advisor review then unanimously selected one terminal matched 24-frame offline screen because it doubled VideoChat3’s I3D temporal chunks from three to six while preserving the competition input contract. Both conditions held original frame indices and timestamps, prompt, seed, greedy decoding, and 32-token cap fixed.</li>
+<li><strong>Observed result:</strong> at 12 frames, both models completed <code>6/6</code>; VideoChat3 scored <code>0C/2P/4W</code> against Qwen’s <code>2C/2P/2W</code>, improved <code>1/4</code> targets, tied <code>2/4</code>, regressed <code>1/4</code>, and regressed both controls. At 24 frames, the exact-image canary passed <code>1/1</code>, both models passed the matched gate <code>2/2</code>, and both completed <code>6/6</code>; VideoChat3 scored <code>0C/1P/5W</code> against Qwen’s <code>3C/2P/1W</code>, improved <code>1/4</code> targets, regressed <code>3/4</code>, and again regressed both controls. Qwen-24 improved <code>1/6</code> versus Qwen-12 with no regressions, so a weakened 24-frame comparator does not explain the loss. Both tests missed the predeclared at-least-<code>2/4</code> target gains and zero-control-regression rule.</li>
+<li><strong>Evidence validity:</strong> <strong>Verified</strong>. Predictions were frozen before references or grades were loaded. The 12-frame graders agreed on <code>11/12</code> candidate grades before one adjudication; the 24-frame graders agreed on all <code>12/12</code> grades, requiring no adjudication. The 24-frame runner verified the complete manifest hash, cache records, timestamps, and all 144 frame hashes before model loading. A post-run integration audit independently re-read all three executed frozen pilot manifests (<code>3ab0fc1…</code>, <code>8b5cf944…</code>, and <code>d13a1135…</code>), verified their full SHA-256 values, and found only the explicit inference allowlist (<code>run_id</code>, <code>condition_id</code>, <code>video_id</code>, <code>question</code>, frame evidence, transcript, plus the 24-frame cache key). No answer, annotation, reference, label, grade, gold, ground-truth, or score field was present. The reusable selector now rejects unexpected fields before projecting the allowlist.</li>
+<li><strong>Decision disposition:</strong> <strong>Not promoted under the tested condition</strong>.</li>
+<li><strong>What this rules out now:</strong> using the pinned VideoChat3 revision and this tested fixed-12- and fixed-24-frame input flows as a Temporal/Action specialist over the pinned Qwen baseline on the frozen panel. No additional frame-count, prompt, raw-video, adaptive, or streaming test of this checkpoint is justified for the current offline competition pipeline.</li>
+<li><strong>What it does not rule out:</strong> the model family on other rows, a materially different future checkpoint, task-specific fine-tuning, or performance on a representative benchmark. Adaptive and streaming modes remain untested, but the advisor review rejected them as the next competition test because they change the matched offline task rather than isolate the density hypothesis.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—the six rows were purposively selected rather than representative. No surviving input-flow defect was found. <strong>Audit gap</strong>—a credential-bearing local startup trace was deleted during containment, so its full environment line cannot be reconstructed; the submitted snapshot and checksum-verifiable inference and grading evidence remain available, so this does not invalidate the quality comparison. Private bucket coordinates, relative object names, and row-level grades remain outside the research hub; only aggregate evidence classes, aggregate grades, and checksum evidence are tracked.</li>
+<li><strong>Reconsider when:</strong> a materially different checkpoint, task-specific adaptation, or representative benchmark creates a new hypothesis—not another input variation of this technically complete checkpoint because its quality was poor.</li>
+</ul>
+<details>
+<summary>
+Method, result, validity risks, and evidence
+</summary>
+The tested revisions were <code>MCG-NJU/VideoChat3-4B@37fa901ec5913f84bc31108ebc1e60ad1903634c</code> and <code>Qwen/Qwen3.5-4B@851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a</code>. CUDA BF16 inference ran on an NVIDIA A40 using the pinned <code>docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca</code> image. The completed 12-frame dev session cost <code>$0.1420</code>; cumulative VideoChat3 work was <code>$0.6572</code>. The terminal 24-frame dev session cost <code>$0.0763</code>, bringing cumulative VideoChat3 work to <code>$0.7335</code>. Private input, prediction, and grading bundles were listed, downloaded, and checksum-verified; raw rows, answers, media, logs, and private artifact locators are intentionally excluded from this hub. See the <a href="https://github.com/npatta01/trec_video_2026/blob/b8f80f00fa97fbdaddd08a143b4809a38809e456/dstack/videochat3-24frame-dev-20260801-a1.retired.yml">sanitized terminal retired record · Evidence of record · GitHub</a>, <a href="https://huggingface.co/MCG-NJU/VideoChat3-4B">official model card · Upstream model description</a>, and <a href="https://huggingface.co/papers/2607.14935">official paper page · Upstream research claim</a>.
 </details>
 </section>
 <section id="phi-gemma-semantic-stop" class="level3">
@@ -3437,6 +3459,7 @@ The earlier A1 run completed 20/20 strict outputs but had a prompt-context misma
 <li>A successful adapter or joint-modality request proves compatibility, not semantic answer quality.</li>
 <li>MiniCPM-o audio-off is a useful speed/METEOR trade-off, while Qwen3.5-4B remains the current accuracy baseline.</li>
 <li>The tested Qwen3.6, Phi, and Gemma conditions did not earn promotion; their results bound those versions, evidence paths, and small panels.</li>
+<li>The pinned VideoChat3-4B checkpoint did not earn a Temporal/Action specialist role because both fixed-12- and fixed-24-frame comparisons missed the target-improvement threshold and regressed both controls.</li>
 <li>Qwen3-Omni has a conditionally encouraging audio diagnostic but no eligible promotion result because its strict completion gate was not met.</li>
 </ul>
 </section>
@@ -3454,7 +3477,8 @@ The earlier A1 run completed 20/20 strict outputs but had a prompt-context misma
 <h3 class="anchored" data-anchor-id="confirmed-defects-audit-gaps-and-uncertainties">Confirmed defects, audit gaps, and uncertainties</h3>
 <ul>
 <li><strong>Confirmed defect:</strong> one Qwen3-Omni strict-output contract failed, making that run ineligible for its predeclared promotion decision.</li>
-<li><strong>Uncertainty:</strong> Qwen3.6, Phi, Gemma, and Omni quality panels are selected diagnostics, not representative rankings or 2026 estimates.</li>
+<li><strong>Uncertainty:</strong> Qwen3.6, Phi, Gemma, Omni, and VideoChat3 quality panels are selected diagnostics, not representative rankings or 2026 estimates.</li>
+<li><strong>Audit gap:</strong> the VideoChat3 24-frame local startup trace was deleted during credential containment, so its full environment line cannot be reconstructed; preserved checksummed inference and grading evidence is not affected.</li>
 <li><strong>Uncertainty:</strong> model comparison can be confounded by frame policy, prompt, modality treatment, and answer formatting unless they are held fixed.</li>
 <li><strong>Audit gap:</strong> the repository has compatibility and experimental seams, not one reusable versioned model-promotion workflow for every candidate family.</li>
 </ul>

@@ -1,0 +1,62 @@
+schema_version: videochat3-retired-dstack-run-v1
+status: retired-consumed-run
+submission_allowed: false
+run_name: videochat3-runner-canary-20260730-a3
+run_id: 90fb6f5d-a909-4cfd-814d-a004d69392c7
+reason: >-
+  This immutable identity was consumed by the terminal 2026-07-30 canary.
+  The persistent-error rule permanently stops this track. This file is
+  sanitized provenance metadata and cannot be submitted as a dstack task.
+
+submitted_snapshot:
+  submitted_at_utc: "2026-07-31T01:29:18.687606Z"
+  submitted_config_sha256: 252afefc9a7e8c55fb647162c6a8384b780b320f249ba5e1a22a3c7f422b7aa1
+  image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+  task_kind: runner-canary
+  working_directory: /dstack/run
+  model_id: MCG-NJU/VideoChat3-4B
+  model_revision: 37fa901ec5913f84bc31108ebc1e60ad1903634c
+  requirements_sha256: 959a2aac3e8847aff94c8f302cd135d5c76b3e1e3dcd0c71c1921f5aa58569fd
+  private_media_mounted: false
+  resources:
+    gpu_selector: A40:1:24GB..
+    cpu: 8..
+    memory: 32GB..
+    disk: 100GB
+  backends:
+    - runpod
+    - vastai
+  spot_policy: on-demand
+  max_price_usd_per_hour: 1.00
+  max_duration: 30m
+  no_capacity_retry_duration: 15m
+
+observed_execution:
+  selected_offer:
+    backend: runpod
+    region: CA-MTL-1
+    gpu: NVIDIA A40 48GB
+    price_usd_per_hour: 0.44
+  actual_cost_usd: 0.0283
+  exit_status: 1
+  failure_phase: bootstrap-runtime
+  failure_cause: >-
+    The declared huggingface-hub 1.24.0 requires click>=8.4.2, which conflicts
+    with the declared click 8.3.1 pin. Dependency resolution was unsatisfiable,
+    so model download, CUDA/BF16 checks, media access, and inference did not
+    start.
+  dependency_snapshot:
+    uv: 0.11.3
+    click_declared: 8.3.1
+    huggingface_hub: 1.24.0
+    huggingface_hub_constraint: "requires click>=8.4.2"
+
+verified_failure_bundle:
+  listing_verified: true
+  download_verified: true
+  checksum_verification: passed
+  bundle_manifest_sha256: afc9b60771d972a3a762c08bce22653de72c69a87ce6452277a6e0e8981e02aa
+  payload_sha256s:
+    frozen_plan: 6e9db2ce1802cf79a8284f10f8a5488d98ac03534b112dfa6baa0b532d2f2377
+    terminal_phase: 0a3fa093ea56fcb145fbfeb52492530620001098a19ad47bba4fa74ed396f168
+    terminal_status: 94ede509e693cfc2dcaf4777122d29ccb18ef3d790bda66844c5da7745e594b0

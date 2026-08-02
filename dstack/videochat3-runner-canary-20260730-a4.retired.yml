@@ -1,0 +1,69 @@
+schema_version: videochat3-retired-dstack-run-v1
+status: retired-unsubmitted-capacity-stop
+submission_allowed: false
+submitted: false
+run_name: videochat3-runner-canary-20260730-a4
+reason: >-
+  The corrected runtime passed its local exact-image dependency sanity, but
+  both the initial declined preview and the single diagnosed re-preview
+  returned no matching instance offers. The persistent-error rule stops this
+  path before submission. This is sanitized provenance metadata, not a dstack
+  task.
+
+authorized_snapshot:
+  source_config_sha256: 64e54e924133a2ca94c058320e285e8d8dd5f9e58946981eac7faf37b0f5d3f4
+  image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+  task_kind: runner-canary
+  model_id: MCG-NJU/VideoChat3-4B
+  model_revision: 37fa901ec5913f84bc31108ebc1e60ad1903634c
+  requirements_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+  private_media_mounted: false
+  resources:
+    gpu_selector: A40:1:24GB..
+    cpu: 8..
+    memory: 32GB..
+    disk: 100GB
+  backends:
+    - runpod
+    - vastai
+  spot_policy: on-demand
+  max_price_usd_per_hour: 1.00
+  max_duration: 30m
+  no_capacity_retry_duration: 15m
+
+local_dependency_sanity:
+  exact_image: true
+  token_present: false
+  private_media_present: false
+  model_downloaded: false
+  spin_removed: true
+  uv: 0.11.3
+  click: 8.4.2
+  huggingface_hub: 1.24.0
+  transformers: 5.15.0.dev0
+  torch: 2.10.0+cu128
+  torchvision: 0.25.0+cu128
+  installed_package_check: passed
+
+capacity_evidence:
+  preview_attempts: 2
+  previews:
+    - preview_result: no-matching-instance-offers
+      output_sha256: 38dc34fd45d7f97d310c6a9b5b92f0123754963157e8e2c7b97eb8ae57c684c1
+    - preview_result: no-matching-instance-offers
+      output_sha256: 38dc34fd45d7f97d310c6a9b5b92f0123754963157e8e2c7b97eb8ae57c684c1
+  compatible_scalar_offers_observed: 2
+  scalar_offers:
+    - backend: runpod
+      region: CA-MTL-1
+      gpu: NVIDIA A40 48GB
+      price_usd_per_hour: 0.44
+    - backend: runpod
+      region: EU-SE-1
+      gpu: NVIDIA A40 48GB
+      price_usd_per_hour: 0.44
+
+cost_evidence:
+  incremental_cost_usd: 0.0000
+  cumulative_videochat3_cost_usd: 0.0514
+  remote_artifact_created: false
