@@ -1,0 +1,103 @@
+schema_version: videochat3-runtime-cert-retired-v1
+status: retired-consumed-runtime-result
+submission_allowed: false
+run_name: videochat3-runtime-cert-20260731-a4
+run_id: 8dbb7b72-4332-4690-b451-c67879268a0d
+reason: >-
+  The explicitly authorized one-variable development test completed one
+  synthetic NVIDIA CUDA BF16 generation. Explicitly sharing the trained input
+  embeddings with the newly initialized output head changed the A3 garbled
+  token sequence into a coherent short sentence. This diagnoses the missing
+  output-head tie but is not competition-answer quality evidence. The consumed
+  identity cannot submit work.
+
+submitted_snapshot:
+  submitted_at_utc: "2026-07-31T17:56:14.495559Z"
+  git_commit: 486f18681b9ceb828ea80dfba37afae5edbc76f1
+  source_config_sha256: a28c35685ad9ba0a2021131bf5090bd432f3103f4a7eccd09d4e1abbbebc3c1a
+  prep_script_sha256: 4fbc5fa91c5b34108c92f3133282c0620867d1f86c11ce1abf05f081b75886fe
+  runner_script_sha256: 13abd3310f1b5528454bacc72e5c61d2b781d32b6d5bbf14bc1ef70854615948
+  verifier_script_sha256: ba2c3801ac743a8db8e7f5f23b23c97d559682655fca8f859a732fd881486dbe
+  source_snapshot_sha256: 64076fdb3a4a474a19e1561e6a44c136a4358ad7699960731ca976d9f8782261
+  requirements_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+  image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+  model_id: MCG-NJU/VideoChat3-4B
+  model_revision: 37fa901ec5913f84bc31108ebc1e60ad1903634c
+  transformers_revision: cbf4d720ec734edb77d25452b2790c7e4be2f8d7
+  private_media_uploaded: false
+  resources:
+    gpu_selector: A40:1:24GB..
+    backends: [runpod, vastai]
+    spot_policy: on-demand
+    max_price_usd_per_hour: 1.00
+    max_duration: 30m
+    inactivity_duration: 10m
+
+preview:
+  retained_output_sha256: 34f7b219a1a1c0d6573345ed7c44da31b672839c0da57ea096a858ad4182bac9
+  submission_output_sha256: e6c832a08864584f9dbe9b182f6c543b62160a5d3fae0af581c092d7905e7856
+  compatible_offers:
+    - backend: runpod
+      region: CA-MTL-1
+      gpu: NVIDIA A40 48GB
+      price_usd_per_hour: 0.44
+    - backend: runpod
+      region: EU-SE-1
+      gpu: NVIDIA A40 48GB
+      price_usd_per_hour: 0.44
+
+observed_execution:
+  selected_offer:
+    backend: runpod
+    region: CA-MTL-1
+    gpu: NVIDIA A40 48GB
+    price_usd_per_hour: 0.44
+  finished_at_utc: "2026-07-31T17:59:47.370691Z"
+  termination_reason: stopped_by_user
+  dependency_check: passed
+  model_download: passed
+  cuda_bf16: passed
+  model_parameters_bfloat16: passed
+  synthetic_generation_completed: true
+  load_warning: lm_head.weight missing and newly initialized
+  output_head_tie:
+    was_already_tied: false
+    is_tied: true
+    shape: [151936, 2560]
+    dtype: bfloat16
+    device: cuda:0
+  output_disposition: coherent short sentence on synthetic input
+  connection_note: >-
+    The convenience SSH name was initially unavailable. The supported attach
+    tunnel succeeded; a fresh SSH shell then lacked the declared task variables,
+    so the one corrective attempt inherited the task process environment only
+    in memory. No credential value was printed or persisted.
+
+artifact:
+  checksum_verified: true
+  source_snapshot_sha256: 64076fdb3a4a474a19e1561e6a44c136a4358ad7699960731ca976d9f8782261
+  prediction_sha256: df7b04e33a9eb7435c0614295fddb34ef90c9c67b287b0f1f8747250201c8baa
+  certificate_sha256: f558eb3c48f5ec428e271bb62b6708f2abf15a347dbd5b5178a63add920a1fe6
+  checksum_manifest_sha256: 920fc6b2bfbebeac6530b3c967d13fd4c2c8447ebbfd91cd6565690f9bee81c0
+  answer_length_characters: 16
+  max_new_tokens: 32
+
+actual_cost_usd: 0.0260
+cumulative_videochat3_cost_usd: 0.3795
+completion: 1/1
+evidence_validity: Diagnostic
+decision_disposition: Diagnostic signal
+audit_gap: >-
+  The immutable bundle reconstructs the frozen prediction, runtime certificate,
+  checksum manifest, pins, source snapshot, and tie attestation. The complete
+  raw interactive transcript and its exact per-line timing were not included in
+  the remote bundle, so those details cannot be independently reconstructed.
+rules_out: >-
+  Under this exact runtime, the synthetic garbling is not caused solely by the
+  fixed tensor-plus-metadata input path: replacing the untrained output head
+  with the checkpointed input embeddings produced coherent language on the
+  otherwise identical frozen synthetic condition.
+does_not_rule_out: >-
+  This does not establish semantic accuracy on artificial video, answer quality
+  on any competition row, the 3/3 compatibility gate, or the matched six-row
+  comparison against Qwen.

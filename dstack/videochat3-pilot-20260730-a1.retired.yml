@@ -1,0 +1,46 @@
+schema_version: videochat3-retired-dstack-run-v1
+status: retired-unsubmitted-prerequisite-stop
+submission_allowed: false
+submitted: false
+run_name: videochat3-pilot-20260730-a1
+blocked_by: videochat3-runtime-cert-20260731-a2
+reason: >-
+  The runtime-certification prerequisite stopped incomplete after the sole
+  corrective environment repeated the terminal lifecycle failure. The private
+  compatibility and matched pilot workload was never submitted. This is
+  sanitized provenance and cannot submit work.
+
+source_config_sha256: b383f82eeaaad7f63c3c1eb2abb92ba92ce454df3e0f8831f30188279e9e078c
+wrapper_sha256: c8192ecf88a367ea1fb4217d4e03a5980a8f3f3a736470bca659f45a71fa9bd1
+image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+treatment_model: MCG-NJU/VideoChat3-4B
+treatment_revision: 37fa901ec5913f84bc31108ebc1e60ad1903634c
+control_model: Qwen/Qwen3.5-4B
+control_revision: 851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a
+transformers_revision: cbf4d720ec734edb77d25452b2790c7e4be2f8d7
+requirements_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+gate_requests_sha256: 7160e3c4e3bd7b2641004b4bc1331841828b4d1b2e9e89b0a0dee718512c6ebf
+pilot_requests_sha256: 3ab0fc1dc36373914b42c44efdb8b305cb0a1536706995377e5c4513467ce403
+private_media_uploaded: false
+
+planned_bounds:
+  gpu_selector: A40:1:24GB..
+  backends: [runpod, vastai]
+  spot_policy: on-demand
+  max_price_usd_per_hour: 1.25
+  max_duration: 3h
+
+planned_decision_rule:
+  compatibility_completion: 3/3
+  matched_completion_per_model: 6/6
+  target_improvements_required: 2/4
+  control_regressions_allowed: 0/2
+
+observed_completion:
+  compatibility: 0/3
+  treatment: 0/6
+  control: 0/6
+actual_cost_usd: 0.0000
+evidence_validity: Incomplete
+decision_disposition: Not promoted under the tested condition
+remote_artifact_state: not-applicable-no-run-submitted

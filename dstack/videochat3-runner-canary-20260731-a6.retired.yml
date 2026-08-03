@@ -1,0 +1,22 @@
+schema_version: videochat3-retired-dstack-run-v1
+status: retired-unsubmitted-prerequisite-stop
+submission_allowed: false
+submitted: false
+previewed: false
+run_name: videochat3-runner-canary-20260731-a6
+blocked_by: videochat3-debug-20260731-a1
+reason: >-
+  The predeclared interactive CUDA gate did not run because its two dstack
+  previews failed at the local control-plane connection boundary. The a6
+  prerequisite was not met, so a6 was neither previewed nor submitted. This is
+  sanitized provenance metadata and cannot be submitted as a dstack task.
+
+source_config_sha256: e69aba8632801fd075f992b65bba56b73756ece7e886dcdc6209f7e0c4176b52
+frozen_plan_source_sha256: a519fbcd9e358c2f18d6f7209e9cef45cba95f97306449b32a78972246f0e6e5
+requirements_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+model_id: MCG-NJU/VideoChat3-4B
+model_revision: 37fa901ec5913f84bc31108ebc1e60ad1903634c
+actual_cost_usd: 0.0000
+cumulative_videochat3_cost_usd: 0.0797
+remote_artifact_state: not-applicable-no-run-submitted

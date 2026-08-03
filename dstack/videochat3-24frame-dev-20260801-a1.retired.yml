@@ -1,0 +1,145 @@
+schema_version: videochat3-retired-dstack-run-v1
+status: retired-consumed-valid-negative
+submission_allowed: false
+submitted: true
+run_name: videochat3-24frame-dev-20260801-a1
+run_id: d5cc3983-76e5-4468-a7b2-8c29beea27c9
+submitted_at: 2026-08-01T11:01:08.129324+00:00
+finished_at: 2026-08-01T11:11:32.525802+00:00
+termination_reason: stopped-by-user-after-durable-verification
+
+source_config_sha256: 0f19ef1275250fc53f970896578f7387990c50e165f11c67bc14dc9c035cf413
+stage_runner_sha256: fa38c0a4b0efba41dd226b0551681dce2186256383f44cb2e316f6fbd70e9f6d
+source_snapshot_sha256: 51ca0e84eb510d3447724db43f4d620f2caf61b19783677a75bac7693d657d33
+frozen_plan_sha256: 74e0d000fa91760479a762ab3196200ecbcc81f009e8b48e35e9965c706a1b28
+requirements_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+
+runtime:
+  image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+  accelerator_backend: nvidia-cuda
+  precision: bfloat16
+  gpu: NVIDIA A40 48GB
+  cuda_version: "12.8"
+  backend: runpod
+  region: EU-SE-1
+  provider_instance_id: 9gqb7o8b9hdos4
+  actual_price_usd_per_hour: 0.44
+  max_price_usd_per_hour: 0.60
+  max_duration: 90m
+  retry: false
+  cuda_peak_memory_allocated_bytes: 9722740736
+
+preview:
+  declined_preview_completed: true
+  transcript_sha256: 8124fc3a9411aa65d777a959f05041dd5e51ec4ad4ac0629d17c8897b7d994c4
+  listed_downloaded_and_checksum_verified: true
+  compatible_physical_offers: 2
+  offers:
+    - {backend: runpod, region: CA-MTL-1, gpu: NVIDIA A40 48GB, price_usd_per_hour: 0.44}
+    - {backend: runpod, region: EU-SE-1, gpu: NVIDIA A40 48GB, price_usd_per_hour: 0.44}
+
+models:
+  videochat3:
+    model_id: MCG-NJU/VideoChat3-4B
+    revision: 37fa901ec5913f84bc31108ebc1e60ad1903634c
+  qwen_control:
+    model_id: Qwen/Qwen3.5-4B
+    revision: 851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a
+
+input:
+  frame_count: 24
+  sampling_policy: uniform-bin-midpoint
+  frame_files: 144
+  frame_bytes: 120148701
+  pilot_manifest_sha256: d13a1135184d92988af28df0fcda47a6d0debef268a8861cfd4ced3898a9518b
+  archive_sha256: f234f73228116e3ceeefe492341b5cc99ad0125d5bd4b944f53bf4da4cdcdca1
+  archive_size_bytes: 120320000
+  listed_downloaded_and_checksum_verified: true
+
+stage_count: 3
+
+completion:
+  synthetic_canary: 1/1
+  matched_gate_videochat3: 2/2
+  matched_gate_qwen: 2/2
+  pilot_videochat3: 6/6
+  pilot_qwen: 6/6
+  blind_grades: 12/12
+  disagreement_adjudications: 0/0
+
+blind_grading:
+  labels_hidden: true
+  predictions_frozen_before_references: true
+  independent_graders: 2
+  agreement: 12/12
+  third_adjudications: 0
+  aggregate_cpw:
+    videochat3_24: {correct: 0, partial: 1, wrong: 5}
+    qwen24: {correct: 3, partial: 2, wrong: 1}
+  qwen24_vs_qwen12_sanity:
+    improvements: 1/6
+    ties: 5/6
+    regressions: 0/6
+
+quality:
+  target_improvements: 1/4
+  target_ties: 0/4
+  target_regressions: 3/4
+  control_regressions: 2/2
+  passed: false
+
+artifacts:
+  canary:
+    sha256s_sha256: 97ea6536240c34a24e5e6a9c04e73ba5b315f47b9858da19bcbc22c81527efac
+    prediction_sha256: 6bde7f52d90dba8cb0fed62873349041452c33a6e39281c700fb357617c9808a
+    checksum_verified: true
+  matched_gate:
+    sha256s_sha256: 3ea1189285a5532ec003b1114623a4d3600f76eea987452ea287420b0f72c1d7
+    prediction_sha256: accb3123529da5af01296b01677c3c9451dd3137b9aa63390a65f35f766d96e9
+    checksum_verified: true
+  pilot:
+    sha256s_sha256: 080247d5ffad25e0c39c32d3d5c4d68caa5283a6349b2c73af5cc55e5faa90bb
+    prediction_sha256: a585955341e8f531f888520ec9f91780417bd96a00dfce62b2b0fe5e0b06091c
+    checksum_verified: true
+  grading:
+    sha256s_sha256: e2512db5ee286c38fd5b2ecbd3af33c9a02b1f5fbdcbf4d26d4ede6e8dc68005
+    scored_comparison_sha256: 2b8e8cd2423494e074246927107d0f1bfddbbd2f86c09690f413d1906d2a0ad4
+    checksum_verified: true
+
+actual_cost_usd: 0.0763
+cumulative_videochat3_cost_usd: 0.7335
+evidence_validity: Verified
+decision_disposition: Not promoted under the tested condition
+validity_concerns:
+  limitation: >-
+    The purposive six-row panel estimates the declared Temporal/Action failure
+    mode and two Visual controls only; it is not a representative benchmark.
+  uncertainty: none recorded; the two blind graders agreed on all 12 judgments
+  audit_gap: >-
+    The credential-bearing local control-plane startup trace was intentionally
+    deleted during containment. Its full environment line cannot be
+    reconstructed, although the submitted config snapshot, run metadata, and
+    all inference and grading artifacts remain checksum-verifiable.
+what_this_rules_out_now: >-
+  Promoting the pinned VideoChat3 fixed-24-frame condition over the pinned Qwen
+  control on this frozen panel. Combined with the verified fixed-12-frame
+  negative, the tested VideoChat3 checkpoint is not justified as a project
+  Temporal/Action specialist.
+what_this_does_not_rule_out: >-
+  A future materially different checkpoint, task-specific fine-tuning, or
+  performance on a representative benchmark. It does not justify another
+  frame-count, prompt, raw-video, adaptive, or streaming test of this checkpoint.
+
+security_incident:
+  classification: local-credential-trace-exposure
+  cause: >-
+    A local control-plane runner trace contained the injected job environment
+    and was surfaced while locating the dev SSH alias.
+  containment: >-
+    Inspection stopped immediately; the exact local trace file was removed and
+    was not uploaded or committed. No credential value is retained here.
+  credential_rotation_required: true
+  affected_credential_classes:
+    - Hugging Face OAuth session
+    - RunPod provider API key
+  experiment_validity_effect: none observed

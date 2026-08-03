@@ -1,0 +1,36 @@
+schema_version: videochat3-retired-dstack-run-v1
+status: retired-consumed-run
+submission_allowed: false
+run_name: videochat3-runner-canary-20260730-a2
+reason: >-
+  This immutable identity was consumed by the failed 2026-07-30 corrective
+  canary. This provenance document is intentionally not a dstack task config.
+  No replacement run identity is authorized here.
+
+executed_snapshot:
+  submitted_at_utc: "2026-07-31T00:28:10.963906Z"
+  image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+  gpu_selector: A40:1:24GB..
+  selected_offer:
+    backend: runpod
+    region: CA-MTL-1
+    gpu: NVIDIA A40 48GB
+    price_usd_per_hour: 0.44
+  actual_cost_usd: 0.0231
+  exit_status: 1
+  failure_phase_observed_from_console: bootstrap-runtime
+  declared_dependencies:
+    uv: 0.11.3
+    transformers_source_commit: cbf4d720ec734edb77d25452b2790c7e4be2f8d7
+    accelerate: 1.12.0
+    huggingface_hub: 1.24.0
+    pillow: 12.2.0
+    safetensors: 0.8.0
+    sentencepiece: 0.2.1
+    torch: 2.10.0
+    torchvision: 0.25.0
+  resolver_observation:
+    transformers_version: 5.15.0.dev0
+    click_before: 8.3.1
+    click_resolved: 8.4.2
+    incompatibility: "spin requires click>=8,!=8.3.0,<8.4"

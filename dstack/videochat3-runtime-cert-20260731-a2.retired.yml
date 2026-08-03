@@ -1,0 +1,67 @@
+schema_version: videochat3-runtime-cert-retired-v1
+status: retired-consumed-runtime-stop
+submission_allowed: false
+run_name: videochat3-runtime-cert-20260731-a2
+run_id: 1724f5fa-a758-4c0d-a74a-1c8b756c3d0f
+reason: >-
+  The sole corrective development environment repeated the terminal lifecycle
+  failure after successful preparation and before interactive synthetic
+  certification. The persistent-error rule ends this path. This consumed
+  identity is sanitized provenance and cannot submit work.
+
+submitted_snapshot:
+  submitted_at_utc: "2026-07-31T12:21:00.714574Z"
+  git_commit: 34bdab2ee8e4716dbb5e607636c9e05ec0da6f50
+  source_config_sha256: c73979a54e64cd4af1e3768c2365fcca790e617bb268142d75e954afed81f6f9
+  prep_script_sha256: 488cf11dd2412a87af1a1e11394375d3a62ca279d6196d243c2228c2b616ac76
+  runner_script_sha256: 45eac31feba9dda6237b6c62e56806c9e21dbcb7ec9f431334bfc9f7d593440b
+  verifier_script_sha256: ba2c3801ac743a8db8e7f5f23b23c97d559682655fca8f859a732fd881486dbe
+  source_snapshot_sha256: 3039526f2ace8104fb25a1a989d3046281a5499c39a6b4ded439481c20eb9529
+  requirements_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+  image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+  model_id: MCG-NJU/VideoChat3-4B
+  model_revision: 37fa901ec5913f84bc31108ebc1e60ad1903634c
+  transformers_revision: cbf4d720ec734edb77d25452b2790c7e4be2f8d7
+  private_media_uploaded: false
+  resources:
+    gpu_selector: A40:1:24GB..
+    backends: [runpod, vastai]
+    spot_policy: on-demand
+    max_price_usd_per_hour: 1.00
+    max_duration: 30m
+    inactivity_duration: 10m
+
+observed_execution:
+  selected_offer:
+    backend: runpod
+    region: CA-MTL-1
+    gpu: NVIDIA A40 48GB
+    price_usd_per_hour: 0.44
+  finished_at_utc: "2026-07-31T12:24:41.145335Z"
+  exit_status: 0
+  termination_reason: done_by_runner
+  dependency_check: passed
+  model_download: passed
+  cuda_device: NVIDIA A40
+  torch_version: 2.10.0+cu128
+  preparation_marker: passed
+  synthetic_certification_started: false
+
+actual_cost_usd: 0.0269
+incremental_runtime_certification_cost_usd: 0.0573
+cumulative_videochat3_cost_usd: 0.1370
+completion: 0/1
+evidence_validity: Incomplete
+decision_disposition: Not promoted under the tested condition
+persistent_error: >-
+  Without an interrupt from the primary, the corrective environment became
+  terminal with done_by_runner immediately after printing its preparation
+  marker. No interactive attachment could find a running job afterward. No
+  a3 identity is authorized.
+audit_gap: >-
+  The interactive runner never started, so no immutable remote certificate or
+  checksum manifest exists. The retained normal log proves preparation and
+  basic CUDA readiness, but cannot reconstruct model loading, processor input
+  handling, BF16 parameter attestation, synthetic generation, answer
+  completion, or remote artifact synchronization.
+retained_private_log_sha256: 4bcbe29186cf19b897813c0a67221a84dd9bbdfc8de1d567c29d88caa93ec21c

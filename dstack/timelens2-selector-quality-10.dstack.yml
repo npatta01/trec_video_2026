@@ -1,0 +1,46 @@
+type: task
+name: timelens2-selector-quality-20260801-a2
+
+image: docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
+entrypoint: /bin/bash -c
+shell: bash
+working_dir: /dstack/run
+
+env:
+  - HF_TOKEN=${{ secrets.hf_token }}
+  - HF_HUB_DISABLE_TELEMETRY=1
+  - FORCE_QWENVL_VIDEO_READER=torchvision
+  - PYTHON_BIN=/opt/conda/bin/python
+  - PYTHONPATH=/dstack/run/src
+  - EXPERIMENT_RUN_ID=timelens2-selector-quality-20260801-a2
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/timelens2-selector-quality-20260801-a2
+  - RUNTIME_IMAGE=docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
+  - SELECTOR_MODEL_ID=MCG-NJU/TimeLens2-2B
+  - SELECTOR_MODEL_REVISION=90dd30b3eeff3520a30c830eff2209f4ad788ca9
+  - ANSWER_MODEL_ID=Qwen/Qwen3.5-4B
+  - ANSWER_MODEL_REVISION=851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a
+  - SOURCE_SHA256=d2cfec431652bcf7c6c83be59a4932fc0ed75016d6a3dc973e49cebdd9ed0241
+
+files:
+  - ../scripts/run-timelens2-selector-quality-dstack.sh:/dstack/run/scripts/run-timelens2-selector-quality-dstack.sh
+  - ../src/trec_video_2026:/dstack/run/src/trec_video_2026
+
+commands:
+  - |
+    set -euo pipefail
+    exec bash /dstack/run/scripts/run-timelens2-selector-quality-dstack.sh run
+
+resources:
+  gpu: A40,A6000,L40,L40S,RTX6000Ada,A100,H100,H200:1:48GB..
+  cpu: 8..
+  memory: 96GB..
+  disk: 100GB..
+
+fleets: [gpu-marketplace]
+backends: [runpod, vastai]
+spot_policy: on-demand
+max_price: 1.00
+max_duration: 2h
+retry:
+  on_events: [no-capacity]
+  duration: 20m

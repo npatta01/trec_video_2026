@@ -1,0 +1,144 @@
+record_type: dstack-retired-dev-result
+run_name: videochat3-timestamp-dev-20260801-a3
+run_id: 9bd81210-af7e-4b1a-a9bd-5fa20dae0302
+status: retired-consumed-valid-negative
+submission_allowed: false
+submitted: true
+
+submitted_snapshot:
+  source_config_sha256: 83cbbe023c05123e39a0a54787ce4f68612a02093ee978d7934ecc35430020e8
+  runner_sha256: 65833bb68931f78f298b8e096254a1141b3f86c494f482d897b4dcc179973e28
+  requirements_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+  source_snapshot_sha256: 529318f1bdab5a2da474f966f81088085247dce311e3526a40a6da06ffe125c8
+  frozen_plan_sha256: 816519eef11df6cf406919dbd4be852634477829a295b898f087f8e9ec6e88a3
+  lifecycle_entry_returned_control: true
+  private_media_in_initial_transfer: false
+
+effective_snapshot:
+  source_config_sha256: 0f7bab20c229f10c8ca9f5e2b5dd52809fd34dbb7783a2af738adb31b8f8d510
+  runner_sha256: 52d87f853e5abb48e87a28c811d815f4064455612519666c400de645c1d60c8b
+  requirements_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+  source_snapshot_sha256: ac64eb2976601014680a848f21ab0080bd6a0f984c8a969aa6a1394d2f9e1c18
+  frozen_plan_sha256: 4f61f4981fb53cc6273bccf0dea8b062102db4242764a4defb55007252c1ac5f
+  image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+  transformers_revision: cbf4d720ec734edb77d25452b2790c7e4be2f8d7
+  videochat_model_id: MCG-NJU/VideoChat3-4B
+  videochat_revision: 37fa901ec5913f84bc31108ebc1e60ad1903634c
+  qwen_model_id: Qwen/Qwen3.5-4B
+  qwen_revision: 851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a
+  gate_manifest_sha256: 1f476fb3a0f7f5cac3bd3a790348bc6a3eed91c16311e79909f48f8c9760a772
+  pilot_manifest_sha256: 8b5cf944553ac000795b837090799f07041c8b86cc3ed9a997dc52a9ed4941c4
+  seed: 20260724
+  max_new_tokens: 32
+  decoding: greedy
+  installed_packages:
+    accelerate: 1.12.0
+    click: 8.4.2
+    huggingface-hub: 1.24.0
+    torch: 2.10.0+cu128
+    torchvision: 0.25.0+cu128
+
+preview:
+  sha256: 0bbd8f4404395d868766fcf31ef1995ee53242fe75b85ad9cccb18a70cc6fbe1
+  compatible_physical_offers: 3
+  offers:
+    - {backend: runpod, region: CA-MTL-1, gpu: NVIDIA A40 48GB, price_usd_per_hour: 0.44}
+    - {backend: runpod, region: EU-SE-1, gpu: NVIDIA A40 48GB, price_usd_per_hour: 0.44}
+    - {backend: runpod, region: US-MO-1, gpu: NVIDIA A40 48GB, price_usd_per_hour: 0.44}
+
+execution:
+  dstack_version: 0.20.29
+  submitted_at: 2026-08-01T08:59:23.264551Z
+  finished_at: 2026-08-01T09:18:44.915617Z
+  backend: runpod
+  region: CA-MTL-1
+  instance_type: NVIDIA A40
+  instance_id: zfgp6ohldelhjm
+  price_usd_per_hour: 0.44
+  max_price_usd_per_hour: 1.00
+  max_duration: 2h
+  termination_reason: stopped_by_user_after_verified_completion
+  actual_cost_usd: 0.1420
+  ephemeral_private_input_removed_before_stop: true
+
+input_flow_correction:
+  initial_canary:
+    result: failed_identity_only_assertion
+    model_weights_loaded: false
+    private_media_loaded: false
+    confirmed_false_failure: >-
+      Transformers tensorization copied the exact adapter Mapping object while
+      retaining its exact type, all twelve irregular timestamps, and all merged
+      prompt timestamps. Object identity was not a scientifically relevant
+      integrity condition.
+  corrected_invariant: >-
+    Require the post-processor object to remain the exact adapter type and to
+    preserve every source timestamp and merged prompt timestamp exactly.
+  corrected_canary:
+    result: passed
+    processor_preserved_metadata_identity: false
+    processor_preserved_exact_timestamps: true
+    cuda_bf16: true
+    model_weights_loaded: false
+    private_media_loaded: false
+
+completion:
+  dev_initialization: 1/1
+  synthetic_canary_recheck: 1/1
+  gate: 3/3
+  videochat3_pilot: 6/6
+  qwen_pilot: 6/6
+  blind_graders: 2/2
+  disagreement_adjudication: 1/1
+
+blind_grading:
+  labels_hidden: true
+  predictions_frozen_before_references: true
+  independent_graders: 2
+  agreement: 11/12
+  third_adjudication_scope: 1/1_disagreement_only
+  aggregate_candidate_judgments: 12/12
+
+quality:
+  target_improvements: 1/4
+  target_ties: 2/4
+  target_regressions: 1/4
+  control_regressions: 2/2
+  passed: false
+
+artifacts:
+  initial_canary_failure:
+    sha256s_sha256: 58ea7da818a81401cac7b34e2c8de1ceaab363b69c5b436665b8a912047fc5e8
+    listed_downloaded_and_checksum_verified: true
+  corrected_canary:
+    sha256s_sha256: 86e4e63fc3757d90f691a9e47616a7e3f364552a0261f7872d935e2ee9616a55
+    attestation_sha256: 25bbb7789c75757983c936b8152eb1cc709ed19d6be7f9e2f8a3dbb3930199a6
+    listed_downloaded_and_checksum_verified: true
+  gate:
+    sha256s_sha256: 65d30918fc2875b32c5e9ae3e594ba530933126a38f75804cd97ee9520c47082
+    predictions_sha256: 7c0a36f719596c331afc83abc7470fb11a738cf50c7661c033ad5d225e09251c
+    listed_downloaded_and_checksum_verified: true
+  matched_pilot:
+    sha256s_sha256: 38691d175a73b0ae2f7821c8b491f39946372c7068ab73abb77e25ae45aaf2f0
+    predictions_sha256: 6705f5e0c65e1344317edf89400356bf7a485da36bd781b1d0db4427d03dfb59
+    listed_downloaded_and_checksum_verified: true
+
+actual_cost_usd: 0.1420
+cumulative_videochat3_cost_usd: 0.6572
+evidence_validity: Verified
+decision_disposition: Not promoted under the tested condition
+validity_concerns:
+  limitation: >-
+    The purposive six-row panel estimates the declared Temporal/Action failure
+    mode and two Visual controls only; it is not a general benchmark.
+  uncertainty: >-
+    One of twelve blind candidate grades required the predeclared independent
+    third adjudication.
+  audit_gap: none
+what_this_rules_out_now: >-
+  Promoting this pinned VideoChat3 exact-timestamp condition over the pinned Qwen
+  baseline on the frozen six-row panel: it missed the two-of-four improvement
+  threshold and regressed both controls.
+what_this_does_not_rule_out: >-
+  VideoChat3 performance on other rows, prompts, frame counts, model revisions,
+  or evidence policies, or a broader benchmark conclusion about either model.
