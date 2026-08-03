@@ -16,7 +16,7 @@ website:
       - href: code-map.qmd
         text: Code Map and Gaps
   page-footer:
-    left: "Reviewed evidence: 2026-07-26"
+    left: "Reviewed evidence: 2026-07-30"
     right: "Development phase · 2026 evaluation quality remains unknown"
   search: false
 

@@ -3326,9 +3326,9 @@ break-inside: avoid;
 <div class="legacy-fragment-alias-group" aria-hidden="true"><span id="global-default"></span><span id="directed-temporal-sampling"></span><span id="dense-burst-sampling"></span></div>
 <section id="visual-and-temporal-evidence" class="level3">
 <h3 class="anchored" data-anchor-id="visual-and-temporal-evidence"><a href="./research-visual-evidence.html">Visual and temporal evidence</a></h3>
-<p><strong>Working answer:</strong> uniform-12 remains the default; global 24 frames and the tested directed/burst heuristics were not promoted under their tested conditions.</p>
+<p><strong>Working answer:</strong> uniform-12 remains the default; global 24 frames and the tested directed/burst heuristics were not promoted under their tested conditions. A verified r4 audit represented the preferred evidence in <code>10/10</code> rows, but the completed matched answer test found oracle-hybrid-12 slightly worse than uniform-12 and did not promote it. A frozen-timestamp audit found limited selection headroom: uniform-12 already covered all required intervals in <code>6/10</code> rows and at least one in <code>9/10</code>.</p>
 <p><strong>Strongest evidence:</strong> <a href="./research-visual-evidence.html#frozen-30-protocol-v2">matched frozen-30 frame-budget comparison; smaller 10-row and 2-row temporal diagnostics</a>.</p>
-<p><strong>Open question:</strong> can a fixed-budget selector retrieve the required moment more reliably than uniform sampling?</p>
+<p><strong>Open question:</strong> does relevant-scene selection improve answers on a prospectively frozen panel where uniform-12 actually misses required evidence?</p>
 </section>
 </div>
 <div class="theme-card">
@@ -3396,10 +3396,10 @@ break-inside: avoid;
 <tr class="even">
 <td><a href="./research-visual-evidence.html#current-working-answer">Visual</a></td>
 <td>Finds the useful moment within a frame budget</td>
-<td><a href="./research-visual-evidence.html#directed-temporal-sampling">Uniform/directed/burst</a></td>
-<td><strong>Use:</strong> uniform-12; <strong>Do not default:</strong> tested directed/burst</td>
-<td><strong>Possible:</strong> learned or hybrid retrieval</td>
-<td><a href="./research-visual-evidence.html#required-moments-selector-recall-and-oracle-frames">Required-moment recall</a></td>
+<td><a href="./research-visual-evidence.html#directed-temporal-sampling">Uniform/directed/burst</a>; <a href="./research-visual-evidence.html#matched-r4-oracle-hybrid-12-inference-comparison">r4 representation, answer, and headroom audits</a></td>
+<td><strong>Use:</strong> uniform-12; <strong>Do not default:</strong> tested oracle-hybrid-12</td>
+<td><strong>Possible:</strong> learned retrieval or improved evidence use</td>
+<td><a href="./research-visual-evidence.html#cheapest-valid-next-experiments">Selection-sensitive panel</a></td>
 </tr>
 <tr class="odd">
 <td><a href="./research-speech-transcripts.html#current-working-answer">Speech</a></td>
@@ -3458,6 +3458,8 @@ Expand named experiments by theme
 <ul>
 <li><a href="./research-visual-evidence.html#frozen-30-protocol-v2">Frozen-30 protocol v2: global frame budget</a></li>
 <li><a href="./research-visual-evidence.html#directed-temporal-sampling">Directed temporal sampling</a></li>
+<li><a href="./research-visual-evidence.html#temporal-required-moment-oracle">r4 required-moment Stage 1 representation audit</a></li>
+<li><a href="./research-visual-evidence.html#historical-annotation-agreement-stop">Historical primary annotation-agreement stop</a></li>
 <li><a href="./research-visual-evidence.html#dense-burst-sampling">Dense-burst sampling</a></li>
 <li><a href="./research-visual-evidence.html#spatial-crop-diagnostic">Spatial-crop diagnostic</a></li>
 </ul>
@@ -3528,7 +3530,7 @@ Expand named experiments by theme
 <h2 class="anchored" data-anchor-id="branch-complete-next-test-queue">Branch-complete next-test queue</h2>
 <p>These branches are independent choices; their numbering is for reference, not a prescribed research sequence.</p>
 <ol type="1">
-<li><strong>Smarter visual sampling/retrieval:</strong> <a href="./research-visual-evidence.html#required-moments-selector-recall-and-oracle-frames">label required moments and compare fixed-budget selectors</a>.</li>
+<li><strong>Smarter visual sampling/retrieval:</strong> <a href="./research-visual-evidence.html#cheapest-valid-next-experiments">freeze a selection-sensitive panel where uniform-12 misses required evidence</a>; the original matched Stage 2 panel had full uniform interval coverage in <code>6/10</code> rows.</li>
 <li><strong>Alternative ASR:</strong> <a href="./research-speech-transcripts.html#alternative-or-multilingual-asr-matched-panel">compare an alternative or multilingual ASR on one frozen, source-language-aware panel</a>.</li>
 <li><strong>Human/reference transcript controls:</strong> <a href="./research-speech-transcripts.html#label-blind-human-transcript-upper-bound">produce an independently reviewed, label-blind upper bound</a>.</li>
 <li><strong>Routed native audio/sound:</strong> <a href="./research-native-audio.html#matched-native-audio-specialist-panel">test prosody and non-speech strata with abstention and matched controls</a>.</li>
@@ -3715,10 +3717,10 @@ Expand six supersession records
 </section>
 <section id="chronology-index" class="level3">
 <h3 class="anchored" data-anchor-id="chronology-index">Chronology index</h3>
-<p>Six milestones preserve the date-ordered audit trail without making chronology the primary reading path.</p>
+<p>Seven milestones preserve the date-ordered audit trail without making chronology the primary reading path.</p>
 <details>
 <summary>
-Expand the six-milestone chronology
+Expand the seven-milestone chronology
 </summary>
 <table class="caption-top table">
 <thead>
@@ -3755,6 +3757,11 @@ Expand the six-milestone chronology
 <td><a href="./research-models.html#qwen3-omni-quality">Models and adaptation</a></td>
 </tr>
 <tr class="even">
+<td>July 30</td>
+<td>Historical required-moment annotation agreement stop; separate r4 Stage 1 representation selection</td>
+<td><a href="./research-visual-evidence.html#temporal-required-moment-oracle">Visual evidence</a></td>
+</tr>
+<tr class="odd">
 <td>August 1</td>
 <td>VideoChat3 Temporal/Action specialist screen</td>
 <td><a href="./research-models.html#videochat3-temporal-specialist">Models and adaptation</a></td>
@@ -4123,7 +4130,7 @@ Expand the six-milestone chronology
 <footer class="footer">
   <div class="nav-footer">
     <div class="nav-footer-left">
-<p>Reviewed evidence: 2026-07-26</p>
+<p>Reviewed evidence: 2026-07-30</p>
 </div>   
     <div class="nav-footer-center">
        

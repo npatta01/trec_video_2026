@@ -3310,13 +3310,13 @@ break-inside: avoid;
 </section>
 <section id="current-working-answer" class="level2">
 <h2 class="anchored" data-anchor-id="current-working-answer">Current working answer</h2>
-<p>Use uniform-12 as the current default: it takes midpoint frames from 12 equal time bins. Uniform-24 applies the same whole-video coverage with twice the frame proxy. Do not make the tested directed-12 or dense-burst-12 diagnostic a default; each is <strong>Not promoted under the tested condition</strong>.</p>
+<p>Use uniform-12 as the current default: it takes midpoint frames from 12 equal time bins. Uniform-24 applies the same whole-video coverage with twice the frame proxy. Do not make the tested directed-12 or dense-burst-12 diagnostic a default; each is <strong>Not promoted under the tested condition</strong>. A clean r4 Stage 1 audit found the frozen preferred evidence represented in oracle-hybrid-12 for <code>10/10</code> selected rows. The completed matched Stage 2 test did not turn that stronger representation into better answers: treatment scored <code>1C/5P/4W</code> versus control at <code>2C/4P/4W</code>, with one improvement, two regressions, seven ties, and ordinal gain <code>-1</code>. The answer gate failed, so uniform-12 remains the operational default. A post-result frozen-timestamp audit then found that uniform-12 already covered every required interval in <code>6/10</code> rows and at least one interval in <code>9/10</code>. The matched test therefore had limited selection headroom and does not by itself isolate downstream evidence use as the failure mechanism.</p>
 <div class="theme-decision-strip" aria-label="Visual-evidence decisions">
 <ul>
 <li><strong>Use now:</strong> Qwen3.5-4B with 12 uniformly sampled frames.</li>
-<li><strong>Do not default:</strong> global uniform-24 or the tested directed/burst heuristics.</li>
+<li><strong>Do not default:</strong> global uniform-24, the tested directed/burst heuristics, or oracle-hybrid-12 under the matched r4 condition.</li>
 <li><strong>Still possible:</strong> learned, hybrid, shot/event, OCR, or coarse-to-fine retrieval.</li>
-<li><strong>Next test:</strong> required-moment labels, selector recall, and oracle-frame answering at one fixed budget.</li>
+<li><strong>Next test:</strong> prospectively freeze a selection-sensitive panel where uniform-12 demonstrably misses required evidence before testing another selector or answering prompt.</li>
 </ul>
 </div>
 </section>
@@ -3324,7 +3324,9 @@ break-inside: avoid;
 <h2 class="anchored" data-anchor-id="evidence-at-a-glance">Evidence at a glance</h2>
 <ul>
 <li><strong>Strongest evidence:</strong> matched uniform-12 versus uniform-24 on frozen-30 v2.</li>
-<li><strong>Diagnostic evidence:</strong> ten selected temporal rows for directed-12 and two rows for dense-burst-12.</li>
+<li><strong>Diagnostic evidence:</strong> ten selected temporal rows for directed-12 and two rows for dense-burst-12; the historical primary annotation-agreement stop remains separate from the verified r4 ten-row representation audit.</li>
+<li><strong>Matched answer evidence:</strong> a completed 10-pair, 20-prediction comparison found oracle-hybrid-12 slightly worse than uniform-12 under the frozen gate.</li>
+<li><strong>Selection-headroom audit:</strong> uniform-12 covered all required intervals in <code>6/10</code> rows, some but not all in <code>3/10</code>, and none in <code>1/10</code>; it covered <code>12/17</code> required intervals overall.</li>
 <li><strong>Audit gaps:</strong> no tracked general-workflow caller for directed-12; the exact dense-burst implementation is absent.</li>
 <li><strong>Condition boundary:</strong> none of these results rejects smarter visual sampling or retrieval as a research branch.</li>
 </ul>
@@ -3368,6 +3370,65 @@ Both arms use whole-video bin-midpoint coverage, not query-driven retrieval. The
 Method, result, validity risks, and evidence
 </summary>
 The selector source and tests establish deterministic timestamps for a supplied anchor, not required-evidence recall or answer relevance. The tracked repository has no general-workflow caller for the selector: that is an <strong>Audit gap</strong>, not a confirmed execution bug. The <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/temporal-sampling-issue-8.md">temporal experiment record · Evidence of record · Evidence report · GitHub</a>, <a href="https://github.com/npatta01/trec_video_2026/blob/main/src/trec_video_2026/vqa_experiments/temporal_sampling.py">selector · Current code · Source code · GitHub</a>, and <a href="https://github.com/npatta01/trec_video_2026/blob/main/tests/test_temporal_sampling.py">tests · Current code · Source code · GitHub</a> document the narrow contract.
+</details>
+</section>
+<section id="temporal-required-moment-oracle" class="level3">
+<h3 class="anchored" data-anchor-id="temporal-required-moment-oracle">r4 required-moment Stage 1 representation audit</h3>
+<ul>
+<li><strong>Reason for testing:</strong> determine whether fixed-budget oracle frame candidates could represent the frozen preferred evidence before any model answer comparison.</li>
+<li><strong>Tested condition and panel:</strong> a frame-first then full-video independent audit of all ten selected temporal development rows. Oracle-hybrid-12 uses six global and six local frames; oracle-local-12 uses 12 local frames.</li>
+<li><strong>Observed result:</strong> r4 had <code>10/10</code> labelable and still-frame-representable rows, zero incompatible/uncertain rows, and zero repair replacements. Hybrid was visible, relationship-preserving, answer-sufficient, and a final pass for <code>10/10</code>; local-only was <code>9/10</code> for each measure. The independently reviewed sanitized extraction aggregate (<code>r4-stage1-extraction-summary-sanitized.json</code>, SHA-256 <code>a5d069160df74a315a290767932c68c13af72d01c80d7592157f24dce3d91bfe</code>) reports 360 real frames and 120 unique PNGs per condition, with all 60 hybrid local frames and all 120 local-only frames inside frozen target intervals.</li>
+<li><strong>Current condition-bound status:</strong> <strong>Verified</strong> Stage 1 representation evidence. The hybrid-first rule selected <code>oracle-hybrid-12</code> for the matched Stage 2 test recorded below; uniform-12 remains the <strong>Current default</strong>.</li>
+<li><strong>What this rules out now:</strong> advancing oracle-local-12 as the selected candidate for this exact Stage 2 comparison.</li>
+<li><strong>What it does not rule out:</strong> whether another model or prompt uses the represented evidence well enough to improve answers, whether the oracle condition is deployable, or whether retrieval is the dominant end-to-end bottleneck.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—this is a selected ten-row representation audit, not a model-answer or generalization result.</li>
+<li><strong>Reconsider when:</strong> a new matched model, prompt, or deployable selector passes a predeclared paired improvement and non-regression gate.</li>
+</ul>
+<details>
+<summary>
+Method, result, validity risks, and evidence
+</summary>
+The clean r4 evidence bundle is the sole evidence-of-record. Independent raw auditor agreement was <code>10/10</code> representability, <code>33/34</code> interval visibility, <code>40/42</code> relationship preservation, and <code>19/20</code> answer sufficiency. The candidate table is intentionally the primary visual: with two candidates and four exact audit measures, a chart would add no useful relationship. r1 (incomplete full-audit packet contract), r2 (illegal reviewer order), and r3 (unbound Python bytecode before the correct freeze) are invalid operational attempts, not scientific rows or evidence for this claim. No GPU/model inference, predictions, references, grades, or transcript work had run when this Stage 1 bundle froze; the later matched Stage 2 result is recorded below. Before report edits, full r4 verification passed at the frozen original worktree path with 1,162 sidecars validated and forbidden artifacts absent. It now correctly refuses this dirty reporting worktree; an alternate checkout cannot reproduce the path-bound protocol because it binds absolute dataset, prior-bundle, and script paths. This is a verifier portability limitation, not r4 artifact drift. See the <a href="../experiments/2026-07-30-temporal-required-moment-oracle.md">dated evidence record</a>.
+</details>
+</section>
+<section id="matched-r4-oracle-hybrid-12-inference-comparison" class="level3">
+<h3 class="anchored" data-anchor-id="matched-r4-oracle-hybrid-12-inference-comparison">Matched r4 oracle-hybrid-12 inference comparison</h3>
+<ul>
+<li><strong>Reason for testing:</strong> determine whether the r4-selected relevant-scene representation improves model answers at the same 12-frame budget.</li>
+<li><strong>Tested condition and panel:</strong> matched Qwen3.5-4B uniform-12 control versus oracle-hybrid-12 treatment on the frozen ten-row r4 cohort: <code>10/10</code> pairs and <code>20/20</code> predictions completed. The model, prompt, decoding, and visual budget were fixed; no transcript was created or loaded.</li>
+<li><strong>Observed result:</strong> control was <code>2C/4P/4W</code> with ordinal score <code>8</code>; treatment was <code>1C/5P/4W</code> with ordinal score <code>7</code>. Transitions were one <code>C→C</code>, one <code>C→P</code>, three <code>P→P</code>, one <code>P→W</code>, one <code>W→P</code>, and three <code>W→W</code>: one improvement, two regressions, and seven ties. Treatment ordinal gain was <code>-1</code>. A later frozen-timestamp coverage audit found that uniform-12 already hit all required intervals in <code>6/10</code> rows, hit some but not all in <code>3/10</code>, and hit none in <code>1/10</code>. It covered <code>12/17</code> intervals with 15 of its 120 frames.</li>
+<li><strong>Current condition-bound status:</strong> <strong>Verified; Not promoted under the tested condition.</strong> The predeclared answer gate required at least two improvements, zero regressions, and ordinal gain of at least two; all three requirements failed.</li>
+<li><strong>What this rules out now:</strong> promoting oracle-hybrid-12 as the default visual condition for this model, prompt, selected panel, and fixed budget.</li>
+<li><strong>What it does not rule out:</strong> a deployable learned selector, a different model or answering prompt, another compact evidence representation, or an effect on a broader panel—especially one selected prospectively for genuine uniform-12 evidence misses.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—this is a selected ten-row 2025 training panel and the oracle condition is not deployable. Because uniform-12 already covered all required intervals in a majority of rows, the comparison mostly tested evidence concentration rather than relevant versus missing evidence. Interval contact is also a timestamp proxy, not a fresh human judgment of uniform-frame answer sufficiency.</li>
+<li><strong>Reconsider when:</strong> a new matched condition passes the same improvement, non-regression, and ordinal-gain gate on frozen evidence.</li>
+</ul>
+<details>
+<summary>
+Method, result, validity risks, and evidence
+</summary>
+<p>The sealed Task 2 run remained unchanged. Its controller (<code>e432f4b8c642321f46a92481e79a3e415185a4a5d357d833d0a92e7e22cb22fb</code>) and complete prediction freeze (<code>111e1215da648bd7fb9e02cb412ff45ce174dc7d0a2dc5019cf8ca11c301f393</code>) were reverified through a reference-denied, identity-preserving namespace. All new grading work stayed in a private external workspace. Two independent condition-blind graders agreed on <code>19/20</code> candidate labels; a fresh third reviewer adjudicated the one disagreement before the one-time unblind. The unblind-complete record is <code>cac66433bb9db9bb653795c878656075aa7c03e8f390c943c68f497624bbe17b</code>. The grading packet omitted condition and row identities, paths, provenance, and the secret map. No transcript was mounted, opened, or used. An independent final review passed 217 checks across sidecars, lineage, the packet/secret bijection, grade coverage, adjudication, unblinding, and arithmetic. Its deliberately restricted scope excluded independently rehashing two upstream source files; it validated every in-scope sidecar and cross-phase link, while the earlier isolation review supplied those pinned hashes. These controls support the narrow answer-quality comparison; they do not make the oracle condition deployable or the ten-row result general.</p>
+The read-only selection-headroom audit bound the frozen r4 frame plans (<code>ee21e7eb9e53026b958c9a32c164a406db0d5b0fa7d1d146afadbdafccd18d2e</code>), their extraction manifest (<code>212a41bfff3f35af3c7fc571c9b7e269b84da11f20821c8ad8ae7234aa7558a5</code>), and the exact Stage 2 uniform manifest (<code>e8132e81d261729be2df08de410cdc8e189d4d841c2ac5ffb9296c1123c9c559</code>). Its sanitized aggregate record is <code>933a01cf5227c089a6459c3ac22ed67f134fd3bb522fa6cd0cbf4e2ec370755f</code>. A separate jq calculation reproduced every aggregate. The audit opened no predictions, references, grades, model material, or transcript and launched no model run.
+</details>
+</section>
+<section id="historical-annotation-agreement-stop" class="level3">
+<h3 class="anchored" data-anchor-id="historical-annotation-agreement-stop">Historical primary annotation-agreement stop</h3>
+<ul>
+<li><strong>Reason for testing:</strong> separate missing-moment retrieval from downstream answering by labeling the minimal visual evidence needed for each selected temporal row.</li>
+<li><strong>Tested condition and panel:</strong> three blind, de novo full-video annotation passes on ten selected temporal development rows from labeled 2025 training data; the planned uniform-12/oracle-hybrid-12 comparison was conditional on primary reviewer agreement.</li>
+<li><strong>Observed result:</strong> the two primary reviewers matched eligibility on <code>9/10</code> rows and structure on <code>8/10</code>, exactly meeting the structural threshold, but median tIoU was <code>0.4791666666666665</code> against the required <code>0.50</code>. Six rows were flagged. The agreement gate failed and all later stages were not run.</li>
+<li><strong>Current condition-bound status:</strong> <strong>Diagnostic signal</strong>; evidence is <strong>Incomplete</strong> for the intended oracle comparison, and no selector was promoted. Uniform-12 remains the <strong>Current default</strong>.</li>
+<li><strong>What this rules out now:</strong> using these annotations for boundary-sensitive required-moment recall or oracle-frame answer claims.</li>
+<li><strong>What it does not rule out:</strong> whether oracle or deployable selectors can improve retrieval, whether retrieval is the dominant bottleneck, or whether transcript work should take priority.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—the selected ten-row panel and narrowly failed agreement gate diagnose this rubric and process, not every required-moment annotation design.</li>
+<li><strong>Reconsider when:</strong> a calibrated rubric and three fresh blind annotations pass the same predeclared structural and median-tIoU gate.</li>
+</ul>
+<details>
+<summary>
+Method, result, validity risks, and evidence
+</summary>
+<p>All three reviewers annotated <code>10/10</code> rows independently. The A/B files froze before their comparison. Reviewer C remained blind while A/B were compared, then froze its de novo file before learning the result; it was supplemental and was not used to rescue the failed gate. Reviewer A marked <code>9/10</code> rows eligible; reviewers B and C marked <code>10/10</code>. A/B eligibility matched on <code>9/10</code>; eight eligible rows structurally matched. The tIoU interquartile range was <code>0.49476190476190574</code>. Per the preregistered stop rule, adjudication, actual-PTS inventory and frame extraction, selector recall, local ROCm inference, references, predictions, grading, and transcript work were not run.</p>
+<p>The tracked dated evidence record is <code>docs/experiments/2026-07-30-temporal-required-moment-oracle.md</code>.</p>
 </details>
 </section>
 <section id="dense-burst-sampling" class="level3">
@@ -3420,6 +3481,10 @@ The crop was manually selected and not scale-ready. One targeted failure cannot 
 <li>The tested directed-12 heuristic did not earn default status on its ten-row temporal diagnostic.</li>
 <li>The tested dense-burst-12 diagnostic regressed on its two rows and should not be expanded as a default without a new controlled design.</li>
 <li>A manual crop can add spatial pixels without repairing an answer; that is a reason to route and diagnose detail needs rather than tile globally.</li>
+<li>The r4 audit shows that oracle-hybrid-12 can represent the frozen preferred evidence for all ten selected rows, whereas oracle-local-12 did so for nine.</li>
+<li>The matched r4 Stage 2 comparison shows that the represented relevant scenes did not improve answers under this model and prompt; treatment was slightly worse and failed the predeclared gate.</li>
+<li>The post-result overlap audit shows why that negative should not be read as a clean evidence-use diagnosis: uniform-12 already covered every required interval in six rows and at least one in nine.</li>
+<li>The historical required-moment diagnostic shows that structural agreement alone was not enough for its original boundary-sensitive selector-recall branch; that agreement stop remains historical and separate from r4.</li>
 </ul>
 </section>
 <section id="what-it-does-not-rule-out" class="level3">
@@ -3429,6 +3494,7 @@ The crop was manually selected and not scale-ready. One targeted failure cannot 
 <li>Directed-12 does not rule out learned, query-only, half-uniform/half-query, shot-based, event-based, or coarse-to-fine selectors.</li>
 <li>Dense-burst-12 does not estimate prevalence, effect size, or all local selection schedules.</li>
 <li>The crop diagnostic does not rule out category-routed spatial detail or OCR.</li>
+<li>The failed r4 answer comparison does not show that all relevant-scene selectors are ineffective or that this model cannot use relevant scenes. Limited selection headroom means it does not isolate retrieval from evidence use without a panel where uniform-12 actually misses required evidence.</li>
 </ul>
 <p><span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span></p>
 </section>
@@ -3437,7 +3503,8 @@ The crop was manually selected and not scale-ready. One targeted failure cannot 
 <ul>
 <li><strong>Audit gap:</strong> no tracked general-workflow caller establishes how the directed selector was attached to a general workflow. This is not a confirmed execution bug.</li>
 <li><strong>Audit gap:</strong> dense-burst-12’s exact implementation and schedule are absent from tracked source; only its two-row aggregate is recoverable.</li>
-<li><strong>Uncertainty:</strong> directed-12’s ten selected temporal rows have no required-moment labels, selector-recall measure, or oracle-frame answer quality measure.</li>
+<li><strong>Uncertainty:</strong> the matched r4 answer result covers one oracle condition, model, prompt, and selected ten-row panel. It does not estimate a deployable selector’s recall or broader oracle-frame answer quality.</li>
+<li><strong>Uncertainty:</strong> interval overlap shows timestamp coverage, not whether the exact uniform frames preserve every visual relationship or are independently answer-sufficient.</li>
 <li><strong>Uncertainty:</strong> manual spatial crops are targeted and non-scalable, so their negative result cannot rank global tiling or OCR routes.</li>
 </ul>
 </section>
@@ -3445,21 +3512,32 @@ The crop was manually selected and not scale-ready. One targeted failure cannot 
 <section id="open-hypotheses-and-ideas" class="level2">
 <h2 class="anchored" data-anchor-id="open-hypotheses-and-ideas">Open hypotheses and ideas</h2>
 <ul>
-<li>Some rows may fail because the required moment was never selected; others may have the moment but fail during fusion or answer selection.</li>
+<li>The current ten-row panel mixes four rows with a measurable uniform-12 interval-coverage gap and six rows without one, limiting causal diagnosis.</li>
+<li>Rows with a verified uniform miss may fail at retrieval; rows with full interval coverage may instead fail at visual representation, fusion, or answer selection.</li>
 <li>A fixed budget that combines broad context and query-local evidence may improve recall without the narrowness of the tested directed heuristic.</li>
 <li>Spatial detail may be worthwhile only for routed OCR or small-object cases.</li>
 </ul>
 </section>
 <section id="cheapest-valid-next-experiments" class="level2">
 <h2 class="anchored" data-anchor-id="cheapest-valid-next-experiments">Cheapest valid next experiments</h2>
-<section id="required-moments-selector-recall-and-oracle-frames" class="level3">
-<h3 class="anchored" data-anchor-id="required-moments-selector-recall-and-oracle-frames">Required moments, selector recall, and oracle frames</h3>
+<section id="selection-sensitive-relevant-scene-panel" class="level3">
+<h3 class="anchored" data-anchor-id="selection-sensitive-relevant-scene-panel">Selection-sensitive relevant-scene panel</h3>
 <ul>
-<li><strong>Hypothesis:</strong> missing required moments, rather than answer reasoning alone, explain a measurable share of temporal failures.</li>
-<li><strong>Smallest valid panel or work item:</strong> label required moment/span on a small frozen temporal panel, then score each selector’s recall and run an oracle-frame answer-quality condition.</li>
-<li><strong>Matched controls and integrity safeguards:</strong> freeze labels before selector scoring; hold model, prompt, decoding, frame count, and pixel budget fixed; keep required-moment labels out of ordinary inference.</li>
-<li><strong>Decision or promotion rule:</strong> advance a selector only if it improves recall and downstream answer quality without a predeclared control regression.</li>
-<li><strong>Boundary on what a positive result would establish:</strong> it would separate retrieval from answering on that panel, not prove general temporal accuracy.</li>
+<li><strong>Hypothesis:</strong> relevant-scene selection helps when uniform-12 demonstrably misses at least one required interval, rather than when both arms already contact the needed moments.</li>
+<li><strong>Smallest valid panel or work item:</strong> prospectively freeze a new ten-row temporal panel whose required evidence is still-frame-representable and for which uniform-12 misses at least one interval. Treat the four such rows in the current panel as post-hoc diagnostic seeds, not a promotion panel.</li>
+<li><strong>Matched controls and integrity safeguards:</strong> select rows from frozen interval/frame evidence before any new prediction; keep model, prompt, decoding, seed, frame/pixel budget, and blind post-freeze grading fixed.</li>
+<li><strong>Decision or promotion rule:</strong> retain a selector only if it produces at least two improvements, zero regressions, and ordinal gain of at least two.</li>
+<li><strong>Boundary on what a positive result would establish:</strong> it would support the tested selector on uniform-miss temporal rows, not a global default or a deployable learned selector.</li>
+</ul>
+</section>
+<section id="conditional-fixed-evidence-answering-use-diagnostic" class="level3">
+<h3 class="anchored" data-anchor-id="conditional-fixed-evidence-answering-use-diagnostic">Conditional fixed-evidence answering-use diagnostic</h3>
+<ul>
+<li><strong>Hypothesis:</strong> the failure is partly in evidence use or answer extraction, so explicitly eliciting the decisive visual observation before the final answer can improve oracle-hybrid-12 answers without changing its frames.</li>
+<li><strong>Smallest valid panel or work item:</strong> run only after a selection-sensitive panel still shows failures despite verified treatment coverage; compare the current prompt with an observation-then-answer prompt on those frozen frames.</li>
+<li><strong>Matched controls and integrity safeguards:</strong> keep model revision, decoding, seed, frames, pixel budget, and blind post-freeze grading fixed; do not expose references or prior grades to the model.</li>
+<li><strong>Decision or promotion rule:</strong> retain the new prompt only if it produces at least two improvements, zero regressions, and ordinal gain of at least two.</li>
+<li><strong>Boundary on what a positive result would establish:</strong> it would implicate evidence use or answer elicitation for this panel, not prove a deployable selector or general temporal accuracy.</li>
 </ul>
 </section>
 <section id="fixed-budget-temporal-selector-comparison" class="level3">
@@ -3859,7 +3937,7 @@ The visible record summaries preserve the exact panel, budget, result, limits, a
 <footer class="footer">
   <div class="nav-footer">
     <div class="nav-footer-left">
-<p>Reviewed evidence: 2026-07-26</p>
+<p>Reviewed evidence: 2026-07-30</p>
 </div>   
     <div class="nav-footer-center">
        

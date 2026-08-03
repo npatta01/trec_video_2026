@@ -59,14 +59,20 @@ mutation, and scoring-boundary faults before an expensive run?
 
 **Working answer:** uniform-12 remains the default; global 24 frames and
 the tested directed/burst heuristics were not promoted under their
-tested conditions.
+tested conditions. A verified r4 audit represented the preferred
+evidence in `10/10` rows, but the completed matched answer test found
+oracle-hybrid-12 slightly worse than uniform-12 and did not promote it.
+A frozen-timestamp audit found limited selection headroom: uniform-12
+already covered all required intervals in `6/10` rows and at least one
+in `9/10`.
 
 **Strongest evidence:** [matched frozen-30 frame-budget comparison;
 smaller 10-row and 2-row temporal
 diagnostics](research-visual-evidence.md#frozen-30-protocol-v2).
 
-**Open question:** can a fixed-budget selector retrieve the required
-moment more reliably than uniform sampling?
+**Open question:** does relevant-scene selection improve answers on a
+prospectively frozen panel where uniform-12 actually misses required
+evidence?
 
 </div>
 
@@ -157,7 +163,7 @@ aria-label="Scrollable research theme status matrix" tabindex="0">
 | Theme | Why it matters | Tried | Learned now | Still open | Next falsifying test |
 |----|----|----|----|----|----|
 | [Integrity](research-integrity.md#current-working-answer) | Makes comparisons interpretable | [v2 freeze](research-integrity.md#frozen-30-protocol-v2) | **Use:** v2; compatibility is not quality | **Possible:** reusable gate | [Invalid-fixture gate](research-integrity.md#reusable-integrity-gate) |
-| [Visual](research-visual-evidence.md#current-working-answer) | Finds the useful moment within a frame budget | [Uniform/directed/burst](research-visual-evidence.md#directed-temporal-sampling) | **Use:** uniform-12; **Do not default:** tested directed/burst | **Possible:** learned or hybrid retrieval | [Required-moment recall](research-visual-evidence.md#required-moments-selector-recall-and-oracle-frames) |
+| [Visual](research-visual-evidence.md#current-working-answer) | Finds the useful moment within a frame budget | [Uniform/directed/burst](research-visual-evidence.md#directed-temporal-sampling); [r4 representation, answer, and headroom audits](research-visual-evidence.md#matched-r4-oracle-hybrid-12-inference-comparison) | **Use:** uniform-12; **Do not default:** tested oracle-hybrid-12 | **Possible:** learned retrieval or improved evidence use | [Selection-sensitive panel](research-visual-evidence.md#cheapest-valid-next-experiments) |
 | [Speech](research-speech-transcripts.md#current-working-answer) | Adds spoken words with explicit provenance | [Whisper ablation](research-speech-transcripts.md#automatic-transcript-ablation) | **Use selectively:** accepted Whisper | **Blocked:** human tier; **Possible:** alternate ASR | [Matched ASR panel](research-speech-transcripts.md#alternative-or-multilingual-asr-matched-panel) |
 | [Native audio](research-native-audio.md#current-working-answer) | Preserves prosody and non-speech sound | [Audio on/off](research-native-audio.md#minicpm-audio-on-off) | **Do not default:** global audio on | **Possible:** routed sound/prosody | [Specialist panel](research-native-audio.md#matched-native-audio-specialist-panel) |
 | [Models](research-models.md#current-working-answer) | Separates compatibility, quality, and adaptation | [Candidate screens](research-models.md#failure-panel) | **Use:** Qwen3.5-4B; **Fast:** MiniCPM-o | **Possible:** repaired/specialist model or adaptation | [Bottleneck-first decision](research-models.md#bottleneck-first-adaptation-decision) |
@@ -190,6 +196,10 @@ Expand named experiments by theme
   budget](research-visual-evidence.md#frozen-30-protocol-v2)
 - [Directed temporal
   sampling](research-visual-evidence.md#directed-temporal-sampling)
+- [r4 required-moment Stage 1 representation
+  audit](research-visual-evidence.md#temporal-required-moment-oracle)
+- [Historical primary annotation-agreement
+  stop](research-visual-evidence.md#historical-annotation-agreement-stop)
 - [Dense-burst
   sampling](research-visual-evidence.md#dense-burst-sampling)
 - [Spatial-crop
@@ -293,9 +303,11 @@ declare its boundary and choose its primary theme.
 These branches are independent choices; their numbering is for
 reference, not a prescribed research sequence.
 
-1.  **Smarter visual sampling/retrieval:** [label required moments and
-    compare fixed-budget
-    selectors](research-visual-evidence.md#required-moments-selector-recall-and-oracle-frames).
+1.  **Smarter visual sampling/retrieval:** [freeze a selection-sensitive
+    panel where uniform-12 misses required
+    evidence](research-visual-evidence.md#cheapest-valid-next-experiments);
+    the original matched Stage 2 panel had full uniform interval
+    coverage in `6/10` rows.
 2.  **Alternative ASR:** [compare an alternative or multilingual ASR on
     one frozen, source-language-aware
     panel](research-speech-transcripts.md#alternative-or-multilingual-asr-matched-panel).
@@ -470,14 +482,14 @@ Expand six supersession records
 
 ### Chronology index
 
-Six milestones preserve the date-ordered audit trail without making
+Seven milestones preserve the date-ordered audit trail without making
 chronology the primary reading path.
 
 <details>
 
 <summary>
 
-Expand the six-milestone chronology
+Expand the seven-milestone chronology
 </summary>
 
 | Date | Milestone | Thematic home |
@@ -487,6 +499,7 @@ Expand the six-milestone chronology
 | July 21 | Audio/spatial diagnostics and frozen-30 | [Visual evidence](research-visual-evidence.md); [native audio](research-native-audio.md) |
 | July 24 | Routing, temporal, and model diagnostics | [Routing](research-routing.md); [visual evidence](research-visual-evidence.md); [models](research-models.md) |
 | July 25 | Strict Qwen3-Omni quality result | [Models and adaptation](research-models.md#qwen3-omni-quality) |
+| July 30 | Historical required-moment annotation agreement stop; separate r4 Stage 1 representation selection | [Visual evidence](research-visual-evidence.md#temporal-required-moment-oracle) |
 | August 1 | VideoChat3 Temporal/Action specialist screen | [Models and adaptation](research-models.md#videochat3-temporal-specialist) |
 
 </details>
