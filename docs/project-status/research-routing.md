@@ -55,8 +55,11 @@ non-regression before it becomes a default decision rule.
   or an ensemble before evidence paths are measured.
 - **Still possible:** abstaining multi-label routing, grounded fusion,
   and evidence-aware answer election.
-- **Next test:** measure selector recall, oracle-evidence answering, and
-  end-to-end answering separately.
+- **Next test:** use the existing zero-compute six-change screen as a
+  provisional mechanism hypothesis, not a completed audit; then measure
+  selector/evidence recall, oracle-evidence answering, and end-to-end
+  answering separately, with a modality-competition check on visual
+  controls.
 
 </div>
 
@@ -184,7 +187,11 @@ Evidence](research-speech-transcripts.md).
   evaluation exist yet.
 - **Observed result:** the project has a concrete measurement
   distinction but no empirical local retrieval-versus-fusion
-  decomposition.
+  decomposition. The existing A4 Qwen3-Omni screen is a motivating local
+  case: five target changes are consistent with acoustic sensitivity,
+  while one visual-writing control regression is consistent with
+  cross-modal interference or downstream answer selection. The frozen
+  result cannot distinguish those mechanisms.
 - **Current condition-bound status:** **Open hypothesis** and **Audit
   gap** in the current evidence record.
 - **What this rules out now:** claiming that a wrong answer proves
@@ -194,7 +201,9 @@ Evidence](research-speech-transcripts.md).
   measures selection, oracle evidence, and end-to-end answers
   separately.
 - **Possible defect, audit gap, or uncertainty:** **Audit gap**—no local
-  required-evidence labels or oracle-evidence evaluation exist yet.
+  required-evidence labels or oracle-evidence evaluation exist yet;
+  audio may also suppress visual grounding rather than merely alter
+  retrieval.
 - **Reconsider when:** required moments or evidence spans are labeled
   and the three metrics are reported under one frozen answer protocol.
 
@@ -269,6 +278,9 @@ testable future direction.
   but it is not a measured router.
 - Retrieval and fusion are different failure modes and need different
   metrics.
+- Native audio can increase acoustic sensitivity while causing
+  cross-modal competition or visual-grounding loss; this is a separate
+  hypothesis from both missing evidence and final answer election.
 - Transcript residuals demonstrate that recovering words does not
   guarantee the VLM will ground the final answer in those words.
 - Specialist policies need abstention, a baseline fallback, and
@@ -281,6 +293,9 @@ testable future direction.
 - A wrong answer does not reveal whether the missing piece was frame
   selection, audio/transcript selection, reasoning, or answer
   normalization.
+- A modality-on regression does not by itself prove answer-election
+  failure; first check whether the required visual evidence remained
+  available and sufficient.
 - A literature-supported technique is not a local result until it runs
   under the project’s integrity and scoring boundaries.
 - A future ensemble may help after evidence paths stabilize; it should
@@ -300,6 +315,9 @@ class="legacy-fragment-alias" aria-hidden="true"></span>
   to distinguish selector recall from fusion/reasoning accuracy.
 - **Uncertainty:** selected transcript residuals show a mechanism but do
   not estimate its frequency across the competition distribution.
+- **Audit gap:** the A4 six-change screen is provisional and does not
+  yet have frozen required-evidence labels, selector traces, or
+  oracle-answer results.
 
 ## Open hypotheses and ideas
 
@@ -339,19 +357,46 @@ class="legacy-fragment-alias" aria-hidden="true"></span>
 - **Hypothesis:** separating selector recall, oracle-evidence answer
   quality, and end-to-end answer quality identifies whether a route
   needs retrieval or fusion work.
-- **Smallest valid panel or work item:** a small manually grounded
-  development slice with required frames, transcript spans, sound
-  events, or crops.
+- **Smallest valid panel or work item:** first freeze a private
+  six-change mechanism sheet with required frames, transcript spans,
+  sound events, or visible-text evidence; then use a small manually
+  grounded development slice if the static screen remains ambiguous.
 - **Matched controls and integrity safeguards:** label evidence
   independently of model answers; preserve timestamps/IDs; evaluate
   uniform and proposed selectors at the same budget; use the same
   model/prompt/decoding and frozen scoring boundary.
 - **Decision or promotion rule:** pursue retrieval only when selector
   recall is limiting and oracle evidence improves answers; pursue
-  fusion/grounding only when the necessary evidence is present but
-  answers remain wrong.
+  fusion/grounding or answer election when the necessary evidence is
+  present but answers remain wrong; pursue modality-competition
+  safeguards when audio-on reduces visual evidence sufficiency or
+  control quality.
 - **Boundary on what a positive result would establish:** a diagnosis
   for the labeled slice, not a universal causal explanation.
+
+### Modality-competition / visual-grounding guard
+
+- **Hypothesis:** native audio can improve an audio-relevant answer
+  while suppressing or outweighing sufficient visual evidence on
+  visual-only rows.
+- **Smallest valid panel or work item:** the A4 visual-writing
+  regression plus predeclared unchanged spatial, OCR, counting, and
+  temporal controls; use the frozen outputs first and add an
+  oracle-evidence comparison only if the required-evidence labels show
+  that visual evidence was available.
+- **Matched controls and integrity safeguards:** hold model, frames,
+  audio, prompt, decoding, and scoring fixed; record evidence
+  sufficiency before revealing grades; compare audio-off fallback,
+  audio-on, and any grounded answer-election condition after prediction
+  freeze.
+- **Decision or promotion rule:** route audio only when audio-relevant
+  gains survive the visual-control gate; otherwise abstain to audio-off
+  or add a grounded citation/selection guard. Do not interpret a
+  corrected control as general native-audio benefit without a held-out
+  panel.
+- **Boundary on what a positive result would establish:** a cross-modal
+  safeguard for the tested model and slice, not a universal attention or
+  fusion explanation.
 
 ### Grounded answer election or targeted ensemble
 

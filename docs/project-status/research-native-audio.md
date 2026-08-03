@@ -55,8 +55,11 @@ title.
   music-title guesses.
 - **Still possible:** routed prosody, non-speech sound, fingerprinting,
   and repaired Omni audio.
-- **Next test:** a matched specialist panel with audio-off fallback and
-  route-level non-regression.
+- **Next test:** use the Models-owned frozen-30 screen as a provisional
+  mechanism hypothesis, not a completed audit; then run a matched
+  specialist panel with audio-off fallback and route-level
+  non-regression only after required-evidence and visual-grounding
+  checks.
 
 </div>
 

@@ -175,6 +175,8 @@ GitHub](https://github.com/npatta01/trec_video_2026/blob/main/tests/test_tempora
 document the narrow contract.
 </details>
 
+<a name="r4-required-moment-stage-1-representation-audit"></a>
+
 ### r4 required-moment Stage 1 representation audit
 
 - **Reason for testing:** determine whether fixed-budget oracle frame

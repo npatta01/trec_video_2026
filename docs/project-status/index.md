@@ -138,6 +138,11 @@ set of examples in a comparison; a **stratum** is a predeclared
 subgroup, such as lexical speech, within that panel. These GitHub links
 require repository access until public release.
 
+For a file-level view of the sanitized dated records behind these
+decisions, use the [experiment evidence
+index](../../docs/experiments/README.md). The project-status pages
+remain the source for current decisions and next tests.
+
 <details class="diagram-details">
 
 <summary>

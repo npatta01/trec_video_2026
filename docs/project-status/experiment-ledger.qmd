@@ -16,6 +16,11 @@ recommendation and the [Code Map · Report page](code-map.{{< meta report-ext >}
 implementation boundary. The six themes below are independent research areas,
 not a sequence.
 
+For record-level provenance, browse the [dated experiment evidence
+index]({{< meta report-hub-url >}}).
+It routes to the canonical records without duplicating this hub's current
+conclusions or next-test queue.
+
 ::: {.callout-note title="Contributors: place evidence, claims, and decisions consistently"}
 Before adding or revising a result, follow the [Adding Experiments and Results
 guide · Report page](adding-experiments.{{< meta report-ext >}}). It defines the
