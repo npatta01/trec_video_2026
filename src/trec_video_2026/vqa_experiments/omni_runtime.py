@@ -21,9 +21,18 @@ NEUTRAL_OUTPUT_INSTRUCTION = (
     "the answer."
 )
 
+VISUAL_CONCISE_OUTPUT_INSTRUCTION = (
+    "Answer the question using the provided visual evidence. "
+    'Return only a JSON object with non-empty string fields "answer" and '
+    '"evidence". The "answer" field must contain only the direct answer in '
+    'one short phrase or sentence, without explanation. The "evidence" field '
+    "must briefly state the visual cues supporting the answer."
+)
+
 INSTRUCTION_PROFILES = {
     "audio-expecting": OUTPUT_INSTRUCTION,
     "neutral": NEUTRAL_OUTPUT_INSTRUCTION,
+    "visual-concise": VISUAL_CONCISE_OUTPUT_INSTRUCTION,
 }
 
 

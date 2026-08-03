@@ -1,0 +1,10 @@
+type: fleet
+name: timelens2-a6000-20260731-a4
+nodes: 1..1
+idle_duration: 5m
+backends: [runpod, vastai]
+spot_policy: on-demand
+max_price: 0.55
+resources:
+  gpu: A6000:1:48GB..
+  disk: 100GB..

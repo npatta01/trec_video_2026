@@ -1,0 +1,45 @@
+type: task
+name: nemotron3-f30-canary-20260801-a1
+
+image: docker.io/vllm/vllm-openai:v0.20.0@sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc
+entrypoint: /bin/bash -c
+shell: bash
+working_dir: /dstack/run
+
+env:
+  - HF_TOKEN=${{ secrets.hf_token }}
+  - HF_HUB_DISABLE_TELEMETRY=1
+  - PYTHON_BIN=/usr/bin/python3
+  - PYTHONPATH=/dstack/run/src
+  - EXPERIMENT_MODE=canary
+  - EXPERIMENT_RUN_ID=nemotron3-omni-frozen30-canary-20260801-a1
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-frozen30-canary-20260801-a1
+  - HF_INPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-frozen30-canary-20260801-a1
+  - RUNTIME_IMAGE=docker.io/vllm/vllm-openai:v0.20.0@sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc
+  - RUNTIME_IMAGE_DIGEST=sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc
+  - MODEL_ID=nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4
+  - MODEL_REVISION=dc5f0b0bfddf8b6e0f5891475be9af05b80126fe
+
+files:
+  - ../scripts/run-nemotron3-omni-dstack.sh:/dstack/run/scripts/run-nemotron3-omni-dstack.sh
+  - ../src/trec_video_2026:/dstack/run/src/trec_video_2026
+
+commands:
+  - |
+    set -euo pipefail
+    exec bash /dstack/run/scripts/run-nemotron3-omni-dstack.sh "$EXPERIMENT_MODE"
+
+fleets: [gpu-marketplace]
+resources:
+  gpu: L40S:1:48GB..
+  cpu: 8..
+  memory: 64GB..
+  disk: 100GB
+
+backends: [runpod, vastai]
+spot_policy: on-demand
+max_price: 2.00
+max_duration: 30m
+retry:
+  on_events: [no-capacity]
+  duration: 20m

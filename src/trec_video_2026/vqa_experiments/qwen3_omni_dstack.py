@@ -8,6 +8,7 @@ import hashlib
 import importlib.metadata
 import json
 import platform
+import re
 import time
 import wave
 from collections.abc import Iterator
@@ -43,10 +44,17 @@ AUDIO_INPUT_KEYS = frozenset({"input_features", "feature_attention_mask"})
 MIN_GPU_MEMORY_BYTES = 80 * 1024**3
 MAX_NEW_TOKENS = 2048
 GENERATION_SEED = 20260724
+SAMPLING_TEMPERATURE = 0.6
+SAMPLING_TOP_P = 0.95
+SAMPLING_TOP_K = 20
 EXPECTED_EOS_TOKEN_ID = 151645
 EXPECTED_PAD_TOKEN_ID = 151643
 EXPECTED_EOS_TOKEN = "<|im_end|>"
 EXPECTED_PAD_TOKEN = "<|endoftext|>"
+_TERMINAL_JSON_FENCE = re.compile(
+    r"\A(?P<prefix>.*?)```json[ \t]*\r?\n(?P<payload>.*?)\r?\n```\Z",
+    re.DOTALL,
+)
 
 
 class ProbeStageError(RuntimeError):
@@ -179,6 +187,12 @@ def normalize_generation_output(raw_output: str) -> str:
     """Extract only a valid terminal answer object after Thinking output."""
 
     text = raw_output.strip()
+    if "```" in text:
+        try:
+            fenced = _parse_terminal_json_fence(text)
+        except ValueError:
+            return text
+        return json.dumps(fenced, ensure_ascii=False)
     try:
         parsed = parse_prediction(text)
     except ValueError:
@@ -194,6 +208,27 @@ def normalize_generation_output(raw_output: str) -> str:
             continue
         return json.dumps(parsed, ensure_ascii=False)
     return text
+
+
+def _parse_terminal_json_fence(text: str) -> dict[str, str]:
+    if text.count("```") != 2:
+        raise ValueError("prediction must contain exactly one terminal JSON fence")
+    match = _TERMINAL_JSON_FENCE.fullmatch(text)
+    if match is None:
+        raise ValueError("prediction JSON fence must be terminal")
+    try:
+        parsed = json.loads(match.group("payload"))
+    except json.JSONDecodeError as error:
+        raise ValueError("prediction fence must contain JSON") from error
+    if not isinstance(parsed, dict) or set(parsed) != {"answer", "evidence"}:
+        raise ValueError("prediction object must contain exactly answer and evidence")
+    answer = parsed["answer"]
+    evidence = parsed["evidence"]
+    if not isinstance(answer, str) or not answer.strip():
+        raise ValueError("prediction answer must be non-empty text")
+    if not isinstance(evidence, str) or not evidence.strip():
+        raise ValueError("prediction evidence must be non-empty text")
+    return {"answer": answer.strip(), "evidence": evidence.strip()}
 
 
 def _input_bytes(value: Any) -> bytes:
@@ -408,7 +443,21 @@ def _generate_one(
     data_root: Path,
     audio_enabled: bool = True,
     output_instruction: str = OUTPUT_INSTRUCTION,
+    do_sample: bool = True,
+    enable_thinking: bool | None = None,
+    seed: int = GENERATION_SEED,
 ) -> tuple[str, dict[str, Any]]:
+    if type(do_sample) is not bool:
+        raise ValueError("do_sample must be a bool")
+    if enable_thinking is not None and type(enable_thinking) is not bool:
+        raise ValueError("enable_thinking must be a bool or None")
+    if enable_thinking is not None:
+        raise ValueError(
+            "enable_thinking is unsupported by Qwen3-Omni; use the model's "
+            "native thinking mode"
+        )
+    if type(seed) is not int:
+        raise ValueError("seed must be an int")
     try:
         inputs = processor.apply_chat_template(
             build_messages(
@@ -435,15 +484,26 @@ def _generate_one(
     except Exception as error:
         raise ProbeStageError("device_transfer", error) from error
     try:
-        torch.manual_seed(GENERATION_SEED)
-        torch.cuda.manual_seed_all(GENERATION_SEED)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        generation_kwargs = {
+            "max_new_tokens": MAX_NEW_TOKENS,
+            "do_sample": do_sample,
+            "use_audio_in_video": False,
+            **special_token_ids,
+        }
+        if do_sample:
+            generation_kwargs.update(
+                {
+                    "temperature": SAMPLING_TEMPERATURE,
+                    "top_p": SAMPLING_TOP_P,
+                    "top_k": SAMPLING_TOP_K,
+                }
+            )
         with torch.inference_mode(), _capture_first_forward(model) as captures:
             generated = model.generate(
                 **inputs,
-                max_new_tokens=MAX_NEW_TOKENS,
-                do_sample=True,
-                use_audio_in_video=False,
-                **special_token_ids,
+                **generation_kwargs,
             )
     except Exception as error:
         raise ProbeStageError("generation", error) from error
@@ -472,9 +532,13 @@ def _generate_one(
         raise ProbeStageError("decode", error) from error
     generation_attestation = {
         "checkpoint_generation_config": True,
-        "do_sample": True,
+        "do_sample": do_sample,
+        "temperature": SAMPLING_TEMPERATURE if do_sample else None,
+        "top_p": SAMPLING_TOP_P if do_sample else None,
+        "top_k": SAMPLING_TOP_K if do_sample else None,
         "max_new_tokens": MAX_NEW_TOKENS,
-        "seed": GENERATION_SEED,
+        "seed": seed,
+        "enable_thinking": enable_thinking,
         **special_token_ids,
         "eos_token": EXPECTED_EOS_TOKEN,
         "pad_token": EXPECTED_PAD_TOKEN,

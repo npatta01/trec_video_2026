@@ -1,0 +1,102 @@
+record_type: dstack-retired-run-provenance
+run_name: videochat3-pilot-20260801-a1
+run_id: b7eb62b3-67ab-4a89-ab27-ef95e3136070
+status: retired-consumed-run
+submission_allowed: false
+submitted_snapshot:
+  git_commit: 28f02ecdcf812cd132154a3a10f8bc6748968b90
+  image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+  videochat_model_id: MCG-NJU/VideoChat3-4B
+  videochat_revision: 37fa901ec5913f84bc31108ebc1e60ad1903634c
+  qwen_model_id: Qwen/Qwen3.5-4B
+  qwen_revision: 851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a
+  transformers_revision: cbf4d720ec734edb77d25452b2790c7e4be2f8d7
+  requirements_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+  source_snapshot_sha256: 10af2f9e86cc9a828aa4604fb943416887ad48e9e1580b705a0dbd678bc749ec
+  frozen_plan_sha256: 1b93016a7db769bd7fdb63b6b08a062bd0dce81ccdc7fafcdbeeb9df0dbd895c
+  pilot_requests_sha256: 8b5cf944553ac000795b837090799f07041c8b86cc3ed9a997dc52a9ed4941c4
+  ordered_row_set_sha256: 8b5cf944553ac000795b837090799f07041c8b86cc3ed9a997dc52a9ed4941c4
+source_config_sha256: 702e2a870cd5ad2f859e912654c58e41289c5a3fa7b7bd30bc16b4c0b8f01804
+preview:
+  initial_packaging_check:
+    submitted: false
+    cost_usd: 0.00
+    sha256: 8472dc3ff9111414ed9077f35d61cc3e7c85e9969ad248f814f0bff71f8f5648
+    observed_archive_mib: 18.4
+    control_plane_limit_mib: 16
+  corrected_control_plane_limit_mib: 64
+  corrected_sha256: 3e7d4b402942b11abf62ab4f4a0e40080e1b84a2f8d1761605ef8e942280c3cb
+  compatible_physical_offers: 3
+  offers:
+    - backend: runpod
+      region: CA-MTL-1
+      gpu: NVIDIA A40 48GB
+      price_usd_per_hour: 0.44
+    - backend: runpod
+      region: EU-SE-1
+      gpu: NVIDIA A40 48GB
+      price_usd_per_hour: 0.44
+    - backend: runpod
+      region: US-MO-1
+      gpu: NVIDIA A40 48GB
+      price_usd_per_hour: 0.44
+execution:
+  submitted_at: 2026-08-01T06:06:35.348049+00:00
+  finished_at: 2026-08-01T06:12:51.277667+00:00
+  backend: runpod
+  region: CA-MTL-1
+  instance_type: NVIDIA A40
+  instance_id: 8sm2lobsb5kywz
+  price_usd_per_hour: 0.44
+  max_price_usd_per_hour: 1.25
+  max_duration: 2h
+  exit_status: 0
+actual_cost_usd: 0.0459
+incremental_gate_and_pilot_cost_usd: 0.0751
+cumulative_videochat3_cost_usd: 0.4546
+completion:
+  videochat3: 6/6
+  qwen: 6/6
+blind_grading:
+  independent_grader_count: 2
+  agreed_candidate_judgments: 11/12
+  disagreement_count: 1
+  third_adjudications: 1
+  valid_adjudicator_id: g3-clean
+  context_isolated_third_adjudicator: true
+  superseded_context_inherited_adjudication_preserved: true
+aggregate_cpw:
+  videochat3: {correct: 0, partial: 2, wrong: 4}
+  qwen: {correct: 2, partial: 2, wrong: 2}
+improved_target_count: 1/4
+regressed_control_count: 2/2
+quality_passed: false
+artifact:
+  sha256s_sha256: ef26e5671d7fcf558edb56ea4b020e459e57280508c4eb94be66d36ccb2a24a1
+  predictions_sha256: 7f102bb31a89598a83b7bb567f554edeec78ffb1151489dace2eb344bdff77d9
+  grading_sha256s_sha256: fbb7190485831e7ba870923390b11e3c3de38396e6f4cf66c0710b7cf371c292
+  scored_comparison_sha256: 42ce8737cb0c440455f70cd27f21b9083f3a99f1a6d2b93e822f65ddcef61529
+  listed_downloaded_and_checksum_verified: true
+evidence_validity: Invalid
+decision_disposition: Open hypothesis
+what_this_rules_out_now: >-
+  Using this completed pilot as evidence for or against VideoChat3 quality under
+  the declared exact-input matched comparison.
+what_this_does_not_rule_out: >-
+  The corrected VideoChat3 adapter on the same frozen panel, another VideoChat3
+  revision, or another model family under a fresh declared comparison.
+validity_concerns:
+  confirmed_defect: >-
+    VideoChat3 received reconstructed 0.0 through 11.0 timestamp metadata while
+    Qwen received the frozen timestamps, violating the matched-input protocol.
+  audit_gap: >-
+    The immutable prediction record captured only the pre-conversion treatment
+    metadata and cannot reconstruct the final VideoChat3 prompt tokens. The
+    grading-independence concern was corrected by a context-isolated packet-only
+    adjudicator; the superseded adjudication remains preserved.
+  uncertainty: >-
+    The small preselected failure panel supports only this condition-bound
+    decision and does not estimate broad competition prevalence or accuracy.
+reconsider_when: >-
+  The corrected exact-timestamp adapter passes a pinned CUDA processor-flow gate
+  and then completes a fresh isolated matched comparison.

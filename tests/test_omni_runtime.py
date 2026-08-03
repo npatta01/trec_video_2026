@@ -7,6 +7,7 @@ from trec_video_2026.vqa_experiments.omni_runtime import (
     build_prediction_record,
     build_runtime_failure_record,
     gemma_messages,
+    instruction_for_profile,
     phi_prompt,
 )
 
@@ -42,6 +43,29 @@ def test_gemma_messages_put_frames_audio_and_question_in_one_message():
     assert [item["type"] for item in content].count("audio") == 1
     assert [item["type"] for item in content].count("text") == 1
     assert "What is happening and what is heard?" in content[-1]["text"]
+
+
+def test_instruction_profiles_preserve_neutral_and_audio_behavior_and_add_visual_only():
+    """Catches a calibration prompt that leaks or omits an audio requirement."""
+    assert instruction_for_profile("audio-expecting") == (
+        "Answer the question using the visual frames and the audio together. "
+        'Return only a JSON object with non-empty string fields "answer" and '
+        '"evidence". The evidence field must briefly say which visual and audio '
+        "cues support the answer."
+    )
+    assert instruction_for_profile("neutral") == (
+        "Answer the question using the provided evidence. "
+        'Return only a JSON object with non-empty string fields "answer" and '
+        '"evidence". The evidence field must briefly state the cues supporting '
+        "the answer."
+    )
+    assert instruction_for_profile("visual-concise") == (
+        "Answer the question using the provided visual evidence. "
+        'Return only a JSON object with non-empty string fields "answer" and '
+        '"evidence". The "answer" field must contain only the direct answer in '
+        'one short phrase or sentence, without explanation. The "evidence" field '
+        "must briefly state the visual cues supporting the answer."
+    )
 
 
 def test_attestation_requires_both_modalities_in_first_forward():

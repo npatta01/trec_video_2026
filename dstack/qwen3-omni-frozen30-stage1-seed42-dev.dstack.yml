@@ -1,0 +1,95 @@
+type: dev-environment
+name: qwen3-omni-f30-s5-seed42-dev
+
+image: docker.io/qwenllm/qwen3-omni@sha256:71896cf6533abc610ac298f26289ff3a4ea4bd1fc835f370ece9e5c31e3181d8
+shell: bash
+working_dir: /dstack/run
+ide: vscode
+
+env:
+  - HF_TOKEN=${{ secrets.hf_token }}
+  - HF_HUB_DISABLE_TELEMETRY=1
+  - EXPERIMENT_PROFILE=stage1_seed42
+  - HF_ARCHIVE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4/evidence.tar
+  - SUBMITTED_CODE_REVISION=3b650a432be3ce76a7e6bfb81c73df8f59a636f4
+  - EXPECTED_SOURCE_BUNDLE_SHA256=98ac2bd3912c5369f3fa6a7dc642b9799704153e8dbb853ed339b24667898b56
+  - EXPERIMENT_RUN_ID=qwen3-omni-f30-calibrated-20260801-s5-seed42
+  - HF_INPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen3-omni-f30-calibrated-20260801-s5-seed42
+  - RUNTIME_IMAGE=docker.io/qwenllm/qwen3-omni@sha256:71896cf6533abc610ac298f26289ff3a4ea4bd1fc835f370ece9e5c31e3181d8
+  - MODEL_ID=Qwen/Qwen3-Omni-30B-A3B-Thinking
+  - MODEL_REVISION=2f443cfc4c54b14a815c0e2bb9a9d6cbcd9a748b
+  - EXPECTED_CONTRACT=344404150562ee217fef610c127754eac8788c8bfc77b7c3f748709c4e554ab9
+  - EXPECTED_BUNDLE_MANIFEST=11f610bb5119e45ff5a52e0d3070b881b6e3dbf9bcf4c3ac4c762f96411a2a3b
+  - EXPECTED_BUNDLE_ARCHIVE=9f94a991ecdf5a4722aabb6e2a8f62a761ffdca34bc3ec08724b509668ed5943
+  - EXPECTED_BUNDLE_SIZE=318177280
+  - PYTHON_BIN=/usr/bin/python3
+  - PYTHONPATH=/dstack/run/src
+
+files:
+  - ../scripts/run-qwen3-omni-frozen30-dstack.sh:/dstack/run/scripts/run-qwen3-omni-frozen30-dstack.sh
+  - ../src/trec_video_2026:/dstack/run/src/trec_video_2026
+  - ../data/vqa/benchmarks/qwen3-omni-frozen30/contract-stage1-seed42.json:/dstack/input/contract.json
+  - ../data/vqa/benchmarks/qwen3-omni-frozen30/bundle-stage1-seed42/manifest.json:/dstack/input/bundle-manifest.json
+
+init:
+  - |
+    set -euo pipefail
+    /usr/bin/python3 -B - \
+      /dstack/run/scripts/run-qwen3-omni-frozen30-dstack.sh \
+      /dstack/run/src/trec_video_2026 \
+      "$EXPECTED_SOURCE_BUNDLE_SHA256" <<'PY'
+    import hashlib
+    import sys
+    from pathlib import Path
+
+    runner_path = Path(sys.argv[1])
+    source_root = Path(sys.argv[2])
+    expected_digest = sys.argv[3]
+    if runner_path.is_symlink() or not runner_path.is_file():
+        raise SystemExit("source bundle runner must be a regular non-symlink file")
+    if source_root.is_symlink() or not source_root.is_dir():
+        raise SystemExit("source bundle root must be a regular non-symlink directory")
+    files = {"scripts/run-qwen3-omni-frozen30-dstack.sh": runner_path.read_bytes()}
+    for path in source_root.rglob("*.py"):
+        if path.is_symlink() or not path.is_file():
+            raise SystemExit("source bundle Python entries must be regular files")
+        relative = f"src/trec_video_2026/{path.relative_to(source_root).as_posix()}"
+        files[relative] = path.read_bytes()
+    if len(files) == 1:
+        raise SystemExit("source bundle contains no Python files")
+    digest = hashlib.sha256()
+    for relative, payload in sorted(files.items()):
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(str(len(payload)).encode("ascii"))
+        digest.update(b"\0")
+        digest.update(payload)
+        digest.update(b"\0")
+    if digest.hexdigest() != expected_digest:
+        raise SystemExit("source bundle SHA-256 mismatch")
+    print("FROZEN30_INLINE_SOURCE_BUNDLE_VERIFIED")
+    PY
+    mkdir -p /dstack/output
+    echo FROZEN30_DEV_READY
+
+inactivity_duration: 1h
+
+resources:
+  gpu:
+    vendor: nvidia
+    name: H200
+    count: 1
+    memory: 90GB..
+  cpu: 16..
+  memory: 192GB..
+  disk: 200GB
+
+fleets: [gpu-marketplace]
+backends: [runpod, vastai]
+spot_policy: on-demand
+max_price: 4.50
+max_duration: 2h
+retry:
+  on_events: [no-capacity]
+  duration: 30m

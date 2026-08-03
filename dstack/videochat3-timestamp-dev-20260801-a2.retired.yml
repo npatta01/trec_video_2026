@@ -1,0 +1,80 @@
+record_type: dstack-retired-run-provenance
+run_name: videochat3-timestamp-dev-20260801-a2
+run_id: da69c2a2-f102-4f98-b98f-dd0fa1b12e4b
+status: retired-consumed-premature-completion
+submission_allowed: false
+submitted: true
+source_config_sha256: 0c408d64dfa3327d0a3bb6e4176c8e47c0d9a2aeb13d5b7f865f0bafc6ce57d9
+
+executed_dependency_snapshot:
+  image: docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca
+  runner_sha256: bfd6da0a09a8b9e5fa0118a587e4bb3272e71d1be974e4f0fe1106503c705847
+  requirements_env_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+  requirements_file_sha256: 9d4cb01013132aac5304911ad7844b03fb3ed3b685fa6248da8ab969a502dde6
+  source_snapshot_sha256: 529318f1bdab5a2da474f966f81088085247dce311e3526a40a6da06ffe125c8
+  frozen_plan_sha256: 843a8f00b31973b7b19eb22c1dc90e96df7bdb86fa16209ffbbc94111612cbd6
+  transformers_revision: cbf4d720ec734edb77d25452b2790c7e4be2f8d7
+  videochat_revision: 37fa901ec5913f84bc31108ebc1e60ad1903634c
+  qwen_revision: 851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a
+  installed_packages:
+    accelerate: 1.12.0
+    click: 8.4.2
+    huggingface-hub: 1.24.0
+    torch: 2.10.0+cu128
+    torchvision: 0.25.0+cu128
+
+planned_stage_count: 3
+
+preview:
+  sha256: 0a5f25a4a156f11f048ef99407ea8b4ebfc61a99c4484883bb87f93d80c82676
+  compatible_physical_offers: 3
+  offers:
+    - {backend: runpod, region: CA-MTL-1, gpu: NVIDIA A40 48GB, price_usd_per_hour: 0.44}
+    - {backend: runpod, region: EU-SE-1, gpu: NVIDIA A40 48GB, price_usd_per_hour: 0.44}
+    - {backend: runpod, region: US-MO-1, gpu: NVIDIA A40 48GB, price_usd_per_hour: 0.44}
+
+actual_runtime:
+  dstack_version: 0.20.29
+  backend: runpod
+  region: CA-MTL-1
+  gpu: NVIDIA A40 48GB
+  price_usd_per_hour: 0.44
+  cuda_version: "12.8"
+  cuda_bf16_supported: true
+  exit_status: 0
+  termination_reason: done_by_runner
+  provider_instance_termination: JOB_FINISHED
+  finished_at: 2026-08-01T08:24:42.633424Z
+  private_media_transferred: false
+
+root_cause:
+  classification: confirmed_config_defect
+  lifecycle_error: >-
+    The dev startup entry replaced dstack's generated long-lived shell process.
+    After preparation returned successfully, the generated idle command could
+    not execute, so the environment completed before an SSH replica or the
+    synthetic processor canary became available.
+
+completion:
+  dev_initialization: 1/1
+  synthetic_canary: 0/1
+  gate: 0/3
+  videochat3_pilot: 0/6
+  qwen_pilot: 0/6
+actual_cost_usd: 0.0237
+cumulative_videochat3_cost_usd: 0.5152
+remote_artifact_state: not-created
+evidence_validity: Incomplete
+decision_disposition: Persistent technical stop
+audit_gap: >-
+  The instance completed before SSH attachment or artifact synchronization.
+  The synthetic processor metadata identity, prompt timestamps and tokens,
+  CUDA tensor placement, model outputs, and matched quality comparison cannot
+  be reconstructed because none of those stages executed.
+what_this_rules_out_now: >-
+  Reusing either consumed dev identity or claiming a corrected VideoChat3
+  versus Qwen comparison from this path.
+what_this_does_not_rule_out: >-
+  The dual-compatible timestamp adapter, pinned VideoChat3 processor or model,
+  pinned Qwen baseline, or a future comparison under separately authorized
+  infrastructure with a validated long-lived dev lifecycle.
