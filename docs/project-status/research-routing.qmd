@@ -165,9 +165,10 @@ explains the separation between speech recovery and answer selection. See also
 - **Observed result:** the project has a concrete measurement distinction but
   no empirical local retrieval-versus-fusion decomposition. The existing A4
   Qwen3-Omni screen is a motivating local case: five target changes are
-  consistent with acoustic sensitivity, while one visual-writing control
-  regression is consistent with cross-modal interference or downstream answer
-  selection. The frozen result cannot distinguish those mechanisms.
+  consistent with acoustic sensitivity in its declared dialogue/speech and
+  sound/music target strata, while one control `C→W` regression is consistent
+  with cross-modal interference or downstream answer selection. The frozen
+  result cannot distinguish those mechanisms.
 - **Current condition-bound status:** **Open hypothesis** and **Audit gap** in
   the current evidence record.
 - **What this rules out now:** claiming that a wrong answer proves either poor
@@ -235,9 +236,9 @@ future direction.
 - The current taxonomy is useful to form strata and candidate routes, but it is
   not a measured router.
 - Retrieval and fusion are different failure modes and need different metrics.
-- Native audio can increase acoustic sensitivity while causing cross-modal
-  competition or visual-grounding loss; this is a separate hypothesis from
-  both missing evidence and final answer election.
+- The A4 aggregate provides a condition-bound acoustic-sensitivity signal with
+  a control-safety loss; it does not identify whether the mechanism is missing
+  evidence, fusion, or answer selection.
 - Transcript residuals demonstrate that recovering words does not guarantee
   the VLM will ground the final answer in those words.
 - Specialist policies need abstention, a baseline fallback, and route-level
@@ -327,11 +328,11 @@ future direction.
 ### Modality-competition / visual-grounding guard
 
 - **Hypothesis:** native audio can improve an audio-relevant answer while
-  suppressing or outweighing sufficient visual evidence on visual-only rows.
-- **Smallest valid panel or work item:** the A4 visual-writing regression plus
-  predeclared unchanged spatial, OCR, counting, and temporal controls; use the
-  frozen outputs first and add an oracle-evidence comparison only if the
-  required-evidence labels show that visual evidence was available.
+  suppressing or outweighing other sufficient evidence on control rows.
+- **Smallest valid panel or work item:** the A4 control regression plus
+  predeclared unchanged controls; use the frozen outputs first and add an
+  oracle-evidence comparison only if the required-evidence labels show that
+  the other evidence was available.
 - **Matched controls and integrity safeguards:** hold model, frames, audio,
   prompt, decoding, and scoring fixed; record evidence sufficiency before
   revealing grades; compare audio-off fallback, audio-on, and any grounded

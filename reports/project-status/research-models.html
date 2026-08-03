@@ -3316,7 +3316,7 @@ break-inside: avoid;
 <li><strong>Use now:</strong> Qwen3.5-4B with 12 frames; use MiniCPM-o audio-off for speed.</li>
 <li><strong>Do not default:</strong> the pinned VideoChat3-4B checkpoint under either tested fixed-12- or fixed-24-frame condition, or later candidates based on compatibility or selected screens alone.</li>
 <li><strong>Still possible:</strong> repaired Omni, narrower Omni audio routing, specialist models, and bottleneck-first adaptation.</li>
-<li><strong>Next test:</strong> use the existing A4 six-change screen as a provisional mechanism hypothesis, not a completed audit: five target changes are consistent with acoustic sensitivity, while one visual-writing control regression is consistent with cross-modal interference or downstream answer selection. First measure required-evidence recall, oracle-evidence answering, and end-to-end answering before any routed run or adaptation.</li>
+<li><strong>Next test:</strong> use the existing A4 six-change screen as a provisional mechanism hypothesis, not a completed audit: five target changes are consistent with acoustic sensitivity, while one control <code>C→W</code> regression is consistent with cross-modal interference or downstream answer selection. First measure required-evidence recall, oracle-evidence answering, and end-to-end answering before any routed run or adaptation.</li>
 </ul>
 </div>
 </section>
@@ -3467,7 +3467,7 @@ The earlier A1 run completed 20/20 strict outputs but had a prompt-context misma
 <li><strong>Current condition-bound status:</strong> complete, eligible, and <strong>Not promoted under the tested condition</strong> for either declared role.</li>
 <li><strong>What this rules out now:</strong> selecting the 30B Omni checkpoint as the general visual default, or treating its larger size and successful execution as evidence of better answer quality.</li>
 <li><strong>What it does not rule out:</strong> a narrower dialogue/prosody specialist, another evidence policy, or a later checkpoint tested under the same gate.</li>
-<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—A4 does not isolate whether its five target changes came from evidence access, representation, fusion, or answer selection, or whether the control regression reflects cross-modal competition, visual ambiguity, or downstream answer selection. The post-hoc screen is a mechanism hypothesis, not causal proof. Two scorer-schema omissions were repaired through exact allowlists, preserved freezes, and byte-identical score reproduction.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—A4 does not isolate whether its five target changes came from evidence access, representation, fusion, or answer selection, or whether the control regression reflects cross-modal competition, representation, or downstream answer selection. The post-hoc screen is a mechanism hypothesis, not causal proof. Two scorer-schema omissions were repaired through exact allowlists, preserved freezes, and byte-identical score reproduction.</li>
 <li><strong>Reconsider when:</strong> a label-blind failure audit produces a pre-answer route feature that explains the target wins without the control regression, or a different checkpoint passes the unchanged general-model gate.</li>
 </ul>
 <details>
@@ -3538,8 +3538,8 @@ The sealed run was <code>qwen3-omni-f30-calibrated-20260801-s5-seed42</code> on 
 <section id="open-hypotheses-and-ideas" class="level2">
 <h2 class="anchored" data-anchor-id="open-hypotheses-and-ideas">Open hypotheses and ideas</h2>
 <ul>
-<li>A narrow Qwen3-Omni dialogue/prosody route may retain A4’s five target wins while excluding its one control regression.</li>
-<li>Native audio may increase acoustic sensitivity on spoken, musical, and non-speech questions while competing with visual grounding on visual-only questions; this remains a <strong>Cross-modal competition hypothesis</strong> until required-evidence and oracle-answer measurements exist.</li>
+<li>A narrow Qwen3-Omni audio-relevant route may retain A4’s five target wins while excluding its one control regression.</li>
+<li>Native audio may increase acoustic sensitivity on audio-relevant rows while competing with other available evidence on control rows; this remains a <strong>Cross-modal competition hypothesis</strong> until required-evidence and oracle-answer measurements exist.</li>
 <li>A grounded answer-election or evidence-citation guard may preserve visible text and spatial answers when audio is present, but it should be tested only after evidence availability is measured.</li>
 <li>A specialist model may beat the baseline on a declared evidence type even if it is not a global replacement.</li>
 <li>Adaptation or fine-tuning should follow a measured bottleneck diagnosis. Model fine-tuning is justified for fusion or answer-selection failures only after retrieval and the supplied evidence have been controlled; a measured retrieval failure instead calls for evidence-selection work first.</li>
@@ -3551,7 +3551,7 @@ The sealed run was <code>qwen3-omni-f30-calibrated-20260801-s5-seed42</code> on 
 <h3 class="anchored" data-anchor-id="repaired-complete-neutral-qwen3-omni-run">Qwen3-Omni error-mechanism audit</h3>
 <ul>
 <li><strong>Hypothesis:</strong> A4’s five audio target wins and single control regression can be separated by a pre-answer evidence or route feature rather than by model size or post-hoc answer quality.</li>
-<li><strong>Current hypothesis from existing evidence:</strong> the frozen six decision-relevant changes contain five target improvements consistent with gains from acoustic evidence across spoken content, sound/music, and non-speech vocalization. The one visual-writing <code>C→W</code> control regression is consistent with audio distraction, modality competition, or downstream answer selection. This is not a completed label-blind audit or a causal result; A4 does not establish the mechanism.</li>
+<li><strong>Current hypothesis from existing evidence:</strong> the frozen six decision-relevant changes contain five target improvements in the declared dialogue/speech and sound/music target strata, consistent with gains from acoustic evidence. The one control <code>C→W</code> regression is consistent with cross-modal competition, audio distraction, or downstream answer selection. This is not a completed label-blind audit or a causal result; A4 does not establish the mechanism.</li>
 <li><strong>Current condition-bound status:</strong> <strong>Diagnostic signal</strong> with an unresolved <strong>Audit gap</strong>; no new model run is justified by this screen alone.</li>
 <li><strong>Smallest valid panel or work item:</strong> create a private, label-blind audit sheet for the six changes that freezes each row’s minimum required modality and evidence before revealing condition or grade. Record required-evidence presence/recall per condition, oracle-evidence answer quality, and original end-to-end answer quality. Keep the four other control <code>C↔︎P</code>/<code>W↔︎C</code> shifts in the safety analysis rather than treating them as target wins.</li>
 <li><strong>Matched controls and integrity safeguards:</strong> preserve A4 bytes, hashes, and paired identities; annotate required evidence independently of model answers; hide condition and grade until the evidence labels are frozen; keep route design separate from the outcomes used to motivate it; keep private row data out of the durable report.</li>

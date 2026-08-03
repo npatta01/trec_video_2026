@@ -61,7 +61,7 @@ specialist role.
   specialist models, and bottleneck-first adaptation.
 - **Next test:** use the existing A4 six-change screen as a provisional
   mechanism hypothesis, not a completed audit: five target changes are
-  consistent with acoustic sensitivity, while one visual-writing control
+  consistent with acoustic sensitivity, while one control `C→W`
   regression is consistent with cross-modal interference or downstream
   answer selection. First measure required-evidence recall,
   oracle-evidence answering, and end-to-end answering before any routed
@@ -457,7 +457,7 @@ GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc0
 - **Possible defect, audit gap, or uncertainty:** **Uncertainty**—A4
   does not isolate whether its five target changes came from evidence
   access, representation, fusion, or answer selection, or whether the
-  control regression reflects cross-modal competition, visual ambiguity,
+  control regression reflects cross-modal competition, representation,
   or downstream answer selection. The post-hoc screen is a mechanism
   hypothesis, not causal proof. Two scorer-schema omissions were
   repaired through exact allowlists, preserved freezes, and
@@ -603,13 +603,12 @@ class="legacy-fragment-alias" aria-hidden="true"></span>
 
 ## Open hypotheses and ideas
 
-- A narrow Qwen3-Omni dialogue/prosody route may retain A4’s five target
+- A narrow Qwen3-Omni audio-relevant route may retain A4’s five target
   wins while excluding its one control regression.
-- Native audio may increase acoustic sensitivity on spoken, musical, and
-  non-speech questions while competing with visual grounding on
-  visual-only questions; this remains a **Cross-modal competition
-  hypothesis** until required-evidence and oracle-answer measurements
-  exist.
+- Native audio may increase acoustic sensitivity on audio-relevant rows
+  while competing with other available evidence on control rows; this
+  remains a **Cross-modal competition hypothesis** until
+  required-evidence and oracle-answer measurements exist.
 - A grounded answer-election or evidence-citation guard may preserve
   visible text and spatial answers when audio is present, but it should
   be tested only after evidence availability is measured.
@@ -629,12 +628,12 @@ class="legacy-fragment-alias" aria-hidden="true"></span>
   regression can be separated by a pre-answer evidence or route feature
   rather than by model size or post-hoc answer quality.
 - **Current hypothesis from existing evidence:** the frozen six
-  decision-relevant changes contain five target improvements consistent
-  with gains from acoustic evidence across spoken content, sound/music,
-  and non-speech vocalization. The one visual-writing `C→W` control
-  regression is consistent with audio distraction, modality competition,
-  or downstream answer selection. This is not a completed label-blind
-  audit or a causal result; A4 does not establish the mechanism.
+  decision-relevant changes contain five target improvements in the
+  declared dialogue/speech and sound/music target strata, consistent
+  with gains from acoustic evidence. The one control `C→W` regression is
+  consistent with cross-modal competition, audio distraction, or
+  downstream answer selection. This is not a completed label-blind audit
+  or a causal result; A4 does not establish the mechanism.
 - **Current condition-bound status:** **Diagnostic signal** with an
   unresolved **Audit gap**; no new model run is justified by this screen
   alone.

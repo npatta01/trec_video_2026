@@ -148,10 +148,11 @@ URIs, and private artifact locators, and confirm the `data` path remains absent.
 - [x] **Step 4: Record the research handoff without running an experiment**
 
 The existing A4 evidence provides a provisional pattern: five target changes
-are consistent with acoustic sensitivity and one visual-writing control is a
-`C→W` regression consistent with cross-modal competition or downstream answer
-selection. This is not a completed label-blind audit or a causal result. The
-next bounded action is a private, label-blind six-change audit sheet that
+in the declared dialogue/speech and sound/music target strata are consistent
+with acoustic sensitivity and one control is a `C→W` regression consistent with
+cross-modal competition or downstream answer selection. This is not a
+completed label-blind audit or a causal result. The next bounded action is a
+private, label-blind six-change audit sheet that
 freezes required evidence before condition or grade, then measures
 required-evidence recall, oracle-evidence answer quality, and end-to-end answer
 quality. Keep the other four control shifts in the safety analysis. Do not

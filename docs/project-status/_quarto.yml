@@ -31,7 +31,7 @@ format:
     format-links: false
     metadata:
       report-ext: qmd
-      report-hub-url: https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/README.md
+      report-hub-url: https://github.com/npatta01/trec_video_2026/blob/6f0ade9741fc4220f4712ebf80eda22ba7d4fa21/docs/experiments/README.md
     toc: true
     toc-depth: 2
     toc-title: On this page

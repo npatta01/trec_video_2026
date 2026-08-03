@@ -3374,7 +3374,7 @@ The two-language diagnostic is too small to estimate multilingual performance; t
 <ul>
 <li><strong>Reason for testing:</strong> prevent a temporal or multimodal failure from being misdiagnosed as only a model-quality failure.</li>
 <li><strong>Tested condition and panel:</strong> a tracked literature synthesis and experiment design; no local required-evidence labels or oracle-frame evaluation exist yet.</li>
-<li><strong>Observed result:</strong> the project has a concrete measurement distinction but no empirical local retrieval-versus-fusion decomposition. The existing A4 Qwen3-Omni screen is a motivating local case: five target changes are consistent with acoustic sensitivity, while one visual-writing control regression is consistent with cross-modal interference or downstream answer selection. The frozen result cannot distinguish those mechanisms.</li>
+<li><strong>Observed result:</strong> the project has a concrete measurement distinction but no empirical local retrieval-versus-fusion decomposition. The existing A4 Qwen3-Omni screen is a motivating local case: five target changes are consistent with acoustic sensitivity in its declared dialogue/speech and sound/music target strata, while one control <code>C→W</code> regression is consistent with cross-modal interference or downstream answer selection. The frozen result cannot distinguish those mechanisms.</li>
 <li><strong>Current condition-bound status:</strong> <strong>Open hypothesis</strong> and <strong>Audit gap</strong> in the current evidence record.</li>
 <li><strong>What this rules out now:</strong> claiming that a wrong answer proves either poor evidence selection or poor reasoning without measuring both.</li>
 <li><strong>What it does not rule out:</strong> a small grounded development set that measures selection, oracle evidence, and end-to-end answers separately.</li>
@@ -3419,7 +3419,7 @@ An election mechanism cannot repair missing evidence, and exact-string voting ca
 <ul>
 <li>The current taxonomy is useful to form strata and candidate routes, but it is not a measured router.</li>
 <li>Retrieval and fusion are different failure modes and need different metrics.</li>
-<li>Native audio can increase acoustic sensitivity while causing cross-modal competition or visual-grounding loss; this is a separate hypothesis from both missing evidence and final answer election.</li>
+<li>The A4 aggregate provides a condition-bound acoustic-sensitivity signal with a control-safety loss; it does not identify whether the mechanism is missing evidence, fusion, or answer selection.</li>
 <li>Transcript residuals demonstrate that recovering words does not guarantee the VLM will ground the final answer in those words.</li>
 <li>Specialist policies need abstention, a baseline fallback, and route-level non-regression—not just a target-slice improvement.</li>
 </ul>
@@ -3480,8 +3480,8 @@ An election mechanism cannot repair missing evidence, and exact-string voting ca
 <section id="modality-competition-visual-grounding-guard" class="level3">
 <h3 class="anchored" data-anchor-id="modality-competition-visual-grounding-guard">Modality-competition / visual-grounding guard</h3>
 <ul>
-<li><strong>Hypothesis:</strong> native audio can improve an audio-relevant answer while suppressing or outweighing sufficient visual evidence on visual-only rows.</li>
-<li><strong>Smallest valid panel or work item:</strong> the A4 visual-writing regression plus predeclared unchanged spatial, OCR, counting, and temporal controls; use the frozen outputs first and add an oracle-evidence comparison only if the required-evidence labels show that visual evidence was available.</li>
+<li><strong>Hypothesis:</strong> native audio can improve an audio-relevant answer while suppressing or outweighing other sufficient evidence on control rows.</li>
+<li><strong>Smallest valid panel or work item:</strong> the A4 control regression plus predeclared unchanged controls; use the frozen outputs first and add an oracle-evidence comparison only if the required-evidence labels show that the other evidence was available.</li>
 <li><strong>Matched controls and integrity safeguards:</strong> hold model, frames, audio, prompt, decoding, and scoring fixed; record evidence sufficiency before revealing grades; compare audio-off fallback, audio-on, and any grounded answer-election condition after prediction freeze.</li>
 <li><strong>Decision or promotion rule:</strong> route audio only when audio-relevant gains survive the visual-control gate; otherwise abstain to audio-off or add a grounded citation/selection guard. Do not interpret a corrected control as general native-audio benefit without a held-out panel.</li>
 <li><strong>Boundary on what a positive result would establish:</strong> a cross-modal safeguard for the tested model and slice, not a universal attention or fusion explanation.</li>
