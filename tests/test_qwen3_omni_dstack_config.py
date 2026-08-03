@@ -1,4 +1,5 @@
 import contextlib
+import inspect
 import json
 from pathlib import Path
 import re
@@ -216,18 +217,41 @@ def test_thinking_output_normalizes_only_a_terminal_json_object():
     )
 
 
-def test_generation_policy_uses_checkpoint_config_with_bounded_seeded_override():
-    source = Path("src/trec_video_2026/vqa_experiments/qwen3_omni_dstack.py").read_text(
-        encoding="utf-8"
+def test_thinking_output_normalizes_one_terminal_json_fence() -> None:
+    raw = (
+        "<think>Synthetic reasoning omitted.</think>\n"
+        "```json\n"
+        '{"answer":"a bell rings","evidence":"the final sound is a bell"}\n'
+        "```"
     )
 
+    assert normalize_generation_output(raw) == (
+        '{"answer": "a bell rings", "evidence": "the final sound is a bell"}'
+    )
+
+
+@pytest.mark.parametrize(
+    "raw",
+    (
+        '```json\n{"answer":"x",\n```',
+        '```text\n{"answer":"x","evidence":"y"}\n```',
+        '```json\n{"answer":"x","evidence":"y"}\n```\n'
+        '```json\n{"answer":"x","evidence":"y"}\n```',
+        '```json\n{"evidence":"y"}\n```',
+        '```json\n{"answer":"x"}\n```',
+        '```json\n{"answer":"x","evidence":"y","extra":true}\n```',
+        '```json\n{"answer":"","evidence":"y"}\n```',
+        '```json\n{"answer":"x","evidence":"y"}\n``` trailing',
+        '```json\nanswer is x\n```',
+    ),
+)
+def test_terminal_json_fence_rejections_remain_unparseable(raw: str) -> None:
+    assert normalize_generation_output(raw) == raw.strip()
+
+
+def test_generation_policy_has_the_approved_bounded_seeded_values():
     assert MAX_NEW_TOKENS == 2048
     assert GENERATION_SEED == 20260724
-    assert "max_new_tokens=MAX_NEW_TOKENS" in source
-    assert "torch.manual_seed(GENERATION_SEED)" in source
-    assert "do_sample=True" in source
-    assert "do_sample=False" not in source
-    assert "inputs.to(device).to(model.dtype)" in source
 
 
 def test_generation_policy_wires_tokenizer_termination_ids():
@@ -340,7 +364,11 @@ class _FakeProcessor:
 
     tokenizer = Tokenizer()
 
+    def __init__(self):
+        self.chat_template_kwargs = None
+
     def apply_chat_template(self, *_args, **_kwargs):
+        self.chat_template_kwargs = _kwargs
         return _Batch(
             {
                 "input_ids": _FakeTensor([10, 11], (1, 2)),
@@ -410,19 +438,32 @@ class _FakeTorch:
         return contextlib.nullcontext()
 
 
-def test_generate_one_forwards_and_attests_eos_termination():
-    model = _FakeModel()
+def test_generation_policy_parameter_is_keyword_only():
+    """Catches accidental positional exposure of the Stage 1 sampling policy."""
+    parameter = inspect.signature(_generate_one).parameters["do_sample"]
+
+    assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
+    assert parameter.default is True
+
+
+def test_generate_one_preserves_sampled_a4_and_accepts_stage1_greedy_generation():
+    """Catches a generation policy that cannot switch to Stage 1 greediness."""
+    stage1_model = _FakeModel()
 
     output, attestation = _generate_one(
         torch=_FakeTorch(),
         processor=_FakeProcessor(),
-        model=model,
+        model=stage1_model,
         example=_example(),
         data_root=Path("/dstack/input"),
+        do_sample=False,
     )
 
-    assert model.generate_kwargs["eos_token_id"] == EXPECTED_EOS_TOKEN_ID
-    assert model.generate_kwargs["pad_token_id"] == EXPECTED_PAD_TOKEN_ID
+    assert stage1_model.generate_kwargs["do_sample"] is False
+    assert attestation["generation"]["do_sample"] is False
+    assert attestation["generation"]["enable_thinking"] is None
+    assert stage1_model.generate_kwargs["eos_token_id"] == EXPECTED_EOS_TOKEN_ID
+    assert stage1_model.generate_kwargs["pad_token_id"] == EXPECTED_PAD_TOKEN_ID
     assert attestation["generation"]["ended_with_eos"] is True
     assert attestation["generation"]["generated_new_token_count"] == 2
     assert attestation["generation"]["eos_token"] == "<|im_end|>"
@@ -431,6 +472,84 @@ def test_generate_one_forwards_and_attests_eos_termination():
         '{"answer": "cat yowl", '
         '"evidence": "open mouth and loud vocalization"}'
     )
+
+    a4_model = _FakeModel()
+    _, a4_attestation = _generate_one(
+        torch=_FakeTorch(),
+        processor=_FakeProcessor(),
+        model=a4_model,
+        example=_example(),
+        data_root=Path("/dstack/input"),
+    )
+
+    assert a4_model.generate_kwargs["do_sample"] is True
+    assert a4_model.generate_kwargs["temperature"] == 0.6
+    assert a4_model.generate_kwargs["top_p"] == 0.95
+    assert a4_model.generate_kwargs["top_k"] == 20
+    assert a4_attestation["generation"]["do_sample"] is True
+    assert a4_attestation["generation"]["temperature"] == 0.6
+    assert a4_attestation["generation"]["top_p"] == 0.95
+    assert a4_attestation["generation"]["top_k"] == 20
+    assert a4_attestation["generation"]["enable_thinking"] is None
+
+
+def test_generate_one_rejects_unsupported_thinking_mode():
+    """Catches Omni silently ignoring the generic Qwen3 thinking kwarg."""
+    with pytest.raises(ValueError, match="enable_thinking is unsupported"):
+        _generate_one(
+            torch=_FakeTorch(),
+            processor=_FakeProcessor(),
+            model=_FakeModel(),
+            example=_example(),
+            data_root=Path("/dstack/input"),
+            enable_thinking=False,
+        )
+
+
+@pytest.mark.parametrize("enable_thinking", (0, 1, "false"))
+def test_generate_one_rejects_non_boolean_thinking_policy(enable_thinking):
+    with pytest.raises(ValueError, match="enable_thinking must be a bool or None"):
+        _generate_one(
+            torch=_FakeTorch(),
+            processor=_FakeProcessor(),
+            model=_FakeModel(),
+            example=_example(),
+            data_root=Path("/dstack/input"),
+            enable_thinking=enable_thinking,
+        )
+
+
+@pytest.mark.parametrize("do_sample", (0, 1, "false", None))
+def test_generate_one_rejects_non_boolean_generation_policy(do_sample):
+    """Catches truthy non-booleans that would silently alter sampling behavior."""
+    model = _FakeModel()
+
+    with pytest.raises(ValueError, match="do_sample must be a bool"):
+        _generate_one(
+            torch=_FakeTorch(),
+            processor=_FakeProcessor(),
+            model=model,
+            example=_example(),
+            data_root=Path("/dstack/input"),
+            do_sample=do_sample,
+        )
+    assert model.generate_kwargs is None
+
+
+def test_generate_one_accepts_and_attests_an_explicit_retry_seed():
+    torch = _FakeTorch()
+    processor = _FakeProcessor()
+    model = _FakeModel()
+    _, attestation = _generate_one(
+        torch=torch,
+        processor=processor,
+        model=model,
+        example=_example(),
+        data_root=Path("/dstack/input"),
+        do_sample=True,
+        seed=42,
+    )
+    assert attestation["generation"]["seed"] == 42
 
 
 def test_generate_one_fails_closed_without_eos_termination():

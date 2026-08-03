@@ -1,0 +1,210 @@
+{
+  "baseline": {
+    "aggregate": {
+      "example_count": 30,
+      "meteor": 0.28606442663998616,
+      "normalized_exact_match": 0.3,
+      "token_f1": 0.4307251685512555
+    },
+    "condition_id": "qwen35-4b-12f-frozen30",
+    "strata": {
+      "Dialogue and speech": {
+        "exact_count": 2,
+        "example_count": 6,
+        "meteor": 0.26778871998412834,
+        "normalized_exact_match": 0.3333333333333333,
+        "token_f1": 0.43115942028985504
+      },
+      "Non-speech sound and music": {
+        "exact_count": 0,
+        "example_count": 6,
+        "meteor": 0.02669336002669336,
+        "normalized_exact_match": 0.0,
+        "token_f1": 0.0
+      },
+      "Spatial, OCR, and color": {
+        "exact_count": 6,
+        "example_count": 6,
+        "meteor": 0.6275232315865974,
+        "normalized_exact_match": 1.0,
+        "token_f1": 1.0
+      },
+      "Temporal and action": {
+        "exact_count": 0,
+        "example_count": 6,
+        "meteor": 0.2349293175737492,
+        "normalized_exact_match": 0.0,
+        "token_f1": 0.27802197802197803
+      },
+      "Visual controls": {
+        "exact_count": 1,
+        "example_count": 6,
+        "meteor": 0.27338750402876233,
+        "normalized_exact_match": 0.16666666666666666,
+        "token_f1": 0.4444444444444444
+      }
+    }
+  },
+  "completion": {
+    "canary_passed": true,
+    "dstack_status": "done",
+    "selected_rows": 60,
+    "strict_passes": 60,
+    "workload_returncode": 0
+  },
+  "cost": {
+    "dollars": 2.9943,
+    "max_dollars": 9.0,
+    "within_cap": true
+  },
+  "gates": {
+    "general_model": {
+      "failed_clauses": [
+        "frames_only_exact_at_least_0.300000",
+        "frames_only_token_f1_at_least_0.430725",
+        "stratum_exact_floor:Spatial, OCR, and color"
+      ],
+      "passed": false
+    },
+    "native_audio_specialist": {
+      "failed_clauses": [
+        "control_has_no_c_to_w",
+        "control_ordinal_delta_non_negative"
+      ],
+      "passed": false
+    }
+  },
+  "judgment_summary": {
+    "control_ordinal_delta": -1,
+    "control_rows": 18,
+    "target_improvements": 5,
+    "target_ordinal_delta": 9,
+    "target_rows": 12,
+    "transition_counts": {
+      "C->C": 12,
+      "C->P": 2,
+      "C->W": 1,
+      "P->C": 2,
+      "P->P": 2,
+      "W->C": 5,
+      "W->W": 6
+    }
+  },
+  "metrics": {
+    "qwen3-omni-frames-native-audio-frozen30": {
+      "aggregate": {
+        "example_count": 30,
+        "meteor": 0.34508695738218237,
+        "normalized_exact_match": 0.26666666666666666,
+        "token_f1": 0.445415209690676
+      },
+      "strata": {
+        "Dialogue and speech": {
+          "exact_count": 4,
+          "example_count": 6,
+          "meteor": 0.5325307082106059,
+          "normalized_exact_match": 0.6666666666666666,
+          "token_f1": 0.7154471544715447
+        },
+        "Non-speech sound and music": {
+          "exact_count": 0,
+          "example_count": 6,
+          "meteor": 0.19150685636573472,
+          "normalized_exact_match": 0.0,
+          "token_f1": 0.12626262626262627
+        },
+        "Spatial, OCR, and color": {
+          "exact_count": 3,
+          "example_count": 6,
+          "meteor": 0.5356161956593416,
+          "normalized_exact_match": 0.5,
+          "token_f1": 0.7592592592592592
+        },
+        "Temporal and action": {
+          "exact_count": 0,
+          "example_count": 6,
+          "meteor": 0.2143190383711362,
+          "normalized_exact_match": 0.0,
+          "token_f1": 0.21499589734883853
+        },
+        "Visual controls": {
+          "exact_count": 1,
+          "example_count": 6,
+          "meteor": 0.25146198830409355,
+          "normalized_exact_match": 0.16666666666666666,
+          "token_f1": 0.41111111111111115
+        }
+      }
+    },
+    "qwen3-omni-frames-only-frozen30": {
+      "aggregate": {
+        "example_count": 30,
+        "meteor": 0.30298190784123347,
+        "normalized_exact_match": 0.23333333333333334,
+        "token_f1": 0.41876248149664624
+      },
+      "strata": {
+        "Dialogue and speech": {
+          "exact_count": 2,
+          "example_count": 6,
+          "meteor": 0.31188046185147444,
+          "normalized_exact_match": 0.3333333333333333,
+          "token_f1": 0.4573170731707317
+        },
+        "Non-speech sound and music": {
+          "exact_count": 0,
+          "example_count": 6,
+          "meteor": 0.09287925696594428,
+          "normalized_exact_match": 0.0,
+          "token_f1": 0.036714975845410634
+        },
+        "Spatial, OCR, and color": {
+          "exact_count": 4,
+          "example_count": 6,
+          "meteor": 0.579711021904118,
+          "normalized_exact_match": 0.6666666666666666,
+          "token_f1": 0.8592592592592593
+        },
+        "Temporal and action": {
+          "exact_count": 0,
+          "example_count": 6,
+          "meteor": 0.27897681018053705,
+          "normalized_exact_match": 0.0,
+          "token_f1": 0.3294099880967186
+        },
+        "Visual controls": {
+          "exact_count": 1,
+          "example_count": 6,
+          "meteor": 0.25146198830409355,
+          "normalized_exact_match": 0.16666666666666666,
+          "token_f1": 0.41111111111111115
+        }
+      }
+    }
+  },
+  "provenance": {
+    "artifact_manifest_sha256": "6dcda7d4f51f300cfa6b3fb5ec6510bf7fcb49b5ac0bdb7077ae88269948b3f6",
+    "baseline_evaluation_sha256": "f610dbd3d468f3b72074c7ace38dec95176c7f47fa213b5ce374d0a9429ad9c0",
+    "blind_key_sha256": "b586fc9e05e41ec85815fc52871d336b34bdebebcc1cc142c3d0b970790ffa23",
+    "collector_artifact_hashes_sha256": "1b20d77f3654567431dfcc867b43cdfb5ed0ba3dc3fc1d6bb39ec541a930f6d8",
+    "contract_sha256": "9cfa26eacecde5bd8c916823ce2a59e74ded7f71ae978b973e306a0525b24bb5",
+    "dstack_metadata_sha256": "9310ebb3510d9d4aced34239fba00ee84753ce4b75d9ad4115fb02887ee60af6",
+    "frozen_scorer_sha256": "63325e1b5fda314d247bd23900009cde34ea17c3f335253634fffd64cca47bbb",
+    "instruction_sha256": "44b83ed11a2b9b8a62584302b126fb8eec13b03c55acb57d08b146f41c5e09a6",
+    "judgments_sha256": "3331c190006b1d15f99c4286ee187dd1358abadbc81a2b1d6330ff8e7295cf28",
+    "model_revision": "2f443cfc4c54b14a815c0e2bb9a9d6cbcd9a748b",
+    "packet_sha256": "f9f6fe50675094ea5eb49c8498bfa4299b21e376d044b4f576fc2a2dc1e47baf",
+    "prediction_freeze_sha256": "cfcf520e359da46b4d37007022d785883b4d5644e9c28e01ca7a7116a515b167",
+    "runtime_image_digest": "sha256:71896cf6533abc610ac298f26289ff3a4ea4bd1fc835f370ece9e5c31e3181d8",
+    "selected_predictions_sha256": "819a63aba6066a5b79616b7c4aee7a745f2489284172d978fe4ae833c16f5d87",
+    "source_tree_sha256": "e71847c4b3659f6fe2024dd62dc6fb9252bc09fb3bcfab2c95b2eb6691a84ad0"
+  },
+  "run_id": "qwen3-omni-frozen30-audio-20260731-a4",
+  "schema_version": 1,
+  "scorer_runtime": {
+    "nltk_version": "3.9.2",
+    "punkt_tab_english_tree_sha256": "6073f4561d752e90f3b02bbb80a955100eb90b7f62c5fcfe17c86e8030909522",
+    "runtime_image": "localhost/trec-vqa-gate-qwen-omni@sha256:effff2801d7677aa4894a641adc5793d6e5072a8cec71817bf925574862c88de",
+    "wordnet_zip_sha256": "6c4365b1018d44f39b284f9a5e44766548b18db9c436c9cfc1b7116230e35711"
+  }
+}
