@@ -45,7 +45,8 @@ Keep Qwen3.5-4B with 12 frames as the **Current default** for accuracy
 and MiniCPM-o 4.5 audio-off as the **Fast alternate**. Treat
 newer/larger candidates as **Diagnostic signal**, **Routed candidate**,
 or **Open hypothesis** until they complete a matched, label-isolated
-quality comparison.
+quality comparison. Qwen3-Omni A4 completed that comparison but did not
+meet the general-model or native-audio promotion gate.
 
 <div class="theme-decision-strip" aria-label="Model decisions">
 
@@ -53,10 +54,10 @@ quality comparison.
   speed.
 - **Do not default:** later candidates based on compatibility or
   selected screens alone.
-- **Still possible:** repaired Omni, specialist models, and
-  bottleneck-first adaptation.
-- **Next test:** repair the strict output path, then diagnose retrieval
-  versus fusion before training.
+- **Still possible:** narrower Omni audio routing, specialist models,
+  and bottleneck-first adaptation.
+- **Next test:** diagnose Omni’s five target wins and one control
+  regression before changing the model or router.
 
 </div>
 
@@ -66,8 +67,13 @@ quality comparison.
   Qwen and MiniCPM roles on labeled 2025 training data.
 - **Selected diagnostics:** Qwen3.6, Phi, Gemma, and Omni screens do not
   rank their families globally.
-- **Confirmed defect:** one Qwen3-Omni strict output missed the 20/20
-  completion gate.
+- **Completed Omni result:** A4 produced `60/60` eligible outputs;
+  frames-only failed the 4B general-model gate, while audio-on showed
+  target gains but one control `C→W` regression.
+- **Historical attempts:** A1/A2 failed at the dstack runner boundary
+  and A3 exposed bulk-file transport as the bottleneck; the private
+  bundle path resolved execution without changing the scientific
+  condition.
 - **Condition boundary:** no small screen permanently disqualifies a
   model, checkpoint, evidence route, or later adaptation.
 
@@ -287,6 +293,127 @@ and [neutral A2 result · Evidence of record · Evidence report ·
 GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/docs/experiments/2026-07-25-qwen3-omni-quality-10-neutral-a2.md).
 </details>
 
+### Qwen3-Omni frozen-30 execution and model result
+
+- **Canonical related claim:** Models owns the general-model
+  disposition. The [Native Audio
+  claim](research-native-audio.md#qwen3-omni-native-audio) owns the
+  primary modality decision from the same A4 evidence.
+- **Shared evidence bundle and immutable evidence link:** [A4 evidence
+  of record](../../docs/experiments/2026-07-31-qwen3-omni-frozen30.md),
+  [sanitized A4
+  score](../../docs/experiments/artifacts/qwen3-omni-frozen30-a4-score.json),
+  and [historical infrastructure
+  record](../../docs/experiments/2026-07-30-qwen3-omni-frozen30-infrastructure-attempts.md).
+- **Evidence validity:** **Verified** for the exact paired A4 model
+  conditions; historical A1/A2/A3 failures remain infrastructure
+  evidence only.
+- **Decision disposition:** **Not promoted under the tested condition**
+  as a general-model candidate. Keep Qwen3.5-4B with twelve frames as
+  the accuracy baseline.
+- **Decision rule and predeclaration:** frames-only had to meet baseline
+  exact match `0.300000` and token F1 `0.430725`, with no six-row
+  stratum losing more than one exact answer.
+- **Gate outcome and completion denominator:** A4 completed `60/60`
+  strict outputs. Frames-only scored exact `0.233333` and F1 `0.418762`;
+  its spatial/OCR/color stratum was `4/6` exact versus the baseline’s
+  `6/6`. All three general-model clauses failed.
+- **Supersedes / superseded by:** A4 supersedes the pending quality
+  unknown and completed-run retry requirement. It does not erase
+  A1/A2/A3 or the earlier quality-10 diagnostics.
+- **Reason for testing:** obtain a complete matched result for the
+  pinned Omni checkpoint and decide whether it merits either a general
+  or routed role.
+- **Tested condition and panel:** the balanced labeled-2025 frozen-30
+  panel, the same twelve frames in both conditions, native WAV only in
+  audio-on, neutral prompt, deterministic decoding, and labels only
+  after prediction freeze.
+- **Observed result:** frames-only did not displace the 4B baseline.
+  Audio-on improved overall exact/F1/METEOR to `0.267 / 0.445 / 0.345`,
+  but failed its separate route-safety gate because one control changed
+  `C→W`.
+- **Current condition-bound status:** complete, eligible, and **Not
+  promoted under the tested condition** for either declared role.
+- **What this rules out now:** selecting the 30B Omni checkpoint as the
+  general visual default, or treating its larger size and successful
+  execution as evidence of better answer quality.
+- **What it does not rule out:** a narrower dialogue/prosody specialist,
+  another evidence policy, or a later checkpoint tested under the same
+  gate.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—A4
+  does not isolate whether the control regression is evidence, fusion,
+  or answer selection. Two scorer-schema omissions were repaired through
+  exact allowlists, preserved freezes, and byte-identical score
+  reproduction.
+- **Reconsider when:** a label-blind failure audit produces a pre-answer
+  route feature that explains the target wins without the control
+  regression, or a different checkpoint passes the unchanged
+  general-model gate.
+
+<details>
+
+<summary>
+
+Method, result, validity risks, and evidence
+</summary>
+
+A1 and A2 failed before inference at the dstack runner boundary. D1 and
+the C1 task canary later proved runner/task startup. A3 then showed the
+remaining bottleneck: 445 dstack mappings transported about 318 MB
+serially and could not finish before runner startup. A4 replaced only
+that transport with one private, immutable Hugging Face bundle. Its
+exact non-development bundle canary passed, and the H200 dev workload
+completed and synced all artifacts. A4 cost `$3.2901` including its
+bundle canary; historical identities, costs, and limitations are
+retained in the infrastructure report.
+</details>
+
+### Seeded termination-repair follow-up
+
+- **Reason for testing:** determine whether the prior non-EOS failure
+  could be reproduced and contained before another paid quality
+  comparison.
+- **Tested condition and panel:** the same thirty frames-only frozen
+  examples, visual-concise instruction, pinned model/runtime/evidence,
+  and explicit sampled decoding (`temperature=0.6`, `top_p=0.95`,
+  `top_k=20`), with a new sealed seed `42` rather than the earlier
+  `20260724` seed.
+- **Observed result:** the development run completed `30/30` rows in
+  expected order. Every row parsed, used seed `42`, and ended with EOS;
+  the prior `Hw0bRvn1ZIo` row (`pair_index=18`) ended at `845` tokens.
+- **Current condition-bound status:** **Verified execution repair for
+  the sealed seed-42 profile; no promotion weight.** This is completion
+  evidence, not a new semantic comparison.
+- **What this rules out now:** treating the earlier cap-without-EOS
+  event as an unresolved blocker for this sealed execution profile.
+- **What it does not rule out:** recurrence under another seed or
+  workload, and it does not change the A4 quality decision or baseline
+  selection.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—this
+  is one explicitly selected seed; the termination gate now records
+  seed, final token, and EOS status and fails closed on a future
+  cap-without-EOS row.
+- **Reconsider when:** a future matched specialist-quality question is
+  predeclared, or a different sealed seed reproduces the failure often
+  enough to justify a bounded reliability probe.
+
+<details>
+
+<summary>
+
+Method, result, validity risks, and evidence
+</summary>
+
+The sealed run was `qwen3-omni-f30-calibrated-20260801-s5-seed42` on the
+exact pinned Qwen3-Omni checkpoint and H200 runtime. Its canary and dev
+outputs, including `summary.json`, `predictions.jsonl`, and checksum
+manifests, are collected under the local frozen-30 data tree and synced
+to the private HF experiment prefix. The dev cost was `$1.4805` and the
+canary cost `$0.1273`. The full evidence-of-record narrative is the
+[seeded termination-repair
+follow-up](../../docs/experiments/2026-07-31-qwen3-omni-frozen30.md#seeded-termination-repair).
+</details>
+
 ## Known failures and cases
 
 [CASE-004 — Unsupported native-audio
@@ -303,9 +430,12 @@ family as the cause.
   Qwen3.5-4B remains the current accuracy baseline.
 - The tested Qwen3.6, Phi, and Gemma conditions did not earn promotion;
   their results bound those versions, evidence paths, and small panels.
-- Qwen3-Omni has a conditionally encouraging audio diagnostic but no
-  eligible promotion result because its strict completion gate was not
-  met.
+- Qwen3-Omni A4 is complete quality evidence: frames-only failed the
+  general gate, while native audio showed target gains but failed
+  control safety.
+- Bundle transport, model execution, output completion, and answer
+  quality are separate boundaries; A4 resolved the first three and
+  measured the fourth.
 
 ### What it does not rule out
 
@@ -324,21 +454,27 @@ class="legacy-fragment-alias" aria-hidden="true"></span>
 
 ### Confirmed defects, audit gaps, and uncertainties
 
-- **Confirmed defect:** one Qwen3-Omni strict-output contract failed,
-  making that run ineligible for its predeclared promotion decision.
-- **Uncertainty:** Qwen3.6, Phi, Gemma, and Omni quality panels are
-  selected diagnostics, not representative rankings or 2026 estimates.
+- **Historical confirmed defect:** the quality-10 Omni run missed one
+  strict output; A4 later passed `60/60` without changing that
+  historical result.
+- **Uncertainty:** Qwen3.6, Phi, and Gemma panels are selected
+  diagnostics; A4 is balanced frozen-30 evidence but still not a 2026
+  estimate.
 - **Uncertainty:** model comparison can be confounded by frame policy,
   prompt, modality treatment, and answer formatting unless they are held
   fixed.
 - **Audit gap:** the repository has compatibility and experimental
   seams, not one reusable versioned model-promotion workflow for every
   candidate family.
+- **Resolved execution bottleneck:** A3 instrumentation showed that
+  serial transport of 445 mapped files could not finish before runner
+  startup; A4’s immutable bundle path passed its canary and completed
+  the workload.
 
 ## Open hypotheses and ideas
 
-- A repaired Qwen3-Omni run may retain its prosody/non-speech gains
-  while satisfying a complete output contract.
+- A narrow Qwen3-Omni dialogue/prosody route may retain A4’s five target
+  wins while excluding its one control regression.
 - A specialist model may beat the baseline on a declared evidence type
   even if it is not a global replacement.
 - Adaptation or fine-tuning should follow a measured bottleneck
@@ -349,24 +485,23 @@ class="legacy-fragment-alias" aria-hidden="true"></span>
 
 ## Cheapest valid next experiments
 
-### Repaired, complete neutral Qwen3-Omni run
+### Qwen3-Omni error-mechanism audit
 
-- **Hypothesis:** a terminal-output fix permits Qwen3-Omni’s paired
-  audio-on/off diagnostic to complete without changing the frozen
-  condition.
-- **Smallest valid panel or work item:** first rerun the failed
-  sentinel; then, if it passes, a fresh full 20-call paired run under
-  the strict contract.
-- **Matched controls and integrity safeguards:** freeze model, prompt,
-  frames, audio, decoding, parser, ordering, and scoring; require all
-  outputs before labels load; retain the frames-only control and visual
-  controls.
-- **Decision or promotion rule:** evaluate only if 20/20 outputs pass;
-  advance only with the predeclared audio-focused gain and control
-  non-regression.
-- **Boundary on what a positive result would establish:** a valid result
-  for that model/configuration and declared panel, not a global model
-  replacement.
+- **Hypothesis:** A4’s five audio target wins and single control
+  regression can be separated by a pre-answer evidence or route feature
+  rather than by model size or post-hoc answer quality.
+- **Smallest valid panel or work item:** classify the six changed pairs
+  as retrieval, fusion, or answer-selection cases using the frozen
+  evidence and condition-blind outputs; do not run another model yet.
+- **Matched controls and integrity safeguards:** preserve A4 bytes,
+  hashes, and paired identities; hide condition during mechanism review;
+  keep route design separate from the outcomes used to motivate it.
+- **Decision or promotion rule:** authorize a fresh narrow-route test
+  only if a pre-answer feature covers target wins and excludes the
+  control regression; retain the original safety and completion gates.
+- **Boundary on what a positive result would establish:** a falsifiable
+  next routing experiment, not a general-model promotion or deployed
+  specialist.
 
 ### Representative matched specialist-model panel
 
