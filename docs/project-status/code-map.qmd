@@ -50,7 +50,7 @@ sanitized reports.
 | Evidence preparation | [`vqa_benchmark.py` · Current code · Source code · GitHub][benchmark-module], [`vqa_gate.py` · Current code · Source code · GitHub][gate-module], tracked configs | Questions and evidence are bound without reference labels in inference requests. |
 | Inference | family runners plus [`vqa_frozen30_workflow.py` · Current code · Source code · GitHub][frozen-workflow] | Heavy model runtimes are isolated; request/result identity is checked. |
 | Scoring | [`vqa_evaluation.py` · Current code · Source code · GitHub][evaluation-module] and experiment-specific scoring modules | Labels are joined only after predictions are frozen. |
-| Reports | `docs/experiments/`, `reports/trecvid_vqa_2026/`, and these status pages | Commit sanitized summaries, never private runtime artifacts. |
+| Reports | [`docs/experiments/` · dated evidence index]({{< meta report-hub-url >}}) and [evidence records · Evidence report · GitHub][experiment-docs], `reports/trecvid_vqa_2026/`, and these status pages | Commit sanitized summaries, never private runtime artifacts. |
 
 The arrow sequence is operational, not a promise of a single universal
 command. Only frozen-30 currently packages preparation, guarded execution,
@@ -145,7 +145,7 @@ the ignored local-data boundary.
 | [`README.md` · Current code · Source code · GitHub][readme] and [`pyproject.toml` · Current code · Source code · GitHub][pyproject] | You need the operating boundary or supported command names. | A help command is safer than starting work. |
 | [`src/trec_video_2026/` · Current code · Source code · GitHub][source-package] | You are changing reusable behavior, orchestration, or an adapter. | Identify the layer before widening an experiment-specific seam. |
 | [`configs/vqa/` · Current code · Source code · GitHub][configs] and [`scripts/` · Current code · Source code · GitHub][scripts] | You need frozen run definitions or operational helpers. | Some helpers launch expensive or stateful work; inspect first. |
-| [`docs/experiments/` · Evidence of record · Evidence report · GitHub][experiment-docs] | You need recent sanitized experiment contracts and results. | Compatibility reports may be superseded by quality reports. |
+| [`docs/experiments/` · dated evidence index]({{< meta report-hub-url >}}) and [`docs/experiments/` · Evidence of record · Evidence report · GitHub][experiment-docs] | You need recent sanitized experiment contracts and results. | Compatibility reports may be superseded by quality reports. |
 | [July 12 field guide · Evidence of record · Evidence report · GitHub][field-guide] | You need the background field guide or later analytical reports. | Historical recommendations are not the current default. |
 | `tests/` | You are changing tracked behavior and need its executable contract. | This documentation task did not run or add application tests. |
 | `data/` | A specifically authorized run requires the shared local dataset. | Ignored and private: never copy, stage, commit, or expose it. |

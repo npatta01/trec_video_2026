@@ -59,9 +59,13 @@ specialist role.
   based on compatibility or selected screens alone.
 - **Still possible:** repaired Omni, narrower Omni audio routing,
   specialist models, and bottleneck-first adaptation.
-- **Next test:** diagnose Omni’s five target wins and one control
-  regression; for new candidates, repair the strict output path and
-  diagnose retrieval versus fusion before training.
+- **Next test:** use the existing A4 six-change screen as a provisional
+  mechanism hypothesis, not a completed audit: five target changes are
+  consistent with acoustic sensitivity, while one control `C→W`
+  regression is consistent with cross-modal interference or downstream
+  answer selection. First measure required-evidence recall,
+  oracle-evidence answering, and end-to-end answering before any routed
+  run or adaptation.
 
 </div>
 
@@ -451,10 +455,13 @@ GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc0
   another evidence policy, or a later checkpoint tested under the same
   gate.
 - **Possible defect, audit gap, or uncertainty:** **Uncertainty**—A4
-  does not isolate whether the control regression is evidence, fusion,
-  or answer selection. Two scorer-schema omissions were repaired through
-  exact allowlists, preserved freezes, and byte-identical score
-  reproduction.
+  does not isolate whether its five target changes came from evidence
+  access, representation, fusion, or answer selection, or whether the
+  control regression reflects cross-modal competition, representation,
+  or downstream answer selection. The post-hoc screen is a mechanism
+  hypothesis, not causal proof. Two scorer-schema omissions were
+  repaired through exact allowlists, preserved freezes, and
+  byte-identical score reproduction.
 - **Reconsider when:** a label-blind failure audit produces a pre-answer
   route feature that explains the target wins without the control
   regression, or a different checkpoint passes the unchanged
@@ -596,8 +603,15 @@ class="legacy-fragment-alias" aria-hidden="true"></span>
 
 ## Open hypotheses and ideas
 
-- A narrow Qwen3-Omni dialogue/prosody route may retain A4’s five target
+- A narrow Qwen3-Omni audio-relevant route may retain A4’s five target
   wins while excluding its one control regression.
+- Native audio may increase acoustic sensitivity on audio-relevant rows
+  while competing with other available evidence on control rows; this
+  remains a **Cross-modal competition hypothesis** until
+  required-evidence and oracle-answer measurements exist.
+- A grounded answer-election or evidence-citation guard may preserve
+  visible text and spatial answers when audio is present, but it should
+  be tested only after evidence availability is measured.
 - A specialist model may beat the baseline on a declared evidence type
   even if it is not a global replacement.
 - Adaptation or fine-tuning should follow a measured bottleneck
@@ -613,18 +627,39 @@ class="legacy-fragment-alias" aria-hidden="true"></span>
 - **Hypothesis:** A4’s five audio target wins and single control
   regression can be separated by a pre-answer evidence or route feature
   rather than by model size or post-hoc answer quality.
-- **Smallest valid panel or work item:** classify the six changed pairs
-  as retrieval, fusion, or answer-selection cases using the frozen
-  evidence and condition-blind outputs; do not run another model yet.
+- **Current hypothesis from existing evidence:** the frozen six
+  decision-relevant changes contain five target improvements in the
+  declared dialogue/speech and sound/music target strata, consistent
+  with gains from acoustic evidence. The one control `C→W` regression is
+  consistent with cross-modal competition, audio distraction, or
+  downstream answer selection. This is not a completed label-blind audit
+  or a causal result; A4 does not establish the mechanism.
+- **Current condition-bound status:** **Diagnostic signal** with an
+  unresolved **Audit gap**; no new model run is justified by this screen
+  alone.
+- **Smallest valid panel or work item:** create a private, label-blind
+  audit sheet for the six changes that freezes each row’s minimum
+  required modality and evidence before revealing condition or grade.
+  Record required-evidence presence/recall per condition,
+  oracle-evidence answer quality, and original end-to-end answer
+  quality. Keep the four other control `C↔P`/`W↔C` shifts in the safety
+  analysis rather than treating them as target wins.
 - **Matched controls and integrity safeguards:** preserve A4 bytes,
-  hashes, and paired identities; hide condition during mechanism review;
-  keep route design separate from the outcomes used to motivate it.
-- **Decision or promotion rule:** authorize a fresh narrow-route test
-  only if a pre-answer feature covers target wins and excludes the
-  control regression; retain the original safety and completion gates.
+  hashes, and paired identities; annotate required evidence
+  independently of model answers; hide condition and grade until the
+  evidence labels are frozen; keep route design separate from the
+  outcomes used to motivate it; keep private row data out of the durable
+  report.
+- **Decision or promotion rule:** pursue retrieval or routing work only
+  when required-evidence recall is limiting and oracle evidence improves
+  answers; pursue fusion/grounding or answer election when necessary
+  evidence is present but the model remains wrong; test modality
+  competition when audio-on reduces visual evidence sufficiency or
+  visual-control quality. Any later route must retain the existing
+  audio-off fallback and control-safety gate.
 - **Boundary on what a positive result would establish:** a falsifiable
-  next routing experiment, not a general-model promotion or deployed
-  specialist.
+  next routing or grounding experiment for this labeled slice, not a
+  general-model promotion, prevalence estimate, or deployed specialist.
 
 ### Representative matched specialist-model panel
 

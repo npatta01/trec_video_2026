@@ -17,6 +17,11 @@ recommendation and the [Code Map · Report page](code-map.md) to find the
 implementation boundary. The six themes below are independent research
 areas, not a sequence.
 
+For record-level provenance, browse the [dated experiment evidence
+index](../../docs/experiments/README.md). It routes to the canonical
+records without duplicating this hub’s current conclusions or next-test
+queue.
+
 > [!NOTE]
 >
 > ### Contributors: place evidence, claims, and decisions consistently
