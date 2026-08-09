@@ -26,6 +26,8 @@ FRAME_COUNT=""
 TELEMETRY_PID=""
 CURRENT_CHILD_PID=""
 HF_COMMAND=()
+RUNTIME_STRING=""
+TORCH_CUDA_VERSION=""
 EXECUTION_STARTED=0
 FINALIZE_ATTEMPTED=0
 FINALIZED=0
@@ -158,6 +160,19 @@ bootstrap_runtime() {
   event heavy-runtime-bootstrap
   mkdir -p "$OUTPUT_DIR"
   if [[ "${VQA_DRY_RUN:-0}" == "1" || "${VQA_TEST_MODE:-0}" == "1" ]]; then
+    "$PYTHON_BIN" - "$OUTPUT_DIR/runtime.json" "$EXPECTED_RUNTIME_IMAGE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = {
+    "runtime": "transformers 5.15.0.dev0; torch 2.8.0",
+    "runtime_image": sys.argv[2],
+    "torch_cuda": "12.4",
+    "torch_hip": None,
+}
+Path(sys.argv[1]).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
     event heavy-runtime-bootstrap-skipped
     return
   fi
@@ -171,6 +186,7 @@ bootstrap_runtime() {
     "soundfile==0.13.1"
   "$PYTHON_BIN" - "$OUTPUT_DIR/runtime.json" <<'PY'
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -192,10 +208,13 @@ if not torch.cuda.is_bf16_supported():
 if PIL.__version__ != "11.3.0" or soundfile.__version__ != "0.13.1":
     raise SystemExit("pinned Pillow or soundfile version is unavailable")
 record = {
+    "runtime": f"transformers {transformers.__version__}; torch {torch.__version__}",
+    "runtime_image": os.environ.get("VQA_RUNTIME_IMAGE"),
     "transformers_version": transformers.__version__,
     "transformers_revision": "cbf4d720ec734edb77d25452b2790c7e4be2f8d7",
     "torch_version": torch.__version__,
     "torch_cuda": torch.version.cuda,
+    "torch_hip": torch.version.hip,
     "cuda_device_name": torch.cuda.get_device_name(0),
     "cuda_bf16_supported": True,
     "dependencies": {
@@ -210,6 +229,41 @@ record = {
 Path(sys.argv[1]).write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
   event heavy-runtime-ready
+}
+
+load_runtime_provenance() {
+  local values
+  if ! values="$("$PYTHON_BIN" - "$OUTPUT_DIR/runtime.json" "$EXPECTED_RUNTIME_IMAGE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+record = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+runtime = record.get("runtime")
+runtime_image = record.get("runtime_image")
+torch_cuda = record.get("torch_cuda")
+if (
+    not isinstance(runtime, str)
+    or not runtime.strip()
+    or "\n" in runtime
+    or runtime_image != sys.argv[2]
+    or not isinstance(torch_cuda, str)
+    or not torch_cuda.strip()
+    or "\n" in torch_cuda
+    or record.get("torch_hip") is not None
+):
+    raise SystemExit("runtime.json does not contain the pinned NVIDIA runtime provenance")
+print(runtime)
+print(torch_cuda)
+PY
+)"; then
+    die "runtime provenance is missing or invalid: $OUTPUT_DIR/runtime.json"
+  fi
+  RUNTIME_STRING="${values%%$'\n'*}"
+  TORCH_CUDA_VERSION="${values#*$'\n'}"
+  [[ -n "$RUNTIME_STRING" && -n "$TORCH_CUDA_VERSION" && "$RUNTIME_STRING" != "$TORCH_CUDA_VERSION" ]] \
+    || die "runtime provenance values are incomplete"
+  event runtime-provenance-bound
 }
 
 verify_manifest() {
@@ -616,7 +670,8 @@ PY
   "$PYTHON_BIN" - "$condition_dir/requests.json" "$condition_dir/predictions.json" \
     "$condition_dir/timing.json" "$started_ns" "$finished_ns" "$condition_id" \
     "$model_id" "$revision" "$answer_policy" "$min_pixels" "$max_pixels" "$EXPERIMENT_RUN_NAME" \
-    "$EXPECTED_RUNTIME_IMAGE" "$request_source" "$EXPECTED_COUNT" <<'PY'
+    "$EXPECTED_RUNTIME_IMAGE" "$request_source" "$EXPECTED_COUNT" \
+    "$RUNTIME_STRING" "$TORCH_CUDA_VERSION" <<'PY'
 import json
 import math
 import sys
@@ -651,8 +706,8 @@ for request, row in zip(requests, predictions, strict=True):
         raise SystemExit("prediction pixel-bound controls do not match the condition")
     if row["runtime_image"] != sys.argv[13] or row["precision"] != "bfloat16" or row["device"] != "cuda:0 (NVIDIA CUDA)":
         raise SystemExit("prediction runtime identity is not the pinned NVIDIA BF16 runtime")
-    if not isinstance(row["runtime"], str) or not row["runtime"].strip():
-        raise SystemExit("prediction runtime identity is missing")
+    if row["runtime"] != sys.argv[16]:
+        raise SystemExit("prediction runtime does not match runtime.json provenance")
     elapsed = row["elapsed_seconds"]
     if isinstance(elapsed, bool) or not isinstance(elapsed, (int, float)) or not math.isfinite(elapsed) or elapsed < 0:
         raise SystemExit("prediction elapsed_seconds is not finite and nonnegative")
@@ -694,7 +749,7 @@ for request, row in zip(requests, predictions, strict=True):
             raise SystemExit(f"prediction {label} attestation is empty")
         if not count and (devices or dtypes):
             raise SystemExit(f"prediction {label} zero-count attestation is not empty")
-    if attestation["accelerator_backend"] != "nvidia-cuda" or not isinstance(attestation["torch_cuda"], str) or not attestation["torch_cuda"].strip() or attestation["torch_hip"] is not None:
+    if attestation["accelerator_backend"] != "nvidia-cuda" or attestation["torch_cuda"] != sys.argv[17] or attestation["torch_hip"] is not None:
         raise SystemExit("prediction accelerator attestation is not NVIDIA CUDA")
     if row["status"] != "passed" or not isinstance(row["answer"], str) or not row["answer"].strip():
         raise SystemExit("condition has an incomplete or empty prediction")
@@ -888,6 +943,7 @@ main() {
   remote_prefix_is_empty
   EXECUTION_STARTED=1
   bootstrap_runtime
+  load_runtime_provenance
   case "$VQA_MODE" in
     canary) run_canary ;;
     evidence) run_evidence ;;

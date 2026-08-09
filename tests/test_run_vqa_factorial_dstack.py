@@ -61,6 +61,8 @@ def _fake_inference(tmp_path: Path) -> Path:
         "        },\n"
         "    }\n"
         "    if mutation == 'omit-runtime': result.pop('runtime')\n"
+        "    if mutation == 'changed-runtime': result['runtime'] = 'untrusted-runtime 0.0; torch unknown'\n"
+        "    if mutation == 'changed-cuda-version': result['runtime_attestation']['torch_cuda'] = '999.0'\n"
         "    if mutation == 'omit-elapsed': result.pop('elapsed_seconds')\n"
         "    if mutation == 'nan-model-load': result['model_load_seconds'] = float('nan')\n"
         "    if mutation == 'negative-model-load': result['model_load_seconds'] = -1\n"
@@ -192,7 +194,7 @@ def _assert_remote_payload(tmp_path: Path, *, status: str) -> None:
 @pytest.mark.parametrize(
     "mutation",
     [
-        "omit-runtime", "omit-elapsed", "nan-elapsed", "negative-elapsed",
+        "omit-runtime", "changed-runtime", "changed-cuda-version", "omit-elapsed", "nan-elapsed", "negative-elapsed",
         "nan-model-load", "negative-model-load", "different-model-load",
         "nonnumeric-vram", "negative-vram", "extra-field", "missing-field",
         "partial-parameter-count", "partial-parameter-devices", "partial-parameter-dtypes",
@@ -207,6 +209,13 @@ def test_prediction_schema_and_attestation_are_exact(tmp_path: Path, mutation: s
 def test_success_sync_snapshots_frozen_payload_and_terminal_checksum(tmp_path: Path) -> None:
     result = _run(tmp_path)
     assert result.returncode == 0, result.stderr
+    runtime = json.loads((tmp_path / "output/runtime.json").read_text(encoding="utf-8"))
+    assert runtime == {
+        "runtime": "transformers 5.15.0.dev0; torch 2.8.0",
+        "torch_cuda": "12.4",
+        "torch_hip": None,
+        "runtime_image": IMAGE,
+    }
     _assert_remote_payload(tmp_path, status="passed")
     assert (tmp_path / "output.terminal-status.json").is_file()
     assert (tmp_path / "remote" / "terminal-status.json").is_file()
