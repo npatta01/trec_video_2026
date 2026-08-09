@@ -189,6 +189,7 @@ PY
 import json
 import os
 import sys
+from importlib.metadata import version
 from pathlib import Path
 
 import PIL
@@ -200,8 +201,11 @@ import soundfile
 import torch
 import transformers
 
+qwen_vl_utils_version = version("qwen-vl-utils")
 if transformers.__version__ != "5.15.0.dev0":
     raise SystemExit(f"unexpected transformers version: {transformers.__version__}")
+if qwen_vl_utils_version != "0.0.14":
+    raise SystemExit(f"unexpected qwen-vl-utils version: {qwen_vl_utils_version}")
 if not torch.cuda.is_available() or not torch.version.cuda or torch.version.hip:
     raise SystemExit("NVIDIA CUDA is unavailable")
 if not torch.cuda.is_bf16_supported():
@@ -224,7 +228,7 @@ record = {
         "accelerate": accelerate.__version__,
         "av": av.__version__,
         "imageio-ffmpeg": imageio_ffmpeg.__version__,
-        "qwen-vl-utils": getattr(qwen_vl_utils, "__version__", "installed"),
+        "qwen-vl-utils": qwen_vl_utils_version,
     },
 }
 Path(sys.argv[1]).write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")

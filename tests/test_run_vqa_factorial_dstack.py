@@ -23,6 +23,15 @@ IMAGE = (
 )
 
 
+def test_runtime_attestation_records_the_pinned_qwen_vl_utils_distribution_version() -> None:
+    runner = RUNNER.read_text(encoding="utf-8")
+    assert 'from importlib.metadata import version' in runner
+    assert 'version("qwen-vl-utils")' in runner
+    assert 'qwen_vl_utils_version != "0.0.14"' in runner
+    assert '"qwen-vl-utils": qwen_vl_utils_version' in runner
+    assert 'getattr(qwen_vl_utils, "__version__", "installed")' not in runner
+
+
 def _fake_inference(tmp_path: Path) -> Path:
     path = tmp_path / "fake-inference.py"
     path.write_text(
