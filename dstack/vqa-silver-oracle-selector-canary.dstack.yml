@@ -1,5 +1,5 @@
 type: task
-name: vqa-silver-selector-canary-20260809-a1
+name: vqa-silver-selector-canary-20260809-a2
 image: docker.io/qwenllm/qwen3-omni@sha256:71896cf6533abc610ac298f26289ff3a4ea4bd1fc835f370ece9e5c31e3181d8
 entrypoint: /bin/bash -c
 shell: bash
@@ -9,14 +9,14 @@ env:
   - HF_TOKEN=${{ secrets.hf_token }}
   - HF_HUB_DISABLE_TELEMETRY=1
   - EXPERIMENT_RUN_ID=vqa-silver-oracle-election-20260809-a1
-  - SELECTOR_SLICE=canary
+  - SELECTOR_SLICE=canary-a2
   - MEDIA_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/artifacts/vqa2025-training-media-475-20260809-a1/media
   - CONTROLLER_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-silver-oracle-election-20260809-a1/input-controller
   - OUTPUT_BASE=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-silver-oracle-election-20260809-a1
   - RUNTIME_IMAGE=docker.io/qwenllm/qwen3-omni@sha256:71896cf6533abc610ac298f26289ff3a4ea4bd1fc835f370ece9e5c31e3181d8
   - MODEL_ID=Qwen/Qwen3-Omni-30B-A3B-Thinking
   - MODEL_REVISION=2f443cfc4c54b14a815c0e2bb9a9d6cbcd9a748b
-  - EXPECTED_SOURCE_BUNDLE_SHA256=ed24cbe8dc4d701dd380631a7c57c53eae0ca576fa805a654a2a5ed2293f6e2b
+  - EXPECTED_SOURCE_BUNDLE_SHA256=2ca15843e8e7ec3de3dab441d23c3cd47d1da085a22f36de0a1e42bb8d6746c7
   - SUBMITTED_CODE_REVISION=7a60c5b29458e091d1ebb58fecefdde4162b7419
   - PYTHONPATH=/dstack/run/src
 

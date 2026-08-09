@@ -55,7 +55,7 @@ EXPECTED_EOS_TOKEN_ID = 151645
 EXPECTED_PAD_TOKEN_ID = 151643
 EXPECTED_EOS_TOKEN = "<|im_end|>"
 EXPECTED_PAD_TOKEN = "<|endoftext|>"
-NATIVE_VIDEO_INPUT_KEYS = frozenset({"pixel_values", "video_grid_thw"})
+NATIVE_VIDEO_INPUT_KEYS = frozenset({"pixel_values_videos", "video_grid_thw"})
 NATIVE_AUDIO_INPUT_KEYS = frozenset({"input_features", "feature_attention_mask"})
 REQUEST_FIELDS = frozenset(
     {

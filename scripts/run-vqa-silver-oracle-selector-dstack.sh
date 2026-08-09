@@ -56,12 +56,12 @@ validate_environment() {
   [[ "$PYTHON_BIN" == /usr/bin/python3 && -x "$PYTHON_BIN" ]] \
     || die "pinned image Python is unavailable"
   case "$SELECTOR_SLICE" in
-    canary) REQUEST_NAME="selector-canary.jsonl" ;;
+    canary-a2) REQUEST_NAME="selector-canary.jsonl" ;;
     chunk-00) REQUEST_NAME="selector-chunk-00.jsonl" ;;
     chunk-01) REQUEST_NAME="selector-chunk-01.jsonl" ;;
     chunk-02) REQUEST_NAME="selector-chunk-02.jsonl" ;;
     chunk-03) REQUEST_NAME="selector-chunk-03.jsonl" ;;
-    *) die "SELECTOR_SLICE must be canary or chunk-00 through chunk-03" ;;
+    *) die "SELECTOR_SLICE must be canary-a2 or chunk-00 through chunk-03" ;;
   esac
   REMOTE_OUTPUT_URI="$OUTPUT_BASE/selector/$SELECTOR_SLICE"
 }

@@ -12,7 +12,7 @@ from trec_video_2026.vqa_experiments.qwen3_omni_structured import (
 
 RUN_ID = "vqa-silver-oracle-election-20260809-a1"
 CONFIGS = {
-    "canary": Path("dstack/vqa-silver-oracle-selector-canary.dstack.yml"),
+    "canary-a2": Path("dstack/vqa-silver-oracle-selector-canary.dstack.yml"),
     **{
         f"chunk-{index:02d}": Path(
             f"dstack/vqa-silver-oracle-selector-chunk-{index:02d}.dstack.yml"
@@ -34,9 +34,14 @@ CONTROLLER_URI = (
 def test_selector_configs_are_pinned_private_bounded_tasks() -> None:
     for slice_id, path in CONFIGS.items():
         text = path.read_text(encoding="utf-8")
-        expected_duration = "45m" if slice_id == "canary" else "80m"
+        expected_duration = "45m" if slice_id.startswith("canary") else "80m"
+        expected_name = (
+            "vqa-silver-selector-canary-20260809-a2"
+            if slice_id == "canary-a2"
+            else f"vqa-silver-selector-{slice_id}-20260809-a1"
+        )
         assert "type: task" in text
-        assert f"name: vqa-silver-selector-{slice_id}-20260809-a1" in text
+        assert f"name: {expected_name}" in text
         assert f"image: {RUNTIME_IMAGE}" in text
         assert f"SELECTOR_SLICE={slice_id}" in text
         assert f"MODEL_ID={MODEL_ID}" in text
@@ -88,7 +93,7 @@ def test_selector_runner_fetches_only_slice_media_and_syncs_private_outputs() ->
 def test_selector_slice_request_names_and_output_prefixes_are_disjoint() -> None:
     runner = RUNNER.read_text(encoding="utf-8")
 
-    assert 'REQUEST_NAME="selector-canary.jsonl"' in runner
+    assert 'canary-a2) REQUEST_NAME="selector-canary.jsonl"' in runner
     for index in range(4):
         chunk = f"chunk-{index:02d}"
         assert f'{chunk}) REQUEST_NAME="selector-{chunk}.jsonl"' in runner

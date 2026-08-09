@@ -274,7 +274,7 @@ def test_runtime_generator_keeps_native_video_audio_switch_consistent(
             calls["processor"] = kwargs
             return Batch(
                 input_ids=Tensor([1, 2, 3], (1, 3)),
-                pixel_values=Tensor([1, 2], (2,)),
+                pixel_values_videos=Tensor([1, 2], (2,)),
                 video_grid_thw=Tensor([1, 2, 3], (1, 3)),
                 input_features=Tensor([4, 5], (1, 2)),
                 feature_attention_mask=Tensor([1, 1], (1, 2)),
