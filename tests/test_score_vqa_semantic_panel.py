@@ -86,6 +86,17 @@ def injected_metrics(calls: dict[str, int]):
     return meteor, bertscore, sts
 
 
+def fixture_panel_profile(scorer):
+    return scorer.PanelProfile(
+        name="fixture-v1-v2",
+        expected_annotation_files=2,
+        expected_rows=2,
+        canonical_id_set_sha256=scorer.sorted_video_id_set_sha256({"v1", "v2"}),
+        excluded_annotation_ids=(),
+        excluded_reason="test fixture",
+    )
+
+
 def test_score_panel_joins_labels_after_freeze_and_retains_metrics(
     tmp_path: Path,
 ) -> None:
@@ -407,6 +418,81 @@ def test_bert_score_records_module_and_distribution_versions(
         "module": "0.3.12",
         "distribution": "0.3.13",
     }
+
+
+def test_injected_bertscore_bypasses_installed_module_version_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scorer = load_scorer()
+    monkeypatch.setitem(
+        sys.modules,
+        "bert_score",
+        SimpleNamespace(__version__="unexpected-injected-environment"),
+    )
+
+    assert scorer._bert_score_versions(required=False) == {
+        "module": "injected",
+        "distribution": "injected",
+    }
+
+
+def test_canonical_panel_rejects_count_preserving_id_mutation() -> None:
+    scorer = load_scorer()
+    canonical_ids = {f"v{index:03d}" for index in range(475)}
+    excluded_ids = {f"excluded-{index}" for index in range(6)}
+    profile = scorer.PanelProfile(
+        name="vqa-2025-training-475-test",
+        expected_annotation_files=481,
+        expected_rows=475,
+        canonical_id_set_sha256=scorer.sorted_video_id_set_sha256(canonical_ids),
+        excluded_annotation_ids=tuple(sorted(excluded_ids)),
+        excluded_reason="test fixture",
+    )
+    mutated_ids = (canonical_ids - {"v000"}) | {"replacement"}
+
+    with pytest.raises(ValueError, match="canonical panel ID set"):
+        scorer._validate_panel_identity(
+            profile,
+            annotation_ids=canonical_ids | excluded_ids,
+            condition_ids={"frames": canonical_ids, "whisper": mutated_ids},
+        )
+
+
+def test_artifact_records_panel_identity_and_excluded_id_metadata(
+    tmp_path: Path,
+) -> None:
+    scorer = load_scorer()
+    annotations, conditions, model = make_inputs(tmp_path)
+    meteor, bertscore, sts = injected_metrics({"bert": 0})
+    profile = fixture_panel_profile(scorer)
+
+    artifact = scorer.score_panel(
+        annotation_root=annotations,
+        condition_paths=conditions,
+        bert_model=model,
+        expected_rows=2,
+        expected_annotation_files=2,
+        panel_profile=profile,
+        meteor_fn=meteor,
+        bertscore_fn=bertscore,
+        sts_fn=sts,
+    )
+
+    assert artifact["panel"]["identity"] == {
+        "profile": "fixture-v1-v2",
+        "canonical_id_set_sha256": profile.canonical_id_set_sha256,
+        "id_set_digest_algorithm": (
+            "sha256(UTF-8 sorted video IDs joined by LF plus terminal LF)"
+        ),
+        "usable_video_id_count": 2,
+        "excluded_annotation_ids": [],
+        "excluded_annotation_count": 0,
+        "excluded_reason": "test fixture",
+    }
+    assert artifact["scorer"]["bert_score_version_note"] == (
+        "module __version__ 0.3.12 is authoritative; distribution metadata "
+        "0.3.13 reflects the upstream metadata mismatch"
+    )
 
 
 def test_score_panel_requires_the_declared_bootstrap_seed(tmp_path: Path) -> None:

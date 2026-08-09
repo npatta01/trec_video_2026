@@ -15,7 +15,7 @@ import random
 import re
 import statistics
 import sys
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, NamedTuple, Sequence
 from urllib.parse import urlencode
 import urllib.error
 import urllib.request
@@ -35,6 +35,10 @@ from trec_video_2026.vqa_evaluation import (  # noqa: E402
 EXPECTED_BOOTSTRAP_SEED = 20260809
 EXPECTED_BERT_MODEL_SNAPSHOT = "722cf37b1afa9454edce342e7895e588b6ff1d59"
 EXPECTED_BERT_SCORE_MODULE_VERSION = "0.3.12"
+CANONICAL_PANEL_PROFILE_NAME = "vqa-2025-training-475"
+PANEL_ID_DIGEST_ALGORITHM = (
+    "sha256(UTF-8 sorted video IDs joined by LF plus terminal LF)"
+)
 DEFAULT_BOOTSTRAP_ITERATIONS = 2000
 DEFAULT_CONFIDENCE = 0.95
 DEFAULT_STS_TIMEOUT = 10.0
@@ -56,6 +60,38 @@ _LABEL_KEYS = frozenset(
 )
 MetricFunction = Callable[[str, str], float]
 BertScoreFunction = Callable[[list[str], list[str], Path], Sequence[float]]
+
+
+class PanelProfile(NamedTuple):
+    name: str
+    expected_annotation_files: int
+    expected_rows: int
+    canonical_id_set_sha256: str
+    excluded_annotation_ids: tuple[str, ...]
+    excluded_reason: str
+
+
+CANONICAL_PANEL_PROFILE = PanelProfile(
+    name=CANONICAL_PANEL_PROFILE_NAME,
+    expected_annotation_files=481,
+    expected_rows=475,
+    canonical_id_set_sha256=(
+        "95a623c0add252541b9c81ff4910e949dc81db17482add2c467b761237b22b0f"
+    ),
+    excluded_annotation_ids=(
+        "Bu4HZcHWt1w",
+        "HAsemyRhNj8",
+        "Nzi5IMGq-p8",
+        "OzlqFYX6rVU",
+        "QZgdI0jv28o",
+        "ROyak2UcFQo",
+    ),
+    excluded_reason=(
+        "annotation IDs present in the VQA-2025 training annotations but "
+        "excluded because canonical panel media is unavailable"
+    ),
+)
+PANEL_PROFILES = {CANONICAL_PANEL_PROFILE.name: CANONICAL_PANEL_PROFILE}
 
 
 def sha256_path(path: Path) -> str:
@@ -80,6 +116,20 @@ def sha256_path(path: Path) -> str:
             digest.update(b"\0")
         return digest.hexdigest()
     raise ValueError(f"Input path does not exist: {path}")
+
+
+def sorted_video_id_set_sha256(video_ids: Iterable[str]) -> str:
+    """Hash a sorted, duplicate-free set of stable video IDs."""
+
+    normalized = list(video_ids)
+    if any(not isinstance(video_id, str) or not video_id.strip() for video_id in normalized):
+        raise ValueError("Panel video IDs must be non-empty strings")
+    if any(video_id != video_id.strip() for video_id in normalized):
+        raise ValueError("Panel video IDs must not contain surrounding whitespace")
+    if len(normalized) != len(set(normalized)):
+        raise ValueError("Panel video IDs must be unique")
+    payload = "\n".join(sorted(normalized)) + "\n"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def normalize_nist_text(text: str) -> str:
@@ -108,6 +158,8 @@ def _distribution_version(name: str) -> str:
 
 
 def _bert_score_versions(*, required: bool) -> dict[str, str]:
+    if not required:
+        return {"module": "injected", "distribution": "injected"}
     try:
         import bert_score
     except ImportError as error:
@@ -115,7 +167,6 @@ def _bert_score_versions(*, required: bool) -> dict[str, str]:
             raise ValueError(
                 "bert_score module is required for production scoring"
             ) from error
-        return {"module": "injected", "distribution": "injected"}
     module_version = getattr(bert_score, "__version__", None)
     if module_version != EXPECTED_BERT_SCORE_MODULE_VERSION:
         raise ValueError(
@@ -321,6 +372,67 @@ def _load_annotations(annotation_root: Path) -> dict[str, dict[str, Any]]:
             "question_stratum": _question_stratum(question),
         }
     return annotations
+
+
+def _resolve_panel_profile(
+    panel_profile: PanelProfile | str | None,
+) -> PanelProfile | None:
+    if panel_profile is None or isinstance(panel_profile, PanelProfile):
+        return panel_profile
+    try:
+        return PANEL_PROFILES[panel_profile]
+    except KeyError as error:
+        raise ValueError(f"Unknown panel profile: {panel_profile}") from error
+
+
+def _validate_panel_identity(
+    profile: PanelProfile,
+    *,
+    annotation_ids: Iterable[str],
+    condition_ids: Mapping[str, Iterable[str]],
+) -> dict[str, Any]:
+    annotation_id_set = set(annotation_ids)
+    excluded_ids = set(profile.excluded_annotation_ids)
+    if len(annotation_id_set) != profile.expected_annotation_files:
+        raise ValueError(
+            f"Panel profile {profile.name} requires "
+            f"{profile.expected_annotation_files} annotation files"
+        )
+    if not excluded_ids <= annotation_id_set:
+        raise ValueError(
+            f"Panel profile {profile.name} excluded IDs are not in annotations"
+        )
+    usable_ids = annotation_id_set - excluded_ids
+    if len(usable_ids) != profile.expected_rows:
+        raise ValueError(
+            f"Panel profile {profile.name} requires "
+            f"{profile.expected_rows} usable video IDs"
+        )
+    usable_digest = sorted_video_id_set_sha256(usable_ids)
+    if usable_digest != profile.canonical_id_set_sha256:
+        raise ValueError(
+            f"Panel profile {profile.name} canonical panel ID set digest mismatch"
+        )
+    for condition_id, ids in condition_ids.items():
+        condition_id_set = set(ids)
+        if (
+            len(condition_id_set) != profile.expected_rows
+            or condition_id_set != usable_ids
+            or sorted_video_id_set_sha256(condition_id_set)
+            != profile.canonical_id_set_sha256
+        ):
+            raise ValueError(
+                f"Condition {condition_id} does not match the canonical panel ID set"
+            )
+    return {
+        "profile": profile.name,
+        "canonical_id_set_sha256": profile.canonical_id_set_sha256,
+        "id_set_digest_algorithm": PANEL_ID_DIGEST_ALGORITHM,
+        "usable_video_id_count": len(usable_ids),
+        "excluded_annotation_ids": sorted(excluded_ids),
+        "excluded_annotation_count": len(excluded_ids),
+        "excluded_reason": profile.excluded_reason,
+    }
 
 
 def _sanitize_rows(
@@ -547,6 +659,7 @@ def score_panel(
     bert_model: Path,
     expected_rows: int,
     expected_annotation_files: int,
+    panel_profile: PanelProfile | str | None = None,
     output_path: Path | None = None,
     meteor_fn: MetricFunction | None = None,
     bertscore_fn: BertScoreFunction | None = None,
@@ -572,6 +685,7 @@ def score_panel(
         )
     if output_path is not None and output_path.exists():
         raise FileExistsError(f"Output already exists: {output_path}")
+    resolved_panel_profile = _resolve_panel_profile(panel_profile)
 
     normalized_condition_paths = {
         str(condition_id): Path(path) for condition_id, path in condition_paths.items()
@@ -600,6 +714,27 @@ def score_panel(
         raise ValueError(
             f"Annotation root contains {len(annotations)} annotation files; "
             f"expected {expected_annotation_files}"
+        )
+    panel_identity = None
+    if resolved_panel_profile is not None:
+        if expected_rows != resolved_panel_profile.expected_rows:
+            raise ValueError(
+                f"Panel profile {resolved_panel_profile.name} requires "
+                f"expected rows {resolved_panel_profile.expected_rows}"
+            )
+        if expected_annotation_files != resolved_panel_profile.expected_annotation_files:
+            raise ValueError(
+                f"Panel profile {resolved_panel_profile.name} requires "
+                "expected annotation files "
+                f"{resolved_panel_profile.expected_annotation_files}"
+            )
+        panel_identity = _validate_panel_identity(
+            resolved_panel_profile,
+            annotation_ids=annotations,
+            condition_ids={
+                condition_id: (row["video_id"] for row in rows)
+                for condition_id, rows in frozen_predictions.items()
+            },
         )
     bert_score_versions = _bert_score_versions(required=bertscore_fn is None)
     meteor_fn = meteor_fn or _default_meteor
@@ -633,6 +768,10 @@ def score_panel(
             "bert_model_snapshot": bert_model.name,
             "bert_score_module_version": bert_score_versions["module"],
             "bert_score_distribution_version": bert_score_versions["distribution"],
+            "bert_score_version_note": (
+                "module __version__ 0.3.12 is authoritative; distribution metadata "
+                "0.3.13 reflects the upstream metadata mismatch"
+            ),
             "bert_num_layers": 17,
             "bert_idf": False,
             "bert_rescale_with_baseline": False,
@@ -658,6 +797,7 @@ def score_panel(
             "completed_per_condition": {
                 condition_id: len(rows) for condition_id, rows in condition_rows.items()
             },
+            "identity": panel_identity,
         },
         "conditions": reports,
         "aggregate": _aggregate_rows(all_rows),
@@ -712,6 +852,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--bert-model", type=Path, required=True)
     parser.add_argument("--expected-rows", type=int, required=True)
     parser.add_argument("--expected-annotation-files", type=int, required=True)
+    parser.add_argument(
+        "--panel-profile",
+        choices=tuple(PANEL_PROFILES),
+        required=True,
+        help="Named pinned panel identity profile",
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--sts-timeout", type=float, default=DEFAULT_STS_TIMEOUT)
     parser.add_argument("--sts-retries", type=int, default=DEFAULT_STS_RETRIES)
@@ -746,6 +892,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         bert_model=args.bert_model,
         expected_rows=args.expected_rows,
         expected_annotation_files=args.expected_annotation_files,
+        panel_profile=args.panel_profile,
         output_path=args.output,
         sts_fn=sts,
     )
