@@ -92,7 +92,9 @@ _QUESTION_TYPE_RULES = (
         (
             re.compile(
                 r"^\s*(?:what|which)\s+(?:does|did|do|is|are)\s+"
-                r"(?:he|she|they|the person|someone)\s+say\b",
+                r"(?:he|she|they|someone|(?:the|this|that|a|an)\s+"
+                r"(?:person|man|woman|boy|girl|speaker|narrator))\s+"
+                r"say(?:ing)?\b",
                 re.IGNORECASE,
             ),
             re.compile(r"^\s*(?:what|which)\s+is\s+being\s+said\b", re.IGNORECASE),

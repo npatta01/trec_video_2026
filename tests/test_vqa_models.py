@@ -15,6 +15,8 @@ from trec_video_2026.vqa_models import (
         ("How many cups are on the table?", "count"),
         ("What words are written on the sign?", "visible-text"),
         ("What does she say after opening the door?", "speech"),
+        ("What does this woman say at the end of the video?", "speech"),
+        ("What is the man saying near the car?", "speech"),
         ("What happens before the dog runs away?", "temporal"),
         ("Why does the pan catch fire?", "causal-procedural"),
         ("What color is the bicycle?", "general"),
