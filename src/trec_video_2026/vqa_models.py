@@ -62,6 +62,7 @@ _COMMON_NON_METHOD_PREDICATE_PATTERN = re.compile(
     r"sitting)\b",
     re.IGNORECASE,
 )
+_COORDINATION_MARKER_PATTERN = re.compile(r"\b(?:and|then|while)\s*$", re.IGNORECASE)
 
 _QUESTION_TYPE_RULES = (
     (
@@ -158,12 +159,23 @@ def _is_active_method_question(question: str) -> bool:
     body = match.group("body").strip()
     for predicate_match in _ACTIVE_METHOD_VERB_PATTERN.finditer(body):
         subject = body[: predicate_match.start()].strip()
-        if not subject or subject.split()[-1].lower() in {"the", "a", "an"}:
-            continue
-        if _COMMON_NON_METHOD_PREDICATE_PATTERN.search(subject):
+        suffix = body[predicate_match.end() :].strip()
+        if _is_adjectival_method_candidate(subject, suffix):
             continue
         return True
     return False
+
+
+def _is_adjectival_method_candidate(subject: str, suffix: str) -> bool:
+    if not subject or subject.split()[-1].lower() in {"the", "a", "an"}:
+        return True
+    if _COMMON_NON_METHOD_PREDICATE_PATTERN.search(subject):
+        return True
+
+    suffix_predicate = _COMMON_NON_METHOD_PREDICATE_PATTERN.search(suffix)
+    if suffix_predicate is None:
+        return False
+    return not _COORDINATION_MARKER_PATTERN.search(suffix[: suffix_predicate.start()])
 
 
 def _is_passive_method_question(question: str) -> bool:
