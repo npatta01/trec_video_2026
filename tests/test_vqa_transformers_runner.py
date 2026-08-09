@@ -14,6 +14,7 @@ from trec_video_2026.vqa_transformers_runner import (
     generation_compat_kwargs,
     load_legacy_optional_processor,
     load_processor,
+    parse_args,
     register_legacy_default_rope,
     select_auto_model_class,
 )
@@ -109,6 +110,46 @@ def test_generate_answer_uses_deterministic_non_thinking_decode(tmp_path: Path) 
     assert processor.messages[0]["content"][0]["text"] == "Full frame:"
 
 
+def test_generate_answer_forwards_question_aware_policy(tmp_path: Path) -> None:
+    processor = FakeProcessor()
+    model = FakeModel()
+
+    generate_answer(
+        processor=processor,
+        model=model,
+        question="How many cups are on the table?",
+        frame_paths=(tmp_path / "frame.jpg",),
+        frame_timestamps=(0.5,),
+        transcript=None,
+        max_new_tokens=64,
+        answer_policy="question-aware",
+    )
+
+    assert "count or quantity" in processor.messages[0]["content"][-1]["text"]
+
+
+@pytest.mark.parametrize(
+    ("minimum", "maximum"),
+    [(0, 262_144), (-1, 262_144), (65_536, 0), (262_145, 262_144)],
+)
+def test_parse_args_rejects_non_positive_or_inverted_pixel_bounds(
+    minimum: int, maximum: int
+) -> None:
+    with pytest.raises(SystemExit):
+        parse_args(
+            [
+                "--model-id",
+                "Qwen/example",
+                "--revision",
+                "a" * 40,
+                "--min-pixels-per-frame",
+                str(minimum),
+                "--max-pixels-per-frame",
+                str(maximum),
+            ]
+        )
+
+
 def test_load_processor_caps_each_frames_visual_token_budget() -> None:
     class FakeAutoProcessor:
         @staticmethod
@@ -119,6 +160,24 @@ def test_load_processor_caps_each_frames_visual_token_budget() -> None:
 
     assert result[1]["min_pixels"] == MIN_PIXELS_PER_FRAME == 65_536
     assert result[1]["max_pixels"] == MAX_PIXELS_PER_FRAME == 262_144
+
+
+def test_load_processor_forwards_requested_pixel_bounds() -> None:
+    class FakeAutoProcessor:
+        @staticmethod
+        def from_pretrained(model_id, **kwargs):
+            return model_id, kwargs
+
+    result = load_processor(
+        FakeAutoProcessor,
+        "Qwen/example",
+        "a" * 40,
+        min_pixels=123_457,
+        max_pixels=654_321,
+    )
+
+    assert result[1]["min_pixels"] == 123_457
+    assert result[1]["max_pixels"] == 654_321
 
 
 def test_load_processor_does_not_forward_qwen_pixel_kwargs_to_gemma_tokenizer() -> None:
@@ -259,6 +318,30 @@ def test_runner_result_records_runtime_attestation() -> None:
     )
 
     assert result["runtime_attestation"] == attestation
+
+
+def test_runner_result_records_policy_question_type_and_actual_pixel_bounds() -> None:
+    result = transformers_runner._result(
+        status="passed",
+        answer="two",
+        started=0.0,
+        model_id="Qwen/Qwen3.5-4B",
+        revision="a" * 40,
+        runtime="torch",
+        peak_memory=1,
+        device="cuda:0 (ROCm)",
+        precision="bfloat16",
+        runtime_attestation=None,
+        answer_policy="question-aware",
+        question_type="count",
+        min_pixels_per_frame=123_457,
+        max_pixels_per_frame=654_321,
+    )
+
+    assert result["answer_policy"] == "question-aware"
+    assert result["question_type"] == "count"
+    assert result["min_pixels_per_frame"] == 123_457
+    assert result["max_pixels_per_frame"] == 654_321
 
 
 def test_qwen_runtime_attestation_rejects_cuda_build_without_hip() -> None:

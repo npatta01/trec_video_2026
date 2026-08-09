@@ -4,8 +4,91 @@ import pytest
 
 from trec_video_2026.vqa_models import (
     build_controlled_messages,
+    classify_question_type,
     normalize_generated_answer,
 )
+
+
+@pytest.mark.parametrize(
+    ("question", "expected"),
+    [
+        ("How many cups are on the table?", "count"),
+        ("What words are written on the sign?", "visible-text"),
+        ("What does she say after opening the door?", "speech"),
+        ("What happens before the dog runs away?", "temporal"),
+        ("Why does the pan catch fire?", "causal-procedural"),
+        ("What color is the bicycle?", "general"),
+    ],
+)
+def test_question_type_is_deterministic(question: str, expected: str) -> None:
+    assert classify_question_type(question) == expected
+
+
+@pytest.mark.parametrize(
+    ("question", "expected"),
+    [
+        ("What words does she say are written on the sign?", "visible-text"),
+        ("How many cups are there after the table is cleared?", "count"),
+        ("What does she say before the dog runs away?", "speech"),
+        ("What happens before the pan catches fire and why?", "temporal"),
+    ],
+)
+def test_question_type_obeys_declared_precedence(
+    question: str, expected: str
+) -> None:
+    assert classify_question_type(question) == expected
+
+
+def test_current_answer_policy_preserves_existing_instruction_byte_for_byte(
+    tmp_path: Path,
+) -> None:
+    messages = build_controlled_messages(
+        question="What color is the bicycle?",
+        frame_paths=(tmp_path / "frame.jpg",),
+        frame_timestamps=(0.5,),
+        transcript=None,
+        answer_policy="current",
+    )
+
+    assert messages[0]["content"][-1] == {
+        "type": "text",
+        "text": (
+            "Answer with one short phrase or sentence. Return only the answer; "
+            "do not explain your reasoning."
+        ),
+    }
+
+
+@pytest.mark.parametrize(
+    ("question", "contract"),
+    [
+        ("What words are written on the sign?", "visible words"),
+        ("What does she say after opening the door?", "spoken content"),
+        ("How many cups are on the table?", "count or quantity"),
+        ("What happens before the dog runs away?", "temporal relation"),
+        ("Why does the pan catch fire?", "cause or procedure"),
+        ("What color is the bicycle?", "short phrase or sentence"),
+    ],
+)
+def test_question_aware_policy_is_type_specific_and_label_free(
+    tmp_path: Path, question: str, contract: str
+) -> None:
+    messages = build_controlled_messages(
+        question=question,
+        frame_paths=(tmp_path / "frame.jpg",),
+        frame_timestamps=(0.5,),
+        transcript=None,
+        answer_policy="question-aware",
+    )
+
+    instruction = messages[0]["content"][-1]["text"]
+    assert contract in instruction
+    assert "Return only the answer" in instruction
+    assert "explain your reasoning" in instruction
+    serialized = repr(messages).lower()
+    assert "reference answer" not in serialized
+    assert "ground truth" not in serialized
+    assert not any(item.get("type") in {"reference", "label"} for item in messages[0]["content"])
 
 
 def test_controlled_messages_keep_frames_in_timestamp_order(tmp_path: Path) -> None:

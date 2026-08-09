@@ -7,6 +7,122 @@ from pathlib import Path
 from typing import Any
 
 
+_CURRENT_ANSWER_INSTRUCTION = (
+    "Answer with one short phrase or sentence. Return only the answer; "
+    "do not explain your reasoning."
+)
+_QUESTION_AWARE_INSTRUCTIONS = {
+    "visible-text": (
+        "Answer with the visible words relevant to the question, preserving their "
+        "order. Return only the answer; do not explain your reasoning."
+    ),
+    "speech": (
+        "Answer with the spoken content relevant to the question. Return only the "
+        "answer; do not explain your reasoning."
+    ),
+    "count": (
+        "Answer with the requested count or quantity. Return only the answer; "
+        "do not explain your reasoning."
+    ),
+    "temporal": (
+        "Answer with the requested temporal relation or event. Return only the "
+        "answer; do not explain your reasoning."
+    ),
+    "causal-procedural": (
+        "Answer with the requested cause or procedure. Return only the answer; "
+        "do not explain your reasoning."
+    ),
+    "general": (
+        "Answer with one short phrase or sentence that directly addresses the "
+        "question. Return only the answer; do not explain your reasoning."
+    ),
+}
+
+_QUESTION_TYPE_RULES = (
+    (
+        "visible-text",
+        (
+            re.compile(r"^\s*(?:what|which)\s+words?\b", re.IGNORECASE),
+            re.compile(
+                r"^\s*(?:what|which)\s+(?:text|letters?|writing)\b",
+                re.IGNORECASE,
+            ),
+            re.compile(r"^\s*(?:read|transcribe)\b", re.IGNORECASE),
+            re.compile(r"^\s*what\s+is\s+written\b", re.IGNORECASE),
+        ),
+    ),
+    (
+        "speech",
+        (
+            re.compile(
+                r"^\s*(?:what|which)\s+(?:does|did|do|is|are)\s+"
+                r"(?:he|she|they|the person|someone)\s+say\b",
+                re.IGNORECASE,
+            ),
+            re.compile(r"^\s*(?:what|which)\s+is\s+being\s+said\b", re.IGNORECASE),
+            re.compile(r"^\s*what\s+are\s+they\s+saying\b", re.IGNORECASE),
+        ),
+    ),
+    (
+        "count",
+        (
+            re.compile(r"^\s*how\s+many\b", re.IGNORECASE),
+            re.compile(r"^\s*how\s+much\b", re.IGNORECASE),
+            re.compile(
+                r"^\s*(?:what|which)\s+(?:is|are)\s+the\s+"
+                r"(?:number|count)\b",
+                re.IGNORECASE,
+            ),
+            re.compile(r"^\s*count\b", re.IGNORECASE),
+        ),
+    ),
+    (
+        "temporal",
+        (
+            re.compile(
+                r"^\s*(?:what|which)\s+(?:happens?|happened|occurs?)\s+"
+                r"(?:before|after|when|first|next|then)\b",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                r"^\s*(?:what|which)\s+(?:is|was)\s+the\s+"
+                r"(?:first|next|last)\b",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                r"^\s*(?:before|after|when|while|during|once|until)\b",
+                re.IGNORECASE,
+            ),
+        ),
+    ),
+    (
+        "causal-procedural",
+        (
+            re.compile(r"^\s*why\b", re.IGNORECASE),
+            re.compile(
+                r"^\s*how\s+(?:does|do|did|is|are|can|should|could|was|were)\b",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                r"^\s*(?:what|which)\s+(?:causes?|caused|leads?)\b",
+                re.IGNORECASE,
+            ),
+            re.compile(r"^\s*how\s+to\b", re.IGNORECASE),
+        ),
+    ),
+)
+
+
+def classify_question_type(question: str) -> str:
+    """Classify a question using deterministic, precedence-ordered rules."""
+
+    normalized = " ".join(question.split())
+    for question_type, patterns in _QUESTION_TYPE_RULES:
+        if any(pattern.search(normalized) for pattern in patterns):
+            return question_type
+    return "general"
+
+
 def build_controlled_messages(
     *,
     question: str,
@@ -14,9 +130,12 @@ def build_controlled_messages(
     frame_timestamps: tuple[float, ...],
     transcript: str | None,
     frame_descriptions: tuple[str, ...] | None = None,
+    answer_policy: str = "current",
 ) -> list[dict[str, Any]]:
     """Build one ordered multimodal message without any evaluation label."""
 
+    if answer_policy not in {"current", "question-aware"}:
+        raise ValueError(f"Unsupported answer policy: {answer_policy}")
     if len(frame_paths) != len(frame_timestamps):
         raise ValueError("Frame paths and timestamps must have equal length")
     if frame_descriptions is not None and len(frame_descriptions) != len(frame_paths):
@@ -51,13 +170,13 @@ def build_controlled_messages(
             }
         )
     content.append({"type": "text", "text": "Question: " + question.strip()})
+    instruction = _CURRENT_ANSWER_INSTRUCTION
+    if answer_policy == "question-aware":
+        instruction = _QUESTION_AWARE_INSTRUCTIONS[classify_question_type(question)]
     content.append(
         {
             "type": "text",
-            "text": (
-                "Answer with one short phrase or sentence. Return only the answer; "
-                "do not explain your reasoning."
-            ),
+            "text": instruction,
         }
     )
     return [{"role": "user", "content": content}]
