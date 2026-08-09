@@ -1,0 +1,46 @@
+{
+  "run_name": "vqa-factorial-full-20260809-f1",
+  "input_uri": "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-factorial-full-evidence-20260809-f1",
+  "remote_uri": "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-factorial-full-20260809-f1/conditions",
+  "manifest": "/dstack/run/configs/vqa/qwen35_vqa2025_475_label_free.json",
+  "expected_count": 475,
+  "frame_count": 12,
+  "conditions": [
+    {
+      "condition_id": "4b-current",
+      "model_id": "Qwen/Qwen3.5-4B",
+      "revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+      "answer_policy": "current",
+      "min_pixels": 65536,
+      "max_pixels": 262144,
+      "request_source": "shared-accepted-whisper"
+    },
+    {
+      "condition_id": "4b-question-aware",
+      "model_id": "Qwen/Qwen3.5-4B",
+      "revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+      "answer_policy": "question-aware",
+      "min_pixels": 65536,
+      "max_pixels": 262144,
+      "request_source": "shared-accepted-whisper"
+    },
+    {
+      "condition_id": "8b-current",
+      "model_id": "Qwen/Qwen3-VL-8B-Instruct",
+      "revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b",
+      "answer_policy": "current",
+      "min_pixels": 65536,
+      "max_pixels": 262144,
+      "request_source": "shared-accepted-whisper"
+    },
+    {
+      "condition_id": "8b-question-aware",
+      "model_id": "Qwen/Qwen3-VL-8B-Instruct",
+      "revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b",
+      "answer_policy": "question-aware",
+      "min_pixels": 65536,
+      "max_pixels": 262144,
+      "request_source": "shared-accepted-whisper"
+    }
+  ]
+}

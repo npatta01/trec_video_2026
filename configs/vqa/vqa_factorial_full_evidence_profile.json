@@ -1,0 +1,8 @@
+{
+  "run_name": "vqa-factorial-full-evidence-20260809-f1",
+  "input_uri": "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen35-4b-12f-full-20260803-b1-inputs/inputs",
+  "remote_uri": "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-factorial-full-evidence-20260809-f1",
+  "manifest": "/dstack/run/configs/vqa/qwen35_vqa2025_475_label_free.json",
+  "expected_count": 475,
+  "frame_count": 12
+}
