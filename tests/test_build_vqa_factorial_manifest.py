@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -322,6 +323,7 @@ def test_full_topology_has_one_evidence_yaml_and_four_one_condition_yamls() -> N
     assert len({yaml.safe_load(path.read_text())["name"] for path in condition_paths}) == 4
     for path in condition_paths:
         payload = yaml.safe_load(path.read_text())
+        assert re.fullmatch(r"[a-z][a-z0-9-]{1,40}", payload["name"])
         assert payload["resources"]["gpu"].endswith(":1:48GB..")
         assert payload["backends"] == ["runpod", "vastai"]
         assert "VQA_MODE=condition" in "\n".join(payload["env"])
