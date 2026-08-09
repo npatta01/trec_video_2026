@@ -55,8 +55,9 @@ def _fake_inference(tmp_path: Path) -> Path:
         "        'elapsed_seconds': 0.01, 'model_load_seconds': 0.25, 'peak_memory_bytes': 11, 'error_type': None, 'error_message': None,\n"
         "        'runtime_attestation': {\n"
         "            'parameter_tensor_count': 2, 'parameter_devices': {'cuda:0': 2},\n"
-        "            'parameter_dtypes': {'torch.bfloat16': 2}, 'buffer_tensor_count': 1,\n"
-        "            'buffer_devices': {'cuda:0': 1}, 'buffer_dtypes': {'torch.bfloat16': 1},\n"
+        "            'parameter_dtypes': {'torch.bfloat16': 2}, 'buffer_tensor_count': 2,\n"
+        "            'buffer_devices': {'cuda:0': 2},\n"
+        "            'buffer_dtypes': {'torch.bfloat16': 1, 'torch.int64': 1},\n"
         "            'accelerator_backend': 'nvidia-cuda', 'torch_cuda': '12.4', 'torch_hip': None,\n"
         "        },\n"
         "    }\n"
@@ -131,14 +132,14 @@ def _run(
         "HF_TOKEN": "test-token-not-for-output",
         "PROFILE": str(PROFILE),
         "VQA_MODE": "canary",
-        "EXPERIMENT_RUN_NAME": "vqa-factorial-canary-20260809-e1",
+        "EXPERIMENT_RUN_NAME": "vqa-factorial-canary-20260809-e2",
         "HF_INPUT_URI": (
             "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
             "experiments/qwen35-4b-12f-full-20260803-b1-inputs/inputs"
         ),
         "HF_REMOTE_URI": (
             "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
-            "experiments/vqa-factorial-canary-20260809-e1"
+            "experiments/vqa-factorial-canary-20260809-e2"
         ),
         "VQA_RUNTIME_IMAGE": IMAGE,
         "OUTPUT_DIR": str(tmp_path / "output"),

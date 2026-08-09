@@ -45,14 +45,14 @@ def _run_shell(
     profile: Path = CANARY_PROFILE_PATH,
     remote_listing: str = "",
     vqa_mode: str = "canary",
-    experiment_run_name: str = "vqa-factorial-canary-20260809-e1",
+    experiment_run_name: str = "vqa-factorial-canary-20260809-e2",
     input_uri: str = (
         "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
         "experiments/qwen35-4b-12f-full-20260803-b1-inputs/inputs"
     ),
     remote_uri: str = (
         "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
-        "experiments/vqa-factorial-canary-20260809-e1"
+        "experiments/vqa-factorial-canary-20260809-e2"
     ),
     extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str] | subprocess.Popen[str]:

@@ -744,8 +744,10 @@ for request, row in zip(requests, predictions, strict=True):
             raise SystemExit(f"prediction {label} attestation map count is invalid")
         if sum(devices.values()) != count or sum(dtypes.values()) != count:
             raise SystemExit(f"prediction {label} attestation counts do not sum")
-        if any(device != "cuda:0" for device in devices) or any(dtype != "torch.bfloat16" for dtype in dtypes):
-            raise SystemExit(f"prediction {label} tensors are not CUDA BF16")
+        if any(device != "cuda:0" for device in devices):
+            raise SystemExit(f"prediction {label} tensors are not all on cuda:0")
+        if label == "parameter" and any(dtype != "torch.bfloat16" for dtype in dtypes):
+            raise SystemExit("prediction parameter tensors are not all bfloat16")
         if count and (not devices or not dtypes):
             raise SystemExit(f"prediction {label} attestation is empty")
         if not count and (devices or dtypes):
