@@ -40,7 +40,7 @@ resources:
   gpu: L40S:1:48GB..
   cpu: 8..
   memory: 32GB..
-  disk: 100GB
+  disk: 100GB..
 
 backends: [vastai]
 spot_policy: on-demand
