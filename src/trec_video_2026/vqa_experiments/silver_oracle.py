@@ -158,27 +158,42 @@ def _timestamp_seconds(match: re.Match[str]) -> float:
 
 
 def parse_timestamped_whisper(
-    text: str | None, *, duration_seconds: float
+    text: str | None,
+    *,
+    duration_seconds: float,
+    drop_trailing_overrun: bool = False,
 ) -> list[WhisperSegment]:
     """Parse frozen start-stamped Whisper lines without rewriting their text."""
 
     duration = _finite_number(duration_seconds, "duration_seconds")
     if duration <= 0:
         raise ValueError("duration_seconds must be positive")
-    if text is None or not text.strip():
+    if not isinstance(drop_trailing_overrun, bool):
+        raise TypeError("drop_trailing_overrun must be a bool")
+    if text is None:
         return []
     if not isinstance(text, str):
         raise TypeError("timestamped Whisper text must be a string or null")
+    if not text.strip():
+        return []
     parsed: list[tuple[float, str, str]] = []
+    previous_raw_start: float | None = None
+    overrun_started = False
     for index, source_line in enumerate(text.splitlines()):
         match = _TIMESTAMPED_LINE.fullmatch(source_line)
         if match is None:
             raise ValueError(f"timestamped Whisper line {index} has invalid syntax")
         start = _timestamp_seconds(match)
-        if start > duration:
-            raise ValueError(f"timestamped Whisper line {index} exceeds video duration")
-        if parsed and start <= parsed[-1][0]:
+        if previous_raw_start is not None and start <= previous_raw_start:
             raise ValueError("timestamped Whisper starts must be strictly increasing")
+        previous_raw_start = start
+        if start >= duration:
+            if drop_trailing_overrun:
+                overrun_started = True
+                continue
+            raise ValueError(f"timestamped Whisper line {index} exceeds video duration")
+        if overrun_started:
+            raise ValueError("out-of-range Whisper lines must be trailing")
         parsed.append((start, match.group("text"), source_line))
     return [
         WhisperSegment(

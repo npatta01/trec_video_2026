@@ -138,6 +138,17 @@ def test_parse_timestamped_whisper_rejects_non_monotonic_or_overrun_timestamps()
             duration_seconds=10.0,
         )
 
+
+def test_parse_timestamped_whisper_can_drop_only_trailing_overrun_lines() -> None:
+    segments = parse_timestamped_whisper(
+        "[00:00:00.000] Valid\n[00:00:09.000] Valid too\n[00:00:11.000] Overrun",
+        duration_seconds=10.0,
+        drop_trailing_overrun=True,
+    )
+
+    assert [segment.segment_id for segment in segments] == [0, 1]
+    assert [segment.end_seconds for segment in segments] == [9.0, 10.0]
+
     with pytest.raises(ValueError, match="duration"):
         parse_timestamped_whisper(
             "[00:00:11.000] Outside",
