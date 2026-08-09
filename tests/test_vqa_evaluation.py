@@ -16,8 +16,11 @@ from trec_video_2026.vqa_evaluation import (
     evaluate_local_answer,
     execute_nist_invocation,
     normalized_exact_match,
+    ndcg_from_gains,
     nist_style_semantic_metrics,
     prepare_nist_invocation,
+    ranked_cutoff_metrics,
+    semantic_composite,
     summarize_paired_conditions,
     token_f1,
 )
@@ -57,6 +60,50 @@ def test_token_f1_uses_token_multiplicity() -> None:
 def test_token_f1_handles_empty_answers() -> None:
     assert token_f1("", "") == 1.0
     assert token_f1("", "answer") == 0.0
+
+
+def test_semantic_composite_averages_three_declared_metrics() -> None:
+    assert semantic_composite(
+        {"meteor": 0.2, "bertscore_f1": 0.8, "sts": 0.5}
+    ) == pytest.approx(0.5)
+
+
+def test_ndcg_rewards_better_gain_order() -> None:
+    assert ndcg_from_gains([1.0, 0.0]) > ndcg_from_gains([0.0, 1.0])
+
+
+def test_single_response_ndcg_is_declared_degenerate() -> None:
+    assert ndcg_from_gains([0.4]) == 1.0
+
+
+def test_semantic_composite_rejects_missing_or_nonfinite_fields() -> None:
+    with pytest.raises(ValueError, match="semantic field.*sts"):
+        semantic_composite({"meteor": 0.2, "bertscore_f1": 0.8})
+    with pytest.raises(ValueError, match="finite"):
+        semantic_composite(
+            {"meteor": 0.2, "bertscore_f1": float("nan"), "sts": 0.5}
+        )
+
+
+def test_ranked_cutoff_metrics_reports_ranked_gain_summaries() -> None:
+    result = ranked_cutoff_metrics(
+        [
+            {"gain": 0.2},
+            {"gain": 0.8},
+            {"gain": 0.5},
+        ],
+        cutoffs=(1, 3),
+    )
+
+    assert result == {
+        "rank_1": 0.2,
+        "best@1": 0.2,
+        "mean@1": 0.2,
+        "ndcg@1": pytest.approx(0.2006451611816919),
+        "best@3": 0.8,
+        "mean@3": pytest.approx(0.5),
+        "ndcg@3": pytest.approx(0.7646689829742972),
+    }
 
 
 def test_local_evaluation_labels_mode_and_missing_semantic_metrics() -> None:
