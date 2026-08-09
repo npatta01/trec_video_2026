@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import io
+import json
+import sys
+import types
 from pathlib import Path
 from typing import ClassVar
 
@@ -58,6 +62,217 @@ class FakeModel:
     def generate(self, **kwargs):
         self.kwargs = kwargs
         return [FakeRow()]
+
+
+def _install_fake_main_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+    processor_calls: list[dict[str, object]],
+    generation_calls: list[dict[str, object]],
+) -> None:
+    class FakeAutoProcessor:
+        @staticmethod
+        def from_pretrained(model_id, **kwargs):
+            processor_calls.append({"model_id": model_id, "kwargs": kwargs})
+            return object()
+
+    class FakeAutoModel:
+        @staticmethod
+        def from_pretrained(*args, **kwargs):
+            return object()
+
+    class FakeCuda:
+        @staticmethod
+        def reset_peak_memory_stats() -> None:
+            return None
+
+        @staticmethod
+        def max_memory_allocated() -> int:
+            return 7
+
+    fake_torch = types.ModuleType("torch")
+    fake_torch.__version__ = "test-torch"
+    fake_torch.bfloat16 = object()
+    fake_torch.version = types.SimpleNamespace(hip="test-hip", cuda=None)
+    fake_torch.cuda = FakeCuda
+
+    fake_transformers = types.ModuleType("transformers")
+    fake_transformers.__version__ = "test-transformers"
+    fake_transformers.AutoProcessor = FakeAutoProcessor
+    fake_transformers.AutoModelForImageTextToText = FakeAutoModel
+    fake_transformers.AutoModelForMultimodalLM = FakeAutoModel
+
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
+    monkeypatch.setattr(
+        transformers_runner,
+        "validate_bfloat16_accelerator",
+        lambda model, torch_module: ("fake-device", "bfloat16", {"fake": True}),
+    )
+
+    def fake_generate_answer(**kwargs):
+        generation_calls.append(kwargs)
+        return f"answer-{len(generation_calls)}"
+
+    monkeypatch.setattr(transformers_runner, "generate_answer", fake_generate_answer)
+
+
+def _main_request(
+    video_id: str, question: str | None = None
+) -> dict[str, object]:
+    request: dict[str, object] = {
+        "run_id": "run-1",
+        "condition_id": "condition-1",
+        "video_id": video_id,
+        "frame_paths": ["frame.jpg"],
+        "frame_timestamps": [0.5],
+    }
+    if question is not None:
+        request["question"] = question
+    return request
+
+
+def _invoke_main(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    payload: object,
+    *,
+    model_id: str = "Qwen/example",
+    answer_policy: str = "question-aware",
+) -> tuple[object, list[dict[str, object]], list[dict[str, object]]]:
+    processor_calls: list[dict[str, object]] = []
+    generation_calls: list[dict[str, object]] = []
+    _install_fake_main_runtime(monkeypatch, processor_calls, generation_calls)
+    monkeypatch.setattr(
+        transformers_runner.sys,
+        "stdin",
+        io.StringIO(json.dumps(payload)),
+    )
+    transformers_runner.main(
+        [
+            "--model-id",
+            model_id,
+            "--revision",
+            "a" * 40,
+            "--answer-policy",
+            answer_policy,
+            "--min-pixels-per-frame",
+            "123457",
+            "--max-pixels-per-frame",
+            "654321",
+        ]
+    )
+    return json.loads(capsys.readouterr().out), processor_calls, generation_calls
+
+
+def test_main_single_payload_threads_policy_bounds_and_audit_metadata(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    result, processor_calls, generation_calls = _invoke_main(
+        monkeypatch,
+        capsys,
+        _main_request("video-1", "How many cups are on the table?"),
+    )
+
+    assert isinstance(result, dict)
+    assert processor_calls[0]["kwargs"]["min_pixels"] == 123_457
+    assert processor_calls[0]["kwargs"]["max_pixels"] == 654_321
+    assert generation_calls[0]["answer_policy"] == "question-aware"
+    assert result["status"] == "passed"
+    assert result["answer_policy"] == "question-aware"
+    assert result["question_type"] == "count"
+    assert result["requested_min_pixels_per_frame"] == 123_457
+    assert result["requested_max_pixels_per_frame"] == 654_321
+    assert result["min_pixels_per_frame"] == 123_457
+    assert result["max_pixels_per_frame"] == 654_321
+
+
+def test_main_batch_payload_serializes_each_result_and_forwards_controls(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    payload = [
+        _main_request("video-1", "How many cups are on the table?"),
+        _main_request("video-2", "What color is the bicycle?"),
+    ]
+
+    result, processor_calls, generation_calls = _invoke_main(
+        monkeypatch,
+        capsys,
+        payload,
+    )
+
+    assert isinstance(result, list)
+    assert len(result) == 2
+    assert len(processor_calls) == 1
+    assert len(generation_calls) == 2
+    assert [call["answer_policy"] for call in generation_calls] == [
+        "question-aware",
+        "question-aware",
+    ]
+    assert [row["video_id"] for row in result] == ["video-1", "video-2"]
+    assert [row["question_type"] for row in result] == ["count", "general"]
+    for row in result:
+        assert row["answer_policy"] == "question-aware"
+        assert row["requested_min_pixels_per_frame"] == 123_457
+        assert row["requested_max_pixels_per_frame"] == 654_321
+        assert row["min_pixels_per_frame"] == 123_457
+        assert row["max_pixels_per_frame"] == 654_321
+
+
+def test_main_gemma_result_marks_requested_bounds_as_not_applied(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    result, processor_calls, _ = _invoke_main(
+        monkeypatch,
+        capsys,
+        _main_request("video-1", "What color is the bicycle?"),
+        model_id="google/gemma-4-12B-it",
+        answer_policy="current",
+    )
+
+    assert "min_pixels" not in processor_calls[0]["kwargs"]
+    assert "max_pixels" not in processor_calls[0]["kwargs"]
+    assert result["requested_min_pixels_per_frame"] == 123_457
+    assert result["requested_max_pixels_per_frame"] == 654_321
+    assert result["min_pixels_per_frame"] is None
+    assert result["max_pixels_per_frame"] is None
+
+
+def test_main_single_missing_question_emits_structured_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    result, _, generation_calls = _invoke_main(
+        monkeypatch,
+        capsys,
+        _main_request("video-1"),
+    )
+
+    assert isinstance(result, dict)
+    assert result["status"] == "failed"
+    assert result["error_type"] == "KeyError"
+    assert result["question_type"] == "unknown"
+    assert result["answer_policy"] == "question-aware"
+    assert generation_calls == []
+
+
+def test_main_batch_missing_question_does_not_abort_other_rows(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    result, _, generation_calls = _invoke_main(
+        monkeypatch,
+        capsys,
+        [
+            _main_request("video-missing"),
+            _main_request("video-valid", "What color is the bicycle?"),
+        ],
+    )
+
+    assert isinstance(result, list)
+    assert [row["status"] for row in result] == ["failed", "passed"]
+    assert [row["video_id"] for row in result] == ["video-missing", "video-valid"]
+    assert result[0]["error_type"] == "KeyError"
+    assert result[0]["question_type"] == "unknown"
+    assert result[1]["question_type"] == "general"
+    assert len(generation_calls) == 1
 
 
 def test_attach_request_identity_copies_only_protocol_identity() -> None:
@@ -340,6 +555,56 @@ def test_runner_result_records_policy_question_type_and_actual_pixel_bounds() ->
 
     assert result["answer_policy"] == "question-aware"
     assert result["question_type"] == "count"
+    assert result["min_pixels_per_frame"] == 123_457
+    assert result["max_pixels_per_frame"] == 654_321
+
+
+def test_runner_result_separates_requested_and_unknown_gemma_bounds() -> None:
+    result = transformers_runner._result(
+        status="passed",
+        answer="answer",
+        started=0.0,
+        model_id="google/gemma-4-12B-it",
+        revision="a" * 40,
+        runtime="torch",
+        peak_memory=1,
+        device="cuda:0 (ROCm)",
+        precision="bfloat16",
+        runtime_attestation=None,
+        answer_policy="current",
+        question_type="general",
+        requested_min_pixels_per_frame=123_457,
+        requested_max_pixels_per_frame=654_321,
+        min_pixels_per_frame=None,
+        max_pixels_per_frame=None,
+    )
+
+    assert result["requested_min_pixels_per_frame"] == 123_457
+    assert result["requested_max_pixels_per_frame"] == 654_321
+    assert result["min_pixels_per_frame"] is None
+    assert result["max_pixels_per_frame"] is None
+
+
+def test_runner_result_records_requested_and_applied_qwen_bounds() -> None:
+    result = transformers_runner._result(
+        status="passed",
+        answer="answer",
+        started=0.0,
+        model_id="Qwen/example",
+        revision="a" * 40,
+        runtime="torch",
+        peak_memory=1,
+        device="cuda:0 (ROCm)",
+        precision="bfloat16",
+        runtime_attestation=None,
+        requested_min_pixels_per_frame=123_457,
+        requested_max_pixels_per_frame=654_321,
+        min_pixels_per_frame=123_457,
+        max_pixels_per_frame=654_321,
+    )
+
+    assert result["requested_min_pixels_per_frame"] == 123_457
+    assert result["requested_max_pixels_per_frame"] == 654_321
     assert result["min_pixels_per_frame"] == 123_457
     assert result["max_pixels_per_frame"] == 654_321
 

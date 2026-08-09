@@ -47,8 +47,18 @@ _QUESTION_TYPE_RULES = (
                 r"^\s*(?:what|which)\s+(?:text|letters?|writing)\b",
                 re.IGNORECASE,
             ),
+            re.compile(
+                r"^\s*(?:what|which)\s+(?:is|are)\s+(?:the\s+)?"
+                r"(?:(?:first|last|next)\s+)?(?:letters?|words?|text|writing)\b",
+                re.IGNORECASE,
+            ),
             re.compile(r"^\s*(?:read|transcribe)\b", re.IGNORECASE),
             re.compile(r"^\s*what\s+is\s+written\b", re.IGNORECASE),
+            re.compile(
+                r"^\s*what\s+(?:does|do)\s+the\s+"
+                r"(?:sign|poster|label|banner|screen)\s+say\b",
+                re.IGNORECASE,
+            ),
         ),
     ),
     (
@@ -86,11 +96,17 @@ _QUESTION_TYPE_RULES = (
             ),
             re.compile(
                 r"^\s*(?:what|which)\s+(?:is|was)\s+the\s+"
-                r"(?:first|next|last)\b",
+                r"(?:first|next|last)\s+(?:event|step|action|scene|"
+                r"thing\s+that\s+happens?)\b",
                 re.IGNORECASE,
             ),
             re.compile(
                 r"^\s*(?:before|after|when|while|during|once|until)\b",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                r"^\s*how\s+(?:does|do|did|is|are|was|were)\b"
+                r".*\b(?:start|starts|begin|begins|end|ends|change|changes)\b",
                 re.IGNORECASE,
             ),
         ),
@@ -100,14 +116,17 @@ _QUESTION_TYPE_RULES = (
         (
             re.compile(r"^\s*why\b", re.IGNORECASE),
             re.compile(
-                r"^\s*how\s+(?:does|do|did|is|are|can|should|could|was|were)\b",
-                re.IGNORECASE,
-            ),
-            re.compile(
                 r"^\s*(?:what|which)\s+(?:causes?|caused|leads?)\b",
                 re.IGNORECASE,
             ),
             re.compile(r"^\s*how\s+to\b", re.IGNORECASE),
+            re.compile(
+                r"^\s*how\s+(?:does|do|did|is|are|can|should|could|was|were)\b"
+                r".*\b(?:work|works|happen|happens|make|made|use|used|"
+                r"open|opened|close|closed|operate|operated|cook|cooked|"
+                r"prepare|prepared|cause|causes|catch\s+fire)\b",
+                re.IGNORECASE,
+            ),
         ),
     ),
 )

@@ -39,6 +39,26 @@ def test_question_type_obeys_declared_precedence(
     assert classify_question_type(question) == expected
 
 
+@pytest.mark.parametrize(
+    ("question", "expected"),
+    [
+        ("How is the woman dressed?", "general"),
+        ("What is the first letter on the sign?", "visible-text"),
+        ("What is the first word on the poster?", "visible-text"),
+        ("What is the man holding?", "general"),
+        ("How does the woman open the door?", "causal-procedural"),
+        ("How is the door opened?", "causal-procedural"),
+        ("What is the first event in the video?", "temporal"),
+        ("How does the video start?", "temporal"),
+        ("How does the woman appear?", "general"),
+    ],
+)
+def test_question_type_avoids_broad_vqa_false_matches(
+    question: str, expected: str
+) -> None:
+    assert classify_question_type(question) == expected
+
+
 def test_current_answer_policy_preserves_existing_instruction_byte_for_byte(
     tmp_path: Path,
 ) -> None:
