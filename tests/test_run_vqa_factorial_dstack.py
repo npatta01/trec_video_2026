@@ -122,9 +122,20 @@ def _run(
         "      [[ ! -f \"$INPUT_SYNC_ATTEMPTS_FILE\" ]] || attempts=$(<\"$INPUT_SYNC_ATTEMPTS_FILE\")\n"
         "      attempts=$((attempts + 1))\n"
         "      printf '%s' \"$attempts\" > \"$INPUT_SYNC_ATTEMPTS_FILE\"\n"
-        "      mkdir -p \"$4\"; cp -a \"$FAKE_INPUT_ROOT/.\" \"$4/\"\n"
-        "      if (( attempts <= ${FAKE_INPUT_SYNC_FAILURES:-0} )); then exit 29; fi\n"
+        "      mkdir -p \"$4\"\n"
+        "      if (( attempts <= ${FAKE_INPUT_SYNC_FAILURES:-0} )); then\n"
+        "        if (( attempts == 1 )); then printf 'partial\\n' > \"$4/.partial-download\"; fi\n"
+        "        exit 29\n"
+        "      fi\n"
+        "      if [[ \"${FAKE_REQUIRE_INPUT_REUSE:-0}\" == 1 ]]; then\n"
+        "        [[ -f \"$4/.partial-download\" ]] || exit 31\n"
+        "        printf 'reused\\n' > \"$INPUT_REUSE_OBSERVED_FILE\"\n"
+        "      fi\n"
+        "      cp -a \"$FAKE_INPUT_ROOT/.\" \"$4/\"\n"
         "    else\n"
+        "      output_attempts=0\n"
+        "      [[ ! -f \"$OUTPUT_SYNC_ATTEMPTS_FILE\" ]] || output_attempts=$(<\"$OUTPUT_SYNC_ATTEMPTS_FILE\")\n"
+        "      printf '%s' \"$((output_attempts + 1))\" > \"$OUTPUT_SYNC_ATTEMPTS_FILE\"\n"
         "      mkdir -p \"$FAKE_REMOTE_ROOT/payload\"; cp -a \"$3/.\" \"$FAKE_REMOTE_ROOT/payload/\"\n"
         "      if [[ \"${FAKE_TAMPER:-0}\" == 1 ]]; then printf 'tampered\\n' >> \"$OUTPUT_DIR/status.json\"; fi\n"
         "      exit \"${FAKE_SYNC_RC:-0}\"\n"
@@ -179,6 +190,8 @@ def _run(
         "NVIDIA_PID_FILE": str(tmp_path / "nvidia.pid"),
         "CALL_LOG": str(tmp_path / "calls.log"),
         "INPUT_SYNC_ATTEMPTS_FILE": str(tmp_path / "input-sync-attempts"),
+        "INPUT_REUSE_OBSERVED_FILE": str(tmp_path / "input-reuse-observed"),
+        "OUTPUT_SYNC_ATTEMPTS_FILE": str(tmp_path / "output-sync-attempts"),
         "PATH": f"{tmp_path}:{os.environ['PATH']}",
     }
     env.update(extra or {})
@@ -238,7 +251,9 @@ def _build_fake_full_evidence(tmp_path: Path) -> Path:
     return root
 
 
-def _run_full_condition_with_input_retry(tmp_path: Path) -> subprocess.CompletedProcess[str]:
+def _run_full_condition_with_input_retry(
+    tmp_path: Path, *, failures: str = "1"
+) -> subprocess.CompletedProcess[str]:
     fake_input = _build_fake_full_evidence(tmp_path)
     result = _run(
         tmp_path,
@@ -258,7 +273,8 @@ def _run_full_condition_with_input_retry(tmp_path: Path) -> subprocess.Completed
                 "experiments/vqa-factorial-full-20260809-f1/conditions/4b-question-aware"
             ),
             "FAKE_INPUT_ROOT": str(fake_input),
-            "FAKE_INPUT_SYNC_FAILURES": "1",
+            "FAKE_INPUT_SYNC_FAILURES": failures,
+            "FAKE_REQUIRE_INPUT_REUSE": "1" if failures == "1" else "0",
         },
     )
     assert isinstance(result, subprocess.CompletedProcess)
@@ -336,7 +352,19 @@ def test_condition_input_sync_retries_in_place_after_transient_failure(tmp_path:
     result = _run_full_condition_with_input_retry(tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr
     assert (tmp_path / "input-sync-attempts").read_text(encoding="utf-8") == "2"
+    assert (tmp_path / "input-reuse-observed").read_text(encoding="utf-8") == "reused\n"
     _assert_remote_payload(tmp_path, status="passed")
+
+
+def test_condition_input_sync_stops_after_three_failures_without_inference(
+    tmp_path: Path,
+) -> None:
+    result = _run_full_condition_with_input_retry(tmp_path, failures="3")
+    assert result.returncode != 0
+    assert (tmp_path / "input-sync-attempts").read_text(encoding="utf-8") == "3"
+    assert not (tmp_path / "inference.pid").exists()
+    assert (tmp_path / "output-sync-attempts").read_text(encoding="utf-8") == "1"
+    _assert_remote_payload(tmp_path, status="failed")
 
 
 def test_post_sync_local_mutation_cannot_be_rewritten_into_remote_payload(tmp_path: Path) -> None:
@@ -366,6 +394,7 @@ def test_payload_or_terminal_failure_leaves_remote_terminal_absent_and_payload_i
     ).read_bytes()
     result = _run(tmp_path / "retry", extra={"FAKE_SYNC_RC": "17"})
     assert result.returncode != 0
+    assert (tmp_path / "retry/output-sync-attempts").read_text(encoding="utf-8") == "1"
     assert not (tmp_path / "retry/remote/terminal-status.json").exists()
 
 
