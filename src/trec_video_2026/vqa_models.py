@@ -38,6 +38,31 @@ _QUESTION_AWARE_INSTRUCTIONS = {
     ),
 }
 
+_ACTIVE_METHOD_VERB_PATTERN = re.compile(
+    r"\b(?:work|happen|make|use|open|close|operate|cook|prepare|"
+    r"cause|start|begin|end|change|catch\s+fire)\b",
+    re.IGNORECASE,
+)
+_ACTIVE_METHOD_PREFIX_PATTERN = re.compile(
+    r"^\s*how\s+(?:do|does|did|can|should|could)\s+"
+    r"(?P<body>.+?)\s*[?.!]?$",
+    re.IGNORECASE,
+)
+_PASSIVE_METHOD_PATTERN = re.compile(
+    r"^\s*how\s+(?:is|are|was|were)\s+"
+    r".+?\s+(?:made|used|opened|closed|operated|cooked|prepared)\b"
+    r"(?:\s+(?:in|with|using|by)\b[^?.!]*)?\s*[?.!]?$",
+    re.IGNORECASE,
+)
+_COMMON_NON_METHOD_PREDICATE_PATTERN = re.compile(
+    r"\b(?:look|looks|looked|appear|appears|appeared|seem|seems|seemed|"
+    r"color|colors|colored|colour|colours|coloured|hold|holds|held|"
+    r"holding|wear|wears|wore|wearing|dress|dresses|dressed|show|"
+    r"shows|showed|showing|stand|stands|stood|standing|sit|sits|sat|"
+    r"sitting)\b",
+    re.IGNORECASE,
+)
+
 _QUESTION_TYPE_RULES = (
     (
         "visible-text",
@@ -120,23 +145,29 @@ _QUESTION_TYPE_RULES = (
                 re.IGNORECASE,
             ),
             re.compile(r"^\s*how\s+to\b", re.IGNORECASE),
-            re.compile(
-                r"^\s*how\s+(?:do|does|did|can|should|could)\s+"
-                r"(?:you|we|they|he|she|someone|it|this|that|"
-                r"(?:the|a|an)\s+\w+(?:\s+\w+){0,2})\s+"
-                r"(?:work|happen|make|use|open|close|operate|cook|prepare|"
-                r"cause|start|begin|end|change|catch\s+fire)\b",
-                re.IGNORECASE,
-            ),
-            re.compile(
-                r"^\s*how\s+(?:is|are|was|were)\s+"
-                r"(?:(?:the|a|an)\s+)?(?:\w+\s+){0,4}"
-                r"(?:made|used|opened|closed|operated|cooked|prepared)\s*[?.!]?$",
-                re.IGNORECASE,
-            ),
         ),
     ),
 )
+
+
+def _is_active_method_question(question: str) -> bool:
+    match = _ACTIVE_METHOD_PREFIX_PATTERN.fullmatch(question)
+    if match is None:
+        return False
+
+    body = match.group("body").strip()
+    for predicate_match in _ACTIVE_METHOD_VERB_PATTERN.finditer(body):
+        subject = body[: predicate_match.start()].strip()
+        if not subject or subject.split()[-1].lower() in {"the", "a", "an"}:
+            continue
+        if _COMMON_NON_METHOD_PREDICATE_PATTERN.search(subject):
+            continue
+        return True
+    return False
+
+
+def _is_passive_method_question(question: str) -> bool:
+    return _PASSIVE_METHOD_PATTERN.fullmatch(question) is not None
 
 
 def classify_question_type(question: str) -> str:
@@ -145,6 +176,11 @@ def classify_question_type(question: str) -> str:
     normalized = " ".join(question.split())
     for question_type, patterns in _QUESTION_TYPE_RULES:
         if any(pattern.search(normalized) for pattern in patterns):
+            return question_type
+        if question_type == "causal-procedural" and (
+            _is_active_method_question(normalized)
+            or _is_passive_method_question(normalized)
+        ):
             return question_type
     return "general"
 

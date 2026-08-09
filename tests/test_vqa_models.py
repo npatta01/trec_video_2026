@@ -53,11 +53,15 @@ def test_question_type_obeys_declared_precedence(
         ("How does the woman appear?", "general"),
         ("How does the open door look?", "general"),
         ("How is the cooked chicken colored?", "general"),
+        ("How does the closed box appear?", "general"),
         ("How does the closed window appear?", "general"),
         ("How is the prepared meal presented?", "general"),
         ("How do you open the door?", "causal-procedural"),
         ("How is the chicken cooked?", "causal-procedural"),
+        ("How is the chicken cooked in the video?", "causal-procedural"),
         ("How is the meal prepared?", "causal-procedural"),
+        ("How does Alice open the door?", "causal-procedural"),
+        ("How do workers prepare the meal?", "causal-procedural"),
     ],
 )
 def test_question_type_avoids_broad_vqa_false_matches(
