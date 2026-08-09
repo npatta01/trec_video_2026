@@ -33,6 +33,8 @@ from trec_video_2026.vqa_evaluation import (  # noqa: E402
 
 
 EXPECTED_BOOTSTRAP_SEED = 20260809
+EXPECTED_BERT_MODEL_SNAPSHOT = "722cf37b1afa9454edce342e7895e588b6ff1d59"
+EXPECTED_BERT_SCORE_MODULE_VERSION = "0.3.12"
 DEFAULT_BOOTSTRAP_ITERATIONS = 2000
 DEFAULT_CONFIDENCE = 0.95
 DEFAULT_STS_TIMEOUT = 10.0
@@ -103,6 +105,30 @@ def _distribution_version(name: str) -> str:
         return importlib.metadata.version(name)
     except importlib.metadata.PackageNotFoundError:
         return "injected-or-runtime-provided"
+
+
+def _bert_score_versions(*, required: bool) -> dict[str, str]:
+    try:
+        import bert_score
+    except ImportError as error:
+        if required:
+            raise ValueError(
+                "bert_score module is required for production scoring"
+            ) from error
+        return {"module": "injected", "distribution": "injected"}
+    module_version = getattr(bert_score, "__version__", None)
+    if module_version != EXPECTED_BERT_SCORE_MODULE_VERSION:
+        raise ValueError(
+            "bert_score module implementation must be "
+            f"{EXPECTED_BERT_SCORE_MODULE_VERSION}, got {module_version!r}"
+        )
+    try:
+        distribution_version = importlib.metadata.version("bert-score")
+    except importlib.metadata.PackageNotFoundError as error:
+        if required:
+            raise ValueError("bert-score distribution metadata is required") from error
+        distribution_version = "unavailable"
+    return {"module": module_version, "distribution": distribution_version}
 
 
 def _default_meteor(prediction: str, reference: str) -> float:
@@ -297,6 +323,29 @@ def _load_annotations(annotation_root: Path) -> dict[str, dict[str, Any]]:
     return annotations
 
 
+def _sanitize_rows(
+    condition_rows: Mapping[str, Sequence[Mapping[str, Any]]]
+) -> dict[str, list[dict[str, Any]]]:
+    safe_fields = (
+        "condition_id",
+        "video_id",
+        "question_stratum",
+        "answer_token_count",
+        "meteor",
+        "bertscore_f1",
+        "sts",
+        "semantic_composite",
+        "ndcg",
+        "ndcg_degenerate",
+    )
+    return {
+        condition_id: [
+            {field: row[field] for field in safe_fields} for row in rows
+        ]
+        for condition_id, rows in condition_rows.items()
+    }
+
+
 def _mean_metric(rows: Sequence[Mapping[str, Any]], field: str) -> float:
     values = [_finite(row[field], field=field) for row in rows]
     return statistics.fmean(values)
@@ -317,6 +366,9 @@ def _aggregate_rows(
         aggregate[field] = _mean_metric(rows, field)
     aggregate["mean_answer_token_count"] = statistics.fmean(
         row["answer_token_count"] for row in rows
+    )
+    aggregate["ndcg_degenerate"] = all(
+        bool(row["ndcg_degenerate"]) for row in rows
     )
     if include_strata:
         aggregate["question_strata"] = {
@@ -366,7 +418,7 @@ def _paired_summary(
     common_ids = sorted(set(baseline) & set(treatment))
     if len(common_ids) != len(baseline) or len(common_ids) != len(treatment):
         raise ValueError("Conditions do not have identical frozen prediction IDs")
-    fields = ("meteor", "bertscore_f1", "sts", "semantic_composite", "ndcg")
+    fields = ("meteor", "bertscore_f1", "sts", "semantic_composite")
     deltas = {
         field: [
             float(treatment[video_id][field]) - float(baseline[video_id][field])
@@ -378,6 +430,8 @@ def _paired_summary(
         "baseline_condition_id": baseline_id,
         "treatment_condition_id": treatment_id,
         "paired_count": len(common_ids),
+        "ndcg_degenerate": True,
+        "excluded_metrics": {"ndcg": "single-response value is degenerate"},
         "metric_deltas": {
             field: statistics.fmean(values) for field, values in deltas.items()
         },
@@ -408,7 +462,7 @@ def _atomic_write_json(path: Path, payload: Mapping[str, Any]) -> None:
             handle.write(encoded)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, path)
+        os.link(temporary, path)
     finally:
         if temporary.exists():
             temporary.unlink()
@@ -427,7 +481,10 @@ def _score_condition(
     for prediction in predictions:
         video_id = str(prediction["video_id"])
         if video_id not in annotations:
-            raise ValueError(f"Missing reference for prediction: {video_id}")
+            raise ValueError(
+                "Missing reference: prediction ID not present in declared "
+                f"annotation set: {video_id}"
+            )
 
     normalized_predictions = [
         normalize_nist_text(str(prediction["answer"])) for prediction in predictions
@@ -477,6 +534,7 @@ def _score_condition(
                 **metrics,
                 "semantic_composite": semantic_composite(metrics),
                 "ndcg": ndcg_from_gains([semantic_composite(metrics)]),
+                "ndcg_degenerate": True,
             }
         )
     return scored
@@ -488,6 +546,7 @@ def score_panel(
     condition_paths: Mapping[str, Path],
     bert_model: Path,
     expected_rows: int,
+    expected_annotation_files: int,
     output_path: Path | None = None,
     meteor_fn: MetricFunction | None = None,
     bertscore_fn: BertScoreFunction | None = None,
@@ -502,8 +561,15 @@ def score_panel(
         raise ValueError("At least one condition is required")
     if expected_rows <= 0:
         raise ValueError("Expected rows must be positive")
-    if not bert_model.exists():
-        raise ValueError(f"BERT model path does not exist: {bert_model}")
+    if expected_annotation_files <= 0:
+        raise ValueError("Expected annotation files must be positive")
+    if bootstrap_seed != EXPECTED_BOOTSTRAP_SEED:
+        raise ValueError(f"Bootstrap seed must be {EXPECTED_BOOTSTRAP_SEED}")
+    if not bert_model.is_dir() or bert_model.name != EXPECTED_BERT_MODEL_SNAPSHOT:
+        raise ValueError(
+            "BERT model must be the pinned snapshot directory "
+            f"{EXPECTED_BERT_MODEL_SNAPSHOT}"
+        )
     if output_path is not None and output_path.exists():
         raise FileExistsError(f"Output already exists: {output_path}")
 
@@ -512,6 +578,8 @@ def score_panel(
     }
     if len(normalized_condition_paths) != len(condition_paths):
         raise ValueError("Condition IDs must be unique and non-empty")
+    if len(normalized_condition_paths) != 2:
+        raise ValueError("Task 1 scoring requires exactly two conditions")
     if any(not condition_id.strip() for condition_id in normalized_condition_paths):
         raise ValueError("Condition IDs must be non-empty")
 
@@ -528,6 +596,12 @@ def score_panel(
         prediction_hashes[condition_id] = sha256_path(path)
 
     annotations = _load_annotations(annotation_root)
+    if len(annotations) != expected_annotation_files:
+        raise ValueError(
+            f"Annotation root contains {len(annotations)} annotation files; "
+            f"expected {expected_annotation_files}"
+        )
+    bert_score_versions = _bert_score_versions(required=bertscore_fn is None)
     meteor_fn = meteor_fn or _default_meteor
     bertscore_fn = bertscore_fn or _default_bertscore
     sts_fn = sts_fn or umbc_sts_score
@@ -556,7 +630,9 @@ def score_panel(
         "scorer": {
             "name": "NIST 2025 semantic VQA scorer",
             "normalization": "strip, lowercase, collapse whitespace",
-            "bert_model": str(bert_model),
+            "bert_model_snapshot": bert_model.name,
+            "bert_score_module_version": bert_score_versions["module"],
+            "bert_score_distribution_version": bert_score_versions["distribution"],
             "bert_num_layers": 17,
             "bert_idf": False,
             "bert_rescale_with_baseline": False,
@@ -567,11 +643,16 @@ def score_panel(
             "bootstrap_iterations": bootstrap_iterations,
             "bootstrap_confidence": confidence,
             "semantic_composite": "mean(meteor, bertscore_f1, sts)",
-            "single_response_ndcg": "1.0, degenerate and non-informative",
+            "single_response_ndcg": {
+                "value": 1.0,
+                "degenerate": True,
+                "informative": False,
+            },
         },
         "panel": {
-            "collection": "VQA 2025 training",
+            "collection": "declared annotation panel",
             "annotation_files": len(annotations),
+            "expected_annotation_files": expected_annotation_files,
             "expected_rows_per_condition": expected_rows,
             "declared_conditions": list(normalized_condition_paths),
             "completed_per_condition": {
@@ -586,7 +667,7 @@ def score_panel(
             bootstrap_seed=bootstrap_seed,
             confidence=confidence,
         ),
-        "rows": dict(condition_rows),
+        "rows": _sanitize_rows(condition_rows),
         "integrity": {
             "labels_joined_after_prediction_freeze": True,
             "all_conditions_complete": True,
@@ -595,20 +676,22 @@ def score_panel(
             "finite_metrics_checked": True,
         },
         "inputs": {
-            "annotation_root": str(annotation_root),
+            "annotation_file_count": len(annotations),
             "annotation_root_sha256": sha256_path(annotation_root),
             "prediction_files": {
                 condition_id: {
-                    "path": str(path),
                     "sha256": prediction_hashes[condition_id],
                 }
                 for condition_id, path in normalized_condition_paths.items()
             },
-            "bert_model_sha256": sha256_path(bert_model),
+            "bert_model_snapshot": bert_model.name,
+            "bert_model_snapshot_sha256": sha256_path(bert_model),
             "scorer_sha256": sha256_path(Path(__file__)),
         },
         "dependencies": {
-            name: _distribution_version(name) for name in ("nltk", "bert-score")
+            "nltk_distribution": _distribution_version("nltk"),
+            "bert_score_module": bert_score_versions["module"],
+            "bert_score_distribution": bert_score_versions["distribution"],
         },
     }
     if output_path is not None:
@@ -628,6 +711,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--bert-model", type=Path, required=True)
     parser.add_argument("--expected-rows", type=int, required=True)
+    parser.add_argument("--expected-annotation-files", type=int, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--sts-timeout", type=float, default=DEFAULT_STS_TIMEOUT)
     parser.add_argument("--sts-retries", type=int, default=DEFAULT_STS_RETRIES)
@@ -661,6 +745,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         condition_paths=conditions,
         bert_model=args.bert_model,
         expected_rows=args.expected_rows,
+        expected_annotation_files=args.expected_annotation_files,
         output_path=args.output,
         sts_fn=sts,
     )

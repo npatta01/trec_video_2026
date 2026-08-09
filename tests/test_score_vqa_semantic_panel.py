@@ -4,6 +4,8 @@ from io import BytesIO
 import importlib.util
 import json
 from pathlib import Path
+import sys
+from types import SimpleNamespace
 from urllib.error import URLError
 
 import pytest
@@ -11,6 +13,9 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/score_vqa_semantic_panel.py"
+EXPECTED_BERT_MODEL_SNAPSHOT = (
+    "722cf37b1afa9454edce342e7895e588b6ff1d59"
+)
 
 
 def load_scorer():
@@ -58,8 +63,9 @@ def make_inputs(tmp_path: Path) -> tuple[Path, dict[str, Path], Path]:
             encoding="utf-8",
         )
         conditions[condition_id] = path
-    model = tmp_path / "roberta-large"
-    model.write_bytes(b"frozen model fixture")
+    model = tmp_path / EXPECTED_BERT_MODEL_SNAPSHOT
+    model.mkdir()
+    (model / "config.json").write_text("frozen model fixture", encoding="utf-8")
     return annotations, conditions, model
 
 
@@ -93,6 +99,7 @@ def test_score_panel_joins_labels_after_freeze_and_retains_metrics(
         condition_paths=conditions,
         bert_model=model,
         expected_rows=2,
+        expected_annotation_files=2,
         meteor_fn=meteor,
         bertscore_fn=bertscore,
         sts_fn=sts,
@@ -109,6 +116,63 @@ def test_score_panel_joins_labels_after_freeze_and_retains_metrics(
     assert calls["bert"] == 2
 
 
+def test_artifact_is_sanitized_to_ids_strata_numeric_metrics_counts_and_hashes(
+    tmp_path: Path,
+) -> None:
+    scorer = load_scorer()
+    annotations, conditions, model = make_inputs(tmp_path)
+    meteor, bertscore, sts = injected_metrics({"bert": 0})
+
+    artifact = scorer.score_panel(
+        annotation_root=annotations,
+        condition_paths=conditions,
+        bert_model=model,
+        expected_rows=2,
+        expected_annotation_files=2,
+        meteor_fn=meteor,
+        bertscore_fn=bertscore,
+        sts_fn=sts,
+    )
+
+    forbidden_keys = {
+        "answer",
+        "correct_answer",
+        "expected_answer",
+        "normalized_answer",
+        "normalized_reference",
+        "question",
+        "reference",
+        "transcript",
+    }
+    forbidden_values = {"What is shown?", "the cat", "a dog", "cat", "dog"}
+
+    def assert_safe(value: object) -> None:
+        if isinstance(value, dict):
+            assert forbidden_keys.isdisjoint(value)
+            for child in value.values():
+                assert_safe(child)
+        elif isinstance(value, list):
+            for child in value:
+                assert_safe(child)
+        elif isinstance(value, str):
+            assert value not in forbidden_values
+            assert not value.startswith("/tmp/")
+
+    assert_safe(artifact)
+    assert set(artifact["rows"]["frames"][0]) == {
+        "condition_id",
+        "video_id",
+        "question_stratum",
+        "answer_token_count",
+        "meteor",
+        "bertscore_f1",
+        "sts",
+        "semantic_composite",
+        "ndcg",
+        "ndcg_degenerate",
+    }
+
+
 def test_score_panel_writes_json_atomically_only_after_complete_scoring(
     tmp_path: Path,
 ) -> None:
@@ -122,6 +186,7 @@ def test_score_panel_writes_json_atomically_only_after_complete_scoring(
         condition_paths=conditions,
         bert_model=model,
         expected_rows=2,
+        expected_annotation_files=2,
         output_path=output,
         meteor_fn=meteor,
         bertscore_fn=bertscore,
@@ -154,6 +219,7 @@ def test_score_panel_rejects_duplicate_prediction_ids(tmp_path: Path) -> None:
             condition_paths=conditions,
             bert_model=model,
             expected_rows=2,
+            expected_annotation_files=2,
             meteor_fn=meteor,
             bertscore_fn=bertscore,
             sts_fn=sts,
@@ -180,6 +246,7 @@ def test_score_panel_rejects_missing_references(tmp_path: Path) -> None:
             condition_paths=conditions,
             bert_model=model,
             expected_rows=2,
+            expected_annotation_files=2,
             meteor_fn=meteor,
             bertscore_fn=bertscore,
             sts_fn=sts,
@@ -197,6 +264,7 @@ def test_score_panel_rejects_nonfinite_sts(tmp_path: Path) -> None:
             condition_paths=conditions,
             bert_model=model,
             expected_rows=2,
+            expected_annotation_files=2,
             meteor_fn=meteor,
             bertscore_fn=bertscore,
             sts_fn=lambda _prediction, _reference: float("nan"),
@@ -216,6 +284,7 @@ def test_score_panel_refuses_preexisting_output(tmp_path: Path) -> None:
             condition_paths=conditions,
             bert_model=model,
             expected_rows=2,
+            expected_annotation_files=2,
             output_path=output,
             meteor_fn=meteor,
             bertscore_fn=bertscore,
@@ -249,3 +318,178 @@ def test_umbc_sts_uses_encoded_parameters_timeout_and_bounded_retry(
     assert "phrase1=hello+world" in calls[0][0]
     assert "phrase2=a+%26+b" in calls[0][0]
     assert all(timeout == 3 for _, timeout in calls)
+
+
+def test_score_panel_requires_declared_annotation_file_count(tmp_path: Path) -> None:
+    scorer = load_scorer()
+    annotations, conditions, model = make_inputs(tmp_path)
+    meteor, bertscore, sts = injected_metrics({"bert": 0})
+
+    with pytest.raises(ValueError, match="annotation files.*expected 3"):
+        scorer.score_panel(
+            annotation_root=annotations,
+            condition_paths=conditions,
+            bert_model=model,
+            expected_rows=2,
+            expected_annotation_files=3,
+            meteor_fn=meteor,
+            bertscore_fn=bertscore,
+            sts_fn=sts,
+        )
+
+
+def test_score_panel_rejects_prediction_id_outside_declared_annotation_set(
+    tmp_path: Path,
+) -> None:
+    scorer = load_scorer()
+    annotations, conditions, model = make_inputs(tmp_path)
+    conditions["frames"].write_text(
+        json.dumps(
+            [
+                {"status": "passed", "answer": "cat", "video_id": "v1"},
+                {"status": "passed", "answer": "bird", "video_id": "missing"},
+            ]
+        ),
+        encoding="utf-8",
+    )
+    meteor, bertscore, sts = injected_metrics({"bert": 0})
+
+    with pytest.raises(ValueError, match="not present in declared annotation set"):
+        scorer.score_panel(
+            annotation_root=annotations,
+            condition_paths=conditions,
+            bert_model=model,
+            expected_rows=2,
+            expected_annotation_files=2,
+            meteor_fn=meteor,
+            bertscore_fn=bertscore,
+            sts_fn=sts,
+        )
+
+
+def test_score_panel_requires_the_pinned_bert_snapshot_directory(tmp_path: Path) -> None:
+    scorer = load_scorer()
+    annotations, conditions, model = make_inputs(tmp_path)
+    wrong_model = tmp_path / "roberta-large"
+    wrong_model.mkdir()
+    meteor, bertscore, sts = injected_metrics({"bert": 0})
+
+    with pytest.raises(ValueError, match=EXPECTED_BERT_MODEL_SNAPSHOT):
+        scorer.score_panel(
+            annotation_root=annotations,
+            condition_paths=conditions,
+            bert_model=wrong_model,
+            expected_rows=2,
+            expected_annotation_files=2,
+            meteor_fn=meteor,
+            bertscore_fn=bertscore,
+            sts_fn=sts,
+        )
+
+
+def test_bert_score_records_module_and_distribution_versions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scorer = load_scorer()
+    monkeypatch.setitem(
+        sys.modules,
+        "bert_score",
+        SimpleNamespace(__version__="0.3.12"),
+    )
+    original_version = scorer.importlib.metadata.version
+    monkeypatch.setattr(
+        scorer.importlib.metadata,
+        "version",
+        lambda name: "0.3.13" if name == "bert-score" else original_version(name),
+    )
+
+    assert scorer._bert_score_versions(required=True) == {
+        "module": "0.3.12",
+        "distribution": "0.3.13",
+    }
+
+
+def test_score_panel_requires_the_declared_bootstrap_seed(tmp_path: Path) -> None:
+    scorer = load_scorer()
+    annotations, conditions, model = make_inputs(tmp_path)
+    meteor, bertscore, sts = injected_metrics({"bert": 0})
+
+    with pytest.raises(ValueError, match="20260809"):
+        scorer.score_panel(
+            annotation_root=annotations,
+            condition_paths=conditions,
+            bert_model=model,
+            expected_rows=2,
+            expected_annotation_files=2,
+            bootstrap_seed=7,
+            meteor_fn=meteor,
+            bertscore_fn=bertscore,
+            sts_fn=sts,
+        )
+
+
+def test_atomic_publish_does_not_overwrite_destination_created_after_temp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scorer = load_scorer()
+    output = tmp_path / "artifact.json"
+    real_link = scorer.os.link
+
+    def race(source: Path, destination: Path) -> None:
+        Path(destination).write_text("racer", encoding="utf-8")
+        real_link(source, destination)
+
+    monkeypatch.setattr(scorer.os, "link", race)
+
+    with pytest.raises(FileExistsError):
+        scorer._atomic_write_json(output, {"safe": True})
+    assert output.read_text(encoding="utf-8") == "racer"
+    assert not output.with_name(output.name + ".tmp").exists()
+
+
+def test_score_panel_records_single_answer_ndcg_as_degenerate_and_excludes_it(
+    tmp_path: Path,
+) -> None:
+    scorer = load_scorer()
+    annotations, conditions, model = make_inputs(tmp_path)
+    meteor, bertscore, sts = injected_metrics({"bert": 0})
+
+    artifact = scorer.score_panel(
+        annotation_root=annotations,
+        condition_paths=conditions,
+        bert_model=model,
+        expected_rows=2,
+        expected_annotation_files=2,
+        meteor_fn=meteor,
+        bertscore_fn=bertscore,
+        sts_fn=sts,
+    )
+
+    assert artifact["scorer"]["single_response_ndcg"] == {
+        "value": 1.0,
+        "degenerate": True,
+        "informative": False,
+    }
+    assert artifact["rows"]["frames"][0]["ndcg_degenerate"] is True
+    assert "ndcg" not in artifact["paired"]["metric_deltas"]
+
+
+def test_score_panel_fails_closed_for_more_than_two_task1_conditions(
+    tmp_path: Path,
+) -> None:
+    scorer = load_scorer()
+    annotations, conditions, model = make_inputs(tmp_path)
+    conditions["third"] = conditions["frames"]
+    meteor, bertscore, sts = injected_metrics({"bert": 0})
+
+    with pytest.raises(ValueError, match="exactly two"):
+        scorer.score_panel(
+            annotation_root=annotations,
+            condition_paths=conditions,
+            bert_model=model,
+            expected_rows=2,
+            expected_annotation_files=2,
+            meteor_fn=meteor,
+            bertscore_fn=bertscore,
+            sts_fn=sts,
+        )
