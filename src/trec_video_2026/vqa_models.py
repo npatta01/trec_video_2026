@@ -121,10 +121,17 @@ _QUESTION_TYPE_RULES = (
             ),
             re.compile(r"^\s*how\s+to\b", re.IGNORECASE),
             re.compile(
-                r"^\s*how\s+(?:does|do|did|is|are|can|should|could|was|were)\b"
-                r".*\b(?:work|works|happen|happens|make|made|use|used|"
-                r"open|opened|close|closed|operate|operated|cook|cooked|"
-                r"prepare|prepared|cause|causes|catch\s+fire)\b",
+                r"^\s*how\s+(?:do|does|did|can|should|could)\s+"
+                r"(?:you|we|they|he|she|someone|it|this|that|"
+                r"(?:the|a|an)\s+\w+(?:\s+\w+){0,2})\s+"
+                r"(?:work|happen|make|use|open|close|operate|cook|prepare|"
+                r"cause|start|begin|end|change|catch\s+fire)\b",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                r"^\s*how\s+(?:is|are|was|were)\s+"
+                r"(?:(?:the|a|an)\s+)?(?:\w+\s+){0,4}"
+                r"(?:made|used|opened|closed|operated|cooked|prepared)\s*[?.!]?$",
                 re.IGNORECASE,
             ),
         ),

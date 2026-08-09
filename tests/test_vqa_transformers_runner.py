@@ -138,10 +138,18 @@ def _invoke_main(
     *,
     model_id: str = "Qwen/example",
     answer_policy: str = "question-aware",
+    setup_error: str | None = None,
 ) -> tuple[object, list[dict[str, object]], list[dict[str, object]]]:
     processor_calls: list[dict[str, object]] = []
     generation_calls: list[dict[str, object]] = []
     _install_fake_main_runtime(monkeypatch, processor_calls, generation_calls)
+    if setup_error is not None:
+        def failing_load_processor(*args, **kwargs):
+            raise RuntimeError(setup_error)
+
+        monkeypatch.setattr(
+            transformers_runner, "load_processor", failing_load_processor
+        )
     monkeypatch.setattr(
         transformers_runner.sys,
         "stdin",
@@ -235,6 +243,53 @@ def test_main_gemma_result_marks_requested_bounds_as_not_applied(
     assert result["requested_max_pixels_per_frame"] == 654_321
     assert result["min_pixels_per_frame"] is None
     assert result["max_pixels_per_frame"] is None
+
+
+def test_main_setup_failure_classifies_valid_single_question(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    result, _, generation_calls = _invoke_main(
+        monkeypatch,
+        capsys,
+        _main_request("video-1", "How many cups are on the table?"),
+        setup_error="processor setup failed",
+    )
+
+    assert isinstance(result, dict)
+    assert result["status"] == "failed"
+    assert result["error_type"] == "RuntimeError"
+    assert result["question_type"] == "count"
+    assert result["video_id"] == "video-1"
+    assert result["requested_min_pixels_per_frame"] == 123_457
+    assert result["requested_max_pixels_per_frame"] == 654_321
+    assert result["min_pixels_per_frame"] is None
+    assert result["max_pixels_per_frame"] is None
+    assert generation_calls == []
+
+
+def test_main_setup_failure_classifies_every_valid_batch_question(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    result, _, generation_calls = _invoke_main(
+        monkeypatch,
+        capsys,
+        [
+            _main_request("video-count", "How many cups are on the table?"),
+            _main_request("video-speech", "What does she say after opening the door?"),
+        ],
+        setup_error="model setup failed",
+    )
+
+    assert isinstance(result, list)
+    assert [row["status"] for row in result] == ["failed", "failed"]
+    assert [row["question_type"] for row in result] == ["count", "speech"]
+    assert [row["video_id"] for row in result] == ["video-count", "video-speech"]
+    for row in result:
+        assert row["requested_min_pixels_per_frame"] == 123_457
+        assert row["requested_max_pixels_per_frame"] == 654_321
+        assert row["min_pixels_per_frame"] is None
+        assert row["max_pixels_per_frame"] is None
+    assert generation_calls == []
 
 
 def test_main_single_missing_question_emits_structured_failure(

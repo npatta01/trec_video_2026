@@ -326,6 +326,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return args
 
 
+def _safe_question_type(request: Any) -> str:
+    if not isinstance(request, Mapping):
+        return "unknown"
+    question = request.get("question")
+    if not isinstance(question, str) or not question.strip():
+        return "unknown"
+    return classify_question_type(question)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Read one runner request from stdin and emit one runner result as JSON."""
 
@@ -401,7 +410,7 @@ def main(argv: list[str] | None = None) -> int:
                 precision=precision,
                 runtime_attestation=runtime_attestation,
                 answer_policy=args.answer_policy,
-                question_type="unknown",
+                question_type=_safe_question_type(request),
                 requested_min_pixels_per_frame=args.min_pixels_per_frame,
                 requested_max_pixels_per_frame=args.max_pixels_per_frame,
                 min_pixels_per_frame=applied_min_pixels_per_frame,
@@ -417,6 +426,8 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 torch.cuda.reset_peak_memory_stats()
                 question = request["question"]
+                if not isinstance(question, str) or not question.strip():
+                    raise ValueError("Question must be a non-empty string")
                 question_type = classify_question_type(question)
                 answer = generate_answer(
                     processor=processor,
