@@ -78,7 +78,8 @@ def _fake_inference(tmp_path: Path) -> Path:
         "    if mutation == 'partial-parameter-devices': result['runtime_attestation']['parameter_devices'] = {'cuda:0': 1}\n"
         "    if mutation == 'partial-parameter-dtypes': result['runtime_attestation']['parameter_dtypes'] = {'torch.bfloat16': 1}\n"
         "    if mutation == 'partial-buffer-count': result['runtime_attestation']['buffer_tensor_count'] = 100\n"
-        "    if mutation == 'partial-buffer-devices': result['runtime_attestation']['buffer_devices'] = {'cuda:0': 0}\n"
+        "    if mutation == 'partial-buffer-devices': result['runtime_attestation']['buffer_devices'] = {'cuda:0': 1, 'cpu': 1}\n"
+        "    if mutation == 'partial-buffer-dtypes': result['runtime_attestation']['buffer_dtypes'] = {'torch.bfloat16': 1}\n"
         "    out.append(result)\n"
         "with open(os.environ['EVENT_LOG'], 'a', encoding='utf-8') as h: h.write(f'inference-exit:{pid}\\n')\n"
         "print(json.dumps(out, allow_nan=True))\n",
@@ -199,7 +200,7 @@ def _assert_remote_payload(tmp_path: Path, *, status: str) -> None:
         "nan-model-load", "negative-model-load", "different-model-load",
         "nonnumeric-vram", "negative-vram", "extra-field", "missing-field",
         "partial-parameter-count", "partial-parameter-devices", "partial-parameter-dtypes",
-        "partial-buffer-count", "partial-buffer-devices",
+        "partial-buffer-count", "partial-buffer-devices", "partial-buffer-dtypes",
     ],
 )
 def test_prediction_schema_and_attestation_are_exact(tmp_path: Path, mutation: str) -> None:
