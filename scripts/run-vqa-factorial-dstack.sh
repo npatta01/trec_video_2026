@@ -58,6 +58,26 @@ hf_cli() {
   fi
 }
 
+sync_input_bundle() {
+  local source_uri="$1"
+  local target_dir="$2"
+  local attempt rc=1
+  for attempt in 1 2 3; do
+    event "input-sync-attempt-${attempt}"
+    set +e
+    hf_cli buckets sync "$source_uri" "$target_dir"
+    rc=$?
+    set -e
+    (( rc != 0 )) || return 0
+    (( attempt < 3 )) || break
+    event "input-sync-retry-${attempt}"
+    if [[ "${VQA_TEST_MODE:-0}" != "1" ]]; then
+      sleep 5
+    fi
+  done
+  return "$rc"
+}
+
 refuse_nonempty_output() {
   if [[ -e "$OUTPUT_DIR" && ! -d "$OUTPUT_DIR" ]]; then
     die "OUTPUT_DIR exists but is not a directory: $OUTPUT_DIR"
@@ -505,7 +525,7 @@ PY
 
 prepare_condition_evidence() {
   mkdir -p "$INPUT_DIR"
-  hf_cli buckets sync "${HF_INPUT_URI%/}/payload" "$INPUT_DIR"
+  sync_input_bundle "${HF_INPUT_URI%/}/payload" "$INPUT_DIR"
   [[ -f "$INPUT_DIR/evidence/evidence-marker.json" && -f "$INPUT_DIR/SHA256SUMS" ]] \
     || die "immutable evidence marker/checksum is missing"
   (cd "$INPUT_DIR" && sha256sum --check SHA256SUMS >/dev/null) \

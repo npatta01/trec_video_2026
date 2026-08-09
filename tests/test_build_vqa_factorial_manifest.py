@@ -22,6 +22,7 @@ SOURCE_PATH = ROOT / "configs/vqa/qwen35_vqa2025_475_label_free.json"
 CANARY_PROFILE_PATH = ROOT / "configs/vqa/vqa_factorial_canary_profile.json"
 EVIDENCE_PROFILE_PATH = ROOT / "configs/vqa/vqa_factorial_full_evidence_profile.json"
 CONDITION_PROFILE_PATH = ROOT / "configs/vqa/vqa_factorial_full_condition_profiles.json"
+RETRY_CONDITION_PROFILE_PATH = ROOT / "configs/vqa/vqa_factorial_full_condition_profiles_f2.json"
 CANARY_MANIFEST_SHA256 = "857d251870d24c4c5c7b43d94030a994bd4d8c39da4db1aa4385c1e01f7a7005"
 FULL_MANIFEST_SHA256 = "092aec23cfdcc370bbed8e776f7cc7c84752481da6ba0996983883955d3841e8"
 FULL_IDS_SHA256 = "95a623c0add252541b9c81ff4910e949dc81db17482add2c467b761237b22b0f"
@@ -341,6 +342,36 @@ def test_full_topology_has_one_evidence_yaml_and_four_one_condition_yamls() -> N
             "../src/trec_video_2026/vqa_transformers_runner.py",
             "../src/trec_video_2026/vqa_whisper.py",
         }
+
+
+def test_f2_retry_topology_preserves_f1_and_uses_a_fresh_remote_identity() -> None:
+    builder = _load_builder()
+    profile = json.loads(RETRY_CONDITION_PROFILE_PATH.read_text(encoding="utf-8"))
+    builder.validate_full_condition_profiles(profile)
+    assert profile["run_name"] == "vqa-factorial-full-20260809-f2"
+    assert profile["remote_uri"] == (
+        "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+        "experiments/vqa-factorial-full-20260809-f2/conditions"
+    )
+    for condition_id in (
+        "4b-current",
+        "4b-question-aware",
+        "8b-current",
+        "8b-question-aware",
+    ):
+        path = ROOT / f"dstack/vqa-factorial-f2-{condition_id}.dstack.yml"
+        payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+        env = "\n".join(payload["env"])
+        assert payload["name"] == f"vqa-fact-f2-{condition_id}"
+        assert len(payload["name"]) <= 41
+        assert payload["backends"] == ["runpod", "vastai"]
+        assert payload["resources"]["gpu"] == "L40S:1:48GB.."
+        assert f"EXPERIMENT_RUN_NAME=vqa-factorial-full-20260809-f2-{condition_id}" in env
+        assert (
+            "HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+            f"experiments/vqa-factorial-full-20260809-f2/conditions/{condition_id}"
+        ) in env
+        assert "PROFILE=/dstack/run/configs/vqa/vqa_factorial_full_condition_profiles_f2.json" in env
 
 
 def test_shell_refuses_stale_remote_prefix_before_runtime_bootstrap(tmp_path: Path) -> None:

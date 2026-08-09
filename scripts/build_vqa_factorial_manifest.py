@@ -25,9 +25,17 @@ EXPECTED_EVIDENCE_URI = (
     "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
     "experiments/vqa-factorial-full-evidence-20260809-f1"
 )
-EXPECTED_FULL_CONDITION_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
-    "experiments/vqa-factorial-full-20260809-f1/conditions"
+EXPECTED_FULL_CONDITION_IDENTITIES = MappingProxyType(
+    {
+        "vqa-factorial-full-20260809-f1": (
+            "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+            "experiments/vqa-factorial-full-20260809-f1/conditions"
+        ),
+        "vqa-factorial-full-20260809-f2": (
+            "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+            "experiments/vqa-factorial-full-20260809-f2/conditions"
+        ),
+    }
 )
 EXPECTED_RUNTIME_IMAGE = (
     "docker.io/pytorch/pytorch@sha256:"
@@ -495,9 +503,10 @@ def validate_full_evidence_profile(payload: Mapping[str, Any]) -> None:
 def validate_full_condition_profiles(payload: Mapping[str, Any]) -> None:
     _require_fields(payload, FULL_CONDITION_PROFILE_FIELDS, "full condition profile")
     _validate_common_profile(payload, expected_count=475, input_uri=EXPECTED_EVIDENCE_URI)
-    if payload["run_name"] != "vqa-factorial-full-20260809-f1":
+    expected_remote_uri = EXPECTED_FULL_CONDITION_IDENTITIES.get(payload["run_name"])
+    if expected_remote_uri is None:
         _fail("full condition run_name is not the pinned identity")
-    if payload["remote_uri"] != EXPECTED_FULL_CONDITION_URI:
+    if payload["remote_uri"] != expected_remote_uri:
         _fail("full condition remote_uri is not the pinned identity")
     if payload["manifest"] != "/dstack/run/configs/vqa/qwen35_vqa2025_475_label_free.json":
         _fail("full condition manifest path is not the pinned private full manifest")

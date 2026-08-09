@@ -17,6 +17,8 @@ RUNNER = ROOT / "scripts/run-vqa-factorial-dstack.sh"
 BUILDER = ROOT / "scripts/build_vqa_factorial_manifest.py"
 PROFILE = ROOT / "configs/vqa/vqa_factorial_canary_profile.json"
 MANIFEST = ROOT / "configs/vqa/vqa_factorial_canary_3.json"
+FULL_PROFILE = ROOT / "configs/vqa/vqa_factorial_full_condition_profiles.json"
+FULL_MANIFEST = ROOT / "configs/vqa/qwen35_vqa2025_475_label_free.json"
 IMAGE = (
     "docker.io/pytorch/pytorch@sha256:"
     "c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755"
@@ -114,7 +116,19 @@ def _run(
         "printf '%s:%s\\n' \"$1\" \"$2\" >> \"$EVENT_LOG\"\n"
         "case \"$1/$2\" in\n"
         "  buckets/list) if [[ -n \"${FAKE_LIST_WARNING:-}\" ]]; then printf '%s\\n' \"$FAKE_LIST_WARNING\" >&2; fi; printf '%s' \"${FAKE_REMOTE_LISTING:-}\" ;;\n"
-        "  buckets/sync) mkdir -p \"$FAKE_REMOTE_ROOT/payload\"; cp -a \"$3/.\" \"$FAKE_REMOTE_ROOT/payload/\"; if [[ \"${FAKE_TAMPER:-0}\" == 1 ]]; then printf 'tampered\\n' >> \"$OUTPUT_DIR/status.json\"; fi; exit \"${FAKE_SYNC_RC:-0}\" ;;\n"
+        "  buckets/sync)\n"
+        "    if [[ \"$3\" == hf://* ]]; then\n"
+        "      attempts=0\n"
+        "      [[ ! -f \"$INPUT_SYNC_ATTEMPTS_FILE\" ]] || attempts=$(<\"$INPUT_SYNC_ATTEMPTS_FILE\")\n"
+        "      attempts=$((attempts + 1))\n"
+        "      printf '%s' \"$attempts\" > \"$INPUT_SYNC_ATTEMPTS_FILE\"\n"
+        "      mkdir -p \"$4\"; cp -a \"$FAKE_INPUT_ROOT/.\" \"$4/\"\n"
+        "      if (( attempts <= ${FAKE_INPUT_SYNC_FAILURES:-0} )); then exit 29; fi\n"
+        "    else\n"
+        "      mkdir -p \"$FAKE_REMOTE_ROOT/payload\"; cp -a \"$3/.\" \"$FAKE_REMOTE_ROOT/payload/\"\n"
+        "      if [[ \"${FAKE_TAMPER:-0}\" == 1 ]]; then printf 'tampered\\n' >> \"$OUTPUT_DIR/status.json\"; fi\n"
+        "      exit \"${FAKE_SYNC_RC:-0}\"\n"
+        "    fi ;;\n"
         "  buckets/cp) if [[ \"${FAKE_TERMINAL_RC:-0}\" == 0 ]]; then cp \"$3\" \"$FAKE_REMOTE_ROOT/terminal-status.json\"; fi; exit \"${FAKE_TERMINAL_RC:-0}\" ;;\n"
         "  *) exit 99 ;;\n"
         "esac\n",
@@ -164,6 +178,7 @@ def _run(
         "INFERENCE_PID_FILE": str(tmp_path / "inference.pid"),
         "NVIDIA_PID_FILE": str(tmp_path / "nvidia.pid"),
         "CALL_LOG": str(tmp_path / "calls.log"),
+        "INPUT_SYNC_ATTEMPTS_FILE": str(tmp_path / "input-sync-attempts"),
         "PATH": f"{tmp_path}:{os.environ['PATH']}",
     }
     env.update(extra or {})
@@ -171,6 +186,83 @@ def _run(
     if persistent:
         return subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return subprocess.run(command, env=env, check=False, capture_output=True, text=True)
+
+
+def _build_fake_full_evidence(tmp_path: Path) -> Path:
+    root = tmp_path / "fake-input"
+    evidence = root / "evidence"
+    evidence.mkdir(parents=True)
+    manifest = json.loads(FULL_MANIFEST.read_text(encoding="utf-8"))
+    requests = []
+    for example in manifest["examples"]:
+        video_id = example["video_id"]
+        requests.append(
+            {
+                "run_id": "shared-evidence",
+                "condition_id": "shared-accepted-whisper",
+                "video_id": video_id,
+                "question": example["question"],
+                "frame_paths": [
+                    f"/source/evidence/frames/{video_id}/frame-{index:02d}.jpg"
+                    for index in range(1, 13)
+                ],
+                "frame_timestamps": [float(index) for index in range(12)],
+                "transcript": f"transcript for {video_id}",
+            }
+        )
+    (evidence / "requests.accepted-whisper.json").write_text(
+        json.dumps(requests, indent=2) + "\n", encoding="utf-8"
+    )
+    (evidence / "evidence-marker.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "label_policy": "label-free-evidence",
+                "example_count": 475,
+                "checksum_file": "SHA256SUMS",
+                "manifest_sha256": "092aec23cfdcc370bbed8e776f7cc7c84752481da6ba0996983883955d3841e8",
+                "canonical_id_digest": "95a623c0add252541b9c81ff4910e949dc81db17482add2c467b761237b22b0f",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    checksum_lines = []
+    for path in sorted(evidence.rglob("*")):
+        if path.is_file():
+            relative = path.relative_to(root)
+            checksum_lines.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {relative}")
+    (root / "SHA256SUMS").write_text("\n".join(checksum_lines) + "\n", encoding="utf-8")
+    return root
+
+
+def _run_full_condition_with_input_retry(tmp_path: Path) -> subprocess.CompletedProcess[str]:
+    fake_input = _build_fake_full_evidence(tmp_path)
+    result = _run(
+        tmp_path,
+        extra={
+            "PROFILE": str(FULL_PROFILE),
+            "MANIFEST_OVERRIDE": str(FULL_MANIFEST),
+            "VQA_MODE": "condition",
+            "VQA_DRY_RUN": "0",
+            "CONDITION_ID": "4b-question-aware",
+            "EXPERIMENT_RUN_NAME": "vqa-factorial-full-20260809-f1-4b-question-aware",
+            "HF_INPUT_URI": (
+                "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+                "experiments/vqa-factorial-full-evidence-20260809-f1"
+            ),
+            "HF_REMOTE_URI": (
+                "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+                "experiments/vqa-factorial-full-20260809-f1/conditions/4b-question-aware"
+            ),
+            "FAKE_INPUT_ROOT": str(fake_input),
+            "FAKE_INPUT_SYNC_FAILURES": "1",
+        },
+    )
+    assert isinstance(result, subprocess.CompletedProcess)
+    return result
 
 
 def _pid_is_gone(path: Path) -> None:
@@ -237,6 +329,13 @@ def test_success_sync_snapshots_frozen_payload_and_terminal_checksum(tmp_path: P
 def test_empty_remote_prefix_ignores_hf_cli_stderr_diagnostics(tmp_path: Path) -> None:
     result = _run(tmp_path, extra={"FAKE_LIST_WARNING": "fresh client diagnostic"})
     assert result.returncode == 0, result.stderr
+    _assert_remote_payload(tmp_path, status="passed")
+
+
+def test_condition_input_sync_retries_in_place_after_transient_failure(tmp_path: Path) -> None:
+    result = _run_full_condition_with_input_retry(tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (tmp_path / "input-sync-attempts").read_text(encoding="utf-8") == "2"
     _assert_remote_payload(tmp_path, status="passed")
 
 
