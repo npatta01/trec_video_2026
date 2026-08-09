@@ -39,11 +39,10 @@ commands:
 resources:
   gpu: L40S:1:48GB..
   cpu: 8..
-  memory: 64GB..
+  memory: 32GB..
   disk: 100GB
 
-fleets: [gpu-marketplace]
-backends: [runpod, vastai]
+backends: [vastai]
 spot_policy: on-demand
 max_price: 1.00
 max_duration: 2h
