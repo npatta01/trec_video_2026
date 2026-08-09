@@ -16,6 +16,7 @@ import csv
 import hashlib
 import importlib.metadata
 import json
+import math
 import os
 from pathlib import Path
 import random
@@ -89,6 +90,17 @@ EXPECTED_RUNTIME_CONTROLS = {
     "max_pixels": 262144,
     "transcript_policy": "shared-accepted-whisper",
 }
+EXPECTED_RUNTIME_DEPENDENCIES = {
+    "Pillow": "11.3.0",
+    "soundfile": "0.13.1",
+    "accelerate": "1.12.0",
+    "av": "16.0.1",
+    "imageio-ffmpeg": "0.6.0",
+    "qwen-vl-utils": "0.0.14",
+}
+EXPECTED_QUESTION_TYPES = frozenset(
+    {"count", "visible-text", "speech", "temporal", "causal-procedural", "general"}
+)
 EXPECTED_CONDITION_BINDINGS = {
     "4b-current": (
         "Qwen/Qwen3.5-4B",
@@ -539,6 +551,8 @@ def _read_operational_evidence(
     row_model_loads = {row.get("model_load_seconds") for row in prediction_rows}
     if row_model_loads != {model_load_seconds}:
         raise ValueError("timing model-load identity does not match prediction rows")
+    if timing_peak != max(prediction_peaks):
+        raise ValueError("timing peak_memory_bytes does not match the maximum row peak")
     if timing_peak < 1 or any(peak <= 0 for peak in prediction_peaks):
         raise ValueError("PyTorch max-allocated memory measurements are invalid")
     return {
@@ -744,7 +758,7 @@ def _load_condition_bundle(
                 or sum(devices.values()) != count
                 or sum(dtypes.values()) != count
                 or any(key != "cuda:0" for key in devices)
-                or any(key != "torch.bfloat16" for key in dtypes)
+                or (label == "parameter" and any(key != "torch.bfloat16" for key in dtypes))
                 or ((not devices or not dtypes) if count else (devices or dtypes))
             ):
                 raise ValueError(f"condition {condition_id} {label} attestation counts are invalid")
@@ -760,8 +774,10 @@ def _load_condition_bundle(
             raise ValueError(f"condition {condition_id} prediction peak memory is invalid")
         for field in ("elapsed_seconds", "model_load_seconds"):
             value = raw.get(field)
-            if isinstance(value, bool) or not isinstance(value, (int, float)) or not statistics.isfinite(value) or value < 0:
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
                 raise ValueError(f"condition {condition_id} prediction {field} is invalid")
+        if raw.get("question_type") not in EXPECTED_QUESTION_TYPES:
+            raise ValueError(f"condition {condition_id} question_type is invalid")
         if raw.get("error_type") is not None or raw.get("error_message") is not None:
             raise ValueError(f"condition {condition_id} passed prediction carries an error")
         if raw.get("status") != "passed" or not isinstance(raw.get("answer"), str) or not raw["answer"].strip():
@@ -813,16 +829,9 @@ def _load_condition_bundle(
         or not isinstance(runtime.get("cuda_device_name"), str)
         or not runtime.get("cuda_device_name", "").strip()
         or not isinstance(runtime.get("dependencies"), Mapping)
-        or set(runtime["dependencies"]) != {
-            "Pillow",
-            "soundfile",
-            "accelerate",
-            "av",
-            "imageio-ffmpeg",
-            "qwen-vl-utils",
-        }
+        or dict(runtime["dependencies"]) != EXPECTED_RUNTIME_DEPENDENCIES
     ):
-        raise ValueError(f"condition {condition_id} runtime attestation is invalid")
+        raise ValueError(f"condition {condition_id} runtime attestation or dependency versions are invalid")
     for raw in raw_rows:
         if raw["runtime"] != runtime["runtime"] or raw["runtime_image"] != runtime["runtime_image"]:
             raise ValueError(f"condition {condition_id} prediction/runtime identity mismatch")

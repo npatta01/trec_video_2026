@@ -618,6 +618,7 @@ def _write_production_bundle(
     *,
     evidence_id: str = "evidence-1",
     mutate: dict[str, object] | None = None,
+    buffer_dtypes: dict[str, int] | None = None,
 ) -> Path:
     """Create the downloaded producer layout without reshaping it for scoring."""
 
@@ -663,7 +664,10 @@ def _write_production_bundle(
                     "parameter_dtypes": {"torch.bfloat16": 10},
                     "buffer_tensor_count": 2,
                     "buffer_devices": {"cuda:0": 2},
-                    "buffer_dtypes": {"torch.bfloat16": 2},
+                    "buffer_dtypes": buffer_dtypes or {
+                        "torch.float32": 1,
+                        "torch.int64": 1,
+                    },
                     "torch_cuda": "12.4",
                     "torch_hip": None,
                 },
@@ -722,9 +726,9 @@ def _write_production_bundle(
         "cuda_bf16_supported": True,
         "dependencies": {
             "Pillow": "11.3.0",
-            "soundfile": "0.13.0",
+            "soundfile": "0.13.1",
             "accelerate": "1.12.0",
-            "av": "16.0.0",
+            "av": "16.0.1",
             "imageio-ffmpeg": "0.6.0",
             "qwen-vl-utils": "0.0.14",
         },
@@ -736,7 +740,7 @@ def _write_production_bundle(
         "prepare_wall_seconds": 2.0,
         # Deliberately below nvidia-smi's independent measurement: the scorer
         # must preserve both valid measurements without inventing an ordering.
-        "peak_memory_bytes": 64 * 1024 * 1024,
+        "peak_memory_bytes": 1024 + len(ids) - 1,
         "model_load_seconds": 1.5,
         "runtime_identity": [
             [
@@ -825,6 +829,99 @@ def _write_production_bundle(
     return root
 
 
+def test_production_loader_uses_a_portable_finite_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scorer = load_scorer()
+    bundle = _write_production_bundle(
+        tmp_path / "bundle",
+        scorer,
+        "4b-current",
+        buffer_dtypes={"torch.bfloat16": 2},
+    )
+    monkeypatch.delattr(scorer.statistics, "isfinite", raising=False)
+    loaded = scorer._load_condition_bundle(
+        bundle,
+        condition_id="4b-current",
+        profile_condition=make_profile(scorer)["conditions"][0],
+        expected_rows=4,
+        expected_id_digest=scorer.sorted_video_id_set_sha256(("v1", "v2", "v3", "v4")),
+    )
+    assert len(loaded["rows"]) == 4
+
+
+def test_production_buffers_allow_mixed_cuda_dtypes_but_bind_count(
+    tmp_path: Path,
+) -> None:
+    scorer = load_scorer()
+    bundle = _write_production_bundle(tmp_path / "bundle", scorer, "4b-current")
+    loaded = scorer._load_condition_bundle(
+        bundle,
+        condition_id="4b-current",
+        profile_condition=make_profile(scorer)["conditions"][0],
+        expected_rows=4,
+        expected_id_digest=scorer.sorted_video_id_set_sha256(("v1", "v2", "v3", "v4")),
+    )
+    assert len(loaded["rows"]) == 4
+
+
+@pytest.mark.parametrize(
+    "mutation, expected",
+    [("dependency", "dependency"), ("question_type", "question_type")],
+)
+def test_producer_dependency_and_question_type_bindings_fail_closed(
+    tmp_path: Path, mutation: str, expected: str
+) -> None:
+    scorer = load_scorer()
+    bundle = _write_production_bundle(
+        tmp_path / mutation,
+        scorer,
+        "4b-current",
+        buffer_dtypes={"torch.bfloat16": 2},
+    )
+    if mutation == "dependency":
+        path = bundle / "payload" / "runtime.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["dependencies"]["av"] = "16.0.0"
+    else:
+        path = bundle / "payload" / "conditions" / "4b-current" / "predictions.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload[0]["question_type"] = "unknown"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    _refresh_download_manifest(bundle)
+    with pytest.raises(ValueError, match=expected):
+        scorer._load_condition_bundle(
+            bundle,
+            condition_id="4b-current",
+            profile_condition=make_profile(scorer)["conditions"][0],
+            expected_rows=4,
+            expected_id_digest=scorer.sorted_video_id_set_sha256(("v1", "v2", "v3", "v4")),
+        )
+
+
+def test_timing_peak_must_equal_maximum_row_peak(tmp_path: Path) -> None:
+    scorer = load_scorer()
+    bundle = _write_production_bundle(
+        tmp_path / "bundle",
+        scorer,
+        "4b-current",
+        buffer_dtypes={"torch.bfloat16": 2},
+    )
+    timing_path = bundle / "payload" / "conditions" / "4b-current" / "timing.json"
+    timing = json.loads(timing_path.read_text(encoding="utf-8"))
+    timing["peak_memory_bytes"] = 1026
+    timing_path.write_text(json.dumps(timing), encoding="utf-8")
+    _refresh_download_manifest(bundle)
+    with pytest.raises(ValueError, match="peak_memory_bytes|timing"):
+        scorer._load_condition_bundle(
+            bundle,
+            condition_id="4b-current",
+            profile_condition=make_profile(scorer)["conditions"][0],
+            expected_rows=4,
+            expected_id_digest=scorer.sorted_video_id_set_sha256(("v1", "v2", "v3", "v4")),
+        )
+
+
 def test_production_bundle_contract_and_operational_evidence_are_required(
     tmp_path: Path,
 ) -> None:
@@ -874,7 +971,7 @@ def test_production_bundle_contract_and_operational_evidence_are_required(
     operational = artifact["conditions"]["4b-current"]["operational_evidence"]
     assert operational["wall_seconds"] == 8.0
     assert operational["utilization_sample_count"] == 2
-    assert operational["torch_peak_memory_bytes"] == 64 * 1024 * 1024
+    assert operational["torch_peak_memory_bytes"] == 1027
     assert operational["nvidia_smi_peak_memory_bytes"] == 200 * 1024 * 1024
     projection = artifact["experiment"]["operational_projection"]
     assert projection["parallel_wall_seconds"] == 8.0
