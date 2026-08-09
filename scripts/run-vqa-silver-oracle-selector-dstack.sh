@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly EXPECTED_RUN_ID="vqa-silver-oracle-election-20260809-a1"
+readonly EXPECTED_RUN_ID="vqa-silver-oracle-election-20260809-b4"
 readonly EXPECTED_MEDIA_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/artifacts/vqa2025-training-media-475-20260809-a1/media"
-readonly EXPECTED_CONTROLLER_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-silver-oracle-election-20260809-a1/input-controller"
-readonly EXPECTED_OUTPUT_BASE="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-silver-oracle-election-20260809-a1"
+readonly EXPECTED_CONTROLLER_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-silver-oracle-election-20260809-b4/input-controller"
+readonly EXPECTED_OUTPUT_BASE="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-silver-oracle-election-20260809-b4"
 readonly EXPECTED_RUNTIME_IMAGE="docker.io/qwenllm/qwen3-omni@sha256:71896cf6533abc610ac298f26289ff3a4ea4bd1fc835f370ece9e5c31e3181d8"
 readonly EXPECTED_MODEL_ID="Qwen/Qwen3-Omni-30B-A3B-Thinking"
 readonly EXPECTED_MODEL_REVISION="2f443cfc4c54b14a815c0e2bb9a9d6cbcd9a748b"
-readonly EXPECTED_PROTOCOL_SHA256="a3a4bc0ff70a14535dacb6d17838dd817711093d74aa6ef3fcd4e6990d2e98b6"
 readonly UV_VERSION="0.11.3"
 readonly HF_CLI_VERSION="1.24.0"
 readonly PYTHON_BIN="/usr/bin/python3"
@@ -16,6 +15,8 @@ readonly INPUT_ROOT="/dstack/input"
 readonly OUTPUT_DIR="/dstack/output"
 readonly WORKLOAD_STDOUT="/dstack/workload.stdout.json"
 readonly SOURCE_IDENTITY="/dstack/source-bundle-identity.json"
+readonly TELEMETRY_CSV="/dstack/nvidia-smi.csv"
+readonly PREFLIGHT_MARKER="/dstack/runtime-preflight-marker.json"
 
 EXPERIMENT_RUN_ID="${EXPERIMENT_RUN_ID:-}"
 MEDIA_URI="${MEDIA_URI:-}"
@@ -25,12 +26,15 @@ RUNTIME_IMAGE="${RUNTIME_IMAGE:-}"
 MODEL_ID="${MODEL_ID:-}"
 MODEL_REVISION="${MODEL_REVISION:-}"
 SELECTOR_SLICE="${SELECTOR_SLICE:-}"
+EXPECTED_PROTOCOL_SHA256="${EXPECTED_PROTOCOL_SHA256:-}"
 EXPECTED_SOURCE_BUNDLE_SHA256="${EXPECTED_SOURCE_BUNDLE_SHA256:-}"
 SUBMITTED_CODE_REVISION="${SUBMITTED_CODE_REVISION:-}"
+EXECUTION_ATTEMPT_ID="${EXECUTION_ATTEMPT_ID:-}"
 UVX_BIN=""
 REQUEST_NAME=""
 REMOTE_OUTPUT_URI=""
 FINALIZE_READY="false"
+TELEMETRY_PID=""
 
 die() {
   echo "error: $*" >&2
@@ -49,21 +53,32 @@ validate_environment() {
   [[ "$MODEL_ID" == "$EXPECTED_MODEL_ID" ]] || die "model ID mismatch"
   [[ "$MODEL_REVISION" == "$EXPECTED_MODEL_REVISION" ]] \
     || die "model revision mismatch"
+  [[ "$EXPECTED_PROTOCOL_SHA256" =~ ^[0-9a-f]{64}$ ]] \
+    && [[ "$EXPECTED_PROTOCOL_SHA256" != \
+      "0000000000000000000000000000000000000000000000000000000000000000" ]] \
+    || die "protocol digest pin is invalid"
   [[ "$EXPECTED_SOURCE_BUNDLE_SHA256" =~ ^[0-9a-f]{64}$ ]] \
+    && [[ "$EXPECTED_SOURCE_BUNDLE_SHA256" != \
+      "0000000000000000000000000000000000000000000000000000000000000000" ]] \
     || die "source bundle digest pin is invalid"
   [[ "$SUBMITTED_CODE_REVISION" =~ ^[0-9a-f]{40}$ ]] \
+    && [[ "$SUBMITTED_CODE_REVISION" != "0000000000000000000000000000000000000000" ]] \
     || die "submitted code revision is invalid"
+  [[ "$EXECUTION_ATTEMPT_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] \
+    && [[ "$EXECUTION_ATTEMPT_ID" != \
+      "00000000-0000-0000-0000-000000000000" ]] \
+    || die "execution attempt ID pin is invalid"
   [[ "$PYTHON_BIN" == /usr/bin/python3 && -x "$PYTHON_BIN" ]] \
     || die "pinned image Python is unavailable"
   case "$SELECTOR_SLICE" in
-    canary-a2) REQUEST_NAME="selector-canary.jsonl" ;;
+    canary-b4) REQUEST_NAME="selector-canary.jsonl" ;;
     chunk-00) REQUEST_NAME="selector-chunk-00.jsonl" ;;
     chunk-01) REQUEST_NAME="selector-chunk-01.jsonl" ;;
     chunk-02) REQUEST_NAME="selector-chunk-02.jsonl" ;;
     chunk-03) REQUEST_NAME="selector-chunk-03.jsonl" ;;
-    *) die "SELECTOR_SLICE must be canary-a2 or chunk-00 through chunk-03" ;;
+    *) die "SELECTOR_SLICE must be canary-b4 or chunk-00 through chunk-03" ;;
   esac
-  REMOTE_OUTPUT_URI="$OUTPUT_BASE/selector/$SELECTOR_SLICE"
+  REMOTE_OUTPUT_URI="$OUTPUT_BASE/selector/$SELECTOR_SLICE/$EXECUTION_ATTEMPT_ID"
 }
 
 verify_source_bundle() {
@@ -72,7 +87,10 @@ verify_source_bundle() {
     /dstack/run/src/trec_video_2026 \
     "$EXPECTED_SOURCE_BUNDLE_SHA256" \
     "$SUBMITTED_CODE_REVISION" \
-    "$SOURCE_IDENTITY" <<'PY'
+    "$SOURCE_IDENTITY" \
+    "$EXPERIMENT_RUN_ID-$SELECTOR_SLICE" \
+    "$EXECUTION_ATTEMPT_ID" \
+    "$REMOTE_OUTPUT_URI" <<'PY'
 import hashlib
 import json
 import sys
@@ -83,6 +101,9 @@ source_root = Path(sys.argv[2])
 expected_digest = sys.argv[3]
 submitted_revision = sys.argv[4]
 output_path = Path(sys.argv[5])
+execution_run_id = sys.argv[6]
+execution_attempt_id = sys.argv[7]
+remote_output_uri = sys.argv[8]
 if runner_path.is_symlink() or not runner_path.is_file():
     raise SystemExit("source bundle runner must be a regular file")
 if source_root.is_symlink() or not source_root.is_dir():
@@ -108,9 +129,14 @@ output_path.write_text(
     json.dumps(
         {
             "schema_version": 1,
+            "execution_run_id": execution_run_id,
+            "execution_attempt_id": execution_attempt_id,
+            "remote_output_uri": remote_output_uri,
             "source_bundle_sha256": actual,
             "submitted_code_revision": submitted_revision,
         },
+        ensure_ascii=False,
+        indent=2,
         sort_keys=True,
     )
     + "\n",
@@ -214,6 +240,38 @@ PY
   chmod -R a-w "$INPUT_ROOT"
 }
 
+run_runtime_preflight() {
+  PYTHONPATH=/dstack/run/src "$PYTHON_BIN" -B -m \
+    trec_video_2026.vqa_experiments.qwen3_omni_structured \
+      --requests "$INPUT_ROOT/controller/$REQUEST_NAME" \
+      --protocol "$INPUT_ROOT/controller/protocol.json" \
+      --input-root "$INPUT_ROOT" \
+      --run-id "$EXPERIMENT_RUN_ID-$SELECTOR_SLICE" \
+      --execution-attempt-id "$EXECUTION_ATTEMPT_ID" \
+      --remote-output-uri "$REMOTE_OUTPUT_URI" \
+      --source-bundle-sha256 "$EXPECTED_SOURCE_BUNDLE_SHA256" \
+      --submitted-code-revision "$SUBMITTED_CODE_REVISION" \
+      --preflight-marker "$PREFLIGHT_MARKER" \
+      --create-preflight-marker \
+      >/dev/null
+}
+
+runtime_preflight_marker_is_valid() {
+  PYTHONPATH=/dstack/run/src "$PYTHON_BIN" -B -m \
+    trec_video_2026.vqa_experiments.qwen3_omni_structured \
+      --requests "$INPUT_ROOT/controller/$REQUEST_NAME" \
+      --protocol "$INPUT_ROOT/controller/protocol.json" \
+      --input-root "$INPUT_ROOT" \
+      --run-id "$EXPERIMENT_RUN_ID-$SELECTOR_SLICE" \
+      --execution-attempt-id "$EXECUTION_ATTEMPT_ID" \
+      --remote-output-uri "$REMOTE_OUTPUT_URI" \
+      --source-bundle-sha256 "$EXPECTED_SOURCE_BUNDLE_SHA256" \
+      --submitted-code-revision "$SUBMITTED_CODE_REVISION" \
+      --preflight-marker "$PREFLIGHT_MARKER" \
+      --verify-preflight-marker \
+      >/dev/null
+}
+
 run_selector() {
   PYTHONPATH=/dstack/run/src "$PYTHON_BIN" -B -m \
     trec_video_2026.vqa_experiments.qwen3_omni_structured \
@@ -222,13 +280,41 @@ run_selector() {
       --input-root "$INPUT_ROOT" \
       --output-dir "$OUTPUT_DIR" \
       --run-id "$EXPERIMENT_RUN_ID-$SELECTOR_SLICE" \
+      --execution-attempt-id "$EXECUTION_ATTEMPT_ID" \
+      --remote-output-uri "$REMOTE_OUTPUT_URI" \
+      --source-bundle-sha256 "$EXPECTED_SOURCE_BUNDLE_SHA256" \
+      --submitted-code-revision "$SUBMITTED_CODE_REVISION" \
+      --preflight-marker "$PREFLIGHT_MARKER" \
       >"$WORKLOAD_STDOUT"
+}
+
+start_telemetry() {
+  nvidia-smi \
+    --query-gpu=timestamp,name,memory.total,memory.used,memory.free,utilization.gpu,power.draw \
+    --format=csv,nounits \
+    -lms 1000 >"$TELEMETRY_CSV" &
+  TELEMETRY_PID=$!
+}
+
+stop_telemetry() {
+  if [[ -n "$TELEMETRY_PID" ]]; then
+    kill "$TELEMETRY_PID" 2>/dev/null || true
+    wait "$TELEMETRY_PID" 2>/dev/null || true
+    TELEMETRY_PID=""
+  fi
 }
 
 finalize_on_exit() {
   local workload_rc=$?
   trap - EXIT
+  stop_telemetry
   if [[ "$FINALIZE_READY" != "true" ]]; then
+    exit "$workload_rc"
+  fi
+  if ! runtime_preflight_marker_is_valid; then
+    if (( workload_rc == 0 )); then
+      workload_rc=2
+    fi
     exit "$workload_rc"
   fi
   set +e
@@ -247,14 +333,39 @@ finalize_on_exit() {
       finalization_rc=$step_rc
     fi
   fi
-  "$PYTHON_BIN" - "$OUTPUT_DIR/terminal-status.json" "$workload_rc" <<'PY'
+  if [[ -f "$PREFLIGHT_MARKER" && ! -L "$PREFLIGHT_MARKER" ]]; then
+    cp "$PREFLIGHT_MARKER" "$OUTPUT_DIR/runtime-preflight-marker.json"
+    step_rc=$?
+    if (( step_rc != 0 && finalization_rc == 0 )); then
+      finalization_rc=$step_rc
+    fi
+  fi
+  if [[ -f "$TELEMETRY_CSV" && ! -L "$TELEMETRY_CSV" ]]; then
+    cp "$TELEMETRY_CSV" "$OUTPUT_DIR/nvidia-smi.csv"
+    step_rc=$?
+    if (( step_rc != 0 && finalization_rc == 0 )); then
+      finalization_rc=$step_rc
+    fi
+  fi
+  "$PYTHON_BIN" - \
+    "$OUTPUT_DIR/terminal-status.json" \
+    "$workload_rc" \
+    "$EXECUTION_ATTEMPT_ID" \
+    "$REMOTE_OUTPUT_URI" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 Path(sys.argv[1]).write_text(
     json.dumps(
-        {"artifact_sync_attempted": True, "workload_returncode": int(sys.argv[2])},
+        {
+            "artifact_sync_attempted": True,
+            "workload_returncode": int(sys.argv[2]),
+            "execution_attempt_id": sys.argv[3],
+            "remote_output_uri": sys.argv[4],
+        },
+        ensure_ascii=False,
+        indent=2,
         sort_keys=True,
     )
     + "\n",
@@ -291,11 +402,15 @@ main() {
   hf_cli version
   hf_cli auth whoami
   remote_output_prefix_is_empty
-  FINALIZE_READY="true"
   trap finalize_on_exit EXIT
   verify_source_bundle
   fetch_slice_inputs
+  run_runtime_preflight
+  FINALIZE_READY="true"
+  start_telemetry
   run_selector
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

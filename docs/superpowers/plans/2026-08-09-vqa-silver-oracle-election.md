@@ -99,8 +99,9 @@ scorer, and Quarto QMD reporting.
   checksums. Refuse symlinks, labels outside the selector file, missing files,
   duplicate IDs, and any test-set path.
 - [ ] Render four disjoint 119/119/119/118 full chunks plus the fixed ten-row
-  canary. Each job uses an 80GB-or-larger NVIDIA GPU, at least 120GB host RAM,
-  `max_price: 3.00`, `max_duration: 8h`, and a unique immutable Bucket prefix.
+  canary and one label-free resource sentinel. Each job uses an H100 with at
+  least 80GB VRAM, at least 192GB host RAM, `max_price: 3.35`; full shards use
+  `max_duration: 3h20m`, and every run uses a unique immutable Bucket prefix.
 - [ ] Run tests, shell syntax checks, dstack dry-run previews, source-bundle
   hash verification, and a secret scan before any launch.
 - [ ] Commit as `feat: add structured Qwen3-Omni selector runtime`.
@@ -116,9 +117,11 @@ scorer, and Quarto QMD reporting.
 
 - [ ] Upload the selector bundle to its private immutable Bucket prefix and
   verify the remote manifest before provisioning.
-- [ ] Launch the canary detached. Require 10/10 terminal success, valid schema
-  after at most one retry, in-range intervals/segment IDs, native-video/audio
-  attestation, and no answerer-visible leakage. Do not score answers.
+- [ ] Launch the B4 canary detached. Require 11/11 terminal success (the frozen
+  ten strata plus one label-free maximum-duration resource sentinel), at most
+  two repairs among the original ten, in-range intervals/segment IDs,
+  native-video/audio and EOS attestation, the frozen H100 memory/runtime/cost
+  gates, and no answerer-visible leakage. Do not score answers.
 - [ ] If the canary passes, launch all four full chunks in parallel without
   changing code, prompt, seeds, or protocol. If it fails, stop and consume a
   new protocol revision rather than patching outputs.

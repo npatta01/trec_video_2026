@@ -1,5 +1,5 @@
 type: task
-name: vqa-silver-selector-chunk-00-20260809-a1
+name: vqa-silver-selector-chunk-00-20260809-b4
 image: docker.io/qwenllm/qwen3-omni@sha256:71896cf6533abc610ac298f26289ff3a4ea4bd1fc835f370ece9e5c31e3181d8
 entrypoint: /bin/bash -c
 shell: bash
@@ -7,16 +7,18 @@ working_dir: /dstack/run
 env:
   - HF_TOKEN=${{ secrets.hf_token }}
   - HF_HUB_DISABLE_TELEMETRY=1
-  - EXPERIMENT_RUN_ID=vqa-silver-oracle-election-20260809-a1
+  - EXPERIMENT_RUN_ID=vqa-silver-oracle-election-20260809-b4
   - SELECTOR_SLICE=chunk-00
   - MEDIA_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/artifacts/vqa2025-training-media-475-20260809-a1/media
-  - CONTROLLER_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-silver-oracle-election-20260809-a1/input-controller
-  - OUTPUT_BASE=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-silver-oracle-election-20260809-a1
+  - CONTROLLER_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-silver-oracle-election-20260809-b4/input-controller
+  - OUTPUT_BASE=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-silver-oracle-election-20260809-b4
   - RUNTIME_IMAGE=docker.io/qwenllm/qwen3-omni@sha256:71896cf6533abc610ac298f26289ff3a4ea4bd1fc835f370ece9e5c31e3181d8
   - MODEL_ID=Qwen/Qwen3-Omni-30B-A3B-Thinking
   - MODEL_REVISION=2f443cfc4c54b14a815c0e2bb9a9d6cbcd9a748b
-  - EXPECTED_SOURCE_BUNDLE_SHA256=2ca15843e8e7ec3de3dab441d23c3cd47d1da085a22f36de0a1e42bb8d6746c7
-  - SUBMITTED_CODE_REVISION=abb75991d74d143460195d1f6e1080b0a0443691
+  - EXPECTED_PROTOCOL_SHA256=0000000000000000000000000000000000000000000000000000000000000000
+  - EXPECTED_SOURCE_BUNDLE_SHA256=0000000000000000000000000000000000000000000000000000000000000000
+  - SUBMITTED_CODE_REVISION=0000000000000000000000000000000000000000
+  - EXECUTION_ATTEMPT_ID=00000000-0000-0000-0000-000000000000
   - PYTHONPATH=/dstack/run/src
 files:
   - ../scripts/run-vqa-silver-oracle-selector-dstack.sh:/dstack/run/scripts/run-vqa-silver-oracle-selector-dstack.sh
@@ -26,17 +28,17 @@ commands:
 resources:
   gpu:
     vendor: nvidia
-    name: [H100, H200, B200, RTXPRO6000WS]
+    name: H100
     count: 1
-    memory: 90GB..
+    memory: 80GB..
   cpu: 16..
   memory: 192GB..
   disk: 220GB
 fleets: [gpu-marketplace]
 backends: [runpod, vastai]
 spot_policy: on-demand
-max_price: 4.75
-max_duration: 80m
+max_price: 3.35
+max_duration: 3h20m
 retry:
   on_events: [no-capacity]
   duration: 30m

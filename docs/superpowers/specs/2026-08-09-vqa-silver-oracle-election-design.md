@@ -187,6 +187,43 @@ Caps for the complete diagnostic are 500 primary selector calls, 500 selector
 retry calls only on malformed rows, 1,500 judge calls across pools, 12 aggregate
 GPU-hours, USD 30 provider cost, and 24 hours wall time after the canary starts.
 
+### B4 operational amendment after the failed A2 canary
+
+A2 stopped before full launch at 6/10 valid rows. Native video, native audio,
+and EOS attestation passed, but the runtime prompt omitted the validator's
+combined interval-duration limit; seven of twelve schema-invalid attempts
+violated that unprompted rule. A2 is protocol-failure evidence, not selector
+efficacy evidence, and none of its outputs may be projected, clipped, or reused.
+
+B3 was never launched: independent prelaunch review found that its protocol
+digest did not authenticate each executable request file and that its launch
+status did not deterministically adjudicate the operational gates. B4 consumes
+a fresh immutable prefix and binds every canary/chunk filename, row count,
+ordered-ID digest, file SHA-256, panel digest, and resource-sentinel identity.
+Its adjudicator consumes the signed summary, result rows, GPU telemetry, and
+actual dstack billed cost before emitting one bounded go/no-go decision.
+
+B4 keeps the frozen model, seeds, 475-row panel, ten stratified canary rows,
+3x3 factorial, and election design. It adds the exact per-row duration, range,
+combined-duration, and transcript-ID limits plus a literal valid JSON shape to
+both prompts. An eleventh, label-free maximum-duration resource sentinel is
+appended to the canary and is not an efficacy row.
+
+B4 runs on H100 only. Full launch requires all eleven rows valid after at most
+one retry each, the original ten with at most two repairs total, native
+video/audio and EOS on every attempt, zero generation failures, generation time
+at most 895 seconds, model load at most 120 seconds, reported GPU memory at least
+78,700,000,000 bytes, peak allocation at most 90%, and both peak-reserved and
+sampled-free margins of at least 6 GiB. The four shards run concurrently with a
+`3h20m` job limit and price at most USD 3.35/GPU-hour only if projected aggregate
+selector time is at most 12 GPU hours and projected longest-shard time is at
+most 3.25 hours.
+
+The USD 30 complete-diagnostic cap above is superseded because A2 measured a
+zero-retry selector floor of roughly 9.4 aggregate GPU-hours before answer and
+judge work. B4 instead caps selector compute at USD 39.48 and billed selector
+cost at USD 45. The 24-hour wall-clock cap and all efficacy gates remain frozen.
+
 Each row retains selected intervals, frame requested timestamps and actual PTS,
 frame hashes and extraction identity, contact sheets, transcript source and
 selected line indices, exact request hashes, answers, ranking, runtime identity,

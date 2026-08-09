@@ -7,6 +7,13 @@ from pathlib import Path
 
 import pytest
 
+from trec_video_2026.vqa_experiments.qwen3_omni_structured import (
+    REPAIR_PROMPT as RUNTIME_REPAIR_PROMPT,
+)
+from trec_video_2026.vqa_experiments.qwen3_omni_structured import (
+    SELECTOR_PROMPT as RUNTIME_SELECTOR_PROMPT,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
 BUILDER_PATH = ROOT / "scripts/build_vqa_silver_oracle_bundle.py"
 
@@ -154,7 +161,64 @@ def test_build_bundle_binds_private_selector_rows_and_media(tmp_path: Path) -> N
     assert protocol["panel"]["count"] == 2
     assert protocol["selector"]["primary_seed"] == 42
     assert protocol["selector"]["repair_seed"] == 43
+    assert protocol["selector"]["interval_duration_budget_formula"] == (
+        "min(video_duration, max(12, min(30, 0.2 * video_duration)))"
+    )
+    assert "combined interval duration" in protocol["selector"]["prompt"]
+    assert "combined interval duration" in protocol["selector"]["repair_prompt"]
     assert summary["protocol_sha256"] == protocol["protocol_sha256"]
+    request_files = protocol["request_files"]
+    assert request_files["selector-requests.jsonl"]["row_count"] == 2
+    assert (
+        request_files["selector-requests.jsonl"]["file_sha256"]
+        == hashlib.sha256((output / "selector-requests.jsonl").read_bytes()).hexdigest()
+    )
+    assert request_files["selector-canary.jsonl"]["row_count"] == 2
+    assert request_files["selector-chunk-00.jsonl"]["row_count"] == 1
+    assert request_files["selector-chunk-01.jsonl"]["row_count"] == 1
+    assert request_files["selector-chunk-02.jsonl"]["row_count"] == 0
+    assert request_files["selector-chunk-03.jsonl"]["row_count"] == 0
+
+
+def test_builder_default_revision_is_fresh_b4() -> None:
+    builder = load_builder()
+
+    assert builder.RUN_ID == "vqa-silver-oracle-election-20260809-b4"
+
+
+def test_bundle_and_runtime_prompts_are_identical() -> None:
+    builder = load_builder()
+
+    assert builder.SELECTOR_PROMPT == RUNTIME_SELECTOR_PROMPT
+    assert builder.REPAIR_PROMPT == RUNTIME_REPAIR_PROMPT
+
+
+def test_resource_sentinel_selection_is_label_free_and_max_burden() -> None:
+    builder = load_builder()
+    rows = [
+        {
+            "video_id": "short-many-segments",
+            "duration_seconds": 20.0,
+            "whisper_segments": [{} for _ in range(20)],
+            "reference": "must not affect selection",
+        },
+        {
+            "video_id": "long-few-segments",
+            "duration_seconds": 30.5,
+            "whisper_segments": [{}],
+            "reference": "different label",
+        },
+        {
+            "video_id": "long-more-segments",
+            "duration_seconds": 30.5,
+            "whisper_segments": [{}, {}],
+            "reference": "another label",
+        },
+    ]
+
+    selected = builder.select_resource_sentinel(rows)
+
+    assert selected["video_id"] == "long-more-segments"
 
 
 def test_build_bundle_rejects_question_mismatch_before_writing(tmp_path: Path) -> None:

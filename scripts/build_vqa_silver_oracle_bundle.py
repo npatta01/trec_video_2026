@@ -12,11 +12,12 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from trec_video_2026.vqa_experiments.silver_oracle import (
+    INTERVAL_DURATION_BUDGET_FORMULA,
     parse_timestamped_whisper,
     protocol_sha256,
 )
 
-RUN_ID = "vqa-silver-oracle-election-20260809-a1"
+RUN_ID = "vqa-silver-oracle-election-20260809-b4"
 EXPECTED_COUNT = 475
 EXPECTED_IDS_SHA256 = "95a623c0add252541b9c81ff4910e949dc81db17482add2c467b761237b22b0f"
 SELECTOR_MODEL_ID = "Qwen/Qwen3-Omni-30B-A3B-Thinking"
@@ -29,15 +30,27 @@ SELECTOR_PROMPT = (
     "You are selecting evidence for a video question. You may use the provided "
     "reference answer only to find where the supporting evidence occurs. Return "
     "one terminal JSON object and no prose. The object must have exactly: status "
-    "(localized or non_localizable), intervals (zero to two sorted non-overlapping "
-    "objects with start_seconds and end_seconds), and whisper_segment_ids (zero "
-    "to three sorted unique integer IDs). Do not return an answer, caption, "
-    "rationale, confidence, hint, or rewritten transcript."
+    "(localized or non_localizable), intervals, and whisper_segment_ids. Return "
+    "no more than two intervals; they must be sorted, non-overlapping, inside the "
+    "listed video range, and their combined interval duration must not exceed the "
+    "listed limit. Return no more than three sorted unique Whisper segment IDs "
+    "inside the listed ID range. For non_localizable, return both arrays empty. "
+    'Valid localized JSON shape (example times only; do not copy them): {"status":'
+    '"localized","intervals":[{"start_seconds":0.0,"end_seconds":1.0}],'
+    '"whisper_segment_ids":[]}. '
+    "Do not return an answer, caption, rationale, confidence, hint, rewritten "
+    "transcript, or any additional key."
 )
 REPAIR_PROMPT = (
     "Your previous response did not match the required JSON schema. Re-evaluate "
     "the same evidence and return only one valid terminal JSON object with exactly "
-    "status, intervals, and whisper_segment_ids. Do not add prose or any other key."
+    "status, intervals, and whisper_segment_ids. Return no more than two intervals "
+    "and obey the listed range, ordering, non-overlap, and combined interval "
+    "duration limit. Return no more than three Whisper segment IDs and obey the "
+    "listed ID range, uniqueness, and ordering. Valid localized JSON shape "
+    '(example times only; do not copy them): {"status":"localized","intervals":'
+    '[{"start_seconds":0.0,"end_seconds":1.0}],"whisper_segment_ids":[]}. '
+    "Do not add prose or any other key."
 )
 RESERVED_OUTPUTS = (
     "selector-requests.jsonl",
@@ -96,6 +109,13 @@ def _id_digest(rows: Sequence[Mapping[str, Any]]) -> str:
         raise ValueError("every row must have a nonempty video_id")
     if ids != sorted(ids) or len(ids) != len(set(ids)):
         raise ValueError("panel video IDs must be unique and sorted")
+    return hashlib.sha256(("\n".join(ids) + "\n").encode()).hexdigest()
+
+
+def _ordered_id_digest(rows: Sequence[Mapping[str, Any]]) -> str:
+    ids = [row.get("video_id") for row in rows]
+    if any(not isinstance(video_id, str) or not video_id for video_id in ids):
+        raise ValueError("every request row must have a nonempty video_id")
     return hashlib.sha256(("\n".join(ids) + "\n").encode()).hexdigest()
 
 
@@ -161,6 +181,30 @@ def select_canary_rows(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]
     return selected
 
 
+def select_resource_sentinel(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Select the maximum native-video/input burden without consulting labels."""
+
+    candidates: list[tuple[tuple[float, int, str], dict[str, Any]]] = []
+    for row in rows:
+        video_id = row.get("video_id")
+        duration = row.get("duration_seconds")
+        segments = row.get("whisper_segments")
+        if not isinstance(video_id, str) or not video_id:
+            raise ValueError("resource sentinel row has invalid video_id")
+        if (
+            isinstance(duration, bool)
+            or not isinstance(duration, (int, float))
+            or duration <= 0
+        ):
+            raise ValueError("resource sentinel row has invalid duration")
+        if not isinstance(segments, list):
+            raise ValueError("resource sentinel row has invalid Whisper segments")
+        candidates.append(((float(duration), len(segments), video_id), dict(row)))
+    if not candidates:
+        raise ValueError("resource sentinel selection requires at least one row")
+    return max(candidates, key=lambda candidate: candidate[0])[1]
+
+
 def partition_rows(
     rows: Sequence[Mapping[str, Any]], *, chunk_count: int
 ) -> list[list[dict[str, Any]]]:
@@ -190,12 +234,22 @@ def _write_json(path: Path, payload: Any) -> None:
 
 
 def _write_jsonl(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
-    path.write_text(
-        "".join(
-            json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n" for row in rows
-        ),
-        encoding="utf-8",
-    )
+    path.write_bytes(_jsonl_bytes(rows))
+
+
+def _jsonl_bytes(rows: Sequence[Mapping[str, Any]]) -> bytes:
+    return "".join(
+        json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n" for row in rows
+    ).encode("utf-8")
+
+
+def _request_file_identity(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    payload = _jsonl_bytes(rows)
+    return {
+        "row_count": len(rows),
+        "ids_sha256": _ordered_id_digest(rows),
+        "file_sha256": hashlib.sha256(payload).hexdigest(),
+    }
 
 
 def _request_row(
@@ -362,15 +416,47 @@ def build_bundle(
         requests.append(request)
         media_records.append(media_record)
 
+    has_stratified_canary = len(requests) >= sum(
+        required for _, required in STRATUM_TARGETS
+    )
     canary_rows = (
         select_canary_rows(requests)
-        if len(requests) >= sum(required for _, required in STRATUM_TARGETS)
+        if has_stratified_canary
         else [
             {**row, "question_stratum": question_stratum(row["question"])}
             for row in requests
         ]
     )
+    resource_sentinel_count = 0
+    resource_sentinel_sha256 = None
+    if has_stratified_canary:
+        selected_ids = {row["video_id"] for row in canary_rows}
+        sentinel_candidates = [
+            row for row in requests if row["video_id"] not in selected_ids
+        ]
+        resource_sentinel = select_resource_sentinel(sentinel_candidates or requests)
+        sentinel_id = str(resource_sentinel["video_id"])
+        if sentinel_id not in selected_ids:
+            canary_rows.append(resource_sentinel)
+            resource_sentinel_count = 1
+        else:
+            raise ValueError(
+                "resource sentinel must be distinct from the ten-row canary"
+            )
+        resource_sentinel_sha256 = hashlib.sha256(sentinel_id.encode()).hexdigest()
     chunks = partition_rows(requests, chunk_count=4)
+    request_rows_by_name: dict[str, Sequence[Mapping[str, Any]]] = {
+        "selector-canary.jsonl": canary_rows,
+        "selector-chunk-00.jsonl": chunks[0],
+        "selector-chunk-01.jsonl": chunks[1],
+        "selector-chunk-02.jsonl": chunks[2],
+        "selector-chunk-03.jsonl": chunks[3],
+        "selector-requests.jsonl": requests,
+    }
+    request_files = {
+        name: _request_file_identity(rows)
+        for name, rows in request_rows_by_name.items()
+    }
     protocol_without_hash = {
         "schema_version": 1,
         "run_id": run_id,
@@ -378,6 +464,9 @@ def build_bundle(
             "count": len(requests),
             "ids_sha256": ids_sha256,
             "canary_count": len(canary_rows),
+            "stratified_canary_count": len(canary_rows) - resource_sentinel_count,
+            "resource_sentinel_count": resource_sentinel_count,
+            "resource_sentinel_id_sha256": resource_sentinel_sha256,
             "chunk_counts": [len(chunk) for chunk in chunks],
         },
         "selector": {
@@ -391,7 +480,9 @@ def build_bundle(
             "repair_prompt": REPAIR_PROMPT,
             "max_intervals": 2,
             "max_whisper_segments": 3,
+            "interval_duration_budget_formula": INTERVAL_DURATION_BUDGET_FORMULA,
         },
+        "request_files": request_files,
         "decision": {
             "full_schema_failure_rate_stop": 0.05,
             "evidence_delta_c": 0.015,
@@ -419,10 +510,8 @@ def build_bundle(
         "media_manifest_sha256": _canonical_sha256(media_manifest),
     }
 
-    _write_jsonl(output_dir / "selector-requests.jsonl", requests)
-    _write_jsonl(output_dir / "selector-canary.jsonl", canary_rows)
-    for index, chunk in enumerate(chunks):
-        _write_jsonl(output_dir / f"selector-chunk-{index:02d}.jsonl", chunk)
+    for name, rows in request_rows_by_name.items():
+        _write_jsonl(output_dir / name, rows)
     _write_json(output_dir / "media-manifest.json", media_manifest)
     _write_json(output_dir / "protocol.json", protocol)
     _write_json(output_dir / "summary.json", summary)
