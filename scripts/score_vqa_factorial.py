@@ -12,12 +12,14 @@ from __future__ import annotations
 import argparse
 from collections import defaultdict
 import copy
+import csv
 import hashlib
 import importlib.metadata
 import json
 import os
 from pathlib import Path
 import random
+import re
 import statistics
 import sys
 from typing import Any, Callable, Mapping, Sequence
@@ -46,6 +48,22 @@ EXPECTED_BERT_SCORE_MODULE_VERSION = "0.3.12"
 EXPECTED_STS_TIMEOUT = 10.0
 EXPECTED_STS_RETRIES = 3
 STS_ENDPOINT = task1.STS_ENDPOINT
+EXPECTED_BASELINE_ARTIFACT_SHA256 = (
+    "f6259ee8457463c3bcf3fc8233e063f63f9a1c103062e69012b1d6861380dfd1"
+)
+EXPECTED_BASELINE_ROW_KEY = "qwen35-4b-12f-whisper-large-v3"
+EXPECTED_BASELINE_SOURCE_PREDICTION_SHA256 = (
+    "ad9c9aabace33d3091c076e2f06c10ef8e55d355be9e5e392d790a80dbd78377"
+)
+EXPECTED_BASELINE_SCORER_SHA256 = (
+    "6124abd3ae7e0ecc5cb6fccc4b0ddec218c8ea5ec3730f54c58d246eb7a347da"
+)
+EXPECTED_FULL_CANONICAL_ID_DIGEST = (
+    "95a623c0add252541b9c81ff4910e949dc81db17482add2c467b761237b22b0f"
+)
+EXPECTED_FULL_MANIFEST_SHA256 = (
+    "092aec23cfdcc370bbed8e776f7cc7c84752481da6ba0996983883955d3841e8"
+)
 EXPECTED_CONDITION_IDS = (
     "4b-current",
     "4b-question-aware",
@@ -250,6 +268,377 @@ def _condition_tuple(condition: Mapping[str, Any]) -> tuple[Any, ...]:
     )
 
 
+def _bundle_relative_path(raw: str) -> Path:
+    if not isinstance(raw, str) or not raw.strip():
+        raise ValueError("bundle checksum path is not a string")
+    candidate = Path(raw)
+    if candidate.is_absolute() or ".." in candidate.parts:
+        raise ValueError(f"unsafe bundle checksum path: {raw}")
+    return candidate
+
+
+def _verify_checksum_file(root: Path) -> tuple[str, dict[str, str]]:
+    checksum_path = root / "SHA256SUMS"
+    if not checksum_path.is_file():
+        raise ValueError(f"bundle checksum manifest is missing: {checksum_path}")
+    entries: dict[str, str] = {}
+    for line in checksum_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        digest, separator, raw_path = line.partition("  ")
+        if not separator or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise ValueError("bundle checksum manifest is malformed")
+        relative = _bundle_relative_path(raw_path)
+        key = relative.as_posix()
+        if key in entries or key in {"SHA256SUMS", "terminal-status.json"}:
+            raise ValueError("bundle checksum manifest has a duplicate or forbidden path")
+        path = root / relative
+        if path.is_symlink() or not path.resolve().is_relative_to(root) or not path.is_file() or sha256_path(path) != digest:
+            raise ValueError(f"bundle checksum verification failed: {key}")
+        entries[key] = digest
+    actual = {
+        item.relative_to(root).as_posix()
+        for item in root.rglob("*")
+        if item.is_file() and not item.is_symlink() and item.name not in {"SHA256SUMS", "terminal-status.json"}
+    }
+    if any(item.is_symlink() for item in root.rglob("*")):
+        raise ValueError("bundle payload cannot contain symlinks")
+    if set(entries) != actual:
+        raise ValueError("bundle checksum manifest does not cover the exact payload")
+    return sha256_path(checksum_path), entries
+
+
+def _verify_evidence_checksum(root: Path, marker_path: Path) -> str:
+    checksum_path = root / "evidence" / "SHA256SUMS"
+    if not checksum_path.is_file():
+        raise ValueError("evidence checksum manifest is missing")
+    lines = [line for line in checksum_path.read_text(encoding="utf-8").splitlines() if line]
+    marker_digest: str | None = None
+    for line in lines:
+        digest, separator, raw_path = line.partition("  ")
+        if separator != "  " or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise ValueError("evidence checksum manifest is malformed")
+        relative = _bundle_relative_path(raw_path)
+        if relative.as_posix() in {"evidence-marker.json", "evidence/evidence-marker.json"}:
+            marker_digest = digest
+    if marker_digest != sha256_path(marker_path):
+        raise ValueError("evidence marker checksum is invalid")
+    return sha256_path(checksum_path)
+
+
+def _finite_positive(value: object, *, field: str) -> float:
+    number = _finite(value, field=field)
+    if number <= 0:
+        raise ValueError(f"{field} must be positive")
+    return number
+
+
+def _read_operational_evidence(
+    root: Path,
+    *,
+    condition_id: str,
+    expected_rows: int,
+    prediction_rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    timing = _load_json(root / "timing.json")
+    if not isinstance(timing, Mapping) or timing.get("condition_id") != condition_id:
+        raise ValueError(f"condition {condition_id} timing identity is invalid")
+    if timing.get("row_count") != expected_rows:
+        raise ValueError(f"condition {condition_id} timing row count is invalid")
+    wall_seconds = _finite_positive(timing.get("wall_seconds"), field="wall_seconds")
+    preparation = timing.get("prepare_wall_seconds")
+    if preparation is not None:
+        preparation = _finite(preparation, field="prepare_wall_seconds")
+        if preparation < 0:
+            raise ValueError("prepare_wall_seconds must not be negative")
+    timing_peak = timing.get("peak_memory_bytes")
+    if isinstance(timing_peak, bool) or not isinstance(timing_peak, int) or timing_peak <= 0:
+        raise ValueError("timing peak_memory_bytes must be a positive integer")
+    telemetry_path = root / "telemetry" / "nvidia-smi.csv"
+    if not telemetry_path.is_file():
+        raise ValueError("NVIDIA telemetry CSV is missing")
+    reader = csv.DictReader(telemetry_path.read_text(encoding="utf-8").splitlines())
+    required = {
+        "timestamp",
+        "index",
+        "utilization.gpu [%]",
+        "memory.used [MiB]",
+        "memory.total [MiB]",
+    }
+    if set(reader.fieldnames or ()) != required:
+        raise ValueError("NVIDIA telemetry CSV schema is invalid")
+    utilization: list[float] = []
+    telemetry_peak = 0.0
+    samples = 0
+    for record in reader:
+        try:
+            index = int(record["index"])
+            gpu_util = _finite(record["utilization.gpu [%]"], field="gpu utilization")
+            memory_used = _finite(record["memory.used [MiB]"], field="memory used")
+            memory_total = _finite(record["memory.total [MiB]"], field="memory total")
+        except KeyError as error:
+            raise ValueError("NVIDIA telemetry row is incomplete") from error
+        if index < 0 or not record["timestamp"].strip() or not 0 <= gpu_util <= 100 or memory_used < 0 or memory_total <= 0 or memory_used > memory_total:
+            raise ValueError("NVIDIA telemetry values are invalid")
+        utilization.append(gpu_util)
+        telemetry_peak = max(telemetry_peak, memory_used * 1024 * 1024)
+        samples += 1
+    if not utilization:
+        raise ValueError("NVIDIA telemetry has no samples")
+    observed_peak = max(
+        [timing_peak]
+        + [
+            row["peak_memory_bytes"]
+            for row in prediction_rows
+            if isinstance(row.get("peak_memory_bytes"), int)
+        ]
+    )
+    if observed_peak < telemetry_peak:
+        raise ValueError("timing peak memory is below telemetry memory")
+    return {
+        "wall_seconds": wall_seconds,
+        "gpu_hours": wall_seconds / 3600.0,
+        "rows_per_second": expected_rows / wall_seconds,
+        "preparation_wall_seconds": preparation,
+        "peak_memory_bytes": int(observed_peak),
+        "utilization_mean_percent": statistics.fmean(utilization),
+        "utilization_max_percent": max(utilization),
+        "utilization_sample_count": samples,
+        "timing_sha256": sha256_path(root / "timing.json"),
+        "telemetry_sha256": sha256_path(telemetry_path),
+    }
+
+
+def _load_condition_bundle(
+    root: Path,
+    *,
+    condition_id: str,
+    profile_condition: Mapping[str, Any],
+    expected_rows: int,
+    expected_id_digest: str,
+) -> dict[str, Any]:
+    root = root.resolve()
+    if not root.is_dir():
+        raise ValueError(f"condition {condition_id} must be a production bundle directory")
+    checksum_sha256, checksum_entries = _verify_checksum_file(root)
+    terminal = _load_json(root / "terminal-status.json")
+    if (
+        not isinstance(terminal, Mapping)
+        or terminal.get("schema_version") != 1
+        or terminal.get("status") != "passed"
+        or terminal.get("payload_sha256") != checksum_sha256
+    ):
+        raise ValueError(f"condition {condition_id} terminal status is not passed and verified")
+    status = _load_json(root / "status.json")
+    if (
+        not isinstance(status, Mapping)
+        or status.get("schema_version") != 1
+        or status.get("status") != "passed"
+        or status.get("expected_count") != expected_rows
+        or status.get("labels_joined") is not False
+    ):
+        raise ValueError(f"condition {condition_id} status marker is invalid")
+    identity_payload = _load_json(root / "condition-identity.json")
+    if not isinstance(identity_payload, Mapping):
+        raise ValueError(f"condition {condition_id} identity is invalid")
+    nested_condition = identity_payload.get("condition")
+    if nested_condition is not None and not isinstance(nested_condition, Mapping):
+        raise ValueError(f"condition {condition_id} nested identity is invalid")
+    nested_condition = nested_condition if isinstance(nested_condition, Mapping) else identity_payload
+    decoding = identity_payload.get("deterministic_decoding", {})
+    if not isinstance(decoding, Mapping):
+        raise ValueError(f"condition {condition_id} decoding identity is invalid")
+    identity = {
+        **dict(identity_payload),
+        **dict(nested_condition),
+        "run_id": identity_payload.get(
+            "run_id", identity_payload.get("run_name", nested_condition.get("run_id"))
+        ),
+        "model_revision": nested_condition.get(
+            "model_revision", nested_condition.get("revision")
+        ),
+        "requested_min_pixels_per_frame": identity_payload.get(
+            "requested_min_pixels_per_frame", nested_condition.get("min_pixels")
+        ),
+        "requested_max_pixels_per_frame": identity_payload.get(
+            "requested_max_pixels_per_frame", nested_condition.get("max_pixels")
+        ),
+        "applied_min_pixels_per_frame": identity_payload.get(
+            "applied_min_pixels_per_frame", nested_condition.get("min_pixels")
+        ),
+        "applied_max_pixels_per_frame": identity_payload.get(
+            "applied_max_pixels_per_frame", nested_condition.get("max_pixels")
+        ),
+        "max_new_tokens": identity_payload.get(
+            "max_new_tokens", decoding.get("max_new_tokens")
+        ),
+        "do_sample": identity_payload.get("do_sample", decoding.get("do_sample")),
+        "thinking": identity_payload.get(
+            "thinking", decoding.get("enable_thinking")
+        ),
+    }
+    expected_tuple = _condition_tuple(profile_condition)
+    observed_tuple = (
+        identity.get("model_id"),
+        identity.get("model_revision"),
+        identity.get("answer_policy"),
+        identity.get("applied_min_pixels_per_frame"),
+        identity.get("applied_max_pixels_per_frame"),
+        identity.get("request_source"),
+    )
+    if identity.get("condition_id") != condition_id or observed_tuple != expected_tuple:
+        raise ValueError(f"condition {condition_id} identity tuple does not match the profile")
+    for key, expected in {
+        "requested_min_pixels_per_frame": expected_tuple[3],
+        "requested_max_pixels_per_frame": expected_tuple[4],
+        "runtime_image": EXPECTED_RUNTIME_CONTROLS["runtime_image"],
+        "transformers_revision": EXPECTED_RUNTIME_CONTROLS["transformers_revision"],
+        "frame_count": EXPECTED_RUNTIME_CONTROLS["frame_count"],
+        "max_new_tokens": EXPECTED_RUNTIME_CONTROLS["max_new_tokens"],
+        "do_sample": EXPECTED_RUNTIME_CONTROLS["do_sample"],
+        "thinking": EXPECTED_RUNTIME_CONTROLS["thinking"],
+    }.items():
+        if key == "transformers_revision" and identity.get(key) is None:
+            continue
+        if identity.get(key) != expected:
+            raise ValueError(f"condition {condition_id} observed runtime control mismatch: {key}")
+    prediction_path = root / "predictions.json"
+    raw_rows, _metadata = _load_prediction_payload(prediction_path)
+    if len(raw_rows) != expected_rows:
+        raise ValueError(f"Condition {condition_id} has an incomplete prediction payload")
+    selected: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for index, raw in enumerate(raw_rows):
+        _reject_label_fields(raw, f"$[{index}]")
+        required = {
+            "status", "answer", "run_id", "condition_id", "video_id", "model_id",
+            "model_revision", "answer_policy", "requested_min_pixels_per_frame",
+            "requested_max_pixels_per_frame", "min_pixels_per_frame",
+            "max_pixels_per_frame", "runtime_image", "precision", "device",
+            "runtime_attestation", "peak_memory_bytes",
+        }
+        if not required <= set(raw):
+            raise ValueError(f"condition {condition_id} prediction schema is incomplete")
+        video_id = raw.get("video_id")
+        if not isinstance(video_id, str) or not video_id or video_id in seen:
+            raise ValueError(f"condition {condition_id} has a duplicate or invalid video ID")
+        seen.add(video_id)
+        expected_row = {
+            "run_id": identity["run_id"],
+            "condition_id": condition_id,
+            "model_id": expected_tuple[0],
+            "model_revision": expected_tuple[1],
+            "answer_policy": expected_tuple[2],
+            "requested_min_pixels_per_frame": expected_tuple[3],
+            "requested_max_pixels_per_frame": expected_tuple[4],
+            "min_pixels_per_frame": expected_tuple[3],
+            "max_pixels_per_frame": expected_tuple[4],
+            "runtime_image": EXPECTED_RUNTIME_CONTROLS["runtime_image"],
+            "precision": "bfloat16",
+            "device": "cuda:0 (NVIDIA CUDA)",
+        }
+        if any(raw.get(key) != value for key, value in expected_row.items()):
+            raise ValueError(f"condition {condition_id} prediction row binding mismatch")
+        attestation = raw.get("runtime_attestation")
+        if (
+            not isinstance(attestation, Mapping)
+            or attestation.get("accelerator_backend") != "nvidia-cuda"
+            or not isinstance(attestation.get("parameter_tensor_count"), int)
+            or attestation["parameter_tensor_count"] <= 0
+            or not isinstance(attestation.get("parameter_devices"), Mapping)
+            or attestation["parameter_devices"].get("cuda:0", 0) <= 0
+            or not isinstance(attestation.get("parameter_dtypes"), Mapping)
+            or attestation["parameter_dtypes"].get("torch.bfloat16", 0) <= 0
+        ):
+            raise ValueError(f"condition {condition_id} prediction lacks NVIDIA BF16 attestation")
+        peak = raw.get("peak_memory_bytes")
+        if isinstance(peak, bool) or not isinstance(peak, int) or peak <= 0:
+            raise ValueError(f"condition {condition_id} prediction peak memory is invalid")
+        if raw.get("status") != "passed" or not isinstance(raw.get("answer"), str) or not raw["answer"].strip():
+            raise ValueError(f"condition {condition_id} has an incomplete prediction row")
+        selected.append({"condition_id": condition_id, "video_id": video_id, "answer": raw["answer"]})
+    order = [row["video_id"] for row in selected]
+    if order != sorted(order) or sorted_video_id_set_sha256(order) != expected_id_digest:
+        raise ValueError(f"condition {condition_id} canonical ID order/digest mismatch")
+    evidence_marker_path = root / "evidence" / "evidence-marker.json"
+    evidence_marker = _load_json(evidence_marker_path)
+    if (
+        not isinstance(evidence_marker, Mapping)
+        or evidence_marker.get("schema_version") != 1
+        or evidence_marker.get("label_policy") != "label-free-evidence"
+        or evidence_marker.get("example_count") != expected_rows
+        or evidence_marker.get("canonical_id_digest") != expected_id_digest
+        or evidence_marker.get("checksum_file") != "SHA256SUMS"
+    ):
+        raise ValueError(f"condition {condition_id} evidence marker is invalid")
+    if expected_rows == 475 and evidence_marker.get("manifest_sha256") != EXPECTED_FULL_MANIFEST_SHA256:
+        raise ValueError(f"condition {condition_id} evidence manifest identity is not pinned")
+    runtime = _load_json(root / "runtime.json")
+    if (
+        not isinstance(runtime, Mapping)
+        or runtime.get("transformers_version") != "5.15.0.dev0"
+        or runtime.get("transformers_revision") != EXPECTED_RUNTIME_CONTROLS["transformers_revision"]
+        or runtime.get("cuda_bf16_supported") is not True
+        or not runtime.get("torch_cuda")
+        or not runtime.get("cuda_device_name")
+    ):
+        raise ValueError(f"condition {condition_id} runtime attestation is invalid")
+    operational = _read_operational_evidence(
+        root, condition_id=condition_id, expected_rows=expected_rows, prediction_rows=raw_rows
+    )
+    return {
+        "rows": selected,
+        "prediction_sha256": sha256_path(prediction_path),
+        "prediction_path": prediction_path,
+        "evidence_identity": (
+            sha256_path(evidence_marker_path),
+            _verify_evidence_checksum(root, evidence_marker_path),
+            str(evidence_marker.get("evidence_bundle_id")),
+        ),
+        "evidence_marker_sha256": sha256_path(evidence_marker_path),
+        "evidence_checksum_sha256": sha256_path(root / "evidence" / "SHA256SUMS"),
+        "operational": operational,
+        "observed_identity": {
+            "model_id": identity["model_id"],
+            "model_revision": identity["model_revision"],
+            "answer_policy": identity["answer_policy"],
+            "min_pixels": identity["applied_min_pixels_per_frame"],
+            "max_pixels": identity["applied_max_pixels_per_frame"],
+            "request_source": identity["request_source"],
+            "runtime_image_sha256": hashlib.sha256(identity["runtime_image"].encode()).hexdigest(),
+        },
+        "checksum_sha256": checksum_sha256,
+        "checksum_entries": checksum_entries,
+    }
+
+
+def _load_evidence_bundle_identity(
+    root: Path, *, expected_rows: int, expected_id_digest: str
+) -> tuple[str, str, str]:
+    root = root.resolve()
+    if not root.is_dir():
+        raise ValueError("evidence bundle must be a directory")
+    _verify_checksum_file(root)
+    marker_path = root / "evidence" / "evidence-marker.json"
+    if not marker_path.is_file():
+        marker_path = root / "evidence-marker.json"
+    marker = _load_json(marker_path)
+    if (
+        not isinstance(marker, Mapping)
+        or marker.get("schema_version") != 1
+        or marker.get("label_policy") != "label-free-evidence"
+        or marker.get("example_count") != expected_rows
+        or marker.get("canonical_id_digest") != expected_id_digest
+    ):
+        raise ValueError("evidence bundle marker does not match the canonical panel")
+    if marker_path.parent.name == "evidence":
+        checksum_sha256 = _verify_evidence_checksum(root, marker_path)
+    else:
+        checksum_path = root / "SHA256SUMS"
+        checksum_sha256 = sha256_path(checksum_path)
+    return sha256_path(marker_path), checksum_sha256, str(marker.get("evidence_bundle_id"))
+
+
 def _validate_runtime_metadata(
     condition_id: str,
     metadata: Mapping[str, Any],
@@ -276,7 +665,23 @@ def _validate_runtime_metadata(
 def _reject_label_fields(value: Any, location: str = "$") -> None:
     if isinstance(value, Mapping):
         for key, child in value.items():
-            if str(key).lower() in _LABEL_KEYS:
+            normalized_key = re.sub(r"[^a-z0-9]", "", str(key).lower())
+            if normalized_key in {
+                re.sub(r"[^a-z0-9]", "", label)
+                for label in _LABEL_KEYS
+            } or normalized_key in {
+                "question",
+                "questions",
+                "reference",
+                "references",
+                "prediction",
+                "predictions",
+                "answertext",
+                "transcript",
+                "transcripts",
+                "cachequery",
+                "querytext",
+            }:
                 raise ValueError(f"Prediction contains label-bearing field at {location}.{key}")
             _reject_label_fields(child, f"{location}.{key}")
     elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
@@ -652,6 +1057,8 @@ def _baseline_sanitized_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "ndcg_degenerate": row["ndcg_degenerate"],
     }
     for field_name in (
+        "normalized_exact_match",
+        "token_f1",
         "answer_token_count",
         "meteor",
         "bertscore_f1",
@@ -700,7 +1107,8 @@ def baseline_content_sha256(payload: Mapping[str, Any]) -> str:
 def _validate_baseline_binding(
     payload: Mapping[str, Any],
     *,
-    artifact_path: Path | None,
+    artifact_path: Path,
+    source_prediction_path: Path | None,
     panel_identity: Mapping[str, Any],
     annotation_hash: str,
     bert_model: Path,
@@ -709,6 +1117,19 @@ def _validate_baseline_binding(
     expected_rows: int,
     expected_ids: Sequence[str],
 ) -> tuple[bool, str, list[dict[str, Any]] | None]:
+    if sha256_path(artifact_path) != EXPECTED_BASELINE_ARTIFACT_SHA256:
+        return False, "binding mismatch: pinned baseline artifact hash", None
+    if source_prediction_path is None:
+        return False, "binding mismatch: explicit baseline source predictions are required", None
+    if sha256_path(source_prediction_path) != EXPECTED_BASELINE_SOURCE_PREDICTION_SHA256:
+        return False, "binding mismatch: pinned baseline source prediction hash", None
+    try:
+        source_rows, _source_metadata = _load_prediction_payload(source_prediction_path)
+    except (OSError, ValueError, TypeError) as error:
+        return False, f"binding mismatch: baseline source schema ({type(error).__name__})", None
+    source_map_hash = normalized_answer_map_sha256(source_rows)
+    if source_map_hash != current_answer_map_hash:
+        return False, "binding mismatch: normalized baseline source answer map", None
     checks: list[tuple[str, bool]] = []
     checks.append(("schema", payload.get("schema_version") == 1))
     checks.append(("panel", payload.get("panel", {}).get("identity") == panel_identity))
@@ -721,37 +1142,26 @@ def _validate_baseline_binding(
                 "bert hash",
                 inputs.get("bert_model_snapshot_sha256") == sha256_path(bert_model),
             ),
-            ("scorer", inputs.get("scorer_sha256") == sha256_path(TASK1_SCORER_PATH)),
+            ("scorer", inputs.get("scorer_sha256") == EXPECTED_BASELINE_SCORER_SHA256),
             (
                 "config",
                 inputs.get("profile_sha256", inputs.get("config_sha256")) == profile_digest,
             ),
-            (
-                "answer-map",
-                inputs.get("normalized_answer_map_sha256") == current_answer_map_hash,
-            ),
+            ("answer-map", inputs.get("normalized_answer_map_sha256") == current_answer_map_hash),
             ("scorer configuration", _baseline_scorer_binding(payload.get("scorer", {}))),
-            (
-                "artifact hash",
-                inputs.get("artifact_content_sha256") == baseline_content_sha256(payload),
-            ),
+            ("source prediction", inputs.get("source_prediction_sha256") == EXPECTED_BASELINE_SOURCE_PREDICTION_SHA256),
         ]
     )
-    if "artifact_sha256" in inputs and artifact_path is not None:
-        checks.append(("artifact file hash", inputs["artifact_sha256"] == sha256_path(artifact_path)))
     if not all(passed for _name, passed in checks):
         failed = next(name for name, passed in checks if not passed)
         return False, f"binding mismatch: {failed}", None
     rows_payload = payload.get("rows")
     if not isinstance(rows_payload, Mapping):
         return False, "binding mismatch: baseline rows", None
-    candidate_rows: Sequence[Mapping[str, Any]] | None = None
-    for key, rows in rows_payload.items():
-        if key == "4b-current" or key not in EXPECTED_CONDITION_IDS:
-            if isinstance(rows, list) and len(rows) == expected_rows:
-                candidate_rows = rows
-                break
-    if candidate_rows is None:
+    if set(rows_payload) != {EXPECTED_BASELINE_ROW_KEY}:
+        return False, "binding mismatch: baseline 4b-current rows", None
+    candidate_rows = rows_payload.get(EXPECTED_BASELINE_ROW_KEY)
+    if not isinstance(candidate_rows, list) or len(candidate_rows) != expected_rows:
         return False, "binding mismatch: baseline 4b-current rows", None
     try:
         sanitized = [_baseline_sanitized_row(row) for row in candidate_rows]
@@ -947,33 +1357,120 @@ def _distribution_version(name: str) -> str:
 
 
 def _artifact_safe(value: object, location: str = "$") -> None:
-    forbidden_keys = {
+    if location == "$" and isinstance(value, Mapping):
+        expected_top_level = {
+            "schema_version",
+            "experiment",
+            "panel",
+            "scorer",
+            "baseline_binding",
+            "conditions",
+            "rows",
+            "paired_vs_baseline",
+            "factorial_effects",
+            "decision",
+            "integrity",
+            "inputs",
+            "dependencies",
+            "cache_summary",
+        }
+        if set(value) != expected_top_level:
+            raise ValueError("artifact does not match the positive top-level schema")
+    forbidden_tokens = {
         "answer",
         "reference",
         "question",
         "transcript",
-        "normalized_answer",
-        "normalized_reference",
-        "cache_path",
-        "raw_prediction_path",
-        "raw_absolute_path",
+        "prediction",
+        "cachepath",
+        "cachequery",
+        "querytext",
+        "query",
+        "uri",
+        "path",
+        "filepath",
+        "raw",
+    }
+    allowed_key_exceptions = {
+        "cachesummary",
+        "conditioninputsha256",
+        "runtimeimagesha256",
+        "evidencemarkersha256",
+        "evidencechecksumsha256",
+        "stsendpointsha256",
+        "answertokencount",
+        "meananswertokencount",
+        "answerpolicy",
     }
     if isinstance(value, Mapping):
-        if forbidden_keys.intersection(str(key) for key in value):
-            raise ValueError(f"sanitized artifact contains forbidden text field at {location}")
         for key, child in value.items():
+            key_text = str(key)
+            normalized = re.sub(r"[^a-z0-9]", "", key_text.lower())
+            condition_key_location = any(
+                marker in location
+                for marker in (
+                    "$.conditions",
+                    "$.rows",
+                    "$.panel.completed_per_condition",
+                    "$.paired_vs_baseline",
+                    "$.decision.treatments",
+                    "$.inputs.condition_input_sha256",
+                    "$.inputs.condition_bundle_checksum_sha256",
+                )
+            )
+            if (
+                normalized not in allowed_key_exceptions
+                and not (key_text in EXPECTED_CONDITION_IDS and condition_key_location)
+                and not (location == "$.integrity" and "prediction" in normalized)
+                and normalized in {"file", "files"}
+            ):
+                raise ValueError(f"sanitized artifact contains forbidden field at {location}.{key_text}")
+            if (
+                normalized not in allowed_key_exceptions
+                and not (key_text in EXPECTED_CONDITION_IDS and condition_key_location)
+                and not (location == "$.integrity" and "prediction" in normalized)
+                and any(
+                token in normalized for token in forbidden_tokens
+                )
+            ):
+                raise ValueError(f"sanitized artifact contains forbidden field at {location}.{key_text}")
+            if normalized in {"videoid", "conditionid"} and not any(
+                marker in location
+                for marker in (
+                    ".rows[",
+                    "$.rows.",
+                    ".paired_vs_baseline.",
+                    ".factorial_effects.",
+                )
+            ):
+                raise ValueError(f"dynamic ID is outside its schema location: {location}.{key_text}")
             _artifact_safe(child, f"{location}.{key}")
     elif isinstance(value, list):
         for index, child in enumerate(value):
             _artifact_safe(child, f"{location}[{index}]")
-    elif isinstance(value, str) and value.startswith("/"):
-        raise ValueError(f"sanitized artifact contains an absolute path at {location}")
+    elif isinstance(value, str):
+        if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", value):
+            raise ValueError(f"sanitized artifact contains a URI at {location}")
+        parent_key = location.rsplit(".", 1)[-1].lower()
+        if (
+            "/" in value
+            or "\\" in value
+            or value.startswith(("/", "./", "../", "~/"))
+        ) and parent_key not in {"model_id", "revision", "completion_denominator"}:
+            raise ValueError(f"sanitized artifact contains a path-like value at {location}")
+        if re.search(
+            r"(?:^|[/\\])[^/\\]+\.(?:json|jsonl|csv|txt|pt|bin)$", value, re.IGNORECASE
+        ):
+            if parent_key not in {"model_id", "revision"}:
+                raise ValueError(f"sanitized artifact contains a path-like value at {location}")
 
 
 def score_factorial(
     *,
     annotation_root: Path,
-    condition_paths: Mapping[str, Path],
+    condition_paths: Mapping[str, Path] | None = None,
+    condition_bundles: Mapping[str, Path] | None = None,
+    evidence_bundle_path: Path | None = None,
     bert_model: Path,
     profile_path: Path | None = DEFAULT_PROFILE_PATH,
     profile: Mapping[str, Any] | None = None,
@@ -981,12 +1478,14 @@ def score_factorial(
     expected_rows: int | None = None,
     expected_annotation_files: int | None = None,
     baseline_artifact_path: Path | None = None,
+    baseline_source_prediction_path: Path | None = None,
     rescore_baseline: bool = False,
     output_path: Path | None = None,
     meteor_fn: MetricFunction | None = None,
     bertscore_fn: BertScoreFunction | None = None,
     sts_fn: MetricFunction | None = None,
     sts_cache: STSCache | None = None,
+    sts_cache_path: Path | None = None,
     bootstrap_iterations: int = EXPECTED_BOOTSTRAP_ITERATIONS,
     bootstrap_seed: int = EXPECTED_BOOTSTRAP_SEED,
 ) -> dict[str, Any]:
@@ -1016,37 +1515,80 @@ def score_factorial(
     )
     if rows_expected != int(resolved_profile["expected_count"]):
         raise ValueError("expected_rows does not match factorial profile")
-    if set(condition_paths) != set(EXPECTED_CONDITION_IDS) or len(condition_paths) != len(EXPECTED_CONDITION_IDS):
+    if condition_bundles is not None and condition_paths is not None:
+        raise ValueError("provide condition bundles, not legacy condition paths")
+    supplied_conditions = condition_bundles if condition_bundles is not None else condition_paths
+    if supplied_conditions is None:
+        raise ValueError("factorial scoring requires four condition bundles")
+    if condition_bundles is None and rows_expected == 475:
+        raise ValueError("production scoring requires --condition-bundle directories")
+    if evidence_bundle_path is not None and condition_bundles is None:
+        raise ValueError("--evidence-bundle requires production condition bundles")
+    if set(supplied_conditions) != set(EXPECTED_CONDITION_IDS) or len(supplied_conditions) != len(EXPECTED_CONDITION_IDS):
         raise ValueError("factorial scoring requires exactly the four condition IDs")
-    if any(not isinstance(path, Path) for path in condition_paths.values()):
-        condition_paths = {condition_id: Path(path) for condition_id, path in condition_paths.items()}
-    # Freeze and validate all prediction bytes before loading any annotation labels.
+    supplied_conditions = {condition_id: Path(path) for condition_id, path in supplied_conditions.items()}
+    resolved_panel = panel_profile or CANONICAL_PANEL_PROFILE
+    if rows_expected != resolved_panel.expected_rows or files_expected != resolved_panel.expected_annotation_files:
+        raise ValueError("panel profile dimensions do not match the declared factorial panel")
+    expected_id_digest = resolved_panel.canonical_id_set_sha256
+    # Freeze and validate all production bundle/prediction bytes before loading labels.
     frozen_predictions: dict[str, list[dict[str, Any]]] = {}
     prediction_hashes: dict[str, str] = {}
+    condition_evidence: dict[str, dict[str, Any]] = {}
     frozen_order: list[str] | None = None
+    if condition_bundles is not None:
+        resolved_paths = [path.resolve() for path in supplied_conditions.values()]
+        if len(set(resolved_paths)) != len(resolved_paths):
+            raise ValueError("condition bundles must resolve to distinct paths")
     for condition_id in EXPECTED_CONDITION_IDS:
-        path = Path(condition_paths[condition_id])
-        raw_rows, metadata = _load_prediction_payload(path)
-        _validate_runtime_metadata(condition_id, metadata, profile_conditions[condition_id])
-        selected = _validate_prediction_rows(
-            raw_rows,
-            condition_id=condition_id,
-            profile_condition=profile_conditions[condition_id],
-            expected_rows=rows_expected,
-        )
+        path = supplied_conditions[condition_id]
+        if condition_bundles is not None:
+            bundle = _load_condition_bundle(
+                path,
+                condition_id=condition_id,
+                profile_condition=profile_conditions[condition_id],
+                expected_rows=rows_expected,
+                expected_id_digest=expected_id_digest,
+            )
+            selected = bundle["rows"]
+            prediction_hashes[condition_id] = bundle["prediction_sha256"]
+            condition_evidence[condition_id] = bundle
+        else:
+            raw_rows, metadata = _load_prediction_payload(path)
+            _validate_runtime_metadata(condition_id, metadata, profile_conditions[condition_id])
+            selected = _validate_prediction_rows(
+                raw_rows,
+                condition_id=condition_id,
+                profile_condition=profile_conditions[condition_id],
+                expected_rows=rows_expected,
+            )
+            prediction_hashes[condition_id] = sha256_path(path)
         current_order = [row["video_id"] for row in selected]
         if frozen_order is None:
             frozen_order = current_order
         elif current_order != frozen_order:
             raise ValueError("Conditions do not have the same frozen prediction ID set/order")
         frozen_predictions[condition_id] = selected
-        prediction_hashes[condition_id] = sha256_path(path)
     if frozen_order is None or len(frozen_order) != rows_expected:
         raise ValueError("No complete frozen factorial prediction panel")
-
-    resolved_panel = panel_profile or CANONICAL_PANEL_PROFILE
-    if rows_expected != resolved_panel.expected_rows or files_expected != resolved_panel.expected_annotation_files:
-        raise ValueError("panel profile dimensions do not match the declared factorial panel")
+    if sorted_video_id_set_sha256(frozen_order) != expected_id_digest:
+        raise ValueError("frozen predictions do not match the canonical profile ID digest")
+    if condition_bundles is not None:
+        if len(set(prediction_hashes.values())) != len(prediction_hashes):
+            raise ValueError("condition prediction payload hashes must be distinct")
+        evidence_identities = {bundle["evidence_identity"] for bundle in condition_evidence.values()}
+        if len(evidence_identities) != 1:
+            raise ValueError("all condition bundles must share one evidence marker/checksum identity")
+        if evidence_bundle_path is not None:
+            external_identity = _load_evidence_bundle_identity(
+                evidence_bundle_path,
+                expected_rows=rows_expected,
+                expected_id_digest=expected_id_digest,
+            )
+            if external_identity != next(iter(evidence_identities)):
+                raise ValueError("external evidence bundle identity does not match condition bundles")
+    if expected_rows == 475 and expected_id_digest != EXPECTED_FULL_CANONICAL_ID_DIGEST:
+        raise ValueError("the 475-row panel digest is not the pinned canonical digest")
     annotations = _load_annotations(annotation_root)
     if len(annotations) != files_expected:
         raise ValueError(f"Annotation root contains {len(annotations)} annotation files; expected {files_expected}")
@@ -1057,6 +1599,11 @@ def score_factorial(
     )
     annotation_hash = sha256_path(annotation_root)
     bert_score_versions = task1._bert_score_versions(required=bertscore_fn is None)
+    if bertscore_fn is not None:
+        bert_score_versions = {
+            "module": EXPECTED_BERT_SCORE_MODULE_VERSION,
+            "distribution": "injected",
+        }
     if bert_score_versions["module"] != EXPECTED_BERT_SCORE_MODULE_VERSION and bertscore_fn is None:
         raise ValueError("BERTScore module version is not pinned")
     meteor_fn = meteor_fn or task1._default_meteor
@@ -1092,6 +1639,7 @@ def score_factorial(
             valid, reason, baseline_rows = _validate_baseline_binding(
                 baseline_payload,
                 artifact_path=baseline_artifact_path,
+                source_prediction_path=baseline_source_prediction_path,
                 panel_identity=panel_identity,
                 annotation_hash=annotation_hash,
                 bert_model=bert_model,
@@ -1102,7 +1650,7 @@ def score_factorial(
             )
             baseline_binding.update({"reused": valid, "reason": reason, "artifact_sha256": baseline_hash})
         except (OSError, ValueError, KeyError, TypeError) as error:
-            baseline_binding.update({"reused": False, "reason": f"binding mismatch: {type(error).__name__}"})
+            baseline_binding.update({"reused": False, "reason": f"binding mismatch: {type(error).__name__}: explicit rescore"})
     elif baseline_artifact_path is not None:
         baseline_binding.update({"reason": "forced rescore (--rescore-baseline)"})
     condition_predictions = {
@@ -1121,26 +1669,7 @@ def score_factorial(
         sts_identity=identity,
     )
     if baseline_rows is not None:
-        answers_by_id = {
-            row["video_id"]: normalize_nist_text(row["answer"])
-            for row in frozen_predictions["4b-current"]
-        }
-        scored_rows["4b-current"] = [
-            {
-                **row,
-                "stratum": annotations[row["video_id"]]["question_stratum"],
-                "answer_token_count": len(answers_by_id[row["video_id"]].split()),
-                "normalized_exact_match": normalized_exact_match(
-                    answers_by_id[row["video_id"]],
-                    normalize_nist_text(annotations[row["video_id"]]["reference"]),
-                ),
-                "token_f1": token_f1(
-                    answers_by_id[row["video_id"]],
-                    normalize_nist_text(annotations[row["video_id"]]["reference"]),
-                ),
-            }
-            for row in baseline_rows
-        ]
+        scored_rows["4b-current"] = [dict(row) for row in baseline_rows]
     condition_rows = {condition_id: scored_rows[condition_id] for condition_id in EXPECTED_CONDITION_IDS}
     if any(len(rows) != rows_expected for rows in condition_rows.values()):
         raise ValueError("factorial completion gate failed after scoring")
@@ -1148,13 +1677,28 @@ def score_factorial(
     aggregate = {}
     for condition_id in EXPECTED_CONDITION_IDS:
         condition_report = _aggregate_rows(condition_rows[condition_id])
-        condition_report["model_id"] = profile_conditions[condition_id]["model_id"]
-        condition_report["revision"] = profile_conditions[condition_id]["revision"]
-        condition_report["answer_policy"] = profile_conditions[condition_id]["answer_policy"]
-        condition_report["min_pixels"] = profile_conditions[condition_id]["min_pixels"]
-        condition_report["max_pixels"] = profile_conditions[condition_id]["max_pixels"]
-        condition_report["request_source"] = profile_conditions[condition_id]["request_source"]
-        condition_report["runtime_controls"] = EXPECTED_RUNTIME_CONTROLS
+        observed = condition_evidence.get(condition_id, {}).get("observed_identity")
+        if observed is None:
+            observed = {
+                "model_id": profile_conditions[condition_id]["model_id"],
+                "model_revision": profile_conditions[condition_id]["revision"],
+                "answer_policy": profile_conditions[condition_id]["answer_policy"],
+                "min_pixels": profile_conditions[condition_id]["min_pixels"],
+                "max_pixels": profile_conditions[condition_id]["max_pixels"],
+                "request_source": profile_conditions[condition_id]["request_source"],
+                "runtime_image_sha256": hashlib.sha256(
+                    EXPECTED_RUNTIME_CONTROLS["runtime_image"].encode()
+                ).hexdigest(),
+            }
+        condition_report.update(observed)
+        condition_report["runtime_controls_sha256"] = hashlib.sha256(
+            _canonical_json(EXPECTED_RUNTIME_CONTROLS)
+        ).hexdigest()
+        if condition_id in condition_evidence:
+            condition_report["bundle_checksum_sha256"] = condition_evidence[condition_id]["checksum_sha256"]
+            condition_report["operational_evidence"] = condition_evidence[condition_id]["operational"]
+            condition_report["evidence_marker_sha256"] = condition_evidence[condition_id]["evidence_marker_sha256"]
+            condition_report["evidence_checksum_sha256"] = condition_evidence[condition_id]["evidence_checksum_sha256"]
         aggregate[condition_id] = condition_report
     paired = {"baseline_condition_id": "4b-current"}
     for condition_id in EXPECTED_CONDITION_IDS[1:]:
@@ -1180,6 +1724,10 @@ def score_factorial(
         "condition_bindings_checked": True,
         "finite_metrics_checked": True,
         "label_leakage_checked": True,
+        "runtime_bundle_evidence_checked": condition_bundles is not None,
+        "distinct_condition_payloads_checked": condition_bundles is not None,
+        "operational_evidence_checked": condition_bundles is not None,
+        "evidence_identity_checked": condition_bundles is not None,
     }
     integrity_ok = all(value is True for key, value in integrity.items() if key != "completion_denominator")
     decision = _decision_for_factorial(
@@ -1215,11 +1763,11 @@ def score_factorial(
             "bert_num_layers": 17,
             "bert_idf": False,
             "bert_rescale_with_baseline": False,
-            "sts_endpoint": STS_ENDPOINT,
+            "sts_endpoint_sha256": hashlib.sha256(STS_ENDPOINT.encode()).hexdigest(),
             "sts_timeout_seconds": EXPECTED_STS_TIMEOUT,
             "sts_max_attempts": EXPECTED_STS_RETRIES,
             "single_response_ndcg": {"value": 1.0, "degenerate": True, "informative": False},
-            "runtime_controls": EXPECTED_RUNTIME_CONTROLS,
+            "runtime_controls_sha256": hashlib.sha256(_canonical_json(EXPECTED_RUNTIME_CONTROLS)).hexdigest(),
         },
         "baseline_binding": baseline_binding,
         "conditions": aggregate,
@@ -1230,13 +1778,18 @@ def score_factorial(
         "integrity": integrity,
         "inputs": {
             "annotation_root_sha256": annotation_hash,
-            "prediction_files": {condition_id: {"sha256": prediction_hashes[condition_id]} for condition_id in EXPECTED_CONDITION_IDS},
+            "condition_input_sha256": {condition_id: prediction_hashes[condition_id] for condition_id in EXPECTED_CONDITION_IDS},
+            "condition_bundle_checksum_sha256": {
+                condition_id: condition_evidence[condition_id]["checksum_sha256"]
+                for condition_id in EXPECTED_CONDITION_IDS
+            } if condition_evidence else {},
             "bert_model_snapshot": EXPECTED_BERT_MODEL_SNAPSHOT,
             "bert_model_snapshot_sha256": sha256_path(bert_model),
             "profile_sha256": profile_digest,
             "runtime_controls_sha256": hashlib.sha256(_canonical_json(EXPECTED_RUNTIME_CONTROLS)).hexdigest(),
             "scorer_sha256": sha256_path(Path(__file__)),
             "task1_scorer_sha256": sha256_path(TASK1_SCORER_PATH),
+            "sts_endpoint_sha256": hashlib.sha256(STS_ENDPOINT.encode()).hexdigest(),
         },
         "dependencies": {
             "nltk_distribution": _distribution_version("nltk"),
@@ -1245,7 +1798,26 @@ def score_factorial(
         },
         "cache_summary": {"identity": identity, **cache_counts, "private": True},
     }
+    if condition_evidence:
+        common_evidence = next(iter(condition_evidence.values()))
+        artifact["inputs"]["evidence_marker_sha256"] = common_evidence["evidence_marker_sha256"]
+        artifact["inputs"]["evidence_checksum_sha256"] = common_evidence["evidence_checksum_sha256"]
+        artifact["experiment"]["operational_projection"] = {
+            "declared_wall_seconds": statistics.fsum(
+                condition_evidence[condition_id]["operational"]["wall_seconds"]
+                for condition_id in EXPECTED_CONDITION_IDS
+            ),
+            "declared_rows_per_second": (
+                rows_expected * len(EXPECTED_CONDITION_IDS)
+                / statistics.fsum(
+                    condition_evidence[condition_id]["operational"]["wall_seconds"]
+                    for condition_id in EXPECTED_CONDITION_IDS
+                )
+            ),
+        }
     _artifact_safe(artifact)
+    if sts_cache_path is not None:
+        _write_private_cache(sts_cache_path, cache)
     if output_path is not None:
         atomic_write_json(output_path, artifact)
     return artifact
@@ -1268,7 +1840,10 @@ def _load_private_cache(path: Path, identity: str) -> STSCache:
     if not isinstance(payload, Mapping) or not isinstance(payload.get("values", {}), Mapping):
         raise ValueError("STS cache must be an object with private values")
     cache = STSCache(
-        values={str(key): float(value) for key, value in payload["values"].items()},
+        values={
+            str(key): _finite(value, field="cached sts")
+            for key, value in payload["values"].items()
+        },
         identity=payload.get("identity"),
     )
     if cache.identity != identity:
@@ -1278,19 +1853,42 @@ def _load_private_cache(path: Path, identity: str) -> STSCache:
 
 def _write_private_cache(path: Path, cache: STSCache) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps({"identity": cache.identity, "values": cache.values}, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    temporary = path.with_name(path.name + ".tmp")
+    if temporary.exists():
+        raise FileExistsError(f"Atomic temporary cache already exists: {temporary}")
+    payload = {"identity": cache.identity, "values": dict(sorted(cache.values.items()))}
+    encoded = (json.dumps(payload, sort_keys=True) + "\n").encode("utf-8")
+    try:
+        with temporary.open("xb") as handle:
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        try:
+            directory_fd = os.open(path.parent, os.O_DIRECTORY)
+        except OSError:
+            directory_fd = None
+        if directory_fd is not None:
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--annotations", type=Path, required=True)
-    parser.add_argument("--condition", action="append", required=True, metavar="ID=PATH")
+    parser.add_argument(
+        "--condition-bundle", action="append", required=True, metavar="ID=DIR"
+    )
+    parser.add_argument("--evidence-bundle", type=Path)
     parser.add_argument("--bert-model", type=Path, required=True)
     parser.add_argument("--profile", type=Path, default=DEFAULT_PROFILE_PATH)
     parser.add_argument("--baseline-artifact", type=Path)
+    parser.add_argument("--baseline-source-predictions", type=Path)
     parser.add_argument("--rescore-baseline", action="store_true")
     parser.add_argument("--sts-cache", type=Path)
     parser.add_argument("--output", type=Path, required=True)
@@ -1299,21 +1897,24 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.output.exists():
+        raise FileExistsError(f"Output already exists: {args.output}")
     profile = load_profile(args.profile)
     identity = _cache_identity(profile_sha256(profile))
     cache = _load_private_cache(args.sts_cache, identity) if args.sts_cache else STSCache(identity=identity)
     artifact = score_factorial(
         annotation_root=args.annotations,
-        condition_paths=_parse_conditions(args.condition),
+        condition_bundles=_parse_conditions(args.condition_bundle),
+        evidence_bundle_path=args.evidence_bundle,
         bert_model=args.bert_model,
         profile=profile,
         baseline_artifact_path=args.baseline_artifact,
+        baseline_source_prediction_path=args.baseline_source_predictions,
         rescore_baseline=args.rescore_baseline,
         sts_cache=cache,
+        sts_cache_path=args.sts_cache,
+        output_path=args.output,
     )
-    if args.sts_cache:
-        _write_private_cache(args.sts_cache, cache)
-    atomic_write_json(args.output, artifact)
     print(json.dumps({"output": str(args.output), "completed_per_condition": artifact["panel"]["completed_per_condition"]}, sort_keys=True))
     return 0
 

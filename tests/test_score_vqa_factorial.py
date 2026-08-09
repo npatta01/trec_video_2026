@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 import copy
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -395,8 +396,8 @@ def test_baseline_reuse_requires_full_binding_and_mutation_rescores(
         bertscore_fn=injected_metrics(calls)[1],
         sts_fn=injected_metrics(calls)[2],
     )
-    assert reused["baseline_binding"]["reused"] is True
-    assert reused["baseline_binding"]["reason"] == "all bindings matched"
+    assert reused["baseline_binding"]["reused"] is False
+    assert "binding mismatch" in reused["baseline_binding"]["reason"]
     assert "4b-current" in reused["rows"]
     assert calls["bert"] == 1
 
@@ -422,7 +423,7 @@ def test_baseline_reuse_requires_full_binding_and_mutation_rescores(
         sts_fn=injected_metrics(calls)[2],
     )
     assert rescored["baseline_binding"]["reused"] is False
-    assert "config" in rescored["baseline_binding"]["reason"]
+    assert "binding mismatch" in rescored["baseline_binding"]["reason"]
     assert calls["bert"] == 1
 
 
@@ -606,3 +607,505 @@ def test_profile_mutation_changes_binding_and_is_rejected() -> None:
     payload["conditions"][0]["model_id"] = "Qwen/Qwen3-VL-8B-Instruct"
     with pytest.raises(ValueError, match="binding|model"):
         scorer.validate_factorial_profile(payload, strict=True)
+
+
+def _write_production_bundle(
+    root: Path,
+    scorer,
+    condition_id: str,
+    ids: tuple[str, ...] = ("v1", "v2", "v3", "v4"),
+    *,
+    evidence_id: str = "evidence-1",
+    mutate: dict[str, object] | None = None,
+) -> Path:
+    """Create the smallest production-shaped bundle accepted by Task 3."""
+
+    root.mkdir(parents=True, exist_ok=True)
+    profile_condition = make_profile(scorer)["conditions"][
+        CONDITION_IDS.index(condition_id)
+    ]
+    run_id = "run-" + condition_id
+    runtime_image = scorer.EXPECTED_RUNTIME_CONTROLS["runtime_image"]
+    model_id = profile_condition["model_id"]
+    revision = profile_condition["revision"]
+    policy = profile_condition["answer_policy"]
+    prediction_rows = []
+    for index, video_id in enumerate(ids):
+        prediction_rows.append(
+            {
+                "status": "passed",
+                "answer": f"answer {index}",
+                "run_id": run_id,
+                "condition_id": condition_id,
+                "video_id": video_id,
+                "model_id": model_id,
+                "model_revision": revision,
+                "answer_policy": policy,
+                "question_type": "general",
+                "requested_min_pixels_per_frame": 65536,
+                "requested_max_pixels_per_frame": 262144,
+                "min_pixels_per_frame": 65536,
+                "max_pixels_per_frame": 262144,
+                "runtime_image": runtime_image,
+                "precision": "bfloat16",
+                "device": "cuda:0 (NVIDIA CUDA)",
+                "runtime_attestation": {
+                    "accelerator_backend": "nvidia-cuda",
+                    "parameter_tensor_count": 10,
+                    "parameter_devices": {"cuda:0": 10},
+                    "parameter_dtypes": {"torch.bfloat16": 10},
+                },
+                "peak_memory_bytes": 1024 + index,
+            }
+        )
+    identity = {
+        "schema_version": 1,
+        "condition_id": condition_id,
+        "run_id": run_id,
+        "model_id": model_id,
+        "model_revision": revision,
+        "answer_policy": policy,
+        "requested_min_pixels_per_frame": 65536,
+        "requested_max_pixels_per_frame": 262144,
+        "applied_min_pixels_per_frame": 65536,
+        "applied_max_pixels_per_frame": 262144,
+        "runtime_image": runtime_image,
+        "transformers_revision": scorer.EXPECTED_RUNTIME_CONTROLS[
+            "transformers_revision"
+        ],
+        "frame_count": 12,
+        "max_new_tokens": 64,
+        "do_sample": False,
+        "thinking": False,
+        "request_source": "shared-accepted-whisper",
+    }
+    evidence_marker = {
+        "schema_version": 1,
+        "label_policy": "label-free-evidence",
+        "evidence_bundle_id": evidence_id,
+        "example_count": len(ids),
+        "canonical_id_digest": scorer.sorted_video_id_set_sha256(ids),
+        "manifest_sha256": "m" * 64,
+        "checksum_file": "SHA256SUMS",
+    }
+    runtime = {
+        "transformers_version": "5.15.0.dev0",
+        "transformers_revision": scorer.EXPECTED_RUNTIME_CONTROLS[
+            "transformers_revision"
+        ],
+        "torch_cuda": "12.8",
+        "cuda_device_name": "fixture NVIDIA",
+        "cuda_bf16_supported": True,
+    }
+    timing = {
+        "schema_version": 1,
+        "condition_id": condition_id,
+        "row_count": len(ids),
+        "wall_seconds": 8.0,
+        "prepare_wall_seconds": 2.0,
+        "peak_memory_bytes": 300 * 1024 * 1024,
+    }
+    telemetry = (
+        "timestamp,index,utilization.gpu [%],memory.used [MiB],memory.total [MiB]\n"
+        "2026-08-09T00:00:00Z,0,50,100,1000\n"
+        "2026-08-09T00:00:05Z,0,75,200,1000\n"
+    )
+    (root / "predictions.json").write_text(
+        json.dumps(prediction_rows), encoding="utf-8"
+    )
+    (root / "condition-identity.json").write_text(
+        json.dumps(identity), encoding="utf-8"
+    )
+    (root / "evidence").mkdir()
+    (root / "evidence" / "evidence-marker.json").write_text(
+        json.dumps(evidence_marker), encoding="utf-8"
+    )
+    marker_hash = hashlib.sha256(
+        (root / "evidence" / "evidence-marker.json").read_bytes()
+    ).hexdigest()
+    (root / "evidence" / "SHA256SUMS").write_text(
+        f"{marker_hash}  evidence-marker.json\n", encoding="utf-8"
+    )
+    (root / "runtime.json").write_text(json.dumps(runtime), encoding="utf-8")
+    (root / "timing.json").write_text(json.dumps(timing), encoding="utf-8")
+    (root / "telemetry" ).mkdir()
+    (root / "telemetry" / "nvidia-smi.csv").write_text(telemetry, encoding="utf-8")
+    (root / "status.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "status": "passed",
+                "expected_count": len(ids),
+                "labels_joined": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    if mutate:
+        for relative, value in mutate.items():
+            path = root / relative
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(value, dict):
+                payload.update(value)
+            else:
+                raise AssertionError("bundle mutation must target JSON objects")
+            path.write_text(json.dumps(payload), encoding="utf-8")
+    checksum_lines = []
+    for path in sorted(
+        item for item in root.rglob("*") if item.is_file() and item.name != "SHA256SUMS"
+    ):
+        checksum_lines.append(
+            f"{hashlib.sha256(path.read_bytes()).hexdigest()}  "
+            f"{path.relative_to(root).as_posix()}"
+        )
+    checksum = "\n".join(checksum_lines) + "\n"
+    (root / "SHA256SUMS").write_text(checksum, encoding="utf-8")
+    terminal = {
+        "schema_version": 1,
+        "status": "passed",
+        "payload_sha256": hashlib.sha256(checksum.encode()).hexdigest(),
+    }
+    (root / "terminal-status.json").write_text(json.dumps(terminal), encoding="utf-8")
+    return root
+
+
+def test_production_bundle_contract_and_operational_evidence_are_required(
+    tmp_path: Path,
+) -> None:
+    scorer = load_scorer()
+    bundles = {
+        condition_id: _write_production_bundle(
+            tmp_path / condition_id, scorer, condition_id
+        )
+        for condition_id in CONDITION_IDS
+    }
+    profile = make_profile(scorer)
+    model = tmp_path / EXPECTED_BERT_MODEL_SNAPSHOT
+    model.mkdir()
+    annotations = tmp_path / "annotations"
+    annotations.mkdir()
+    for index, video_id in enumerate(("v1", "v2", "v3", "v4")):
+        (annotations / f"{video_id}.json").write_text(
+            json.dumps(
+                {
+                    "question": "What is shown?",
+                    "correct_answer": f"reference {index}",
+                    "incorrect_answers": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+    panel = scorer.PanelProfile(
+        "fixture-factorial-panel",
+        4,
+        4,
+        scorer.sorted_video_id_set_sha256(("v1", "v2", "v3", "v4")),
+        (),
+        "fixture",
+    )
+    artifact = scorer.score_factorial(
+        annotation_root=annotations,
+        condition_bundles=bundles,
+        bert_model=model,
+        profile=profile,
+        panel_profile=panel,
+        expected_rows=4,
+        expected_annotation_files=4,
+        meteor_fn=injected_metrics()[0],
+        bertscore_fn=injected_metrics()[1],
+        sts_fn=injected_metrics()[2],
+    )
+    assert artifact["conditions"]["4b-current"]["operational_evidence"]["wall_seconds"] == 8.0
+    assert artifact["conditions"]["4b-current"]["operational_evidence"]["utilization_sample_count"] == 2
+    assert artifact["experiment"]["operational_projection"]["declared_wall_seconds"] == 32.0
+
+
+def test_shared_wrong_canonical_ids_fail_before_annotation_loader(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scorer = load_scorer()
+    ids = ("w1", "w2", "w3", "w4")
+    bundles = {
+        condition_id: _write_production_bundle(
+            tmp_path / condition_id, scorer, condition_id, ids
+        )
+        for condition_id in CONDITION_IDS
+    }
+    monkeypatch.setattr(
+        scorer,
+        "_load_annotations",
+        lambda _path: (_ for _ in ()).throw(AssertionError("labels read too early")),
+    )
+    model = tmp_path / EXPECTED_BERT_MODEL_SNAPSHOT
+    model.mkdir()
+    with pytest.raises(ValueError, match="canonical|digest|ID"):
+        scorer.score_factorial(
+            annotation_root=tmp_path / "annotations",
+            condition_bundles=bundles,
+            bert_model=model,
+            profile=make_profile(scorer),
+            panel_profile=scorer.PanelProfile(
+                "fixture-factorial-panel", 4, 4, scorer.sorted_video_id_set_sha256(("v1", "v2", "v3", "v4")), (), "fixture"
+            ),
+            expected_rows=4,
+            expected_annotation_files=4,
+        )
+
+
+def test_artifact_privacy_rejects_nested_variants_and_paths() -> None:
+    scorer = load_scorer()
+    for payload in (
+        {"nested": {"Questions": "text"}},
+        {"nested": {"REFERENCES": ["text"]}},
+        {"nested": {"answer_text": "text"}},
+        {"nested": {"cacheQuery": "text"}},
+        {"nested": {"uri": "https://example.test"}},
+        {"nested": {"relative": "./secret.json"}},
+    ):
+        with pytest.raises(ValueError):
+            scorer._artifact_safe(payload)
+
+
+def test_private_cache_write_is_atomic_on_interruption(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scorer = load_scorer()
+    cache_path = tmp_path / "private-cache.json"
+    cache_path.write_text("prior", encoding="utf-8")
+    original_replace = scorer.os.replace
+
+    def interrupted(*_args):
+        raise OSError("interrupted")
+
+    monkeypatch.setattr(scorer.os, "replace", interrupted)
+    with pytest.raises(OSError):
+        scorer._write_private_cache(cache_path, scorer.STSCache({"k": 0.5}, "id"))
+    assert cache_path.read_text(encoding="utf-8") == "prior"
+    monkeypatch.setattr(scorer.os, "replace", original_replace)
+
+
+@pytest.mark.parametrize(
+    "mutation, expected",
+    [
+        ("missing-field", "checksum|schema"),
+        ("wrong-tuple", "identity tuple"),
+        ("stale-bounds", "runtime control|identity tuple"),
+    ],
+)
+def test_production_bundle_mutations_fail_closed(
+    tmp_path: Path, mutation: str, expected: str
+) -> None:
+    scorer = load_scorer()
+    bundle = _write_production_bundle(tmp_path / "bundle", scorer, "4b-current")
+    if mutation == "missing-field":
+        payload = json.loads((bundle / "predictions.json").read_text(encoding="utf-8"))
+        payload[0].pop("runtime_attestation")
+        (bundle / "predictions.json").write_text(json.dumps(payload), encoding="utf-8")
+    elif mutation == "wrong-tuple":
+        payload = json.loads((bundle / "condition-identity.json").read_text(encoding="utf-8"))
+        payload["model_revision"] = "0" * 40
+        (bundle / "condition-identity.json").write_text(json.dumps(payload), encoding="utf-8")
+        # Rebuild only the root manifest so this mutation tests binding, not stale bytes.
+        lines = []
+        for path in sorted(
+            item for item in bundle.rglob("*") if item.is_file() and item.name not in {"SHA256SUMS", "terminal-status.json"}
+        ):
+            lines.append(
+                f"{hashlib.sha256(path.read_bytes()).hexdigest()}  "
+                f"{path.relative_to(bundle).as_posix()}"
+            )
+            (bundle / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
+            checksum = (bundle / "SHA256SUMS").read_bytes()
+            (bundle / "terminal-status.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "status": "passed",
+                        "payload_sha256": hashlib.sha256(checksum).hexdigest(),
+                    }
+                ),
+                encoding="utf-8",
+            )
+    else:
+        payload = json.loads((bundle / "condition-identity.json").read_text(encoding="utf-8"))
+        payload["applied_max_pixels_per_frame"] = 1024 * 1024
+        (bundle / "condition-identity.json").write_text(json.dumps(payload), encoding="utf-8")
+        lines = []
+        for path in sorted(
+            item for item in bundle.rglob("*") if item.is_file() and item.name not in {"SHA256SUMS", "terminal-status.json"}
+        ):
+            lines.append(
+                f"{hashlib.sha256(path.read_bytes()).hexdigest()}  "
+                f"{path.relative_to(bundle).as_posix()}"
+            )
+            (bundle / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
+            checksum = (bundle / "SHA256SUMS").read_bytes()
+            (bundle / "terminal-status.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "status": "passed",
+                        "payload_sha256": hashlib.sha256(checksum).hexdigest(),
+                    }
+                ),
+                encoding="utf-8",
+            )
+    with pytest.raises(ValueError, match=expected):
+        scorer._load_condition_bundle(
+            bundle,
+            condition_id="4b-current",
+            profile_condition=make_profile(scorer)["conditions"][0],
+            expected_rows=4,
+            expected_id_digest=scorer.sorted_video_id_set_sha256(("v1", "v2", "v3", "v4")),
+        )
+
+
+def test_same_condition_bundle_file_for_four_cells_is_rejected(tmp_path: Path) -> None:
+    scorer = load_scorer()
+    bundle = _write_production_bundle(tmp_path / "same", scorer, "4b-current")
+    model = tmp_path / EXPECTED_BERT_MODEL_SNAPSHOT
+    model.mkdir()
+    with pytest.raises(ValueError, match="distinct"):
+        scorer.score_factorial(
+            annotation_root=tmp_path / "annotations",
+            condition_bundles={condition_id: bundle for condition_id in CONDITION_IDS},
+            bert_model=model,
+            profile=make_profile(scorer),
+            panel_profile=scorer.PanelProfile(
+                "fixture-factorial-panel", 4, 4,
+                scorer.sorted_video_id_set_sha256(("v1", "v2", "v3", "v4")), (), "fixture"
+            ),
+            expected_rows=4,
+            expected_annotation_files=4,
+        )
+
+
+def test_wrong_evidence_marker_identity_is_rejected_before_labels(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scorer = load_scorer()
+    bundles = {
+        condition_id: _write_production_bundle(tmp_path / condition_id, scorer, condition_id)
+        for condition_id in CONDITION_IDS
+    }
+    marker = bundles["8b-current"] / "evidence" / "evidence-marker.json"
+    payload = json.loads(marker.read_text(encoding="utf-8"))
+    payload["evidence_bundle_id"] = "wrong-evidence"
+    marker.write_text(json.dumps(payload), encoding="utf-8")
+    # The stale root manifest is intentionally left unmodified; either verification
+    # failure or the common-identity check must happen before labels are opened.
+    monkeypatch.setattr(
+        scorer,
+        "_load_annotations",
+        lambda _path: (_ for _ in ()).throw(AssertionError("labels read too early")),
+    )
+    model = tmp_path / EXPECTED_BERT_MODEL_SNAPSHOT
+    model.mkdir()
+    with pytest.raises(ValueError, match="checksum|evidence"):
+        scorer.score_factorial(
+            annotation_root=tmp_path / "annotations",
+            condition_bundles=bundles,
+            bert_model=model,
+            profile=make_profile(scorer),
+            panel_profile=scorer.PanelProfile(
+                "fixture-factorial-panel", 4, 4,
+                scorer.sorted_video_id_set_sha256(("v1", "v2", "v3", "v4")), (), "fixture"
+            ),
+            expected_rows=4,
+            expected_annotation_files=4,
+        )
+
+
+def test_cli_refuses_existing_output_before_profile_or_metric_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scorer = load_scorer()
+    output = tmp_path / "artifact.json"
+    output.write_text("prior", encoding="utf-8")
+    monkeypatch.setattr(
+        scorer,
+        "load_profile",
+        lambda _path: (_ for _ in ()).throw(AssertionError("profile loaded too early")),
+    )
+    with pytest.raises(FileExistsError, match="Output already exists"):
+        scorer.main(
+            [
+                "--annotations", str(tmp_path / "annotations"),
+                "--condition-bundle", "4b-current=" + str(tmp_path / "4b-current"),
+                "--condition-bundle", "4b-question-aware=" + str(tmp_path / "4b-question-aware"),
+                "--condition-bundle", "8b-current=" + str(tmp_path / "8b-current"),
+                "--condition-bundle", "8b-question-aware=" + str(tmp_path / "8b-question-aware"),
+                "--bert-model", str(tmp_path / EXPECTED_BERT_MODEL_SNAPSHOT),
+                "--output", str(output),
+            ]
+        )
+
+
+def test_pinned_baseline_reuse_requires_explicit_source_and_exact_row_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scorer = load_scorer()
+    annotations, conditions, model, profile, panel = make_inputs(tmp_path, scorer)
+    first = score_fixture(tmp_path / "initial", scorer)
+    baseline_scorer = copy.deepcopy(first["scorer"])
+    baseline_scorer.update(
+        {
+            "bert_score_module_version": "0.3.12",
+            "sts_endpoint": scorer.STS_ENDPOINT,
+        }
+    )
+    baseline = {
+        "schema_version": 1,
+        "scorer": baseline_scorer,
+        "panel": first["panel"],
+        "rows": {scorer.EXPECTED_BASELINE_ROW_KEY: first["rows"]["4b-current"]},
+        "inputs": {
+            "annotation_root_sha256": scorer.sha256_path(annotations),
+            "bert_model_snapshot": EXPECTED_BERT_MODEL_SNAPSHOT,
+            "bert_model_snapshot_sha256": scorer.sha256_path(model),
+            "scorer_sha256": "placeholder",
+            "profile_sha256": scorer.profile_sha256(profile),
+            "normalized_answer_map_sha256": scorer.normalized_answer_map_sha256(
+                conditions["4b-current"]
+            ),
+            "source_prediction_sha256": "placeholder-source",
+        },
+    }
+    baseline_path = tmp_path / "pinned-baseline.json"
+    baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+    monkeypatch.setattr(scorer, "EXPECTED_BASELINE_ARTIFACT_SHA256", scorer.sha256_path(baseline_path))
+    monkeypatch.setattr(
+        scorer,
+        "EXPECTED_BASELINE_SOURCE_PREDICTION_SHA256",
+        scorer.sha256_path(conditions["4b-current"]),
+    )
+    monkeypatch.setattr(scorer, "EXPECTED_BASELINE_SCORER_SHA256", scorer.sha256_path(SEMANTIC_SCRIPT))
+    baseline["inputs"]["scorer_sha256"] = scorer.EXPECTED_BASELINE_SCORER_SHA256
+    baseline["inputs"]["source_prediction_sha256"] = scorer.EXPECTED_BASELINE_SOURCE_PREDICTION_SHA256
+    baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+    monkeypatch.setattr(scorer, "EXPECTED_BASELINE_ARTIFACT_SHA256", scorer.sha256_path(baseline_path))
+
+    calls: dict[str, int] = {}
+    artifact = scorer.score_factorial(
+        annotation_root=annotations,
+        condition_paths=conditions,
+        bert_model=model,
+        profile=profile,
+        panel_profile=panel,
+        expected_rows=4,
+        expected_annotation_files=4,
+        baseline_artifact_path=baseline_path,
+        baseline_source_prediction_path=conditions["4b-current"],
+        meteor_fn=injected_metrics(calls)[0],
+        bertscore_fn=injected_metrics(calls)[1],
+        sts_fn=injected_metrics(calls)[2],
+    )
+    assert artifact["baseline_binding"]["reused"] is True
+    assert artifact["baseline_binding"]["reason"] == "all bindings matched"
+    assert calls["bert"] == 1
+
+    mutated = copy.deepcopy(baseline)
+    mutated["rows"][scorer.EXPECTED_BASELINE_ROW_KEY][0]["meteor"] = 0.99
+    mutated_path = tmp_path / "mutated.json"
+    mutated_path.write_text(json.dumps(mutated), encoding="utf-8")
+    assert scorer.sha256_path(mutated_path) != scorer.EXPECTED_BASELINE_ARTIFACT_SHA256
