@@ -124,6 +124,46 @@ EXPECTED_CONDITION_BINDINGS = {
     ),
 }
 METRIC_FIELDS = ("meteor", "bertscore_f1", "sts", "semantic_composite")
+PRODUCER_PREDICTION_FIELDS = frozenset(
+    {
+        "status",
+        "answer",
+        "elapsed_seconds",
+        "model_load_seconds",
+        "model_id",
+        "model_revision",
+        "runtime",
+        "runtime_image",
+        "precision",
+        "device",
+        "runtime_attestation",
+        "peak_memory_bytes",
+        "error_type",
+        "error_message",
+        "answer_policy",
+        "question_type",
+        "requested_min_pixels_per_frame",
+        "requested_max_pixels_per_frame",
+        "min_pixels_per_frame",
+        "max_pixels_per_frame",
+        "run_id",
+        "condition_id",
+        "video_id",
+    }
+)
+PRODUCER_ATTESTATION_FIELDS = frozenset(
+    {
+        "parameter_tensor_count",
+        "parameter_devices",
+        "parameter_dtypes",
+        "buffer_tensor_count",
+        "buffer_devices",
+        "buffer_dtypes",
+        "accelerator_backend",
+        "torch_cuda",
+        "torch_hip",
+    }
+)
 _LABEL_KEYS = task1._LABEL_KEYS
 MetricFunction = Callable[[str, str], float]
 BertScoreFunction = Callable[[list[str], list[str], Path], Sequence[float]]
@@ -277,7 +317,9 @@ def _bundle_relative_path(raw: str) -> Path:
     return candidate
 
 
-def _verify_checksum_file(root: Path) -> tuple[str, dict[str, str]]:
+def _verify_checksum_file(
+    root: Path, *, allow_unbound_evidence_manifest: bool = False
+) -> tuple[str, dict[str, str]]:
     checksum_path = root / "SHA256SUMS"
     if not checksum_path.is_file():
         raise ValueError(f"bundle checksum manifest is missing: {checksum_path}")
@@ -299,31 +341,106 @@ def _verify_checksum_file(root: Path) -> tuple[str, dict[str, str]]:
     actual = {
         item.relative_to(root).as_posix()
         for item in root.rglob("*")
-        if item.is_file() and not item.is_symlink() and item.name not in {"SHA256SUMS", "terminal-status.json"}
+        if item.is_file()
+        and not item.is_symlink()
+        and item not in {root / "SHA256SUMS", root / "terminal-status.json"}
     }
     if any(item.is_symlink() for item in root.rglob("*")):
         raise ValueError("bundle payload cannot contain symlinks")
-    if set(entries) != actual:
+    expected_entries = actual
+    if allow_unbound_evidence_manifest and "evidence/SHA256SUMS" in actual:
+        expected_entries = actual - {"evidence/SHA256SUMS"}
+    if set(entries) != expected_entries:
         raise ValueError("bundle checksum manifest does not cover the exact payload")
     return sha256_path(checksum_path), entries
 
 
-def _verify_evidence_checksum(root: Path, marker_path: Path) -> str:
-    checksum_path = root / "evidence" / "SHA256SUMS"
-    if not checksum_path.is_file():
-        raise ValueError("evidence checksum manifest is missing")
-    lines = [line for line in checksum_path.read_text(encoding="utf-8").splitlines() if line]
-    marker_digest: str | None = None
-    for line in lines:
+def _producer_layout(root: Path, condition_id: str) -> tuple[Path, Path, Path]:
+    """Resolve the downloaded producer root, payload, and condition directory."""
+
+    root = root.resolve()
+    payload_root = root / "payload"
+    terminal_path = root / "terminal-status.json"
+    if not root.is_dir() or not payload_root.is_dir() or not terminal_path.is_file():
+        raise ValueError(
+            "production bundle must be the downloaded root containing terminal-status.json beside payload/"
+        )
+    condition_root = payload_root / "conditions" / condition_id
+    if not condition_root.is_dir():
+        raise ValueError(f"condition {condition_id} files are missing under payload/conditions")
+    return payload_root, condition_root, terminal_path
+
+
+def _parse_checksum_entries(checksum_path: Path) -> dict[str, str]:
+    entries: dict[str, str] = {}
+    for line in checksum_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
         digest, separator, raw_path = line.partition("  ")
-        if separator != "  " or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        if not separator or not re.fullmatch(r"[0-9a-f]{64}", digest):
             raise ValueError("evidence checksum manifest is malformed")
         relative = _bundle_relative_path(raw_path)
-        if relative.as_posix() in {"evidence-marker.json", "evidence/evidence-marker.json"}:
-            marker_digest = digest
-    if marker_digest != sha256_path(marker_path):
+        key = relative.as_posix()
+        if key in entries or key in {"SHA256SUMS", "terminal-status.json"}:
+            raise ValueError("evidence checksum manifest has a duplicate or forbidden path")
+        entries[key] = digest
+    return entries
+
+
+def _evidence_bytes_digest(evidence_root: Path, relative_paths: Sequence[str]) -> str:
+    digest = hashlib.sha256()
+    for key in sorted(relative_paths):
+        digest.update(key.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update((evidence_root / key).read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _verify_evidence_checksum(
+    payload_root: Path,
+    marker_path: Path,
+    root_entries: Mapping[str, str],
+) -> tuple[str, str, str]:
+    """Verify the nested evidence manifest and every evidence byte exactly."""
+
+    evidence_root = payload_root / "evidence"
+    checksum_path = evidence_root / "SHA256SUMS"
+    if not checksum_path.is_file():
+        raise ValueError("evidence checksum manifest is missing")
+    if root_entries.get("evidence/SHA256SUMS") != sha256_path(checksum_path):
+        raise ValueError("nested evidence checksum is not root-bound")
+    entries = _parse_checksum_entries(checksum_path)
+    normalized: dict[str, str] = {}
+    for key, digest in entries.items():
+        relative = Path(key)
+        if relative.parts and relative.parts[0] == "evidence":
+            relative = Path(*relative.parts[1:])
+        if not relative.parts:
+            raise ValueError("evidence checksum contains an empty path")
+        normalized_key = relative.as_posix()
+        if normalized_key in normalized:
+            raise ValueError("evidence checksum contains duplicate normalized paths")
+        path = evidence_root / relative
+        if path.is_symlink() or not path.resolve().is_relative_to(evidence_root) or not path.is_file():
+            raise ValueError(f"evidence checksum verification failed: {key}")
+        if sha256_path(path) != digest:
+            raise ValueError(f"evidence checksum verification failed: {key}")
+        normalized[normalized_key] = digest
+    actual = {
+        path.relative_to(evidence_root).as_posix()
+        for path in evidence_root.rglob("*")
+        if path.is_file() and not path.is_symlink() and path.name != "SHA256SUMS"
+    }
+    if set(normalized) != actual:
+        raise ValueError("evidence checksum manifest does not cover the exact evidence bytes")
+    if normalized.get("evidence-marker.json") != sha256_path(marker_path):
         raise ValueError("evidence marker checksum is invalid")
-    return sha256_path(checksum_path)
+    return (
+        sha256_path(checksum_path),
+        _evidence_bytes_digest(evidence_root, sorted(normalized)),
+        sha256_path(marker_path),
+    )
 
 
 def _finite_positive(value: object, *, field: str) -> float:
@@ -343,6 +460,17 @@ def _read_operational_evidence(
     timing = _load_json(root / "timing.json")
     if not isinstance(timing, Mapping) or timing.get("condition_id") != condition_id:
         raise ValueError(f"condition {condition_id} timing identity is invalid")
+    required_timing_fields = {
+        "condition_id",
+        "row_count",
+        "wall_seconds",
+        "peak_memory_bytes",
+        "model_load_seconds",
+        "runtime_identity",
+    }
+    optional_timing_fields = {"prepare_wall_seconds"}
+    if not required_timing_fields <= set(timing) or not set(timing) <= required_timing_fields | optional_timing_fields:
+        raise ValueError(f"condition {condition_id} timing schema is not exact")
     if timing.get("row_count") != expected_rows:
         raise ValueError(f"condition {condition_id} timing row count is invalid")
     wall_seconds = _finite_positive(timing.get("wall_seconds"), field="wall_seconds")
@@ -354,6 +482,12 @@ def _read_operational_evidence(
     timing_peak = timing.get("peak_memory_bytes")
     if isinstance(timing_peak, bool) or not isinstance(timing_peak, int) or timing_peak <= 0:
         raise ValueError("timing peak_memory_bytes must be a positive integer")
+    model_load_seconds = _finite(timing.get("model_load_seconds"), field="model_load_seconds")
+    if model_load_seconds < 0:
+        raise ValueError("model_load_seconds must not be negative")
+    runtime_identity = timing.get("runtime_identity")
+    if not isinstance(runtime_identity, list) or len(runtime_identity) != 1:
+        raise ValueError("timing runtime identity is invalid")
     telemetry_path = root / "telemetry" / "nvidia-smi.csv"
     if not telemetry_path.is_file():
         raise ValueError("NVIDIA telemetry CSV is missing")
@@ -385,22 +519,38 @@ def _read_operational_evidence(
         samples += 1
     if not utilization:
         raise ValueError("NVIDIA telemetry has no samples")
-    observed_peak = max(
-        [timing_peak]
-        + [
-            row["peak_memory_bytes"]
-            for row in prediction_rows
-            if isinstance(row.get("peak_memory_bytes"), int)
+    prediction_peaks = [
+        row["peak_memory_bytes"]
+        for row in prediction_rows
+        if isinstance(row.get("peak_memory_bytes"), int)
+    ]
+    if len(prediction_peaks) != expected_rows:
+        raise ValueError("prediction rows do not contain complete PyTorch memory measurements")
+    observed_runtime_identity = [
+        [
+            prediction_rows[0].get("runtime"),
+            prediction_rows[0].get("runtime_image"),
+            prediction_rows[0].get("device"),
+            prediction_rows[0].get("precision"),
         ]
-    )
-    if observed_peak < telemetry_peak:
-        raise ValueError("timing peak memory is below telemetry memory")
+    ]
+    if runtime_identity != observed_runtime_identity:
+        raise ValueError("timing runtime identity does not match prediction rows")
+    row_model_loads = {row.get("model_load_seconds") for row in prediction_rows}
+    if row_model_loads != {model_load_seconds}:
+        raise ValueError("timing model-load identity does not match prediction rows")
+    if timing_peak < 1 or any(peak <= 0 for peak in prediction_peaks):
+        raise ValueError("PyTorch max-allocated memory measurements are invalid")
     return {
         "wall_seconds": wall_seconds,
+        "gpu_seconds": wall_seconds,
         "gpu_hours": wall_seconds / 3600.0,
         "rows_per_second": expected_rows / wall_seconds,
         "preparation_wall_seconds": preparation,
-        "peak_memory_bytes": int(observed_peak),
+        "model_load_seconds": model_load_seconds,
+        "torch_peak_memory_bytes": int(timing_peak),
+        "torch_observed_peak_memory_bytes": int(max(prediction_peaks)),
+        "nvidia_smi_peak_memory_bytes": int(telemetry_peak),
         "utilization_mean_percent": statistics.fmean(utilization),
         "utilization_max_percent": max(utilization),
         "utilization_sample_count": samples,
@@ -416,29 +566,47 @@ def _load_condition_bundle(
     profile_condition: Mapping[str, Any],
     expected_rows: int,
     expected_id_digest: str,
+    profile_run_name: str | None = None,
+    profile_remote_uri: str | None = None,
+    shared_evidence_identity: tuple[str, str, str, str] | None = None,
 ) -> dict[str, Any]:
     root = root.resolve()
-    if not root.is_dir():
-        raise ValueError(f"condition {condition_id} must be a production bundle directory")
-    checksum_sha256, checksum_entries = _verify_checksum_file(root)
-    terminal = _load_json(root / "terminal-status.json")
+    payload_root, condition_root, terminal_path = _producer_layout(root, condition_id)
+    checksum_sha256, checksum_entries = _verify_checksum_file(
+        payload_root, allow_unbound_evidence_manifest=shared_evidence_identity is not None
+    )
+    terminal = _load_json(terminal_path)
     if (
         not isinstance(terminal, Mapping)
         or terminal.get("schema_version") != 1
         or terminal.get("status") != "passed"
         or terminal.get("payload_sha256") != checksum_sha256
+        or not isinstance(terminal.get("run_name"), str)
+        or not terminal.get("run_name", "").strip()
+        or not isinstance(terminal.get("payload_uri"), str)
+        or not terminal.get("payload_uri", "").strip()
     ):
         raise ValueError(f"condition {condition_id} terminal status is not passed and verified")
-    status = _load_json(root / "status.json")
+    if profile_remote_uri is not None:
+        remote = profile_remote_uri.rstrip("/")
+        expected_payload_uris = {f"{remote}/payload", f"{remote}/{condition_id}/payload"}
+        if terminal["payload_uri"] not in expected_payload_uris:
+            raise ValueError(f"condition {condition_id} terminal payload URI is not profile-bound")
+    status = _load_json(payload_root / "status.json")
     if (
         not isinstance(status, Mapping)
         or status.get("schema_version") != 1
         or status.get("status") != "passed"
+        or status.get("mode") != "condition"
+        or status.get("run_name") != terminal.get("run_name")
         or status.get("expected_count") != expected_rows
+        or status.get("frame_count") != EXPECTED_RUNTIME_CONTROLS["frame_count"]
+        or status.get("workload_returncode") != 0
+        or status.get("remote_payload_sync") != "frozen"
         or status.get("labels_joined") is not False
     ):
         raise ValueError(f"condition {condition_id} status marker is invalid")
-    identity_payload = _load_json(root / "condition-identity.json")
+    identity_payload = _load_json(condition_root / "condition-identity.json")
     if not isinstance(identity_payload, Mapping):
         raise ValueError(f"condition {condition_id} identity is invalid")
     nested_condition = identity_payload.get("condition")
@@ -488,6 +656,29 @@ def _load_condition_bundle(
     )
     if identity.get("condition_id") != condition_id or observed_tuple != expected_tuple:
         raise ValueError(f"condition {condition_id} identity tuple does not match the profile")
+    condition_dirs = [
+        path for path in (payload_root / "conditions").iterdir()
+        if path.is_dir() and not path.is_symlink()
+    ]
+    if profile_run_name:
+        expected_terminal_run = (
+            profile_run_name
+            if len(condition_dirs) > 1
+            else f"{profile_run_name}-{condition_id}"
+        )
+        if terminal["run_name"] != expected_terminal_run:
+            raise ValueError(f"condition {condition_id} terminal run identity is not profile-bound")
+        expected_run_ids = {
+            f"{profile_run_name}-{condition_id}"
+            if len(condition_dirs) > 1
+            else expected_terminal_run
+        }
+    else:
+        expected_run_ids = {str(terminal["run_name"])}
+        if len(condition_dirs) > 1:
+            expected_run_ids.add(f"{terminal['run_name']}-{condition_id}")
+    if identity.get("run_id") not in expected_run_ids:
+        raise ValueError(f"condition {condition_id} run identity is not terminal-bound")
     for key, expected in {
         "requested_min_pixels_per_frame": expected_tuple[3],
         "requested_max_pixels_per_frame": expected_tuple[4],
@@ -498,11 +689,11 @@ def _load_condition_bundle(
         "do_sample": EXPECTED_RUNTIME_CONTROLS["do_sample"],
         "thinking": EXPECTED_RUNTIME_CONTROLS["thinking"],
     }.items():
-        if key == "transformers_revision" and identity.get(key) is None:
-            continue
         if identity.get(key) != expected:
             raise ValueError(f"condition {condition_id} observed runtime control mismatch: {key}")
-    prediction_path = root / "predictions.json"
+    prediction_path = condition_root / "predictions.json"
+    if not isinstance(_load_json(prediction_path), list):
+        raise ValueError(f"condition {condition_id} prediction payload wrapper is not the producer schema")
     raw_rows, _metadata = _load_prediction_payload(prediction_path)
     if len(raw_rows) != expected_rows:
         raise ValueError(f"Condition {condition_id} has an incomplete prediction payload")
@@ -510,15 +701,8 @@ def _load_condition_bundle(
     seen: set[str] = set()
     for index, raw in enumerate(raw_rows):
         _reject_label_fields(raw, f"$[{index}]")
-        required = {
-            "status", "answer", "run_id", "condition_id", "video_id", "model_id",
-            "model_revision", "answer_policy", "requested_min_pixels_per_frame",
-            "requested_max_pixels_per_frame", "min_pixels_per_frame",
-            "max_pixels_per_frame", "runtime_image", "precision", "device",
-            "runtime_attestation", "peak_memory_bytes",
-        }
-        if not required <= set(raw):
-            raise ValueError(f"condition {condition_id} prediction schema is incomplete")
+        if set(raw) != PRODUCER_PREDICTION_FIELDS:
+            raise ValueError(f"condition {condition_id} prediction schema is not exact")
         video_id = raw.get("video_id")
         if not isinstance(video_id, str) or not video_id or video_id in seen:
             raise ValueError(f"condition {condition_id} has a duplicate or invalid video ID")
@@ -540,27 +724,53 @@ def _load_condition_bundle(
         if any(raw.get(key) != value for key, value in expected_row.items()):
             raise ValueError(f"condition {condition_id} prediction row binding mismatch")
         attestation = raw.get("runtime_attestation")
-        if (
-            not isinstance(attestation, Mapping)
-            or attestation.get("accelerator_backend") != "nvidia-cuda"
-            or not isinstance(attestation.get("parameter_tensor_count"), int)
-            or attestation["parameter_tensor_count"] <= 0
-            or not isinstance(attestation.get("parameter_devices"), Mapping)
-            or attestation["parameter_devices"].get("cuda:0", 0) <= 0
-            or not isinstance(attestation.get("parameter_dtypes"), Mapping)
-            or attestation["parameter_dtypes"].get("torch.bfloat16", 0) <= 0
-        ):
+        if not isinstance(attestation, Mapping) or set(attestation) != PRODUCER_ATTESTATION_FIELDS:
             raise ValueError(f"condition {condition_id} prediction lacks NVIDIA BF16 attestation")
+        for label, count_key, devices_key, dtypes_key in (
+            ("parameter", "parameter_tensor_count", "parameter_devices", "parameter_dtypes"),
+            ("buffer", "buffer_tensor_count", "buffer_devices", "buffer_dtypes"),
+        ):
+            count = attestation[count_key]
+            devices = attestation[devices_key]
+            dtypes = attestation[dtypes_key]
+            if (
+                isinstance(count, bool)
+                or not isinstance(count, int)
+                or (count <= 0 if label == "parameter" else count < 0)
+                or not isinstance(devices, Mapping)
+                or not isinstance(dtypes, Mapping)
+                or any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in devices.values())
+                or any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in dtypes.values())
+                or sum(devices.values()) != count
+                or sum(dtypes.values()) != count
+                or any(key != "cuda:0" for key in devices)
+                or any(key != "torch.bfloat16" for key in dtypes)
+                or ((not devices or not dtypes) if count else (devices or dtypes))
+            ):
+                raise ValueError(f"condition {condition_id} {label} attestation counts are invalid")
+        if (
+            attestation["accelerator_backend"] != "nvidia-cuda"
+            or not isinstance(attestation["torch_cuda"], str)
+            or not attestation["torch_cuda"].strip()
+            or attestation["torch_hip"] is not None
+        ):
+            raise ValueError(f"condition {condition_id} prediction lacks NVIDIA CUDA attestation")
         peak = raw.get("peak_memory_bytes")
         if isinstance(peak, bool) or not isinstance(peak, int) or peak <= 0:
             raise ValueError(f"condition {condition_id} prediction peak memory is invalid")
+        for field in ("elapsed_seconds", "model_load_seconds"):
+            value = raw.get(field)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not statistics.isfinite(value) or value < 0:
+                raise ValueError(f"condition {condition_id} prediction {field} is invalid")
+        if raw.get("error_type") is not None or raw.get("error_message") is not None:
+            raise ValueError(f"condition {condition_id} passed prediction carries an error")
         if raw.get("status") != "passed" or not isinstance(raw.get("answer"), str) or not raw["answer"].strip():
             raise ValueError(f"condition {condition_id} has an incomplete prediction row")
         selected.append({"condition_id": condition_id, "video_id": video_id, "answer": raw["answer"]})
     order = [row["video_id"] for row in selected]
     if order != sorted(order) or sorted_video_id_set_sha256(order) != expected_id_digest:
         raise ValueError(f"condition {condition_id} canonical ID order/digest mismatch")
-    evidence_marker_path = root / "evidence" / "evidence-marker.json"
+    evidence_marker_path = payload_root / "evidence" / "evidence-marker.json"
     evidence_marker = _load_json(evidence_marker_path)
     if (
         not isinstance(evidence_marker, Mapping)
@@ -569,34 +779,96 @@ def _load_condition_bundle(
         or evidence_marker.get("example_count") != expected_rows
         or evidence_marker.get("canonical_id_digest") != expected_id_digest
         or evidence_marker.get("checksum_file") != "SHA256SUMS"
+        or not isinstance(evidence_marker.get("evidence_bundle_id"), str)
+        or not evidence_marker.get("evidence_bundle_id", "").strip()
     ):
         raise ValueError(f"condition {condition_id} evidence marker is invalid")
     if expected_rows == 475 and evidence_marker.get("manifest_sha256") != EXPECTED_FULL_MANIFEST_SHA256:
         raise ValueError(f"condition {condition_id} evidence manifest identity is not pinned")
-    runtime = _load_json(root / "runtime.json")
+    runtime = _load_json(payload_root / "runtime.json")
     if (
         not isinstance(runtime, Mapping)
+        or set(runtime) != {
+            "runtime",
+            "runtime_image",
+            "transformers_version",
+            "transformers_revision",
+            "torch_version",
+            "torch_cuda",
+            "torch_hip",
+            "cuda_device_name",
+            "cuda_bf16_supported",
+            "dependencies",
+        }
+        or runtime.get("runtime") != raw_rows[0].get("runtime")
+        or runtime.get("runtime_image") != EXPECTED_RUNTIME_CONTROLS["runtime_image"]
         or runtime.get("transformers_version") != "5.15.0.dev0"
         or runtime.get("transformers_revision") != EXPECTED_RUNTIME_CONTROLS["transformers_revision"]
+        or not isinstance(runtime.get("torch_version"), str)
+        or not runtime.get("torch_version", "").strip()
         or runtime.get("cuda_bf16_supported") is not True
-        or not runtime.get("torch_cuda")
-        or not runtime.get("cuda_device_name")
+        or not isinstance(runtime.get("torch_cuda"), str)
+        or not runtime.get("torch_cuda", "").strip()
+        or runtime.get("torch_hip") is not None
+        or not isinstance(runtime.get("cuda_device_name"), str)
+        or not runtime.get("cuda_device_name", "").strip()
+        or not isinstance(runtime.get("dependencies"), Mapping)
+        or set(runtime["dependencies"]) != {
+            "Pillow",
+            "soundfile",
+            "accelerate",
+            "av",
+            "imageio-ffmpeg",
+            "qwen-vl-utils",
+        }
     ):
         raise ValueError(f"condition {condition_id} runtime attestation is invalid")
+    for raw in raw_rows:
+        if raw["runtime"] != runtime["runtime"] or raw["runtime_image"] != runtime["runtime_image"]:
+            raise ValueError(f"condition {condition_id} prediction/runtime identity mismatch")
+        if raw["runtime_attestation"]["torch_cuda"] != runtime["torch_cuda"]:
+            raise ValueError(f"condition {condition_id} prediction CUDA identity mismatch")
     operational = _read_operational_evidence(
-        root, condition_id=condition_id, expected_rows=expected_rows, prediction_rows=raw_rows
+        condition_root,
+        condition_id=condition_id,
+        expected_rows=expected_rows,
+        prediction_rows=raw_rows,
     )
+    nested_evidence_identity: tuple[str, str, str, str]
+    try:
+        nested_checksum, evidence_bytes, marker_sha = _verify_evidence_checksum(
+            payload_root, evidence_marker_path, checksum_entries
+        )
+        nested_evidence_identity = (
+            marker_sha,
+            nested_checksum,
+            evidence_bytes,
+            str(evidence_marker.get("evidence_bundle_id")),
+        )
+    except ValueError:
+        if shared_evidence_identity is None:
+            raise
+        if shared_evidence_identity[0] != sha256_path(evidence_marker_path):
+            raise ValueError(f"condition {condition_id} evidence marker does not match external evidence")
+        evidence_root = payload_root / "evidence"
+        local_evidence_files = sorted(
+            path.relative_to(evidence_root).as_posix()
+            for path in evidence_root.rglob("*")
+            if path.is_file() and not path.is_symlink() and path.name != "SHA256SUMS"
+        )
+        if _evidence_bytes_digest(evidence_root, local_evidence_files) != shared_evidence_identity[2]:
+            raise ValueError(f"condition {condition_id} evidence bytes do not match external evidence")
+        nested_evidence_identity = shared_evidence_identity
     return {
         "rows": selected,
         "prediction_sha256": sha256_path(prediction_path),
         "prediction_path": prediction_path,
         "evidence_identity": (
-            sha256_path(evidence_marker_path),
-            _verify_evidence_checksum(root, evidence_marker_path),
-            str(evidence_marker.get("evidence_bundle_id")),
+            *nested_evidence_identity,
         ),
         "evidence_marker_sha256": sha256_path(evidence_marker_path),
-        "evidence_checksum_sha256": sha256_path(root / "evidence" / "SHA256SUMS"),
+        "evidence_checksum_sha256": nested_evidence_identity[1],
+        "evidence_bytes_sha256": nested_evidence_identity[2],
         "operational": operational,
         "observed_identity": {
             "model_id": identity["model_id"],
@@ -614,14 +886,39 @@ def _load_condition_bundle(
 
 def _load_evidence_bundle_identity(
     root: Path, *, expected_rows: int, expected_id_digest: str
-) -> tuple[str, str, str]:
+) -> tuple[str, str, str, str]:
     root = root.resolve()
-    if not root.is_dir():
-        raise ValueError("evidence bundle must be a directory")
-    _verify_checksum_file(root)
-    marker_path = root / "evidence" / "evidence-marker.json"
+    if not root.is_dir() or not (root / "payload").is_dir() or not (root / "terminal-status.json").is_file():
+        raise ValueError("evidence bundle must be the downloaded root containing terminal-status.json beside payload/")
+    payload_root = root / "payload"
+    checksum_sha256, checksum_entries = _verify_checksum_file(payload_root)
+    terminal = _load_json(root / "terminal-status.json")
+    if (
+        not isinstance(terminal, Mapping)
+        or terminal.get("schema_version") != 1
+        or terminal.get("status") != "passed"
+        or terminal.get("payload_sha256") != checksum_sha256
+        or not isinstance(terminal.get("run_name"), str)
+        or not isinstance(terminal.get("payload_uri"), str)
+    ):
+        raise ValueError("evidence bundle terminal marker is not verified")
+    status = _load_json(payload_root / "status.json")
+    if (
+        not isinstance(status, Mapping)
+        or status.get("schema_version") != 1
+        or status.get("status") != "passed"
+        or status.get("mode") != "evidence"
+        or status.get("run_name") != terminal.get("run_name")
+        or status.get("expected_count") != expected_rows
+        or status.get("frame_count") != EXPECTED_RUNTIME_CONTROLS["frame_count"]
+        or status.get("workload_returncode") != 0
+        or status.get("remote_payload_sync") != "frozen"
+        or status.get("labels_joined") is not False
+    ):
+        raise ValueError("evidence bundle status marker is invalid")
+    marker_path = payload_root / "evidence" / "evidence-marker.json"
     if not marker_path.is_file():
-        marker_path = root / "evidence-marker.json"
+        raise ValueError("evidence bundle marker is missing")
     marker = _load_json(marker_path)
     if (
         not isinstance(marker, Mapping)
@@ -629,14 +926,32 @@ def _load_evidence_bundle_identity(
         or marker.get("label_policy") != "label-free-evidence"
         or marker.get("example_count") != expected_rows
         or marker.get("canonical_id_digest") != expected_id_digest
+        or marker.get("checksum_file") != "SHA256SUMS"
+        or not isinstance(marker.get("evidence_bundle_id"), str)
+        or not marker.get("evidence_bundle_id", "").strip()
+        or (expected_rows == 475 and marker.get("manifest_sha256") != EXPECTED_FULL_MANIFEST_SHA256)
     ):
         raise ValueError("evidence bundle marker does not match the canonical panel")
-    if marker_path.parent.name == "evidence":
-        checksum_sha256 = _verify_evidence_checksum(root, marker_path)
-    else:
-        checksum_path = root / "SHA256SUMS"
-        checksum_sha256 = sha256_path(checksum_path)
-    return sha256_path(marker_path), checksum_sha256, str(marker.get("evidence_bundle_id"))
+    evidence_files = {
+        key.removeprefix("evidence/")
+        for key in checksum_entries
+        if key.startswith("evidence/") and key != "evidence/SHA256SUMS"
+    }
+    actual_evidence_files = {
+        path.relative_to(payload_root / "evidence").as_posix()
+        for path in (payload_root / "evidence").rglob("*")
+        if path.is_file() and not path.is_symlink() and path.name != "SHA256SUMS"
+    }
+    if evidence_files != actual_evidence_files:
+        raise ValueError("evidence bundle root manifest does not cover exact evidence bytes")
+    if checksum_entries.get("evidence/evidence-marker.json") != sha256_path(marker_path):
+        raise ValueError("evidence bundle marker is not root-bound")
+    return (
+        sha256_path(marker_path),
+        checksum_sha256,
+        _evidence_bytes_digest(payload_root / "evidence", sorted(actual_evidence_files)),
+        str(marker.get("evidence_bundle_id")),
+    )
 
 
 def _validate_runtime_metadata(
@@ -1531,15 +1846,21 @@ def score_factorial(
     if rows_expected != resolved_panel.expected_rows or files_expected != resolved_panel.expected_annotation_files:
         raise ValueError("panel profile dimensions do not match the declared factorial panel")
     expected_id_digest = resolved_panel.canonical_id_set_sha256
+    if expected_rows == 475 and expected_id_digest != EXPECTED_FULL_CANONICAL_ID_DIGEST:
+        raise ValueError("the 475-row panel digest is not the pinned canonical digest")
     # Freeze and validate all production bundle/prediction bytes before loading labels.
     frozen_predictions: dict[str, list[dict[str, Any]]] = {}
     prediction_hashes: dict[str, str] = {}
+    prediction_paths: dict[str, Path] = {}
     condition_evidence: dict[str, dict[str, Any]] = {}
     frozen_order: list[str] | None = None
-    if condition_bundles is not None:
-        resolved_paths = [path.resolve() for path in supplied_conditions.values()]
-        if len(set(resolved_paths)) != len(resolved_paths):
-            raise ValueError("condition bundles must resolve to distinct paths")
+    external_identity = None
+    if condition_bundles is not None and evidence_bundle_path is not None:
+        external_identity = _load_evidence_bundle_identity(
+            evidence_bundle_path,
+            expected_rows=rows_expected,
+            expected_id_digest=expected_id_digest,
+        )
     for condition_id in EXPECTED_CONDITION_IDS:
         path = supplied_conditions[condition_id]
         if condition_bundles is not None:
@@ -1549,9 +1870,13 @@ def score_factorial(
                 profile_condition=profile_conditions[condition_id],
                 expected_rows=rows_expected,
                 expected_id_digest=expected_id_digest,
+                profile_run_name=str(resolved_profile["run_name"]),
+                profile_remote_uri=str(resolved_profile["remote_uri"]),
+                shared_evidence_identity=external_identity,
             )
             selected = bundle["rows"]
             prediction_hashes[condition_id] = bundle["prediction_sha256"]
+            prediction_paths[condition_id] = bundle["prediction_path"].resolve()
             condition_evidence[condition_id] = bundle
         else:
             raw_rows, metadata = _load_prediction_payload(path)
@@ -1576,19 +1901,13 @@ def score_factorial(
     if condition_bundles is not None:
         if len(set(prediction_hashes.values())) != len(prediction_hashes):
             raise ValueError("condition prediction payload hashes must be distinct")
+        if len(set(prediction_paths.values())) != len(prediction_paths):
+            raise ValueError("condition prediction payload paths must be distinct")
         evidence_identities = {bundle["evidence_identity"] for bundle in condition_evidence.values()}
         if len(evidence_identities) != 1:
             raise ValueError("all condition bundles must share one evidence marker/checksum identity")
-        if evidence_bundle_path is not None:
-            external_identity = _load_evidence_bundle_identity(
-                evidence_bundle_path,
-                expected_rows=rows_expected,
-                expected_id_digest=expected_id_digest,
-            )
-            if external_identity != next(iter(evidence_identities)):
-                raise ValueError("external evidence bundle identity does not match condition bundles")
-    if expected_rows == 475 and expected_id_digest != EXPECTED_FULL_CANONICAL_ID_DIGEST:
-        raise ValueError("the 475-row panel digest is not the pinned canonical digest")
+        if external_identity is not None and external_identity != next(iter(evidence_identities)):
+            raise ValueError("external evidence bundle identity does not match condition bundles")
     annotations = _load_annotations(annotation_root)
     if len(annotations) != files_expected:
         raise ValueError(f"Annotation root contains {len(annotations)} annotation files; expected {files_expected}")
@@ -1802,18 +2121,20 @@ def score_factorial(
         common_evidence = next(iter(condition_evidence.values()))
         artifact["inputs"]["evidence_marker_sha256"] = common_evidence["evidence_marker_sha256"]
         artifact["inputs"]["evidence_checksum_sha256"] = common_evidence["evidence_checksum_sha256"]
+        artifact["inputs"]["evidence_bytes_sha256"] = common_evidence["evidence_bytes_sha256"]
+        wall_seconds = [
+            condition_evidence[condition_id]["operational"]["wall_seconds"]
+            for condition_id in EXPECTED_CONDITION_IDS
+        ]
+        total_rows = rows_expected * len(EXPECTED_CONDITION_IDS)
         artifact["experiment"]["operational_projection"] = {
-            "declared_wall_seconds": statistics.fsum(
-                condition_evidence[condition_id]["operational"]["wall_seconds"]
-                for condition_id in EXPECTED_CONDITION_IDS
-            ),
-            "declared_rows_per_second": (
-                rows_expected * len(EXPECTED_CONDITION_IDS)
-                / statistics.fsum(
-                    condition_evidence[condition_id]["operational"]["wall_seconds"]
-                    for condition_id in EXPECTED_CONDITION_IDS
-                )
-            ),
+            "parallel_wall_seconds": max(wall_seconds),
+            "declared_wall_seconds": max(wall_seconds),
+            "gpu_seconds": statistics.fsum(wall_seconds),
+            "gpu_hours": statistics.fsum(wall_seconds) / 3600.0,
+            "parallel_rows_per_second": total_rows / max(wall_seconds),
+            "declared_rows_per_second": total_rows / max(wall_seconds),
+            "serial_rows_per_second": total_rows / statistics.fsum(wall_seconds),
         }
     _artifact_safe(artifact)
     if sts_cache_path is not None:

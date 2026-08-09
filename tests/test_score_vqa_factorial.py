@@ -6,6 +6,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 from urllib.error import URLError
 
 import pytest
@@ -618,13 +619,16 @@ def _write_production_bundle(
     evidence_id: str = "evidence-1",
     mutate: dict[str, object] | None = None,
 ) -> Path:
-    """Create the smallest production-shaped bundle accepted by Task 3."""
+    """Create the downloaded producer layout without reshaping it for scoring."""
 
     root.mkdir(parents=True, exist_ok=True)
+    payload_root = root / "payload"
+    condition_root = payload_root / "conditions" / condition_id
+    condition_root.mkdir(parents=True, exist_ok=True)
     profile_condition = make_profile(scorer)["conditions"][
         CONDITION_IDS.index(condition_id)
     ]
-    run_id = "run-" + condition_id
+    run_id = "fixture-factorial-" + condition_id
     runtime_image = scorer.EXPECTED_RUNTIME_CONTROLS["runtime_image"]
     model_id = profile_condition["model_id"]
     revision = profile_condition["revision"]
@@ -635,11 +639,14 @@ def _write_production_bundle(
             {
                 "status": "passed",
                 "answer": f"answer {index}",
+                "elapsed_seconds": 0.25,
+                "model_load_seconds": 1.5,
                 "run_id": run_id,
                 "condition_id": condition_id,
                 "video_id": video_id,
                 "model_id": model_id,
                 "model_revision": revision,
+                "runtime": "transformers 5.15.0.dev0; torch 2.8.0",
                 "answer_policy": policy,
                 "question_type": "general",
                 "requested_min_pixels_per_frame": 65536,
@@ -654,8 +661,15 @@ def _write_production_bundle(
                     "parameter_tensor_count": 10,
                     "parameter_devices": {"cuda:0": 10},
                     "parameter_dtypes": {"torch.bfloat16": 10},
+                    "buffer_tensor_count": 2,
+                    "buffer_devices": {"cuda:0": 2},
+                    "buffer_dtypes": {"torch.bfloat16": 2},
+                    "torch_cuda": "12.4",
+                    "torch_hip": None,
                 },
                 "peak_memory_bytes": 1024 + index,
+                "error_type": None,
+                "error_message": None,
             }
         )
     identity = {
@@ -678,6 +692,12 @@ def _write_production_bundle(
         "do_sample": False,
         "thinking": False,
         "request_source": "shared-accepted-whisper",
+        "model_class": "multimodal",
+        "deterministic_decoding": {
+            "do_sample": False,
+            "enable_thinking": False,
+            "max_new_tokens": 64,
+        },
     }
     evidence_marker = {
         "schema_version": 1,
@@ -689,53 +709,84 @@ def _write_production_bundle(
         "checksum_file": "SHA256SUMS",
     }
     runtime = {
+        "runtime": "transformers 5.15.0.dev0; torch 2.8.0",
+        "runtime_image": runtime_image,
         "transformers_version": "5.15.0.dev0",
         "transformers_revision": scorer.EXPECTED_RUNTIME_CONTROLS[
             "transformers_revision"
         ],
-        "torch_cuda": "12.8",
+        "torch_version": "2.8.0",
+        "torch_cuda": "12.4",
+        "torch_hip": None,
         "cuda_device_name": "fixture NVIDIA",
         "cuda_bf16_supported": True,
+        "dependencies": {
+            "Pillow": "11.3.0",
+            "soundfile": "0.13.0",
+            "accelerate": "1.12.0",
+            "av": "16.0.0",
+            "imageio-ffmpeg": "0.6.0",
+            "qwen-vl-utils": "0.0.14",
+        },
     }
     timing = {
-        "schema_version": 1,
         "condition_id": condition_id,
         "row_count": len(ids),
         "wall_seconds": 8.0,
         "prepare_wall_seconds": 2.0,
-        "peak_memory_bytes": 300 * 1024 * 1024,
+        # Deliberately below nvidia-smi's independent measurement: the scorer
+        # must preserve both valid measurements without inventing an ordering.
+        "peak_memory_bytes": 64 * 1024 * 1024,
+        "model_load_seconds": 1.5,
+        "runtime_identity": [
+            [
+                "transformers 5.15.0.dev0; torch 2.8.0",
+                runtime_image,
+                "cuda:0 (NVIDIA CUDA)",
+                "bfloat16",
+            ]
+        ],
     }
     telemetry = (
         "timestamp,index,utilization.gpu [%],memory.used [MiB],memory.total [MiB]\n"
         "2026-08-09T00:00:00Z,0,50,100,1000\n"
         "2026-08-09T00:00:05Z,0,75,200,1000\n"
     )
-    (root / "predictions.json").write_text(
+    (condition_root / "predictions.json").write_text(
         json.dumps(prediction_rows), encoding="utf-8"
     )
-    (root / "condition-identity.json").write_text(
+    (condition_root / "condition-identity.json").write_text(
         json.dumps(identity), encoding="utf-8"
     )
-    (root / "evidence").mkdir()
-    (root / "evidence" / "evidence-marker.json").write_text(
+    evidence_root = payload_root / "evidence"
+    evidence_root.mkdir(parents=True, exist_ok=True)
+    (evidence_root / "evidence-marker.json").write_text(
         json.dumps(evidence_marker), encoding="utf-8"
     )
     marker_hash = hashlib.sha256(
-        (root / "evidence" / "evidence-marker.json").read_bytes()
+        (evidence_root / "evidence-marker.json").read_bytes()
     ).hexdigest()
-    (root / "evidence" / "SHA256SUMS").write_text(
-        f"{marker_hash}  evidence-marker.json\n", encoding="utf-8"
+    (evidence_root / "evidence-bytes.bin").write_bytes(b"verified shared evidence")
+    (evidence_root / "SHA256SUMS").write_text(
+        f"{marker_hash}  evidence-marker.json\n"
+        f"{hashlib.sha256((evidence_root / 'evidence-bytes.bin').read_bytes()).hexdigest()}  evidence-bytes.bin\n",
+        encoding="utf-8",
     )
-    (root / "runtime.json").write_text(json.dumps(runtime), encoding="utf-8")
-    (root / "timing.json").write_text(json.dumps(timing), encoding="utf-8")
-    (root / "telemetry" ).mkdir()
-    (root / "telemetry" / "nvidia-smi.csv").write_text(telemetry, encoding="utf-8")
-    (root / "status.json").write_text(
+    (payload_root / "runtime.json").write_text(json.dumps(runtime), encoding="utf-8")
+    (condition_root / "timing.json").write_text(json.dumps(timing), encoding="utf-8")
+    (condition_root / "telemetry").mkdir()
+    (condition_root / "telemetry" / "nvidia-smi.csv").write_text(telemetry, encoding="utf-8")
+    (payload_root / "status.json").write_text(
         json.dumps(
             {
                 "schema_version": 1,
                 "status": "passed",
+                "mode": "condition",
+                "run_name": run_id,
                 "expected_count": len(ids),
+                "frame_count": 12,
+                "workload_returncode": 0,
+                "remote_payload_sync": "frozen",
                 "labels_joined": False,
             }
         ),
@@ -752,18 +803,23 @@ def _write_production_bundle(
             path.write_text(json.dumps(payload), encoding="utf-8")
     checksum_lines = []
     for path in sorted(
-        item for item in root.rglob("*") if item.is_file() and item.name != "SHA256SUMS"
+        item
+        for item in payload_root.rglob("*")
+        if item.is_file()
+        and (item.name != "SHA256SUMS" or item == evidence_root / "SHA256SUMS")
     ):
         checksum_lines.append(
             f"{hashlib.sha256(path.read_bytes()).hexdigest()}  "
-            f"{path.relative_to(root).as_posix()}"
+            f"{path.relative_to(payload_root).as_posix()}"
         )
     checksum = "\n".join(checksum_lines) + "\n"
-    (root / "SHA256SUMS").write_text(checksum, encoding="utf-8")
+    (payload_root / "SHA256SUMS").write_text(checksum, encoding="utf-8")
     terminal = {
         "schema_version": 1,
         "status": "passed",
         "payload_sha256": hashlib.sha256(checksum.encode()).hexdigest(),
+        "payload_uri": f"hf://buckets/test/output/{condition_id}/payload",
+        "run_name": run_id,
     }
     (root / "terminal-status.json").write_text(json.dumps(terminal), encoding="utf-8")
     return root
@@ -815,9 +871,174 @@ def test_production_bundle_contract_and_operational_evidence_are_required(
         bertscore_fn=injected_metrics()[1],
         sts_fn=injected_metrics()[2],
     )
-    assert artifact["conditions"]["4b-current"]["operational_evidence"]["wall_seconds"] == 8.0
-    assert artifact["conditions"]["4b-current"]["operational_evidence"]["utilization_sample_count"] == 2
-    assert artifact["experiment"]["operational_projection"]["declared_wall_seconds"] == 32.0
+    operational = artifact["conditions"]["4b-current"]["operational_evidence"]
+    assert operational["wall_seconds"] == 8.0
+    assert operational["utilization_sample_count"] == 2
+    assert operational["torch_peak_memory_bytes"] == 64 * 1024 * 1024
+    assert operational["nvidia_smi_peak_memory_bytes"] == 200 * 1024 * 1024
+    projection = artifact["experiment"]["operational_projection"]
+    assert projection["parallel_wall_seconds"] == 8.0
+    assert projection["gpu_seconds"] == 32.0
+    assert projection["gpu_hours"] == pytest.approx(32.0 / 3600.0)
+    assert projection["parallel_rows_per_second"] == pytest.approx(2.0)
+
+
+def test_downloaded_producer_layout_is_consumed_without_reshaping(tmp_path: Path) -> None:
+    scorer = load_scorer()
+    bundle = _write_production_bundle(tmp_path / "download", scorer, "4b-current")
+    assert (bundle / "terminal-status.json").is_file()
+    assert (bundle / "payload" / "SHA256SUMS").is_file()
+    assert (bundle / "payload" / "conditions" / "4b-current" / "predictions.json").is_file()
+    loaded = scorer._load_condition_bundle(
+        bundle,
+        condition_id="4b-current",
+        profile_condition=make_profile(scorer)["conditions"][0],
+        expected_rows=4,
+        expected_id_digest=scorer.sorted_video_id_set_sha256(("v1", "v2", "v3", "v4")),
+    )
+    assert loaded["prediction_path"] == (
+        bundle / "payload" / "conditions" / "4b-current" / "predictions.json"
+    )
+
+
+def test_cli_passes_downloaded_roots_directly(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    scorer = load_scorer()
+    bundles = {
+        condition_id: _write_production_bundle(tmp_path / condition_id, scorer, condition_id)
+        for condition_id in CONDITION_IDS
+    }
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps(make_profile(scorer)), encoding="utf-8")
+    model = tmp_path / EXPECTED_BERT_MODEL_SNAPSHOT
+    model.mkdir()
+    seen: dict[str, object] = {}
+
+    def fake_score(**kwargs):
+        seen.update(kwargs)
+        return {"panel": {"completed_per_condition": {condition_id: 4 for condition_id in CONDITION_IDS}}}
+
+    monkeypatch.setattr(scorer, "score_factorial", fake_score)
+    assert scorer.main(
+        [
+            "--annotations", str(tmp_path / "annotations"),
+            *sum((["--condition-bundle", f"{condition_id}={bundles[condition_id]}"] for condition_id in CONDITION_IDS), []),
+            "--bert-model", str(model),
+            "--profile", str(profile_path),
+            "--output", str(tmp_path / "artifact.json"),
+        ]
+    ) == 0
+    assert seen["condition_bundles"] == bundles
+
+
+def _refresh_download_manifest(bundle: Path) -> None:
+    payload_root = bundle / "payload"
+    paths = [
+        path
+        for path in payload_root.rglob("*")
+        if path.is_file()
+        and (
+            path != payload_root / "SHA256SUMS"
+            and path != payload_root / "terminal-status.json"
+        )
+    ]
+    lines = [
+        f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(payload_root).as_posix()}"
+        for path in sorted(paths)
+    ]
+    checksum = ("\n".join(lines) + "\n").encode("utf-8")
+    (payload_root / "SHA256SUMS").write_bytes(checksum)
+    terminal = json.loads((bundle / "terminal-status.json").read_text(encoding="utf-8"))
+    terminal["payload_sha256"] = hashlib.sha256(checksum).hexdigest()
+    (bundle / "terminal-status.json").write_text(json.dumps(terminal), encoding="utf-8")
+
+
+def test_marker_only_condition_output_requires_and_binds_external_evidence(
+    tmp_path: Path,
+) -> None:
+    scorer = load_scorer()
+    bundles = {
+        condition_id: _write_production_bundle(tmp_path / condition_id, scorer, condition_id)
+        for condition_id in CONDITION_IDS
+    }
+    for bundle in bundles.values():
+        (bundle / "payload" / "evidence" / "SHA256SUMS").unlink()
+        _refresh_download_manifest(bundle)
+    evidence = _write_production_bundle(tmp_path / "evidence", scorer, "4b-current")
+    shutil.rmtree(evidence / "payload" / "conditions" / "4b-current")
+    status_path = evidence / "payload" / "status.json"
+    status = json.loads(status_path.read_text(encoding="utf-8"))
+    status["mode"] = "evidence"
+    status_path.write_text(json.dumps(status), encoding="utf-8")
+    _refresh_download_manifest(evidence)
+    labels_root = tmp_path / "labels"
+    labels_root.mkdir()
+    annotations, _legacy, model, profile, panel = make_inputs(labels_root, scorer)
+    artifact = scorer.score_factorial(
+        annotation_root=annotations,
+        condition_bundles=bundles,
+        evidence_bundle_path=evidence,
+        bert_model=model,
+        profile=profile,
+        panel_profile=panel,
+        expected_rows=4,
+        expected_annotation_files=4,
+        meteor_fn=injected_metrics()[0],
+        bertscore_fn=injected_metrics()[1],
+        sts_fn=injected_metrics()[2],
+    )
+    assert artifact["integrity"]["evidence_identity_checked"] is True
+
+
+def test_nested_evidence_manifest_drift_fails_after_root_manifest_is_rebound(
+    tmp_path: Path,
+) -> None:
+    scorer = load_scorer()
+    bundle = _write_production_bundle(tmp_path / "download", scorer, "4b-current")
+    nested = bundle / "payload" / "evidence" / "SHA256SUMS"
+    nested.write_text(nested.read_text(encoding="utf-8") + ("0" * 64) + "  missing.bin\n", encoding="utf-8")
+    payload_root = bundle / "payload"
+    lines = [
+        f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(payload_root).as_posix()}"
+        for path in sorted(
+            path
+            for path in payload_root.rglob("*")
+            if path.is_file()
+            and (path.name != "SHA256SUMS" or path == payload_root / "evidence" / "SHA256SUMS")
+        )
+    ]
+    checksum = ("\n".join(lines) + "\n").encode()
+    (payload_root / "SHA256SUMS").write_bytes(checksum)
+    terminal = json.loads((bundle / "terminal-status.json").read_text(encoding="utf-8"))
+    terminal["payload_sha256"] = hashlib.sha256(checksum).hexdigest()
+    (bundle / "terminal-status.json").write_text(json.dumps(terminal), encoding="utf-8")
+    with pytest.raises(ValueError, match="evidence|coverage|manifest"):
+        scorer._load_condition_bundle(
+            bundle,
+            condition_id="4b-current",
+            profile_condition=make_profile(scorer)["conditions"][0],
+            expected_rows=4,
+            expected_id_digest=scorer.sorted_video_id_set_sha256(("v1", "v2", "v3", "v4")),
+        )
+
+
+def test_runtime_attestation_requires_exact_parameter_and_buffer_sums(
+    tmp_path: Path,
+) -> None:
+    scorer = load_scorer()
+    bundle = _write_production_bundle(tmp_path / "download", scorer, "4b-current")
+    prediction_path = bundle / "payload" / "conditions" / "4b-current" / "predictions.json"
+    rows = json.loads(prediction_path.read_text(encoding="utf-8"))
+    rows[0]["runtime_attestation"]["buffer_devices"] = {"cuda:0": 1}
+    prediction_path.write_text(json.dumps(rows), encoding="utf-8")
+    _refresh_download_manifest(bundle)
+    with pytest.raises(ValueError, match="attestation|buffer|schema|checksum"):
+        scorer._load_condition_bundle(
+            bundle,
+            condition_id="4b-current",
+            profile_condition=make_profile(scorer)["conditions"][0],
+            expected_rows=4,
+            expected_id_digest=scorer.sorted_video_id_set_sha256(("v1", "v2", "v3", "v4")),
+        )
 
 
 def test_shared_wrong_canonical_ids_fail_before_annotation_loader(
@@ -852,8 +1073,9 @@ def test_shared_wrong_canonical_ids_fail_before_annotation_loader(
         )
 
 
-def test_artifact_privacy_rejects_nested_variants_and_paths() -> None:
+def test_artifact_privacy_rejects_nested_variants_and_paths(tmp_path: Path) -> None:
     scorer = load_scorer()
+    valid = score_fixture(tmp_path / "valid", scorer)
     for payload in (
         {"nested": {"Questions": "text"}},
         {"nested": {"REFERENCES": ["text"]}},
@@ -862,8 +1084,12 @@ def test_artifact_privacy_rejects_nested_variants_and_paths() -> None:
         {"nested": {"uri": "https://example.test"}},
         {"nested": {"relative": "./secret.json"}},
     ):
+        candidate = copy.deepcopy(valid)
+        # Keep the surrounding artifact valid so this specifically exercises
+        # recursive traversal rather than a top-level shape check.
+        candidate["experiment"]["semantic_composite"] = payload
         with pytest.raises(ValueError):
-            scorer._artifact_safe(payload)
+            scorer._artifact_safe(candidate)
 
 
 def test_private_cache_write_is_atomic_on_interruption(
@@ -897,55 +1123,66 @@ def test_production_bundle_mutations_fail_closed(
 ) -> None:
     scorer = load_scorer()
     bundle = _write_production_bundle(tmp_path / "bundle", scorer, "4b-current")
+    condition_root = bundle / "payload" / "conditions" / "4b-current"
     if mutation == "missing-field":
-        payload = json.loads((bundle / "predictions.json").read_text(encoding="utf-8"))
+        payload = json.loads((condition_root / "predictions.json").read_text(encoding="utf-8"))
         payload[0].pop("runtime_attestation")
-        (bundle / "predictions.json").write_text(json.dumps(payload), encoding="utf-8")
+        (condition_root / "predictions.json").write_text(json.dumps(payload), encoding="utf-8")
     elif mutation == "wrong-tuple":
-        payload = json.loads((bundle / "condition-identity.json").read_text(encoding="utf-8"))
+        payload = json.loads((condition_root / "condition-identity.json").read_text(encoding="utf-8"))
         payload["model_revision"] = "0" * 40
-        (bundle / "condition-identity.json").write_text(json.dumps(payload), encoding="utf-8")
+        (condition_root / "condition-identity.json").write_text(json.dumps(payload), encoding="utf-8")
         # Rebuild only the root manifest so this mutation tests binding, not stale bytes.
         lines = []
         for path in sorted(
-            item for item in bundle.rglob("*") if item.is_file() and item.name not in {"SHA256SUMS", "terminal-status.json"}
+                item
+                for item in (bundle / "payload").rglob("*")
+                if item.is_file()
+                and (item.name != "SHA256SUMS" or item == bundle / "payload" / "evidence" / "SHA256SUMS")
         ):
             lines.append(
                 f"{hashlib.sha256(path.read_bytes()).hexdigest()}  "
-                f"{path.relative_to(bundle).as_posix()}"
+                f"{path.relative_to(bundle / 'payload').as_posix()}"
             )
-            (bundle / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
-            checksum = (bundle / "SHA256SUMS").read_bytes()
+            (bundle / "payload" / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
+            checksum = (bundle / "payload" / "SHA256SUMS").read_bytes()
             (bundle / "terminal-status.json").write_text(
                 json.dumps(
-                    {
-                        "schema_version": 1,
-                        "status": "passed",
-                        "payload_sha256": hashlib.sha256(checksum).hexdigest(),
+                        {
+                            "schema_version": 1,
+                            "status": "passed",
+                            "payload_sha256": hashlib.sha256(checksum).hexdigest(),
+                            "payload_uri": "hf://buckets/test/output/4b-current/payload",
+                            "run_name": "fixture-factorial-4b-current",
                     }
                 ),
                 encoding="utf-8",
             )
     else:
-        payload = json.loads((bundle / "condition-identity.json").read_text(encoding="utf-8"))
+        payload = json.loads((condition_root / "condition-identity.json").read_text(encoding="utf-8"))
         payload["applied_max_pixels_per_frame"] = 1024 * 1024
-        (bundle / "condition-identity.json").write_text(json.dumps(payload), encoding="utf-8")
+        (condition_root / "condition-identity.json").write_text(json.dumps(payload), encoding="utf-8")
         lines = []
         for path in sorted(
-            item for item in bundle.rglob("*") if item.is_file() and item.name not in {"SHA256SUMS", "terminal-status.json"}
+                item
+                for item in (bundle / "payload").rglob("*")
+                if item.is_file()
+                and (item.name != "SHA256SUMS" or item == bundle / "payload" / "evidence" / "SHA256SUMS")
         ):
             lines.append(
                 f"{hashlib.sha256(path.read_bytes()).hexdigest()}  "
-                f"{path.relative_to(bundle).as_posix()}"
+                f"{path.relative_to(bundle / 'payload').as_posix()}"
             )
-            (bundle / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
-            checksum = (bundle / "SHA256SUMS").read_bytes()
+            (bundle / "payload" / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
+            checksum = (bundle / "payload" / "SHA256SUMS").read_bytes()
             (bundle / "terminal-status.json").write_text(
                 json.dumps(
-                    {
-                        "schema_version": 1,
-                        "status": "passed",
-                        "payload_sha256": hashlib.sha256(checksum).hexdigest(),
+                        {
+                            "schema_version": 1,
+                            "status": "passed",
+                            "payload_sha256": hashlib.sha256(checksum).hexdigest(),
+                            "payload_uri": "hf://buckets/test/output/4b-current/payload",
+                            "run_name": "fixture-factorial-4b-current",
                     }
                 ),
                 encoding="utf-8",
@@ -960,12 +1197,14 @@ def test_production_bundle_mutations_fail_closed(
         )
 
 
-def test_same_condition_bundle_file_for_four_cells_is_rejected(tmp_path: Path) -> None:
+def test_single_downloaded_bundle_without_the_other_condition_files_is_rejected(
+    tmp_path: Path,
+) -> None:
     scorer = load_scorer()
     bundle = _write_production_bundle(tmp_path / "same", scorer, "4b-current")
     model = tmp_path / EXPECTED_BERT_MODEL_SNAPSHOT
     model.mkdir()
-    with pytest.raises(ValueError, match="distinct"):
+    with pytest.raises(ValueError, match="condition"):
         scorer.score_factorial(
             annotation_root=tmp_path / "annotations",
             condition_bundles={condition_id: bundle for condition_id in CONDITION_IDS},
@@ -988,7 +1227,12 @@ def test_wrong_evidence_marker_identity_is_rejected_before_labels(
         condition_id: _write_production_bundle(tmp_path / condition_id, scorer, condition_id)
         for condition_id in CONDITION_IDS
     }
-    marker = bundles["8b-current"] / "evidence" / "evidence-marker.json"
+    marker = (
+        bundles["8b-current"]
+        / "payload"
+        / "evidence"
+        / "evidence-marker.json"
+    )
     payload = json.loads(marker.read_text(encoding="utf-8"))
     payload["evidence_bundle_id"] = "wrong-evidence"
     marker.write_text(json.dumps(payload), encoding="utf-8")
