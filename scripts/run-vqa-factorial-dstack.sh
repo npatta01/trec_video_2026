@@ -151,8 +151,9 @@ validate_dispatch() {
 
 remote_prefix_is_empty() {
   local listing
-  listing="$(hf_cli buckets list "$HF_REMOTE_URI" --format quiet 2>&1)" \
-    || die "could not inspect remote output prefix"
+  if ! listing="$(hf_cli buckets list "$HF_REMOTE_URI" --format quiet)"; then
+    die "could not inspect remote output prefix"
+  fi
   [[ -z "$listing" ]] || die "remote output prefix already exists: $HF_REMOTE_URI"
 }
 

@@ -102,7 +102,7 @@ def _run(
         "set -euo pipefail\n"
         "printf '%s:%s\\n' \"$1\" \"$2\" >> \"$EVENT_LOG\"\n"
         "case \"$1/$2\" in\n"
-        "  buckets/list) printf '%s' \"${FAKE_REMOTE_LISTING:-}\" ;;\n"
+        "  buckets/list) if [[ -n \"${FAKE_LIST_WARNING:-}\" ]]; then printf '%s\\n' \"$FAKE_LIST_WARNING\" >&2; fi; printf '%s' \"${FAKE_REMOTE_LISTING:-}\" ;;\n"
         "  buckets/sync) mkdir -p \"$FAKE_REMOTE_ROOT/payload\"; cp -a \"$3/.\" \"$FAKE_REMOTE_ROOT/payload/\"; if [[ \"${FAKE_TAMPER:-0}\" == 1 ]]; then printf 'tampered\\n' >> \"$OUTPUT_DIR/status.json\"; fi; exit \"${FAKE_SYNC_RC:-0}\" ;;\n"
         "  buckets/cp) if [[ \"${FAKE_TERMINAL_RC:-0}\" == 0 ]]; then cp \"$3\" \"$FAKE_REMOTE_ROOT/terminal-status.json\"; fi; exit \"${FAKE_TERMINAL_RC:-0}\" ;;\n"
         "  *) exit 99 ;;\n"
@@ -221,6 +221,12 @@ def test_success_sync_snapshots_frozen_payload_and_terminal_checksum(tmp_path: P
     assert (tmp_path / "remote" / "terminal-status.json").is_file()
     _pid_is_gone(tmp_path / "inference.pid")
     _pid_is_gone(tmp_path / "nvidia.pid")
+
+
+def test_empty_remote_prefix_ignores_hf_cli_stderr_diagnostics(tmp_path: Path) -> None:
+    result = _run(tmp_path, extra={"FAKE_LIST_WARNING": "fresh client diagnostic"})
+    assert result.returncode == 0, result.stderr
+    _assert_remote_payload(tmp_path, status="passed")
 
 
 def test_post_sync_local_mutation_cannot_be_rewritten_into_remote_payload(tmp_path: Path) -> None:
