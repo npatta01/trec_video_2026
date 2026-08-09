@@ -16,7 +16,7 @@ env:
   - MODEL_ID=Qwen/Qwen3-Omni-30B-A3B-Thinking
   - MODEL_REVISION=2f443cfc4c54b14a815c0e2bb9a9d6cbcd9a748b
   - EXPECTED_SOURCE_BUNDLE_SHA256=2ca15843e8e7ec3de3dab441d23c3cd47d1da085a22f36de0a1e42bb8d6746c7
-  - SUBMITTED_CODE_REVISION=7a60c5b29458e091d1ebb58fecefdde4162b7419
+  - SUBMITTED_CODE_REVISION=abb75991d74d143460195d1f6e1080b0a0443691
   - PYTHONPATH=/dstack/run/src
 files:
   - ../scripts/run-vqa-silver-oracle-selector-dstack.sh:/dstack/run/scripts/run-vqa-silver-oracle-selector-dstack.sh
