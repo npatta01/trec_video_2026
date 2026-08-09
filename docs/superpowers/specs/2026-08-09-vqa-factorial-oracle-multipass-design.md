@@ -209,9 +209,13 @@ freeze and is never a deployable ranker.
 - Pass only with complete outputs, identical repeated deterministic answers,
   exact evidence/checksum identity, no label leakage, no OOM/NaN, recorded peak
   VRAM, and measured throughput.
-- Use independent one-GPU L40S row shards, pinned image/model/runtime revisions,
-  disjoint stable manifests, per-shard outputs, and checksum-based merge. Do not
-  use tensor parallelism.
+- The three-row canary uses one L40S and runs isolated condition processes
+  serially so frame/audio preparation and Whisper execute once.
+- The 475-row factorial uses one immutable evidence-preparation job followed by
+  four independent one-GPU L40S condition jobs (one model/prompt cell per job).
+  Each condition covers the same complete canonical 475-ID panel and writes a
+  distinct checksummed prefix. Do not describe a single dstack task as four-way
+  parallelism, and do not use tensor parallelism.
 - Report both wall time and total GPU-hours. Linear sharding changes wall time,
   not compute.
 - A 2,443-row single-pass 2026 arm targets at most 90 minutes wall time on the

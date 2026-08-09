@@ -153,6 +153,7 @@ podman run --rm --device=/dev/kfd --device=/dev/dri --group-add=keep-groups \
   --condition frames=/data/vqa/benchmarks/qwen35-whisper-frame-audit-20260803-c2/predictions.frames-only.json \
   --condition whisper=/data/vqa/benchmarks/qwen35-whisper-frame-audit-20260803-c2/predictions.frames-whisper.json \
   --bert-model /cache/hub/models--FacebookAI--roberta-large/snapshots/722cf37b1afa9454edce342e7895e588b6ff1d59 \
+  --panel-profile vqa-2025-training-475 \
   --expected-rows 475 \
   --output /repo/docs/experiments/artifacts/qwen35-4b-12f-whisper-semantic-20260809-d1.json
 ```
@@ -274,19 +275,28 @@ git commit -m "feat: add question-aware VQA answer policy"
 - Create: `scripts/build_vqa_factorial_manifest.py`
 - Create: `tests/test_build_vqa_factorial_manifest.py`
 - Create: `scripts/run-vqa-factorial-dstack.sh`
-- Create: `configs/vqa/vqa_factorial_canary_3.json`
+- Create (generated/private; do not stage):
+  `configs/vqa/vqa_factorial_canary_3.json`
 - Create: `configs/vqa/vqa_factorial_canary_profile.json`
-- Create: `configs/vqa/vqa_factorial_full_profile.json`
+- Create: `configs/vqa/vqa_factorial_full_evidence_profile.json`
+- Create: `configs/vqa/vqa_factorial_full_condition_profiles.json`
 - Create: `dstack/vqa-factorial-canary.dstack.yml`
-- Create: `dstack/vqa-factorial-full.dstack.yml`
+- Create: `dstack/vqa-factorial-full-evidence.dstack.yml`
+- Create: `dstack/vqa-factorial-full-4b-current.dstack.yml`
+- Create: `dstack/vqa-factorial-full-4b-question-aware.dstack.yml`
+- Create: `dstack/vqa-factorial-full-8b-current.dstack.yml`
+- Create: `dstack/vqa-factorial-full-8b-question-aware.dstack.yml`
 
 **Interfaces:**
 - Manifest builder emits rows containing exactly `video_id` and `question`.
-- Profile contains exact fields `run_name`, `input_uri`, `remote_uri`,
+- Canary profile contains exact fields `run_name`, `input_uri`, `remote_uri`,
   `manifest`, `expected_count`, `frame_count`, `conditions`, and
   `repeat_condition`.
 - Each condition contains exact fields `condition_id`, `model_id`, `revision`,
   `answer_policy`, `min_pixels`, `max_pixels`, and `request_source`.
+- The full topology is one immutable evidence/Whisper profile followed by four
+  independent condition profiles. One dstack task is one node; the
+  implementation must not claim that a single YAML parallelizes four cells.
 
 - [ ] **Step 1: Write failing manifest/profile tests**
 
@@ -306,10 +316,12 @@ Expected: failure because the builder does not exist.
 - [ ] **Step 3: Implement the builder and frozen profiles**
 
 Use the existing 475-row label-free manifest as the source of identity and
-questions. Canary selection is question-only and deterministic. Full profile
-declares all four model/prompt cells. The first canary declares all four base
-cells, one 8B question-aware 768px OCR condition, and one repeated 4B-current
-base condition.
+questions. Freeze the canary IDs to temporal `CtinYSH3nVw`, speech
+`LKiaCf1QZFw`, and OCR/detail `IVqpg_1aWXU`; selection remains question-only
+and deterministic. The canary declares all four base cells, one 8B
+question-aware 768px OCR-only condition, and one repeated 4B-current base
+condition. The full profiles declare one evidence-preparation job and exactly
+four one-condition jobs over the same canonical 475 IDs.
 
 - [ ] **Step 4: Write a shell contract test before the runner**
 
@@ -328,8 +340,14 @@ Run the new test target documented in
 Reuse the existing input-bundle verification, frame/audio preparation, Whisper
 quality gate, isolated condition execution, prediction validation, status
 summary, checksum creation, and bucket sync. Drive model/policy/pixel settings
-only from the validated profile. Emit utilization samples from `nvidia-smi`
-every five seconds while inference runs. Never print the HF token.
+only from the validated profile. Run each canary condition in a separate child
+process so model memory is released on exit. Stage selected frames, timestamps,
+audio provenance, transcripts, requests, predictions, telemetry, and status
+inside the durable output bundle before writing and verifying `SHA256SUMS`.
+Emit utilization samples from `nvidia-smi` every five seconds while inference
+runs. The full evidence job prepares frames/audio/Whisper exactly once; the four
+condition jobs consume that immutable checksummed bundle and may run in
+parallel. Never print the HF token.
 
 - [ ] **Step 7: Verify generated configs and local tests**
 
@@ -342,18 +360,25 @@ uv run --group dev python scripts/build_vqa_factorial_manifest.py \
   --expected-source-count 475
 ```
 
-Expected: tests pass, shell parses, canary has three label-free rows.
+Expected: tests pass, shell parses, canary has three label-free rows, and the
+generated full topology contains one evidence job plus four distinct condition
+jobs rather than a fictitious multi-cell single task.
 
 - [ ] **Step 8: Commit Task 3**
 
 ```bash
 git add scripts/build_vqa_factorial_manifest.py \
   tests/test_build_vqa_factorial_manifest.py scripts/run-vqa-factorial-dstack.sh \
-  configs/vqa/vqa_factorial_canary_3.json \
   configs/vqa/vqa_factorial_canary_profile.json \
-  configs/vqa/vqa_factorial_full_profile.json \
-  dstack/vqa-factorial-canary.dstack.yml dstack/vqa-factorial-full.dstack.yml
-git commit -m "feat: add sharded VQA factorial runner"
+  configs/vqa/vqa_factorial_full_evidence_profile.json \
+  configs/vqa/vqa_factorial_full_condition_profiles.json \
+  dstack/vqa-factorial-canary.dstack.yml \
+  dstack/vqa-factorial-full-evidence.dstack.yml \
+  dstack/vqa-factorial-full-4b-current.dstack.yml \
+  dstack/vqa-factorial-full-4b-question-aware.dstack.yml \
+  dstack/vqa-factorial-full-8b-current.dstack.yml \
+  dstack/vqa-factorial-full-8b-question-aware.dstack.yml
+git commit -m "feat: add parallel VQA factorial runner"
 ```
 
 ### Task 4: Canary preview, launch, and integrity decision
@@ -424,20 +449,25 @@ timing, and gate result to this plan, then commit that plan update.
 
 - [ ] **Step 1: Preview full topology and cost**
 
-Resolve the full config without provisioning. Require at least two offers and
-record the chosen shard count, estimated wall time, total GPU-hours, and maximum
-price. If the measured canary contradicts the 90-minute projection, revise the
-profile before submission and record why.
+Resolve the evidence config and each of four condition configs without
+provisioning. Require capacity for four simultaneous condition GPUs and record
+estimated evidence time, per-condition time, wall time, total GPU-hours, and
+maximum price. If the measured canary contradicts the projection, revise the
+profiles before submission and record why.
 
 - [ ] **Step 2: Submit once and monitor to terminal state**
 
-Submit detached, follow status/logs without duplicate launches, and verify each
-shard owns a disjoint stable row set whose union is exactly 475 rows.
+Submit the evidence job once and freeze its remote checksum marker. Only then
+submit the four condition jobs detached, each exactly once. Verify every
+condition uses the same evidence marker and complete canonical 475-ID set, and
+that output prefixes are distinct.
 
 - [ ] **Step 3: Download, checksum, and merge**
 
-Refuse missing/duplicate row IDs or mismatched condition identities. Preserve
-each shard bundle and produce a deterministic merged bundle plus checksum file.
+Refuse missing/duplicate row IDs, mismatched condition identities, or evidence
+marker drift. Preserve each condition bundle and produce one deterministic
+factorial index plus checksum file; do not merge different conditions into one
+prediction list.
 
 - [ ] **Step 4: Score all four cells**
 
