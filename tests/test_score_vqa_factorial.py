@@ -143,6 +143,7 @@ def injected_metrics(calls: dict[str, int] | None = None):
 
 def score_fixture(tmp_path: Path, scorer, **kwargs):
     annotations, conditions, model, profile, panel = make_inputs(tmp_path, scorer)
+    profile.update(kwargs.pop("profile_update", {}))
     meteor, bertscore, sts = injected_metrics(kwargs.pop("calls", None))
     return scorer.score_factorial(
         annotation_root=annotations,
@@ -610,6 +611,32 @@ def test_profile_mutation_changes_binding_and_is_rejected() -> None:
         scorer.validate_factorial_profile(payload, strict=True)
 
 
+def test_profile_loader_accepts_only_the_two_pinned_full_run_identities(
+    tmp_path: Path,
+) -> None:
+    scorer = load_scorer()
+    retry_profile = ROOT / "configs/vqa/vqa_factorial_full_condition_profiles_f2.json"
+    assert scorer.load_profile(retry_profile)["run_name"] == "vqa-factorial-full-20260809-f2"
+
+    invented = json.loads(retry_profile.read_text(encoding="utf-8"))
+    invented["run_name"] = "vqa-factorial-full-20260809-f3"
+    invented["remote_uri"] = invented["remote_uri"].replace("-f2/", "-f3/")
+    invented_path = tmp_path / "invented-f3.json"
+    invented_path.write_text(json.dumps(invented), encoding="utf-8")
+    with pytest.raises(ValueError, match="pinned"):
+        scorer.load_profile(invented_path)
+
+
+def test_artifact_name_tracks_the_frozen_retry_run_identity(tmp_path: Path) -> None:
+    scorer = load_scorer()
+    artifact = score_fixture(
+        tmp_path,
+        scorer,
+        profile_update={"run_name": "vqa-factorial-full-20260809-f2"},
+    )
+    assert artifact["experiment"]["name"] == "vqa-factorial-475-20260809-f2"
+
+
 def _write_production_bundle(
     root: Path,
     scorer,
@@ -1004,8 +1031,7 @@ def test_cli_passes_downloaded_roots_directly(tmp_path: Path, monkeypatch: pytes
         condition_id: _write_production_bundle(tmp_path / condition_id, scorer, condition_id)
         for condition_id in CONDITION_IDS
     }
-    profile_path = tmp_path / "profile.json"
-    profile_path.write_text(json.dumps(make_profile(scorer)), encoding="utf-8")
+    profile_path = ROOT / "configs/vqa/vqa_factorial_full_condition_profiles_f2.json"
     model = tmp_path / EXPECTED_BERT_MODEL_SNAPSHOT
     model.mkdir()
     seen: dict[str, object] = {}

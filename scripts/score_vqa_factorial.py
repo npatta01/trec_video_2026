@@ -74,6 +74,16 @@ EXPECTED_CONDITION_IDS = (
 DEFAULT_PROFILE_PATH = (
     REPOSITORY_ROOT / "configs/vqa/vqa_factorial_full_condition_profiles.json"
 )
+EXPECTED_PROFILE_REMOTE_URIS = {
+    "vqa-factorial-full-20260809-f1": (
+        "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+        "experiments/vqa-factorial-full-20260809-f1/conditions"
+    ),
+    "vqa-factorial-full-20260809-f2": (
+        "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+        "experiments/vqa-factorial-full-20260809-f2/conditions"
+    ),
+}
 TASK1_SCORER_PATH = REPOSITORY_ROOT / "scripts/score_vqa_semantic_panel.py"
 PANEL_ID_DIGEST_ALGORITHM = task1.PANEL_ID_DIGEST_ALGORITHM
 EXPECTED_RUNTIME_CONTROLS = {
@@ -239,16 +249,15 @@ def validate_factorial_profile(
     if set(payload) != required:
         raise ValueError("factorial profile fields are not exact")
     if strict:
+        expected_remote_uri = EXPECTED_PROFILE_REMOTE_URIS.get(payload.get("run_name"))
+        if expected_remote_uri is None:
+            raise ValueError("factorial profile run_name is not pinned")
         expected_header = {
-            "run_name": "vqa-factorial-full-20260809-f1",
             "input_uri": (
                 "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
                 "experiments/vqa-factorial-full-evidence-20260809-f1"
             ),
-            "remote_uri": (
-                "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
-                "experiments/vqa-factorial-full-20260809-f1/conditions"
-            ),
+            "remote_uri": expected_remote_uri,
             "manifest": "/dstack/run/configs/vqa/qwen35_vqa2025_475_label_free.json",
             "expected_count": 475,
             "frame_count": 12,
@@ -300,7 +309,7 @@ def load_profile(path: Path = DEFAULT_PROFILE_PATH) -> dict[str, Any]:
     payload = _load_json(path)
     if not isinstance(payload, Mapping):
         raise ValueError("factorial profile must be an object")
-    return validate_factorial_profile(payload, strict=path.resolve() == DEFAULT_PROFILE_PATH.resolve())
+    return validate_factorial_profile(payload, strict=True)
 
 
 def _profile_conditions(profile: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
@@ -2066,10 +2075,13 @@ def score_factorial(
         bootstrap_iterations=bootstrap_iterations,
         bootstrap_seed=bootstrap_seed,
     )
+    experiment_name = str(resolved_profile["run_name"]).replace(
+        "vqa-factorial-full-", "vqa-factorial-475-", 1
+    )
     artifact: dict[str, Any] = {
         "schema_version": EXPECTED_SCHEMA_VERSION,
         "experiment": {
-            "name": "vqa-factorial-475-20260809-f1",
+            "name": experiment_name,
             "design": "2x2 model-by-answer-policy factorial",
             "semantic_composite": "mean(meteor, bertscore_f1, sts)",
             "bootstrap": {"iterations": bootstrap_iterations, "seed": bootstrap_seed, "confidence": 0.95, "exploratory": True},
