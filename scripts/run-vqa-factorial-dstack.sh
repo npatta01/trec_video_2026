@@ -4,7 +4,6 @@ set -euo pipefail
 readonly EXPECTED_RUNTIME_IMAGE="docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755"
 readonly TRANSFORMERS_REVISION="cbf4d720ec734edb77d25452b2790c7e4be2f8d7"
 readonly TRANSFORMERS_SOURCE_URL="https://github.com/huggingface/transformers/archive/${TRANSFORMERS_REVISION}.tar.gz"
-readonly UV_VERSION="0.11.3"
 readonly HF_CLI_VERSION="1.26.0"
 readonly PYTHON_BIN="${PYTHON_BIN:-/opt/conda/bin/python}"
 readonly BUILDER="${BUILDER:-/dstack/run/scripts/build_vqa_factorial_manifest.py}"
@@ -14,6 +13,10 @@ readonly INPUT_DIR="${INPUT_DIR:-/dstack/input}"
 readonly FRAME_DIR="${FRAME_DIR:-/dstack/frames}"
 readonly OUTPUT_DIR="${OUTPUT_DIR:-/dstack/output}"
 readonly INFERENCE_BIN="${INFERENCE_BIN:-$PYTHON_BIN}"
+readonly CANARY_MANIFEST_SHA256="857d251870d24c4c5c7b43d94030a994bd4d8c39da4db1aa4385c1e01f7a7005"
+readonly FULL_MANIFEST_SHA256="092aec23cfdcc370bbed8e776f7cc7c84752481da6ba0996983883955d3841e8"
+readonly FULL_IDS_SHA256="95a623c0add252541b9c81ff4910e949dc81db17482add2c467b761237b22b0f"
+readonly CANARY_IDS=(CtinYSH3nVw LKiaCf1QZFw IVqpg_1aWXU)
 
 MANIFEST=""
 PROFILE_MANIFEST=""
@@ -21,6 +24,16 @@ EXPECTED_COUNT=""
 FRAME_COUNT=""
 TELEMETRY_PID=""
 CURRENT_CHILD_PID=""
+HF_COMMAND=()
+EXECUTION_STARTED=0
+FINALIZE_ATTEMPTED=0
+FINALIZED=0
+
+event() {
+  if [[ -n "${EVENT_LOG:-}" ]]; then
+    printf '%s\n' "$1" >> "$EVENT_LOG"
+  fi
+}
 
 die() {
   echo "error: $*" >&2
@@ -33,12 +46,38 @@ require_value() {
 }
 
 hf_cli() {
-  if [[ -n "${HF_CLI_BIN:-}" ]]; then
-    "$HF_CLI_BIN" "$@"
+  ((${#HF_COMMAND[@]} > 0)) || die "Hugging Face client preflight did not complete"
+  if [[ -n "${HF_TOKEN:-}" && -z "${HF_CLI_BIN:-}" ]]; then
+    HF_TOKEN="$HF_TOKEN" "${HF_COMMAND[@]}" "$@"
   else
-    HF_TOKEN="${HF_TOKEN:?HF_TOKEN is required}" \
-      uvx --from "huggingface-hub==${HF_CLI_VERSION}" hf "$@"
+    "${HF_COMMAND[@]}" "$@"
   fi
+}
+
+refuse_nonempty_output() {
+  if [[ -e "$OUTPUT_DIR" && ! -d "$OUTPUT_DIR" ]]; then
+    die "OUTPUT_DIR exists but is not a directory: $OUTPUT_DIR"
+  fi
+  if [[ -d "$OUTPUT_DIR" ]] && find "$OUTPUT_DIR" -mindepth 1 -print -quit | grep -q .; then
+    die "OUTPUT_DIR is non-empty: $OUTPUT_DIR"
+  fi
+}
+
+ensure_lightweight_hf_client() {
+  event lightweight-client-start
+  if [[ -n "${HF_CLI_BIN:-}" ]]; then
+    command -v "$HF_CLI_BIN" >/dev/null 2>&1 || die "HF_CLI_BIN is not executable"
+    HF_COMMAND=("$HF_CLI_BIN")
+  elif command -v uvx >/dev/null 2>&1; then
+    HF_COMMAND=(uvx --from "huggingface-hub==${HF_CLI_VERSION}" hf)
+  elif command -v hf >/dev/null 2>&1; then
+    HF_COMMAND=(hf)
+  else
+    "$PYTHON_BIN" -m pip install --no-cache-dir --only-binary=:all: "huggingface_hub==${HF_CLI_VERSION}"
+    command -v hf >/dev/null 2>&1 || die "pinned Hugging Face CLI is unavailable after installation"
+    HF_COMMAND=(hf)
+  fi
+  event lightweight-client-ready
 }
 
 json_field() {
@@ -91,17 +130,18 @@ validate_dispatch() {
   [[ "$EXPERIMENT_RUN_NAME" == "$expected_run" ]] || die "run identity does not match profile"
   [[ "$HF_REMOTE_URI" == "$expected_remote" ]] || die "remote URI does not match profile"
   PROFILE_MANIFEST="$(json_field "$PROFILE" manifest)"
-  MANIFEST="$PROFILE_MANIFEST"
+  MANIFEST="${MANIFEST_OVERRIDE:-$PROFILE_MANIFEST}"
   EXPECTED_COUNT="$(json_field "$PROFILE" expected_count)"
   FRAME_COUNT="$(json_field "$PROFILE" frame_count)"
-  [[ "$MANIFEST" == /dstack/run/*.json && "$MANIFEST" != *".."* ]] \
-    || die "validated manifest path is unsafe"
-  if [[ -n "${MANIFEST_OVERRIDE:-}" ]]; then
-    MANIFEST="$MANIFEST_OVERRIDE"
-    verify_manifest
-  elif [[ -f "$MANIFEST" ]]; then
-    verify_manifest
+  if [[ -z "${MANIFEST_OVERRIDE:-}" || "${VQA_TEST_MODE:-0}" != "1" ]]; then
+    [[ "$MANIFEST" == /dstack/run/*.json && "$MANIFEST" != *".."* ]] \
+      || die "validated manifest path is unsafe"
+  else
+    [[ "$MANIFEST" = /* && "$MANIFEST" != *".."* && -f "$MANIFEST" ]] \
+      || die "manifest override path is unsafe"
   fi
+  verify_manifest
+  event dispatch-validated
 }
 
 remote_prefix_is_empty() {
@@ -112,19 +152,31 @@ remote_prefix_is_empty() {
 }
 
 bootstrap_runtime() {
+  event heavy-runtime-bootstrap
   mkdir -p "$OUTPUT_DIR"
-  "$PYTHON_BIN" -m pip install --no-cache-dir --only-binary=:all: "uv==${UV_VERSION}"
+  if [[ "${VQA_DRY_RUN:-0}" == "1" || "${VQA_TEST_MODE:-0}" == "1" ]]; then
+    event heavy-runtime-bootstrap-skipped
+    return
+  fi
   "$PYTHON_BIN" -m pip install --no-cache-dir \
     "transformers @ ${TRANSFORMERS_SOURCE_URL}" \
     "qwen-vl-utils[decord]==0.0.14" \
     "av==16.0.1" \
     "accelerate==1.12.0" \
-    "imageio-ffmpeg==0.6.0"
+    "imageio-ffmpeg==0.6.0" \
+    "Pillow==11.3.0" \
+    "soundfile==0.13.1"
   "$PYTHON_BIN" - "$OUTPUT_DIR/runtime.json" <<'PY'
 import json
 import sys
 from pathlib import Path
 
+import PIL
+import accelerate
+import av
+import imageio_ffmpeg
+import qwen_vl_utils
+import soundfile
 import torch
 import transformers
 
@@ -134,6 +186,8 @@ if not torch.cuda.is_available() or not torch.version.cuda or torch.version.hip:
     raise SystemExit("NVIDIA CUDA is unavailable")
 if not torch.cuda.is_bf16_supported():
     raise SystemExit("CUDA bfloat16 is unavailable")
+if PIL.__version__ != "11.3.0" or soundfile.__version__ != "0.13.1":
+    raise SystemExit("pinned Pillow or soundfile version is unavailable")
 record = {
     "transformers_version": transformers.__version__,
     "transformers_revision": "cbf4d720ec734edb77d25452b2790c7e4be2f8d7",
@@ -141,15 +195,31 @@ record = {
     "torch_cuda": torch.version.cuda,
     "cuda_device_name": torch.cuda.get_device_name(0),
     "cuda_bf16_supported": True,
+    "dependencies": {
+        "Pillow": PIL.__version__,
+        "soundfile": soundfile.__version__,
+        "accelerate": accelerate.__version__,
+        "av": av.__version__,
+        "imageio-ffmpeg": imageio_ffmpeg.__version__,
+        "qwen-vl-utils": getattr(qwen_vl_utils, "__version__", "installed"),
+    },
 }
 Path(sys.argv[1]).write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
+  event heavy-runtime-ready
 }
 
 verify_manifest() {
   [[ -f "$MANIFEST" ]] || die "label-free manifest is missing: $MANIFEST"
-  "$PYTHON_BIN" "$BUILDER" --validate-manifest "$MANIFEST" --expected-count "$EXPECTED_COUNT" \
-    >/dev/stderr
+  local args=(--validate-manifest "$MANIFEST" --expected-count "$EXPECTED_COUNT")
+  if [[ "$VQA_MODE" == "canary" ]]; then
+    args+=(--expected-sha256 "$CANARY_MANIFEST_SHA256")
+    for id in "${CANARY_IDS[@]}"; do args+=(--expected-id "$id"); done
+  else
+    args+=(--expected-sha256 "$FULL_MANIFEST_SHA256" --expected-canonical-id-digest "$FULL_IDS_SHA256")
+  fi
+  "$PYTHON_BIN" "$BUILDER" "${args[@]}" >/dev/stderr \
+    || die "manifest identity validation failed"
 }
 
 start_telemetry() {
@@ -253,7 +323,7 @@ prepare_evidence() {
     --evidence "$OUTPUT_DIR/evidence/evidence.json" \
     --output "$OUTPUT_DIR/evidence/whisper.json" \
     --summary "$OUTPUT_DIR/evidence/whisper-summary.json" \
-    --count "$EXPECTED_COUNT" &
+    --count "$EXPECTED_COUNT" --audio-root "$OUTPUT_DIR/evidence/audio" &
   CURRENT_CHILD_PID=$!
   start_telemetry "$CURRENT_CHILD_PID" "$OUTPUT_DIR/telemetry/nvidia-smi.csv"
   wait "$CURRENT_CHILD_PID"
@@ -266,7 +336,8 @@ prepare_evidence() {
     --frames "$OUTPUT_DIR/evidence/requests.frames.json" \
     --whisper "$OUTPUT_DIR/evidence/whisper.json" \
     --output "$OUTPUT_DIR/evidence/requests.accepted-whisper.json" \
-    --condition-id shared-accepted-whisper --count "$EXPECTED_COUNT"
+    --condition-id shared-accepted-whisper --count "$EXPECTED_COUNT" \
+    --frame-root "$OUTPUT_DIR/evidence/frames"
   cp "$MANIFEST" "$OUTPUT_DIR/evidence/manifest.json"
 }
 
@@ -290,6 +361,10 @@ payload = {
     "manifest_sha256": digest(Path(sys.argv[2])),
     "requests_sha256": digest(Path(sys.argv[3])),
     "whisper_sha256": digest(Path(sys.argv[4])),
+    "canonical_id_digest": (
+        "95a623c0add252541b9c81ff4910e949dc81db17482add2c467b761237b22b0f"
+        if int(sys.argv[5]) == 475 else None
+    ),
     "checksum_file": "SHA256SUMS",
     "frame_policy": "12 uniform temporal midpoint requests, actual PTS recorded",
     "whisper_policy": "Whisper large-v3 accepted translations only",
@@ -357,7 +432,7 @@ PY
 
 prepare_condition_evidence() {
   mkdir -p "$INPUT_DIR"
-  hf_cli buckets sync "$HF_INPUT_URI" "$INPUT_DIR"
+  hf_cli buckets sync "${HF_INPUT_URI%/}/payload" "$INPUT_DIR"
   [[ -f "$INPUT_DIR/evidence/evidence-marker.json" && -f "$INPUT_DIR/SHA256SUMS" ]] \
     || die "immutable evidence marker/checksum is missing"
   (cd "$INPUT_DIR" && sha256sum --check SHA256SUMS >/dev/null) \
@@ -376,6 +451,10 @@ if marker.get("schema_version") != 1 or marker.get("label_policy") != "label-fre
     raise SystemExit("evidence marker identity mismatch")
 if marker.get("example_count") != 475 or marker.get("checksum_file") != "SHA256SUMS":
     raise SystemExit("evidence marker count/checksum mismatch")
+if marker.get("manifest_sha256") != "092aec23cfdcc370bbed8e776f7cc7c84752481da6ba0996983883955d3841e8":
+    raise SystemExit("evidence marker does not carry the pinned full manifest hash")
+if marker.get("canonical_id_digest") != "95a623c0add252541b9c81ff4910e949dc81db17482add2c467b761237b22b0f":
+    raise SystemExit("evidence marker does not carry the pinned canonical ID digest")
 if marker.get("manifest_sha256") != hashlib.sha256(manifest_path.read_bytes()).hexdigest():
     raise SystemExit("evidence manifest identity mismatch")
 if len(manifest.get("examples", [])) != 475:
@@ -392,19 +471,26 @@ write_condition_requests() {
   local condition_id="$3"
   local request_source="$4"
   local evidence_root="$5"
-  "$PYTHON_BIN" - "$source" "$output" "$condition_id" "$request_source" "$evidence_root" <<'PY'
+  local condition_run_id="$6"
+  "$PYTHON_BIN" - "$source" "$output" "$condition_id" "$request_source" "$evidence_root" "$condition_run_id" "$MANIFEST" <<'PY'
 import json
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 source = Path(sys.argv[1])
 output = Path(sys.argv[2])
 condition_id = sys.argv[3]
 request_source = sys.argv[4]
 evidence_root = Path(sys.argv[5])
+condition_run_id = sys.argv[6]
+manifest_path = Path(sys.argv[7])
 rows = json.loads(source.read_text(encoding="utf-8"))
+manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 if not isinstance(rows, list):
     raise SystemExit("shared request file is not a list")
+expected_ids = [row["video_id"] for row in manifest["examples"]]
+if [row.get("video_id") for row in rows] != expected_ids:
+    raise SystemExit("shared request IDs/order do not match the canonical manifest")
 selected = []
 allowed = {
     "run_id", "condition_id", "video_id", "question", "frame_paths",
@@ -413,9 +499,12 @@ allowed = {
 for row in rows:
     if not isinstance(row, dict) or set(row) != allowed:
         raise SystemExit("shared request contains an unexpected or label-bearing field")
+    if request_source not in {"shared-accepted-whisper", "shared-accepted-whisper-ocr-only"}:
+        raise SystemExit("request_source is outside the closed vocabulary")
     if request_source == "shared-accepted-whisper-ocr-only" and row.get("video_id") != "IVqpg_1aWXU":
         continue
     rewritten = dict(row)
+    rewritten["run_id"] = condition_run_id
     rewritten["condition_id"] = condition_id
     paths = []
     for frame_path in row.get("frame_paths", []):
@@ -423,13 +512,18 @@ for row in rows:
         marker = "/frames/"
         if marker not in text:
             raise SystemExit("frame path does not identify the shared evidence frame root")
-        paths.append(str(evidence_root / "frames" / text.split(marker, 1)[1]))
+        relative = PurePosixPath(text.split(marker, 1)[1])
+        if relative.is_absolute() or ".." in relative.parts:
+            raise SystemExit("frame path contains an unsafe component")
+        candidate = (evidence_root / "frames" / Path(*relative.parts)).resolve()
+        if not candidate.is_relative_to((evidence_root / "frames").resolve()):
+            raise SystemExit("frame path escapes the evidence root")
+        paths.append(str(candidate))
     rewritten["frame_paths"] = paths
     selected.append(rewritten)
-if request_source == "shared-accepted-whisper-ocr-only" and len(selected) != 1:
-    raise SystemExit("OCR-only canary request must contain exactly one frozen row")
-if not selected:
-    raise SystemExit("condition request selection is empty")
+expected_count = 1 if request_source == "shared-accepted-whisper-ocr-only" else len(expected_ids)
+if len(selected) != expected_count:
+    raise SystemExit("condition request count does not match its immutable source binding")
 output.parent.mkdir(parents=True, exist_ok=True)
 output.write_text(json.dumps(selected, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 PY
@@ -467,10 +561,10 @@ run_condition() {
   mkdir -p "$condition_dir/telemetry"
   if [[ "$VQA_MODE" == "canary" ]]; then
     write_condition_requests "$OUTPUT_DIR/evidence/requests.accepted-whisper.json" \
-      "$condition_dir/requests.json" "$condition_id" "$request_source" "$OUTPUT_DIR/evidence"
+      "$condition_dir/requests.json" "$condition_id" "$request_source" "$OUTPUT_DIR/evidence" "$EXPERIMENT_RUN_NAME"
   else
     write_condition_requests "$INPUT_DIR/evidence/requests.accepted-whisper.json" \
-      "$condition_dir/requests.json" "$condition_id" "$request_source" "$INPUT_DIR/evidence"
+      "$condition_dir/requests.json" "$condition_id" "$request_source" "$INPUT_DIR/evidence" "$EXPERIMENT_RUN_NAME"
   fi
   "$PYTHON_BIN" - "$condition_dir/condition-identity.json" "$profile_info" "$EXPECTED_RUNTIME_IMAGE" <<'PY'
 import json
@@ -506,7 +600,9 @@ PY
   finished_ns="$(date +%s%N)"
   (( child_rc == 0 )) || die "condition process failed: $condition_id"
   "$PYTHON_BIN" - "$condition_dir/requests.json" "$condition_dir/predictions.json" \
-    "$condition_dir/timing.json" "$started_ns" "$finished_ns" "$condition_id" <<'PY'
+    "$condition_dir/timing.json" "$started_ns" "$finished_ns" "$condition_id" \
+    "$model_id" "$revision" "$answer_policy" "$min_pixels" "$max_pixels" "$EXPERIMENT_RUN_NAME" \
+    "$EXPECTED_RUNTIME_IMAGE" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -517,8 +613,32 @@ if not isinstance(predictions, list) or len(predictions) != len(requests):
     raise SystemExit("prediction count does not match selected requests")
 if [row.get("video_id") for row in predictions] != [row.get("video_id") for row in requests]:
     raise SystemExit("prediction IDs/order do not match selected requests")
-if any(row.get("status") != "passed" or not str(row.get("answer", "")).strip() for row in predictions):
-    raise SystemExit("condition has incomplete or empty predictions")
+valid_question_types = {"count", "visible-text", "speech", "temporal", "causal-procedural", "general"}
+required = {
+    "status", "answer", "run_id", "condition_id", "video_id", "model_id", "model_revision",
+    "answer_policy", "question_type", "requested_min_pixels_per_frame",
+    "requested_max_pixels_per_frame", "min_pixels_per_frame", "max_pixels_per_frame",
+    "runtime_image", "precision", "device", "runtime_attestation", "peak_memory_bytes",
+}
+for request, row in zip(requests, predictions, strict=True):
+    if not required <= set(row):
+        raise SystemExit("prediction schema is incomplete")
+    if row["run_id"] != sys.argv[12] or row["condition_id"] != sys.argv[6] or row["video_id"] != request["video_id"]:
+        raise SystemExit("prediction request identity does not match the current condition run")
+    if row["model_id"] != sys.argv[7] or row["model_revision"] != sys.argv[8] or row["answer_policy"] != sys.argv[9]:
+        raise SystemExit("prediction model/revision/policy identity is stale or mutated")
+    expected_bounds = (int(sys.argv[10]), int(sys.argv[11]))
+    if (row["requested_min_pixels_per_frame"], row["requested_max_pixels_per_frame"], row["min_pixels_per_frame"], row["max_pixels_per_frame"]) != expected_bounds + expected_bounds:
+        raise SystemExit("prediction pixel-bound controls do not match the condition")
+    if row["runtime_image"] != sys.argv[13] or row["precision"] != "bfloat16" or row["device"] != "cuda:0 (NVIDIA CUDA)":
+        raise SystemExit("prediction runtime identity is not the pinned NVIDIA BF16 runtime")
+    attestation = row["runtime_attestation"]
+    if not isinstance(attestation, dict) or attestation.get("accelerator_backend") != "nvidia-cuda" or not isinstance(attestation.get("parameter_tensor_count"), int) or attestation["parameter_tensor_count"] <= 0 or attestation.get("parameter_devices", {}).get("cuda:0", 0) <= 0 or attestation.get("parameter_dtypes", {}).get("torch.bfloat16", 0) <= 0:
+        raise SystemExit("prediction is missing the NVIDIA parameter attestation")
+    if row["status"] != "passed" or not isinstance(row["answer"], str) or not row["answer"].strip():
+        raise SystemExit("condition has an incomplete or empty prediction")
+    if row["question_type"] not in valid_question_types:
+        raise SystemExit("prediction question_type is invalid")
 peak = [row.get("peak_memory_bytes") for row in predictions if isinstance(row.get("peak_memory_bytes"), int)]
 payload = {
     "condition_id": sys.argv[6],
@@ -526,7 +646,8 @@ payload = {
     "wall_seconds": (int(sys.argv[5]) - int(sys.argv[4])) / 1_000_000_000,
     "peak_memory_bytes": max(peak) if peak else None,
     "runtime_identity": sorted({
-        (row.get("runtime"), row.get("runtime_image")) for row in predictions
+        (row.get("runtime"), row.get("runtime_image"), row.get("device"), row.get("precision"))
+        for row in predictions
     }),
 }
 Path(sys.argv[3]).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -535,8 +656,10 @@ PY
 
 write_final_status() {
   local status="$1"
+  local workload_rc="$2"
+  local sync_state="$3"
   "$PYTHON_BIN" - "$OUTPUT_DIR/status.json" "$status" "$VQA_MODE" \
-    "$EXPERIMENT_RUN_NAME" "$EXPECTED_COUNT" "$FRAME_COUNT" <<'PY'
+    "$EXPERIMENT_RUN_NAME" "$EXPECTED_COUNT" "$FRAME_COUNT" "$workload_rc" "$sync_state" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -548,22 +671,75 @@ payload = {
     "run_name": sys.argv[4],
     "expected_count": int(sys.argv[5]),
     "frame_count": int(sys.argv[6]),
+    "workload_returncode": int(sys.argv[7]),
+    "remote_payload_sync": sys.argv[8],
     "labels_joined": False,
-    "remote_sync": "pending-after-status-freeze",
 }
 Path(sys.argv[1]).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
 }
 
-finalize_bundle() {
-  write_final_status passed
-  (cd "$OUTPUT_DIR" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+write_checksums() {
+  (cd "$OUTPUT_DIR" && find . -type f ! -name SHA256SUMS ! -name terminal-status.json -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
   (cd "$OUTPUT_DIR" && sha256sum --check SHA256SUMS >/dev/null) \
     || die "local SHA256SUMS verification failed"
-  if [[ "${VQA_DRY_RUN:-0}" != "1" ]]; then
-    hf_cli buckets sync "$OUTPUT_DIR" "$HF_REMOTE_URI" \
-      || die "durable output bundle sync failed"
+}
+
+finalize_bundle() {
+  local requested_status="$1"
+  local workload_rc="$2"
+  (( FINALIZE_ATTEMPTED == 0 )) || return 0
+  FINALIZE_ATTEMPTED=1
+  cleanup_runtime
+  write_final_status "$requested_status" "$workload_rc" pending
+  write_checksums
+  if [[ "${VQA_DRY_RUN:-0}" == "1" && "${VQA_SKIP_PUBLICATION:-0}" == "1" ]]; then
+    FINALIZED=1
+    return 0
   fi
+  local payload_uri="${HF_REMOTE_URI%/}/payload"
+  local sync_rc=0
+  event payload-sync-start
+  set +e
+  hf_cli buckets sync "$OUTPUT_DIR" "$payload_uri"
+  sync_rc=$?
+  set -e
+  if (( sync_rc != 0 )); then
+    write_final_status failed "$workload_rc" failed
+    write_checksums
+    event payload-sync-failed
+    return 1
+  fi
+  if ! (cd "$OUTPUT_DIR" && sha256sum --check SHA256SUMS >/dev/null); then
+    write_final_status failed "$workload_rc" failed
+    write_checksums
+    event payload-checksum-failed
+    return 1
+  fi
+  write_final_status "$requested_status" "$workload_rc" passed
+  write_checksums
+  local payload_checksum
+  payload_checksum="$(sha256sum "$OUTPUT_DIR/SHA256SUMS" | awk '{print $1}')"
+  "$PYTHON_BIN" - "$OUTPUT_DIR/terminal-status.json" "$requested_status" "$payload_checksum" "$payload_uri" "$EXPERIMENT_RUN_NAME" <<'PY'
+import json
+import sys
+from pathlib import Path
+payload = {"schema_version": 1, "status": sys.argv[2], "payload_sha256": sys.argv[3], "payload_uri": sys.argv[4], "run_name": sys.argv[5]}
+Path(sys.argv[1]).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+  event terminal-marker-start
+  set +e
+  hf_cli buckets cp "$OUTPUT_DIR/terminal-status.json" "${HF_REMOTE_URI%/}/terminal-status.json"
+  local marker_rc=$?
+  set -e
+  if (( marker_rc != 0 )); then
+    write_final_status failed "$workload_rc" failed
+    write_checksums
+    event terminal-marker-failed
+    return 1
+  fi
+  event terminal-marker-published
+  FINALIZED=1
 }
 
 run_canary() {
@@ -608,25 +784,46 @@ run_evidence() {
 
 run_full_condition() {
   verify_manifest
+  if [[ "${VQA_DRY_RUN:-0}" == "1" ]]; then
+    die "full condition dry-run is not permitted because it would bypass immutable evidence"
+  fi
   prepare_condition_evidence
   run_condition "$CONDITION_ID"
 }
 
-main() {
-  trap cleanup_runtime EXIT
-  validate_dispatch
-  remote_prefix_is_empty
-  if [[ "${VQA_DRY_RUN:-0}" == "1" ]]; then
-    mkdir -p "$OUTPUT_DIR"
-  else
-    bootstrap_runtime
+on_exit() {
+  local rc=$?
+  trap - EXIT INT TERM
+  set +e
+  cleanup_runtime
+  if (( EXECUTION_STARTED == 1 && FINALIZE_ATTEMPTED == 0 )); then
+    finalize_bundle failed "$rc" >/dev/null 2>&1 || true
   fi
+  exit "$rc"
+}
+
+on_signal() {
+  local signal_rc="$1"
+  event "signal-${signal_rc}"
+  exit "$signal_rc"
+}
+
+main() {
+  trap on_exit EXIT
+  trap 'on_signal 130' INT
+  trap 'on_signal 143' TERM
+  validate_dispatch
+  refuse_nonempty_output
+  ensure_lightweight_hf_client
+  remote_prefix_is_empty
+  EXECUTION_STARTED=1
+  bootstrap_runtime
   case "$VQA_MODE" in
     canary) run_canary ;;
     evidence) run_evidence ;;
     condition) run_full_condition ;;
   esac
-  finalize_bundle
+  finalize_bundle passed 0 || die "durable output bundle publication failed"
 }
 
 main "$@"

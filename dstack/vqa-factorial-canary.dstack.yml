@@ -24,7 +24,10 @@ files:
   - ../scripts/qwen35_prepare_matched_evidence.py:/dstack/run/scripts/qwen35_prepare_matched_evidence.py
   - ../scripts/qwen35_whisper_cuda.py:/dstack/run/scripts/qwen35_whisper_cuda.py
   - ../scripts/qwen35_build_whisper_requests.py:/dstack/run/scripts/qwen35_build_whisper_requests.py
-  - ../src/trec_video_2026:/dstack/run/src/trec_video_2026
+  - ../src/trec_video_2026/__init__.py:/dstack/run/src/trec_video_2026/__init__.py
+  - ../src/trec_video_2026/vqa_models.py:/dstack/run/src/trec_video_2026/vqa_models.py
+  - ../src/trec_video_2026/vqa_transformers_runner.py:/dstack/run/src/trec_video_2026/vqa_transformers_runner.py
+  - ../src/trec_video_2026/vqa_whisper.py:/dstack/run/src/trec_video_2026/vqa_whisper.py
   - ../configs/vqa/vqa_factorial_canary_3.json:/dstack/run/configs/vqa/vqa_factorial_canary_3.json
   - ../configs/vqa/vqa_factorial_canary_profile.json:/dstack/run/configs/vqa/vqa_factorial_canary_profile.json
 

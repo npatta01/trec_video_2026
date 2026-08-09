@@ -8,9 +8,11 @@ can fail closed before installing packages or loading any model resources.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 from collections.abc import Mapping
+from types import MappingProxyType
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -22,6 +24,10 @@ EXPECTED_INPUT_URI = (
 EXPECTED_EVIDENCE_URI = (
     "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
     "experiments/vqa-factorial-full-evidence-20260809-f1"
+)
+EXPECTED_FULL_CONDITION_URI = (
+    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+    "experiments/vqa-factorial-full-20260809-f1/conditions"
 )
 EXPECTED_RUNTIME_IMAGE = (
     "docker.io/pytorch/pytorch@sha256:"
@@ -35,6 +41,12 @@ MODEL_REVISIONS = {
     "Qwen/Qwen3.5-4B": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
     "Qwen/Qwen3-VL-8B-Instruct": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b",
 }
+EXPECTED_CANARY_MANIFEST_SHA256 = "857d251870d24c4c5c7b43d94030a994bd4d8c39da4db1aa4385c1e01f7a7005"
+EXPECTED_FULL_MANIFEST_SHA256 = "092aec23cfdcc370bbed8e776f7cc7c84752481da6ba0996983883955d3841e8"
+EXPECTED_FULL_IDS_SHA256 = "95a623c0add252541b9c81ff4910e949dc81db17482add2c467b761237b22b0f"
+CANARY_ID_ORDER = ("CtinYSH3nVw", "LKiaCf1QZFw", "IVqpg_1aWXU")
+FULL_MANIFEST_VERSION = "trecvid-qwen35-4b-12f-full-label-free-2026-08-03-v1"
+YOUTUBE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{11}$")
 ANSWER_POLICIES = {"current", "question-aware"}
 REQUEST_SOURCES = {
     "shared-accepted-whisper",
@@ -88,9 +100,90 @@ LABEL_KEY_PATTERN = re.compile(
 SAFE_RUN_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{2,127}$")
 SAFE_URI = re.compile(r"^hf://buckets/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+$")
 
+EXPECTED_CANARY_CONDITIONS = (
+    (
+        "4b-current",
+        "Qwen/Qwen3.5-4B",
+        MODEL_REVISIONS["Qwen/Qwen3.5-4B"],
+        "current",
+        65_536,
+        262_144,
+        "shared-accepted-whisper",
+    ),
+    (
+        "4b-question-aware",
+        "Qwen/Qwen3.5-4B",
+        MODEL_REVISIONS["Qwen/Qwen3.5-4B"],
+        "question-aware",
+        65_536,
+        262_144,
+        "shared-accepted-whisper",
+    ),
+    (
+        "8b-current",
+        "Qwen/Qwen3-VL-8B-Instruct",
+        MODEL_REVISIONS["Qwen/Qwen3-VL-8B-Instruct"],
+        "current",
+        65_536,
+        262_144,
+        "shared-accepted-whisper",
+    ),
+    (
+        "8b-question-aware",
+        "Qwen/Qwen3-VL-8B-Instruct",
+        MODEL_REVISIONS["Qwen/Qwen3-VL-8B-Instruct"],
+        "question-aware",
+        65_536,
+        262_144,
+        "shared-accepted-whisper",
+    ),
+    (
+        "8b-question-aware-ocr-highres",
+        "Qwen/Qwen3-VL-8B-Instruct",
+        MODEL_REVISIONS["Qwen/Qwen3-VL-8B-Instruct"],
+        "question-aware",
+        65_536,
+        589_824,
+        "shared-accepted-whisper-ocr-only",
+    ),
+    (
+        "4b-current-repeat",
+        "Qwen/Qwen3.5-4B",
+        MODEL_REVISIONS["Qwen/Qwen3.5-4B"],
+        "current",
+        65_536,
+        262_144,
+        "shared-accepted-whisper",
+    ),
+)
+EXPECTED_FULL_CONDITIONS = (
+    EXPECTED_CANARY_CONDITIONS[0],
+    EXPECTED_CANARY_CONDITIONS[1],
+    EXPECTED_CANARY_CONDITIONS[2],
+    EXPECTED_CANARY_CONDITIONS[3],
+)
+EXPECTED_CONDITION_BY_ID = MappingProxyType({item[0]: item for item in EXPECTED_CANARY_CONDITIONS})
+
 
 def _fail(message: str) -> None:
     raise ValueError(message)
+
+
+def validate_video_id(value: Any, *, field: str = "video_id") -> str:
+    if not isinstance(value, str) or YOUTUBE_ID_PATTERN.fullmatch(value) is None:
+        _fail(f"{field} must match the YouTube ID grammar ^[A-Za-z0-9_-]{{11}}$")
+    return value
+
+
+def manifest_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def canonical_id_digest(rows: list[Mapping[str, Any]]) -> str:
+    ids = [validate_video_id(row.get("video_id")) for row in rows]
+    if ids != sorted(ids):
+        _fail("full manifest IDs must be in canonical sorted order")
+    return hashlib.sha256(("\n".join(ids) + "\n").encode("utf-8")).hexdigest()
 
 
 def reject_label_like_keys(value: Any, location: str = "$") -> None:
@@ -138,8 +231,7 @@ def _validate_source(payload: Mapping[str, Any], expected_count: int) -> list[di
             _fail(f"source row {index} must contain exactly video_id and question")
         video_id = row["video_id"]
         question = row["question"]
-        if not isinstance(video_id, str) or not video_id:
-            _fail(f"source row {index} video_id must be a non-empty string")
+        validate_video_id(video_id, field=f"source row {index} video_id")
         if not isinstance(question, str) or not question.strip():
             _fail(f"source row {index} question must be a non-empty string")
         if video_id in ids:
@@ -157,7 +249,7 @@ def build_canary_manifest(
     source = _load_json(source_path)
     rows = _validate_source(source, expected_source_count)
     by_id = {row["video_id"]: row for row in rows}
-    if set(by_id) < CANARY_IDS:
+    if not CANARY_IDS <= set(by_id):
         _fail(f"source is missing frozen canary IDs: {sorted(CANARY_IDS - set(by_id))}")
     selected = [by_id[video_id] for video_id in ("CtinYSH3nVw", "LKiaCf1QZFw", "IVqpg_1aWXU")]
     payload = {
@@ -174,10 +266,90 @@ def build_canary_manifest(
     return payload
 
 
+def build_full_manifest(
+    data_root: Path,
+    output_path: Path,
+    *,
+    expected_annotations: int = 481,
+    expected_media: int = 475,
+) -> dict[str, Any]:
+    """Regenerate the private canonical full manifest from the local data root."""
+
+    root = data_root.resolve(strict=True)
+    annotation_root = (root / "vqa/2025/training/annotations").resolve(strict=True)
+    media_root = (root / "vqa/2025/training/videos_original").resolve(strict=True)
+    annotation_paths = sorted(annotation_root.glob("*.json"))
+    if len(annotation_paths) != expected_annotations:
+        _fail(f"expected {expected_annotations} annotation files, found {len(annotation_paths)}")
+    examples: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for annotation_path in annotation_paths:
+        video_id = validate_video_id(annotation_path.stem, field="annotation video_id")
+        if video_id in seen:
+            _fail(f"duplicate annotation ID: {video_id}")
+        seen.add(video_id)
+        record = _load_json(annotation_path)
+        question = record.get("question")
+        if not isinstance(question, str) or not question.strip():
+            _fail(f"missing question in {annotation_path}")
+        matches = [
+            media_root / f"{video_id}{suffix}"
+            for suffix in (".mkv", ".mp4", ".webm", ".mov")
+            if (media_root / f"{video_id}{suffix}").is_file()
+        ]
+        if len(matches) > 1:
+            _fail(f"multiple local media files for {video_id}")
+        if len(matches) == 1:
+            resolved = matches[0].resolve(strict=True)
+            if not resolved.is_relative_to(media_root):
+                _fail(f"media path escapes the canonical media root: {video_id}")
+            examples.append({"video_id": video_id, "question": question})
+    if len(examples) != expected_media:
+        _fail(f"expected {expected_media} annotation/media intersections, found {len(examples)}")
+    examples.sort(key=lambda row: row["video_id"])
+    payload = {
+        "schema_version": 1,
+        "manifest_version": FULL_MANIFEST_VERSION,
+        "label_policy": "label-free-inference-input",
+        "example_count": len(examples),
+        "examples": examples,
+    }
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return payload
+
+
 def validate_manifest(path: Path, *, expected_count: int) -> list[dict[str, str]]:
     """Validate a frozen label-free manifest and return its identity rows."""
 
     return _validate_source(_load_json(path), expected_count)
+
+
+def validate_manifest_identity(
+    path: Path,
+    *,
+    expected_count: int,
+    expected_sha256: str,
+    expected_ids: tuple[str, ...] | None = None,
+    expected_canonical_id_digest: str | None = None,
+) -> list[dict[str, str]]:
+    rows = validate_manifest(path, expected_count=expected_count)
+    actual_sha256 = manifest_sha256(path)
+    if actual_sha256 != expected_sha256:
+        _fail(f"manifest identity mismatch: expected {expected_sha256}, got {actual_sha256}")
+    actual_ids = tuple(row["video_id"] for row in rows)
+    if expected_ids is not None and actual_ids != expected_ids:
+        _fail(f"manifest ordered IDs do not match the frozen identity: {actual_ids}")
+    if expected_canonical_id_digest is not None:
+        if actual_ids != tuple(sorted(actual_ids)):
+            _fail("manifest IDs are not in canonical sorted order")
+        actual_digest = hashlib.sha256(("\n".join(actual_ids) + "\n").encode("utf-8")).hexdigest()
+        if actual_digest != expected_canonical_id_digest:
+            _fail(
+                "canonical manifest ID digest mismatch: "
+                f"expected {expected_canonical_id_digest}, got {actual_digest}"
+            )
+    return rows
 
 
 def _require_fields(payload: Mapping[str, Any], expected: set[str], label: str) -> None:
@@ -249,6 +421,23 @@ def _validate_condition(condition: Mapping[str, Any], *, bounds: tuple[int, int]
         _fail(f"condition must use pixel bounds {bounds[0]}..{bounds[1]}")
 
 
+def validate_condition_binding(condition_id: str, condition: Mapping[str, Any]) -> None:
+    expected = EXPECTED_CONDITION_BY_ID.get(condition_id)
+    if expected is None:
+        _fail(f"condition_id is not in the immutable expected specification: {condition_id}")
+    actual = (
+        condition.get("condition_id"),
+        condition.get("model_id"),
+        condition.get("revision"),
+        condition.get("answer_policy"),
+        condition.get("min_pixels"),
+        condition.get("max_pixels"),
+        condition.get("request_source"),
+    )
+    if actual != expected:
+        _fail(f"condition {condition_id} does not match its immutable model/policy/bounds/source tuple")
+
+
 def validate_canary_profile(payload: Mapping[str, Any]) -> None:
     _require_fields(payload, CANARY_PROFILE_FIELDS, "canary profile")
     _validate_common_profile(payload, expected_count=3, input_uri=EXPECTED_INPUT_URI)
@@ -260,9 +449,12 @@ def validate_canary_profile(payload: Mapping[str, Any]) -> None:
         if not isinstance(condition, dict):
             _fail("canary conditions must be objects")
         _validate_condition(condition)
+        validate_condition_binding(condition["condition_id"], condition)
         ids.append(condition["condition_id"])
     if len(set(ids)) != len(ids):
         _fail("canary condition IDs must be unique")
+    if tuple(ids) != tuple(item[0] for item in EXPECTED_CANARY_CONDITIONS):
+        _fail("canary condition order must match the immutable execution specification")
     if set(ids) != CANARY_CONDITION_IDS:
         _fail(f"canary condition IDs must be {sorted(CANARY_CONDITION_IDS)}")
     by_id = {condition["condition_id"]: condition for condition in conditions}
@@ -294,11 +486,21 @@ def validate_full_evidence_profile(payload: Mapping[str, Any]) -> None:
     _validate_common_profile(payload, expected_count=475, input_uri=EXPECTED_INPUT_URI)
     if payload["run_name"] != "vqa-factorial-full-evidence-20260809-f1":
         _fail("evidence run_name is not the pinned identity")
+    if payload["remote_uri"] != EXPECTED_EVIDENCE_URI:
+        _fail("evidence remote_uri is not the pinned identity")
+    if payload["manifest"] != "/dstack/run/configs/vqa/qwen35_vqa2025_475_label_free.json":
+        _fail("evidence manifest path is not the pinned private full manifest")
 
 
 def validate_full_condition_profiles(payload: Mapping[str, Any]) -> None:
     _require_fields(payload, FULL_CONDITION_PROFILE_FIELDS, "full condition profile")
     _validate_common_profile(payload, expected_count=475, input_uri=EXPECTED_EVIDENCE_URI)
+    if payload["run_name"] != "vqa-factorial-full-20260809-f1":
+        _fail("full condition run_name is not the pinned identity")
+    if payload["remote_uri"] != EXPECTED_FULL_CONDITION_URI:
+        _fail("full condition remote_uri is not the pinned identity")
+    if payload["manifest"] != "/dstack/run/configs/vqa/qwen35_vqa2025_475_label_free.json":
+        _fail("full condition manifest path is not the pinned private full manifest")
     conditions = payload["conditions"]
     if not isinstance(conditions, list) or len(conditions) != 4:
         _fail("full condition profile must declare exactly four conditions")
@@ -307,9 +509,12 @@ def validate_full_condition_profiles(payload: Mapping[str, Any]) -> None:
         if not isinstance(condition, dict):
             _fail("full conditions must be objects")
         _validate_condition(condition, bounds=BASE_BOUNDS)
+        validate_condition_binding(condition["condition_id"], condition)
         ids.append(condition["condition_id"])
     if set(ids) != FULL_CONDITION_IDS or len(ids) != len(set(ids)):
         _fail("full condition IDs must be the four unique model/policy cells")
+    if tuple(ids) != tuple(item[0] for item in EXPECTED_FULL_CONDITIONS):
+        _fail("full condition order must match the immutable execution specification")
     derived_outputs = {payload["remote_uri"].rstrip("/") + "/" + identifier for identifier in ids}
     if len(derived_outputs) != 4:
         _fail("full condition output identities must be unique")
@@ -369,9 +574,16 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--source", type=Path)
     parser.add_argument("--canary-output", type=Path)
     parser.add_argument("--expected-source-count", type=int)
+    parser.add_argument("--full-output", type=Path)
+    parser.add_argument("--data-root", type=Path)
+    parser.add_argument("--expected-annotations", type=int, default=481)
+    parser.add_argument("--expected-media", type=int, default=475)
     parser.add_argument("--validate-profile", type=Path)
     parser.add_argument("--validate-manifest", type=Path)
     parser.add_argument("--expected-count", type=int)
+    parser.add_argument("--expected-sha256")
+    parser.add_argument("--expected-id", action="append", dest="expected_ids")
+    parser.add_argument("--expected-canonical-id-digest")
     parser.add_argument("--profile-kind", choices=("canary", "evidence", "condition"))
     parser.add_argument("--condition-id")
     parser.add_argument("--expected-run-name")
@@ -382,11 +594,18 @@ def _parse_args() -> argparse.Namespace:
     if args.source is not None:
         if args.canary_output is None or args.expected_source_count is None:
             parser.error("--source requires --canary-output and --expected-source-count")
+        if args.full_output is not None or args.validate_profile is not None or args.validate_manifest is not None:
+            parser.error("manifest generation and validation modes are mutually exclusive")
+    elif args.full_output is not None:
+        if args.data_root is None:
+            parser.error("--full-output requires --data-root")
         if args.validate_profile is not None or args.validate_manifest is not None:
             parser.error("manifest generation and validation modes are mutually exclusive")
     elif args.validate_manifest is not None:
         if args.expected_count is None:
             parser.error("--validate-manifest requires --expected-count")
+        if args.expected_sha256 is None:
+            parser.error("--validate-manifest requires --expected-sha256")
         if args.validate_profile is not None:
             parser.error("manifest and profile validation are mutually exclusive")
     elif args.validate_profile is not None:
@@ -404,8 +623,21 @@ def main() -> int:
             build_canary_manifest(
                 args.source, args.canary_output, expected_source_count=args.expected_source_count
             )
+        elif args.full_output is not None:
+            build_full_manifest(
+                args.data_root,
+                args.full_output,
+                expected_annotations=args.expected_annotations,
+                expected_media=args.expected_media,
+            )
         elif args.validate_manifest is not None:
-            validate_manifest(args.validate_manifest, expected_count=args.expected_count)
+            validate_manifest_identity(
+                args.validate_manifest,
+                expected_count=args.expected_count,
+                expected_sha256=args.expected_sha256,
+                expected_ids=tuple(args.expected_ids) if args.expected_ids else None,
+                expected_canonical_id_digest=args.expected_canonical_id_digest,
+            )
             print(json.dumps({"manifest_valid": True, "example_count": args.expected_count}))
         else:
             selected = validate_profile(

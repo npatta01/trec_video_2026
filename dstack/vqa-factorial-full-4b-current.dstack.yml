@@ -22,7 +22,10 @@ env:
 files:
   - ../scripts/run-vqa-factorial-dstack.sh:/dstack/run/scripts/run-vqa-factorial-dstack.sh
   - ../scripts/build_vqa_factorial_manifest.py:/dstack/run/scripts/build_vqa_factorial_manifest.py
-  - ../src/trec_video_2026:/dstack/run/src/trec_video_2026
+  - ../src/trec_video_2026/__init__.py:/dstack/run/src/trec_video_2026/__init__.py
+  - ../src/trec_video_2026/vqa_models.py:/dstack/run/src/trec_video_2026/vqa_models.py
+  - ../src/trec_video_2026/vqa_transformers_runner.py:/dstack/run/src/trec_video_2026/vqa_transformers_runner.py
+  - ../src/trec_video_2026/vqa_whisper.py:/dstack/run/src/trec_video_2026/vqa_whisper.py
   - ../configs/vqa/qwen35_vqa2025_475_label_free.json:/dstack/run/configs/vqa/qwen35_vqa2025_475_label_free.json
   - ../configs/vqa/vqa_factorial_full_condition_profiles.json:/dstack/run/configs/vqa/vqa_factorial_full_condition_profiles.json
 
