@@ -323,6 +323,7 @@ def test_full_topology_has_one_evidence_yaml_and_four_one_condition_yamls() -> N
     for path in condition_paths:
         payload = yaml.safe_load(path.read_text())
         assert payload["resources"]["gpu"].endswith(":1:48GB..")
+        assert payload["backends"] == ["runpod", "vastai"]
         assert "VQA_MODE=condition" in "\n".join(payload["env"])
         assert "CONDITION_ID=" in "\n".join(payload["env"])
         assert "--mode condition" not in "\n".join(payload["commands"])
