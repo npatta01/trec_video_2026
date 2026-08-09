@@ -12,6 +12,7 @@ readonly VQA_MODE="${VQA_MODE:?VQA_MODE is required}"
 readonly INPUT_DIR="${INPUT_DIR:-/dstack/input}"
 readonly FRAME_DIR="${FRAME_DIR:-/dstack/frames}"
 readonly OUTPUT_DIR="${OUTPUT_DIR:-/dstack/output}"
+readonly TERMINAL_STATUS_PATH="${OUTPUT_DIR}.terminal-status.json"
 readonly INFERENCE_BIN="${INFERENCE_BIN:-$PYTHON_BIN}"
 readonly CANARY_MANIFEST_SHA256="857d251870d24c4c5c7b43d94030a994bd4d8c39da4db1aa4385c1e01f7a7005"
 readonly FULL_MANIFEST_SHA256="092aec23cfdcc370bbed8e776f7cc7c84752481da6ba0996983883955d3841e8"
@@ -28,6 +29,7 @@ HF_COMMAND=()
 EXECUTION_STARTED=0
 FINALIZE_ATTEMPTED=0
 FINALIZED=0
+PAYLOAD_PUBLISHED=0
 
 event() {
   if [[ -n "${EVENT_LOG:-}" ]]; then
@@ -61,6 +63,7 @@ refuse_nonempty_output() {
   if [[ -d "$OUTPUT_DIR" ]] && find "$OUTPUT_DIR" -mindepth 1 -print -quit | grep -q .; then
     die "OUTPUT_DIR is non-empty: $OUTPUT_DIR"
   fi
+  [[ ! -e "$TERMINAL_STATUS_PATH" ]] || die "terminal status path already exists: $TERMINAL_STATUS_PATH"
 }
 
 ensure_lightweight_hf_client() {
@@ -228,7 +231,7 @@ start_telemetry() {
   mkdir -p "$(dirname "$telemetry_path")"
   (
     if [[ ! -s "$telemetry_path" ]]; then
-      printf 'timestamp,index,utilization.gpu [%],memory.used [MiB],memory.total [MiB]\n' \
+      printf '%s\n' 'timestamp,index,utilization.gpu [%],memory.used [MiB],memory.total [MiB]' \
         >> "$telemetry_path"
     fi
     while kill -0 "$child_pid" 2>/dev/null; do
@@ -244,10 +247,21 @@ start_telemetry() {
 
 stop_telemetry() {
   if [[ -n "$TELEMETRY_PID" ]]; then
+    kill_descendants "$TELEMETRY_PID"
     kill "$TELEMETRY_PID" 2>/dev/null || true
     wait "$TELEMETRY_PID" 2>/dev/null || true
     TELEMETRY_PID=""
   fi
+}
+
+kill_descendants() {
+  local parent="$1"
+  local child
+  while read -r child; do
+    [[ -n "$child" ]] || continue
+    kill_descendants "$child"
+    kill "$child" 2>/dev/null || true
+  done < <(ps -eo pid=,ppid= | awk -v parent="$parent" '$2 == parent {print $1}')
 }
 
 cleanup_runtime() {
@@ -602,8 +616,9 @@ PY
   "$PYTHON_BIN" - "$condition_dir/requests.json" "$condition_dir/predictions.json" \
     "$condition_dir/timing.json" "$started_ns" "$finished_ns" "$condition_id" \
     "$model_id" "$revision" "$answer_policy" "$min_pixels" "$max_pixels" "$EXPERIMENT_RUN_NAME" \
-    "$EXPECTED_RUNTIME_IMAGE" <<'PY'
+    "$EXPECTED_RUNTIME_IMAGE" "$request_source" "$EXPECTED_COUNT" <<'PY'
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -611,18 +626,22 @@ requests = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 predictions = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
 if not isinstance(predictions, list) or len(predictions) != len(requests):
     raise SystemExit("prediction count does not match selected requests")
+expected_request_count = 1 if sys.argv[14] == "shared-accepted-whisper-ocr-only" else int(sys.argv[15])
+if len(requests) != expected_request_count or len(predictions) != expected_request_count:
+    raise SystemExit("prediction count does not match the immutable condition source")
 if [row.get("video_id") for row in predictions] != [row.get("video_id") for row in requests]:
     raise SystemExit("prediction IDs/order do not match selected requests")
 valid_question_types = {"count", "visible-text", "speech", "temporal", "causal-procedural", "general"}
-required = {
-    "status", "answer", "run_id", "condition_id", "video_id", "model_id", "model_revision",
-    "answer_policy", "question_type", "requested_min_pixels_per_frame",
-    "requested_max_pixels_per_frame", "min_pixels_per_frame", "max_pixels_per_frame",
+producer_fields = {
+    "status", "answer", "elapsed_seconds", "model_load_seconds", "model_id", "model_revision", "runtime",
     "runtime_image", "precision", "device", "runtime_attestation", "peak_memory_bytes",
+    "error_type", "error_message", "answer_policy", "question_type",
+    "requested_min_pixels_per_frame", "requested_max_pixels_per_frame",
+    "min_pixels_per_frame", "max_pixels_per_frame", "run_id", "condition_id", "video_id",
 }
 for request, row in zip(requests, predictions, strict=True):
-    if not required <= set(row):
-        raise SystemExit("prediction schema is incomplete")
+    if not isinstance(row, dict) or set(row) != producer_fields:
+        raise SystemExit("prediction schema is not the exact producer schema")
     if row["run_id"] != sys.argv[12] or row["condition_id"] != sys.argv[6] or row["video_id"] != request["video_id"]:
         raise SystemExit("prediction request identity does not match the current condition run")
     if row["model_id"] != sys.argv[7] or row["model_revision"] != sys.argv[8] or row["answer_policy"] != sys.argv[9]:
@@ -632,19 +651,65 @@ for request, row in zip(requests, predictions, strict=True):
         raise SystemExit("prediction pixel-bound controls do not match the condition")
     if row["runtime_image"] != sys.argv[13] or row["precision"] != "bfloat16" or row["device"] != "cuda:0 (NVIDIA CUDA)":
         raise SystemExit("prediction runtime identity is not the pinned NVIDIA BF16 runtime")
+    if not isinstance(row["runtime"], str) or not row["runtime"].strip():
+        raise SystemExit("prediction runtime identity is missing")
+    elapsed = row["elapsed_seconds"]
+    if isinstance(elapsed, bool) or not isinstance(elapsed, (int, float)) or not math.isfinite(elapsed) or elapsed < 0:
+        raise SystemExit("prediction elapsed_seconds is not finite and nonnegative")
+    model_load = row["model_load_seconds"]
+    if isinstance(model_load, bool) or not isinstance(model_load, (int, float)) or not math.isfinite(model_load) or model_load < 0:
+        raise SystemExit("prediction model_load_seconds is not finite and nonnegative")
+    peak_memory = row["peak_memory_bytes"]
+    if isinstance(peak_memory, bool) or not isinstance(peak_memory, int) or peak_memory < 0:
+        raise SystemExit("prediction peak_memory_bytes is not a nonnegative integer")
+    if row["error_type"] is not None or row["error_message"] is not None:
+        raise SystemExit("passed prediction carries an error")
     attestation = row["runtime_attestation"]
-    if not isinstance(attestation, dict) or attestation.get("accelerator_backend") != "nvidia-cuda" or not isinstance(attestation.get("parameter_tensor_count"), int) or attestation["parameter_tensor_count"] <= 0 or attestation.get("parameter_devices", {}).get("cuda:0", 0) <= 0 or attestation.get("parameter_dtypes", {}).get("torch.bfloat16", 0) <= 0:
-        raise SystemExit("prediction is missing the NVIDIA parameter attestation")
+    attestation_fields = {
+        "parameter_tensor_count", "parameter_devices", "parameter_dtypes",
+        "buffer_tensor_count", "buffer_devices", "buffer_dtypes",
+        "accelerator_backend", "torch_cuda", "torch_hip",
+    }
+    if not isinstance(attestation, dict) or set(attestation) != attestation_fields:
+        raise SystemExit("prediction attestation schema is incomplete or has extra fields")
+    parameter_count = attestation["parameter_tensor_count"]
+    buffer_count = attestation["buffer_tensor_count"]
+    if isinstance(parameter_count, bool) or not isinstance(parameter_count, int) or parameter_count <= 0:
+        raise SystemExit("prediction parameter attestation count is invalid")
+    if isinstance(buffer_count, bool) or not isinstance(buffer_count, int) or buffer_count < 0:
+        raise SystemExit("prediction buffer attestation count is invalid")
+    for label, count, devices, dtypes in (
+        ("parameter", parameter_count, attestation["parameter_devices"], attestation["parameter_dtypes"]),
+        ("buffer", buffer_count, attestation["buffer_devices"], attestation["buffer_dtypes"]),
+    ):
+        if not isinstance(devices, dict) or not isinstance(dtypes, dict):
+            raise SystemExit(f"prediction {label} attestation maps are invalid")
+        if any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in (*devices.values(), *dtypes.values())):
+            raise SystemExit(f"prediction {label} attestation map count is invalid")
+        if sum(devices.values()) != count or sum(dtypes.values()) != count:
+            raise SystemExit(f"prediction {label} attestation counts do not sum")
+        if any(device != "cuda:0" for device in devices) or any(dtype != "torch.bfloat16" for dtype in dtypes):
+            raise SystemExit(f"prediction {label} tensors are not CUDA BF16")
+        if count and (not devices or not dtypes):
+            raise SystemExit(f"prediction {label} attestation is empty")
+        if not count and (devices or dtypes):
+            raise SystemExit(f"prediction {label} zero-count attestation is not empty")
+    if attestation["accelerator_backend"] != "nvidia-cuda" or not isinstance(attestation["torch_cuda"], str) or not attestation["torch_cuda"].strip() or attestation["torch_hip"] is not None:
+        raise SystemExit("prediction accelerator attestation is not NVIDIA CUDA")
     if row["status"] != "passed" or not isinstance(row["answer"], str) or not row["answer"].strip():
         raise SystemExit("condition has an incomplete or empty prediction")
     if row["question_type"] not in valid_question_types:
         raise SystemExit("prediction question_type is invalid")
-peak = [row.get("peak_memory_bytes") for row in predictions if isinstance(row.get("peak_memory_bytes"), int)]
+model_load_seconds = {row["model_load_seconds"] for row in predictions}
+if len(model_load_seconds) != 1:
+    raise SystemExit("model_load_seconds is not identical within the condition")
+peak = [row["peak_memory_bytes"] for row in predictions]
 payload = {
     "condition_id": sys.argv[6],
     "row_count": len(predictions),
     "wall_seconds": (int(sys.argv[5]) - int(sys.argv[4])) / 1_000_000_000,
     "peak_memory_bytes": max(peak) if peak else None,
+    "model_load_seconds": next(iter(model_load_seconds)),
     "runtime_identity": sorted({
         (row.get("runtime"), row.get("runtime_image"), row.get("device"), row.get("precision"))
         for row in predictions
@@ -685,19 +750,41 @@ write_checksums() {
     || die "local SHA256SUMS verification failed"
 }
 
+write_terminal_status() {
+  local status="$1"
+  local payload_checksum="$2"
+  local payload_uri="$3"
+  "$PYTHON_BIN" - "$TERMINAL_STATUS_PATH" "$status" "$payload_checksum" "$payload_uri" "$EXPERIMENT_RUN_NAME" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = {
+    "schema_version": 1,
+    "status": sys.argv[2],
+    "payload_sha256": sys.argv[3],
+    "payload_uri": sys.argv[4],
+    "run_name": sys.argv[5],
+}
+Path(sys.argv[1]).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+}
+
 finalize_bundle() {
   local requested_status="$1"
   local workload_rc="$2"
   (( FINALIZE_ATTEMPTED == 0 )) || return 0
   FINALIZE_ATTEMPTED=1
   cleanup_runtime
-  write_final_status "$requested_status" "$workload_rc" pending
+  write_final_status "$requested_status" "$workload_rc" frozen
   write_checksums
   if [[ "${VQA_DRY_RUN:-0}" == "1" && "${VQA_SKIP_PUBLICATION:-0}" == "1" ]]; then
     FINALIZED=1
     return 0
   fi
   local payload_uri="${HF_REMOTE_URI%/}/payload"
+  local payload_checksum
+  payload_checksum="$(sha256sum "$OUTPUT_DIR/SHA256SUMS" | awk '{print $1}')"
   local sync_rc=0
   event payload-sync-start
   set +e
@@ -710,31 +797,14 @@ finalize_bundle() {
     event payload-sync-failed
     return 1
   fi
-  if ! (cd "$OUTPUT_DIR" && sha256sum --check SHA256SUMS >/dev/null); then
-    write_final_status failed "$workload_rc" failed
-    write_checksums
-    event payload-checksum-failed
-    return 1
-  fi
-  write_final_status "$requested_status" "$workload_rc" passed
-  write_checksums
-  local payload_checksum
-  payload_checksum="$(sha256sum "$OUTPUT_DIR/SHA256SUMS" | awk '{print $1}')"
-  "$PYTHON_BIN" - "$OUTPUT_DIR/terminal-status.json" "$requested_status" "$payload_checksum" "$payload_uri" "$EXPERIMENT_RUN_NAME" <<'PY'
-import json
-import sys
-from pathlib import Path
-payload = {"schema_version": 1, "status": sys.argv[2], "payload_sha256": sys.argv[3], "payload_uri": sys.argv[4], "run_name": sys.argv[5]}
-Path(sys.argv[1]).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-PY
+  PAYLOAD_PUBLISHED=1
+  write_terminal_status "$requested_status" "$payload_checksum" "$payload_uri"
   event terminal-marker-start
   set +e
-  hf_cli buckets cp "$OUTPUT_DIR/terminal-status.json" "${HF_REMOTE_URI%/}/terminal-status.json"
+  hf_cli buckets cp "$TERMINAL_STATUS_PATH" "${HF_REMOTE_URI%/}/terminal-status.json"
   local marker_rc=$?
   set -e
   if (( marker_rc != 0 )); then
-    write_final_status failed "$workload_rc" failed
-    write_checksums
     event terminal-marker-failed
     return 1
   fi

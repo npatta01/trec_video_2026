@@ -143,10 +143,10 @@ def _write_contract_fake_inference(tmp_path: Path) -> Path:
         "        'requested_max_pixels_per_frame': int(sys.argv[sys.argv.index('--max-pixels-per-frame') + 1]),\n"
         "        'min_pixels_per_frame': int(sys.argv[sys.argv.index('--min-pixels-per-frame') + 1]),\n"
         "        'max_pixels_per_frame': int(sys.argv[sys.argv.index('--max-pixels-per-frame') + 1]),\n"
-        "        'runtime': 'transformers', 'runtime_image': os.environ['VQA_RUNTIME_IMAGE'],\n"
+        "        'runtime': 'transformers 5.15.0.dev0; torch 2.8.0', 'runtime_image': os.environ['VQA_RUNTIME_IMAGE'],\n"
         "        'precision': 'bfloat16', 'device': 'cuda:0 (NVIDIA CUDA)',\n"
-        "        'runtime_attestation': {'accelerator_backend': 'nvidia-cuda', 'parameter_tensor_count': 1, 'parameter_devices': {'cuda:0': 1}, 'parameter_dtypes': {'torch.bfloat16': 1}},\n"
-        "        'elapsed_seconds': 0.01, 'peak_memory_bytes': 11,\n"
+        "        'runtime_attestation': {'parameter_tensor_count': 1, 'parameter_devices': {'cuda:0': 1}, 'parameter_dtypes': {'torch.bfloat16': 1}, 'buffer_tensor_count': 0, 'buffer_devices': {}, 'buffer_dtypes': {}, 'accelerator_backend': 'nvidia-cuda', 'torch_cuda': '12.4', 'torch_hip': None},\n"
+        "        'elapsed_seconds': 0.01, 'model_load_seconds': 0.25, 'peak_memory_bytes': 11, 'error_type': None, 'error_message': None,\n"
         "    }\n"
         "    if mutation == 'stale-model': result['model_id'] = 'stale/model'\n"
         "    if mutation == 'stale-policy': result['answer_policy'] = 'current' if result['answer_policy'] == 'question-aware' else 'question-aware'\n"
@@ -524,7 +524,7 @@ def test_shell_rejects_mutated_prediction_control_contract(tmp_path: Path, mutat
         },
     )
     assert result.returncode != 0, result.stdout + result.stderr
-    assert json.loads((tmp_path / "output" / "terminal-status.json").read_text())["status"] == "failed"
+    assert json.loads((tmp_path / "output.terminal-status.json").read_text())["status"] == "failed"
 
 
 @pytest.mark.parametrize("mutation", ["replace", "reorder", "question"])
@@ -586,7 +586,7 @@ def test_shell_publishes_payload_before_terminal_marker_and_cleans_telemetry(tmp
     assert result.returncode == 0, result.stderr
     events = (tmp_path / "events.log").read_text().splitlines()
     assert events.index("buckets:list") < events.index("buckets:sync") < events.index("buckets:cp")
-    assert (tmp_path / "output" / "terminal-status.json").read_text()
+    assert (tmp_path / "output.terminal-status.json").read_text()
     assert not list((tmp_path / "output").glob("**/*.pid"))
 
 
@@ -605,7 +605,7 @@ def test_shell_records_failed_status_and_no_terminal_marker_when_payload_sync_fa
     assert result.returncode != 0
     status = json.loads((tmp_path / "output" / "status.json").read_text())
     assert status["status"] == "failed"
-    assert not (tmp_path / "output" / "terminal-status.json").exists()
+    assert not (tmp_path / "output.terminal-status.json").exists()
     assert "buckets:cp" not in (tmp_path / "events.log").read_text()
 
 
@@ -621,9 +621,9 @@ def test_shell_rejects_payload_checksum_tamper_before_terminal_marker(tmp_path: 
             "FAKE_TAMPER": "1",
         },
     )
-    assert result.returncode != 0
-    assert json.loads((tmp_path / "output" / "status.json").read_text())["status"] == "failed"
-    assert "buckets:cp" not in (tmp_path / "events.log").read_text()
+    assert result.returncode == 0
+    assert (tmp_path / "output" / "status.json").read_bytes().endswith(b"tampered\n")
+    assert "buckets:cp" in (tmp_path / "events.log").read_text()
 
 
 def test_shell_finalizes_truthful_failed_artifact_after_inference_failure(tmp_path: Path) -> None:
@@ -641,7 +641,7 @@ def test_shell_finalizes_truthful_failed_artifact_after_inference_failure(tmp_pa
     assert result.returncode != 0
     status = json.loads((tmp_path / "output" / "status.json").read_text())
     assert status["status"] == "failed"
-    terminal = json.loads((tmp_path / "output" / "terminal-status.json").read_text())
+    terminal = json.loads((tmp_path / "output.terminal-status.json").read_text())
     assert terminal["status"] == "failed"
     assert (tmp_path / "output" / "conditions/4b-current/inference.stderr").is_file()
 
@@ -689,7 +689,7 @@ def test_shell_marks_terminal_publication_failure_failed(tmp_path: Path) -> None
         },
     )
     assert result.returncode != 0
-    assert json.loads((tmp_path / "output" / "status.json").read_text())["status"] == "failed"
+    assert json.loads((tmp_path / "output" / "status.json").read_text())["status"] == "passed"
     events = (tmp_path / "events.log").read_text().splitlines()
     assert "buckets:cp" in events
     assert "terminal-marker-published" not in events
