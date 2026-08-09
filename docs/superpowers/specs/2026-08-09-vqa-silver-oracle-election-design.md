@@ -215,7 +215,7 @@ video/audio and EOS on every attempt, zero generation failures, generation time
 at most 895 seconds, model load at most 120 seconds, reported GPU memory at least
 78,700,000,000 bytes, peak allocation at most 90%, and both peak-reserved and
 sampled-free margins of at least 6 GiB. The four shards run concurrently with a
-`3h20m` job limit and price at most USD 3.35/GPU-hour only if projected aggregate
+`200m` (3h20m) job limit and price at most USD 3.35/GPU-hour only if projected aggregate
 selector time is at most 12 GPU hours and projected longest-shard time is at
 most 3.25 hours.
 

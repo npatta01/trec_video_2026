@@ -101,7 +101,7 @@ scorer, and Quarto QMD reporting.
 - [ ] Render four disjoint 119/119/119/118 full chunks plus the fixed ten-row
   canary and one label-free resource sentinel. Each job uses an H100 with at
   least 80GB VRAM, at least 192GB host RAM, `max_price: 3.35`; full shards use
-  `max_duration: 3h20m`, and every run uses a unique immutable Bucket prefix.
+  `max_duration: 200m` (3h20m), and every run uses a unique immutable Bucket prefix.
 - [ ] Run tests, shell syntax checks, dstack dry-run previews, source-bundle
   hash verification, and a secret scan before any launch.
 - [ ] Commit as `feat: add structured Qwen3-Omni selector runtime`.

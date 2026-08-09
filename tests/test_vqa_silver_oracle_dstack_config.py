@@ -39,7 +39,7 @@ CONTROLLER_URI = (
 def test_selector_configs_are_pinned_private_bounded_tasks() -> None:
     for slice_id, path in CONFIGS.items():
         text = path.read_text(encoding="utf-8")
-        expected_duration = "45m" if slice_id.startswith("canary") else "3h20m"
+        expected_duration = "45m" if slice_id.startswith("canary") else "200m"
         expected_name = (
             "vqa-silver-selector-canary-20260809-b4"
             if slice_id == "canary-b4"
@@ -51,8 +51,16 @@ def test_selector_configs_are_pinned_private_bounded_tasks() -> None:
         assert f"SELECTOR_SLICE={slice_id}" in text
         assert f"MODEL_ID={MODEL_ID}" in text
         assert f"MODEL_REVISION={MODEL_REVISION}" in text
-        assert f"EXPECTED_PROTOCOL_SHA256={'0' * 64}" in text
-        assert "EXECUTION_ATTEMPT_ID=00000000-0000-0000-0000-000000000000" in text
+        assert (
+            "EXPECTED_PROTOCOL_SHA256="
+            "a63dace536d03b8c99062011faa472f37de418901fe8e55a7e3bffb40312901c"
+        ) in text
+        attempt_match = re.search(
+            r"EXECUTION_ATTEMPT_ID=([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-"
+            r"[89ab][0-9a-f]{3}-[0-9a-f]{12})",
+            text,
+        )
+        assert attempt_match is not None
         assert "HF_TOKEN=${{ secrets.hf_token }}" in text
         assert "ports:" not in text
         assert "spot_policy: on-demand" in text
@@ -199,11 +207,20 @@ def test_selector_configs_pin_exact_submitted_source_bundle() -> None:
     expected_source = digest.hexdigest()
 
     revisions = set()
+    attempt_ids = set()
     for path in CONFIGS.values():
         text = path.read_text(encoding="utf-8")
         assert f"EXPECTED_SOURCE_BUNDLE_SHA256={expected_source}" in text
         match = re.search(r"SUBMITTED_CODE_REVISION=([0-9a-f]{40})", text)
         assert match is not None
         revisions.add(match.group(1))
+        attempt_match = re.search(
+            r"EXECUTION_ATTEMPT_ID=([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-"
+            r"[89ab][0-9a-f]{3}-[0-9a-f]{12})",
+            text,
+        )
+        assert attempt_match is not None
+        attempt_ids.add(attempt_match.group(1))
     assert len(revisions) == 1
-    assert revisions != {"0" * 40}
+    assert revisions == {"f204a490f935d2dec1643c16e11bf0c784b7b495"}
+    assert len(attempt_ids) == len(CONFIGS)
