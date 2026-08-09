@@ -702,11 +702,20 @@ def _load_condition_bundle(
             expected_run_ids.add(f"{terminal['run_name']}-{condition_id}")
     if identity.get("run_id") not in expected_run_ids:
         raise ValueError(f"condition {condition_id} run identity is not terminal-bound")
+    identity_transformers_revision = identity.get("transformers_revision")
+    if (
+        identity_transformers_revision is not None
+        and identity_transformers_revision
+        != EXPECTED_RUNTIME_CONTROLS["transformers_revision"]
+    ):
+        raise ValueError(
+            f"condition {condition_id} observed runtime control mismatch: "
+            "transformers_revision"
+        )
     for key, expected in {
         "requested_min_pixels_per_frame": expected_tuple[3],
         "requested_max_pixels_per_frame": expected_tuple[4],
         "runtime_image": EXPECTED_RUNTIME_CONTROLS["runtime_image"],
-        "transformers_revision": EXPECTED_RUNTIME_CONTROLS["transformers_revision"],
         "frame_count": EXPECTED_RUNTIME_CONTROLS["frame_count"],
         "max_new_tokens": EXPECTED_RUNTIME_CONTROLS["max_new_tokens"],
         "do_sample": EXPECTED_RUNTIME_CONTROLS["do_sample"],

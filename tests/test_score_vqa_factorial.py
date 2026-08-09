@@ -892,6 +892,65 @@ def test_production_buffers_allow_mixed_cuda_dtypes_but_bind_count(
     assert len(loaded["rows"]) == 4
 
 
+def test_runtime_file_can_supply_transformers_revision_for_nested_identity(
+    tmp_path: Path,
+) -> None:
+    scorer = load_scorer()
+    bundle = _write_production_bundle(tmp_path / "bundle", scorer, "4b-current")
+    identity_path = (
+        bundle
+        / "payload"
+        / "conditions"
+        / "4b-current"
+        / "condition-identity.json"
+    )
+    identity = json.loads(identity_path.read_text(encoding="utf-8"))
+    identity.pop("transformers_revision")
+    identity_path.write_text(json.dumps(identity), encoding="utf-8")
+    _refresh_download_manifest(bundle)
+
+    loaded = scorer._load_condition_bundle(
+        bundle,
+        condition_id="4b-current",
+        profile_condition=make_profile(scorer)["conditions"][0],
+        expected_rows=4,
+        expected_id_digest=scorer.sorted_video_id_set_sha256(
+            ("v1", "v2", "v3", "v4")
+        ),
+    )
+
+    assert len(loaded["rows"]) == 4
+
+
+def test_conflicting_identity_transformers_revision_fails_closed(
+    tmp_path: Path,
+) -> None:
+    scorer = load_scorer()
+    bundle = _write_production_bundle(tmp_path / "bundle", scorer, "4b-current")
+    identity_path = (
+        bundle
+        / "payload"
+        / "conditions"
+        / "4b-current"
+        / "condition-identity.json"
+    )
+    identity = json.loads(identity_path.read_text(encoding="utf-8"))
+    identity["transformers_revision"] = "0" * 40
+    identity_path.write_text(json.dumps(identity), encoding="utf-8")
+    _refresh_download_manifest(bundle)
+
+    with pytest.raises(ValueError, match="transformers_revision"):
+        scorer._load_condition_bundle(
+            bundle,
+            condition_id="4b-current",
+            profile_condition=make_profile(scorer)["conditions"][0],
+            expected_rows=4,
+            expected_id_digest=scorer.sorted_video_id_set_sha256(
+                ("v1", "v2", "v3", "v4")
+            ),
+        )
+
+
 @pytest.mark.parametrize(
     "mutation, expected",
     [("dependency", "dependency"), ("question_type", "question_type")],

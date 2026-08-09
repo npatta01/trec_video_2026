@@ -659,13 +659,15 @@ run_condition() {
     write_condition_requests "$INPUT_DIR/evidence/requests.accepted-whisper.json" \
       "$condition_dir/requests.json" "$condition_id" "$request_source" "$INPUT_DIR/evidence" "$EXPERIMENT_RUN_NAME"
   fi
-  "$PYTHON_BIN" - "$condition_dir/condition-identity.json" "$profile_info" "$EXPECTED_RUNTIME_IMAGE" <<'PY'
+  "$PYTHON_BIN" - "$condition_dir/condition-identity.json" "$profile_info" \
+    "$EXPECTED_RUNTIME_IMAGE" "$TRANSFORMERS_REVISION" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 payload = json.loads(sys.argv[2])
 payload["runtime_image"] = sys.argv[3]
+payload["transformers_revision"] = sys.argv[4]
 payload["model_class"] = "multimodal"
 payload["deterministic_decoding"] = {
     "do_sample": False,

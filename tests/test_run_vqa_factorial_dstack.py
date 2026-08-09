@@ -335,6 +335,12 @@ def test_success_sync_snapshots_frozen_payload_and_terminal_checksum(tmp_path: P
         "torch_hip": None,
         "runtime_image": IMAGE,
     }
+    identities = sorted((tmp_path / "output/conditions").glob("*/condition-identity.json"))
+    assert identities
+    assert {
+        json.loads(path.read_text(encoding="utf-8"))["transformers_revision"]
+        for path in identities
+    } == {"cbf4d720ec734edb77d25452b2790c7e4be2f8d7"}
     _assert_remote_payload(tmp_path, status="passed")
     assert (tmp_path / "output.terminal-status.json").is_file()
     assert (tmp_path / "remote" / "terminal-status.json").is_file()
