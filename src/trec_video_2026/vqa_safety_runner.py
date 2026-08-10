@@ -14,6 +14,7 @@ from trec_video_2026.vqa_models import build_controlled_messages
 from trec_video_2026.vqa_submission import canonical_sha256
 from trec_video_2026.vqa_safety_submission import (
     build_prediction_row,
+    build_ranked_repair_messages,
     build_ranked_tail_messages,
     validate_resume_prefix,
 )
@@ -37,6 +38,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--limit", type=int)
     parser.add_argument("--tail-max-new-tokens", type=int, default=512)
+    parser.add_argument("--repair-max-new-tokens", type=int, default=256)
     return parser.parse_args()
 
 
@@ -191,10 +193,47 @@ def main() -> int:
                 },
             )
 
+        def generate_repair(
+            row: dict[str, Any], excluded: tuple[str, ...], missing: int
+        ) -> tuple[str, float, dict[str, Any]]:
+            messages = build_ranked_repair_messages(
+                question=row["question"],
+                frame_paths=frame_paths,
+                frame_timestamps=frame_timestamps,
+                excluded_answers=excluded,
+                missing_count=missing,
+            )
+            started = time.monotonic()
+            try:
+                text = generate_from_messages(
+                    processor=processor,
+                    model=model,
+                    messages=messages,
+                    max_new_tokens=args.repair_max_new_tokens,
+                    normalize=False,
+                )
+                status = "passed"
+                error = None
+            except Exception as exc:  # noqa: BLE001 - preserve complete safety rows
+                text = "{}"
+                status = "fallback"
+                error = f"{type(exc).__name__}: {str(exc)[:1000]}"
+            return (
+                text,
+                time.monotonic() - started,
+                {
+                    "status": status,
+                    "error": error,
+                    "request_sha256": canonical_sha256(messages),
+                    **runtime,
+                },
+            )
+
         row = build_prediction_row(
             request,
             generate_primary=generate_primary,
             generate_tail=generate_tail,
+            generate_repair=generate_repair,
         )
         checkpoint["predictions"].append(row)
         _atomic_checkpoint(args.output, checkpoint)

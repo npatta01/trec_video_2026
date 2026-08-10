@@ -29,12 +29,16 @@ SUPPORTED_MEDIA_SUFFIXES = (".mkv", ".mp4", ".webm", ".mov")
 class CandidateCompletion:
     answers: tuple[str, ...]
     parsed_tail_count: int
+    repair_count: int
     fallback_count: int
 
 
 ExtractFrames = Callable[[Path, Path], tuple[tuple[Path, ...], tuple[float, ...]]]
 PrimaryGenerator = Callable[[dict[str, Any]], tuple[str, float, dict[str, Any]]]
 TailGenerator = Callable[[dict[str, Any], str], tuple[str, float, dict[str, Any]]]
+RepairGenerator = Callable[
+    [dict[str, Any], tuple[str, ...], int], tuple[str, float, dict[str, Any]]
+]
 
 
 def sha256_path(path: Path) -> str:
@@ -261,10 +265,60 @@ def build_ranked_tail_messages(
     )
     instruction = (
         "Generate exactly nine additional concise plausible answers, ordered from "
-        "most to least likely. Each must be semantically distinct from the primary "
+        "most to least likely. Each must give a genuinely different core hypothesis; "
+        "paraphrases and repeated strings are forbidden. Each must be semantically "
+        "distinct from the primary "
         f"response {json.dumps(primary, ensure_ascii=False)} and from every other "
         'candidate. Return only a JSON object with the single key "answers" whose '
         "value is an array of exactly nine non-empty strings."
+    )
+    messages[0]["content"][-1] = {"type": "text", "text": instruction}
+    audit_label_free_payload(messages)
+    return messages
+
+
+def build_ranked_repair_messages(
+    *,
+    question: str,
+    frame_paths: tuple[Path, ...],
+    frame_timestamps: tuple[float, ...],
+    excluded_answers: tuple[str, ...],
+    missing_count: int,
+) -> list[dict[str, Any]]:
+    """Build a bounded repair request for missing distinct tail candidates."""
+
+    number_words = {
+        1: "one",
+        2: "two",
+        3: "three",
+        4: "four",
+        5: "five",
+        6: "six",
+        7: "seven",
+        8: "eight",
+        9: "nine",
+    }
+    if missing_count not in number_words:
+        raise ValueError("missing_count must be between one and nine")
+    if not excluded_answers or any(not value.strip() for value in excluded_answers):
+        raise ValueError("excluded_answers must contain non-empty strings")
+    messages = build_controlled_messages(
+        question=question,
+        frame_paths=frame_paths,
+        frame_timestamps=frame_timestamps,
+        transcript=None,
+        answer_policy="current",
+    )
+    instruction = (
+        f"Generate exactly {number_words[missing_count]} additional concise plausible "
+        "answers, ordered from most to least likely. Each answer must give a genuinely "
+        "different core hypothesis about the event, entity, action, object, state, or "
+        "setting. Paraphrases are forbidden. Copying any excluded response is a failure. "
+        "The answers must be semantically distinct from one another and from every "
+        "excluded response in this JSON array: "
+        f"{json.dumps(excluded_answers, ensure_ascii=False)}. Return only a JSON object "
+        'with the single key "answers" whose value is an array of exactly '
+        f"{number_words[missing_count]} non-empty strings."
     )
     messages[0]["content"][-1] = {"type": "text", "text": instruction}
     audit_label_free_payload(messages)
@@ -291,6 +345,21 @@ def parse_ranked_tail(text: str) -> tuple[str, ...]:
             raise ValueError("ranked tail answers must be non-empty strings")
         normalized.append(" ".join(answer.split()))
     return tuple(normalized)
+
+
+def _parse_ranked_repair(text: str, expected_count: int) -> tuple[str, ...]:
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError as error:
+        raise ValueError("ranked repair must be a JSON object") from error
+    if not isinstance(payload, dict) or set(payload) != {"answers"}:
+        raise ValueError("ranked repair must be a JSON object with only answers")
+    answers = payload["answers"]
+    if not isinstance(answers, list) or len(answers) != expected_count:
+        raise ValueError(f"ranked repair must contain exactly {expected_count} answers")
+    if any(not isinstance(answer, str) or not answer.strip() for answer in answers):
+        raise ValueError("ranked repair answers must be non-empty strings")
+    return tuple(" ".join(answer.split()) for answer in answers)
 
 
 def _answer_key(answer: str) -> str:
@@ -334,7 +403,11 @@ def _fallback_candidates(question: str) -> tuple[str, ...]:
 
 
 def complete_ranked_candidates(
-    *, primary_answer: str, tail_text: str, question: str
+    *,
+    primary_answer: str,
+    tail_text: str,
+    question: str,
+    repair_text: str | None = None,
 ) -> CandidateCompletion:
     """Build ten unique candidates and record any deterministic tail fallback."""
 
@@ -356,6 +429,21 @@ def complete_ranked_candidates(
             parsed_tail_count += 1
         if len(answers) == 10:
             break
+    repair_count = 0
+    missing_count = 10 - len(answers)
+    if repair_text is not None and missing_count:
+        try:
+            repaired = _parse_ranked_repair(repair_text, missing_count)
+        except ValueError:
+            repaired = ()
+        for answer in repaired:
+            key = _answer_key(answer)
+            if key and key not in seen:
+                answers.append(answer)
+                seen.add(key)
+                repair_count += 1
+            if len(answers) == 10:
+                break
     for answer in _fallback_candidates(question):
         if len(answers) == 10:
             break
@@ -368,7 +456,8 @@ def complete_ranked_candidates(
     return CandidateCompletion(
         answers=tuple(answers),
         parsed_tail_count=parsed_tail_count,
-        fallback_count=9 - parsed_tail_count,
+        repair_count=repair_count,
+        fallback_count=9 - parsed_tail_count - repair_count,
     )
 
 
@@ -455,6 +544,7 @@ def build_prediction_row(
     *,
     generate_primary: PrimaryGenerator,
     generate_tail: TailGenerator,
+    generate_repair: RepairGenerator | None = None,
 ) -> dict[str, Any]:
     """Execute the two-pass safety policy for one prepared query."""
 
@@ -477,6 +567,29 @@ def build_prediction_row(
         tail_text=tail_text,
         question=request["question"],
     )
+    repair_text: str | None = None
+    repair_elapsed = 0.0
+    repair_provenance: dict[str, Any] | None = None
+    if completion.fallback_count and generate_repair is not None:
+        excluded = completion.answers[: 1 + completion.parsed_tail_count]
+        repair_text, repair_elapsed, repair_provenance = generate_repair(
+            request, excluded, completion.fallback_count
+        )
+        if not isinstance(repair_provenance, dict):
+            raise TypeError("repair provenance must be an object")
+        if (
+            isinstance(repair_elapsed, bool)
+            or not isinstance(repair_elapsed, (int, float))
+            or not math.isfinite(repair_elapsed)
+            or repair_elapsed < 0
+        ):
+            raise ValueError("repair elapsed time must be finite and non-negative")
+        completion = complete_ranked_candidates(
+            primary_answer=primary,
+            tail_text=tail_text,
+            question=request["question"],
+            repair_text=repair_text,
+        )
     answers: list[dict[str, Any]] = []
     for index, answer in enumerate(completion.answers):
         if index == 0:
@@ -485,6 +598,9 @@ def build_prediction_row(
         elif index <= completion.parsed_tail_count:
             elapsed = float(tail_elapsed)
             source = "ranked-tail"
+        elif index <= completion.parsed_tail_count + completion.repair_count:
+            elapsed = float(repair_elapsed)
+            source = "ranked-repair"
         else:
             elapsed = 0.0
             source = "deterministic-fallback"
@@ -495,9 +611,13 @@ def build_prediction_row(
         "availability": request["availability"],
         "answers": answers,
         "parsed_tail_count": completion.parsed_tail_count,
+        "repair_count": completion.repair_count,
         "fallback_count": completion.fallback_count,
+        "tail_raw_text": tail_text,
+        "repair_raw_text": repair_text,
         "rank1_provenance": primary_provenance,
         "tail_provenance": tail_provenance,
+        "repair_provenance": repair_provenance,
     }
 
 

@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from trec_video_2026.vqa_safety_submission import (
+    build_ranked_repair_messages,
     build_ranked_tail_messages,
     build_test_manifest,
     complete_ranked_candidates,
@@ -141,6 +142,20 @@ def test_ranked_tail_prompt_excludes_primary_and_requests_exact_json(
     serialized = json.dumps(messages).lower()
     assert "reference answer" not in serialized
     assert "ground truth" not in serialized
+
+    repair = build_ranked_repair_messages(
+        question="What happens next?",
+        frame_paths=(frame,),
+        frame_timestamps=(0.5,),
+        excluded_answers=("The person leaves", "The person stays"),
+        missing_count=2,
+    )
+    repair_instruction = repair[0]["content"][-1]["text"]
+    assert "exactly two" in repair_instruction
+    assert "Paraphrases are forbidden" in repair_instruction
+    assert "Copying any excluded response is a failure" in repair_instruction
+    assert "The person leaves" in repair_instruction
+    assert "The person stays" in repair_instruction
 
 
 def test_parse_ranked_tail_accepts_only_ordered_nonempty_strings() -> None:
@@ -392,6 +407,66 @@ def test_prediction_row_keeps_primary_first_and_records_tail_fallbacks() -> None
     assert row["fallback_count"] == 1
     assert row["answers"][-1]["source"] == "deterministic-fallback"
     assert row["rank1_provenance"]["request_sha256"] == "a" * 64
+    assert row["tail_raw_text"].startswith("{")
+
+
+def test_prediction_row_repairs_duplicate_tail_before_fallback() -> None:
+    request = {
+        "query_id": 10,
+        "video_id": "video-10",
+        "question": "What happens?",
+        "availability": "available",
+        "frame_paths": [f"frame-{index}.jpg" for index in range(12)],
+        "frame_timestamps": [float(index) for index in range(12)],
+    }
+    repair_calls: list[tuple[tuple[str, ...], int]] = []
+
+    def repair(
+        _request: dict[str, object], excluded: tuple[str, ...], missing: int
+    ) -> tuple[str, float, dict[str, str]]:
+        repair_calls.append((excluded, missing))
+        return (
+            json.dumps({"answers": ["Repair eight", "Repair nine"]}),
+            3.0,
+            {"request_sha256": "c" * 64},
+        )
+
+    row = build_prediction_row(
+        request,
+        generate_primary=lambda _: ("Primary", 1.0, {"request_sha256": "a" * 64}),
+        generate_tail=lambda _request, _primary: (
+            json.dumps(
+                {
+                    "answers": [
+                        "One",
+                        "Two",
+                        "Three",
+                        "Four",
+                        "Five",
+                        "Six",
+                        "Seven",
+                        "One",
+                        "Primary",
+                    ]
+                }
+            ),
+            2.0,
+            {"request_sha256": "b" * 64},
+        ),
+        generate_repair=repair,
+    )
+
+    assert repair_calls == [
+        (tuple(["Primary", "One", "Two", "Three", "Four", "Five", "Six", "Seven"]), 2)
+    ]
+    assert row["repair_count"] == 2
+    assert row["fallback_count"] == 0
+    assert row["answers"][-1] == {
+        "answer": "Repair nine",
+        "elapsed_seconds": 3.0,
+        "source": "ranked-repair",
+    }
+    assert row["repair_raw_text"] == '{"answers": ["Repair eight", "Repair nine"]}'
 
 
 def test_uniform_frame_extraction_writes_twelve_hashed_frames(tmp_path: Path) -> None:
