@@ -1226,6 +1226,7 @@ def _extract_live_frame(
         if destination.is_symlink() or not destination.is_file():
             raise ValueError(f"refusing to reuse unsafe frame path: {destination}")
         return _hash_path(destination)
+    jpeg_options = ["-q:v", "2"] if destination.suffix.lower() in {".jpg", ".jpeg"} else []
     subprocess.run(
         [
             "ffmpeg",
@@ -1240,6 +1241,7 @@ def _extract_live_frame(
             "0:v:0",
             "-frames:v",
             "1",
+            *jpeg_options,
             "-y",
             str(destination),
         ],
@@ -1409,9 +1411,10 @@ def _live_evidence(
     plan_without_paths = build_global_local_frame_plan(duration, inventory, timeline)
     evidence_root = prepared.path / "evidence" / "rows" / str(example["query_id"])
     frame_root = evidence_root / "frames"
+    frame_suffix = ".jpg" if provider_video is not None else ".png"
     materialized: list[FrameSelection] = []
     for index, frame in enumerate(plan_without_paths.all_frames):
-        frame_path = frame_root / f"frame-{index:03d}.png"
+        frame_path = frame_root / f"frame-{index:03d}{frame_suffix}"
         image_sha = _extract_live_frame(media_path, frame, frame_path)
         materialized.append(
             FrameSelection(

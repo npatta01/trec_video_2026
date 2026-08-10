@@ -215,6 +215,22 @@ def test_response_read_is_bounded_and_oversized_body_is_rejected(
     assert response.read_sizes == [openrouter.MAX_RESPONSE_BYTES + 1]
 
 
+def test_oversized_serialized_request_is_rejected_before_opener(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opener = FakeOpener([])
+    transport = _transport(monkeypatch, opener)
+
+    with pytest.raises(ProviderProtocolError, match="size limit"):
+        transport.generate(
+            model=MODEL_ID,
+            parts=("x" * 30_000_000,),
+            schema={},
+        )
+
+    assert opener.requests == []
+
+
 def test_upload_is_local_and_delete_cleans_the_opaque_record(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

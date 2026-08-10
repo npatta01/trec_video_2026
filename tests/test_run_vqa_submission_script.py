@@ -615,6 +615,7 @@ def test_nonfixture_never_uses_fixture_evidence_and_timeline_has_source_media(
 ) -> None:
     module, run_dir, media = _live_fixture_run(tmp_path, monkeypatch)
     captured: list[dict[str, object]] = []
+    extracted_frames: list[Path] = []
 
     def fail_fixture(*args: object, **kwargs: object) -> object:
         raise AssertionError("non-fixture run used synthetic fixture evidence")
@@ -636,6 +637,7 @@ def test_nonfixture_never_uses_fixture_evidence_and_timeline_has_source_media(
     )
 
     def fake_extract(path: Path, frame: object, destination: Path) -> str:
+        extracted_frames.append(destination)
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(f"frame-{destination.name}".encode())
         return module._hash_path(destination)
@@ -652,6 +654,8 @@ def test_nonfixture_never_uses_fixture_evidence_and_timeline_has_source_media(
     assert timeline["media_path"] == str(media)
     assert Path(str(timeline["audio_path"])).is_file()
     assert Path(str(timeline["audio_path"])) != media
+    assert extracted_frames
+    assert all(path.suffix == ".png" for path in extracted_frames)
 
 
 def test_base_era_gemini_timeline_checkpoint_is_reused_without_paid_call(
@@ -1398,3 +1402,83 @@ def test_openrouter_live_mkv_gets_one_durable_video_only_copy_and_exact_resume(
     assert [row["request_sha256"] for row in _jsonl(run_dir / "attempts.jsonl")] == (
         first_request_hashes
     )
+
+
+def test_openrouter_live_evidence_uses_quality_two_jpegs_bound_to_requests(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module, run_dir, media = _live_fixture_run(
+        tmp_path, monkeypatch, media_suffix=".mkv"
+    )
+    source_sha = module._hash_path(media)
+    inventory = [
+        {
+            "stream_index": 0,
+            "frame_index": index,
+            "actual_pts_seconds": (index + 0.5) * 2.0 / 40,
+            "time_base": "1/1000",
+            "source_media_sha256": source_sha,
+        }
+        for index in range(40)
+    ]
+    monkeypatch.setattr(
+        module, "_decode_live_frame_inventory", lambda path, duration: inventory
+    )
+    ffmpeg_calls: list[list[str]] = []
+
+    def fake_ffmpeg(command: list[str], **kwargs: object) -> None:
+        ffmpeg_calls.append(command)
+        destination = Path(command[-1])
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(f"artifact-{destination.name}".encode())
+
+    monkeypatch.setattr(module.subprocess, "run", fake_ffmpeg)
+
+    class OpenRouterFixture(module.FixtureTransport):
+        provider_name = "openrouter"
+
+    first = module.run_prepared(run_dir, transport=OpenRouterFixture())
+    assert first.completed_rows == 1
+
+    frame_commands = [command for command in ffmpeg_calls if "-frames:v" in command]
+    assert frame_commands
+    assert all(Path(command[-1]).suffix == ".jpg" for command in frame_commands)
+    assert all(command[command.index("-q:v") + 1] == "2" for command in frame_commands)
+    assert all("-vf" not in command and "-s" not in command for command in frame_commands)
+
+    manifest_path = run_dir / "evidence" / "rows" / "1" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    frames = manifest["frames"]
+    frame_paths = [Path(frame["frame_path"]) for frame in frames]
+    frame_hashes = [frame["image_sha256"] for frame in frames]
+    assert len(frames) == manifest["global_frame_count"] + manifest["local_frame_count"]
+    assert all(path.is_file() and path.suffix == ".jpg" for path in frame_paths)
+    assert frame_hashes == [module._hash_path(path) for path in frame_paths]
+    for frame in frames:
+        decoded = frame["decoded_identity"]
+        source = inventory[decoded["frame_index"]]
+        assert decoded["stream_index"] == source["stream_index"]
+        assert frame["actual_pts_seconds"] == source["actual_pts_seconds"]
+        assert frame["source_media_sha256"] == source_sha
+
+    all_frame_request = next(
+        row["request"]
+        for row in _jsonl(run_dir / "attempts.jsonl")
+        if row["stage"] == "answer" and row["pass_id"] == "global-local-timeline"
+    )
+    model_payload = all_frame_request["model_payload"]
+    assert model_payload["frame_paths"] == [str(path.resolve()) for path in frame_paths]
+    assert model_payload["frame_timestamps"] == [
+        frame["requested_time_seconds"] for frame in frames
+    ]
+    assert [
+        item["image_sha256"] for item in model_payload["frame_provenance"]
+    ] == frame_hashes
+
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *args, **kwargs: pytest.fail("resume recreated durable evidence"),
+    )
+    second = module.run_prepared(run_dir, transport=OpenRouterFixture())
+    assert second.reused_rows == 1

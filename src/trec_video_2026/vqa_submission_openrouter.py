@@ -31,6 +31,7 @@ OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models/user"
 AUTHENTICATION_ERROR_MESSAGE = "OpenRouter API authentication is not configured"
 MAX_UPLOAD_BYTES = 64 * 1024 * 1024
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+MAX_REQUEST_BYTES = 30_000_000
 MAX_OUTPUT_TOKENS = 32768
 HTTP_TIMEOUT_SECONDS = 120.0
 
@@ -314,9 +315,12 @@ class OpenRouterTransport:
         seed_input = dict(payload)
         seed = int(hashlib.sha256(_json_bytes(seed_input)).hexdigest()[:16], 16) & 0x7FFF_FFFF
         payload["seed"] = seed
+        request_bytes = _json_bytes(payload)
+        if len(request_bytes) > MAX_REQUEST_BYTES:
+            raise ProviderProtocolError("OpenRouter request exceeds the size limit")
         request = urllib.request.Request(
             OPENROUTER_CHAT_URL,
-            data=_json_bytes(payload),
+            data=request_bytes,
             headers=self._headers(),
             method="POST",
         )
