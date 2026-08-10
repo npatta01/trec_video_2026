@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import math
+import random
 import re
 import unicodedata
 from collections.abc import Mapping, Sequence
@@ -77,9 +78,7 @@ _SAFE_PROVENANCE_FIELDS = frozenset(
         "status",
     }
 )
-_SAFE_PROVENANCE_STATUSES = frozenset(
-    {"failed", "passed", "timed_out", "unsupported"}
-)
+_SAFE_PROVENANCE_STATUSES = frozenset({"failed", "passed", "timed_out", "unsupported"})
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -172,32 +171,22 @@ def _validate_runtime_provenance(
     validated: dict[str, object] = {}
     for key, raw_value in value.items():
         if key not in _SAFE_PROVENANCE_FIELDS:
-            raise ValueError(
-                f"runtime_provenance contains unsupported field: {key}"
-            )
+            raise ValueError(f"runtime_provenance contains unsupported field: {key}")
         if not isinstance(raw_value, str):
             raise TypeError(f"runtime_provenance[{key}] must be a string")
         if key in {"request_sha256", "response_sha256"}:
-            validated[key] = _validate_sha256(
-                raw_value, f"runtime_provenance[{key}]"
-            )
+            validated[key] = _validate_sha256(raw_value, f"runtime_provenance[{key}]")
         elif key == "model_id":
             if raw_value != MODEL_ID:
-                raise ValueError(
-                    f"runtime_provenance[{key}] must be {MODEL_ID}"
-                )
+                raise ValueError(f"runtime_provenance[{key}] must be {MODEL_ID}")
             validated[key] = raw_value
         elif key == "status":
             if raw_value not in _SAFE_PROVENANCE_STATUSES:
-                raise ValueError(
-                    f"runtime_provenance[{key}] has an unsupported status"
-                )
+                raise ValueError(f"runtime_provenance[{key}] has an unsupported status")
             validated[key] = raw_value
         else:
             pattern = (
-                _SAFE_PROVENANCE_DEVICE
-                if key == "device"
-                else _SAFE_PROVENANCE_TOKEN
+                _SAFE_PROVENANCE_DEVICE if key == "device" else _SAFE_PROVENANCE_TOKEN
             )
             if pattern.fullmatch(raw_value) is None:
                 raise ValueError(
@@ -235,10 +224,14 @@ def _forbidden_term(text: str) -> str | None:
 
 def _is_path_key(key: str) -> bool:
     normalized = _KEY_BOUNDARY.sub("_", key).casefold().strip("_")
-    return (
-        normalized in {"path", "paths", "file", "files", "directory", "url"}
-        or normalized.endswith(("_path", "_paths", "_file", "_files", "_url"))
-    )
+    return normalized in {
+        "path",
+        "paths",
+        "file",
+        "files",
+        "directory",
+        "url",
+    } or normalized.endswith(("_path", "_paths", "_file", "_files", "_url"))
 
 
 def _audit(value: Any, *, location: str, path_context: bool = False) -> None:
@@ -327,7 +320,10 @@ class RunManifest:
     pass_ids: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        if isinstance(self.schema_version, bool) or self.schema_version != SCHEMA_VERSION:
+        if (
+            isinstance(self.schema_version, bool)
+            or self.schema_version != SCHEMA_VERSION
+        ):
             raise ValueError(f"schema_version must be {SCHEMA_VERSION}")
         _nonempty_text(self.protocol_version, "protocol_version")
         _nonempty_text(self.run_id, "run_id")
@@ -421,9 +417,7 @@ class VerifierDecision:
     support_by_pass: Mapping[str, str]
 
     def __post_init__(self) -> None:
-        ranked_pass_ids = _validate_text_tuple(
-            self.ranked_pass_ids, "ranked_pass_ids"
-        )
+        ranked_pass_ids = _validate_text_tuple(self.ranked_pass_ids, "ranked_pass_ids")
         if not isinstance(self.support_by_pass, Mapping):
             raise TypeError("support_by_pass must be a mapping")
         support_by_pass = dict(self.support_by_pass)
@@ -469,9 +463,7 @@ class RankedPrediction:
         candidate_pass_ids = tuple(candidate.pass_id for candidate in candidates)
         if len(set(candidate_pass_ids)) != len(candidate_pass_ids):
             raise ValueError("candidates must contain unique pass IDs")
-        ranked_pass_ids = _validate_text_tuple(
-            self.ranked_pass_ids, "ranked_pass_ids"
-        )
+        ranked_pass_ids = _validate_text_tuple(self.ranked_pass_ids, "ranked_pass_ids")
         if len(ranked_pass_ids) != len(PASS_IDS) or set(ranked_pass_ids) != set(
             candidate_pass_ids
         ):
@@ -667,21 +659,871 @@ def serialize_ag_submission(
     return result
 
 
+_QUESTION_ROUTE_PATTERNS = (
+    (
+        "ocr-detail",
+        (
+            r"\b(?:text|writing|written|letter|word|read|transcribe)\b",
+            r"\b(?:sign|poster|banner|screen|label)\s+(?:say|show|read)",
+            r"\bwhat\s+is\s+on\b",
+            r"\bcolou?r\b",
+        ),
+    ),
+    (
+        "speech",
+        (
+            r"\b(?:say|said|saying|speak|spoken|speech|conversation)\b",
+            r"\bwhat\s+is\s+being\s+said\b",
+        ),
+    ),
+    (
+        "count",
+        (
+            r"^how\s+many\b",
+            r"^how\s+much\b",
+            r"\b(?:number|count)\s+of\b",
+        ),
+    ),
+    (
+        "temporal",
+        (
+            r"\b(?:before|after|next|first|last|then|when|while|during)\b",
+            r"\b(?:happens?|happened|occurs?)\b",
+            r"\bby\s+the\s+end\b",
+        ),
+    ),
+    (
+        "causal",
+        (
+            r"^why\b",
+            r"\bwhat\s+(?:causes?|caused|leads?)\b",
+            r"^how\s+can\b",
+            r"\bhow\s+does\b.*\bwork\b",
+        ),
+    ),
+)
+_QUESTION_ROUTES = frozenset(
+    {route for route, _patterns in _QUESTION_ROUTE_PATTERNS} | {"other"}
+)
+_BACKFILL_ATTEMPTS = frozenset({1, 2})
+
+
+def route_question(question: str) -> str:
+    """Route a question using only deterministic text rules."""
+
+    if not isinstance(question, str):
+        raise TypeError("question must be a string")
+    normalized = " ".join(question.split())
+    if not normalized:
+        raise ValueError("question cannot be empty")
+    for route, patterns in _QUESTION_ROUTE_PATTERNS:
+        if any(
+            re.search(pattern, normalized, flags=re.IGNORECASE) for pattern in patterns
+        ):
+            return route
+    return "other"
+
+
+def _row_value(row: Any, *names: str, default: Any = None) -> Any:
+    if isinstance(row, Mapping):
+        for name in names:
+            if name in row:
+                return row[name]
+        return default
+    for name in names:
+        if hasattr(row, name):
+            return getattr(row, name)
+    return default
+
+
+def _as_optional_path(value: Any, field: str) -> Path | None:
+    if value is None:
+        return None
+    if not isinstance(value, (str, Path)):
+        raise TypeError(f"{field} must be a path or None")
+    path = Path(value)
+    if not str(path):
+        raise ValueError(f"{field} cannot be empty")
+    return path
+
+
+def _timeline_model_payload(timeline: Any) -> dict[str, Any]:
+    if not all(
+        hasattr(timeline, field)
+        for field in ("duration_seconds", "events", "support_spans")
+    ):
+        raise TypeError("timeline must be a ValidatedTimeline")
+    payload = {
+        "duration_seconds": timeline.duration_seconds,
+        "events": [event.to_dict() for event in timeline.events],
+        "support_spans": [span.to_dict() for span in timeline.support_spans],
+    }
+    if getattr(timeline, "fallback_reason", None) is not None:
+        payload["fallback_reason"] = timeline.fallback_reason
+    audit_label_free_payload(payload)
+    return payload
+
+
+def _frame_path(frame: Any) -> Path:
+    path = getattr(frame, "frame_path", None)
+    if path is None:
+        raise ValueError("materialized evidence frame is missing frame_path")
+    return Path(path)
+
+
+def _frame_provenance(frames: Sequence[Any]) -> tuple[Mapping[str, Any], ...]:
+    return tuple(
+        {
+            "frame_path": str(_frame_path(frame)),
+            "requested_time_seconds": frame.requested_time_seconds,
+            "actual_pts_seconds": frame.actual_pts_seconds,
+            "stream_index": frame.stream_index,
+            "frame_index": frame.frame_index,
+            "time_base": frame.time_base,
+            "source_media_sha256": frame.source_media_sha256,
+            "image_sha256": frame.image_sha256,
+            "support_span_id": frame.support_span_id,
+        }
+        for frame in frames
+    )
+
+
+def _source_span_ids(evidence_plan: Any) -> tuple[str, ...]:
+    return tuple(span.span_id for span in evidence_plan.support_spans)
+
+
+def _frame_values(frames: Sequence[Any]) -> tuple[tuple[Path, ...], tuple[float, ...]]:
+    return (
+        tuple(_frame_path(frame) for frame in frames),
+        tuple(frame.requested_time_seconds for frame in frames),
+    )
+
+
+def _context(row: Any, timeline: Any, evidence_plan: Any) -> dict[str, Any]:
+    if isinstance(row, Mapping):
+        audit_label_free_payload(row)
+    if not all(
+        hasattr(evidence_plan, field)
+        for field in ("duration_seconds", "global_frames", "local_frames", "all_frames")
+    ):
+        raise TypeError("evidence_plan must be an EvidencePlan")
+    timeline_payload = _timeline_model_payload(timeline)
+    if not math.isclose(
+        float(timeline.duration_seconds),
+        float(evidence_plan.duration_seconds),
+        rel_tol=0,
+        abs_tol=1e-6,
+    ):
+        raise ValueError("timeline and evidence plan durations must match")
+    video_id = _row_value(row, "video_id", "Video_ID")
+    question = _row_value(row, "question", "Question")
+    run_id = _row_value(row, "run_id", "Run_ID", default="vqa-submission")
+    if not isinstance(video_id, str) or not video_id.strip():
+        raise ValueError("row video_id must be a non-empty string")
+    if not isinstance(question, str) or not question.strip():
+        raise ValueError("row question must be a non-empty string")
+    if not isinstance(run_id, str) or not run_id.strip():
+        raise ValueError("row run_id must be a non-empty string")
+    media_path = _as_optional_path(
+        _row_value(row, "media_path", "media", "video_path"), "media_path"
+    )
+    audio_path = _as_optional_path(_row_value(row, "audio_path", "audio"), "audio_path")
+    transcript = evidence_plan.transcript.text if evidence_plan.transcript else None
+    frames = tuple(evidence_plan.all_frames)
+    source_sha256 = next(
+        (
+            frame.source_media_sha256
+            for frame in frames
+            if frame.source_media_sha256 is not None
+        ),
+        None,
+    )
+    row_source_sha256 = _row_value(
+        row, "media_sha256", "source_media_sha256", default=source_sha256
+    )
+    if row_source_sha256 is not None:
+        _validate_sha256(row_source_sha256, "media_sha256")
+    return {
+        "run_id": run_id,
+        "video_id": video_id,
+        "question": " ".join(question.split()),
+        "media_path": media_path,
+        "audio_path": audio_path,
+        "question_route": route_question(question),
+        "timeline_payload": timeline_payload,
+        "transcript": transcript,
+        "source_span_ids": _source_span_ids(evidence_plan),
+        "all_frames": frames,
+        "media_sha256": row_source_sha256,
+    }
+
+
+def _scene_boundary_frames(all_frames: Sequence[Any], timeline: Any) -> tuple[Any, ...]:
+    selected: dict[tuple[int, int], Any] = {}
+    for frame in all_frames:
+        if frame.slot_kind == "global":
+            selected[frame.decoded_identity] = frame
+    for event in timeline.events:
+        before = [
+            frame
+            for frame in all_frames
+            if frame.actual_pts_seconds <= event.start_seconds
+        ]
+        after = [
+            frame
+            for frame in all_frames
+            if frame.actual_pts_seconds >= event.start_seconds
+        ]
+        if before:
+            frame = max(
+                before,
+                key=lambda item: (item.actual_pts_seconds, item.decoded_identity),
+            )
+            selected[frame.decoded_identity] = frame
+        if after:
+            frame = min(
+                after, key=lambda item: (item.actual_pts_seconds, item.decoded_identity)
+            )
+            selected[frame.decoded_identity] = frame
+    return tuple(
+        sorted(
+            selected.values(),
+            key=lambda frame: (
+                frame.requested_time_seconds,
+                frame.actual_pts_seconds,
+                frame.stream_index,
+                frame.frame_index,
+            ),
+        )
+    )
+
+
+def _candidate_text(candidate: Any) -> str:
+    if isinstance(candidate, CandidateRecord):
+        return candidate.answer
+    if not isinstance(candidate, str) or not candidate.strip():
+        raise ValueError("candidate text must be a non-empty string")
+    return candidate
+
+
+def _build_answer_request(
+    context: Mapping[str, Any],
+    *,
+    pass_id: str,
+    frames: Sequence[Any],
+    transcript: str | None,
+    timeline_payload: Mapping[str, Any] | None,
+    instruction: str,
+    audio_mode: str | None = None,
+    include_media: bool = False,
+    candidate_texts: Sequence[str] = (),
+    attempt: int | None = None,
+    excluded_normalized_answers: Sequence[str] = (),
+) -> AnswerRequest:
+    frame_paths, frame_timestamps = _frame_values(frames)
+    return AnswerRequest(
+        run_id=context["run_id"],
+        condition_id=pass_id,
+        video_id=context["video_id"],
+        question=context["question"],
+        pass_id=pass_id,
+        frame_paths=frame_paths,
+        frame_timestamps=frame_timestamps,
+        transcript=transcript,
+        media_path=context["media_path"] if include_media else None,
+        audio_path=context["audio_path"] if audio_mode == "audio-on" else None,
+        frame_descriptions=tuple(
+            f"Frame at {frame.requested_time_seconds:.3f} seconds "
+            f"(decoded PTS {frame.actual_pts_seconds:.3f}):"
+            for frame in frames
+        ),
+        audio_mode=audio_mode,
+        source_span_ids=context["source_span_ids"],
+        question_route=context["question_route"],
+        evidence_policy=instruction,
+        timeline_payload=timeline_payload,
+        frame_provenance=_frame_provenance(frames),
+        media_bytes_sha256=context["media_sha256"],
+        candidate_texts=tuple(candidate_texts),
+        attempt=attempt,
+        excluded_normalized_answers=tuple(excluded_normalized_answers),
+    )
+
+
+_PASS_INSTRUCTIONS = {
+    "direct-av": "Use the complete native video and audio. Return one concise supported response.",
+    "direct-av-alternate": "Use the complete native video and audio. Reconsider ambiguity and return one distinct supported response.",
+    "global-transcript": "Use the chronological global frames and timestamped transcript to answer concisely.",
+    "global-local-timeline": "Use the complete global and local evidence, transcript, and frozen timeline. Answer concisely.",
+    "question-specialist": "Use the union evidence and apply the deterministic question specialist route before answering concisely.",
+    "local-only": "Use only dense support-span frames and overlapping transcript text. Avoid unsupported specificity.",
+    "audio-first": "Prioritize relevant speech and audio transcript, checking global visual context before answering.",
+    "scene-boundary": "Compare frames around detected event boundaries with global context and answer concisely.",
+    "detail-temporal-route": "Use the deterministic route-specific evidence view and answer only what it supports.",
+    "conservative-synthesis": "Synthesize only from the supplied candidate texts and union evidence; add no unsupported detail.",
+}
+
+
+@dataclass(frozen=True)
+class AnswerRequest:
+    """One deterministic, label-free model input for an answer pass."""
+
+    run_id: str
+    condition_id: str
+    video_id: str
+    question: str
+    pass_id: str
+    frame_paths: tuple[Path, ...]
+    frame_timestamps: tuple[float, ...]
+    transcript: str | None
+    media_path: Path | None
+    audio_path: Path | None = None
+    frame_descriptions: tuple[str, ...] | None = None
+    audio_mode: str | None = None
+    source_span_ids: tuple[str, ...] = ()
+    question_route: str = "other"
+    evidence_policy: str = ""
+    timeline_payload: Mapping[str, Any] | None = None
+    frame_provenance: tuple[Mapping[str, Any], ...] = ()
+    media_bytes_sha256: str | None = None
+    candidate_texts: tuple[str, ...] = ()
+    candidate_pass_ids: tuple[str, ...] = ()
+    attempt: int | None = None
+    excluded_normalized_answers: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        for field_name in ("run_id", "condition_id", "video_id", "question", "pass_id"):
+            _nonempty_text(getattr(self, field_name), field_name)
+        if self.pass_id not in PASS_IDS and self.pass_id not in {
+            "backfill-1",
+            "backfill-2",
+        }:
+            raise ValueError(
+                "pass_id must be one of the ten passes or a bounded backfill"
+            )
+        paths = tuple(Path(path) for path in self.frame_paths)
+        timestamps = tuple(
+            _finite_number(value, f"frame_timestamps[{index}]", nonnegative=True)
+            for index, value in enumerate(self.frame_timestamps)
+        )
+        if len(paths) != len(timestamps):
+            raise ValueError("Frame paths and timestamps must have equal length")
+        if self.frame_descriptions is not None:
+            descriptions = _validate_text_tuple(
+                self.frame_descriptions, "frame_descriptions"
+            )
+            if len(descriptions) != len(paths):
+                raise ValueError("Frame descriptions and paths must have equal length")
+            object.__setattr__(self, "frame_descriptions", descriptions)
+        if self.transcript is not None:
+            _nonempty_text(self.transcript, "transcript")
+        if self.audio_mode not in {None, "audio-off", "audio-on"}:
+            raise ValueError("audio_mode must be audio-off or audio-on")
+        if self.question_route not in _QUESTION_ROUTES:
+            raise ValueError("question_route is unsupported")
+        source_span_ids = _validate_text_tuple(self.source_span_ids, "source_span_ids")
+        if len(set(source_span_ids)) != len(source_span_ids):
+            raise ValueError("source_span_ids must be unique")
+        candidate_texts = _validate_text_tuple(self.candidate_texts, "candidate_texts")
+        if len(candidate_texts) > 9:
+            raise ValueError(
+                "conservative-synthesis accepts at most nine candidate texts"
+            )
+        if self.candidate_pass_ids:
+            raise ValueError("model requests cannot contain private candidate pass IDs")
+        if self.attempt is not None and self.attempt not in _BACKFILL_ATTEMPTS:
+            raise ValueError("backfill attempt must be exactly 1 or 2")
+        excluded = _validate_text_tuple(
+            self.excluded_normalized_answers, "excluded_normalized_answers"
+        )
+        if tuple(sorted(set(excluded))) != excluded:
+            raise ValueError("excluded_normalized_answers must be sorted and unique")
+        if self.media_bytes_sha256 is not None:
+            _validate_sha256(self.media_bytes_sha256, "media_bytes_sha256")
+        if self.timeline_payload is not None:
+            audit_label_free_payload(self.timeline_payload)
+        provenance = tuple(_freeze(item) for item in self.frame_provenance)
+        for item in provenance:
+            if not isinstance(item, Mapping):
+                raise TypeError("frame_provenance must contain mappings")
+        object.__setattr__(self, "frame_paths", paths)
+        object.__setattr__(self, "frame_timestamps", timestamps)
+        object.__setattr__(self, "source_span_ids", source_span_ids)
+        object.__setattr__(self, "candidate_texts", candidate_texts)
+        object.__setattr__(self, "excluded_normalized_answers", excluded)
+        object.__setattr__(self, "frame_provenance", provenance)
+        if self.media_path is not None:
+            object.__setattr__(self, "media_path", Path(self.media_path))
+        if self.audio_path is not None:
+            object.__setattr__(self, "audio_path", Path(self.audio_path))
+
+    def to_model_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "run_id": self.run_id,
+            "condition_id": self.condition_id,
+            "video_id": self.video_id,
+            "question": self.question,
+            "frame_paths": [str(path.resolve()) for path in self.frame_paths],
+            "frame_timestamps": list(self.frame_timestamps),
+            "frame_descriptions": (
+                list(self.frame_descriptions)
+                if self.frame_descriptions is not None
+                else None
+            ),
+            "transcript": self.transcript,
+            "media_path": str(self.media_path.resolve()) if self.media_path else None,
+            "audio_path": str(self.audio_path.resolve()) if self.audio_path else None,
+            "audio_mode": self.audio_mode,
+            "source_span_ids": list(self.source_span_ids),
+            "question_route": self.question_route,
+            "evidence_policy": self.evidence_policy,
+            "instruction": self.evidence_policy,
+            "frame_provenance": _thaw(self.frame_provenance),
+        }
+        if self.timeline_payload is not None:
+            payload["timeline"] = _thaw(self.timeline_payload)
+        if self.candidate_texts:
+            payload["candidate_texts"] = list(self.candidate_texts)
+        if self.excluded_normalized_answers:
+            payload["excluded_normalized_answers"] = list(
+                self.excluded_normalized_answers
+            )
+        audit_label_free_payload(payload)
+        return payload
+
+    @property
+    def request_sha256(self) -> str:
+        return canonical_sha256(self.to_model_payload())
+
+    @property
+    def model_visible_bytes_sha256(self) -> str:
+        material = {
+            "payload": self.to_model_payload(),
+            "media_bytes_sha256": self.media_bytes_sha256,
+            "frame_image_sha256": [
+                item.get("image_sha256") for item in self.frame_provenance
+            ],
+        }
+        return canonical_sha256(material)
+
+    @property
+    def model_visible_byte_sha256(self) -> str:
+        return self.model_visible_bytes_sha256
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "run_id": self.run_id,
+            "condition_id": self.condition_id,
+            "video_id": self.video_id,
+            "pass_id": self.pass_id,
+            "request_sha256": self.request_sha256,
+            "model_visible_bytes_sha256": self.model_visible_bytes_sha256,
+            "source_span_ids": list(self.source_span_ids),
+            "attempt": self.attempt,
+            "model_payload": self.to_model_payload(),
+        }
+
+
+def build_answer_requests(
+    row: Any,
+    timeline: Any,
+    evidence_plan: Any,
+    *,
+    candidates: Sequence[Any] = (),
+) -> dict[str, AnswerRequest]:
+    """Build the exact ten deterministic label-free answer views."""
+
+    context = _context(row, timeline, evidence_plan)
+    global_frames = tuple(evidence_plan.global_frames)
+    local_frames = tuple(evidence_plan.local_frames)
+    all_frames = tuple(evidence_plan.all_frames)
+    route = context["question_route"]
+    route_frames = (
+        all_frames
+        if route in {"count", "temporal"}
+        else local_frames or global_frames
+        if route == "ocr-detail"
+        else all_frames
+    )
+    boundary_frames = _scene_boundary_frames(all_frames, timeline)
+    views: dict[
+        str, tuple[Sequence[Any], str | None, Mapping[str, Any] | None, str, str | None]
+    ] = {
+        "direct-av": ((), None, None, _PASS_INSTRUCTIONS["direct-av"], "audio-on"),
+        "direct-av-alternate": (
+            (),
+            None,
+            None,
+            _PASS_INSTRUCTIONS["direct-av-alternate"],
+            "audio-on",
+        ),
+        "global-transcript": (
+            global_frames,
+            context["transcript"],
+            None,
+            _PASS_INSTRUCTIONS["global-transcript"],
+            None,
+        ),
+        "global-local-timeline": (
+            all_frames,
+            context["transcript"],
+            context["timeline_payload"],
+            _PASS_INSTRUCTIONS["global-local-timeline"],
+            None,
+        ),
+        "question-specialist": (
+            all_frames,
+            context["transcript"],
+            context["timeline_payload"],
+            f"{_PASS_INSTRUCTIONS['question-specialist']} Route: {route}.",
+            None,
+        ),
+        "local-only": (
+            local_frames,
+            context["transcript"],
+            None,
+            _PASS_INSTRUCTIONS["local-only"],
+            None,
+        ),
+        "audio-first": (
+            global_frames,
+            context["transcript"],
+            None,
+            _PASS_INSTRUCTIONS["audio-first"],
+            "audio-on",
+        ),
+        "scene-boundary": (
+            boundary_frames,
+            context["transcript"],
+            None,
+            _PASS_INSTRUCTIONS["scene-boundary"],
+            None,
+        ),
+        "detail-temporal-route": (
+            route_frames,
+            context["transcript"],
+            context["timeline_payload"] if route in {"count", "temporal"} else None,
+            f"{_PASS_INSTRUCTIONS['detail-temporal-route']} Route: {route}.",
+            None,
+        ),
+        "conservative-synthesis": (
+            all_frames,
+            context["transcript"],
+            context["timeline_payload"],
+            _PASS_INSTRUCTIONS["conservative-synthesis"],
+            None,
+        ),
+    }
+    candidate_texts = tuple(_candidate_text(candidate) for candidate in candidates[:9])
+    requests: dict[str, AnswerRequest] = {}
+    for pass_id in PASS_IDS:
+        frames, transcript, timeline_payload, instruction, audio_mode = views[pass_id]
+        requests[pass_id] = _build_answer_request(
+            context,
+            pass_id=pass_id,
+            frames=frames,
+            transcript=transcript,
+            timeline_payload=timeline_payload,
+            instruction=instruction,
+            audio_mode=audio_mode,
+            include_media=pass_id in {"direct-av", "direct-av-alternate"},
+            candidate_texts=candidate_texts
+            if pass_id == "conservative-synthesis"
+            else (),
+        )
+    return requests
+
+
+@dataclass(frozen=True)
+class VerifierCandidate:
+    """Candidate shown to the verifier without its private producer identity."""
+
+    public_id: str
+    candidate_text: str
+    pass_id: str
+    support_span_ids: tuple[str, ...]
+    confidence: float
+    source_request_sha256: str
+
+    @property
+    def text(self) -> str:
+        return self.candidate_text
+
+    @property
+    def answer(self) -> str:
+        return self.candidate_text
+
+    def to_model_dict(self) -> dict[str, Any]:
+        return {
+            "public_id": self.public_id,
+            "candidate_text": self.candidate_text,
+            "support_span_ids": list(self.support_span_ids),
+        }
+
+
+def public_candidate_id(run_id: str, video_id: str, pass_id: str, seed: int) -> str:
+    """Return a deterministic opaque public ID for one private pass."""
+
+    if not all(
+        isinstance(value, str) and value for value in (run_id, video_id, pass_id)
+    ):
+        raise ValueError("candidate ID inputs must be non-empty strings")
+    if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
+        raise ValueError("seed must be a non-negative integer")
+    digest = hashlib.sha256(
+        _canonical_json(
+            {
+                "run_id": run_id,
+                "video_id": video_id,
+                "pass_id": pass_id,
+                "seed": seed,
+            }
+        )
+    ).hexdigest()
+    return f"candidate-{digest[:20]}"
+
+
+@dataclass(frozen=True)
+class VerifierRequest:
+    """Reference-blind verifier input with a seeded opaque candidate order."""
+
+    run_id: str
+    video_id: str
+    question: str
+    frame_paths: tuple[Path, ...]
+    frame_timestamps: tuple[float, ...]
+    transcript: str | None
+    timeline_payload: Mapping[str, Any]
+    candidates: tuple[VerifierCandidate, ...]
+    seed: int
+    source_span_ids: tuple[str, ...] = ()
+    frame_provenance: tuple[Mapping[str, Any], ...] = ()
+    media_bytes_sha256: str | None = None
+
+    def __post_init__(self) -> None:
+        for field_name in ("run_id", "video_id", "question"):
+            _nonempty_text(getattr(self, field_name), field_name)
+        if (
+            isinstance(self.seed, bool)
+            or not isinstance(self.seed, int)
+            or self.seed < 0
+        ):
+            raise ValueError("seed must be a non-negative integer")
+        candidates = tuple(self.candidates)
+        if len(candidates) != len(PASS_IDS):
+            raise ValueError("verifier requires exactly ten candidates")
+        if {candidate.pass_id for candidate in candidates} != set(PASS_IDS):
+            raise ValueError("verifier candidates must contain the exact ten passes")
+        if len({candidate.public_id for candidate in candidates}) != len(candidates):
+            raise ValueError("verifier public IDs must be unique")
+        paths = tuple(Path(path) for path in self.frame_paths)
+        timestamps = tuple(
+            _finite_number(value, f"frame_timestamps[{index}]", nonnegative=True)
+            for index, value in enumerate(self.frame_timestamps)
+        )
+        if len(paths) != len(timestamps):
+            raise ValueError("Frame paths and timestamps must have equal length")
+        if self.transcript is not None:
+            _nonempty_text(self.transcript, "transcript")
+        source_span_ids = _validate_text_tuple(self.source_span_ids, "source_span_ids")
+        if len(set(source_span_ids)) != len(source_span_ids):
+            raise ValueError("source_span_ids must be unique")
+        audit_label_free_payload(self.timeline_payload)
+        if self.media_bytes_sha256 is not None:
+            _validate_sha256(self.media_bytes_sha256, "media_bytes_sha256")
+        provenance = tuple(_freeze(item) for item in self.frame_provenance)
+        if len(provenance) != len(paths):
+            raise ValueError("frame_provenance and frame_paths must have equal length")
+        object.__setattr__(self, "candidates", candidates)
+        object.__setattr__(self, "frame_paths", paths)
+        object.__setattr__(self, "frame_timestamps", timestamps)
+        object.__setattr__(self, "source_span_ids", source_span_ids)
+        object.__setattr__(self, "frame_provenance", provenance)
+
+    def to_model_payload(self) -> dict[str, Any]:
+        payload = {
+            "run_id": self.run_id,
+            "video_id": self.video_id,
+            "question": self.question,
+            "frame_paths": [str(path.resolve()) for path in self.frame_paths],
+            "frame_timestamps": list(self.frame_timestamps),
+            "transcript": self.transcript,
+            "timeline": _thaw(self.timeline_payload),
+            "source_span_ids": list(self.source_span_ids),
+            "frame_provenance": _thaw(self.frame_provenance),
+            "candidates": [candidate.to_model_dict() for candidate in self.candidates],
+            "instruction": "Rank all public candidate IDs by evidence support. Do not create a new semantic response.",
+        }
+        audit_label_free_payload(payload)
+        return payload
+
+    @property
+    def request_sha256(self) -> str:
+        return canonical_sha256(self.to_model_payload())
+
+    @property
+    def model_visible_bytes_sha256(self) -> str:
+        return canonical_sha256(
+            {
+                "payload": self.to_model_payload(),
+                "media_bytes_sha256": self.media_bytes_sha256,
+                "frame_image_sha256": [
+                    item.get("image_sha256") for item in self.frame_provenance
+                ],
+            }
+        )
+
+    def private_pass_id(self, public_id: str) -> str:
+        for candidate in self.candidates:
+            if candidate.public_id == public_id:
+                return candidate.pass_id
+        raise ValueError("unknown verifier public candidate ID")
+
+    def map_public_ranking(
+        self,
+        ranked_public_ids: Sequence[str],
+        support_by_public_id: Mapping[str, str] | None = None,
+    ) -> VerifierDecision:
+        ranked_public_ids = tuple(ranked_public_ids)
+        expected = {candidate.public_id for candidate in self.candidates}
+        if (
+            len(ranked_public_ids) != len(expected)
+            or len(set(ranked_public_ids)) != len(ranked_public_ids)
+            or set(ranked_public_ids) != expected
+        ):
+            raise ValueError("ranked public IDs must be a complete permutation")
+        support_by_public_id = (
+            {} if support_by_public_id is None else dict(support_by_public_id)
+        )
+        if not set(support_by_public_id).issubset(expected):
+            raise ValueError("support_by_public_id contains an unknown candidate")
+        return VerifierDecision(
+            tuple(self.private_pass_id(public_id) for public_id in ranked_public_ids),
+            {
+                self.private_pass_id(public_id): support
+                for public_id, support in support_by_public_id.items()
+            },
+        )
+
+
+def build_verifier_request(
+    row: Any,
+    timeline: Any,
+    evidence_plan: Any,
+    candidates: Sequence[CandidateRecord],
+    *,
+    seed: int,
+) -> VerifierRequest:
+    """Build a seeded, producer-identity-blind verifier request."""
+
+    context = _context(row, timeline, evidence_plan)
+    candidate_rows = tuple(candidates)
+    if len(candidate_rows) != len(PASS_IDS):
+        raise ValueError("verifier requires exactly ten candidates")
+    if not all(isinstance(candidate, CandidateRecord) for candidate in candidate_rows):
+        raise TypeError("verifier candidates must be CandidateRecord values")
+    if {candidate.pass_id for candidate in candidate_rows} != set(PASS_IDS):
+        raise ValueError("verifier candidates must contain the exact ten passes")
+    verifier_candidates = [
+        VerifierCandidate(
+            public_id=public_candidate_id(
+                context["run_id"], context["video_id"], candidate.pass_id, seed
+            ),
+            candidate_text=candidate.answer,
+            pass_id=candidate.pass_id,
+            support_span_ids=candidate.support_span_ids,
+            confidence=candidate.confidence,
+            source_request_sha256=candidate.request_sha256,
+        )
+        for candidate in candidate_rows
+    ]
+    random.Random(seed).shuffle(verifier_candidates)
+    frame_paths, frame_timestamps = _frame_values(context["all_frames"])
+    return VerifierRequest(
+        run_id=context["run_id"],
+        video_id=context["video_id"],
+        question=context["question"],
+        frame_paths=frame_paths,
+        frame_timestamps=frame_timestamps,
+        transcript=context["transcript"],
+        timeline_payload=context["timeline_payload"],
+        candidates=tuple(verifier_candidates),
+        seed=seed,
+        source_span_ids=context["source_span_ids"],
+        frame_provenance=_frame_provenance(context["all_frames"]),
+        media_bytes_sha256=context["media_sha256"],
+    )
+
+
+def build_backfill_request(
+    row: Any,
+    evidence_plan: Any,
+    candidates: Sequence[Any],
+    *,
+    attempt: int,
+) -> AnswerRequest:
+    """Build one of exactly two candidate-only alternate-generation requests."""
+
+    if isinstance(attempt, bool) or attempt not in _BACKFILL_ATTEMPTS:
+        raise ValueError("backfill attempt must be exactly 1 or 2")
+    context = _context(
+        row,
+        type(
+            "TimelineForBackfill",
+            (),
+            {
+                "duration_seconds": evidence_plan.duration_seconds,
+                "events": (),
+                "support_spans": evidence_plan.support_spans,
+                "fallback_reason": None,
+            },
+        )(),
+        evidence_plan,
+    )
+    excluded = tuple(
+        sorted(
+            {_normalized_answer(_candidate_text(candidate)) for candidate in candidates}
+        )
+    )
+    return _build_answer_request(
+        context,
+        pass_id=f"backfill-{attempt}",
+        frames=tuple(evidence_plan.all_frames),
+        transcript=context["transcript"],
+        timeline_payload=None,
+        instruction=(
+            "Generate one additional concise response independently supported by the union evidence. "
+            "Do not repeat any excluded normalized text."
+        ),
+        audio_mode=None,
+        attempt=attempt,
+        excluded_normalized_answers=excluded,
+    )
+
+
 __all__ = [
     "FALLBACK_PASS_PRECEDENCE",
     "MODEL_ID",
     "PASS_IDS",
     "SCHEMA_VERSION",
+    "AnswerRequest",
     "CandidateRecord",
     "RankedPrediction",
     "RunManifest",
     "TimelineSpan",
+    "VerifierCandidate",
     "VerifierDecision",
+    "VerifierRequest",
     "apply_verifier_ranking",
     "audit_label_free_payload",
+    "build_answer_requests",
+    "build_backfill_request",
+    "build_verifier_request",
     "canonical_sha256",
     "deduplicate_candidates",
     "freeze_predictions",
+    "public_candidate_id",
+    "route_question",
     "serialize_ag_submission",
     "verify_prediction_freeze",
 ]
