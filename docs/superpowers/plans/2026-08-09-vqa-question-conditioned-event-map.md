@@ -189,7 +189,17 @@ Tracked:
   canary, and eight full execution attempts. The incomplete metadata-only
   private `a1` transport prefix and the pre-final-retry-fix `a2` bundle are
   superseded; only the verified `a3` bundle may be consumed.
-- [ ] Run paired canary; launch eight full shards only on operational GO.
+- [x] Preserve the first paired execution attempt as a pre-inference
+  operational failure. Run `vqa-event-map-canary` / attempt
+  `4baaf48c-b690-45f0-b6bf-065b9dc1e527` failed at the final preflight write
+  after `$0.3266`; all preceding identity and remote media-hash checks passed.
+  The root cause was a string-valued `preflight_path`, now covered by a
+  behavioral regression test and converted to `Path` before writing. No
+  output bucket was reserved and no model call ran.
+- [ ] Run fresh paired canary `vqa-event-map-canary-a2` / attempt
+  `d6d3a33e-84c5-4067-bcea-fe82cdd10e2f`; launch eight full shards only on
+  operational GO. If another remote-only setup defect appears, switch to a
+  persistent dstack dev environment instead of another task-mode retry.
 - [ ] Freeze V-map/AV-map outputs before loading references.
 - [ ] Materialize H/F, G/S, H/S, and Shifted H/S evidence and answers.
 - [ ] Score, record one primary experiment result, and choose the next system

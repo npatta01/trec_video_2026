@@ -57,7 +57,7 @@ hf_cli() {
 
 validate_identity() {
   case "$MODE:$RUN_ID:$CONDITIONS:$SLICE_ID" in
-    canary:vqa-event-map-canary:v-map,av-map:) ;;
+    canary:vqa-event-map-canary-a2:v-map,av-map:) ;;
     full:vqa-event-map-v-map-chunk-00:v-map:00|full:vqa-event-map-v-map-chunk-01:v-map:01|full:vqa-event-map-v-map-chunk-02:v-map:02|full:vqa-event-map-v-map-chunk-03:v-map:03) ;;
     full:vqa-event-map-av-map-chunk-00:av-map:00|full:vqa-event-map-av-map-chunk-01:av-map:01|full:vqa-event-map-av-map-chunk-02:av-map:02|full:vqa-event-map-av-map-chunk-03:av-map:03) ;;
     *) die "unexpected immutable event-map identity" ;;
@@ -210,6 +210,7 @@ request_path = Path(sys.argv[2]).resolve(strict=True)
     expected_module,
     expected_panel_ids,
 ) = sys.argv[3:]
+preflight_path = Path(preflight_path)
 controller_path = root / "event-map-controller.json"
 media_manifest_path = root / "event-map-media-manifest.json"
 protocol_path = root / "event-map-protocol.json"
