@@ -422,6 +422,7 @@ def test_plaintext_requests_disable_thinking_and_guided_decoding() -> None:
     assert selector_request["chat_template_kwargs"] == {"enable_thinking": False}
     assert "response_format" not in selector_request
     assert "video_url" not in json.dumps(selector_request)
+    assert "exactly one strongest event" in selector_request["messages"][0]["content"][0]["text"]
 
 
 def test_plaintext_map_parser_accepts_stop_trimmed_end_marker() -> None:

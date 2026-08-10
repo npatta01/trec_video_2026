@@ -43,7 +43,7 @@
 
 - [ ] **Step 3: Implement the smallest parser and deterministic evidence expansion.**
 
-  Parse only the line protocol, require 2–6 sequential anchors, require first/last-third coverage gates, and derive cells from adjacent-anchor midpoints. Expand selected anchors into centered windows, shift inward at clip edges, and reject overlap or budget violations.
+  Parse only the line protocol, require 2–6 sequential anchors, require an opening-third and ending-half spread, and derive cells from adjacent-anchor midpoints. Expand one selected anchor into a centered window, shift inward at clip edges, and reject overlap or budget violations.
 
 - [ ] **Step 4: Run the focused tests and the full core module suite.**
 

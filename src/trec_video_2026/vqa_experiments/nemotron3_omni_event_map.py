@@ -36,7 +36,8 @@ PLAINTEXT_MAP_MAX_TOKENS = 256
 PLAINTEXT_SELECTOR_MAX_TOKENS = 64
 PLAINTEXT_STOP = ["\nEND"]
 PLAINTEXT_EVENT_DESCRIPTION_MAX_WORDS = 16
-PLAINTEXT_EDGE_ANCHOR_FRACTION = 1.0 / 3.0
+PLAINTEXT_OPENING_ANCHOR_MAX_FRACTION = 1.0 / 3.0
+PLAINTEXT_ENDING_ANCHOR_MIN_FRACTION = 1.0 / 2.0
 MAX_EVENTS = 6
 MAX_SELECTED_INTERVALS = 2
 MAX_SELECTED_SECONDS = 6.0
@@ -493,8 +494,8 @@ def build_plaintext_selector_request(
         "SELECT|E#\n"
         "ANSWER|<answer, at most 20 words>\n"
         "END\n\n"
-        "For two events use SELECT|E#,E#. Use only IDs in the supplied map. "
-        "No explanation.\n\n"
+        "Choose exactly one strongest event. Never select two or more events. "
+        "Use only one ID from the supplied map. No explanation.\n\n"
         f"Question: {question.strip()}\n"
         f"Frozen map:\n{frozen_map.strip()}"
     )
@@ -558,9 +559,9 @@ def parse_plaintext_map(
             {"event_id": f"E{index}", "timestamp": timestamp, "description": description}
         )
         previous_timestamp = timestamp
-    if events[0]["timestamp"] > duration * PLAINTEXT_EDGE_ANCHOR_FRACTION:
+    if events[0]["timestamp"] > duration * PLAINTEXT_OPENING_ANCHOR_MAX_FRACTION:
         raise ValueError("map does not include the opening portion")
-    if events[-1]["timestamp"] < duration * (1.0 - PLAINTEXT_EDGE_ANCHOR_FRACTION):
+    if events[-1]["timestamp"] < duration * PLAINTEXT_ENDING_ANCHOR_MIN_FRACTION:
         raise ValueError("map does not include the ending portion")
     return {
         "answer": answer,
