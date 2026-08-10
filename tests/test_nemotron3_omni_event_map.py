@@ -298,6 +298,215 @@ def test_gpu_identity_accepts_real_l40s_reported_memory() -> None:
         event_map.validate_gpu_identity("NVIDIA L40S", 44000)
 
 
+def test_validate_normalized_media_accepts_ffprobe_string_durations(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.mkv"
+    derived = tmp_path / "derived.mp4"
+    source.write_bytes(b"source")
+    derived.write_bytes(b"derived")
+
+    identity = event_map.validate_normalized_media(
+        source_path=source,
+        derived_path=derived,
+        expected_source_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
+        source_probe={
+            "streams": [
+                {"codec_type": "video", "codec_name": "vp9"},
+                {"codec_type": "audio", "codec_name": "opus"},
+            ],
+            "format": {"duration": "24.588000"},
+        },
+        derived_probe={
+            "streams": [
+                {"codec_type": "video", "codec_name": "h264"},
+                {"codec_type": "audio", "codec_name": "aac"},
+            ],
+            "format": {"duration": "24.574000"},
+        },
+    )
+
+    assert identity["source_duration_seconds"] == pytest.approx(24.588)
+    assert identity["derived_duration_seconds"] == pytest.approx(24.574)
+
+
+def test_normalize_media_file_disables_metadata_and_chapters(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    commands: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs: object) -> None:
+        commands.append(command)
+
+    monkeypatch.setattr(event_map.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        event_map,
+        "validate_normalized_media",
+        lambda **_kwargs: {"status": "validated"},
+    )
+
+    result = event_map.normalize_media_file(
+        source_path=tmp_path / "source.mkv",
+        derived_path=tmp_path / "derived.mp4",
+        expected_source_sha256="0" * 64,
+    )
+
+    assert result == {"status": "validated"}
+    assert len(commands) == 1
+    command = commands[0]
+    metadata_index = command.index("-map_metadata")
+    assert command[metadata_index : metadata_index + 4] == [
+        "-map_metadata",
+        "-1",
+        "-map_chapters",
+        "-1",
+    ]
+
+
+def _plaintext_map_payload(*, duration: float = 20.0) -> dict[str, object]:
+    return {
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {
+                    "content": (
+                        "E1|1.0|Opening shot shows a person entering the room.\n"
+                        "E2|10.0|The person places an object on the table.\n"
+                        "E3|19.0|The person leaves and the room becomes empty.\n"
+                        "ANSWER|The person enters, places an object, then leaves."
+                    )
+                },
+            }
+        ]
+    }
+
+
+def _plaintext_selector_payload() -> dict[str, object]:
+    return {
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {
+                    "content": (
+                        "SELECT|E1,E2\n"
+                        "ANSWER|The person places an object on the table."
+                    )
+                },
+            }
+        ]
+    }
+
+
+def test_plaintext_requests_disable_thinking_and_guided_decoding() -> None:
+    map_request = event_map.build_plaintext_map_request(
+        media_path=Path("/tmp/event-map-video.mp4"),
+        question="What happens?",
+        duration_seconds=20.0,
+        audio_enabled=True,
+    )
+    selector_request = event_map.build_plaintext_selector_request(
+        question="What happens?",
+        frozen_map="E1|1.0|Opening shot.\nE2|19.0|Ending shot.",
+    )
+
+    assert map_request["max_tokens"] == 256
+    assert map_request["stop"] == ["\nEND"]
+    assert map_request["temperature"] == 0.0
+    assert map_request["top_p"] == 1.0
+    assert map_request["top_k"] == 1
+    assert map_request["chat_template_kwargs"] == {"enable_thinking": False}
+    assert "response_format" not in map_request
+    assert map_request["mm_processor_kwargs"] == {"use_audio_in_video": True}
+    assert selector_request["max_tokens"] == 64
+    assert selector_request["stop"] == ["\nEND"]
+    assert selector_request["chat_template_kwargs"] == {"enable_thinking": False}
+    assert "response_format" not in selector_request
+    assert "video_url" not in json.dumps(selector_request)
+
+
+def test_plaintext_map_parser_accepts_stop_trimmed_end_marker() -> None:
+    parsed = event_map.parse_plaintext_map(
+        _plaintext_map_payload(), duration_seconds=20.0
+    )
+
+    assert parsed["answer"].startswith("The person enters")
+    assert [event["event_id"] for event in parsed["events"]] == ["E1", "E2", "E3"]
+    assert [event["timestamp"] for event in parsed["events"]] == [1.0, 10.0, 19.0]
+
+    cells = event_map.derive_anchor_cells(parsed["events"], duration_seconds=20.0)
+    assert cells == [
+        {"event_id": "E1", "start": 0.0, "end": 5.5},
+        {"event_id": "E2", "start": 5.5, "end": 14.5},
+        {"event_id": "E3", "start": 14.5, "end": 20.0},
+    ]
+
+    windows = event_map.expand_selected_anchors(
+        parsed["events"], ["E1", "E2"], duration_seconds=20.0
+    )
+    assert windows == [
+        {"event_id": "E1", "start": 0.0, "end": 3.0},
+        {"event_id": "E2", "start": 8.5, "end": 11.5},
+    ]
+
+
+def test_plaintext_selector_parser_and_edge_shift_are_deterministic() -> None:
+    parsed_map = event_map.parse_plaintext_map(
+        _plaintext_map_payload(), duration_seconds=20.0
+    )
+    selected = event_map.parse_plaintext_selector(
+        _plaintext_selector_payload(),
+        event_ids={event["event_id"] for event in parsed_map["events"]},
+    )
+    assert selected == {
+        "selected_event_ids": ["E1", "E2"],
+        "answer": "The person places an object on the table.",
+    }
+
+    edge_windows = event_map.expand_selected_anchors(
+        [{"event_id": "E1", "timestamp": 0.2, "description": "opening"}],
+        ["E1"],
+        duration_seconds=2.0,
+    )
+    assert edge_windows == [{"event_id": "E1", "start": 0.0, "end": 2.0}]
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [
+        ("E1|1.0|Only one event.\nANSWER|answer", "2–6"),
+        ("E1|10.0|Opening.\nE2|5.0|Backwards.\nANSWER|answer", "increasing"),
+        ("E1|1.0|Opening.\nE2|19.0|Ending.\nEXTRA|bad\nANSWER|answer", "line"),
+        ("E1|1.0|Opening.\nE2|19.0|Ending.", "ANSWER"),
+    ],
+)
+def test_plaintext_map_parser_rejects_malformed_protocol(
+    content: str, message: str
+) -> None:
+    payload = {"choices": [{"finish_reason": "stop", "message": {"content": content}}]}
+    with pytest.raises(ValueError, match=message):
+        event_map.parse_plaintext_map(payload, duration_seconds=20.0)
+
+
+def test_plaintext_selector_rejects_unknown_or_overlapping_selection() -> None:
+    unknown = {
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"content": "SELECT|E9\nANSWER|answer"},
+            }
+        ]
+    }
+    with pytest.raises(ValueError, match="unknown"):
+        event_map.parse_plaintext_selector(unknown, event_ids={"E1", "E2"})
+
+    events = [
+        {"event_id": "E1", "timestamp": 1.0, "description": "opening"},
+        {"event_id": "E2", "timestamp": 2.0, "description": "middle"},
+    ]
+    with pytest.raises(ValueError, match="overlap"):
+        event_map.expand_selected_anchors(events, ["E1", "E2"], duration_seconds=4.0)
+
+
 def test_checksum_manifest_and_terminal_marker_bind_exact_payload(tmp_path: Path) -> None:
     payload = tmp_path / "payload.jsonl"
     payload.write_text('{"video_id":"video-a"}\n', encoding="utf-8")

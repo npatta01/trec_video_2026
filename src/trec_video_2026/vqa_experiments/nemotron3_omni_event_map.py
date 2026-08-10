@@ -32,6 +32,9 @@ CANONICAL_PANEL_IDS_SHA256 = (
 EXPECTED_ROW_COUNT = 475
 SHARD_COUNTS = (119, 119, 119, 118)
 MAX_OUTPUT_TOKENS = 768
+PLAINTEXT_MAP_MAX_TOKENS = 256
+PLAINTEXT_SELECTOR_MAX_TOKENS = 64
+PLAINTEXT_STOP = ["\nEND"]
 MAX_EVENTS = 6
 MAX_SELECTED_INTERVALS = 2
 MAX_SELECTED_SECONDS = 6.0
@@ -402,6 +405,254 @@ def _response_content(payload: Mapping[str, Any]) -> tuple[str, str]:
     return message["content"], "stop"
 
 
+def _plaintext_lines(payload: Mapping[str, Any], *, kind: str) -> list[str]:
+    content, _finish_reason = _response_content(payload)
+    if _MARKDOWN.search(content):
+        raise ValueError(f"{kind} contains markdown or thinking content")
+    lines = content.strip().splitlines()
+    if not lines or any(not line.strip() for line in lines):
+        raise ValueError(f"{kind} protocol is empty or has blank lines")
+    if lines[-1].strip() == "END":
+        lines.pop()
+    if not lines or any(line.strip() == "END" for line in lines):
+        raise ValueError(f"{kind} has an invalid END marker")
+    return lines
+
+
+def build_plaintext_map_request(
+    *,
+    media_path: Path,
+    question: str,
+    duration_seconds: float,
+    audio_enabled: bool,
+) -> dict[str, Any]:
+    """Build the no-grammar full-video timeline request."""
+
+    if not media_path.is_absolute():
+        raise ValueError("media_path must be absolute")
+    if not isinstance(question, str) or not question.strip():
+        raise ValueError("question must be nonempty")
+    duration = _finite(duration_seconds, "duration_seconds")
+    if duration <= 0:
+        raise ValueError("duration_seconds must be positive")
+    text = (
+        "Watch the complete video, including audio, from beginning to end.\n\n"
+        "For the question below, produce a compact timeline and a direct answer.\n"
+        "Return only this line format:\n\n"
+        "E1|<representative timestamp in seconds>|<factual description, at most 12 words>\n"
+        "E2|<representative timestamp in seconds>|<factual description, at most 12 words>\n"
+        "...\n"
+        "ANSWER|<answer, at most 20 words>\n"
+        "END\n\n"
+        "Requirements:\n"
+        "- Produce 2–6 event lines.\n"
+        "- IDs must be E1, E2, ... in order.\n"
+        "- Timestamps must be strictly increasing and between 0 and D.\n"
+        "- Include the opening and ending portions of the video.\n"
+        "- Timestamps are representative evidence points, not intervals.\n"
+        "- No JSON, markdown, explanation, or additional lines.\n\n"
+        f"Duration: {duration:.3f} seconds\n"
+        f"Question: {question.strip()}"
+    )
+    return {
+        "model": MODEL_ID,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "video_url", "video_url": {"url": media_path.resolve().as_uri()}},
+                    {"type": "text", "text": text},
+                ],
+            }
+        ],
+        "temperature": 0.0,
+        "top_p": 1.0,
+        "top_k": 1,
+        "max_tokens": PLAINTEXT_MAP_MAX_TOKENS,
+        "stop": list(PLAINTEXT_STOP),
+        "stream": False,
+        "chat_template_kwargs": {"enable_thinking": False},
+        "mm_processor_kwargs": {"use_audio_in_video": bool(audio_enabled)},
+    }
+
+
+def build_plaintext_selector_request(
+    *, question: str, frozen_map: str
+) -> dict[str, Any]:
+    """Build the text-only selector request over a frozen parsed map."""
+
+    if not isinstance(question, str) or not question.strip():
+        raise ValueError("question must be nonempty")
+    if not isinstance(frozen_map, str) or not frozen_map.strip():
+        raise ValueError("frozen_map must be nonempty")
+    text = (
+        "Select the one or two mapped events that contain the strongest evidence.\n\n"
+        "Return only:\n\n"
+        "SELECT|E#\n"
+        "ANSWER|<answer, at most 20 words>\n"
+        "END\n\n"
+        "For two events use SELECT|E#,E#. Use only IDs in the supplied map. "
+        "No explanation.\n\n"
+        f"Question: {question.strip()}\n"
+        f"Frozen map:\n{frozen_map.strip()}"
+    )
+    return {
+        "model": MODEL_ID,
+        "messages": [{"role": "user", "content": [{"type": "text", "text": text}]}],
+        "temperature": 0.0,
+        "top_p": 1.0,
+        "top_k": 1,
+        "max_tokens": PLAINTEXT_SELECTOR_MAX_TOKENS,
+        "stop": list(PLAINTEXT_STOP),
+        "stream": False,
+        "chat_template_kwargs": {"enable_thinking": False},
+    }
+
+
+def parse_plaintext_map(
+    payload: Mapping[str, Any], *, duration_seconds: float
+) -> dict[str, Any]:
+    """Parse a bounded timeline without reconstructing omitted model content."""
+
+    duration = _finite(duration_seconds, "duration_seconds")
+    if duration <= 0:
+        raise ValueError("duration_seconds must be positive")
+    lines = _plaintext_lines(payload, kind="map")
+    answer_line_index = next(
+        (index for index, line in enumerate(lines) if line.startswith("ANSWER|")),
+        None,
+    )
+    if answer_line_index is None or answer_line_index != len(lines) - 1:
+        raise ValueError("map must end with ANSWER")
+    answer = lines[-1][len("ANSWER|") :].strip()
+    if not answer or len(answer.split()) > 20:
+        raise ValueError("map answer must be at most 20 words")
+
+    event_lines = lines[:-1]
+    if not 2 <= len(event_lines) <= MAX_EVENTS:
+        raise ValueError("map must contain 2–6 event lines")
+    events: list[dict[str, Any]] = []
+    previous_timestamp = -math.inf
+    for index, line in enumerate(event_lines, start=1):
+        parts = line.split("|", 2)
+        if len(parts) != 3 or parts[0] != f"E{index}":
+            raise ValueError("map event line IDs or fields are invalid")
+        try:
+            timestamp = float(parts[1])
+        except ValueError as error:
+            raise ValueError("map timestamp is not finite") from error
+        if not math.isfinite(timestamp) or not 0.0 <= timestamp <= duration:
+            raise ValueError("map timestamp is outside clip")
+        if timestamp <= previous_timestamp:
+            raise ValueError("map timestamps must be strictly increasing")
+        description = parts[2].strip()
+        if not description or "|" in description:
+            raise ValueError("map event description is invalid")
+        if len(description.split()) > 12:
+            raise ValueError("map event description must be at most 12 words")
+        events.append(
+            {"event_id": f"E{index}", "timestamp": timestamp, "description": description}
+        )
+        previous_timestamp = timestamp
+    if events[0]["timestamp"] > duration * 0.25:
+        raise ValueError("map does not include the opening portion")
+    if events[-1]["timestamp"] < duration * 0.75:
+        raise ValueError("map does not include the ending portion")
+    return {
+        "answer": answer,
+        "events": events,
+        "map_text": "\n".join(
+            [
+                *(f'{event["event_id"]}|{event["timestamp"]:.6f}|{event["description"]}' for event in events),
+                f"ANSWER|{answer}",
+            ]
+        ),
+    }
+
+
+def parse_plaintext_selector(
+    payload: Mapping[str, Any], *, event_ids: set[str]
+) -> dict[str, Any]:
+    """Parse a selector over already validated event IDs."""
+
+    if not event_ids:
+        raise ValueError("event_ids must not be empty")
+    lines = _plaintext_lines(payload, kind="selector")
+    if len(lines) != 2 or not lines[0].startswith("SELECT|") or not lines[1].startswith("ANSWER|"):
+        raise ValueError("selector protocol must contain SELECT and ANSWER lines")
+    selected = [value.strip() for value in lines[0][len("SELECT|") :].split(",")]
+    if len(selected) not in (1, 2) or len(set(selected)) != len(selected):
+        raise ValueError("selector must contain one or two unique IDs")
+    if any(value not in event_ids for value in selected):
+        raise ValueError("selector references unknown event")
+    answer = lines[1][len("ANSWER|") :].strip()
+    if not answer or len(answer.split()) > 20:
+        raise ValueError("selector answer must be at most 20 words")
+    return {"selected_event_ids": selected, "answer": answer}
+
+
+def derive_anchor_cells(
+    events: Sequence[Mapping[str, Any]], *, duration_seconds: float
+) -> list[dict[str, Any]]:
+    """Turn representative anchors into an exact, non-overlapping timeline."""
+
+    duration = _finite(duration_seconds, "duration_seconds")
+    if duration <= 0 or not events:
+        raise ValueError("duration_seconds and events must be nonempty")
+    timestamps = [_finite(event.get("timestamp"), "event timestamp") for event in events]
+    if any(timestamp < 0 or timestamp > duration for timestamp in timestamps):
+        raise ValueError("event timestamp is outside clip")
+    if any(right <= left for left, right in zip(timestamps, timestamps[1:])):
+        raise ValueError("event timestamps must be strictly increasing")
+    boundaries = [0.0]
+    boundaries.extend((left + right) / 2.0 for left, right in zip(timestamps, timestamps[1:]))
+    boundaries.append(duration)
+    return [
+        {"event_id": event["event_id"], "start": boundaries[index], "end": boundaries[index + 1]}
+        for index, event in enumerate(events)
+    ]
+
+
+def expand_selected_anchors(
+    events: Sequence[Mapping[str, Any]],
+    selected_event_ids: Sequence[str],
+    *,
+    duration_seconds: float,
+    window_seconds: float = 3.0,
+) -> list[dict[str, Any]]:
+    """Expand anchors into centered windows with deterministic edge handling."""
+
+    duration = _finite(duration_seconds, "duration_seconds")
+    window = _finite(window_seconds, "window_seconds")
+    if duration <= 0 or window <= 0:
+        raise ValueError("duration and window must be positive")
+    if not 1 <= len(selected_event_ids) <= MAX_SELECTED_INTERVALS:
+        raise ValueError("selected event count exceeds budget")
+    by_id = {event.get("event_id"): event for event in events}
+    if len(by_id) != len(events) or any(event_id not in by_id for event_id in selected_event_ids):
+        raise ValueError("selected event ID is unknown")
+    if len(set(selected_event_ids)) != len(selected_event_ids):
+        raise ValueError("selected event IDs must be unique")
+    selected = sorted(
+        (by_id[event_id] for event_id in selected_event_ids),
+        key=lambda event: _finite(event.get("timestamp"), "event timestamp"),
+    )
+    actual_window = min(window, duration)
+    windows: list[dict[str, Any]] = []
+    prior_end = -math.inf
+    for event in selected:
+        timestamp = _finite(event.get("timestamp"), "event timestamp")
+        start = min(max(0.0, timestamp - actual_window / 2.0), duration - actual_window)
+        end = start + actual_window
+        if start < prior_end:
+            raise ValueError("selected evidence windows overlap")
+        windows.append({"event_id": event["event_id"], "start": start, "end": end})
+        prior_end = end
+    if sum(window["end"] - window["start"] for window in windows) > MAX_SELECTED_SECONDS:
+        raise ValueError("selected evidence exceeds 6 seconds")
+    return windows
+
+
 def parse_completion(payload: Mapping[str, Any], *, duration_seconds: float) -> dict[str, Any]:
     content, _finish_reason = _response_content(payload)
     if _MARKDOWN.search(content):
@@ -618,7 +869,13 @@ def _duration_from_probe(probe: Mapping[str, Any], field: str) -> float:
     form = probe.get("format")
     if not isinstance(form, Mapping):
         raise ValueError(f"{field} format metadata is missing")
-    return _finite(form.get("duration"), f"{field} duration")
+    value = form.get("duration")
+    if isinstance(value, str):
+        try:
+            value = float(value)
+        except ValueError as error:
+            raise ValueError(f"{field} duration must be finite") from error
+    return _finite(value, f"{field} duration")
 
 
 def validate_normalized_media(
@@ -760,6 +1017,7 @@ def normalize_media_file(
                 "-map",
                 "0:a:0",
                 "-map_metadata",
+                "-1",
                 "-map_chapters",
                 "-1",
                 "-c:v",
