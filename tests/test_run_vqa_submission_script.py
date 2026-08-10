@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 
@@ -12,6 +13,126 @@ from trec_video_2026.vqa_submission import verify_prediction_freeze
 
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "run_vqa_submission.py"
+CANARY_CONFIG = Path(__file__).parents[1] / "configs/vqa/vqa_submission_canary_6.json"
+GATE_CONFIG = Path(__file__).parents[1] / "configs/vqa/vqa_submission_gate_60.json"
+
+
+def _load_config(path: Path) -> dict[str, object]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert isinstance(payload, dict)
+    return payload
+
+
+def test_canary_has_exact_six_declared_strata_and_no_labels() -> None:
+    from trec_video_2026.vqa_submission import audit_label_free_payload
+
+    payload = _load_config(CANARY_CONFIG)
+    assert len(payload["examples"]) == 6
+    assert {row["selection_stratum"] for row in payload["examples"]} == {
+        "temporal",
+        "counting",
+        "audio_text",
+        "ocr_detail",
+        "causal",
+        "other",
+    }
+    audit_label_free_payload(payload)
+
+
+def test_gate_separates_representative_and_diagnostic_rows() -> None:
+    from trec_video_2026.vqa_submission import audit_label_free_payload
+
+    payload = _load_config(GATE_CONFIG)
+    assert sum(
+        row["analysis_population"] == "representative"
+        for row in payload["examples"]
+    ) == 40
+    assert sum(
+        row["analysis_population"] == "diagnostic"
+        for row in payload["examples"]
+    ) == 20
+    assert len({row["video_id"] for row in payload["examples"]}) == 60
+    audit_label_free_payload(payload)
+
+
+def test_frozen_configs_bind_the_runner_protocol_and_panel() -> None:
+    module = _load_script()
+    expected_pass_ids = list(module.PASS_IDS)
+    expected_protocol_sha256 = hashlib.sha256(
+        module.PROTOCOL_VERSION.encode("utf-8")
+    ).hexdigest()
+    expected_evidence_policy_sha256 = hashlib.sha256(
+        module.EVIDENCE_POLICY_VERSION.encode("utf-8")
+    ).hexdigest()
+
+    for path in (CANARY_CONFIG, GATE_CONFIG):
+        payload = _load_config(path)
+        assert payload["model_id"] == module.MODEL_ID
+        assert payload["fixture_mode"] is False
+        assert payload["require_audio"] is True
+        assert payload["pass_ids"] == expected_pass_ids
+        assert payload["protocol_version"] == module.PROTOCOL_VERSION
+        assert payload["protocol_sha256"] == expected_protocol_sha256
+        assert payload["evidence_policy_version"] == module.EVIDENCE_POLICY_VERSION
+        assert payload["evidence_policy_sha256"] == expected_evidence_policy_sha256
+        assert payload["panel_manifest_sha256"] == (
+            "092aec23cfdcc370bbed8e776f7cc7c84752481da6ba0996983883955d3841e8"
+        )
+        assert payload["panel_ids_sha256"] == (
+            "95a623c0add252541b9c81ff4910e949dc81db17482add2c467b761237b22b0f"
+        )
+        module._validate_config(payload)
+
+
+def test_frozen_rows_are_minimal_label_free_source_bound_inputs() -> None:
+    allowed_row_keys = {
+        "query_id",
+        "video_id",
+        "question",
+        "media",
+        "source",
+        "selection_stratum",
+        "analysis_population",
+        "diagnostic_category",
+    }
+
+    for path in (CANARY_CONFIG, GATE_CONFIG):
+        payload = _load_config(path)
+        for row in payload["examples"]:
+            assert set(row) <= allowed_row_keys
+            assert row["media"].startswith("vqa/2025/training/videos_original/")
+            assert row["media"].endswith((".mkv", ".mp4", ".webm"))
+            assert set(row["source"]) == {"sha256", "size_bytes"}
+            assert len(row["source"]["sha256"]) == 64
+            assert row["source"]["sha256"] == row["source"]["sha256"].lower()
+            assert row["source"]["size_bytes"] > 0
+
+
+def test_gate_uses_exact_representative_and_diagnostic_quotas() -> None:
+    from collections import Counter
+
+    rows = _load_config(GATE_CONFIG)["examples"]
+    representative = [
+        row for row in rows if row["analysis_population"] == "representative"
+    ]
+    diagnostic = [
+        row for row in rows if row["analysis_population"] == "diagnostic"
+    ]
+    assert Counter(row["selection_stratum"] for row in representative) == Counter(
+        {"audio_text": 5, "causal": 6, "counting": 7, "other": 13, "temporal": 9}
+    )
+    assert Counter(row["diagnostic_category"] for row in diagnostic) == Counter(
+        {
+            "prompt_schema": 2,
+            "evidence_ambiguity": 3,
+            "transition_localization": 5,
+            "audio": 4,
+            "fps_resolution": 3,
+            "reasoning_model": 3,
+        }
+    )
+    assert all("diagnostic_category" not in row for row in representative)
+    assert all("diagnostic_category" in row for row in diagnostic)
 
 
 def _load_script():
