@@ -51,7 +51,9 @@ Both passes receive the same question and the same complete normalized video.
 The original strict-JSON event-map interface is superseded after only 2/24
 valid outputs across interval and point tests. The approved replacement uses a
 plain-text timeline and a separate text-only selector; no grammar decoding or
-LLM repair is permitted.
+LLM repair is permitted. The timeline need not emit a direct answer; the
+selector answer is the scored answer, while any map answer is optional
+diagnostic output.
 
 1. **V-map:** native video; native audio disabled.
 2. **AV-map:** native video plus native audio.
@@ -114,8 +116,8 @@ Canary gates for the replacement protocol:
 - exact model/image/revision, native-audio toggle, and panel identity;
 - all anchors, deterministic cells, and selected-window constraints valid
   against measured duration;
-- 4/4 nonempty map answers, 4/4 nonempty selector answers, and frozen
-  request/response hashes;
+- 4/4 nonempty selector answers and frozen request/response hashes; an
+  optional direct map answer is retained only when emitted;
 - no reference, label, metric, or held-out-data leakage;
 - frozen canary scores show no catastrophic semantic regression on METEOR,
   BERTScore, STS, and NDCG;

@@ -440,12 +440,11 @@ def build_plaintext_map_request(
         raise ValueError("duration_seconds must be positive")
     text = (
         "Watch the complete video, including audio, from beginning to end.\n\n"
-        "For the question below, produce a compact timeline and a direct answer.\n"
+        "For the question below, produce a compact timeline of the strongest scenes.\n"
         "Return only this line format:\n\n"
         "E1|<representative timestamp in seconds>|<factual description, at most 16 words>\n"
         "E2|<representative timestamp in seconds>|<factual description, at most 16 words>\n"
         "...\n"
-        "ANSWER|<answer, at most 20 words>\n"
         "END\n\n"
         "Requirements:\n"
         "- Produce 2–6 event lines.\n"
@@ -453,7 +452,7 @@ def build_plaintext_map_request(
         "- Timestamps must be strictly increasing and between 0 and D.\n"
         "- Include the opening and ending portions of the video.\n"
         "- Timestamps are representative evidence points, not intervals.\n"
-        "- No JSON, markdown, explanation, or additional lines.\n\n"
+        "- Do not include an answer, JSON, markdown, explanation, or additional lines.\n\n"
         f"Duration: {duration:.3f} seconds\n"
         f"Question: {question.strip()}"
     )
@@ -525,13 +524,15 @@ def parse_plaintext_map(
         (index for index, line in enumerate(lines) if line.startswith("ANSWER|")),
         None,
     )
-    if answer_line_index is None or answer_line_index != len(lines) - 1:
-        raise ValueError("map must end with ANSWER")
-    answer = lines[-1][len("ANSWER|") :].strip()
-    if not answer or len(answer.split()) > 20:
-        raise ValueError("map answer must be at most 20 words")
-
-    event_lines = lines[:-1]
+    if answer_line_index is not None and answer_line_index != len(lines) - 1:
+        raise ValueError("map ANSWER must be last")
+    answer = None
+    event_lines = lines
+    if answer_line_index is not None:
+        answer = lines[-1][len("ANSWER|") :].strip()
+        if not answer or len(answer.split()) > 20:
+            raise ValueError("map answer must be at most 20 words")
+        event_lines = lines[:-1]
     if not 2 <= len(event_lines) <= MAX_EVENTS:
         raise ValueError("map must contain 2–6 event lines")
     events: list[dict[str, Any]] = []
@@ -569,7 +570,7 @@ def parse_plaintext_map(
         "map_text": "\n".join(
             [
                 *(f'{event["event_id"]}|{event["timestamp"]:.6f}|{event["description"]}' for event in events),
-                f"ANSWER|{answer}",
+                *([f"ANSWER|{answer}"] if answer is not None else []),
             ]
         ),
     }

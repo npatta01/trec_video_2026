@@ -4,7 +4,7 @@
 
 **Goal:** Replace the failing compound JSON event-map canary with a small AV-only plain-text timeline plus text-only selector canary that can be judged automatically before scaling to all 475 annotated videos.
 
-**Architecture:** Nemotron receives the complete normalized video and question once, with native audio enabled, and emits a bounded line protocol containing 2–6 timestamped event anchors plus a direct answer. A second text-only request selects one or two frozen anchors; Python deterministically derives full timeline cells and <=6 seconds of evidence windows. No grammar decoding, LLM repair, model thinking, or label/reference data enters the generation requests.
+**Architecture:** Nemotron receives the complete normalized video and question once, with native audio enabled, and emits a bounded line protocol containing 2–6 timestamped event anchors and concise scene descriptions. A second text-only request selects one frozen anchor and produces the answer; Python deterministically derives full timeline cells and <=6 seconds of evidence windows. No grammar decoding, LLM repair, model thinking, or label/reference data enters the generation requests.
 
 **Tech Stack:** Python 3.12, vLLM OpenAI-compatible chat completions, PyAV/ffmpeg media normalization, pytest, dstack dev environment with one L40S.
 
@@ -15,7 +15,7 @@
 - Map decoding is `enable_thinking=false`, temperature 0, top-p 1, top-k 1, max 256 tokens, stop `\nEND`; event descriptions are at most 16 words.
 - Selector decoding is `enable_thinking=false`, temperature 0, top-p 1, top-k 1, max 64 tokens, stop `\nEND`.
 - No `response_format`, JSON schema, grammar, or LLM repair is allowed.
-- A full-run GO requires 4/4 map and 4/4 selector primary parses, valid deterministic coverage, disjoint shifted windows, complete hashes, and non-catastrophic semantic canary scores.
+- A full-run GO requires 4/4 map and 4/4 selector primary parses, valid deterministic coverage, disjoint shifted windows, complete hashes, nonempty selector answers, and non-catastrophic semantic canary scores.
 - The full run must normalize each AV1 source at most once into a shared content-addressed cache; direct-compatible media is reused.
 - Raw answers and private evidence remain in private artifacts; public-facing metrics contain no raw model reasoning.
 
@@ -33,7 +33,7 @@
 
 - [ ] **Step 1: Write failing tests for request pins and strict parsing.**
 
-  Cover exact map/selector decoding parameters, valid event/answer lines, malformed IDs, non-increasing timestamps, extra output, missing `END`, unknown selector IDs, and answer length bounds.
+  Cover exact map/selector decoding parameters, valid event/timeline lines, optional direct answer lines, malformed IDs, non-increasing timestamps, extra output, missing `END`, unknown selector IDs, and answer length bounds.
 
 - [ ] **Step 2: Run the focused tests and confirm they fail.**
 
@@ -108,7 +108,7 @@
 
 - [ ] **Step 3: Apply the technical GO gate.**
 
-  Require 4/4 maps, 4/4 selectors, `finish_reason=stop`, valid anchors, exact coverage, valid windows, disjoint shifted controls, and complete artifact identities.
+  Require 4/4 maps, 4/4 selectors, `finish_reason=stop`, valid anchors, exact coverage, valid windows, disjoint shifted controls, complete artifact identities, and 4/4 nonempty selector answers.
 
 - [ ] **Step 4: Score frozen canary answers with METEOR, BERTScore, STS, and NDCG.**
 

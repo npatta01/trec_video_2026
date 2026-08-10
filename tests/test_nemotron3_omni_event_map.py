@@ -451,6 +451,18 @@ def test_plaintext_map_parser_accepts_stop_trimmed_end_marker() -> None:
     ]
 
 
+def test_plaintext_map_parser_allows_timeline_without_optional_direct_answer() -> None:
+    payload = _plaintext_map_payload()
+    payload["choices"][0]["message"]["content"] = (
+        "E1|1.0|Opening shot shows a person entering the room.\n"
+        "E2|10.0|The person places an object on the table.\n"
+        "E3|19.0|The person leaves and the room becomes empty."
+    )
+    parsed = event_map.parse_plaintext_map(payload, duration_seconds=20.0)
+    assert parsed["answer"] is None
+    assert "ANSWER|" not in parsed["map_text"]
+
+
 def test_plaintext_selector_parser_and_edge_shift_are_deterministic() -> None:
     parsed_map = event_map.parse_plaintext_map(
         _plaintext_map_payload(), duration_seconds=20.0
@@ -498,7 +510,7 @@ def test_plaintext_map_accepts_last_third_anchor_and_sixteen_word_description() 
         ("E1|1.0|Only one event.\nANSWER|answer", "2–6"),
         ("E1|10.0|Opening.\nE2|5.0|Backwards.\nANSWER|answer", "increasing"),
         ("E1|1.0|Opening.\nE2|19.0|Ending.\nEXTRA|bad\nANSWER|answer", "line"),
-        ("E1|1.0|Opening.\nE2|19.0|Ending.", "ANSWER"),
+        ("E1|1.0|Opening.", "2–6"),
     ],
 )
 def test_plaintext_map_parser_rejects_malformed_protocol(
