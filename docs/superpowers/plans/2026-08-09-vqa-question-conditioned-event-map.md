@@ -2,7 +2,7 @@
 
 Date: 2026-08-09
 
-Status: **Approved direction; implementation and paired canary in progress**
+Status: **Approved direction; plain-text AV canary implementation in progress**
 
 ## Objective
 
@@ -48,7 +48,10 @@ budget.
 ## Two-pass holistic core
 
 Both passes receive the same question and the same complete normalized video.
-They use the same prompt, decoding, event budget, and response schema.
+The original strict-JSON event-map interface is superseded after only 2/24
+valid outputs across interval and point tests. The approved replacement uses a
+plain-text timeline and a separate text-only selector; no grammar decoding or
+LLM repair is permitted.
 
 1. **V-map:** native video; native audio disabled.
 2. **AV-map:** native video plus native audio.
@@ -69,9 +72,10 @@ A question-agnostic map is intentionally excluded: there is one question per
 video, so it has no reuse benefit and adds irrelevant text and timestamp
 surface area.
 
-## Private response contract
+## Superseded strict-JSON response contract
 
-Each row must contain exactly:
+The following contract is retained only for rejected provenance and must not be
+used for the next canary:
 
 - schema/run/condition/video identity;
 - a nonempty short answer, abstention boolean, and bounded confidence;
@@ -89,24 +93,49 @@ segments.
 
 ## Canary and full launch
 
-Run one paired four-video canary on a single L40S so the model loads once and
-produces eight outputs. The label-free panel covers speech, non-speech sound,
-OCR/detail, and temporal/action questions.
+Run one AV-only four-video canary on the warm single L40S. The model map phase
+produces four plain-text timeline outputs; after all four maps are frozen, a
+text-only selector phase produces four selector outputs. The label-free panel
+covers speech, non-speech sound, OCR/detail, and temporal/action questions.
 
 The canary has a 45-minute hard cap and is expected to finish within that cap;
 the 2.3--3.5-hour estimate applies only to the later eight-shard 475-video
 full-panel run. A canary that reaches 45 minutes is an operational NO-GO and
 does not justify increasing the cap automatically.
 
-Canary gates:
+Canary gates for the replacement protocol:
 
-- 8/8 terminal valid outputs, at most one schema retry per row;
+- 4/4 map outputs and 4/4 selector outputs pass on the primary request with no
+  retry;
+- map decoding uses `enable_thinking=false`, temperature 0, top-p 1, top-k 1,
+  max 256 tokens, and stop `\nEND`; selector decoding uses the same settings
+  with max 64 tokens;
+- no `response_format`, JSON schema, grammar, or LLM repair;
 - exact model/image/revision, native-audio toggle, and panel identity;
-- all event/selection constraints valid against measured duration;
-- 8/8 nonempty short answers and 8/8 frozen request/response hashes;
+- all anchors, deterministic cells, and selected-window constraints valid
+  against measured duration;
+- 4/4 nonempty map answers, 4/4 nonempty selector answers, and frozen
+  request/response hashes;
 - no reference, label, metric, or held-out-data leakage;
+- frozen canary scores show no catastrophic semantic regression on METEOR,
+  BERTScore, STS, and NDCG;
 - projected full aggregate time at most 28 GPU-hours, longest shard at most
   3.5 hours, and projected provider cost at most $30.
+
+The canary projection is frozen before any successful canary payload. Scale
+the measured normalization duration per unique canary medium over 950 full-run
+transcodes. Scale bootstrap/download, model startup, finalization, any positive
+non-row inference overhead, and any positive scheduler-duration residual over
+all eight independently loading tasks. Scale the condition-specific mean row
+inference time over 475 V-map and 475 AV-map calls with a conservative 10%
+inference margin. The longest-shard
+estimate uses one task's fixed phases, 119 normalizations, and 119 calls at the
+slower condition mean with the same margin; because all eight shards launch in
+parallel, that estimate is also the projected wall time. Producer phase totals
+must reconcile with scheduler elapsed time within the larger of 120 seconds or
+10%. Sanitized scheduler cost must reconcile with elapsed hours times observed
+price within the larger of $0.05 or 5%, and projected cost uses that observed
+price.
 
 If operational gates pass, launch all eight 119/119/119/118-row tasks in
 parallel. Hard core limits are 960 primary calls, 960 retries only on malformed
@@ -196,10 +225,20 @@ Tracked:
   The root cause was a string-valued `preflight_path`, now covered by a
   behavioral regression test and converted to `Path` before writing. No
   output bucket was reserved and no model call ran.
-- [ ] Run fresh paired canary `vqa-event-map-canary-a2` / attempt
-  `d6d3a33e-84c5-4067-bcea-fe82cdd10e2f`; launch eight full shards only on
-  operational GO. If another remote-only setup defect appears, switch to a
-  persistent dstack dev environment instead of another task-mode retry.
+- [x] Preserve the second paired execution attempt as another pre-inference
+  operational NO-GO. Run `vqa-event-map-canary-a2` / attempt
+  `d6d3a33e-84c5-4067-bcea-fe82cdd10e2f` failed during media normalization and
+  produced no payload. The root cause was the missing `-1` value after
+  `-map_metadata` in the deterministic ffmpeg command; the corrected command
+  is covered by a behavioral regression test. No A2 evidence may satisfy a
+  launch gate.
+- [x] Switch from the strict-JSON interface to the approved plain-text AV
+  timeline plus text-only selector after the interval/point canaries achieved
+  only 2/24 valid outputs; thinking was slower and did not improve validity.
+- [ ] Run the newly pinned plain-text AV canary on the persistent dstack dev
+  environment. Launch a 32-row fail-fast full-panel checkpoint only after
+  technical and semantic canary GO; require at least 31/32 complete map and
+  selector pipelines before continuing.
 - [ ] Freeze V-map/AV-map outputs before loading references.
 - [ ] Materialize H/F, G/S, H/S, and Shifted H/S evidence and answers.
 - [ ] Score, record one primary experiment result, and choose the next system
