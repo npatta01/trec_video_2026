@@ -41,6 +41,7 @@ def _fixture_config(tmp_path: Path, *, row_count: int = 1) -> Path:
                 "run_id": "fixture-run",
                 "model_id": "gemini-3.1-pro-preview",
                 "fixture": True,
+                "fixture_mode": True,
                 "examples": examples,
             }
         ),
@@ -244,3 +245,189 @@ def test_preflight_success_emits_only_safe_fields(
         "sdk_version": "2.12.1",
         "authentication_configured": True,
     }
+
+
+def test_prepare_requires_explicit_fixture_mode(tmp_path: Path) -> None:
+    module = _load_script()
+    config = _fixture_config(tmp_path)
+    payload = json.loads(config.read_text(encoding="utf-8"))
+    payload.pop("fixture_mode")
+    config.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="fixture_mode"):
+        module.main(["prepare", "--config", str(config), "--output", str(tmp_path / "run")])
+
+
+def test_two_row_fixture_keeps_private_evidence_and_one_record_per_row(
+    tmp_path: Path,
+) -> None:
+    module = _load_script()
+    config = _fixture_config(tmp_path, row_count=2)
+    run_dir = tmp_path / "run"
+    assert module.main(
+        ["prepare", "--config", str(config), "--output", str(run_dir)]
+    ) == 0
+    assert module.run_prepared(run_dir, transport=module.FixtureTransport()).completed_rows == 2
+
+    assert len(_jsonl(run_dir / "timeline.jsonl")) == 2
+    assert len(_jsonl(run_dir / "candidates.jsonl")) == 20
+    for query_id in (7, 8):
+        row_manifest = run_dir / "evidence" / "rows" / str(query_id) / "manifest.json"
+        assert row_manifest.is_file()
+        assert json.loads(row_manifest.read_text(encoding="utf-8"))["query_id"] == query_id
+
+
+def test_crash_writes_immediate_attempt_checkpoint_and_resumes_without_rebilling(
+    tmp_path: Path,
+) -> None:
+    module, run_dir = _prepare_one_row(tmp_path)
+
+    class CrashTransport(module.FixtureTransport):
+        def generate(self, request: dict[str, object]) -> dict[str, object]:
+            if self.generate_count == 3:
+                raise KeyboardInterrupt("simulated crash")
+            return super().generate(request)
+
+    with pytest.raises(KeyboardInterrupt):
+        module.run_prepared(run_dir, transport=CrashTransport())
+    checkpoint_count = len(_jsonl(run_dir / "attempts.jsonl"))
+    assert checkpoint_count >= 3
+
+    transport = module.FixtureTransport()
+    summary = module.run_prepared(run_dir, transport=transport)
+    assert summary.completed_rows == 1
+    assert transport.generate_count < 13
+
+
+def test_partial_run_cannot_freeze_and_manifest_tamper_rejects_status(
+    tmp_path: Path,
+) -> None:
+    module = _load_script()
+    config = _fixture_config(tmp_path, row_count=2)
+    run_dir = tmp_path / "run"
+    assert module.main(
+        ["prepare", "--config", str(config), "--output", str(run_dir)]
+    ) == 0
+    module.run_prepared(run_dir, transport=module.FixtureTransport(), limit=1)
+    with pytest.raises(ValueError, match="complete|ordered"):
+        module.freeze(run_dir)
+
+    manifest_path = run_dir / "run-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["model_id"] = "tampered-model"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ValueError, match="manifest|model"):
+        module.status(run_dir)
+
+
+def test_malformed_response_is_failed_and_retryable(tmp_path: Path) -> None:
+    module, run_dir = _prepare_one_row(tmp_path)
+
+    class MalformedOnce(module.FixtureTransport):
+        def __init__(self) -> None:
+            super().__init__()
+            self.malformed = True
+
+        def generate(self, request: dict[str, object]) -> dict[str, object]:
+            response = super().generate(request)
+            if self.malformed and request["stage"] == "answer":
+                self.malformed = False
+                return {}
+            return response
+
+    first = MalformedOnce()
+    module.run_prepared(run_dir, transport=first)
+    attempts = _jsonl(run_dir / "attempts.jsonl")
+    assert any(row["status"] == "failed" for row in attempts)
+    second = module.FixtureTransport()
+    summary = module.run_prepared(run_dir, transport=second)
+    assert summary.completed_rows == 1
+    assert second.generate_count > 0
+
+
+def test_shortfall_uses_ten_answer_baseline_candidates(tmp_path: Path) -> None:
+    module = _load_script()
+    config = _fixture_config(tmp_path)
+    payload = json.loads(config.read_text(encoding="utf-8"))
+    payload["baseline_ranked_list"] = [f"baseline response {index}" for index in range(10)]
+    config.write_text(json.dumps(payload), encoding="utf-8")
+    run_dir = tmp_path / "run"
+    assert module.main(
+        ["prepare", "--config", str(config), "--output", str(run_dir)]
+    ) == 0
+
+    class DuplicateTransport(module.FixtureTransport):
+        def generate(self, request: dict[str, object]) -> dict[str, object]:
+            if request["stage"] in {"answer", "backfill"}:
+                return {"answer": "duplicate response", "confidence": 0.5}
+            return super().generate(request)
+
+    module.run_prepared(run_dir, transport=DuplicateTransport())
+    predictions = json.loads(
+        (run_dir / "ranked-predictions.json").read_text(encoding="utf-8")
+    )
+    assert predictions["candidate_shortfall"] == 0
+    assert len(predictions["predictions"][0]["candidates"]) == 10
+    assert len({item["answer"] for item in predictions["predictions"][0]["candidates"]}) == 10
+
+
+def test_nonfixture_prepare_resolves_media_and_records_source_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_script()
+    dataset_root = tmp_path / "canonical-data"
+    dataset_root.mkdir()
+    media = dataset_root / "video.mp4"
+    media.write_bytes(b"isolated synthetic media")
+    config = tmp_path / "live-config.json"
+    config.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": "live-run",
+                "model_id": "gemini-3.1-pro-preview",
+                "fixture_mode": False,
+                "examples": [
+                    {
+                        "query_id": 1,
+                        "video_id": "video-1",
+                        "category": "general",
+                        "question": "What happens?",
+                        "media": "video.mp4",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "CANONICAL_DATA_ROOT", dataset_root)
+    monkeypatch.setattr(
+        module,
+        "probe_media",
+        lambda path: {
+            "duration_seconds": 2.0,
+            "has_video": True,
+            "has_audio": True,
+            "stream_types": ["video", "audio"],
+        },
+    )
+    monkeypatch.setattr(
+        module,
+        "source_fingerprint",
+        lambda path: {"sha256": "a" * 64, "size_bytes": path.stat().st_size},
+    )
+    run_dir = tmp_path / "run"
+    assert module.main(
+        [
+            "prepare",
+            "--config",
+            str(config),
+            "--dataset-root",
+            str(dataset_root),
+            "--output",
+            str(run_dir),
+        ]
+    ) == 0
+    manifest = json.loads((run_dir / "run-manifest.json").read_text(encoding="utf-8"))
+    assert manifest["examples"][0]["source"]["sha256"] == "a" * 64
+    assert manifest["examples"][0]["media"]["duration_seconds"] == 2.0
