@@ -4,6 +4,21 @@ This directory is the compact evidence-of-record bundle for the 2026-08-10
 475-video experiment. The canonical interpretation is in
 [`../../2026-08-10-vqa-plaintext-full-panel.qmd`](../../2026-08-10-vqa-plaintext-full-panel.qmd).
 
+## Shared checkout after merge
+
+After this branch is merged to `main`, this tracked bundle will be available
+from the shared checkout at:
+
+`/home/npatta01/data/competitions/trec_video_2026/docs/experiments/artifacts/vqa-plaintext-full-20260810/`
+
+The report will be at:
+
+`/home/npatta01/data/competitions/trec_video_2026/docs/experiments/2026-08-10-vqa-plaintext-full-panel.qmd`
+
+The repository-relative links in the report and this README are portable
+across worktrees. The raw inspection media below is ignored and remains in the
+producing worktree; it is not copied into the shared checkout by a merge.
+
 ## Tracked compact artifacts
 
 | File | Purpose |

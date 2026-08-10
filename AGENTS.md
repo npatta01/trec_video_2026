@@ -31,6 +31,19 @@ The completed 2026-08-10 full-panel AV event-map experiment is documented in
 Its compact, reviewable evidence-of-record files are under
 [`docs/experiments/artifacts/vqa-plaintext-full-20260810/`](docs/experiments/artifacts/vqa-plaintext-full-20260810/):
 
+After this branch is merged to `main`, the same repository-relative links are
+available from the shared checkout at
+`/home/npatta01/data/competitions/trec_video_2026/`:
+
+- report: `/home/npatta01/data/competitions/trec_video_2026/docs/experiments/2026-08-10-vqa-plaintext-full-panel.qmd`;
+- artifact bundle: `/home/npatta01/data/competitions/trec_video_2026/docs/experiments/artifacts/vqa-plaintext-full-20260810/`.
+
+Do not copy the tracked bundle manually between worktrees; merging the branch
+to `main` makes it available in the shared checkout. The raw inspection media
+is intentionally worktree-local and ignored by Git; use the local bundle in
+the producing worktree or regenerate/link it separately if shared raw-media
+inspection is required.
+
 - `summary.json`, `correction.json`, `maps.jsonl`, and `results.jsonl` preserve
   the complete 475-row timeline/selector run and hashes.
 - `selector-quality.json` contains the post-freeze METEOR, BERTScore-F1, STS,
