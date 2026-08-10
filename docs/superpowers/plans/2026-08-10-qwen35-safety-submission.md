@@ -161,7 +161,7 @@
 
   Run: `uv run pytest tests/test_vqa_safety_submission.py tests/test_vqa_transformers_runner.py tests/test_vqa_submission.py tests/test_vqa_models.py -q`
 
-- [ ] **Step 2: Prepare and audit the local immutable input bundle**
+- [x] **Step 2: Prepare and audit the local immutable input bundle**
 
   Confirm 2,443 queries, 1,956 videos, 1,946 available videos, ten
   unavailable videos, exact source hashes, and no labels.
