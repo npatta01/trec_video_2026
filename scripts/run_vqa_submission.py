@@ -47,6 +47,7 @@ from trec_video_2026.vqa_submission import (
     deduplicate_candidates,
     freeze_predictions,
     verify_prediction_freeze,
+    _normalized_answer as canonical_candidate_normalize,
 )
 
 
@@ -318,6 +319,8 @@ def _validate_config(config: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
         raise ValueError(f"config model_id must be {MODEL_ID}")
     if not isinstance(config.get("fixture_mode"), bool):
         raise ValueError("config fixture_mode must be explicitly true or false")
+    if "require_audio" in config and not isinstance(config["require_audio"], bool):
+        raise ValueError("config require_audio must be boolean")
     examples = config.get("examples")
     if not isinstance(examples, list) or not examples:
         raise ValueError("config examples must be a non-empty list")
@@ -502,6 +505,8 @@ def _resolve_live_examples(
         duration = float(metadata.get("duration_seconds", 0.0))
         if duration < 1.0 or not metadata.get("has_video", False):
             raise ValueError("media must contain video and have duration at least one second")
+        if config.get("require_audio", True) and not metadata.get("has_audio", False):
+            raise ValueError("live canary requires an audio stream")
         source = _safe_source_metadata(source_fingerprint(media_path))
         example = dict(raw)
         example.pop("media", None)
@@ -685,6 +690,8 @@ def _candidate_record(
     *,
     checkpoint: Mapping[str, Any] | None = None,
     candidate_pass_id: str | None = None,
+    provider: str = "fixture",
+    support_span_ids: Sequence[str] = ("fixture",),
 ) -> dict[str, Any]:
     response_hash = _sha256_json(response)
     answer = response.get("answer")
@@ -708,6 +715,9 @@ def _candidate_record(
             (checkpoint or {}).get("uploaded_file_deletion_status", {})
         ),
         "failure_code": (checkpoint or {}).get("failure_code"),
+        "provider": provider,
+        "runtime": provider,
+        "support_span_ids": list(support_span_ids),
     }
 
 
@@ -728,15 +738,11 @@ def _timeline_request(
     }
     if not prepared.fixture_mode:
         media_path = str(example["media_path"])
+        audio_path, audio_sha = _live_audio_path(prepared, example)
         request["media_path"] = media_path
-        request["audio_path"] = str(example.get("audio_path", media_path))
+        request["audio_path"] = str(audio_path)
         request["media_sha256"] = example["source"]["sha256"]
-        audio_source = example.get("audio_source")
-        request["audio_sha256"] = (
-            audio_source["sha256"]
-            if isinstance(audio_source, Mapping)
-            else request["media_sha256"]
-        )
+        request["audio_sha256"] = audio_sha
     return _bind_request(prepared, request)
 
 
@@ -1015,6 +1021,7 @@ def _fixture_evidence(
             "query_id": example["query_id"],
             "video_id": example["video_id"],
             "source_media_sha256": media_sha,
+            "audio_sha256": _sha256_bytes(audio_path.read_bytes()),
             "materialized_frame_hashes": frame_hashes,
             "timeline_fallback_reason": timeline.fallback_reason,
         }
@@ -1196,13 +1203,55 @@ def _extract_live_frame(
     return _hash_path(destination)
 
 
+def _extract_live_audio(media_path: Path, destination: Path) -> str:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.exists() or destination.is_symlink():
+        if destination.is_symlink() or not destination.is_file():
+            raise ValueError(f"refusing to reuse unsafe audio path: {destination}")
+        return _hash_path(destination)
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            str(media_path),
+            "-map",
+            "0:a:0",
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-c:a",
+            "pcm_s16le",
+            "-y",
+            str(destination),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    if not _is_regular_file(destination):
+        raise ValueError(f"audio extraction did not create a regular file: {destination}")
+    with destination.open("rb") as handle:
+        os.fsync(handle.fileno())
+    return _hash_path(destination)
+
+
+def _live_audio_path(prepared: PreparedRun, example: Mapping[str, Any]) -> tuple[Path, str]:
+    media_path = Path(str(example["media_path"]))
+    audio_path = prepared.path / "evidence" / "rows" / str(example["query_id"]) / "audio.wav"
+    return audio_path, _extract_live_audio(media_path, audio_path)
+
+
 def _live_evidence(
     prepared: PreparedRun,
     example: Mapping[str, Any],
     timeline: ValidatedTimeline,
 ) -> tuple[EvidencePlan, dict[str, Any]]:
     media_path = Path(str(example["media_path"]))
-    audio_path = Path(str(example.get("audio_path", media_path)))
+    audio_path, audio_sha = _live_audio_path(prepared, example)
     duration = float(example["media"]["duration_seconds"])
     inventory = _decode_live_frame_inventory(media_path, duration)
     plan_without_paths = build_global_local_frame_plan(duration, inventory, timeline)
@@ -1253,7 +1302,7 @@ def _live_evidence(
             "source_media_sha256": _safe_source_metadata(
                 source_fingerprint(media_path)
             )["sha256"],
-            "audio_sha256": _safe_source_metadata(source_fingerprint(audio_path))["sha256"],
+            "audio_sha256": audio_sha,
             "materialized_frame_hashes": [frame.image_sha256 for frame in materialized],
             "timeline_fallback_reason": timeline.fallback_reason,
         }
@@ -1319,18 +1368,20 @@ def _fixture_row(
 
 
 def _candidate_model(record: Mapping[str, Any]) -> CandidateRecord:
+    provider = str(record.get("provider", "fixture"))
+    support_span_ids = tuple(str(item) for item in record.get("support_span_ids", ("fixture",)))
     return CandidateRecord(
         video_id=str(record["video_id"]),
         pass_id=str(record["pass_id"]),
         answer=str(record["answer"]),
         elapsed_seconds=float(record["elapsed_seconds"]),
         confidence=float(record["confidence"]),
-        support_span_ids=("fixture",),
+        support_span_ids=support_span_ids,
         request_sha256=str(record["request_sha256"]),
         runtime_provenance={
             "model_id": MODEL_ID,
-            "provider": "fixture",
-            "runtime": "fixture",
+            "provider": provider,
+            "runtime": str(record.get("runtime", provider)),
             "status": "passed",
             "request_sha256": str(record["request_sha256"]),
             "response_sha256": str(record["response_sha256"]),
@@ -1355,7 +1406,7 @@ def _valid_ranked_passes(response: Mapping[str, Any] | None) -> tuple[str, ...] 
 def _valid_baseline_answers(values: Sequence[str]) -> bool:
     if len(values) != len(PASS_IDS):
         return False
-    normalized = [value.strip().casefold() for value in values]
+    normalized = [canonical_candidate_normalize(value) for value in values]
     return all(normalized) and len(set(normalized)) == len(normalized)
 
 
@@ -1374,8 +1425,6 @@ def _audit_pre_freeze_artifacts(run_path: Path) -> None:
         ):
             raise ValueError("pre-freeze artifact audit rejected a reference-like path")
         if not artifact.is_file():
-            continue
-        if artifact.name == "terminal-status.json":
             continue
         if artifact.suffix not in {".json", ".jsonl"}:
             continue
@@ -1419,6 +1468,81 @@ def _latest_attempts(run_path: Path) -> dict[tuple[int, str, str], dict[str, Any
     }
 
 
+def _validate_freeze_cross_checks(
+    prepared: PreparedRun,
+    predictions: Sequence[Mapping[str, Any]],
+    candidate_rows: Sequence[Mapping[str, Any]],
+) -> None:
+    by_candidate = {
+        (int(row["query_id"]), str(row["pass_id"])): row for row in candidate_rows
+    }
+    latest = _latest_attempts(prepared.path)
+    for example, prediction in zip(prepared.examples, predictions, strict=True):
+        query_id = int(example["query_id"])
+        row_manifest_path = (
+            prepared.path / "evidence" / "rows" / str(query_id) / "manifest.json"
+        )
+        if not row_manifest_path.is_file():
+            raise ValueError("freeze evidence manifest is missing")
+        evidence = _read_json(row_manifest_path)
+        if not prepared.fixture_mode and evidence.get("source_media_sha256") != example["source"]["sha256"]:
+            raise ValueError("freeze evidence source hash does not match manifest")
+        media_artifact = (
+            Path(str(example["media_path"]))
+            if not prepared.fixture_mode
+            else prepared.path / "evidence" / "rows" / str(query_id) / "fixture-video.mp4"
+        )
+        if not _is_regular_file(media_artifact) or _hash_path(media_artifact) != evidence.get(
+            "source_media_sha256"
+        ):
+            raise ValueError("freeze evidence media hash does not match artifact")
+        audio_path = prepared.path / "evidence" / "rows" / str(query_id) / (
+            "audio.wav" if not prepared.fixture_mode else "fixture-audio.wav"
+        )
+        if evidence.get("audio_sha256") is not None:
+            if not _is_regular_file(audio_path) or _hash_path(audio_path) != evidence["audio_sha256"]:
+                raise ValueError("freeze evidence audio hash does not match artifact")
+        frame_hashes = evidence.get("materialized_frame_hashes", [])
+        for frame in evidence.get("global_frames", []) + evidence.get("local_frames", []):
+            frame_path = Path(str(frame["frame_path"]))
+            if not _is_regular_file(frame_path) or _hash_path(frame_path) != frame.get("image_sha256"):
+                raise ValueError("freeze evidence frame hash does not match artifact")
+        if frame_hashes and any(
+            frame.get("image_sha256") not in frame_hashes
+            for frame in evidence.get("global_frames", []) + evidence.get("local_frames", [])
+        ):
+            raise ValueError("freeze evidence frame manifest is inconsistent")
+        for candidate in prediction["candidates"]:
+            key = (query_id, str(candidate["pass_id"]))
+            stored = by_candidate.get(key)
+            if stored is None:
+                raise ValueError("freeze candidate is missing from candidates.jsonl")
+            if stored.get("answer") != candidate.get("answer"):
+                raise ValueError("freeze candidate answer does not match candidates.jsonl")
+            request = stored.get("request")
+            if not isinstance(request, Mapping):
+                raise ValueError("freeze candidate request provenance is missing")
+            if canonical_request_sha256(request) != stored.get("request_sha256"):
+                raise ValueError("freeze candidate request hash is invalid")
+            if stored.get("request_sha256") != candidate.get("request_sha256"):
+                raise ValueError("freeze candidate request hash does not match prediction")
+            runtime_provenance = candidate.get("runtime_provenance")
+            if not isinstance(runtime_provenance, Mapping) or runtime_provenance.get(
+                "response_sha256"
+            ) != stored.get("response_sha256"):
+                raise ValueError("freeze candidate response hash does not match prediction")
+            response = stored.get("response")
+            if not isinstance(response, Mapping) or _sha256_json(response) != stored.get("response_sha256"):
+                raise ValueError("freeze candidate response hash is invalid")
+            if str(request.get("stage")) == "baseline-fallback":
+                continue
+            attempt = latest.get(_attempt_key(request))
+            if attempt is None or attempt.get("status") != "completed":
+                raise ValueError("freeze candidate lacks a completed terminal attempt")
+            if attempt.get("response_payload_sha256") != stored.get("response_sha256"):
+                raise ValueError("freeze candidate response hash does not match attempt")
+
+
 def _validate_freeze_inputs(prepared: PreparedRun, payload: Mapping[str, Any]) -> None:
     _validate_prepared_sources(prepared)
     if payload.get("run_id") != prepared.run_id or payload.get("model_id") != MODEL_ID:
@@ -1440,6 +1564,18 @@ def _validate_freeze_inputs(prepared: PreparedRun, payload: Mapping[str, Any]) -
         raise ValueError("cannot freeze an incomplete or unresolved run")
     if not isinstance(predictions, list) or len(predictions) != len(prepared.examples):
         raise ValueError("freeze requires one prediction for every ordered manifest row")
+    candidate_rows = _read_jsonl(prepared.path / "candidates.jsonl")
+    expected_candidate_keys = {
+        (int(example["query_id"]), pass_id)
+        for example in prepared.examples
+        for pass_id in PASS_IDS
+    }
+    actual_candidate_keys = {
+        (int(row["query_id"]), str(row["pass_id"])) for row in candidate_rows
+    }
+    if len(candidate_rows) != len(expected_candidate_keys) or actual_candidate_keys != expected_candidate_keys:
+        raise ValueError("freeze candidates.jsonl does not contain the exact ordered ten passes")
+    _validate_freeze_cross_checks(prepared, predictions, candidate_rows)
     expected = [(int(row["query_id"]), str(row["video_id"])) for row in prepared.examples]
     actual = [(row.get("query_id"), row.get("video_id")) for row in predictions]
     if actual != expected:
@@ -1454,14 +1590,17 @@ def _validate_freeze_inputs(prepared: PreparedRun, payload: Mapping[str, Any]) -
             raise ValueError("freeze requires exact ordered private pass IDs")
         if any(not isinstance(answer, str) or not answer.strip() for answer in answers):
             raise ValueError("freeze requires ten non-empty candidate answers")
-        if len({answer.strip().casefold() for answer in answers}) != len(PASS_IDS):
+        if len({canonical_candidate_normalize(answer) for answer in answers}) != len(PASS_IDS):
             raise ValueError("freeze requires ten unique candidate answers")
         ranked = prediction.get("ranked_pass_ids")
         if not isinstance(ranked, list) or len(ranked) != len(PASS_IDS) or set(ranked) != set(PASS_IDS):
             raise ValueError("freeze requires a complete ranked pass permutation")
     latest = _latest_attempts(prepared.path)
-    if any(record.get("status") != "completed" for record in latest.values()):
-        raise ValueError("freeze requires no unresolved terminal failures")
+    if any(
+        record.get("stage") == "verifier" and record.get("status") != "completed"
+        for record in latest.values()
+    ):
+        raise ValueError("freeze requires no unresolved verifier failure")
     _audit_pre_freeze_artifacts(prepared.path)
 
 
@@ -1489,6 +1628,8 @@ def _baseline_candidates(
                 {"answer": answer, "confidence": 0.0, "status": "passed"},
                 0.0,
                 candidate_pass_id=pass_id,
+                provider="fixture" if prepared.fixture_mode else "baseline",
+                support_span_ids=("baseline-fallback",),
             )
         )
     return records
@@ -1511,6 +1652,10 @@ def _validate_timeline_response(response: Any) -> None:
         )
     ):
         raise ValueError("timeline response schema is invalid")
+    for field in ("events", "support_spans"):
+        for item in response.get(field, []):
+            if not isinstance(item, Mapping) or not item:
+                raise ValueError("timeline response schema is invalid")
 
 
 def _validate_verifier_response(response: Any) -> None:
@@ -1521,6 +1666,24 @@ def _validate_verifier_response(response: Any) -> None:
 def _record_sort_key(record: Mapping[str, Any]) -> tuple[int, int]:
     pass_id = str(record.get("pass_id", ""))
     return int(record["query_id"]), PASS_IDS.index(pass_id) if pass_id in PASS_IDS else len(PASS_IDS)
+
+
+def _reconstruct_timeline_artifact(
+    path: Path, query_id: int, checkpoint: Mapping[str, Any], timeline: ValidatedTimeline
+) -> None:
+    rows = _read_jsonl(path)
+    existing = [row for row in rows if int(row.get("query_id", -1)) == query_id]
+    if existing:
+        if any(row.get("request_sha256") != checkpoint.get("request_sha256") for row in existing):
+            raise ValueError("timeline artifact does not match completed timeline checkpoint")
+        return
+    _append_jsonl(
+        path,
+        {
+            **checkpoint,
+            "timeline_fallback_reason": timeline.fallback_reason,
+        },
+    )
 
 
 def _build_ranked_predictions(
@@ -1551,7 +1714,7 @@ def _build_ranked_predictions(
     return predictions
 
 
-def run_prepared(
+def _run_prepared_locked(
     prepared: PreparedRun | Path | str,
     *,
     transport: Transport,
@@ -1617,16 +1780,18 @@ def run_prepared(
         evidence_plan, evidence_files = evidence_builder(
             prepared_run, example, timeline
         )
-        if not reused:
-            _append_jsonl(
-                prepared_run.path / "timeline.jsonl",
-                {
-                    **timeline_checkpoint,
-                    "timeline_fallback_reason": timeline.fallback_reason,
-                },
-            )
+        _reconstruct_timeline_artifact(
+            prepared_run.path / "timeline.jsonl",
+            query_id,
+            timeline_checkpoint,
+            timeline,
+        )
         row = _fixture_row(prepared_run, example, evidence_files)
         request_plan = evidence_files.get("model_plan", evidence_plan)
+        candidate_provider = "fixture" if prepared_run.fixture_mode else "gemini"
+        candidate_support_spans = tuple(
+            span.span_id for span in request_plan.support_spans
+        )
         answer_requests = build_answer_requests(row, timeline, request_plan, candidates=())
         primary_candidates: list[dict[str, Any]] = []
         for pass_id in PASS_IDS[:9]:
@@ -1652,6 +1817,8 @@ def run_prepared(
                         response,
                         float(checkpoint["elapsed_seconds"]),
                         checkpoint=checkpoint,
+                        provider=candidate_provider,
+                        support_span_ids=candidate_support_spans,
                     )
                 )
         candidates = [_candidate_model(record) for record in primary_candidates]
@@ -1681,6 +1848,8 @@ def run_prepared(
                     response,
                     float(checkpoint["elapsed_seconds"]),
                     checkpoint=checkpoint,
+                    provider=candidate_provider,
+                    support_span_ids=candidate_support_spans,
                 )
             )
         candidates = [_candidate_model(record) for record in primary_candidates]
@@ -1716,21 +1885,28 @@ def run_prepared(
                     response,
                     float(checkpoint["elapsed_seconds"]),
                     checkpoint=checkpoint,
+                    provider=candidate_provider,
+                    support_span_ids=candidate_support_spans,
                 )
-                normalized = str(response["answer"]).strip().casefold()
-                if all(candidate.answer.strip().casefold() != normalized for candidate in unique_candidates):
-                    by_answer: dict[str, list[str]] = {}
-                    for candidate in candidates:
-                        by_answer.setdefault(candidate.answer.strip().casefold(), []).append(
-                            candidate.pass_id
-                        )
+                backfill_probe = dict(backfill_record)
+                backfill_probe["pass_id"] = PASS_IDS[0]
+                backfill_candidate = _candidate_model(backfill_probe)
+                candidate_count_before = len(unique_candidates)
+                candidate_count_after = len(
+                    deduplicate_candidates(candidates + [backfill_candidate])
+                )
+                if candidate_count_after > candidate_count_before:
+                    kept_pass_ids = {
+                        candidate.pass_id
+                        for candidate in deduplicate_candidates(candidates)
+                    }
                     missing_passes = [
                         pass_id for pass_id in PASS_IDS if pass_id not in candidate_records_by_pass
                     ]
                     duplicate_passes = [
-                        max(pass_ids, key=PASS_IDS.index)
-                        for pass_ids in by_answer.values()
-                        if len(pass_ids) > 1
+                        candidate.pass_id
+                        for candidate in candidates
+                        if candidate.pass_id not in kept_pass_ids
                     ]
                     replacement_pass = (
                         missing_passes[0]
@@ -1756,9 +1932,24 @@ def run_prepared(
         for candidate in candidates:
             record = candidate.to_dict()
             record["query_id"] = query_id
-            record["response_sha256"] = str(
-                candidate.runtime_provenance["response_sha256"]
+            source_record = candidate_records_by_pass.get(str(candidate.pass_id), {})
+            record["request"] = dict(source_record.get("request", {}))
+            record["response"] = dict(source_record.get("response", {}))
+            record["request_sha256"] = str(
+                source_record.get("request_sha256", record["request_sha256"])
             )
+            record["response_sha256"] = str(
+                source_record.get(
+                    "response_sha256", candidate.runtime_provenance["response_sha256"]
+                )
+            )
+            record["provider"] = str(
+                source_record.get("provider", candidate.runtime_provenance["provider"])
+            )
+            record["runtime"] = str(
+                source_record.get("runtime", candidate.runtime_provenance["runtime"])
+            )
+            record["support_span_ids"] = list(candidate.support_span_ids)
             source_record = candidate_records_by_pass.get(str(candidate.pass_id), {})
             record["usage"] = dict(source_record.get("usage", _usage()))
             record["uploaded_file_deletion_status"] = dict(
@@ -1883,6 +2074,54 @@ def run_prepared(
         inferred_rows=completed_rows,
         candidate_shortfall=candidate_shortfall,
     )
+
+
+def _acquire_run_lock(prepared: PreparedRun) -> Path:
+    lock_path = prepared.path / "run.lock"
+    payload = _canonical_bytes({"run_id": prepared.run_id, "model_id": prepared.model_id}) + b"\n"
+    try:
+        descriptor = os.open(
+            lock_path,
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+    except OSError as error:
+        raise ValueError("stale run lock; recover by starting a new run ID") from error
+    try:
+        os.write(descriptor, payload)
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    return lock_path
+
+
+def run_prepared(
+    prepared: PreparedRun | Path | str,
+    *,
+    transport: Transport,
+    limit: int | None = None,
+) -> RunSummary:
+    prepared_run = prepared if isinstance(prepared, PreparedRun) else PreparedRun.load(prepared)
+    _validate_prepared_sources(prepared_run)
+    lock_path = _acquire_run_lock(prepared_run)
+    clean = False
+    try:
+        result = _run_prepared_locked(
+            prepared_run,
+            transport=transport,
+            limit=limit,
+        )
+        clean = True
+        return result
+    finally:
+        if clean:
+            try:
+                lock_path.unlink()
+            except FileNotFoundError:
+                pass
 
 
 def status(prepared: PreparedRun | Path | str) -> dict[str, Any]:

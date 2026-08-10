@@ -292,7 +292,7 @@ def test_crash_writes_immediate_attempt_checkpoint_and_resumes_without_rebilling
         module.run_prepared(run_dir, transport=CrashTransport())
     checkpoint_count = len(_jsonl(run_dir / "attempts.jsonl"))
     assert checkpoint_count >= 3
-    with pytest.raises(ValueError, match="in_flight_unknown"):
+    with pytest.raises(ValueError, match="in_flight_unknown|stale run lock"):
         module.run_prepared(run_dir, transport=module.FixtureTransport())
 
 
@@ -475,6 +475,13 @@ def _live_fixture_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             "size_bytes": path.stat().st_size,
         },
     )
+    def fake_audio(path: Path, destination: Path) -> str:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if not destination.exists():
+            destination.write_bytes(b"audio")
+        return module._hash_path(destination)
+
+    monkeypatch.setattr(module, "_extract_live_audio", fake_audio)
     run_dir = tmp_path / "run"
     module.prepare(config, run_dir, dataset_root=dataset_root)
     return module, run_dir, media
@@ -520,7 +527,8 @@ def test_nonfixture_never_uses_fixture_evidence_and_timeline_has_source_media(
     module.run_prepared(run_dir, transport=Capture())
     timeline = next(row for row in captured if row["stage"] == "timeline")
     assert timeline["media_path"] == str(media)
-    assert timeline["audio_path"] == str(media)
+    assert Path(str(timeline["audio_path"])).is_file()
+    assert Path(str(timeline["audio_path"])) != media
 
 
 def test_conservative_synthesis_receives_first_nine_candidates(
@@ -654,3 +662,192 @@ def test_status_does_not_refingerprint_removed_source(
     media.unlink()
     result = module.status(run_dir)
     assert result["status"] == "prepared"
+
+
+def test_live_prepare_requires_audio_stream_for_canary(tmp_path: Path) -> None:
+    module = _load_script()
+    dataset_root = tmp_path / "canonical-data"
+    dataset_root.mkdir()
+    media = dataset_root / "video.mp4"
+    media.write_bytes(b"video-only")
+    config = tmp_path / "live-config.json"
+    config.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": "audio-required-run",
+                "model_id": "gemini-3.1-pro-preview",
+                "fixture_mode": False,
+                "require_audio": True,
+                "examples": [
+                    {
+                        "query_id": 1,
+                        "video_id": "video-1",
+                        "question": "What happens?",
+                        "media": "video.mp4",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    module.CANONICAL_DATA_ROOT = dataset_root
+    module.probe_media = lambda path: {
+        "duration_seconds": 2.0,
+        "has_video": True,
+        "has_audio": False,
+        "stream_types": ["video"],
+    }
+    module.source_fingerprint = lambda path: {
+        "sha256": module._hash_path(path),
+        "size_bytes": path.stat().st_size,
+    }
+    with pytest.raises(ValueError, match="require_audio|audio stream"):
+        module.prepare(config, tmp_path / "run", dataset_root=dataset_root)
+
+
+def test_live_evidence_extracts_private_audio_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module, run_dir, media = _live_fixture_run(tmp_path, monkeypatch)
+    source_sha = module._hash_path(media)
+    monkeypatch.setattr(
+        module,
+        "_decode_live_frame_inventory",
+        lambda path, duration: [
+            {
+                "stream_index": 0,
+                "frame_index": index,
+                "actual_pts_seconds": (index + 0.5) * duration / 40,
+                "time_base": "1/1000",
+                "source_media_sha256": source_sha,
+            }
+            for index in range(40)
+        ],
+    )
+    monkeypatch.setattr(
+        module,
+        "_extract_live_frame",
+        lambda path, frame, destination: (
+            destination.parent.mkdir(parents=True, exist_ok=True),
+            destination.write_bytes(b"frame"),
+            module._hash_path(destination),
+        )[-1],
+    )
+    module.run_prepared(run_dir, transport=module.FixtureTransport())
+    attempts = _jsonl(run_dir / "attempts.jsonl")
+    answer_request = next(row["request"] for row in attempts if row["stage"] == "answer")
+    audio_path = Path(str(answer_request["model_payload"]["audio_path"]))
+    assert audio_path != media
+    assert audio_path.is_file()
+    assert audio_path.parent == run_dir / "evidence" / "rows" / "1"
+    evidence = json.loads((audio_path.parent / "manifest.json").read_text())
+    assert evidence["audio_sha256"] == module._hash_path(audio_path)
+
+
+def test_completed_timeline_reconstructs_missing_timeline_artifact(
+    tmp_path: Path,
+) -> None:
+    module, run_dir = _prepare_one_row(tmp_path)
+    module.run_prepared(run_dir, transport=module.FixtureTransport())
+    (run_dir / "timeline.jsonl").write_text("")
+    module.run_prepared(run_dir, transport=module.FixtureTransport())
+    assert len(_jsonl(run_dir / "timeline.jsonl")) == 1
+
+
+def test_nested_malformed_timeline_is_failed_not_reusable(tmp_path: Path) -> None:
+    module, run_dir = _prepare_one_row(tmp_path)
+
+    class NestedBadTimeline(module.FixtureTransport):
+        def generate(self, request: dict[str, object]) -> dict[str, object]:
+            if request["stage"] == "timeline":
+                return {"events": [{}], "support_spans": []}
+            return super().generate(request)
+
+    module.run_prepared(run_dir, transport=NestedBadTimeline())
+    timeline_attempts = [
+        row for row in _jsonl(run_dir / "attempts.jsonl") if row["stage"] == "timeline"
+    ]
+    assert timeline_attempts[-1]["status"] == "failed"
+
+
+def test_canonical_normalization_replaces_punctuation_duplicate(
+    tmp_path: Path,
+) -> None:
+    module, run_dir = _prepare_one_row(tmp_path)
+
+    class PunctuationDuplicate(module.FixtureTransport):
+        def generate(self, request: dict[str, object]) -> dict[str, object]:
+            if request["stage"] == "answer" and request["pass_id"] in module.PASS_IDS[:2]:
+                return {"answer": "red" if request["pass_id"] == module.PASS_IDS[0] else "red."}
+            if request["stage"] == "backfill":
+                return {"answer": "unique backfill"}
+            return super().generate(request)
+
+    module.run_prepared(run_dir, transport=PunctuationDuplicate())
+    prediction = json.loads((run_dir / "ranked-predictions.json").read_text())
+    assert prediction["candidate_shortfall"] == 0
+    assert len(prediction["predictions"][0]["candidates"]) == 10
+
+
+def test_freeze_cross_checks_candidates_and_terminal_label_metadata(
+    tmp_path: Path,
+) -> None:
+    module, run_dir = _prepare_one_row(tmp_path)
+    module.run_prepared(run_dir, transport=module.FixtureTransport())
+    candidate_rows = _jsonl(run_dir / "candidates.jsonl")
+    candidate_rows[0]["answer"] = "tampered candidate"
+    (run_dir / "candidates.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in candidate_rows)
+    )
+    terminal = json.loads((run_dir / "terminal-status.json").read_text())
+    terminal["gold_reference"] = "forbidden"
+    (run_dir / "terminal-status.json").write_text(json.dumps(terminal))
+    with pytest.raises(ValueError, match="candidate|label|gold"):
+        module.freeze(run_dir)
+
+
+def test_run_lock_fails_closed_and_clean_run_removes_lock(tmp_path: Path) -> None:
+    module, run_dir = _prepare_one_row(tmp_path)
+    lock_path = run_dir / "run.lock"
+    lock_path.write_text(json.dumps({"run_id": "fixture-run"}))
+    with pytest.raises(ValueError, match="stale|lock|recovery"):
+        module.run_prepared(run_dir, transport=module.FixtureTransport())
+    lock_path.unlink()
+    module.run_prepared(run_dir, transport=module.FixtureTransport())
+    assert not lock_path.exists()
+
+
+def test_live_candidates_use_live_provenance_not_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module, run_dir, media = _live_fixture_run(tmp_path, monkeypatch)
+    source_sha = module._hash_path(media)
+    monkeypatch.setattr(
+        module,
+        "_decode_live_frame_inventory",
+        lambda path, duration: [
+            {
+                "stream_index": 0,
+                "frame_index": index,
+                "actual_pts_seconds": (index + 0.5) * duration / 40,
+                "time_base": "1/1000",
+                "source_media_sha256": source_sha,
+            }
+            for index in range(40)
+        ],
+    )
+    monkeypatch.setattr(
+        module,
+        "_extract_live_frame",
+        lambda path, frame, destination: (
+            destination.parent.mkdir(parents=True, exist_ok=True),
+            destination.write_bytes(b"frame"),
+            module._hash_path(destination),
+        )[-1],
+    )
+    module.run_prepared(run_dir, transport=module.FixtureTransport())
+    prediction = json.loads((run_dir / "ranked-predictions.json").read_text())
+    candidate = prediction["predictions"][0]["candidates"][0]
+    assert candidate["runtime_provenance"]["provider"] != "fixture"
+    assert candidate["support_span_ids"] != ["fixture"]
