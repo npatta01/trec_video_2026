@@ -69,7 +69,7 @@ def test_run_manifest_hash_changes_when_evidence_policy_changes() -> None:
 
 - [ ] **Step 2: Run the new tests and verify RED**
 
-Run: `uv run pytest tests/test_vqa_submission.py -q`  
+Run: `uv run pytest tests/test_vqa_submission.py -q`
 Expected: collection fails because `trec_video_2026.vqa_submission` does not exist.
 
 - [ ] **Step 3: Implement immutable dataclasses and canonical auditing**
@@ -139,7 +139,7 @@ def test_verifier_must_rank_every_unique_candidate_once() -> None:
 
 - [ ] **Step 5: Run the candidate tests and verify RED**
 
-Run: `uv run pytest tests/test_vqa_submission.py -q`  
+Run: `uv run pytest tests/test_vqa_submission.py -q`
 Expected: failures name missing candidate and ranking functions.
 
 - [ ] **Step 6: Implement candidate normalization, ranking, and fallback**
@@ -171,8 +171,8 @@ Reject existing output paths, non-finite or negative times, duplicate normalized
 
 - [ ] **Step 9: Run Task 1 tests and commit**
 
-Run: `uv run pytest tests/test_vqa_submission.py -q`  
-Expected: all pass.  
+Run: `uv run pytest tests/test_vqa_submission.py -q`
+Expected: all pass.
 Commit: `git add src/trec_video_2026/vqa_submission.py tests/test_vqa_submission.py && git commit -m "feat: add immutable VQA submission contracts"`
 
 ---
@@ -202,7 +202,7 @@ def test_invalid_timeline_uses_declared_global_fallback() -> None:
 
 - [ ] **Step 2: Verify RED**
 
-Run: `uv run pytest tests/test_vqa_submission_evidence.py -q`  
+Run: `uv run pytest tests/test_vqa_submission_evidence.py -q`
 Expected: module import fails.
 
 - [ ] **Step 3: Implement schema-constrained timeline validation**
@@ -248,8 +248,8 @@ Persist requested time, actual PTS, decoded identity, frame path, image/source h
 
 - [ ] **Step 8: Run Task 2 tests and commit**
 
-Run: `uv run pytest tests/test_vqa_submission_evidence.py tests/test_vqa_submission.py -q`  
-Expected: all pass.  
+Run: `uv run pytest tests/test_vqa_submission_evidence.py tests/test_vqa_submission.py -q`
+Expected: all pass.
 Commit: `git add src/trec_video_2026/vqa_submission_evidence.py tests/test_vqa_submission_evidence.py && git commit -m "feat: plan global and local VQA evidence"`
 
 ---
@@ -281,7 +281,7 @@ def test_no_answer_request_contains_reference_or_scores() -> None:
 
 - [ ] **Step 2: Verify RED**
 
-Run: `uv run pytest tests/test_vqa_submission.py -q`  
+Run: `uv run pytest tests/test_vqa_submission.py -q`
 Expected: failures name missing request builders.
 
 - [ ] **Step 3: Implement the ten deterministic request views**
@@ -307,8 +307,8 @@ Public IDs are deterministic SHA-256 prefixes derived from `(run_id, video_id, p
 
 - [ ] **Step 6: Run Task 3 tests and commit**
 
-Run: `uv run pytest tests/test_vqa_submission.py -q`  
-Expected: all pass.  
+Run: `uv run pytest tests/test_vqa_submission.py -q`
+Expected: all pass.
 Commit: `git add src/trec_video_2026/vqa_submission.py tests/test_vqa_submission.py && git commit -m "feat: construct ten grounded VQA answer passes"`
 
 ---
@@ -344,7 +344,7 @@ def test_client_deletes_upload_after_generation_failure() -> None:
 
 - [ ] **Step 2: Verify RED**
 
-Run: `uv run pytest tests/test_vqa_submission_gemini.py -q`  
+Run: `uv run pytest tests/test_vqa_submission_gemini.py -q`
 Expected: module import fails.
 
 - [ ] **Step 3: Implement transport protocol and secret-safe errors**
@@ -391,8 +391,8 @@ Run `uv lock`. `create_google_transport()` lazily imports `google.genai`, calls 
 
 - [ ] **Step 7: Run Task 4 tests and commit**
 
-Run: `uv run pytest tests/test_vqa_submission_gemini.py tests/test_vqa_submission.py -q`  
-Expected: all pass without network access.  
+Run: `uv run pytest tests/test_vqa_submission_gemini.py tests/test_vqa_submission.py -q`
+Expected: all pass without network access.
 Commit: `git add pyproject.toml uv.lock src/trec_video_2026/vqa_submission_gemini.py tests/test_vqa_submission_gemini.py && git commit -m "feat: add Gemini VQA submission adapter"`
 
 ---
@@ -425,7 +425,7 @@ def test_run_resumes_only_hash_matching_completed_rows(tmp_path: Path) -> None:
 
 - [ ] **Step 2: Verify RED**
 
-Run: `uv run pytest tests/test_run_vqa_submission_script.py -q`  
+Run: `uv run pytest tests/test_run_vqa_submission_script.py -q`
 Expected: script/module loader fails.
 
 - [ ] **Step 3: Implement atomic prepare and row-level checkpoints**
@@ -453,8 +453,8 @@ Order per row: timeline → evidence → passes 1-9 → pass 10 → up to two ba
 
 - [ ] **Step 7: Run Task 5 tests and commit**
 
-Run: `uv run pytest tests/test_run_vqa_submission_script.py tests/test_vqa_submission*.py -q`  
-Expected: all pass.  
+Run: `uv run pytest tests/test_run_vqa_submission_script.py tests/test_vqa_submission*.py -q`
+Expected: all pass.
 Commit: `git add scripts/run_vqa_submission.py tests/test_run_vqa_submission_script.py && git commit -m "feat: orchestrate resumable VQA submissions"`
 
 ---
@@ -483,7 +483,7 @@ def test_misaligned_video_ids_fail_before_metrics(tmp_path: Path) -> None:
 
 - [ ] **Step 2: Verify RED**
 
-Run: `uv run pytest tests/test_score_vqa_submission.py -q`  
+Run: `uv run pytest tests/test_score_vqa_submission.py -q`
 Expected: script/module loader fails.
 
 - [ ] **Step 3: Implement failure-zero top-1 and ranked metrics**
@@ -513,8 +513,8 @@ Use `prepare_nist_invocation(NIST_2026_VALIDATION_MODE, ...)` and `execute_nist_
 
 - [ ] **Step 7: Run Task 6 tests and commit**
 
-Run: `uv run pytest tests/test_score_vqa_submission.py tests/test_vqa_evaluation.py tests/test_vqa_submission.py -q`  
-Expected: all pass.  
+Run: `uv run pytest tests/test_score_vqa_submission.py tests/test_vqa_evaluation.py tests/test_vqa_submission.py -q`
+Expected: all pass.
 Commit: `git add scripts/score_vqa_submission.py tests/test_score_vqa_submission.py && git commit -m "feat: score and serialize VQA submission portfolios"`
 
 ---
@@ -548,7 +548,7 @@ def test_gate_separates_representative_and_diagnostic_rows() -> None:
 
 - [ ] **Step 2: Verify RED**
 
-Run: `uv run pytest tests/test_run_vqa_submission_script.py -q`  
+Run: `uv run pytest tests/test_run_vqa_submission_script.py -q`
 Expected: config files are missing.
 
 - [ ] **Step 3: Generate and freeze both label-free manifests**
@@ -573,8 +573,8 @@ Expected: tests pass; status reports six prepared, zero inferred, zero labels lo
 
 - [ ] **Step 5: Run paid-provider preflight without uploading media**
 
-Run: `uv run --extra gemini python scripts/run_vqa_submission.py preflight-live --model-id gemini-3.1-pro-preview`  
-Expected with configured authentication: exit 0 and safe JSON reporting authentication configured.  
+Run: `uv run --extra gemini python scripts/run_vqa_submission.py preflight-live --model-id gemini-3.1-pro-preview`
+Expected with configured authentication: exit 0 and safe JSON reporting authentication configured.
 Expected without configured authentication: exit 2 and the single fixed authentication message; no media upload and no credential output.
 
 - [ ] **Step 6: Commit frozen manifests and tests**
@@ -608,7 +608,7 @@ Expected: one row completes, every uploaded provider file records deletion, ten 
 
 - [ ] **Step 2: Inspect the one-row operational artifacts**
 
-Run: `uv run python scripts/run_vqa_submission.py status --prepared data/vqa/benchmarks/vqa-submission-canary-20260810-a1`  
+Run: `uv run python scripts/run_vqa_submission.py status --prepared data/vqa/benchmarks/vqa-submission-canary-20260810-a1`
 Expected: one complete row, five pending rows, zero integrity failures, finite usage/cost.
 
 - [ ] **Step 3: Resume the remaining five rows**

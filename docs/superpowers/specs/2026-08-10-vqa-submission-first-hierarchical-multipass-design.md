@@ -1,8 +1,8 @@
 # Submission-First Hierarchical Multi-Pass VQA Design
 
-**Date:** 2026-08-10  
-**Status:** Approved direction; optimize end-to-end quality before reverse ablation  
-**Primary theme:** Routing, fusion, and answer selection  
+**Date:** 2026-08-10
+**Status:** Approved direction; optimize end-to-end quality before reverse ablation
+**Primary theme:** Routing, fusion, and answer selection
 **Related themes:** Models and adaptation; visual and temporal evidence;
 speech and transcript evidence; experiment integrity and evaluation
 
