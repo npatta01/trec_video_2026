@@ -15,9 +15,11 @@ from trec_video_2026.vqa_safety_submission import (
     complete_ranked_candidates,
     extract_uniform_frames,
     finalize_submission,
+    merge_prediction_shards,
     build_prediction_row,
     prepare_inference_requests,
     parse_ranked_tail,
+    partition_requests,
     run_nist_validator,
     uniform_timestamps,
     validate_resume_prefix,
@@ -543,3 +545,59 @@ def test_resume_prefix_requires_exact_completed_query_order() -> None:
     completed[0]["video_id"] = "wrong"
     with pytest.raises(ValueError, match="resume prefix"):
         validate_resume_prefix(requests, completed)
+
+
+def test_partition_requests_balances_contiguous_order() -> None:
+    requests = [{"query_id": value} for value in range(1, 12)]
+
+    shards = partition_requests(requests, 4)
+
+    assert [[row["query_id"] for row in shard] for shard in shards] == [
+        [1, 2, 3],
+        [4, 5, 6],
+        [7, 8, 9],
+        [10, 11],
+    ]
+    with pytest.raises(ValueError, match="shard_count"):
+        partition_requests(requests, 12)
+
+
+def test_merge_prediction_shards_requires_exact_request_coverage() -> None:
+    requests = [
+        {"query_id": value, "video_id": f"video-{value}"}
+        for value in range(1, 5)
+    ]
+
+    def payload(index: int, query_ids: list[int]) -> dict[str, object]:
+        return {
+            "schema_version": 1,
+            "run_id": f"safety-run-shard-{index:02d}",
+            "predictions": [
+                {
+                    "query_id": query_id,
+                    "video_id": f"video-{query_id}",
+                    "answers": [],
+                }
+                for query_id in query_ids
+            ],
+        }
+
+    merged = merge_prediction_shards(
+        requests,
+        [payload(0, [1, 2]), payload(1, [3, 4])],
+        run_id="safety-run",
+    )
+
+    assert merged["run_id"] == "safety-run"
+    assert [row["query_id"] for row in merged["predictions"]] == [1, 2, 3, 4]
+    assert merged["shard_run_ids"] == [
+        "safety-run-shard-00",
+        "safety-run-shard-01",
+    ]
+
+    with pytest.raises(ValueError, match="coverage mismatch at row 2"):
+        merge_prediction_shards(
+            requests,
+            [payload(0, [1, 2]), payload(1, [2, 4])],
+            run_id="safety-run",
+        )

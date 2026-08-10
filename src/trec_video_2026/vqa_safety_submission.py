@@ -638,6 +638,76 @@ def validate_resume_prefix(
     return len(completed)
 
 
+def partition_requests(
+    requests: list[dict[str, Any]], shard_count: int
+) -> list[list[dict[str, Any]]]:
+    """Split ordered requests into balanced contiguous shards."""
+
+    if not requests:
+        raise ValueError("requests must be non-empty")
+    if (
+        isinstance(shard_count, bool)
+        or not isinstance(shard_count, int)
+        or shard_count <= 0
+        or shard_count > len(requests)
+    ):
+        raise ValueError("shard_count must be positive and no larger than requests")
+    minimum, extra = divmod(len(requests), shard_count)
+    shards: list[list[dict[str, Any]]] = []
+    offset = 0
+    for index in range(shard_count):
+        size = minimum + (1 if index < extra else 0)
+        shards.append(requests[offset : offset + size])
+        offset += size
+    return shards
+
+
+def merge_prediction_shards(
+    requests: list[dict[str, Any]],
+    shard_payloads: list[dict[str, Any]],
+    *,
+    run_id: str,
+) -> dict[str, Any]:
+    """Merge ordered shard payloads only when they exactly cover the requests."""
+
+    if not requests or not shard_payloads:
+        raise ValueError("requests and shard payloads must be non-empty")
+    if not isinstance(run_id, str) or not run_id.strip():
+        raise ValueError("run_id must be a non-empty string")
+    predictions: list[dict[str, Any]] = []
+    shard_run_ids: list[str] = []
+    for index, payload in enumerate(shard_payloads):
+        if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+            raise ValueError(f"shard {index} has an invalid schema")
+        expected_run_id = f"{run_id}-shard-{index:02d}"
+        if payload.get("run_id") != expected_run_id:
+            raise ValueError(f"shard {index} run ID mismatch")
+        rows = payload.get("predictions")
+        if not isinstance(rows, list) or not rows:
+            raise ValueError(f"shard {index} predictions must be a non-empty list")
+        if any(not isinstance(row, dict) for row in rows):
+            raise TypeError(f"shard {index} predictions must be objects")
+        shard_run_ids.append(expected_run_id)
+        predictions.extend(rows)
+    if len(predictions) != len(requests):
+        raise ValueError(
+            "shard prediction count does not match the complete request list"
+        )
+    for index, (request, prediction) in enumerate(
+        zip(requests, predictions, strict=True)
+    ):
+        if prediction.get("query_id") != request.get("query_id") or prediction.get(
+            "video_id"
+        ) != request.get("video_id"):
+            raise ValueError(f"shard coverage mismatch at row {index}")
+    return {
+        "schema_version": 1,
+        "run_id": run_id,
+        "shard_run_ids": shard_run_ids,
+        "predictions": predictions,
+    }
+
+
 def _validate_prediction_rows(
     manifest: dict[str, Any], payload: dict[str, Any]
 ) -> list[dict[str, Any]]:
@@ -889,7 +959,9 @@ __all__ = [
     "extract_uniform_frames",
     "finalize_submission",
     "locate_test_media",
+    "merge_prediction_shards",
     "parse_ranked_tail",
+    "partition_requests",
     "prepare_inference_requests",
     "run_nist_validator",
     "sha256_path",
