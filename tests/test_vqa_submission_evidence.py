@@ -220,6 +220,22 @@ def test_multistream_inventory_allows_shared_pts_but_keeps_decoded_identity_uniq
     assert len({frame.actual_pts_seconds for frame in plan.all_frames}) < 12
 
 
+def test_same_stream_duplicate_pts_is_rejected() -> None:
+    inventory = _multi_stream_inventory()
+    inventory.append(
+        {
+            "stream_index": 0,
+            "frame_index": 16,
+            "actual_pts_seconds": 0.0,
+            "time_base": "1/1000",
+            "source_media_sha256": SOURCE_SHA,
+        }
+    )
+
+    with pytest.raises(ValueError, match="duplicate decoded PTS"):
+        build_global_local_frame_plan(15.0, inventory, ())
+
+
 def test_raw_support_span_is_fully_normalized_for_frame_planning() -> None:
     plan = build_global_local_frame_plan(
         10.0,

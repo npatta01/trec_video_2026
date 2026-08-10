@@ -494,6 +494,7 @@ def _normalize_inventory(
         raise ValueError("inventory must contain decoded frames")
     normalized: list[dict[str, Any]] = []
     identities: set[tuple[int, int]] = set()
+    pts_by_stream: dict[int, set[float]] = {}
     for index, raw in enumerate(records):
         if not isinstance(raw, Mapping):
             raise TypeError(f"inventory[{index}] must be an object")
@@ -527,6 +528,12 @@ def _normalize_inventory(
             raise ValueError(
                 f"inventory[{index}].actual_pts_seconds is outside duration"
             )
+        stream_pts = pts_by_stream.setdefault(stream_index, set())
+        if actual in stream_pts:
+            raise ValueError(
+                "inventory contains duplicate decoded PTS within stream"
+            )
+        stream_pts.add(actual)
         time_base = raw.get("time_base")
         if not isinstance(time_base, str) or not time_base.strip():
             raise ValueError(f"inventory[{index}].time_base is required")
