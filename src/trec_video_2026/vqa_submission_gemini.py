@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Protocol
+from urllib.parse import unquote
 
 from trec_video_2026.vqa_gate import canonical_request_sha256
 from trec_video_2026.vqa_submission import (
@@ -22,6 +23,10 @@ from trec_video_2026.vqa_submission import (
     TimelineSpan,
     VerifierDecision,
     VerifierRequest,
+)
+from trec_video_2026.vqa_submission_evidence import (
+    ValidatedTimeline,
+    validate_timeline,
 )
 
 
@@ -33,9 +38,12 @@ _MIME_TYPES = {
     ".jpg": "image/jpeg",
     ".m4a": "audio/mp4",
     ".mp3": "audio/mpeg",
+    ".mkv": "video/x-matroska",
+    ".mov": "video/quicktime",
     ".mp4": "video/mp4",
     ".png": "image/png",
     ".wav": "audio/wav",
+    ".webp": "image/webp",
     ".webm": "video/webm",
 }
 _ALLOWED_MODALITIES = frozenset(
@@ -44,9 +52,65 @@ _ALLOWED_MODALITIES = frozenset(
 _TIMELINE_SPAN_FIELDS = frozenset(
     {"span_id", "start_seconds", "end_seconds", "modalities", "description"}
 )
-_REPAIR_PREFIX = (
-    "Repair the JSON object to conform exactly to the supplied response schema. "
-    "Return JSON only. Parsed invalid object: "
+SCHEMA_REPAIR_INSTRUCTION = (
+    "Return JSON only and conform exactly to the supplied response schema."
+)
+SAFE_ERROR_MARKER = "[REDACTED]"
+AUTHENTICATION_ERROR_MESSAGE = "Gemini Developer API authentication is not configured"
+VERTEX_UNSUPPORTED_MESSAGE = (
+    "Vertex AI configuration is unsupported; use the paid Gemini Developer API"
+)
+_SAFE_ERROR_WORDS = frozenset(
+    {
+        "a",
+        "an",
+        "api",
+        "bad",
+        "busy",
+        "by",
+        "cancelled",
+        "connection",
+        "configured",
+        "deadline",
+        "denied",
+        "error",
+        "exceeded",
+        "failed",
+        "file",
+        "for",
+        "gateway",
+        "generation",
+        "internal",
+        "invalid",
+        "limit",
+        "media",
+        "no",
+        "not",
+        "of",
+        "provider",
+        "protocol",
+        "rate",
+        "request",
+        "response",
+        "schema",
+        "server",
+        "service",
+        "temporarily",
+        "the",
+        "timed",
+        "timeout",
+        "to",
+        "unavailable",
+        "unknown",
+        "upload",
+        "validation",
+    }
+)
+_SAFE_ERROR_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9 .,'/_-]{0,159}\Z")
+_SENSITIVE_ERROR_RE = re.compile(
+    r"(?is)(?:authorization|proxy-authorization|x-goog-api-key|x-api-key|"
+    r"api[_ -]?key|access[_ -]?token|refresh[_ -]?token|bearer|token|secret|"
+    r"password|credential)"
 )
 
 
@@ -85,7 +149,12 @@ TIMELINE_RESPONSE_SCHEMA: dict[str, object] = {
         "schema_version": {"type": "integer", "const": 1},
         "duration_seconds": {"type": "number", "minimum": 1},
     },
-    "required": ["events", "support_spans"],
+    "required": [
+        "schema_version",
+        "duration_seconds",
+        "events",
+        "support_spans",
+    ],
     "additionalProperties": False,
 }
 
@@ -142,9 +211,12 @@ class GeminiError(RuntimeError):
         self,
         message: str,
         *,
+        failure_code: str = "provider_request",
         uploaded_file_deletion_status: Mapping[str, bool] | None = None,
     ) -> None:
         super().__init__(message)
+        self.failure_code = failure_code
+        self.failure_record: FailureRecord | None = None
         self.uploaded_file_deletion_status = MappingProxyType(
             dict(uploaded_file_deletion_status or {})
         )
@@ -198,6 +270,73 @@ class TokenUsage:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class FailureRecord:
+    """Safe, finalized provenance attached to provider/protocol failures."""
+
+    failure_code: str
+    request_sha256: str
+    model_id: str
+    attempt_count: int
+    usage: TokenUsage
+    elapsed_seconds: float
+    response_sha256: str | None
+    uploaded_file_deletion_status: Mapping[str, bool]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.failure_code, str) or not self.failure_code:
+            raise ValueError("failure_code must be a non-empty string")
+        if not isinstance(self.request_sha256, str) or _SHA256_RE.fullmatch(
+            self.request_sha256
+        ) is None:
+            raise ValueError("request_sha256 must be a lowercase 64-hex SHA-256")
+        if not isinstance(self.model_id, str) or not self.model_id:
+            raise ValueError("model_id must be a non-empty string")
+        if (
+            isinstance(self.attempt_count, bool)
+            or not isinstance(self.attempt_count, int)
+            or self.attempt_count < 0
+        ):
+            raise ValueError("attempt_count must be a non-negative integer")
+        if not isinstance(self.usage, TokenUsage):
+            raise TypeError("usage must be TokenUsage")
+        if (
+            isinstance(self.elapsed_seconds, bool)
+            or not isinstance(self.elapsed_seconds, (int, float))
+            or not math.isfinite(float(self.elapsed_seconds))
+            or self.elapsed_seconds < 0
+        ):
+            raise ValueError("elapsed_seconds must be a finite non-negative number")
+        if self.response_sha256 is not None and _SHA256_RE.fullmatch(
+            self.response_sha256
+        ) is None:
+            raise ValueError("response_sha256 must be a lowercase 64-hex SHA-256")
+        statuses = dict(self.uploaded_file_deletion_status)
+        if any(not isinstance(value, bool) for value in statuses.values()):
+            raise TypeError("deletion statuses must be booleans")
+        object.__setattr__(self, "elapsed_seconds", float(self.elapsed_seconds))
+        object.__setattr__(self, "uploaded_file_deletion_status", MappingProxyType(statuses))
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "failure_code": self.failure_code,
+            "request_sha256": self.request_sha256,
+            "model_id": self.model_id,
+            "attempt_count": self.attempt_count,
+            "usage": {
+                "input_tokens": self.usage.input_tokens,
+                "output_tokens": self.usage.output_tokens,
+                "total_tokens": self.usage.total_tokens,
+                "cached_input_tokens": self.usage.cached_input_tokens,
+            },
+            "elapsed_seconds": self.elapsed_seconds,
+            "response_sha256": self.response_sha256,
+            "uploaded_file_deletion_status": dict(
+                self.uploaded_file_deletion_status
+            ),
+        }
+
+
 Usage = TokenUsage
 
 
@@ -245,48 +384,7 @@ class GenerationResult:
         return hashlib.sha256(self.raw_bytes).hexdigest()
 
 
-@dataclass(frozen=True, slots=True)
-class TimelineOutput:
-    """Locally validated timeline JSON returned by Gemini."""
-
-    events: tuple[TimelineSpan, ...]
-    support_spans: tuple[TimelineSpan, ...]
-    schema_version: int | None = None
-    duration_seconds: float | None = None
-
-    def __post_init__(self) -> None:
-        events = tuple(self.events)
-        support_spans = tuple(self.support_spans)
-        if not all(isinstance(item, TimelineSpan) for item in events + support_spans):
-            raise TypeError("timeline output must contain TimelineSpan values")
-        if len({span.span_id for span in events}) != len(events):
-            raise ValueError("timeline event IDs must be unique")
-        if len({span.span_id for span in support_spans}) != len(support_spans):
-            raise ValueError("timeline support span IDs must be unique")
-        if self.schema_version is not None and self.schema_version != 1:
-            raise ValueError("schema_version must be 1")
-        if self.duration_seconds is not None and (
-            isinstance(self.duration_seconds, bool)
-            or not isinstance(self.duration_seconds, (int, float))
-            or not math.isfinite(float(self.duration_seconds))
-            or self.duration_seconds < 1
-        ):
-            raise ValueError("duration_seconds must be a finite number of at least 1")
-        object.__setattr__(self, "events", events)
-        object.__setattr__(self, "support_spans", support_spans)
-        if self.duration_seconds is not None:
-            object.__setattr__(self, "duration_seconds", float(self.duration_seconds))
-
-    def to_dict(self) -> dict[str, object]:
-        payload: dict[str, object] = {
-            "events": [event.to_dict() for event in self.events],
-            "support_spans": [span.to_dict() for span in self.support_spans],
-        }
-        if self.schema_version is not None:
-            payload["schema_version"] = self.schema_version
-        if self.duration_seconds is not None:
-            payload["duration_seconds"] = self.duration_seconds
-        return payload
+TimelineOutput = ValidatedTimeline
 
 
 @dataclass(frozen=True, slots=True)
@@ -314,7 +412,11 @@ class _ResultMetadata:
             or self.elapsed_seconds < 0
         ):
             raise ValueError("elapsed_seconds must be a finite non-negative number")
-        if isinstance(self.attempt_count, bool) or self.attempt_count < 1:
+        if (
+            isinstance(self.attempt_count, bool)
+            or not isinstance(self.attempt_count, int)
+            or self.attempt_count < 1
+        ):
             raise ValueError("attempt_count must be positive")
         if not isinstance(self.usage, TokenUsage):
             raise TypeError("usage must be TokenUsage")
@@ -355,12 +457,12 @@ class AnswerResult(_ResultMetadata):
 
 @dataclass(frozen=True, slots=True)
 class TimelineResult(_ResultMetadata):
-    timeline: TimelineOutput
+    timeline: ValidatedTimeline
 
     def __post_init__(self) -> None:
         _ResultMetadata.__post_init__(self)
-        if not isinstance(self.timeline, TimelineOutput):
-            raise TypeError("timeline must be TimelineOutput")
+        if not isinstance(self.timeline, ValidatedTimeline):
+            raise TypeError("timeline must be ValidatedTimeline")
 
     @property
     def events(self) -> tuple[TimelineSpan, ...]:
@@ -386,35 +488,41 @@ class VerifierResult(_ResultMetadata):
 
 
 def _bounded_message(error: BaseException) -> str:
-    """Keep provider diagnostics useful without echoing secret-bearing context."""
+    """Return only a conservative generic diagnostic or the fixed marker."""
 
     message = str(error).replace("\x00", " ").strip()
-    message = re.sub(
-        r"(?is)(authorization|x-goog-api-key|api[-_ ]?key)\s*[:=]\s*"
-        r"(?:bearer\s+)?[^\s,;]+",
-        "[REDACTED]",
-        message,
-    )
-    message = re.sub(
-        r"(?is)(bearer|token|secret|password|credential)\s*[:=]\s*[^\s,;]+",
-        "[REDACTED]",
-        message,
-    )
-    message = re.sub(r"(?i)\bAIza[0-9A-Za-z_-]{20,}\b", "[REDACTED]", message)
-    message = re.sub(
-        r"(?i)\b(client|session|headers?)\s*=\s*[^\s,;]+",
-        "[REDACTED]",
-        message,
-    )
-    message = " ".join(message.split())
-    if not message:
-        message = "no provider diagnostic"
-    return message[:_MAX_ERROR_LENGTH]
+    if (
+        not message
+        or len(message) > _MAX_ERROR_LENGTH
+        or "\n" in message
+        or "\r" in message
+        or "%" in message
+        or "://" in message
+        or "{" in message
+        or "}" in message
+        or "[" in message
+        or "]" in message
+        or "(" in message
+        or ")" in message
+        or _SENSITIVE_ERROR_RE.search(unquote(unquote(message)))
+    ):
+        return SAFE_ERROR_MARKER
+    if _SAFE_ERROR_RE.fullmatch(message) is None:
+        return SAFE_ERROR_MARKER
+    words = re.findall(r"[A-Za-z]+", message.lower())
+    if any(word not in _SAFE_ERROR_WORDS for word in words):
+        return SAFE_ERROR_MARKER
+    return message
 
 
 def _transport_error(operation: str, error: BaseException) -> ProviderError:
     return ProviderError(
-        f"Gemini {operation} failed: {type(error).__name__}: {_bounded_message(error)}"
+        f"{type(error).__name__}: {_bounded_message(error)}",
+        failure_code=(
+            f"provider_{operation}"
+            if operation in {"upload", "generation"}
+            else "provider_request"
+        ),
     )
 
 
@@ -473,8 +581,14 @@ def _request_files(request: object, payload: Mapping[str, Any]) -> tuple[tuple[s
         resolved = path.resolve()
         if resolved in seen:
             return
+        resolved_mime_type = mime_type or _MIME_TYPES.get(path.suffix.lower())
+        if resolved_mime_type is None:
+            raise ProviderProtocolError(
+                "Unsupported media MIME type",
+                failure_code="protocol_media_mime",
+            )
         seen.add(resolved)
-        files.append((role, path, mime_type or _MIME_TYPES.get(path.suffix.lower(), "application/octet-stream")))
+        files.append((role, path, resolved_mime_type))
 
     for role, field_name in (("native-media", "media_path"), ("audio", "audio_path")):
         value = getattr(request, field_name, payload.get(field_name))
@@ -487,7 +601,7 @@ def _request_files(request: object, payload: Mapping[str, Any]) -> tuple[tuple[s
     if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
         raise ValueError("frame_paths must be a sequence")
     for index, value in enumerate(values):
-        add(f"frame-{index}", value, "image/jpeg")
+        add(f"frame-{index}", value)
     return tuple(files)
 
 
@@ -579,13 +693,29 @@ def _parse_span(payload: object, field: str) -> TimelineSpan:
     return span
 
 
-def _parse_timeline(payload: object) -> TimelineOutput:
+def _parse_timeline(
+    payload: object, *, duration_seconds: float
+) -> ValidatedTimeline:
     if not isinstance(payload, Mapping):
         raise ValueError("timeline response must be an object")
     keys = set(payload)
-    allowed = {"events", "support_spans", "schema_version", "duration_seconds"}
-    if not {"events", "support_spans"}.issubset(keys) or not keys <= allowed:
-        raise ValueError("timeline response has an incomplete or unknown schema")
+    required = {"schema_version", "duration_seconds", "events", "support_spans"}
+    if keys != required:
+        raise ValueError("timeline response must have the exact schema")
+    if payload["schema_version"] != 1 or isinstance(
+        payload["schema_version"], bool
+    ):
+        raise ValueError("timeline schema_version must be 1")
+    model_duration = payload["duration_seconds"]
+    if (
+        isinstance(model_duration, bool)
+        or not isinstance(model_duration, (int, float))
+        or not math.isfinite(float(model_duration))
+        or not math.isclose(
+            float(model_duration), duration_seconds, rel_tol=0.0, abs_tol=1e-6
+        )
+    ):
+        raise ValueError("timeline duration_seconds does not match source duration")
     events = payload["events"]
     support_spans = payload["support_spans"]
     if (
@@ -595,15 +725,34 @@ def _parse_timeline(payload: object) -> TimelineOutput:
         or not isinstance(support_spans, Sequence)
     ):
         raise ValueError("timeline events and support_spans must be arrays")
-    return TimelineOutput(
-        events=tuple(_parse_span(item, f"events[{index}]") for index, item in enumerate(events)),
-        support_spans=tuple(
-            _parse_span(item, f"support_spans[{index}]")
+    normalized_payload = {
+        "schema_version": 1,
+        "duration_seconds": float(model_duration),
+        "events": [
+            _parse_span(item, f"events[{index}]").to_dict()
+            for index, item in enumerate(events)
+        ],
+        "support_spans": [
+            _parse_span(item, f"support_spans[{index}]").to_dict()
             for index, item in enumerate(support_spans)
-        ),
-        schema_version=payload.get("schema_version"),
-        duration_seconds=payload.get("duration_seconds"),
+        ],
+    }
+    return validate_timeline(
+        normalized_payload,
+        duration_seconds=duration_seconds,
+        allow_fallback=False,
     )
+
+
+def _request_duration(request: object) -> float:
+    payload = _request_payload(request)
+    value = getattr(request, "duration_seconds", payload.get("duration_seconds"))
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("timeline request requires numeric duration_seconds")
+    duration = float(value)
+    if not math.isfinite(duration) or duration < 1.0:
+        raise ValueError("timeline request duration_seconds must be at least one")
+    return duration
 
 
 def _parse_verifier(payload: object, request: VerifierRequest) -> VerifierDecision:
@@ -656,8 +805,13 @@ class GeminiSubmissionClient:
         return AnswerResult(answer=answer, **metadata)
 
     def timeline(self, request: object) -> TimelineResult:
+        duration_seconds = _request_duration(request)
         timeline, metadata = self._execute(
-            request, TIMELINE_RESPONSE_SCHEMA, _parse_timeline
+            request,
+            TIMELINE_RESPONSE_SCHEMA,
+            lambda payload: _parse_timeline(
+                payload, duration_seconds=duration_seconds
+            ),
         )
         return TimelineResult(timeline=timeline, **metadata)
 
@@ -687,7 +841,7 @@ class GeminiSubmissionClient:
         deletion_status: dict[str, bool] = {}
         usage = TokenUsage()
         attempts = 0
-        response_sha256 = hashlib.sha256(b"").hexdigest()
+        response_sha256: str | None = None
         parsed: Any = None
         failure: GeminiError | None = None
 
@@ -699,32 +853,30 @@ class GeminiSubmissionClient:
                     raise _transport_error("upload", error) from None
                 if not isinstance(record, UploadedFileRecord):
                     raise ProviderProtocolError(
-                        "Gemini upload returned an invalid file record"
+                        "Gemini upload returned an invalid file record",
+                        failure_code="protocol_upload_record",
                     )
                 uploaded.append((role, record))
 
             primary_parts = _parts(payload, uploaded)
+            attempts += 1
             generated = self._generate(primary_parts, schema)
-            attempts = 1
             usage += generated.usage
             response_sha256 = generated.response_sha256
             try:
                 parsed = parser(generated.payload)
             except Exception:  # noqa: BLE001 - local schema boundary
-                repair_prompt = _REPAIR_PREFIX + _json_bytes(generated.payload).decode(
-                    "utf-8"
-                )
-                repaired_parts = (*primary_parts[:-1], repair_prompt)
+                repaired_parts = (*primary_parts[:-1], SCHEMA_REPAIR_INSTRUCTION)
+                attempts += 1
                 repaired = self._generate(repaired_parts, schema)
-                attempts = 2
                 usage += repaired.usage
                 response_sha256 = repaired.response_sha256
                 try:
                     parsed = parser(repaired.payload)
-                except Exception as repair_error:  # noqa: BLE001 - schema boundary
+                except Exception:  # noqa: BLE001 - schema boundary
                     raise ProviderProtocolError(
-                        "Provider JSON failed local schema validation after one repair: "
-                        f"{type(repair_error).__name__}: {_bounded_message(repair_error)}"
+                        "Provider JSON failed local schema validation after one repair",
+                        failure_code="protocol_schema",
                     ) from None
         except GeminiError as error:
             failure = error
@@ -739,18 +891,42 @@ class GeminiSubmissionClient:
                 else:
                     deletion_status[record.file_id] = True
 
+        if failure is None and any(not deleted for deleted in deletion_status.values()):
+            failure = ProviderError(
+                "Gemini uploaded-file deletion failed",
+                failure_code="cleanup_delete",
+            )
         if failure is not None:
             failure.uploaded_file_deletion_status = MappingProxyType(
                 dict(deletion_status)
             )
-            raise failure
-        if any(not deleted for deleted in deletion_status.values()):
-            raise ProviderError(
-                "Gemini uploaded-file deletion failed",
+            failure.failure_record = FailureRecord(
+                failure_code=failure.failure_code,
+                request_sha256=request_hash,
+                model_id=self.model_id,
+                attempt_count=attempts,
+                usage=usage,
+                elapsed_seconds=time.monotonic() - started,
+                response_sha256=response_sha256,
                 uploaded_file_deletion_status=deletion_status,
             )
+            raise failure
         if attempts < 1 or parsed is None:
-            raise ProviderProtocolError("Gemini produced no validated response")
+            failure = ProviderProtocolError(
+                "Gemini produced no validated response",
+                failure_code="protocol_no_response",
+            )
+            failure.failure_record = FailureRecord(
+                failure_code=failure.failure_code,
+                request_sha256=request_hash,
+                model_id=self.model_id,
+                attempt_count=attempts,
+                usage=usage,
+                elapsed_seconds=time.monotonic() - started,
+                response_sha256=response_sha256,
+                uploaded_file_deletion_status=deletion_status,
+            )
+            raise failure
 
         metadata = {
             "model_id": self.model_id,
@@ -794,11 +970,23 @@ class _GoogleGenaiTransport:
         uploaded = self._client.files.upload(
             file=str(path), config={"mime_type": mime_type}
         )
-        file_id = getattr(uploaded, "name", None)
-        if not isinstance(file_id, str) or not file_id:
-            raise RuntimeError("Gemini upload did not return a file name")
-        uri = getattr(uploaded, "uri", None)
-        return UploadedFileRecord(file_id=file_id, mime_type=mime_type, uri=uri)
+        try:
+            file_id = _provider_file_id(uploaded)
+            uri = _provider_file_uri(uploaded)
+            return UploadedFileRecord(
+                file_id=file_id, mime_type=mime_type, uri=uri
+            )
+        except Exception:
+            orphan_id = _provider_file_id_or_none(uploaded)
+            if orphan_id is not None:
+                try:
+                    self._client.files.delete(name=orphan_id)
+                except Exception:
+                    pass
+            raise ProviderProtocolError(
+                "Gemini upload response did not contain a valid file record",
+                failure_code="protocol_upload_record",
+            ) from None
 
     def generate(
         self,
@@ -847,6 +1035,36 @@ class _GoogleGenaiTransport:
             return part
 
 
+def _provider_file_id_or_none(uploaded: object) -> str | None:
+    try:
+        if isinstance(uploaded, Mapping):
+            value = uploaded.get("name", uploaded.get("file_id"))
+        else:
+            value = getattr(uploaded, "name", None)
+            if value is None:
+                value = getattr(uploaded, "file_id", None)
+    except Exception:
+        return None
+    return value if isinstance(value, str) and value else None
+
+
+def _provider_file_id(uploaded: object) -> str:
+    file_id = _provider_file_id_or_none(uploaded)
+    if file_id is None:
+        raise ValueError("missing provider file identifier")
+    return file_id
+
+
+def _provider_file_uri(uploaded: object) -> str | None:
+    if isinstance(uploaded, Mapping):
+        uri = uploaded.get("uri")
+    else:
+        uri = getattr(uploaded, "uri", None)
+    if uri is not None and (not isinstance(uri, str) or not uri):
+        raise ValueError("invalid provider file URI")
+    return uri
+
+
 def _provider_count(metadata: object, field_name: str) -> int:
     value = _provider_count_or_none(metadata, field_name)
     return 0 if value is None else value
@@ -867,16 +1085,36 @@ def create_google_transport() -> GeminiTransport:
     try:
         from google import genai
     except Exception:
-        raise ProviderAuthenticationError(
-            "Gemini API or Vertex authentication is not configured"
-        ) from None
+        raise ProviderAuthenticationError(AUTHENTICATION_ERROR_MESSAGE) from None
     try:
         client = genai.Client()
     except Exception:
+        raise ProviderAuthenticationError(AUTHENTICATION_ERROR_MESSAGE) from None
+    if _is_vertex_configured(client):
         raise ProviderAuthenticationError(
-            "Gemini API or Vertex authentication is not configured"
-        ) from None
+            VERTEX_UNSUPPORTED_MESSAGE,
+            failure_code="auth_vertex_unsupported",
+        )
     return _GoogleGenaiTransport(client)
+
+
+def preflight_google_transport() -> GeminiTransport:
+    """Construct the Developer API transport without uploading any media."""
+
+    return create_google_transport()
+
+
+def _is_vertex_configured(client: object) -> bool:
+    for candidate in (client, getattr(client, "_api_client", None)):
+        if candidate is None:
+            continue
+        for field_name in ("vertexai", "vertex_ai", "use_vertexai"):
+            try:
+                if getattr(candidate, field_name, False) is True:
+                    return True
+            except Exception:
+                continue
+    return False
 
 
 __all__ = [
@@ -888,6 +1126,7 @@ __all__ = [
     "GeminiError",
     "GeminiSubmissionClient",
     "GeminiTransport",
+    "FailureRecord",
     "ProviderAuthenticationError",
     "ProviderError",
     "ProviderProtocolError",
@@ -897,5 +1136,10 @@ __all__ = [
     "Usage",
     "UploadedFileRecord",
     "VerifierResult",
+    "AUTHENTICATION_ERROR_MESSAGE",
+    "SAFE_ERROR_MARKER",
+    "SCHEMA_REPAIR_INSTRUCTION",
+    "VERTEX_UNSUPPORTED_MESSAGE",
     "create_google_transport",
+    "preflight_google_transport",
 ]
