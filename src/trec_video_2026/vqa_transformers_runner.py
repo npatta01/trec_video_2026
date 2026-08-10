@@ -13,6 +13,7 @@ from typing import Any
 
 from trec_video_2026.vqa_models import (
     build_controlled_messages,
+    classify_question_type,
     normalize_generated_answer,
 )
 
@@ -31,15 +32,44 @@ def attach_request_identity(
     }
 
 
-def load_processor(auto_processor: Any, model_id: str, revision: str) -> Any:
+def validate_pixel_bounds(min_pixels: int, max_pixels: int) -> None:
+    """Reject invalid per-frame pixel bounds before loading model resources."""
+
+    if min_pixels <= 0 or max_pixels <= 0:
+        raise ValueError("Pixel bounds must be positive")
+    if min_pixels > max_pixels:
+        raise ValueError("Minimum pixel bound cannot exceed maximum pixel bound")
+
+
+def _processor_pixel_kwargs(
+    model_id: str, min_pixels: int, max_pixels: int
+) -> dict[str, int]:
+    validate_pixel_bounds(min_pixels, max_pixels)
+    if model_id.startswith("google/gemma-4-"):
+        return {}
+    return {"min_pixels": min_pixels, "max_pixels": max_pixels}
+
+
+def applied_pixel_bounds(
+    model_id: str, min_pixels: int, max_pixels: int
+) -> tuple[int | None, int | None]:
+    """Return bounds actually supplied to the selected processor."""
+
+    kwargs = _processor_pixel_kwargs(model_id, min_pixels, max_pixels)
+    return kwargs.get("min_pixels"), kwargs.get("max_pixels")
+
+
+def load_processor(
+    auto_processor: Any,
+    model_id: str,
+    revision: str,
+    *,
+    min_pixels: int = MIN_PIXELS_PER_FRAME,
+    max_pixels: int = MAX_PIXELS_PER_FRAME,
+) -> Any:
     """Load a processor with a bounded and recorded per-frame pixel budget."""
 
-    kwargs = {
-        "min_pixels": MIN_PIXELS_PER_FRAME,
-        "max_pixels": MAX_PIXELS_PER_FRAME,
-    }
-    if model_id.startswith("google/gemma-4-"):
-        kwargs = {}
+    kwargs = _processor_pixel_kwargs(model_id, min_pixels, max_pixels)
     if model_id.startswith("allenai/Molmo2-"):
         from transformers.processing_utils import ProcessorMixin
 
@@ -237,6 +267,7 @@ def generate_answer(
     frame_descriptions: tuple[str, ...] | None = None,
     transcript: str | None,
     max_new_tokens: int,
+    answer_policy: str = "current",
 ) -> str:
     messages = build_controlled_messages(
         question=question,
@@ -244,6 +275,7 @@ def generate_answer(
         frame_timestamps=frame_timestamps,
         frame_descriptions=frame_descriptions,
         transcript=transcript,
+        answer_policy=answer_policy,
     )
     inputs = processor.apply_chat_template(
         messages,
@@ -277,17 +309,40 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--model-class", choices=("image-text", "multimodal"), default="image-text"
     )
     parser.add_argument("--max-new-tokens", type=int, default=64)
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--answer-policy", choices=("current", "question-aware"), default="current"
+    )
+    parser.add_argument(
+        "--min-pixels-per-frame", type=int, default=MIN_PIXELS_PER_FRAME
+    )
+    parser.add_argument(
+        "--max-pixels-per-frame", type=int, default=MAX_PIXELS_PER_FRAME
+    )
+    args = parser.parse_args(argv)
+    try:
+        validate_pixel_bounds(args.min_pixels_per_frame, args.max_pixels_per_frame)
+    except ValueError as error:
+        parser.error(str(error))
+    return args
+
+
+def _safe_question_type(request: Any) -> str:
+    if not isinstance(request, Mapping):
+        return "unknown"
+    question = request.get("question")
+    if not isinstance(question, str) or not question.strip():
+        return "unknown"
+    return classify_question_type(question)
 
 
 def main(argv: list[str] | None = None) -> int:
     """Read one runner request from stdin and emit one runner result as JSON."""
 
+    args = parse_args(argv)
     import torch
     import transformers
     from transformers import AutoProcessor
 
-    args = parse_args(argv)
     payload = json.load(sys.stdin)
     is_batch = isinstance(payload, list)
     requests = payload if is_batch else [payload]
@@ -304,8 +359,24 @@ def main(argv: list[str] | None = None) -> int:
     device = "unverified"
     precision = "unverified"
     runtime_attestation = None
+    applied_min_pixels_per_frame: int | None = None
+    applied_max_pixels_per_frame: int | None = None
+    runtime = f"transformers {transformers.__version__}; torch {torch.__version__}"
     try:
-        processor = load_processor(AutoProcessor, model_id, revision)
+        processor = load_processor(
+            AutoProcessor,
+            model_id,
+            revision,
+            min_pixels=args.min_pixels_per_frame,
+            max_pixels=args.max_pixels_per_frame,
+        )
+        applied_min_pixels_per_frame, applied_max_pixels_per_frame = (
+            applied_pixel_bounds(
+                model_id,
+                args.min_pixels_per_frame,
+                args.max_pixels_per_frame,
+            )
+        )
         if args.model_class == "image-text":
             from transformers import AutoModelForImageTextToText
 
@@ -325,16 +396,43 @@ def main(argv: list[str] | None = None) -> int:
         device, precision, runtime_attestation = validate_bfloat16_accelerator(
             model, torch
         )
+    except Exception as error:  # noqa: BLE001 - structured runtime failures
+        results = []
+        for request in requests:
+            result = _error_result(
+                error=error,
+                started=load_started,
+                model_id=model_id,
+                revision=revision,
+                runtime=runtime,
+                peak_memory=torch.cuda.max_memory_allocated(),
+                device=device,
+                precision=precision,
+                runtime_attestation=runtime_attestation,
+                answer_policy=args.answer_policy,
+                question_type=_safe_question_type(request),
+                requested_min_pixels_per_frame=args.min_pixels_per_frame,
+                requested_max_pixels_per_frame=args.max_pixels_per_frame,
+                min_pixels_per_frame=applied_min_pixels_per_frame,
+                max_pixels_per_frame=applied_max_pixels_per_frame,
+            )
+            results.append(attach_request_identity(result, request))
+    else:
         load_seconds = time.monotonic() - load_started
         results = []
         for request in requests:
             started = time.monotonic()
-            torch.cuda.reset_peak_memory_stats()
+            question_type = "unknown"
             try:
+                torch.cuda.reset_peak_memory_stats()
+                question = request["question"]
+                if not isinstance(question, str) or not question.strip():
+                    raise ValueError("Question must be a non-empty string")
+                question_type = classify_question_type(question)
                 answer = generate_answer(
                     processor=processor,
                     model=model,
-                    question=request["question"],
+                    question=question,
                     frame_paths=tuple(Path(path) for path in request["frame_paths"]),
                     frame_timestamps=tuple(request["frame_timestamps"]),
                     frame_descriptions=(
@@ -344,6 +442,7 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                     transcript=request.get("transcript"),
                     max_new_tokens=args.max_new_tokens,
+                    answer_policy=args.answer_policy,
                 )
                 result = _result(
                     status="passed",
@@ -351,11 +450,17 @@ def main(argv: list[str] | None = None) -> int:
                     started=started,
                     model_id=model_id,
                     revision=revision,
-                    runtime=f"transformers {transformers.__version__}; torch {torch.__version__}",
+                    runtime=runtime,
                     peak_memory=torch.cuda.max_memory_allocated(),
                     device=device,
                     precision=precision,
                     runtime_attestation=runtime_attestation,
+                    answer_policy=args.answer_policy,
+                    question_type=question_type,
+                    requested_min_pixels_per_frame=args.min_pixels_per_frame,
+                    requested_max_pixels_per_frame=args.max_pixels_per_frame,
+                    min_pixels_per_frame=applied_min_pixels_per_frame,
+                    max_pixels_per_frame=applied_max_pixels_per_frame,
                 )
             except Exception as error:  # noqa: BLE001 - preserve per-request failures
                 result = _error_result(
@@ -363,32 +468,20 @@ def main(argv: list[str] | None = None) -> int:
                     started=started,
                     model_id=model_id,
                     revision=revision,
-                    runtime=f"transformers {transformers.__version__}; torch {torch.__version__}",
+                    runtime=runtime,
                     peak_memory=torch.cuda.max_memory_allocated(),
                     device=device,
                     precision=precision,
                     runtime_attestation=runtime_attestation,
+                    answer_policy=args.answer_policy,
+                    question_type=question_type,
+                    requested_min_pixels_per_frame=args.min_pixels_per_frame,
+                    requested_max_pixels_per_frame=args.max_pixels_per_frame,
+                    min_pixels_per_frame=applied_min_pixels_per_frame,
+                    max_pixels_per_frame=applied_max_pixels_per_frame,
                 )
             result["model_load_seconds"] = load_seconds
             results.append(attach_request_identity(result, request))
-    except Exception as error:  # noqa: BLE001 - structured runtime failures
-        results = [
-            attach_request_identity(
-                _error_result(
-                    error=error,
-                    started=load_started,
-                    model_id=model_id,
-                    revision=revision,
-                    runtime=f"transformers {transformers.__version__}; torch {torch.__version__}",
-                    peak_memory=torch.cuda.max_memory_allocated(),
-                    device=device,
-                    precision=precision,
-                    runtime_attestation=runtime_attestation,
-                ),
-                request,
-            )
-            for request in requests
-        ]
     print(json.dumps(results if is_batch else results[0], ensure_ascii=False))
     return 0
 
@@ -404,6 +497,12 @@ def _error_result(
     device: str,
     precision: str,
     runtime_attestation: Mapping[str, Any] | None,
+    answer_policy: str = "current",
+    question_type: str = "general",
+    requested_min_pixels_per_frame: int = MIN_PIXELS_PER_FRAME,
+    requested_max_pixels_per_frame: int = MAX_PIXELS_PER_FRAME,
+    min_pixels_per_frame: int | None = MIN_PIXELS_PER_FRAME,
+    max_pixels_per_frame: int | None = MAX_PIXELS_PER_FRAME,
 ) -> dict[str, Any]:
     error_name = type(error).__name__
     unsupported = (
@@ -426,6 +525,12 @@ def _error_result(
         device=device,
         precision=precision,
         runtime_attestation=runtime_attestation,
+        answer_policy=answer_policy,
+        question_type=question_type,
+        requested_min_pixels_per_frame=requested_min_pixels_per_frame,
+        requested_max_pixels_per_frame=requested_max_pixels_per_frame,
+        min_pixels_per_frame=min_pixels_per_frame,
+        max_pixels_per_frame=max_pixels_per_frame,
         error=error,
     )
 
@@ -443,6 +548,12 @@ def _result(
     precision: str,
     runtime_attestation: Mapping[str, Any] | None,
     error: Exception | None = None,
+    answer_policy: str = "current",
+    question_type: str = "general",
+    requested_min_pixels_per_frame: int = MIN_PIXELS_PER_FRAME,
+    requested_max_pixels_per_frame: int = MAX_PIXELS_PER_FRAME,
+    min_pixels_per_frame: int | None = MIN_PIXELS_PER_FRAME,
+    max_pixels_per_frame: int | None = MAX_PIXELS_PER_FRAME,
 ) -> dict[str, Any]:
     message = str(error) if error else None
     if message and len(message) > 4_000:
@@ -463,8 +574,12 @@ def _result(
         "peak_memory_bytes": peak_memory,
         "error_type": type(error).__name__ if error else None,
         "error_message": message,
-        "min_pixels_per_frame": MIN_PIXELS_PER_FRAME,
-        "max_pixels_per_frame": MAX_PIXELS_PER_FRAME,
+        "answer_policy": answer_policy,
+        "question_type": question_type,
+        "requested_min_pixels_per_frame": requested_min_pixels_per_frame,
+        "requested_max_pixels_per_frame": requested_max_pixels_per_frame,
+        "min_pixels_per_frame": min_pixels_per_frame,
+        "max_pixels_per_frame": max_pixels_per_frame,
     }
 
 

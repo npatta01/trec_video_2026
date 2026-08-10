@@ -1,0 +1,51 @@
+type: task
+name: vqa-factorial-full-evidence-20260809-f1
+
+image: docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
+entrypoint: /bin/bash -c
+shell: bash
+working_dir: /dstack/run
+
+env:
+  - HF_TOKEN=${{ secrets.hf_token }}
+  - HF_INPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen35-4b-12f-full-20260803-b1-inputs/inputs
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-factorial-full-evidence-20260809-f1
+  - EXPERIMENT_RUN_NAME=vqa-factorial-full-evidence-20260809-f1
+  - VQA_RUNTIME_IMAGE=docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
+  - VQA_MODE=evidence
+  - PROFILE=/dstack/run/configs/vqa/vqa_factorial_full_evidence_profile.json
+  - PYTHON_BIN=/opt/conda/bin/python
+  - PYTHONPATH=/dstack/run/src
+  - HF_HUB_DISABLE_TELEMETRY=1
+
+files:
+  - ../scripts/run-vqa-factorial-dstack.sh:/dstack/run/scripts/run-vqa-factorial-dstack.sh
+  - ../scripts/build_vqa_factorial_manifest.py:/dstack/run/scripts/build_vqa_factorial_manifest.py
+  - ../scripts/qwen35_prepare_matched_evidence.py:/dstack/run/scripts/qwen35_prepare_matched_evidence.py
+  - ../scripts/qwen35_whisper_cuda.py:/dstack/run/scripts/qwen35_whisper_cuda.py
+  - ../scripts/qwen35_build_whisper_requests.py:/dstack/run/scripts/qwen35_build_whisper_requests.py
+  - ../src/trec_video_2026/__init__.py:/dstack/run/src/trec_video_2026/__init__.py
+  - ../src/trec_video_2026/vqa_models.py:/dstack/run/src/trec_video_2026/vqa_models.py
+  - ../src/trec_video_2026/vqa_transformers_runner.py:/dstack/run/src/trec_video_2026/vqa_transformers_runner.py
+  - ../src/trec_video_2026/vqa_whisper.py:/dstack/run/src/trec_video_2026/vqa_whisper.py
+  - ../configs/vqa/qwen35_vqa2025_475_label_free.json:/dstack/run/configs/vqa/qwen35_vqa2025_475_label_free.json
+  - ../configs/vqa/vqa_factorial_full_evidence_profile.json:/dstack/run/configs/vqa/vqa_factorial_full_evidence_profile.json
+
+commands:
+  - |
+    set -euo pipefail
+    exec bash /dstack/run/scripts/run-vqa-factorial-dstack.sh
+
+resources:
+  gpu: L40S:1:48GB..
+  cpu: 8..
+  memory: 32GB..
+  disk: 100GB..
+
+backends: [vastai]
+spot_policy: on-demand
+max_price: 1.00
+max_duration: 8h
+retry:
+  on_events: [no-capacity]
+  duration: 20m

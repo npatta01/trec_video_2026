@@ -1,0 +1,125 @@
+{
+  "checksum_file_sha256": "f1605c967f407f102eed09525dfac1b6684578a67c69b55671006b61ddeb51c5",
+  "checksum_verified": true,
+  "condition_metrics": {
+    "qwen35-4b-12f-frames-only": {
+      "meteor": 0.1529845780314734,
+      "normalized_exact_match": 0.09263157894736843,
+      "token_f1": 0.2439138858894605
+    },
+    "qwen35-4b-12f-whisper-large-v3": {
+      "meteor": 0.21526644662510153,
+      "normalized_exact_match": 0.14105263157894737,
+      "token_f1": 0.30486025270222694
+    }
+  },
+  "conditions": [
+    "qwen35-4b-12f-frames-only",
+    "qwen35-4b-12f-whisper-large-v3"
+  ],
+  "frame_artifact": {
+    "contact_sheet_directory": "frame-contact-sheets/",
+    "evidence_file": "frame-evidence.json",
+    "frames_per_video": 12,
+    "per_frame_sha256_recorded": true,
+    "selected_pts_recorded": true
+  },
+  "label_policy": "labels joined locally after remote prediction freeze",
+  "paired_metrics": {
+    "baseline_condition_id": "qwen35-4b-12f-frames-only",
+    "bootstrap_intervals": {
+      "meteor": {
+        "confidence": 0.95,
+        "exploratory": true,
+        "iterations": 2000,
+        "lower": 0.045844148700118874,
+        "seed": 20260803,
+        "upper": 0.07922830588592036
+      },
+      "normalized_exact_match": {
+        "confidence": 0.95,
+        "exploratory": true,
+        "iterations": 2000,
+        "lower": 0.02526315789473684,
+        "seed": 20260803,
+        "upper": 0.06947368421052631
+      },
+      "token_f1": {
+        "confidence": 0.95,
+        "exploratory": true,
+        "iterations": 2000,
+        "lower": 0.03751546529866088,
+        "seed": 20260803,
+        "upper": 0.08486502537154975
+      }
+    },
+    "exact_match_losses": 4,
+    "exact_match_wins": 27,
+    "metric_deltas": {
+      "meteor": 0.06228186859362812,
+      "normalized_exact_match": 0.04842105263157895,
+      "token_f1": 0.060946366812766446
+    },
+    "paired_count": 475,
+    "strata": {
+      "vqa-2025-training-full-panel": {
+        "bootstrap_intervals": {
+          "meteor": {
+            "confidence": 0.95,
+            "exploratory": true,
+            "iterations": 2000,
+            "lower": 0.045844148700118874,
+            "seed": 20260803,
+            "upper": 0.07922830588592036
+          },
+          "normalized_exact_match": {
+            "confidence": 0.95,
+            "exploratory": true,
+            "iterations": 2000,
+            "lower": 0.02526315789473684,
+            "seed": 20260803,
+            "upper": 0.06947368421052631
+          },
+          "token_f1": {
+            "confidence": 0.95,
+            "exploratory": true,
+            "iterations": 2000,
+            "lower": 0.03751546529866088,
+            "seed": 20260803,
+            "upper": 0.08486502537154975
+          }
+        },
+        "exact_match_losses": 4,
+        "exact_match_wins": 27,
+        "metric_deltas": {
+          "meteor": 0.06228186859362812,
+          "normalized_exact_match": 0.04842105263157895,
+          "token_f1": 0.060946366812766446
+        },
+        "paired_count": 475
+      }
+    },
+    "treatment_condition_id": "qwen35-4b-12f-whisper-large-v3"
+  },
+  "panel": {
+    "annotation_files": 481,
+    "inference_rows": 475,
+    "local_media_rows": 475
+  },
+  "remote_output_uri": "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/q35-12f-wa-20260803-c2-output/output",
+  "run_id": "q35-12f-wa-20260803-c2",
+  "schema_version": 1,
+  "transition_counts": {
+    "both_exactly_correct": 40,
+    "both_wrong": 404,
+    "frames_only_only_wrong": 27,
+    "whisper_only_wrong": 4
+  },
+  "verified_remote_file_count": 500,
+  "wrong_row_audit": {
+    "answerability_review_status": "pending_manual_review",
+    "private_audit_html": "data/vqa/benchmarks/qwen35-whisper-frame-audit-20260803-c2/wrong-row-audit.html",
+    "private_audit_json": "data/vqa/benchmarks/qwen35-whisper-frame-audit-20260803-c2/wrong-row-audit.json",
+    "row_count": 435
+  }
+}

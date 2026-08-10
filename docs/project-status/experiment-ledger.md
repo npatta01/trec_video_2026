@@ -91,12 +91,13 @@ evidence?
 keep transcript provenance explicit and the independent human tier
 blocked.
 
-**Strongest evidence:** [selected 10-row automatic-transcript ablation
-plus frozen-30 transcript
-results](research-speech-transcripts.md#automatic-transcript-ablation).
+**Strongest evidence:** [matched full-panel 475-row frame/audio audit
+plus the selected 10-row automatic-transcript
+ablation](research-speech-transcripts.md#matched-full-panel-frame-audio-audit).
 
-**Open question:** do grounded spans, alternative ASR, or a valid human
-upper bound improve answers without hiding transcript errors?
+**Open question:** can a semantic question/transcript relevance route,
+tested against a shuffled-transcript negative control, retain the
+Whisper gain without repeating the clear audio regression?
 
 </div>
 
@@ -169,7 +170,7 @@ aria-label="Scrollable research theme status matrix" tabindex="0">
 |----|----|----|----|----|----|
 | [Integrity](research-integrity.md#current-working-answer) | Makes comparisons interpretable | [v2 freeze](research-integrity.md#frozen-30-protocol-v2) | **Use:** v2; compatibility is not quality | **Possible:** reusable gate | [Invalid-fixture gate](research-integrity.md#reusable-integrity-gate) |
 | [Visual](research-visual-evidence.md#current-working-answer) | Finds the useful moment within a frame budget | [Uniform/directed/burst](research-visual-evidence.md#directed-temporal-sampling); [r4 representation, answer, and headroom audits](research-visual-evidence.md#matched-r4-oracle-hybrid-12-inference-comparison) | **Use:** uniform-12; **Do not default:** tested oracle-hybrid-12 | **Possible:** learned retrieval or improved evidence use | [Selection-sensitive panel](research-visual-evidence.md#cheapest-valid-next-experiments) |
-| [Speech](research-speech-transcripts.md#current-working-answer) | Adds spoken words with explicit provenance | [Whisper ablation](research-speech-transcripts.md#automatic-transcript-ablation) | **Use selectively:** accepted Whisper | **Blocked:** human tier; **Possible:** alternate ASR | [Matched ASR panel](research-speech-transcripts.md#alternative-or-multilingual-asr-matched-panel) |
+| [Speech](research-speech-transcripts.md#current-working-answer) | Adds spoken words with explicit provenance | [Whisper ablation](research-speech-transcripts.md#automatic-transcript-ablation) | **Use selectively:** accepted Whisper | **Blocked:** human tier; **Possible:** alternate ASR | [Selective Whisper route](research-speech-transcripts.md#distribution-level-selective-whisper) |
 | [Native audio](research-native-audio.md#current-working-answer) | Preserves prosody and non-speech sound | [Audio on/off](research-native-audio.md#minicpm-audio-on-off) | **Do not default:** global audio on | **Possible:** routed sound/prosody | [Specialist panel](research-native-audio.md#matched-native-audio-specialist-panel) |
 | [Models](research-models.md#current-working-answer) | Separates compatibility, quality, and adaptation | [Candidate screens](research-models.md#failure-panel) | **Use:** Qwen3.5-4B; **Fast:** MiniCPM-o | **Possible:** repaired/specialist model or adaptation | [Bottleneck-first decision](research-models.md#bottleneck-first-adaptation-decision) |
 | [Routing](research-routing.md#current-working-answer) | Chooses evidence and separates retrieval from answering | [Route seeds](research-routing.md#taxonomy-audit) | **Use:** baseline fallback; router unvalidated | **Possible:** fusion and answer election | [Three-way measurement](research-routing.md#required-evidence-labels-and-three-way-measurement) |
@@ -216,6 +217,10 @@ Expand named experiments by theme
   tiers](research-speech-transcripts.md#transcript-provenance-tiers)
 - [Automatic transcript
   ablation](research-speech-transcripts.md#automatic-transcript-ablation)
+- [Matched full-panel frame/audio
+  audit](research-speech-transcripts.md#matched-full-panel-frame-audio-audit)
+- [Distribution-level selective Whisper
+  route](research-speech-transcripts.md#distribution-level-selective-whisper)
 - [Multilingual and translation
   follow-ups](research-speech-transcripts.md#multilingual-translation-followups)
 - [Seamless

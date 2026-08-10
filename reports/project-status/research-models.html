@@ -3334,6 +3334,25 @@ break-inside: avoid;
 </section>
 <section id="what-has-been-tried" class="level2">
 <h2 class="anchored" data-anchor-id="what-has-been-tried">What has been tried</h2>
+<section id="qwen35-full-panel-baseline" class="level3">
+<h3 class="anchored" data-anchor-id="qwen35-full-panel-baseline">Full-panel Qwen3.5-4B baseline extension</h3>
+<ul>
+<li><strong>Reason for testing:</strong> extend the established 30-row visual baseline to every 2025 training row that has both an annotation and local media, and measure whether a remote GPU makes that larger evidence boundary practical.</li>
+<li><strong>Tested condition and panel:</strong> Qwen3.5-4B with the pinned revision and 12 uniform temporal midpoint frames on 475 locally available VQA 2025 training rows. Six of the 481 annotation records had no local video and were excluded before inference. VQA testing, VQA 2026, and VTT caption/search rows were not part of this quality panel.</li>
+<li><strong>Observed result:</strong> all <code>475/475</code> label-free inference rows completed. The local diagnostic score was <code>0.090526</code> normalized exact match, <code>0.240696</code> token F1, and <code>0.156063</code> lexical METEOR. The known 30-row overlap reproduced the prior baseline exactly (<code>0.300000</code> exact match and <code>0.430725</code> token F1). On an NVIDIA L40S, frame preparation took <code>1,932.15</code> seconds and model workload took <code>531.50</code> seconds; the dstack task cost approximately <code>$0.72</code>.</li>
+<li><strong>Current condition-bound status:</strong> <strong>Verified full-panel baseline reference; not a promotion comparison.</strong> Retain Qwen3.5-4B with 12 frames as the visual control for the next matched evidence experiment.</li>
+<li><strong>What this rules out now:</strong> treating the 475-row Qwen baseline as unmeasured, or assuming that local execution requires the earlier roughly twelve-hour estimate when a comparable L40S is available.</li>
+<li><strong>What it does not rule out:</strong> a different model, grounding gains, answer-selection failures, or performance on the unlabeled 2025 test and 2026 collections. The related <a href="./research-speech-transcripts.html#matched-full-panel-frame-audio-audit">matched full-panel Whisper/frame audit</a> is recorded under Speech and Transcript Evidence rather than duplicated here; the single visual condition itself cannot establish a winning solution.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—the full annotation JSONs do not carry the category taxonomy used by selected development panels, so this record reports aggregate metrics rather than a post-hoc category leaderboard. The metrics are local diagnostics, not an official competition submission score.</li>
+<li><strong>Reconsider when:</strong> a label-blind matched Whisper/grounding arm freezes on the same 475 IDs and produces a paired improvement with predeclared non-regression rules; do not rerun this control unless the inference contract changes.</li>
+</ul>
+<details>
+<summary>
+Method, result, validity risks, and evidence
+</summary>
+The input manifest contained only <code>video_id</code> and <code>question</code>; annotation answers and incorrect answers were loaded only after the remote predictions froze. The run used the pinned CUDA image and Transformers revision recorded in the <a href="../../docs/experiments/artifacts/qwen35-4b-12f-full-20260803-c1-score.json">sanitized score artifact</a>. Remote prediction and output checksum manifests were verified locally. The <a href="../../plans/qwen35-475-dstack.md">canonical run plan</a> preserves the input boundary, immutable run identifiers, and the next decision. The score uses the repository’s normalized exact-match and token-F1 diagnostic contract; METEOR was computed locally with the deterministic lexical-only convention. Raw media, predictions, annotations, credentials, and private bucket locators are not included in this hub.
+</details>
+</section>
 <section id="compatibility-gate-models" class="level3">
 <h3 class="anchored" data-anchor-id="compatibility-gate-models">Three-video compatibility gate</h3>
 <ul>

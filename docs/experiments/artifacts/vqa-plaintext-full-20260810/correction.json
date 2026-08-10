@@ -1,0 +1,1 @@
+{"correction": "salvage-deduplicate-equal-timestamps", "preserved_passed_rows": 250, "previous_maps_sha256": "8e3568ab85ce9b19b23e021804e4afc75435abb34c5c1e8c8716767214b3af7c", "previous_run": "/dstack/dev/plaintext-full-a7", "salvage_policy": "explicit E-records only; duplicate timestamp observations retain first record", "schema_version": 1}

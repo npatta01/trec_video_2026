@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "run_id": "vqa-event-map-plaintext-canary-a1-go2",
+  "status": "technical_go_quality_reviewed",
+  "panel": {
+    "annotated_rows": 4,
+    "unique_videos": 4,
+    "source_panel": "four frozen label-free canary rows"
+  },
+  "protocol": {
+    "map": "complete normalized video plus native audio, plain-text timestamped timeline",
+    "selector": "text-only selection over frozen map, one selected event",
+    "thinking": false,
+    "guided_decoding": false,
+    "map_max_tokens": 256,
+    "selector_max_tokens": 64,
+    "retries": 0,
+    "selected_window_seconds_total": 12.0,
+    "selected_window_seconds_per_row": 3.0
+  },
+  "technical_gate": {
+    "map_primary_valid": 4,
+    "map_primary_total": 4,
+    "selector_primary_valid": 4,
+    "selector_primary_total": 4,
+    "finish_reason_stop_all": true,
+    "valid_timestamps_and_windows_all": true,
+    "request_response_hashes_complete": true,
+    "passed": true,
+    "map_inference_seconds": 26.2221561419,
+    "selector_inference_seconds": 0.791362986
+  },
+  "quality_gate": {
+    "answer_source": "frozen selector answers",
+    "meteor": 0.26670800498621916,
+    "bertscore_f1": 0.9000592976808548,
+    "sts": 0.3631748985,
+    "semantic_composite": 0.509980733722358,
+    "ndcg": 1.0,
+    "ndcg_degenerate": true,
+    "ndcg_note": "single free-form response per row; NDCG is not informative until ranked answer candidates exist",
+    "comparison_note": "Four-row canary is a non-catastrophic quality check, not a full-panel estimate"
+  },
+  "rows": [
+    {
+      "video_id": "G6zu9D0j8hk",
+      "meteor": 0.18564356435643567,
+      "bertscore_f1": 0.8966765403747559,
+      "sts": 0.2822537,
+      "semantic_composite": 0.45485793491039717,
+      "ndcg": 1.0,
+      "ndcg_degenerate": true
+    },
+    {
+      "video_id": "GuSGaDJsgsE",
+      "meteor": 0.06711409395973154,
+      "bertscore_f1": 0.874520480632782,
+      "sts": 0.041910984,
+      "semantic_composite": 0.3278485195308378,
+      "ndcg": 1.0,
+      "ndcg_degenerate": true
+    },
+    {
+      "video_id": "DC4FE3hI67U",
+      "meteor": 0.5580357142857143,
+      "bertscore_f1": 0.9326682686805725,
+      "sts": 0.69630915,
+      "semantic_composite": 0.7290043776554289,
+      "ndcg": 1.0,
+      "ndcg_degenerate": true
+    },
+    {
+      "video_id": "B24dV_uori4",
+      "meteor": 0.2560386473429952,
+      "bertscore_f1": 0.8963719010353088,
+      "sts": 0.43222576,
+      "semantic_composite": 0.528212102792768,
+      "ndcg": 1.0,
+      "ndcg_degenerate": true
+    }
+  ],
+  "provenance": {
+    "model_id": "nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4",
+    "model_revision": "dc5f0b0bfddf8b6e0f5891475be9af05b80126fe",
+    "runtime_image_digest": "sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc",
+    "remote_artifact": "/dstack/dev/plaintext-canary-a1-go2.jsonl",
+    "remote_artifact_sha256": "c8877520d9fb9bdeb4b5066663d3c8422d20059dad149a86009ca7ae9d5ca012",
+    "bert_model_snapshot": "722cf37b1afa9454edce342e7895e588b6ff1d59",
+    "semantic_metrics_joined_after_freeze": true,
+    "source_annotations_read_from": "vqa.2025.trainingData.zip; no dataset files copied or modified"
+  }
+}

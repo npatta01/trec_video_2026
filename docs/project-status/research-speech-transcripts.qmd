@@ -51,7 +51,8 @@ transcriber/reviewer records exist.
 - **Use now:** quality-accepted Whisper only for declared lexical-speech work, with a frame-only control.
 - **Do not default:** transcripts on every question or mechanical acceptance as proof of fidelity.
 - **Still possible:** alternative ASR, grounded spans, dataset-reference controls, and a valid human upper bound.
-- **Next test:** a matched, source-language-aware ASR panel plus independent transcript controls.
+- **Next test:** a distribution-level selective-Whisper route with deterministic
+  fallback and an independently frozen transcript/grounding comparison.
 :::
 
 ## Evidence at a glance
@@ -119,6 +120,61 @@ comparison; it does not establish a global Whisper policy or 2026 accuracy.
 See the [automatic-transcript
 report · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md)
 and its [frozen ablation plan · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/plans/issue-7-automatic-transcript-ablation.md).
+</details>
+
+### Matched full-panel frame/audio audit {#matched-full-panel-frame-audio-audit}
+
+- **Reason for testing:** determine whether quality-gated Whisper helps when it
+  is added to the same 12-frame Qwen3.5-4B request across the complete locally
+  available labeled panel, while preserving enough visual/audio evidence to
+  inspect failures.
+- **Tested condition and panel:** 475 VQA 2025 training rows with local media;
+  identical 12 selected frames in a frames-only control and a frames-plus-
+  accepted-Whisper-large-v3 treatment. Predictions froze remotely before
+  references were joined locally. Six annotation rows without local media
+  were excluded; VTT captions/search data were not part of this panel.
+- **Observed result:** Whisper was accepted on 424/475 rows. Frames-only scored
+  `0.092632` exact match, `0.243914` token F1, and `0.152985` lexical METEOR;
+  frames plus Whisper scored `0.141053`, `0.304860`, and `0.215266`.
+  Paired deltas were `+0.048421` exact match, `+0.060946` token F1, and
+  `+0.062282` METEOR, with 27 exact-match wins and 4 losses.
+- **Current condition-bound status:** **Routed candidate**—the full-panel
+  result supports using accepted Whisper as additional evidence for declared
+  lexical-speech or explanation questions, but not as an unconditional answer
+  source. One reviewed row showed a clear content regression from unrelated
+  audio; several other exact-match losses were semantic or formatting variants.
+- **What this rules out now:** the claim that accepted Whisper has no useful
+  downstream value at distribution level under this matched panel.
+- **What it does not rule out:** a better router, event-aware frame sampling,
+  stronger answerer, transcript fidelity, or benefit on VQA 2026/test data.
+- **Possible defect, audit gap, or uncertainty:** **Audit gap**—all 435 rows
+  with an exact-match error are indexed, but manual visual/transcript review
+  covered 48 rows (all 31 transition rows plus 17 both-wrong examples). Raw
+  audio playback was unavailable in the runtime; the audio-side review used
+  timestamped Whisper text and source-media provenance.
+- **Reconsider when:** a routed comparison freezes a deterministic
+  question/transcript relevance policy plus a shuffled-transcript negative
+  control and meets predeclared non-degradation and paired-gain thresholds on
+  this same labeled panel. The next route should fall back to frames-only when
+  relevance fails; broader frames or a larger model come after this control.
+
+<details>
+<summary>Method, result, validity risks, and evidence</summary>
+
+The remote run used one CUDA Whisper translation pass and two Qwen conditions
+with the same model revision, prompt, frame requests, and decoding limit. The
+remote output contained 12 selected-frame contact sheets per video, exact
+selected PTS, per-frame hashes, audio hashes/durations, timestamped Whisper
+output, prediction files, summaries, and a verified `SHA256SUMS` manifest. The
+paired confidence intervals are exploratory bootstrap intervals over 2,000
+resamples with seed `20260803`; they are not a held-out test estimate. The
+[full-panel score artifact](../experiments/artifacts/qwen35-4b-12f-whisper-frame-audit-20260803-c2.json)
+  contains the reproducible aggregate result. Among 424 quality-accepted
+  transcripts, Whisper changed 307 answer strings; token F1 increased on 122
+  rows and decreased on 58, reinforcing that mechanical ASR acceptance is not
+  a relevance gate. The private row-level audit and
+contact sheets remain under the local shared data benchmark directory; the
+execution record is in the [matched frame/audio audit plan](../../plans/qwen35-whisper-frame-audit.md).
 </details>
 
 ::: {.content-visible when-format="gfm"}
@@ -298,6 +354,43 @@ cite.
   an identical frozen panel with explicit null and rejection controls.
 
 ## Cheapest valid next experiments
+
+### Distribution-level selective Whisper route {#distribution-level-selective-whisper}
+
+- **Hypothesis:** a question-only lexical-speech router can add accepted
+  Whisper evidence where words are required while preserving the frame-only
+  baseline on the rest of the 475-row development boundary.
+- **Smallest valid panel or work item:** freeze the router over all 475 local
+  VQA 2025 training rows before loading answers or using baseline failures to
+  select cases. Run Whisper large-v3 only on routed rows; rejected or failed
+  ASR must deterministically fall back to frames-only.
+- **Matched controls and integrity safeguards:** generate and cache one
+  versioned 12-frame evidence set per media hash, then run matched frames-only
+  and accepted-transcript conditions from those same frame hashes. Keep the
+  question-only route, ASR acceptance/rejection, transcript provenance, and
+  model/prompt/decoding fixed and label-blind until every prediction freezes.
+- **Decision or promotion rule:** every row must have a route or fallback and
+  every routed pair must complete; accepted-ASR rows must improve token F1 by
+  at least `0.10` and METEOR by at least `0.05` with non-decreasing exact
+  match; the composed 475-row policy must not regress aggregate exact match
+  or token F1; changed answers must show more rescues than degradations under
+  a declared hard-negative review.
+- **Boundary on what a positive result would establish:** a routed Whisper
+  policy for this declared development boundary, not a global transcript
+  default, ASR fidelity claim, or 2026 competition score.
+
+<details>
+<summary>Method, result, validity risks, and evidence</summary>
+
+The completed full-panel Qwen3.5-4B run supplies the denominator and operational
+baseline, but it did not preserve a reusable frame-pixel cache. The next run
+should therefore validate a one-pass-per-video extractor and cache its frame
+hashes before downstream comparison. On the measured L40S timings, one GPU is
+adequate for this routed experiment; multiple GPUs become useful only after
+shared preprocessing is immutable and several compute-heavy arms are genuinely
+independent. Do not choose routed rows from baseline errors, because that would
+bias the route estimate.
+</details>
 
 ### Transcript grounding prompt
 

@@ -1,0 +1,43 @@
+type: task
+name: qwen35-4b-12f-full-20260803-c1
+
+image: docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
+entrypoint: /bin/bash -c
+shell: bash
+working_dir: /dstack/run
+
+env:
+  - HF_TOKEN=${{ secrets.hf_token }}
+  - HF_INPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen35-4b-12f-full-20260803-b1-inputs/inputs
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen35-4b-12f-full-20260803-c1-output
+  - EXPERIMENT_RUN_NAME=qwen35-4b-12f-full-20260803-c1
+  - VQA_RUNTIME_IMAGE=docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
+  - HF_HUB_DISABLE_TELEMETRY=1
+  - PYTHON_BIN=/opt/conda/bin/python
+  - PYTHONPATH=/dstack/run/src
+
+files:
+  - ../scripts/run-qwen35-full-dstack.sh:/dstack/run/scripts/run-qwen35-full-dstack.sh
+  - ../scripts/qwen35_prepare_requests.py:/dstack/run/scripts/qwen35_prepare_requests.py
+  - ../src/trec_video_2026:/dstack/run/src/trec_video_2026
+  - ../configs/vqa/qwen35_vqa2025_475_label_free.json:/dstack/run/configs/vqa/qwen35_vqa2025_475_label_free.json
+
+commands:
+  - |
+    set -euo pipefail
+    exec bash /dstack/run/scripts/run-qwen35-full-dstack.sh
+
+resources:
+  gpu: A40,A6000,L40,L40S,RTX6000Ada,A100,H100,H200:1:48GB..
+  cpu: 8..
+  memory: 64GB..
+  disk: 100GB
+
+fleets: [gpu-marketplace]
+backends: [runpod, vastai]
+spot_policy: on-demand
+max_price: 1.00
+max_duration: 2h
+retry:
+  on_events: [no-capacity]
+  duration: 20m

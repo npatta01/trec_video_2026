@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "run_id": "qwen35-4b-12f-full-20260803-c1",
+  "condition_id": "qwen35-4b-12f-full",
+  "model": {
+    "model_id": "Qwen/Qwen3.5-4B",
+    "model_revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+    "frames": 12,
+    "frame_policy": "uniform temporal midpoints",
+    "precision": "bfloat16",
+    "decoding": "greedy, max_new_tokens=64"
+  },
+  "panel": {
+    "collection": "VQA 2025 training",
+    "annotation_files": 481,
+    "local_media_rows": 475,
+    "excluded_annotation_rows_without_local_media": 6,
+    "inference_rows": 475,
+    "labels_loaded_only_after_prediction_freeze": true
+  },
+  "aggregate": {
+    "completed_count": 475,
+    "completion_rate": 1.0,
+    "normalized_exact_match": 0.09052631578947369,
+    "token_f1": 0.24069622935646287,
+    "meteor": 0.15606320721654177
+  },
+  "operational": {
+    "device": "NVIDIA L40S",
+    "prepare_wall_seconds": 1932.150114054,
+    "workload_wall_seconds": 531.503992714,
+    "model_load_seconds": 23.209475418087095,
+    "dstack_cost_usd_approx": 0.7215,
+    "remote_predictions_sha256": "1081647837ff3717211350d320f2633710673c734b4cffa815c79a50dcbfa502",
+    "remote_sha256sums_sha256": "8f69f5a82c19c2bda7ab1e1f91ff317b705b83e64c9add86438570c94ca592b9",
+    "label_free_manifest_sha256": "092aec23cfdcc370bbed8e776f7cc7c84752481da6ba0996983883955d3841e8"
+  },
+  "validity": "Verified label-free inference and hash-verified frozen predictions; local diagnostic scoring only.",
+  "decision_disposition": "Retain as the full-panel visual baseline reference; no model-promotion claim is made from this single condition."
+}

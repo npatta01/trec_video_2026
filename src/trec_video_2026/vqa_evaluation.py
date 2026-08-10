@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 import os
 import random
 import re
@@ -79,6 +80,100 @@ def token_f1(prediction: str, reference: str) -> float:
     precision = overlap / len(prediction_tokens)
     recall = overlap / len(reference_tokens)
     return 2 * precision * recall / (precision + recall)
+
+
+_SEMANTIC_FIELDS = ("meteor", "bertscore_f1", "sts")
+
+
+def _finite_float(value: object, *, field: str) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{field} must be a finite number") from error
+    if not math.isfinite(result):
+        raise ValueError(f"{field} must be a finite number")
+    return result
+
+
+def semantic_composite(metrics: Mapping[str, float]) -> float:
+    """Return the analysis-only mean of NIST's three semantic metrics."""
+
+    values = []
+    for field in _SEMANTIC_FIELDS:
+        if field not in metrics:
+            raise ValueError(f"Missing semantic field: {field}")
+        values.append(_finite_float(metrics[field], field=field))
+    return fmean(values)
+
+
+def _validate_ndcg_cutoff(k: int | None, size: int) -> int:
+    if k is None:
+        return size
+    if isinstance(k, bool) or not isinstance(k, int) or not 1 <= k <= size:
+        raise ValueError(f"NDCG cutoff must be an integer between 1 and {size}")
+    return k
+
+
+def _dcg_from_gains(gains: Sequence[float]) -> float:
+    return sum(
+        (math.pow(2.0, gain) - 1.0) / math.log2(index + 2)
+        for index, gain in enumerate(gains)
+    )
+
+
+def ndcg_from_gains(gains: Sequence[float], k: int | None = None) -> float:
+    """Return NIST 2025's order-sensitive NDCG for an answer ranking."""
+
+    checked_gains = [
+        _finite_float(gain, field="gain") for gain in gains
+    ]
+    if not checked_gains:
+        if k is not None:
+            raise ValueError("NDCG cutoff cannot be used with an empty ranking")
+        return 0.0
+    cutoff = _validate_ndcg_cutoff(k, len(checked_gains))
+    if len(checked_gains) == 1:
+        return 1.0
+    actual = _dcg_from_gains(checked_gains[:cutoff])
+    ideal = _dcg_from_gains(sorted(checked_gains, reverse=True)[:cutoff])
+    return actual / ideal if ideal else 0.0
+
+
+def ranked_cutoff_metrics(
+    rows: Sequence[Mapping[str, float]], cutoffs: Sequence[int] = (1, 5, 10)
+) -> dict[str, Any]:
+    """Summarize semantic gains at NIST's ranked answer cutoffs.
+
+    Rows may provide a precomputed ``gain`` or ``semantic_composite``. If
+    neither is present, the three declared semantic fields are averaged.
+    """
+
+    if not rows:
+        raise ValueError("Ranked rows must be non-empty")
+    gains = []
+    for row in rows:
+        if "gain" in row:
+            gains.append(_finite_float(row["gain"], field="gain"))
+        elif "semantic_composite" in row:
+            gains.append(
+                _finite_float(row["semantic_composite"], field="semantic_composite")
+            )
+        else:
+            gains.append(semantic_composite(row))
+
+    checked_cutoffs = []
+    for cutoff in cutoffs:
+        if cutoff in checked_cutoffs:
+            raise ValueError(f"Duplicate ranked cutoff: {cutoff}")
+        checked_cutoffs.append(_validate_ndcg_cutoff(cutoff, len(gains)))
+
+    result: dict[str, Any] = {"rank_1": gains[0]}
+    for cutoff in checked_cutoffs:
+        prefix = gains[:cutoff]
+        result[f"best@{cutoff}"] = max(prefix)
+        result[f"mean@{cutoff}"] = fmean(prefix)
+        result[f"ndcg@{cutoff}"] = ndcg_from_gains(gains, cutoff)
+    return result
 
 
 def evaluate_local_answer(
