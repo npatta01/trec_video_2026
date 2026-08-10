@@ -11,6 +11,9 @@ dependencies = [
     "yt-dlp[default]>=2026.7.4",
 ]
 
+[project.optional-dependencies]
+gemini = ["google-genai==2.12.1"]
+
 [project.scripts]
 vqa-download = "trec_video_2026.vqa_download:main"
 vqa-frozen30 = "trec_video_2026.vqa_frozen30_workflow:main"
