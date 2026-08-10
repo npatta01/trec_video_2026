@@ -654,6 +654,138 @@ def test_nonfixture_never_uses_fixture_evidence_and_timeline_has_source_media(
     assert Path(str(timeline["audio_path"])) != media
 
 
+def test_base_era_gemini_timeline_checkpoint_is_reused_without_paid_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module, run_dir, media = _live_fixture_run(tmp_path, monkeypatch)
+    prepared = module.PreparedRun.load(run_dir)
+    old_request = module._timeline_request(prepared, prepared.examples[0])
+    old_request.pop("source_media_sha256", None)
+    response = module.FixtureTransport().generate(old_request)
+    request_bytes = module._canonical_bytes(old_request)
+    response_bytes = module._canonical_bytes(response)
+    module._write_jsonl(
+        run_dir / "attempts.jsonl",
+        [
+            {
+                "query_id": 1,
+                "video_id": "video-1",
+                "stage": "timeline",
+                "pass_id": None,
+                "request": old_request,
+                "request_bytes": request_bytes.decode("utf-8"),
+                "request_sha256": module._sha256_bytes(request_bytes),
+                "response": response,
+                "response_bytes": response_bytes.decode("utf-8"),
+                "response_sha256": module._sha256_bytes(response_bytes),
+                "response_payload_sha256": module._sha256_bytes(response_bytes),
+                "status": "completed",
+                "elapsed_seconds": 0.0,
+                "usage": module._usage(),
+                "uploaded_file_deletion_status": {},
+                "failure_code": None,
+            }
+        ],
+    )
+    source_sha = module._hash_path(media)
+    monkeypatch.setattr(
+        module,
+        "_decode_live_frame_inventory",
+        lambda path, duration: [
+            {
+                "stream_index": 0,
+                "frame_index": index,
+                "actual_pts_seconds": (index + 0.5) * duration / 40,
+                "time_base": "1/1000",
+                "source_media_sha256": source_sha,
+            }
+            for index in range(40)
+        ],
+    )
+    monkeypatch.setattr(
+        module,
+        "_extract_live_frame",
+        lambda path, frame, destination: (
+            destination.parent.mkdir(parents=True, exist_ok=True),
+            destination.write_bytes(b"frame"),
+            module._hash_path(destination),
+        )[-1],
+    )
+
+    class NoTimeline(module.FixtureTransport):
+        def __init__(self) -> None:
+            super().__init__()
+            self.stages: list[str] = []
+
+        def generate(self, request: dict[str, object]) -> dict[str, object]:
+            self.stages.append(str(request["stage"]))
+            if request["stage"] == "timeline":
+                raise AssertionError("base-era Gemini timeline checkpoint was not reused")
+            return super().generate(request)
+
+    transport = NoTimeline()
+    module.run_prepared(run_dir, transport=transport)
+    assert "timeline" not in transport.stages
+
+
+def test_openrouter_timeline_prompt_omits_private_provider_video_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from trec_video_2026.vqa_submission_gemini import (
+        GenerationResult,
+        GeminiSubmissionClient,
+        TokenUsage,
+        UploadedFileRecord,
+    )
+
+    module, run_dir, _media = _live_fixture_run(
+        tmp_path, monkeypatch, media_suffix=".mkv"
+    )
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda command, **kwargs: Path(command[-1]).write_bytes(b"webm"),
+    )
+    prepared = module.PreparedRun.load(run_dir)
+    provider_video = module._live_provider_video(prepared, prepared.examples[0])
+    request = module._timeline_request(
+        prepared,
+        prepared.examples[0],
+        provider_video=provider_video,
+        provider_name="openrouter",
+    )
+
+    class CaptureTransport:
+        def __init__(self) -> None:
+            self.parts: tuple[object, ...] = ()
+
+        def upload(self, path: Path, *, mime_type: str) -> UploadedFileRecord:
+            return UploadedFileRecord(
+                file_id=f"file-{len(self.parts)}", mime_type=mime_type
+            )
+
+        def generate(self, *, model, parts, schema) -> GenerationResult:
+            self.parts = tuple(parts)
+            payload = {
+                "schema_version": 1,
+                "duration_seconds": 2.0,
+                "events": [],
+                "support_spans": [],
+            }
+            return GenerationResult(
+                payload=payload,
+                raw_response=json.dumps(payload),
+                usage=TokenUsage(),
+            )
+
+        def delete(self, file_id: str) -> None:
+            return None
+
+    transport = CaptureTransport()
+    GeminiSubmissionClient(transport, model_id=module.MODEL_ID).timeline(request)
+    assert str(provider_video["path"]) not in str(transport.parts[-1])
+
+
 def test_conservative_synthesis_receives_first_nine_candidates(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

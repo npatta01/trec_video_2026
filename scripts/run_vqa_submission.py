@@ -753,6 +753,7 @@ def _timeline_request(
     example: Mapping[str, Any],
     *,
     provider_video: Mapping[str, str] | None = None,
+    provider_name: str = "gemini",
 ) -> dict[str, Any]:
     request = {
         "schema_version": SCHEMA_VERSION,
@@ -778,10 +779,10 @@ def _timeline_request(
             if provider_video is not None
             else example["source"]["sha256"]
         )
-        request["source_media_sha256"] = example["source"]["sha256"]
+        if provider_name == "openrouter" or provider_video is not None:
+            request["source_media_sha256"] = example["source"]["sha256"]
         request["audio_sha256"] = audio_sha
         if provider_video is not None:
-            request["provider_video_path"] = provider_video["path"]
             request["provider_video_sha256"] = provider_video["sha256"]
     return _bind_request(prepared, request)
 
@@ -1570,7 +1571,6 @@ def _fixture_row(
         }
     )
     if evidence_files.get("provider_video_path") is not None:
-        row["provider_video_path"] = evidence_files["provider_video_path"]
         row["provider_video_sha256"] = evidence_files["provider_video_sha256"]
         row["source_media_sha256"] = evidence_files["source_media_sha256"]
     return row
@@ -1587,12 +1587,19 @@ def _bind_provider_video_request(
             "media_path": provider_video["path"],
             "media_sha256": provider_video["sha256"],
             "source_media_sha256": provider_video["source_sha256"],
-            "provider_video_path": provider_video["path"],
             "provider_video_sha256": provider_video["sha256"],
         }
     )
     audit_label_free_payload(bound)
     return bound
+
+
+def _provider_request_without_local_paths(
+    request: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        key: value for key, value in request.items() if key != "provider_video_path"
+    }
 
 
 def _candidate_model(record: Mapping[str, Any]) -> CandidateRecord:
@@ -2188,7 +2195,10 @@ def _run_prepared_locked(
             else None
         )
         timeline_request = _timeline_request(
-            prepared_run, example, provider_video=provider_video
+            prepared_run,
+            example,
+            provider_video=provider_video,
+            provider_name=provider_name,
         )
         duration = float(
             example.get(
@@ -2206,6 +2216,7 @@ def _run_prepared_locked(
             validator=lambda response: _validate_timeline_response_for_duration(
                 response, duration
             ),
+            provider_request=_provider_request_without_local_paths(timeline_request),
         )
         row_reused &= reused
         if timeline_checkpoint.get("status") == "completed":

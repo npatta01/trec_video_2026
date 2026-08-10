@@ -26,14 +26,29 @@ class FakeResponse:
         self._payload = json.dumps(payload).encode("utf-8")
         self.closed = False
 
-    def read(self) -> bytes:
-        return self._payload
+    def read(self, size: int = -1) -> bytes:
+        return self._payload if size < 0 else self._payload[:size]
 
     def __enter__(self) -> "FakeResponse":
         return self
 
     def __exit__(self, *args: object) -> None:
         self.closed = True
+
+
+class BoundedReadResponse:
+    status = 200
+
+    def __init__(self, body: bytes) -> None:
+        self.body = body
+        self.read_sizes: list[int] = []
+
+    def read(self, size: int = -1) -> bytes:
+        self.read_sizes.append(size)
+        return self.body if size < 0 else self.body[:size]
+
+    def close(self) -> None:
+        pass
 
 
 class FakeOpener:
@@ -164,6 +179,18 @@ def test_generate_posts_exact_multimodal_request_and_parses_usage(
     assert json.loads(second_opener.requests[0].data)["seed"] == body["seed"]
 
 
+def test_response_read_is_bounded_and_oversized_body_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = BoundedReadResponse(b"x" * (openrouter.MAX_RESPONSE_BYTES + 1))
+    transport = _transport(monkeypatch, FakeOpener([response]))
+
+    with pytest.raises(ProviderProtocolError, match="size limit"):
+        transport.generate(model=MODEL_ID, parts=("hello",), schema={})
+
+    assert response.read_sizes == [openrouter.MAX_RESPONSE_BYTES + 1]
+
+
 def test_upload_is_local_and_delete_cleans_the_opaque_record(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -236,6 +263,47 @@ def test_generate_rejects_duplicate_file_ids_and_malformed_response(
         transport.generate(model=MODEL_ID, parts=(duplicate, duplicate), schema={})
     with pytest.raises(ProviderProtocolError, match="JSON object"):
         transport.generate(model=MODEL_ID, parts=(duplicate,), schema={})
+
+
+def test_distinct_identical_frames_have_distinct_ids_and_generate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = tmp_path / "frame-1.jpg"
+    second = tmp_path / "frame-2.jpg"
+    first.write_bytes(b"same-image")
+    second.write_bytes(b"same-image")
+    opener = FakeOpener([_success_response()])
+    transport = _transport(monkeypatch, opener)
+
+    first_record = transport.upload(first, mime_type="image/jpeg")
+    second_record = transport.upload(second, mime_type="image/jpeg")
+
+    assert first_record.file_id != second_record.file_id
+    result = transport.generate(
+        model=MODEL_ID,
+        parts=(
+            {
+                "file_id": first_record.file_id,
+                "mime_type": "image/jpeg",
+                "role": "frame-0",
+            },
+            {
+                "file_id": second_record.file_id,
+                "mime_type": "image/jpeg",
+                "role": "frame-1",
+            },
+            "Describe both frames.",
+        ),
+        schema={},
+    )
+
+    assert result.payload == {"answer": "ok"}
+    body = json.loads(opener.requests[0].data)
+    assert [item["type"] for item in body["messages"][0]["content"]] == [
+        "image_url",
+        "image_url",
+        "text",
+    ]
 
 
 def test_http_and_provider_failures_are_bounded_and_redacted(

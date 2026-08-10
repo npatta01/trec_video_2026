@@ -160,7 +160,10 @@ class OpenRouterTransport:
             raise
         except (OSError, ValueError):
             raise ProviderProtocolError("OpenRouter media could not be read") from None
-        file_id = f"local-sha256-{digest.hexdigest()}"
+        path_identity = hashlib.sha256(
+            f"{path.resolve()}\0{mime_type}".encode("utf-8")
+        ).hexdigest()[:16]
+        file_id = f"local-sha256-{digest.hexdigest()}-{path_identity}"
         data_uri = (
             f"data:{mime_type};base64,{base64.b64encode(data).decode('ascii')}"
         )
@@ -181,7 +184,7 @@ class OpenRouterTransport:
                 response = self._opener.open(request, timeout=HTTP_TIMEOUT_SECONDS)
             try:
                 status = _status(response)
-                body = response.read()
+                body = response.read(MAX_RESPONSE_BYTES + 1)
             finally:
                 close = getattr(response, "close", None)
                 if callable(close):
