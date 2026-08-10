@@ -60,6 +60,26 @@ _FORBIDDEN_LABEL_TERMS = (
     "oracle",
 )
 _KEY_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|[^A-Za-z0-9]+")
+_SAFE_PROVENANCE_TOKEN = re.compile(r"[A-Za-z0-9_.:@-]{1,256}\Z")
+_SAFE_PROVENANCE_DEVICE = re.compile(r"[A-Za-z0-9_.:() -]{1,64}\Z")
+_SAFE_PROVENANCE_FIELDS = frozenset(
+    {
+        "device",
+        "model_id",
+        "model_revision",
+        "precision",
+        "provider",
+        "request_sha256",
+        "response_sha256",
+        "runtime",
+        "runtime_identity",
+        "sdk_version",
+        "status",
+    }
+)
+_SAFE_PROVENANCE_STATUSES = frozenset(
+    {"failed", "passed", "timed_out", "unsupported"}
+)
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -142,6 +162,65 @@ def _validate_text_tuple(value: Any, field: str) -> tuple[str, ...]:
     for index, item in enumerate(values):
         _nonempty_text(item, f"{field}[{index}]")
     return values  # type: ignore[return-value]
+
+
+def _validate_runtime_provenance(
+    value: Mapping[str, object],
+) -> Mapping[str, object]:
+    if not value:
+        raise ValueError("runtime_provenance must not be empty")
+    validated: dict[str, object] = {}
+    for key, raw_value in value.items():
+        if key not in _SAFE_PROVENANCE_FIELDS:
+            raise ValueError(
+                f"runtime_provenance contains unsupported field: {key}"
+            )
+        if not isinstance(raw_value, str):
+            raise TypeError(f"runtime_provenance[{key}] must be a string")
+        if key in {"request_sha256", "response_sha256"}:
+            validated[key] = _validate_sha256(
+                raw_value, f"runtime_provenance[{key}]"
+            )
+        elif key == "model_id":
+            if raw_value != MODEL_ID:
+                raise ValueError(
+                    f"runtime_provenance[{key}] must be {MODEL_ID}"
+                )
+            validated[key] = raw_value
+        elif key == "status":
+            if raw_value not in _SAFE_PROVENANCE_STATUSES:
+                raise ValueError(
+                    f"runtime_provenance[{key}] has an unsupported status"
+                )
+            validated[key] = raw_value
+        else:
+            pattern = (
+                _SAFE_PROVENANCE_DEVICE
+                if key == "device"
+                else _SAFE_PROVENANCE_TOKEN
+            )
+            if pattern.fullmatch(raw_value) is None:
+                raise ValueError(
+                    f"runtime_provenance[{key}] must be a safe scalar token"
+                )
+            validated[key] = raw_value
+    return MappingProxyType(validated)
+
+
+def _validate_verifier_contract(
+    ranked_pass_ids: Sequence[str], support_by_pass: Mapping[str, str]
+) -> None:
+    if (
+        len(ranked_pass_ids) != len(PASS_IDS)
+        or len(set(ranked_pass_ids)) != len(ranked_pass_ids)
+        or set(ranked_pass_ids) != set(PASS_IDS)
+    ):
+        raise ValueError("ranked_pass_ids must be a complete permutation")
+    if not set(support_by_pass).issubset(set(ranked_pass_ids)):
+        raise ValueError("support_by_pass contains an unknown ranked pass")
+    for pass_id, support in support_by_pass.items():
+        if not isinstance(pass_id, str) or not isinstance(support, str):
+            raise TypeError("support_by_pass must map pass IDs to strings")
 
 
 def _forbidden_term(text: str) -> str | None:
@@ -303,7 +382,9 @@ class CandidateRecord:
             self.elapsed_seconds, (int, float)
         ):
             raise TypeError("elapsed_seconds must be numeric")
-        elapsed = float(self.elapsed_seconds)
+        elapsed = _finite_number(
+            self.elapsed_seconds, "elapsed_seconds", nonnegative=True
+        )
         confidence = _finite_number(self.confidence, "confidence")
         if not 0 <= confidence <= 1:
             raise ValueError("confidence must be between 0 and 1")
@@ -315,11 +396,7 @@ class CandidateRecord:
         _validate_sha256(self.request_sha256, "request_sha256")
         if not isinstance(self.runtime_provenance, Mapping):
             raise TypeError("runtime_provenance must be a mapping")
-        frozen_provenance = _freeze(self.runtime_provenance)
-        if not isinstance(frozen_provenance, Mapping):
-            raise TypeError("runtime_provenance must be a mapping")
-        # Validate JSON serializability while preserving nested immutability.
-        canonical_sha256(_thaw(frozen_provenance))
+        frozen_provenance = _validate_runtime_provenance(self.runtime_provenance)
         object.__setattr__(self, "elapsed_seconds", elapsed)
         object.__setattr__(self, "confidence", confidence)
         object.__setattr__(self, "support_span_ids", support_span_ids)
@@ -351,16 +428,16 @@ class VerifierDecision:
             raise TypeError("support_by_pass must be a mapping")
         support_by_pass = dict(self.support_by_pass)
         for pass_id, support in support_by_pass.items():
-            if pass_id not in PASS_IDS:
-                raise ValueError("support_by_pass contains an unknown pass_id")
-            if not isinstance(support, str):
-                raise TypeError(f"support_by_pass[{pass_id}] must be a string")
+            if not isinstance(pass_id, str) or not isinstance(support, str):
+                raise TypeError("support_by_pass must map pass IDs to strings")
+        _validate_verifier_contract(ranked_pass_ids, support_by_pass)
         object.__setattr__(self, "ranked_pass_ids", ranked_pass_ids)
         object.__setattr__(
             self, "support_by_pass", MappingProxyType(copy.deepcopy(support_by_pass))
         )
 
     def to_dict(self) -> dict[str, Any]:
+        _validate_verifier_contract(self.ranked_pass_ids, self.support_by_pass)
         return {
             "ranked_pass_ids": list(self.ranked_pass_ids),
             "support_by_pass": dict(self.support_by_pass),

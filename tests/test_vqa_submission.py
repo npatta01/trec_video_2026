@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -183,9 +184,49 @@ def test_deduplication_does_not_collapse_internal_whitespace() -> None:
     ]
 
 
+@pytest.mark.parametrize("elapsed_seconds", [-1.0, math.nan, math.inf, -math.inf])
+def test_candidate_rejects_invalid_elapsed_seconds(elapsed_seconds: float) -> None:
+    with pytest.raises(ValueError, match="elapsed_seconds"):
+        _candidate("direct-av", elapsed_seconds=elapsed_seconds)
+
+
+@pytest.mark.parametrize(
+    "runtime_provenance",
+    [
+        {"raw_output": "Four times"},
+        {"transcript": "spoken words"},
+        {"media_path": "/private/video.mp4"},
+        {"private_url": "https://private.example/run"},
+    ],
+)
+def test_candidate_rejects_unsafe_runtime_provenance(
+    runtime_provenance: dict[str, str],
+) -> None:
+    with pytest.raises(ValueError, match="runtime_provenance"):
+        dataclasses.replace(
+            _candidate("direct-av"), runtime_provenance=runtime_provenance
+        )
+
+
 def test_verifier_must_rank_every_unique_candidate_once() -> None:
     with pytest.raises(ValueError, match="complete permutation"):
-        apply_verifier_ranking(_ten_candidates(), VerifierDecision(("direct-av",), {}))
+        VerifierDecision(("direct-av",), {})
+
+
+def test_verifier_rejects_duplicate_ranked_pass_ids() -> None:
+    duplicate_rank = PASS_IDS[:-1] + (PASS_IDS[-2],)
+
+    with pytest.raises(ValueError, match="complete permutation"):
+        VerifierDecision(duplicate_rank, {})
+
+
+def test_verifier_serializes_complete_ranking_and_consistent_support() -> None:
+    decision = VerifierDecision(PASS_IDS, {"direct-av": "span-1"})
+
+    assert decision.to_dict() == {
+        "ranked_pass_ids": list(PASS_IDS),
+        "support_by_pass": {"direct-av": "span-1"},
+    }
 
 
 def test_verifier_ranking_returns_candidates_in_decision_order() -> None:
@@ -270,7 +311,7 @@ def test_ag_serialization_rejects_non_official_cutoffs(cutoff: int) -> None:
         serialize_ag_submission([_ranked_prediction()], cutoff=cutoff)
 
 
-def test_ag_serialization_rejects_duplicate_answers_and_invalid_time() -> None:
+def test_ag_serialization_rejects_duplicate_answers() -> None:
     duplicate = dataclasses.replace(
         _ranked_prediction(),
         candidates=(_candidate(PASS_IDS[0], "answer 1"),)
@@ -278,11 +319,3 @@ def test_ag_serialization_rejects_duplicate_answers_and_invalid_time() -> None:
     )
     with pytest.raises(ValueError, match="duplicate"):
         serialize_ag_submission([duplicate], cutoff=10)
-
-    invalid_time = dataclasses.replace(
-        _ranked_prediction(),
-        candidates=(_candidate(PASS_IDS[0], "answer 0", elapsed_seconds=-1.0),)
-        + tuple(_ten_candidates()[1:]),
-    )
-    with pytest.raises(ValueError, match="time"):
-        serialize_ag_submission([invalid_time], cutoff=10)
