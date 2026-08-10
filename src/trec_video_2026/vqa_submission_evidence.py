@@ -239,6 +239,18 @@ def _validate_timeline_or_raise(
     )
 
 
+def _normalize_support_spans(
+    support_spans: Any, *, duration_seconds: float
+) -> tuple[TimelineSpan, ...]:
+    """Apply the timeline support-span contract to every raw-span entry point."""
+
+    audit_label_free_payload(support_spans)
+    return _validate_timeline_or_raise(
+        {"events": (), "support_spans": support_spans},
+        duration_seconds=duration_seconds,
+    ).support_spans
+
+
 def validate_timeline(
     timeline: Any,
     duration_seconds: float,
@@ -411,6 +423,38 @@ class EvidencePlan:
             raise TypeError("frame plans must contain FrameSelection values")
         if not all(isinstance(span, TimelineSpan) for span in support_spans):
             raise TypeError("support_spans must contain TimelineSpan values")
+        if not global_frames and not local_frames:
+            raise ValueError("evidence plan cannot be empty")
+        if len(global_frames) != GLOBAL_FRAME_COUNT:
+            raise ValueError("global_frames must contain exactly eight frames")
+        if len(local_frames) > MAX_LOCAL_FRAME_COUNT:
+            raise ValueError("local_frames cannot contain more than 24 frames")
+        if duration <= 0:
+            raise ValueError("evidence plan duration must be positive")
+        normalized_support_spans = _validate_timeline_or_raise(
+            {"events": (), "support_spans": support_spans},
+            duration_seconds=duration,
+        ).support_spans
+        if normalized_support_spans != support_spans:
+            raise ValueError("support_spans must be validated and normalized")
+        for frame in global_frames + local_frames:
+            if not 0 <= frame.requested_time_seconds <= duration:
+                raise ValueError("frame requested timestamp is outside duration")
+            if not 0 <= frame.actual_pts_seconds <= duration:
+                raise ValueError("frame actual PTS is outside duration")
+        if any(
+            frame.slot_kind != "global" or frame.support_span_id is not None
+            for frame in global_frames
+        ):
+            raise ValueError("global frames must have global slots and no support span")
+        support_span_ids = {span.span_id for span in support_spans}
+        for frame in local_frames:
+            if frame.slot_kind != "local":
+                raise ValueError("local frames must have local slots")
+            if not frame.support_span_id:
+                raise ValueError("local frames require support_span_id")
+            if frame.support_span_id not in support_span_ids:
+                raise ValueError("local support_span_id is not declared")
         identities = [frame.decoded_identity for frame in global_frames + local_frames]
         if len(set(identities)) != len(identities):
             raise ValueError("evidence plan must not reuse decoded frame identities")
@@ -450,7 +494,6 @@ def _normalize_inventory(
         raise ValueError("inventory must contain decoded frames")
     normalized: list[dict[str, Any]] = []
     identities: set[tuple[int, int]] = set()
-    pts_values: set[float] = set()
     for index, raw in enumerate(records):
         if not isinstance(raw, Mapping):
             raise TypeError(f"inventory[{index}] must be an object")
@@ -484,9 +527,6 @@ def _normalize_inventory(
             raise ValueError(
                 f"inventory[{index}].actual_pts_seconds is outside duration"
             )
-        if actual in pts_values:
-            raise ValueError("inventory contains duplicate decoded PTS values")
-        pts_values.add(actual)
         time_base = raw.get("time_base")
         if not isinstance(time_base, str) or not time_base.strip():
             raise ValueError(f"inventory[{index}].time_base is required")
@@ -632,18 +672,10 @@ def build_global_local_frame_plan(
     if isinstance(support_spans, ValidatedTimeline):
         spans = support_spans.support_spans
     else:
-        spans = tuple(support_spans)
-    if len(spans) > MAX_SUPPORT_SPANS:
-        raise ValueError("support_spans may contain at most three spans")
-    spans = tuple(
-        _validate_span(span, duration_seconds=duration, field=f"support_spans[{i}]")
-        for i, span in enumerate(spans)
-    )
-    if any(
-        current.start_seconds < previous.end_seconds
-        for previous, current in zip(spans, spans[1:])
-    ):
-        raise ValueError("support_spans must not overlap")
+        spans = _normalize_support_spans(
+            support_spans,
+            duration_seconds=duration,
+        )
     normalized_inventory = _normalize_inventory(duration, inventory)
     if len(normalized_inventory) < GLOBAL_FRAME_COUNT:
         raise ValueError("inventory cannot supply eight unique global frames")
@@ -746,11 +778,11 @@ def select_overlapping_transcript_segments(
     if isinstance(support_spans, ValidatedTimeline):
         spans = support_spans.support_spans
     else:
-        spans = tuple(support_spans)
-    validated_spans = tuple(
-        _validate_span(span, duration_seconds=duration, field=f"support_spans[{i}]")
-        for i, span in enumerate(spans)
-    )
+        spans = _normalize_support_spans(
+            support_spans,
+            duration_seconds=duration,
+        )
+    validated_spans = tuple(spans)
     segments = _parse_timestamped_text(timestamped_text, duration_seconds=duration)
     selected = tuple(
         segment
@@ -821,6 +853,24 @@ def _parse_timestamped_text(
     )
 
 
+def _verify_materialized_frames(evidence_plan: EvidencePlan) -> None:
+    for index, frame in enumerate(evidence_plan.all_frames):
+        if frame.frame_path is None:
+            raise ValueError(f"frame {index} frame_path is required")
+        if frame.image_sha256 is None:
+            raise ValueError(f"frame {index} image_sha256 is required")
+        if not frame.frame_path.is_file():
+            raise ValueError(f"frame {index} frame_path does not exist")
+        try:
+            actual_sha256 = source_fingerprint(frame.frame_path).sha256
+        except (OSError, ValueError) as exc:
+            raise ValueError(
+                f"frame {index} frame_path cannot be fingerprinted"
+            ) from exc
+        if actual_sha256 != frame.image_sha256:
+            raise ValueError(f"frame {index} image_sha256 does not match frame_path")
+
+
 def write_evidence_manifest(
     destination: str | Path,
     evidence_plan: EvidencePlan,
@@ -834,6 +884,7 @@ def write_evidence_manifest(
         raise ValueError(f"refusing to overwrite existing evidence manifest: {path}")
     payload = evidence_plan.to_dict()
     audit_label_free_payload(payload)
+    _verify_materialized_frames(evidence_plan)
     encoded = (
         json.dumps(
             payload,

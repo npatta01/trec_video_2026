@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 from pathlib import Path
 
@@ -60,6 +61,20 @@ def _inventory(count: int, *, duration_seconds: float = 15.0) -> list[dict[str, 
     ]
 
 
+def _multi_stream_inventory() -> list[dict[str, object]]:
+    return [
+        {
+            "stream_index": stream_index,
+            "frame_index": frame_index,
+            "actual_pts_seconds": round(frame_index * 15.0 / 16.0, 6),
+            "time_base": "1/1000",
+            "source_media_sha256": SOURCE_SHA,
+        }
+        for frame_index in range(16)
+        for stream_index in range(2)
+    ]
+
+
 def _three_spans() -> tuple[TimelineSpan, ...]:
     return (
         _span(1.0, 5.0, span_id="span-1"),
@@ -76,6 +91,8 @@ def _frame(
     slot_kind: str = "global",
     support_span_id: str | None = None,
     fallback_reason: str | None = None,
+    frame_path: Path | None = None,
+    image_sha256: str | None = "b" * 64,
 ) -> FrameSelection:
     return FrameSelection(
         requested_time_seconds=requested_time_seconds,
@@ -84,8 +101,8 @@ def _frame(
         frame_index=frame_index,
         time_base="1/1000",
         source_media_sha256=SOURCE_SHA,
-        image_sha256="b" * 64,
-        frame_path=Path(f"/tmp/frame-{frame_index:03d}.jpg"),
+        image_sha256=image_sha256,
+        frame_path=frame_path or Path(f"/tmp/frame-{frame_index:03d}.jpg"),
         slot_kind=slot_kind,
         support_span_id=support_span_id,
         fallback_reason=fallback_reason,
@@ -93,12 +110,36 @@ def _frame(
 
 
 def _evidence_plan() -> EvidencePlan:
+    frames = tuple(
+        _frame(
+            requested_time_seconds=0.5 + index * 0.4,
+            actual_pts_seconds=0.48 + index * 0.4,
+            frame_index=index,
+        )
+        for index in range(8)
+    )
     return EvidencePlan(
         duration_seconds=4.0,
-        global_frames=(_frame(),),
+        global_frames=frames,
         local_frames=(),
         support_spans=(_span(1.0, 2.0),),
     )
+
+
+def _materialized_evidence_plan(tmp_path: Path) -> EvidencePlan:
+    plan = _evidence_plan()
+    frames = []
+    for index, frame in enumerate(plan.global_frames):
+        frame_path = tmp_path / f"frame-{index:03d}.jpg"
+        frame_path.write_bytes(f"synthetic-frame-{index}".encode())
+        frames.append(
+            dataclasses.replace(
+                frame,
+                frame_path=frame_path,
+                image_sha256=hashlib.sha256(frame_path.read_bytes()).hexdigest(),
+            )
+        )
+    return dataclasses.replace(plan, global_frames=tuple(frames))
 
 
 def test_timeline_rejects_overlapping_or_out_of_range_spans() -> None:
@@ -167,6 +208,54 @@ def test_frame_plan_keeps_eight_global_and_allocates_twenty_four_local() -> None
     assert all(frame.slot_kind == "local" for frame in plan.local_frames)
 
 
+def test_multistream_inventory_allows_shared_pts_but_keeps_decoded_identity_unique() -> None:
+    plan = build_global_local_frame_plan(
+        15.0,
+        _multi_stream_inventory(),
+        [_span(2.0, 3.0)],
+    )
+
+    assert len(plan.all_frames) == 12
+    assert len({frame.decoded_identity for frame in plan.all_frames}) == 12
+    assert len({frame.actual_pts_seconds for frame in plan.all_frames}) < 12
+
+
+def test_raw_support_span_is_fully_normalized_for_frame_planning() -> None:
+    plan = build_global_local_frame_plan(
+        10.0,
+        _inventory(300, duration_seconds=10.0),
+        [_span(4.8, 5.0)],
+    )
+
+    assert len(plan.local_frames) == 4
+    assert plan.support_spans[0].start_seconds == 4.4
+    assert plan.support_spans[0].end_seconds == 5.4
+
+
+def test_raw_support_span_ids_are_validated_for_transcript_selection() -> None:
+    duplicate_ids = (
+        _span(1.0, 2.0, span_id="duplicate"),
+        _span(2.0, 3.0, span_id="duplicate"),
+    )
+
+    with pytest.raises(ValueError, match="unique"):
+        select_overlapping_transcript_segments(
+            "[00:00:00] words",
+            duplicate_ids,
+            duration_seconds=4.0,
+        )
+
+
+def test_raw_short_support_span_is_expanded_for_transcript_overlap() -> None:
+    selected = select_overlapping_transcript_segments(
+        "[00:05.00] fifth second",
+        [_span(4.8, 5.0)],
+        duration_seconds=6.0,
+    )
+
+    assert selected.text == "[00:05.00] fifth second"
+
+
 def test_local_plan_caps_each_span_at_four_frames_per_second() -> None:
     plan = build_global_local_frame_plan(
         15.0, _inventory(450), [_span(2.0, 3.0)]
@@ -210,7 +299,7 @@ def test_transcript_selection_rejects_media_overrun() -> None:
 def test_manifest_records_requested_pts_and_hashes(tmp_path: Path) -> None:
     destination = tmp_path / "evidence.json"
 
-    record = write_evidence_manifest(destination, _evidence_plan())
+    record = write_evidence_manifest(destination, _materialized_evidence_plan(tmp_path))
 
     assert record["frames"][0]["requested_time_seconds"] == 0.5
     assert record["frames"][0]["actual_pts_seconds"] == 0.48
@@ -223,22 +312,89 @@ def test_manifest_records_requested_pts_and_hashes(tmp_path: Path) -> None:
 
 
 def test_manifest_rejects_label_bearing_frame_path(tmp_path: Path) -> None:
-    evidence = EvidencePlan(
-        duration_seconds=4.0,
-        global_frames=(
-            FrameSelection(
-                requested_time_seconds=0.5,
-                actual_pts_seconds=0.48,
-                stream_index=0,
-                frame_index=0,
-                time_base="1/1000",
-                source_media_sha256=SOURCE_SHA,
-                image_sha256="b" * 64,
-                frame_path=Path("/tmp/reference/frame.jpg"),
-                slot_kind="global",
-            ),
-        ),
+    evidence = _evidence_plan()
+    first = dataclasses.replace(
+        evidence.global_frames[0],
+        frame_path=Path("/tmp/reference/frame.jpg"),
+    )
+    evidence = dataclasses.replace(
+        evidence,
+        global_frames=(first,) + evidence.global_frames[1:],
     )
 
     with pytest.raises(ValueError, match="reference"):
         write_evidence_manifest(tmp_path / "evidence.json", evidence)
+
+
+def test_manifest_rejects_null_frame_path(tmp_path: Path) -> None:
+    evidence = _materialized_evidence_plan(tmp_path)
+    first = dataclasses.replace(evidence.global_frames[0], frame_path=None)
+    evidence = dataclasses.replace(
+        evidence,
+        global_frames=(first,) + evidence.global_frames[1:],
+    )
+
+    with pytest.raises(ValueError, match="frame_path"):
+        write_evidence_manifest(tmp_path / "evidence.json", evidence)
+
+
+def test_manifest_rejects_null_image_hash(tmp_path: Path) -> None:
+    evidence = _materialized_evidence_plan(tmp_path)
+    first = dataclasses.replace(evidence.global_frames[0], image_sha256=None)
+    evidence = dataclasses.replace(
+        evidence,
+        global_frames=(first,) + evidence.global_frames[1:],
+    )
+
+    with pytest.raises(ValueError, match="image_sha256"):
+        write_evidence_manifest(tmp_path / "evidence.json", evidence)
+
+
+def test_manifest_rejects_missing_frame_file(tmp_path: Path) -> None:
+    evidence = _evidence_plan()
+
+    with pytest.raises(ValueError, match="frame_path"):
+        write_evidence_manifest(tmp_path / "evidence.json", evidence)
+
+
+def test_manifest_rejects_image_hash_mismatch(tmp_path: Path) -> None:
+    evidence = _materialized_evidence_plan(tmp_path)
+    first = dataclasses.replace(evidence.global_frames[0], image_sha256="b" * 64)
+    evidence = dataclasses.replace(
+        evidence,
+        global_frames=(first,) + evidence.global_frames[1:],
+    )
+
+    with pytest.raises(ValueError, match="image_sha256"):
+        write_evidence_manifest(tmp_path / "evidence.json", evidence)
+
+
+def test_evidence_plan_enforces_durable_frame_shape() -> None:
+    plan = _evidence_plan()
+
+    with pytest.raises(ValueError, match="exactly eight"):
+        dataclasses.replace(plan, global_frames=plan.global_frames[:-1])
+
+    bad_timestamp = dataclasses.replace(plan.global_frames[0], actual_pts_seconds=4.1)
+    with pytest.raises(ValueError, match="duration"):
+        dataclasses.replace(plan, global_frames=(bad_timestamp,) + plan.global_frames[1:])
+
+    bad_global_slot = dataclasses.replace(
+        plan.global_frames[0], slot_kind="local", support_span_id="span-1"
+    )
+    with pytest.raises(ValueError, match="global"):
+        dataclasses.replace(plan, global_frames=(bad_global_slot,) + plan.global_frames[1:])
+
+    bad_local_slot = dataclasses.replace(
+        plan.global_frames[0],
+        frame_index=8,
+        slot_kind="local",
+        support_span_id=None,
+    )
+    with pytest.raises(ValueError, match="support_span_id"):
+        dataclasses.replace(plan, local_frames=(bad_local_slot,))
+
+
+def test_evidence_plan_rejects_empty_plan() -> None:
+    with pytest.raises(ValueError, match="empty"):
+        EvidencePlan(duration_seconds=4.0)
