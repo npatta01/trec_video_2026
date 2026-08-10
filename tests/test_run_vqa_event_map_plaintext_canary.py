@@ -114,7 +114,7 @@ def test_canary_runs_four_av_maps_then_four_text_selectors_without_retry(
     assert len(calls) == 8
     assert all("response_format" not in call for call in calls)
     assert all(call["chat_template_kwargs"] == {"enable_thinking": False} for call in calls)
-    assert all(call["max_tokens"] == (256 if index < 4 else 64) for index, call in enumerate(calls))
+    assert all(call["max_tokens"] == (512 if index < 4 else 64) for index, call in enumerate(calls))
     assert all(call["mm_processor_kwargs"] == {"use_audio_in_video": True} for call in calls[:4])
     assert all("mm_processor_kwargs" not in call for call in calls[4:])
     assert all(row["status"] == "passed" for row in rows)

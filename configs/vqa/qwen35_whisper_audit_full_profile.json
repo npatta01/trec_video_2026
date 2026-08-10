@@ -1,0 +1,8 @@
+{
+  "run_name": "q35-12f-wa-20260803-c2",
+  "input_uri": "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen35-4b-12f-full-20260803-b1-inputs/inputs",
+  "remote_uri": "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/q35-12f-wa-20260803-c2-output",
+  "manifest": "/dstack/run/configs/vqa/qwen35_vqa2025_475_label_free.json",
+  "count": 475,
+  "frame_count": 12
+}

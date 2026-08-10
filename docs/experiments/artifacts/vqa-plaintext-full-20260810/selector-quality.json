@@ -1,0 +1,4411 @@
+{
+  "experiment": "vqa-plaintext-event-map-full-20260810",
+  "failure_counts": {
+    "map_parse_failed": 1,
+    "selector_parse_failed": 12
+  },
+  "failures": [
+    {
+      "error_message": null,
+      "error_type": "selector_parse_failed",
+      "status": "failed",
+      "video_id": "GDXiE0xXhSw"
+    },
+    {
+      "error_message": null,
+      "error_type": "selector_parse_failed",
+      "status": "failed",
+      "video_id": "J1CS47pBX_M"
+    },
+    {
+      "error_message": null,
+      "error_type": "selector_parse_failed",
+      "status": "failed",
+      "video_id": "JTolYjiErBw"
+    },
+    {
+      "error_message": null,
+      "error_type": "selector_parse_failed",
+      "status": "failed",
+      "video_id": "JjbPGSbFVc8"
+    },
+    {
+      "error_message": null,
+      "error_type": "selector_parse_failed",
+      "status": "failed",
+      "video_id": "KEH-1ylCUIs"
+    },
+    {
+      "error_message": null,
+      "error_type": "selector_parse_failed",
+      "status": "failed",
+      "video_id": "Kgst-S_razU"
+    },
+    {
+      "error_message": null,
+      "error_type": "selector_parse_failed",
+      "status": "failed",
+      "video_id": "LW3GIJ5BLHc"
+    },
+    {
+      "error_message": null,
+      "error_type": "selector_parse_failed",
+      "status": "failed",
+      "video_id": "MW8YVwrY6_0"
+    },
+    {
+      "error_message": null,
+      "error_type": "map_parse_failed",
+      "status": "failed",
+      "video_id": "NrB4LPosWBk"
+    },
+    {
+      "error_message": null,
+      "error_type": "selector_parse_failed",
+      "status": "failed",
+      "video_id": "NzCvq05qJlo"
+    },
+    {
+      "error_message": null,
+      "error_type": "selector_parse_failed",
+      "status": "failed",
+      "video_id": "OCaOr_BQxhs"
+    },
+    {
+      "error_message": null,
+      "error_type": "selector_parse_failed",
+      "status": "failed",
+      "video_id": "OdvR45DCdWo"
+    },
+    {
+      "error_message": null,
+      "error_type": "selector_parse_failed",
+      "status": "failed",
+      "video_id": "P8LJTv-cqIw"
+    }
+  ],
+  "integrity": {
+    "bert_model_snapshot": "722cf37b1afa9454edce342e7895e588b6ff1d59",
+    "bert_model_snapshot_expected": "722cf37b1afa9454edce342e7895e588b6ff1d59",
+    "labels_joined_after_prediction_freeze": true,
+    "prediction_text_emitted": false,
+    "reference_text_emitted": false,
+    "sts_endpoint": "http://swoogle.umbc.edu/StsService/GetStsSim"
+  },
+  "metrics": {
+    "full_panel_failure_penalized": {
+      "bertscore_f1": 0.8717290562077572,
+      "meteor": 0.2125799098863398,
+      "ndcg": 1.0,
+      "ndcg_degenerate": true,
+      "normalized_exact_match": 0.05052631578947368,
+      "row_count": 475,
+      "semantic_composite": 0.46289232784399725,
+      "strata": {
+        "audio_or_text": {
+          "bertscore_f1": 0.9026670796530587,
+          "meteor": 0.2700607435664254,
+          "ndcg": 1.0,
+          "ndcg_degenerate": true,
+          "normalized_exact_match": 0.14285714285714285,
+          "row_count": 14,
+          "semantic_composite": 0.5509578896683994,
+          "sts": 0.4801458457857143,
+          "token_f1": 0.332713482467177
+        },
+        "causal": {
+          "bertscore_f1": 0.8631183341145515,
+          "meteor": 0.17704111247597457,
+          "ndcg": 1.0,
+          "ndcg_degenerate": true,
+          "normalized_exact_match": 0.0,
+          "row_count": 40,
+          "semantic_composite": 0.4468978794051754,
+          "sts": 0.300534191625,
+          "token_f1": 0.16866212419537663
+        },
+        "counting": {
+          "bertscore_f1": 0.892675588380045,
+          "meteor": 0.17353618589956632,
+          "ndcg": 1.0,
+          "ndcg_degenerate": true,
+          "normalized_exact_match": 0.1044776119402985,
+          "row_count": 67,
+          "semantic_composite": 0.38078272406335306,
+          "sts": 0.07613639791044777,
+          "token_f1": 0.24998815446576642
+        },
+        "other": {
+          "bertscore_f1": 0.8633785551147801,
+          "meteor": 0.22432950382721906,
+          "ndcg": 1.0,
+          "ndcg_degenerate": true,
+          "normalized_exact_match": 0.06696428571428571,
+          "row_count": 224,
+          "semantic_composite": 0.4800614456651902,
+          "sts": 0.35247627805357146,
+          "token_f1": 0.22140499324977342
+        },
+        "temporal": {
+          "bertscore_f1": 0.8746397573214311,
+          "meteor": 0.2172017613421112,
+          "ndcg": 1.0,
+          "ndcg_degenerate": true,
+          "normalized_exact_match": 0.0,
+          "row_count": 130,
+          "semantic_composite": 0.4710640288698987,
+          "sts": 0.32135056794615385,
+          "token_f1": 0.1834137292374761
+        }
+      },
+      "sts": 0.30436801743789477,
+      "token_f1": 0.21387828075870113
+    },
+    "interpretation": {
+      "failure_penalty": "failed selector rows receive zero credit for quality metrics",
+      "ndcg": "1.0 is degenerate for one response per video; no ranking comparison was available"
+    },
+    "official_style": [
+      "METEOR",
+      "BERTScore-F1",
+      "STS",
+      "NDCG"
+    ],
+    "selector_passed_only": {
+      "bertscore_f1": 0.8962582287850318,
+      "meteor": 0.21856159566236236,
+      "ndcg": 1.0,
+      "ndcg_degenerate": true,
+      "normalized_exact_match": 0.05194805194805195,
+      "row_count": 462,
+      "semantic_composite": 0.47591743663614433,
+      "strata": {
+        "audio_or_text": {
+          "bertscore_f1": 0.9026670796530587,
+          "meteor": 0.2700607435664254,
+          "ndcg": 1.0,
+          "ndcg_degenerate": true,
+          "normalized_exact_match": 0.14285714285714285,
+          "row_count": 14,
+          "semantic_composite": 0.5509578896683994,
+          "sts": 0.4801458457857143,
+          "token_f1": 0.332713482467177
+        },
+        "causal": {
+          "bertscore_f1": 0.8852495734508221,
+          "meteor": 0.18158062818048673,
+          "ndcg": 1.0,
+          "ndcg_degenerate": true,
+          "normalized_exact_match": 0.0,
+          "row_count": 39,
+          "semantic_composite": 0.45835679938992346,
+          "sts": 0.3082401965384615,
+          "token_f1": 0.17298679404654013
+        },
+        "counting": {
+          "bertscore_f1": 0.906200976082773,
+          "meteor": 0.17616552204955974,
+          "ndcg": 1.0,
+          "ndcg_degenerate": true,
+          "normalized_exact_match": 0.10606060606060606,
+          "row_count": 66,
+          "semantic_composite": 0.38655215927643416,
+          "sts": 0.0772899796969697,
+          "token_f1": 0.25377585377585377
+        },
+        "other": {
+          "bertscore_f1": 0.8953555386375498,
+          "meteor": 0.23263800396896792,
+          "ndcg": 1.0,
+          "ndcg_degenerate": true,
+          "normalized_exact_match": 0.06944444444444445,
+          "row_count": 216,
+          "semantic_composite": 0.4978414992083454,
+          "sts": 0.36553095501851857,
+          "token_f1": 0.22960517818495021
+        },
+        "temporal": {
+          "bertscore_f1": 0.8953005389904413,
+          "meteor": 0.22233251161003506,
+          "ndcg": 1.0,
+          "ndcg_degenerate": true,
+          "normalized_exact_match": 0.0,
+          "row_count": 127,
+          "semantic_composite": 0.48219152561485695,
+          "sts": 0.3289415262440945,
+          "token_f1": 0.1877463370147393
+        }
+      },
+      "sts": 0.31293248546103897,
+      "token_f1": 0.21989650078004985
+    }
+  },
+  "panel": {
+    "annotation_files": 481,
+    "completed_selector_outputs": 462,
+    "completion_rate": 0.9726315789473684,
+    "failed_selector_outputs": 13,
+    "videos": 475
+  },
+  "rows": [
+    {
+      "bertscore_f1": 0.9033206701278687,
+      "meteor": 0.125,
+      "semantic_composite": 0.5477843100426228,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.61503226,
+      "video_id": "B24dV_uori4"
+    },
+    {
+      "bertscore_f1": 0.8974980711936951,
+      "meteor": 0.19736842105263158,
+      "semantic_composite": 0.5101336374154423,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.43553442,
+      "video_id": "BADi9YBwUNc"
+    },
+    {
+      "bertscore_f1": 0.932734489440918,
+      "meteor": 0.600907029478458,
+      "semantic_composite": 0.725545539639792,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.6429951,
+      "video_id": "BDKkVYmWqdM"
+    },
+    {
+      "bertscore_f1": 0.8954786658287048,
+      "meteor": 0.14018691588785046,
+      "semantic_composite": 0.3962333272388518,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.1530344,
+      "video_id": "BGdwSxRiXzw"
+    },
+    {
+      "bertscore_f1": 0.9078662395477295,
+      "meteor": 0.17543859649122806,
+      "semantic_composite": 0.46883995867965256,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.32321504,
+      "video_id": "BLQQH7JQ2cE"
+    },
+    {
+      "bertscore_f1": 0.917326807975769,
+      "meteor": 0.2032520325203252,
+      "semantic_composite": 0.5656282368320315,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.57630587,
+      "video_id": "BSVHVuVnlGw"
+    },
+    {
+      "bertscore_f1": 0.9280300736427307,
+      "meteor": 0.29411764705882354,
+      "semantic_composite": 0.617879606900518,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.6314911,
+      "video_id": "BWAVzDutp1o"
+    },
+    {
+      "bertscore_f1": 0.8956772089004517,
+      "meteor": 0.17241379310344826,
+      "semantic_composite": 0.5255807540013,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.50865126,
+      "video_id": "BYja7Z0B9Fc"
+    },
+    {
+      "bertscore_f1": 0.9158445000648499,
+      "meteor": 0.14423076923076922,
+      "semantic_composite": 0.5369666897652063,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.5508248,
+      "video_id": "Bdyiy2P1WrA"
+    },
+    {
+      "bertscore_f1": 0.8628519177436829,
+      "meteor": 0.03048780487804878,
+      "semantic_composite": 0.35478750754057725,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.1710228,
+      "video_id": "BfcR9WtJQBQ"
+    },
+    {
+      "bertscore_f1": 0.9052788615226746,
+      "meteor": 0.33189033189033185,
+      "semantic_composite": 0.6182852978043355,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.6176867,
+      "video_id": "BkdaXjkp_h0"
+    },
+    {
+      "bertscore_f1": 0.8874527215957642,
+      "meteor": 0.11695906432748539,
+      "semantic_composite": 0.4151308086410832,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.24098064,
+      "video_id": "BrGdWP7lia0"
+    },
+    {
+      "bertscore_f1": 0.9132817983627319,
+      "meteor": 0.16174402250351613,
+      "semantic_composite": 0.4557072736220827,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.292096,
+      "video_id": "BuIc1w-kn-k"
+    },
+    {
+      "bertscore_f1": 0.9071595668792725,
+      "meteor": 0.24658203125000006,
+      "semantic_composite": 0.47318838937642416,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.26582357,
+      "video_id": "BvfrF5nONZk"
+    },
+    {
+      "bertscore_f1": 0.8990784287452698,
+      "meteor": 0.19083969465648856,
+      "semantic_composite": 0.5118847944672528,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.44573626,
+      "video_id": "BvpGKjFEIDg"
+    },
+    {
+      "bertscore_f1": 0.8619651198387146,
+      "meteor": 0.13274336283185842,
+      "semantic_composite": 0.38126827422352433,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.14909634,
+      "video_id": "Bvv6lMUTlEw"
+    },
+    {
+      "bertscore_f1": 0.9063785672187805,
+      "meteor": 0.3453453453453454,
+      "semantic_composite": 0.5493700308547086,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.39638618,
+      "video_id": "Bw7GevJP1vA"
+    },
+    {
+      "bertscore_f1": 0.910419762134552,
+      "meteor": 0.3599374021909233,
+      "semantic_composite": 0.5049877314418251,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.24460603,
+      "video_id": "ByuygPDH1Vk"
+    },
+    {
+      "bertscore_f1": 0.9121705293655396,
+      "meteor": 0.1145038167938931,
+      "semantic_composite": 0.41655525538647753,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.22299142,
+      "video_id": "C4j3Pp79KSg"
+    },
+    {
+      "bertscore_f1": 0.8868717551231384,
+      "meteor": 0.07462686567164178,
+      "semantic_composite": 0.43344936026492675,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.33884946,
+      "video_id": "C7ADL93Zg4Q"
+    },
+    {
+      "bertscore_f1": 0.9247564077377319,
+      "meteor": 0.43354552469135804,
+      "semantic_composite": 0.7031825774763633,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.7512458,
+      "video_id": "CBxi5FLNouw"
+    },
+    {
+      "bertscore_f1": 0.8819779753684998,
+      "meteor": 0.12195121951219512,
+      "semantic_composite": 0.401811638293565,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.20150572,
+      "video_id": "CFhqtT9V8yk"
+    },
+    {
+      "bertscore_f1": 0.8869942426681519,
+      "meteor": 0.05319148936170213,
+      "semantic_composite": 0.3351052940099513,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.06513015,
+      "video_id": "CH8Dp7EgW4I"
+    },
+    {
+      "bertscore_f1": 0.8846116065979004,
+      "meteor": 0.09615384615384616,
+      "semantic_composite": 0.32692181758391553,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "CLgCH9T6IwY"
+    },
+    {
+      "bertscore_f1": 0.8713797926902771,
+      "meteor": 0.0,
+      "semantic_composite": 0.29045993089675903,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "CbRNu0FBRv8"
+    },
+    {
+      "bertscore_f1": 0.9008402228355408,
+      "meteor": 0.23557397176181702,
+      "semantic_composite": 0.5756074481991192,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.59040815,
+      "video_id": "CcafMpThEeQ"
+    },
+    {
+      "bertscore_f1": 0.8596762418746948,
+      "meteor": 0.11811023622047245,
+      "semantic_composite": 0.33481233203172245,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.026650518,
+      "video_id": "CgjC6CV-sUs"
+    },
+    {
+      "bertscore_f1": 0.8489316701889038,
+      "meteor": 0.09090909090909091,
+      "semantic_composite": 0.3435650086993316,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.090854265,
+      "video_id": "CjcyaXLB3Ow"
+    },
+    {
+      "bertscore_f1": 0.8984218239784241,
+      "meteor": 0.24390243902439024,
+      "semantic_composite": 0.5566737210009381,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.5276969,
+      "video_id": "Cl_YhG6ZgNg"
+    },
+    {
+      "bertscore_f1": 0.8981958031654358,
+      "meteor": 0.043859649122807015,
+      "semantic_composite": 0.3946545940960809,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.24190833,
+      "video_id": "CnhxnPIbwyk"
+    },
+    {
+      "bertscore_f1": 0.8730999827384949,
+      "meteor": 0.09174311926605505,
+      "semantic_composite": 0.32161436733485,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "CsRoh9YM9pM"
+    },
+    {
+      "bertscore_f1": 0.8822213411331177,
+      "meteor": 0.12820512820512822,
+      "semantic_composite": 0.44236808977941533,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.3166778,
+      "video_id": "CtinYSH3nVw"
+    },
+    {
+      "bertscore_f1": 0.8797152042388916,
+      "meteor": 0.11363636363636363,
+      "semantic_composite": 0.33111718929175177,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "D4P4xYRYXIM"
+    },
+    {
+      "bertscore_f1": 0.896418035030365,
+      "meteor": 0.3605769230769231,
+      "semantic_composite": 0.5757875860357627,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.4703678,
+      "video_id": "D4Y3c5srV_k"
+    },
+    {
+      "bertscore_f1": 0.848445475101471,
+      "meteor": 0.07462686567164178,
+      "semantic_composite": 0.3373436689243709,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.088958666,
+      "video_id": "D7iryXC-ThU"
+    },
+    {
+      "bertscore_f1": 0.9214130640029907,
+      "meteor": 0.24313725490196078,
+      "semantic_composite": 0.5665559729683172,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.5351176,
+      "video_id": "DA6QjibIUac"
+    },
+    {
+      "bertscore_f1": 0.9326682686805725,
+      "meteor": 0.5580357142857143,
+      "semantic_composite": 0.7290043776554289,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.69630915,
+      "video_id": "DC4FE3hI67U"
+    },
+    {
+      "bertscore_f1": 0.8750406503677368,
+      "meteor": 0.10752688172043011,
+      "semantic_composite": 0.40543757402938896,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.23374519,
+      "video_id": "DJ18uzDCB9s"
+    },
+    {
+      "bertscore_f1": 0.8916486501693726,
+      "meteor": 0.15873015873015875,
+      "semantic_composite": 0.3739360562998438,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.07142936,
+      "video_id": "DMd-0BLyGhs"
+    },
+    {
+      "bertscore_f1": 0.8985517621040344,
+      "meteor": 0.19230769230769232,
+      "semantic_composite": 0.4893401414705756,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.37716097,
+      "video_id": "DOm8sdnXqz4"
+    },
+    {
+      "bertscore_f1": 0.8917831182479858,
+      "meteor": 0.13245033112582782,
+      "semantic_composite": 0.4314394064579379,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.27008477,
+      "video_id": "DXrUFbDQ0Os"
+    },
+    {
+      "bertscore_f1": 0.8961093425750732,
+      "meteor": 0.14285714285714285,
+      "semantic_composite": 0.5128103718107387,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.49946463,
+      "video_id": "D_HTq7IiSPo"
+    },
+    {
+      "bertscore_f1": 0.8783798217773438,
+      "meteor": 0.07772020725388601,
+      "semantic_composite": 0.37961684301040993,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.1827505,
+      "video_id": "DarD_G6Hz4Q"
+    },
+    {
+      "bertscore_f1": 0.9361085891723633,
+      "meteor": 0.45515574650913004,
+      "semantic_composite": 0.7456630918938311,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.84572494,
+      "video_id": "Dc4pETr9vGA"
+    },
+    {
+      "bertscore_f1": 0.9258108735084534,
+      "meteor": 0.3925925925925926,
+      "semantic_composite": 0.7108060220336819,
+      "status": "passed",
+      "stratum": "audio_or_text",
+      "sts": 0.8140146,
+      "video_id": "E0diSOsIyKg"
+    },
+    {
+      "bertscore_f1": 0.891284167766571,
+      "meteor": 0.19999999999999998,
+      "semantic_composite": 0.5000461692555237,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.40885434,
+      "video_id": "E0f7GRttANw"
+    },
+    {
+      "bertscore_f1": 0.9127435088157654,
+      "meteor": 0.49145299145299143,
+      "semantic_composite": 0.508906421422919,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.122522764,
+      "video_id": "E13zxG7hkdE"
+    },
+    {
+      "bertscore_f1": 0.8995779156684875,
+      "meteor": 0.2222222222222222,
+      "semantic_composite": 0.3739333792969033,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "E21rrcZ86KM"
+    },
+    {
+      "bertscore_f1": 0.9567530751228333,
+      "meteor": 0.0,
+      "semantic_composite": 0.6522510250409445,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "E3hGqRv4_K8"
+    },
+    {
+      "bertscore_f1": 0.855463445186615,
+      "meteor": 0.0,
+      "semantic_composite": 0.28515448172887164,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "EEfGBodc_OU"
+    },
+    {
+      "bertscore_f1": 0.884663462638855,
+      "meteor": 0.18987341772151897,
+      "semantic_composite": 0.398592673453458,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.12124114,
+      "video_id": "EHJyRw9PDVk"
+    },
+    {
+      "bertscore_f1": 0.8747894763946533,
+      "meteor": 0.136986301369863,
+      "semantic_composite": 0.4754281692548388,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.41450873,
+      "video_id": "EM5PHPF5TyY"
+    },
+    {
+      "bertscore_f1": 0.9190671443939209,
+      "meteor": 0.3191489361702128,
+      "semantic_composite": 0.5610357835213778,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.44489127,
+      "video_id": "EMI_anpHII4"
+    },
+    {
+      "bertscore_f1": 0.9051745533943176,
+      "meteor": 0.1234567901234568,
+      "semantic_composite": 0.40415431117259143,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.18383159,
+      "video_id": "EOLgGCKwo4w"
+    },
+    {
+      "bertscore_f1": 0.8749366402626038,
+      "meteor": 0.08771929824561403,
+      "semantic_composite": 0.32088531283607263,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "EQe8l1qXDjU"
+    },
+    {
+      "bertscore_f1": 0.8852208852767944,
+      "meteor": 0.12658227848101264,
+      "semantic_composite": 0.33726772125260235,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "EWLcSgJT6ZU"
+    },
+    {
+      "bertscore_f1": 0.9164915084838867,
+      "meteor": 0.3357712765957447,
+      "semantic_composite": 0.47219602169321045,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.16432528,
+      "video_id": "EYZnLuU5XCE"
+    },
+    {
+      "bertscore_f1": 0.8827100992202759,
+      "meteor": 0.22727272727272727,
+      "semantic_composite": 0.4052771188310011,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.10584853,
+      "video_id": "EZMT3xxIGt8"
+    },
+    {
+      "bertscore_f1": 0.8351033926010132,
+      "meteor": 0.0,
+      "semantic_composite": 0.2783677975336711,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "EZTAaKkHKyg"
+    },
+    {
+      "bertscore_f1": 0.8640885949134827,
+      "meteor": 0.1388888888888889,
+      "semantic_composite": 0.4192354346007905,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.25472882,
+      "video_id": "EgChb22PyHg"
+    },
+    {
+      "bertscore_f1": 0.885081946849823,
+      "meteor": 0.10416666666666666,
+      "semantic_composite": 0.4228855111721632,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.27940792,
+      "video_id": "Em8AwLDkiJc"
+    },
+    {
+      "bertscore_f1": 0.8777724504470825,
+      "meteor": 0.07462686567164178,
+      "semantic_composite": 0.3174664387062414,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "EmOrZ-Q_nDk"
+    },
+    {
+      "bertscore_f1": 0.9027251601219177,
+      "meteor": 0.09677419354838708,
+      "semantic_composite": 0.4596901745567683,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.37957117,
+      "video_id": "ErY8-ZYQzAI"
+    },
+    {
+      "bertscore_f1": 0.8972021341323853,
+      "meteor": 0.16,
+      "semantic_composite": 0.5033486447107951,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.4528438,
+      "video_id": "EtNOkUJd5w8"
+    },
+    {
+      "bertscore_f1": 0.9231676459312439,
+      "meteor": 0.43176454255171465,
+      "semantic_composite": 0.6498317294943196,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.594563,
+      "video_id": "Exf6rtBYbHc"
+    },
+    {
+      "bertscore_f1": 0.9467460513114929,
+      "meteor": 0.5165692007797271,
+      "semantic_composite": 0.8211050840304067,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "F2OEdOzce5g"
+    },
+    {
+      "bertscore_f1": 0.8896559476852417,
+      "meteor": 0.16304347826086954,
+      "semantic_composite": 0.40127474198203705,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.1511248,
+      "video_id": "F3JpwuSKkMc"
+    },
+    {
+      "bertscore_f1": 0.9465943574905396,
+      "meteor": 0.4166666666666667,
+      "semantic_composite": 0.6621298913857354,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.62312865,
+      "video_id": "F3qE951zzqA"
+    },
+    {
+      "bertscore_f1": 0.9378812313079834,
+      "meteor": 0.0,
+      "semantic_composite": 0.4516696237693278,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.41712764,
+      "video_id": "F4MPMa8-Hzg"
+    },
+    {
+      "bertscore_f1": 0.890737771987915,
+      "meteor": 0.32904805632078354,
+      "semantic_composite": 0.5439868761028995,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.4121748,
+      "video_id": "F5NMK2TRzyY"
+    },
+    {
+      "bertscore_f1": 0.9076758027076721,
+      "meteor": 0.10416666666666667,
+      "semantic_composite": 0.33728082312477964,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.0,
+      "video_id": "FAJK7_Yr1UM"
+    },
+    {
+      "bertscore_f1": 0.8979465961456299,
+      "meteor": 0.2768640350877193,
+      "semantic_composite": 0.5029087604111164,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.33391565,
+      "video_id": "FBD7bvFnshE"
+    },
+    {
+      "bertscore_f1": 0.8652948141098022,
+      "meteor": 0.43255813953488376,
+      "semantic_composite": 0.6140178712148954,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.54420066,
+      "video_id": "FDE7PCGMASA"
+    },
+    {
+      "bertscore_f1": 0.940123975276947,
+      "meteor": 0.25641025641025644,
+      "semantic_composite": 0.6537571105624012,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.7647371,
+      "video_id": "FDF2NCm5WCA"
+    },
+    {
+      "bertscore_f1": 0.9329180121421814,
+      "meteor": 0.29523809523809524,
+      "semantic_composite": 0.6432153024600923,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.7014898,
+      "video_id": "FIQJYK5nH_E"
+    },
+    {
+      "bertscore_f1": 0.8999291062355042,
+      "meteor": 0.16853932584269662,
+      "semantic_composite": 0.35615614402606693,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "FKsBrmJ2xSg"
+    },
+    {
+      "bertscore_f1": 0.8927930593490601,
+      "meteor": 0.08620689655172414,
+      "semantic_composite": 0.3973258386335947,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.21297756,
+      "video_id": "FLSitZEug_c"
+    },
+    {
+      "bertscore_f1": 0.9833879470825195,
+      "meteor": 0.6465517241379309,
+      "semantic_composite": 0.8766465570734835,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 1.0,
+      "video_id": "FVdQHVBAiB4"
+    },
+    {
+      "bertscore_f1": 0.9055416584014893,
+      "meteor": 0.30303030303030304,
+      "semantic_composite": 0.4028573204772641,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "FiXXyP5ZRxA"
+    },
+    {
+      "bertscore_f1": 0.8975697159767151,
+      "meteor": 0.14285714285714285,
+      "semantic_composite": 0.5052446762779527,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.47530717,
+      "video_id": "FjHyHGURyEQ"
+    },
+    {
+      "bertscore_f1": 0.8563769459724426,
+      "meteor": 0.0,
+      "semantic_composite": 0.2854589819908142,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "Fk_j6re_Uiw"
+    },
+    {
+      "bertscore_f1": 0.9388213157653809,
+      "meteor": 0.275089605734767,
+      "semantic_composite": 0.6710351071667159,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.7991944,
+      "video_id": "FtXVic8pRCw"
+    },
+    {
+      "bertscore_f1": 0.8877660036087036,
+      "meteor": 0.04807692307692308,
+      "semantic_composite": 0.3398707722285423,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.08376939,
+      "video_id": "Fu7tEHd2MLA"
+    },
+    {
+      "bertscore_f1": 0.8550215363502502,
+      "meteor": 0.25230111768573305,
+      "semantic_composite": 0.49247504134532777,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.37010247,
+      "video_id": "Fvd3ry_9NRM"
+    },
+    {
+      "bertscore_f1": 0.8678164482116699,
+      "meteor": 0.16129032258064518,
+      "semantic_composite": 0.36823724859743834,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.075604975,
+      "video_id": "G2w7PrdwYhM"
+    },
+    {
+      "bertscore_f1": 0.8845087289810181,
+      "meteor": 0.1673640167364017,
+      "semantic_composite": 0.54655079523914,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.58777964,
+      "video_id": "G3GstfkuDIg"
+    },
+    {
+      "bertscore_f1": 0.872097373008728,
+      "meteor": 0.0,
+      "semantic_composite": 0.2906991243362427,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "G4jfirTeNCY"
+    },
+    {
+      "bertscore_f1": 0.9500316977500916,
+      "meteor": 0.4761904761904762,
+      "semantic_composite": 0.6792215579801892,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.6114425,
+      "video_id": "G5AgzHKJINU"
+    },
+    {
+      "bertscore_f1": 0.9019075036048889,
+      "meteor": 0.25302530253025296,
+      "semantic_composite": 0.49097846204504725,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.31800258,
+      "video_id": "G6zu9D0j8hk"
+    },
+    {
+      "bertscore_f1": 0.8894166350364685,
+      "meteor": 0.09433962264150944,
+      "semantic_composite": 0.4205987292259927,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.27803993,
+      "video_id": "GAioLcwAMjE"
+    },
+    {
+      "bertscore_f1": 0.852164626121521,
+      "meteor": 0.0,
+      "semantic_composite": 0.28405487537384033,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "GBm6-NX3ue4"
+    },
+    {
+      "bertscore_f1": 0.9027159214019775,
+      "meteor": 0.1388888888888889,
+      "semantic_composite": 0.49913005676362215,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.45578536,
+      "video_id": "GC_ZIryUtoc"
+    },
+    {
+      "bertscore_f1": 0.8610326647758484,
+      "meteor": 0.07042253521126761,
+      "semantic_composite": 0.38677268332903864,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.22886285,
+      "video_id": "GD9prt9PD8Q"
+    },
+    {
+      "bertscore_f1": 0.8709172010421753,
+      "meteor": 0.19230769230769235,
+      "semantic_composite": 0.4914286577832892,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.41106108,
+      "video_id": "GF5kmTYwedw"
+    },
+    {
+      "bertscore_f1": 0.8566831946372986,
+      "meteor": 0.35714285714285715,
+      "semantic_composite": 0.5322454439267186,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.38291028,
+      "video_id": "GH7kcBkraNg"
+    },
+    {
+      "bertscore_f1": 0.9219104647636414,
+      "meteor": 0.45454545454545453,
+      "semantic_composite": 0.6519063964363653,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.57926327,
+      "video_id": "GIdtda2RH_g"
+    },
+    {
+      "bertscore_f1": 0.892291784286499,
+      "meteor": 0.22123893805309733,
+      "semantic_composite": 0.5805915074465321,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.6282438,
+      "video_id": "GJq44zrdS5A"
+    },
+    {
+      "bertscore_f1": 0.9177669286727905,
+      "meteor": 0.45454545454545453,
+      "semantic_composite": 0.45743746107274835,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "GO99jgYXXPo"
+    },
+    {
+      "bertscore_f1": 0.8493000864982605,
+      "meteor": 0.0,
+      "semantic_composite": 0.2831000288327535,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "GRfibNOTJnw"
+    },
+    {
+      "bertscore_f1": 0.8827831745147705,
+      "meteor": 0.2,
+      "semantic_composite": 0.5045030581715902,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.430726,
+      "video_id": "GSo0ep3dlh4"
+    },
+    {
+      "bertscore_f1": 0.9219634532928467,
+      "meteor": 0.866013071895425,
+      "semantic_composite": 0.8623255083960905,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.799,
+      "video_id": "GWCGF1WpMPc"
+    },
+    {
+      "bertscore_f1": 0.9153959155082703,
+      "meteor": 0.33333333333333337,
+      "semantic_composite": 0.41624308294720125,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "GYqVa5CA8jM"
+    },
+    {
+      "bertscore_f1": 0.8731244802474976,
+      "meteor": 0.15384615384615385,
+      "semantic_composite": 0.45743246136455046,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.34532675,
+      "video_id": "GaT6xXXdZPI"
+    },
+    {
+      "bertscore_f1": 0.8565731048583984,
+      "meteor": 0.0,
+      "semantic_composite": 0.3321398182861328,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.13984635,
+      "video_id": "Gb9otyfOuqA"
+    },
+    {
+      "bertscore_f1": 0.8703792095184326,
+      "meteor": 0.0,
+      "semantic_composite": 0.29012640317281085,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "GeToJ_bYWkQ"
+    },
+    {
+      "bertscore_f1": 0.8546715974807739,
+      "meteor": 0.0,
+      "semantic_composite": 0.2848905324935913,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "GjGFHotsrc0"
+    },
+    {
+      "bertscore_f1": 0.8848472237586975,
+      "meteor": 0.13157894736842107,
+      "semantic_composite": 0.44305045704237284,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.3127252,
+      "video_id": "Gn1hEZcLt5Q"
+    },
+    {
+      "bertscore_f1": 0.9093650579452515,
+      "meteor": 0.1764705882352941,
+      "semantic_composite": 0.4386634220601819,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.23015462,
+      "video_id": "GnOVP1b106U"
+    },
+    {
+      "bertscore_f1": 0.8962783217430115,
+      "meteor": 0.24658203125000006,
+      "semantic_composite": 0.5004671176643372,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.358541,
+      "video_id": "Gp4LVTn3YbY"
+    },
+    {
+      "bertscore_f1": 0.9107280373573303,
+      "meteor": 0.0,
+      "semantic_composite": 0.3035760124524434,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "Gq-fFH6p7cQ"
+    },
+    {
+      "bertscore_f1": 0.9238695502281189,
+      "meteor": 0.6114130434782608,
+      "semantic_composite": 0.5673278345687932,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.16670091,
+      "video_id": "GqcZ_L3yWes"
+    },
+    {
+      "bertscore_f1": 0.917908787727356,
+      "meteor": 0.8522727272727273,
+      "semantic_composite": 0.7983938383333612,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.625,
+      "video_id": "Gs4ZVLz6-CE"
+    },
+    {
+      "bertscore_f1": 0.8673911094665527,
+      "meteor": 0.0819672131147541,
+      "semantic_composite": 0.40209068086043565,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.25691372,
+      "video_id": "GtTPXrtzEFc"
+    },
+    {
+      "bertscore_f1": 0.874520480632782,
+      "meteor": 0.06711409395973154,
+      "semantic_composite": 0.3278485195308378,
+      "status": "passed",
+      "stratum": "audio_or_text",
+      "sts": 0.041910984,
+      "video_id": "GuSGaDJsgsE"
+    },
+    {
+      "bertscore_f1": 0.8960620760917664,
+      "meteor": 0.1145038167938931,
+      "semantic_composite": 0.5454546976285531,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.6257982,
+      "video_id": "GuxpJ5XyL5Q"
+    },
+    {
+      "bertscore_f1": 0.8787979483604431,
+      "meteor": 0.0,
+      "semantic_composite": 0.292932649453481,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "Gw_73ZoYFr8"
+    },
+    {
+      "bertscore_f1": 0.9043496251106262,
+      "meteor": 0.15748031496062992,
+      "semantic_composite": 0.5400923466904187,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.5584471,
+      "video_id": "GxcEldb2Prw"
+    },
+    {
+      "bertscore_f1": 0.8828381299972534,
+      "meteor": 0.12195121951219512,
+      "semantic_composite": 0.45137786650314954,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.34934425,
+      "video_id": "Gxwk3wdwV08"
+    },
+    {
+      "bertscore_f1": 0.8938266634941101,
+      "meteor": 0.10869565217391303,
+      "semantic_composite": 0.41775413855600774,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.2507401,
+      "video_id": "H18wdPYmAOA"
+    },
+    {
+      "bertscore_f1": 0.8605858087539673,
+      "meteor": 0.0,
+      "semantic_composite": 0.28686193625132245,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "H8GzucU2bb0"
+    },
+    {
+      "bertscore_f1": 0.8789976239204407,
+      "meteor": 0.1,
+      "semantic_composite": 0.5159343746401469,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.5688055,
+      "video_id": "H9h3o-BKTbM"
+    },
+    {
+      "bertscore_f1": 0.8418786525726318,
+      "meteor": 0.0,
+      "semantic_composite": 0.28062621752421063,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "HALDk0pCfXU"
+    },
+    {
+      "bertscore_f1": 0.9424840211868286,
+      "meteor": 0.8733103631062814,
+      "semantic_composite": 0.8870074480977034,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.84522796,
+      "video_id": "HC74qkV2-YA"
+    },
+    {
+      "bertscore_f1": 0.8617204427719116,
+      "meteor": 0.13686131386861314,
+      "semantic_composite": 0.36877432354684164,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.107741214,
+      "video_id": "HCE45LGztlo"
+    },
+    {
+      "bertscore_f1": 0.9999998807907104,
+      "meteor": 0.9996243425995492,
+      "semantic_composite": 0.9998747411300867,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "HD2_qedLUTE"
+    },
+    {
+      "bertscore_f1": 0.903359591960907,
+      "meteor": 0.398936170212766,
+      "semantic_composite": 0.559396054057891,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.3758924,
+      "video_id": "HD9FEp5RDRs"
+    },
+    {
+      "bertscore_f1": 0.8970933556556702,
+      "meteor": 0.0,
+      "semantic_composite": 0.41103501855189006,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.3360117,
+      "video_id": "HI2ZUfgeX0w"
+    },
+    {
+      "bertscore_f1": 0.9104120135307312,
+      "meteor": 0.15625,
+      "semantic_composite": 0.3555540045102437,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "HIE5JGhq9XU"
+    },
+    {
+      "bertscore_f1": 0.8920878767967224,
+      "meteor": 0.2,
+      "semantic_composite": 0.5115130189322409,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.44245118,
+      "video_id": "HJpXxOUYDxE"
+    },
+    {
+      "bertscore_f1": 0.8902632594108582,
+      "meteor": 0.11904761904761905,
+      "semantic_composite": 0.4566064694861591,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.36050853,
+      "video_id": "HT9Eo6Si5Mo"
+    },
+    {
+      "bertscore_f1": 0.9035714268684387,
+      "meteor": 0.13157894736842107,
+      "semantic_composite": 0.4754042414122866,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.39106235,
+      "video_id": "HUs-7p9QAMk"
+    },
+    {
+      "bertscore_f1": 1.000000238418579,
+      "meteor": 0.5,
+      "semantic_composite": 0.5000000794728597,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "HVh_en2b0-U"
+    },
+    {
+      "bertscore_f1": 0.8696815371513367,
+      "meteor": 0.09014423076923077,
+      "semantic_composite": 0.4769048559735225,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.4708888,
+      "video_id": "HZHBrAMppd8"
+    },
+    {
+      "bertscore_f1": 0.8633661866188049,
+      "meteor": 0.03968253968253969,
+      "semantic_composite": 0.4338034987671149,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.39836177,
+      "video_id": "HZVvjdZt5PM"
+    },
+    {
+      "bertscore_f1": 0.9483903646469116,
+      "meteor": 0.4560673701298702,
+      "semantic_composite": 0.7337049782589272,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.7966572,
+      "video_id": "HZva-aCzZts"
+    },
+    {
+      "bertscore_f1": 0.9131163954734802,
+      "meteor": 0.20304232804232802,
+      "semantic_composite": 0.48931410783860274,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.3517836,
+      "video_id": "HcvOhX3n784"
+    },
+    {
+      "bertscore_f1": 0.8836950659751892,
+      "meteor": 0.16129032258064518,
+      "semantic_composite": 0.3775488295186115,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.0876611,
+      "video_id": "HhJRo_1C5iY"
+    },
+    {
+      "bertscore_f1": 0.9218168258666992,
+      "meteor": 0.0,
+      "semantic_composite": 0.3072722752888997,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "HhlU4N9Lo3Q"
+    },
+    {
+      "bertscore_f1": 0.9365900158882141,
+      "meteor": 0.4166666666666667,
+      "semantic_composite": 0.45108556085162693,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "HhyW9mStn7Y"
+    },
+    {
+      "bertscore_f1": 0.9214083552360535,
+      "meteor": 0.25,
+      "semantic_composite": 0.5811483850786845,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.5720368,
+      "video_id": "HifNO8jnX-w"
+    },
+    {
+      "bertscore_f1": 0.9249106645584106,
+      "meteor": 0.3524904214559387,
+      "semantic_composite": 0.6598990753381164,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.70229614,
+      "video_id": "HkUqgG3OPkA"
+    },
+    {
+      "bertscore_f1": 0.8867048025131226,
+      "meteor": 0.15,
+      "semantic_composite": 0.43564993417104086,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.270245,
+      "video_id": "HkaGKlpb05k"
+    },
+    {
+      "bertscore_f1": 0.8579303622245789,
+      "meteor": 0.05494505494505494,
+      "semantic_composite": 0.3042918057232113,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.0,
+      "video_id": "Hn39NgRMxtY"
+    },
+    {
+      "bertscore_f1": 0.8717349171638489,
+      "meteor": 0.0,
+      "semantic_composite": 0.29057830572128296,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "Ho6rVzAF_9s"
+    },
+    {
+      "bertscore_f1": 0.925354540348053,
+      "meteor": 0.13157894736842105,
+      "semantic_composite": 0.5452148959054913,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.5787112,
+      "video_id": "HpAFuQ51Fmg"
+    },
+    {
+      "bertscore_f1": 0.9194595217704773,
+      "meteor": 0.2662037037037037,
+      "semantic_composite": 0.616961641824727,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.6652217,
+      "video_id": "Ht0eoZvmPo4"
+    },
+    {
+      "bertscore_f1": 0.8928511142730713,
+      "meteor": 0.26666666666666666,
+      "semantic_composite": 0.48043667697991266,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.28179225,
+      "video_id": "HtZ2KVuDfIo"
+    },
+    {
+      "bertscore_f1": 0.8867350816726685,
+      "meteor": 0.2032520325203252,
+      "semantic_composite": 0.49425069139766453,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.39276496,
+      "video_id": "HvYkXvDkuPc"
+    },
+    {
+      "bertscore_f1": 0.8218770623207092,
+      "meteor": 0.0,
+      "semantic_composite": 0.27395902077356976,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "Hw0bRvn1ZIo"
+    },
+    {
+      "bertscore_f1": 0.8648319244384766,
+      "meteor": 0.15151515151515152,
+      "semantic_composite": 0.375928877317876,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.111439556,
+      "video_id": "HwD5afpQNZM"
+    },
+    {
+      "bertscore_f1": 0.9352971911430359,
+      "meteor": 0.44642857142857145,
+      "semantic_composite": 0.7330087541905358,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.8173005,
+      "video_id": "HxYov3ZvQN8"
+    },
+    {
+      "bertscore_f1": 0.9370216131210327,
+      "meteor": 0.48076923076923084,
+      "semantic_composite": 0.8059302812967545,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "HyOKrz1C4zU"
+    },
+    {
+      "bertscore_f1": 0.8936579823493958,
+      "meteor": 0.4746835443037974,
+      "semantic_composite": 0.6067853155510644,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.45201442,
+      "video_id": "I0f5KN--RYw"
+    },
+    {
+      "bertscore_f1": 0.8527042269706726,
+      "meteor": 0.0546448087431694,
+      "semantic_composite": 0.39893636523794734,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.28946006,
+      "video_id": "I0hKaP5Y8LU"
+    },
+    {
+      "bertscore_f1": 0.8984638452529907,
+      "meteor": 0.0,
+      "semantic_composite": 0.5697065484176637,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.8106558,
+      "video_id": "I1lgJSu89aU"
+    },
+    {
+      "bertscore_f1": 0.8212889432907104,
+      "meteor": 0.078125,
+      "semantic_composite": 0.29980464776357013,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "I4JX5m-gJxM"
+    },
+    {
+      "bertscore_f1": 0.8805121183395386,
+      "meteor": 0.12658227848101264,
+      "semantic_composite": 0.3356981322735171,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "I5ZKEsOXkGU"
+    },
+    {
+      "bertscore_f1": 0.8726615309715271,
+      "meteor": 0.0,
+      "semantic_composite": 0.4059308103238424,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.3451309,
+      "video_id": "I9QFj6lz15w"
+    },
+    {
+      "bertscore_f1": 0.8713042736053467,
+      "meteor": 0.08379888268156424,
+      "semantic_composite": 0.432045152095637,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.3410323,
+      "video_id": "ICkVMgn44jc"
+    },
+    {
+      "bertscore_f1": 0.909484326839447,
+      "meteor": 0.20799457994579945,
+      "semantic_composite": 0.5802070889284155,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.62314236,
+      "video_id": "IEE2dPefD58"
+    },
+    {
+      "bertscore_f1": 0.8858506083488464,
+      "meteor": 0.10869565217391304,
+      "semantic_composite": 0.3315154201742532,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "IF1G49x7rUk"
+    },
+    {
+      "bertscore_f1": 0.8861643075942993,
+      "meteor": 0.13157894736842107,
+      "semantic_composite": 0.3392477516542401,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "IGL7j9-JRG4"
+    },
+    {
+      "bertscore_f1": 0.9005685448646545,
+      "meteor": 0.16666666666666666,
+      "semantic_composite": 0.4799551905104404,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.37263036,
+      "video_id": "IPNczM8NRps"
+    },
+    {
+      "bertscore_f1": 0.8620386719703674,
+      "meteor": 0.12195121951219512,
+      "semantic_composite": 0.46820262049418754,
+      "status": "passed",
+      "stratum": "audio_or_text",
+      "sts": 0.42061797,
+      "video_id": "IRTTtnSRTyY"
+    },
+    {
+      "bertscore_f1": 0.8449453711509705,
+      "meteor": 0.0,
+      "semantic_composite": 0.2816484570503235,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "ISPojHxT_bc"
+    },
+    {
+      "bertscore_f1": 0.8794652819633484,
+      "meteor": 0.125,
+      "semantic_composite": 0.3703237773211161,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.10650605,
+      "video_id": "IScHYoAPr5s"
+    },
+    {
+      "bertscore_f1": 0.951478123664856,
+      "meteor": 0.17241379310344826,
+      "semantic_composite": 0.5467251822561013,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.51628363,
+      "video_id": "ITL429RMscI"
+    },
+    {
+      "bertscore_f1": 0.9796474575996399,
+      "meteor": 0.6465517241379309,
+      "semantic_composite": 0.875399727245857,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "IVAcuxSsdSw"
+    },
+    {
+      "bertscore_f1": 0.9869663119316101,
+      "meteor": 0.6465517241379309,
+      "semantic_composite": 0.8778393453565138,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "IVqpg_1aWXU"
+    },
+    {
+      "bertscore_f1": 0.8782103061676025,
+      "meteor": 0.16949152542372883,
+      "semantic_composite": 0.3492339438637771,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "IWSPAfCKtV8"
+    },
+    {
+      "bertscore_f1": 0.8694922924041748,
+      "meteor": 0.0,
+      "semantic_composite": 0.2898307641347249,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "I_TaWo2AMDA"
+    },
+    {
+      "bertscore_f1": 0.875242292881012,
+      "meteor": 0.09615384615384616,
+      "semantic_composite": 0.34600942301161935,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.06663213,
+      "video_id": "I_eWjERhgPU"
+    },
+    {
+      "bertscore_f1": 0.9091768860816956,
+      "meteor": 0.28571428571428575,
+      "semantic_composite": 0.6055831905986605,
+      "status": "passed",
+      "stratum": "audio_or_text",
+      "sts": 0.6218584,
+      "video_id": "IazJA4RD4AE"
+    },
+    {
+      "bertscore_f1": 0.9373888373374939,
+      "meteor": 0.5902439024390245,
+      "semantic_composite": 0.6023446999255061,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.27940136,
+      "video_id": "Ie-KCtcZ7uc"
+    },
+    {
+      "bertscore_f1": 0.8796024322509766,
+      "meteor": 0.23979591836734693,
+      "semantic_composite": 0.5040652835394411,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.3927975,
+      "video_id": "IgHdataMrsI"
+    },
+    {
+      "bertscore_f1": 0.9632077813148499,
+      "meteor": 0.25,
+      "semantic_composite": 0.5710692604382833,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.5,
+      "video_id": "IgvTAaTs1h0"
+    },
+    {
+      "bertscore_f1": 0.8913886547088623,
+      "meteor": 0.08771929824561403,
+      "semantic_composite": 0.32636931765149213,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "Ih-J19BMr2k"
+    },
+    {
+      "bertscore_f1": 0.9063692688941956,
+      "meteor": 0.3270725388601036,
+      "semantic_composite": 0.6633394359180997,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.7565765,
+      "video_id": "IhSgnUly68U"
+    },
+    {
+      "bertscore_f1": 0.9105868935585022,
+      "meteor": 0.11718749999999999,
+      "semantic_composite": 0.40478782785283407,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.18658909,
+      "video_id": "IipsUXtbfi0"
+    },
+    {
+      "bertscore_f1": 0.8896990418434143,
+      "meteor": 0.22522522522522526,
+      "semantic_composite": 0.6047867223562132,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.6994359,
+      "video_id": "IluSoQAf7iQ"
+    },
+    {
+      "bertscore_f1": 0.8283734917640686,
+      "meteor": 0.1470588235294118,
+      "semantic_composite": 0.3251441050978268,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "IsuDOLuMBR0"
+    },
+    {
+      "bertscore_f1": 0.8707115650177002,
+      "meteor": 0.1388888888888889,
+      "semantic_composite": 0.44707843463552965,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.33163485,
+      "video_id": "Iuf0gTj4S0M"
+    },
+    {
+      "bertscore_f1": 0.8826165795326233,
+      "meteor": 0.10000000000000002,
+      "semantic_composite": 0.5647493265108744,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.7116314,
+      "video_id": "IvWk2kXJoH0"
+    },
+    {
+      "bertscore_f1": 0.886252760887146,
+      "meteor": 0.0,
+      "semantic_composite": 0.295417586962382,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "IyLkl1USwhU"
+    },
+    {
+      "bertscore_f1": 0.9354395866394043,
+      "meteor": 0.9498207885304659,
+      "semantic_composite": 0.9284201250566234,
+      "status": "passed",
+      "stratum": "audio_or_text",
+      "sts": 0.9,
+      "video_id": "J-sG9vePDmI"
+    },
+    {
+      "bertscore_f1": 0.9028174877166748,
+      "meteor": 0.3074380165289256,
+      "semantic_composite": 0.5073884514152002,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.31190985,
+      "video_id": "J3nyDqVYj40"
+    },
+    {
+      "bertscore_f1": 0.9157668948173523,
+      "meteor": 0.0,
+      "semantic_composite": 0.3052556316057841,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "J5cGZ_EA8R8"
+    },
+    {
+      "bertscore_f1": 0.9352220296859741,
+      "meteor": 0.5357142857142857,
+      "semantic_composite": 0.5645446484667532,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.22269763,
+      "video_id": "J7C_J_BOq7I"
+    },
+    {
+      "bertscore_f1": 0.8855435252189636,
+      "meteor": 0.14705882352941177,
+      "semantic_composite": 0.3442007829161251,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "J8L_ZRBH6VM"
+    },
+    {
+      "bertscore_f1": 0.871486246585846,
+      "meteor": 0.11029411764705882,
+      "semantic_composite": 0.46597559807763494,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.41614643,
+      "video_id": "J8pjQz5hVDw"
+    },
+    {
+      "bertscore_f1": 0.9617849588394165,
+      "meteor": 0.17241379310344826,
+      "semantic_composite": 0.4613995839809549,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.25,
+      "video_id": "J9PiXMoNwlw"
+    },
+    {
+      "bertscore_f1": 0.8698030114173889,
+      "meteor": 0.07092198581560284,
+      "semantic_composite": 0.3662070324109972,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.1578961,
+      "video_id": "J9nJaxVRB-4"
+    },
+    {
+      "bertscore_f1": 0.8739944100379944,
+      "meteor": 0.043859649122807015,
+      "semantic_composite": 0.3059513530536005,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "JA8_NOh7Hak"
+    },
+    {
+      "bertscore_f1": 0.8847570419311523,
+      "meteor": 0.072992700729927,
+      "semantic_composite": 0.49461776755369313,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.52610356,
+      "video_id": "JA_afYAObgs"
+    },
+    {
+      "bertscore_f1": 0.881817102432251,
+      "meteor": 0.11363636363636363,
+      "semantic_composite": 0.3318178220228715,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "JAs8qTc5EEc"
+    },
+    {
+      "bertscore_f1": 0.9079881906509399,
+      "meteor": 0.5,
+      "semantic_composite": 0.80266273021698,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 1.0,
+      "video_id": "JBmn5RRO_aM"
+    },
+    {
+      "bertscore_f1": 0.840891420841217,
+      "meteor": 0.0,
+      "semantic_composite": 0.3584464402804057,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.2344479,
+      "video_id": "JCKbxPvO32I"
+    },
+    {
+      "bertscore_f1": 1.0000001192092896,
+      "meteor": 0.5,
+      "semantic_composite": 0.8333333730697632,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 1.0,
+      "video_id": "JGQjEeUzFdI"
+    },
+    {
+      "bertscore_f1": 0.8453150391578674,
+      "meteor": 0.0,
+      "semantic_composite": 0.2817716797192891,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "JJ8sKvg55sM"
+    },
+    {
+      "bertscore_f1": 0.9264007806777954,
+      "meteor": 0.4732510288065844,
+      "semantic_composite": 0.6736427364947932,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.6212764,
+      "video_id": "JJm36w6X5pI"
+    },
+    {
+      "bertscore_f1": 0.9820971488952637,
+      "meteor": 0.2631578947368421,
+      "semantic_composite": 0.7484183478773686,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "JOClNGH6yL8"
+    },
+    {
+      "bertscore_f1": 0.9395731091499329,
+      "meteor": 0.5943152454780362,
+      "semantic_composite": 0.7229866048759898,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.63507146,
+      "video_id": "JOYI4B6yVX8"
+    },
+    {
+      "bertscore_f1": 0.8822196125984192,
+      "meteor": 0.12605042016806722,
+      "semantic_composite": 0.5176258442554955,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.5446075,
+      "video_id": "JOftqIUYn24"
+    },
+    {
+      "bertscore_f1": 0.9018436074256897,
+      "meteor": 0.46106557377049184,
+      "semantic_composite": 0.6340555937320606,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.5392576,
+      "video_id": "JR5t_k9ULcA"
+    },
+    {
+      "bertscore_f1": 0.8186599016189575,
+      "meteor": 0.0,
+      "semantic_composite": 0.27288663387298584,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "JRjNUjYOuc0"
+    },
+    {
+      "bertscore_f1": 0.914434015750885,
+      "meteor": 0.25,
+      "semantic_composite": 0.596478005250295,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.625,
+      "video_id": "JSOh_pKFq84"
+    },
+    {
+      "bertscore_f1": 0.9502944946289062,
+      "meteor": 0.2631578947368421,
+      "semantic_composite": 0.7378174631219161,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "JTVmofbUKz8"
+    },
+    {
+      "bertscore_f1": 0.9314907789230347,
+      "meteor": 0.47491039426523296,
+      "semantic_composite": 0.6246172910627559,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.4674507,
+      "video_id": "JTXpUxVg144"
+    },
+    {
+      "bertscore_f1": 1.0,
+      "meteor": 0.5,
+      "semantic_composite": 0.8333333333333334,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "JUH1x0s8tyA"
+    },
+    {
+      "bertscore_f1": 0.9413822889328003,
+      "meteor": 0.6944444444444445,
+      "semantic_composite": 0.8176574611257482,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.81714565,
+      "video_id": "JWdIB4tUG_A"
+    },
+    {
+      "bertscore_f1": 0.8954574465751648,
+      "meteor": 0.0,
+      "semantic_composite": 0.29848581552505493,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "JYgbRMKoZwU"
+    },
+    {
+      "bertscore_f1": 0.8848134875297546,
+      "meteor": 0.35094339622641507,
+      "semantic_composite": 0.5931430479187233,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.54367226,
+      "video_id": "JZ6D2F4EMvM"
+    },
+    {
+      "bertscore_f1": 0.8666931986808777,
+      "meteor": 0.31250000000000006,
+      "semantic_composite": 0.39306439956029254,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "JZzkwsnRHio"
+    },
+    {
+      "bertscore_f1": 0.885894238948822,
+      "meteor": 0.12658227848101264,
+      "semantic_composite": 0.45149779914327826,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.34201688,
+      "video_id": "J_pTNqI86qE"
+    },
+    {
+      "bertscore_f1": 0.9256861209869385,
+      "meteor": 0.8064516129032259,
+      "semantic_composite": 0.7868822112967214,
+      "status": "passed",
+      "stratum": "audio_or_text",
+      "sts": 0.6285089,
+      "video_id": "Jc2BdtyAF48"
+    },
+    {
+      "bertscore_f1": 0.8568060994148254,
+      "meteor": 0.0,
+      "semantic_composite": 0.28560203313827515,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "Jc_vZjKwtvg"
+    },
+    {
+      "bertscore_f1": 0.9104167222976685,
+      "meteor": 0.10416666666666666,
+      "semantic_composite": 0.4791296163214451,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.42280546,
+      "video_id": "JdjYxZcSBSY"
+    },
+    {
+      "bertscore_f1": 0.8865815997123718,
+      "meteor": 0.15789473684210523,
+      "semantic_composite": 0.449001845518159,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.3025292,
+      "video_id": "Je-mkG85Ntc"
+    },
+    {
+      "bertscore_f1": 0.8831586837768555,
+      "meteor": 0.16129032258064518,
+      "semantic_composite": 0.3481496687858336,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "JecGTrg8Qig"
+    },
+    {
+      "bertscore_f1": 0.8931649923324585,
+      "meteor": 0.2652310924369748,
+      "semantic_composite": 0.5636502615898111,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.5325547,
+      "video_id": "JeqfVPHF0OY"
+    },
+    {
+      "bertscore_f1": 0.8640180230140686,
+      "meteor": 0.2631578947368421,
+      "semantic_composite": 0.37572530591697023,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "JfGLBDlipnY"
+    },
+    {
+      "bertscore_f1": 0.9017888903617859,
+      "meteor": 0.290625,
+      "semantic_composite": 0.5799001534539286,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.54728657,
+      "video_id": "JfXV0T2VpEg"
+    },
+    {
+      "bertscore_f1": 0.8744047284126282,
+      "meteor": 0.07042253521126761,
+      "semantic_composite": 0.41167242120796527,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.29019,
+      "video_id": "JfzYDrbdvsQ"
+    },
+    {
+      "bertscore_f1": 0.9312623739242554,
+      "meteor": 0.49609375,
+      "semantic_composite": 0.6093060879747517,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.40056214,
+      "video_id": "Jhiyf69UltM"
+    },
+    {
+      "bertscore_f1": 0.837890625,
+      "meteor": 0.22727272727272727,
+      "semantic_composite": 0.5861518840909091,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.6932923,
+      "video_id": "Jjtp1B8OYqQ"
+    },
+    {
+      "bertscore_f1": 1.000000238418579,
+      "meteor": 0.5,
+      "semantic_composite": 0.833333412806193,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "Jk5h2a0j_ek"
+    },
+    {
+      "bertscore_f1": 1.0000001192092896,
+      "meteor": 0.9990234375,
+      "semantic_composite": 0.9996745189030966,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "JkfvwpRl488"
+    },
+    {
+      "bertscore_f1": 0.8814932703971863,
+      "meteor": 0.14285714285714285,
+      "semantic_composite": 0.341450137751443,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "JluxtrFDkZU"
+    },
+    {
+      "bertscore_f1": 0.8892772197723389,
+      "meteor": 0.20661157024793386,
+      "semantic_composite": 0.3652962633400909,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "JpCP3i6JoNc"
+    },
+    {
+      "bertscore_f1": 0.8909657597541809,
+      "meteor": 0.036764705882352935,
+      "semantic_composite": 0.47694914521217796,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.50311697,
+      "video_id": "JpTsHQHzptE"
+    },
+    {
+      "bertscore_f1": 0.9836879968643188,
+      "meteor": 0.754985754985755,
+      "semantic_composite": 0.9128912506166914,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "JqugPKIgGNQ"
+    },
+    {
+      "bertscore_f1": 0.8868177533149719,
+      "meteor": 0.10869565217391304,
+      "semantic_composite": 0.4627667151629617,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.39278674,
+      "video_id": "JrBhUfuagxw"
+    },
+    {
+      "bertscore_f1": 0.886676549911499,
+      "meteor": 0.09493670886075947,
+      "semantic_composite": 0.34583440392408615,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.055889953,
+      "video_id": "JrYZSj0E9ZQ"
+    },
+    {
+      "bertscore_f1": 0.9131196737289429,
+      "meteor": 0.1875,
+      "semantic_composite": 0.48230199124298095,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.3462863,
+      "video_id": "JuNLqy1m-_Q"
+    },
+    {
+      "bertscore_f1": 0.9248589873313904,
+      "meteor": 0.5943152454780362,
+      "semantic_composite": 0.6568488442698088,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.4513723,
+      "video_id": "Jw7-D4hpJb4"
+    },
+    {
+      "bertscore_f1": 0.8531878590583801,
+      "meteor": 0.05000000000000001,
+      "semantic_composite": 0.30106261968612674,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "JxUXcjhjzYU"
+    },
+    {
+      "bertscore_f1": 0.8838917016983032,
+      "meteor": 0.12195121951219513,
+      "semantic_composite": 0.3964304270701661,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.18344836,
+      "video_id": "JyZx66jT2z0"
+    },
+    {
+      "bertscore_f1": 0.9033989906311035,
+      "meteor": 0.39893617021276595,
+      "semantic_composite": 0.7118894869479565,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.8333333,
+      "video_id": "K2b_CBz27_w"
+    },
+    {
+      "bertscore_f1": 0.8950583934783936,
+      "meteor": 0.1764705882352941,
+      "semantic_composite": 0.4968113139045625,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.41890496,
+      "video_id": "K2qG-jQDYLU"
+    },
+    {
+      "bertscore_f1": 0.8593652844429016,
+      "meteor": 0.28571428571428575,
+      "semantic_composite": 0.4854588367190624,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.31129694,
+      "video_id": "K6Ut3nMQPAA"
+    },
+    {
+      "bertscore_f1": 0.8642687797546387,
+      "meteor": 0.05681818181818182,
+      "semantic_composite": 0.3666851605242735,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.17896852,
+      "video_id": "K6hWwBCEtU0"
+    },
+    {
+      "bertscore_f1": 0.8889745473861694,
+      "meteor": 0.19801980198019803,
+      "semantic_composite": 0.4999573031221225,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.41287756,
+      "video_id": "KBb0DfsH0eg"
+    },
+    {
+      "bertscore_f1": 1.0000001192092896,
+      "meteor": 0.9375,
+      "semantic_composite": 0.9791667064030966,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "KCHdQyYzLJ4"
+    },
+    {
+      "bertscore_f1": 0.8766006231307983,
+      "meteor": 0.0684931506849315,
+      "semantic_composite": 0.48816165793857663,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.5193912,
+      "video_id": "KD1De91bOyU"
+    },
+    {
+      "bertscore_f1": 0.9148028492927551,
+      "meteor": 0.125,
+      "semantic_composite": 0.39206444976425175,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.1363905,
+      "video_id": "KFxgXMTk39g"
+    },
+    {
+      "bertscore_f1": 0.8889786005020142,
+      "meteor": 0.16025641025641027,
+      "semantic_composite": 0.45078410358614146,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.3031173,
+      "video_id": "KGABH4Wryf4"
+    },
+    {
+      "bertscore_f1": 0.8931360244750977,
+      "meteor": 0.19230769230769235,
+      "semantic_composite": 0.36181457226093,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "KIlVZciwhlg"
+    },
+    {
+      "bertscore_f1": 0.9254645109176636,
+      "meteor": 0.4708860759493671,
+      "semantic_composite": 0.5987768356223436,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.39997992,
+      "video_id": "KP9pXg3tBDo"
+    },
+    {
+      "bertscore_f1": 0.9049094319343567,
+      "meteor": 0.1851851851851852,
+      "semantic_composite": 0.44295782570651393,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.23877886,
+      "video_id": "KTvyUThiwpU"
+    },
+    {
+      "bertscore_f1": 0.9344726800918579,
+      "meteor": 0.4166666666666667,
+      "semantic_composite": 0.45037978225284153,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "KV5nvA79vVA"
+    },
+    {
+      "bertscore_f1": 0.9831113815307617,
+      "meteor": 0.2631578947368421,
+      "semantic_composite": 0.7487564254225346,
+      "status": "passed",
+      "stratum": "audio_or_text",
+      "sts": 1.0,
+      "video_id": "KVmu0-GXlfA"
+    },
+    {
+      "bertscore_f1": 0.8689250946044922,
+      "meteor": 0.07575757575757576,
+      "semantic_composite": 0.3148942234540227,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "KWPkJSVDCNA"
+    },
+    {
+      "bertscore_f1": 0.9154555797576904,
+      "meteor": 0.8152173913043478,
+      "semantic_composite": 0.7258194570206794,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.4467854,
+      "video_id": "K_Dm0u_ksbs"
+    },
+    {
+      "bertscore_f1": 0.9160024523735046,
+      "meteor": 0.4166666666666667,
+      "semantic_composite": 0.4442230396800571,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "KanVJWDHduE"
+    },
+    {
+      "bertscore_f1": 0.8715729117393494,
+      "meteor": 0.17543859649122806,
+      "semantic_composite": 0.3490038360768592,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "KbBwDYKkByQ"
+    },
+    {
+      "bertscore_f1": 0.8681740760803223,
+      "meteor": 0.17857142857142855,
+      "semantic_composite": 0.607451534883917,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.7756091,
+      "video_id": "Ke6s0tyBQ50"
+    },
+    {
+      "bertscore_f1": 0.8760675191879272,
+      "meteor": 0.17632681564245808,
+      "semantic_composite": 0.44048944494346176,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.269074,
+      "video_id": "KgOvCPOX-Ms"
+    },
+    {
+      "bertscore_f1": 0.8928560018539429,
+      "meteor": 0.0,
+      "semantic_composite": 0.29761866728464764,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "Kgu0AtfmKX8"
+    },
+    {
+      "bertscore_f1": 0.8821621537208557,
+      "meteor": 0.16260162601626016,
+      "semantic_composite": 0.47182364324570525,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.37070715,
+      "video_id": "Kitzcy6Fp3A"
+    },
+    {
+      "bertscore_f1": 0.8699203133583069,
+      "meteor": 0.18072289156626503,
+      "semantic_composite": 0.4217697183081906,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.21466595,
+      "video_id": "KkLSq7v8EuE"
+    },
+    {
+      "bertscore_f1": 0.8803958892822266,
+      "meteor": 0.3024390243902439,
+      "semantic_composite": 0.5090494612241568,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.34431347,
+      "video_id": "Km0d_A-o1x4"
+    },
+    {
+      "bertscore_f1": 0.9038680791854858,
+      "meteor": 0.3276353276353276,
+      "semantic_composite": 0.4647806522736045,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.16283855,
+      "video_id": "KmXaY8-ZyIA"
+    },
+    {
+      "bertscore_f1": 0.885343611240387,
+      "meteor": 0.0,
+      "semantic_composite": 0.29511453708012897,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "KoQD9x6VrSk"
+    },
+    {
+      "bertscore_f1": 0.8172656893730164,
+      "meteor": 0.0,
+      "semantic_composite": 0.31009808179100545,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.113028556,
+      "video_id": "Kv46hRuvi40"
+    },
+    {
+      "bertscore_f1": 0.866820752620697,
+      "meteor": 0.06944444444444445,
+      "semantic_composite": 0.3466371690217138,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.10364631,
+      "video_id": "KvhbZ7U_9Zw"
+    },
+    {
+      "bertscore_f1": 0.8167798519134521,
+      "meteor": 0.0,
+      "semantic_composite": 0.2722599506378174,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "Kyig9R8E0jY"
+    },
+    {
+      "bertscore_f1": 0.8752650618553162,
+      "meteor": 0.13513513513513511,
+      "semantic_composite": 0.33680006566348375,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.0,
+      "video_id": "L0vYawoAo_Q"
+    },
+    {
+      "bertscore_f1": 0.8389385938644409,
+      "meteor": 0.06024096385542168,
+      "semantic_composite": 0.2997265192399542,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "L1knrZAHc-w"
+    },
+    {
+      "bertscore_f1": 0.8914477229118347,
+      "meteor": 0.06756756756756757,
+      "semantic_composite": 0.4337511901598008,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.34223828,
+      "video_id": "L36HKJeOn-0"
+    },
+    {
+      "bertscore_f1": 0.9185454249382019,
+      "meteor": 0.23076923076923078,
+      "semantic_composite": 0.49498020190247755,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.33562595,
+      "video_id": "L4js17jguSA"
+    },
+    {
+      "bertscore_f1": 0.8779508471488953,
+      "meteor": 0.0,
+      "semantic_composite": 0.2926502823829651,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "L75wb-sK0Ws"
+    },
+    {
+      "bertscore_f1": 0.9376713633537292,
+      "meteor": 0.7894736842105263,
+      "semantic_composite": 0.7954353991880851,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.65916115,
+      "video_id": "L9Rn2C5noys"
+    },
+    {
+      "bertscore_f1": 0.8836618065834045,
+      "meteor": 0.27777777777777785,
+      "semantic_composite": 0.5350843214537274,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.44381338,
+      "video_id": "LAa5O3ToD2c"
+    },
+    {
+      "bertscore_f1": 0.8835827112197876,
+      "meteor": 0.0,
+      "semantic_composite": 0.2945275704065959,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "LBEnKCnLGIg"
+    },
+    {
+      "bertscore_f1": 0.8990838527679443,
+      "meteor": 0.10416666666666667,
+      "semantic_composite": 0.334416839811537,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.0,
+      "video_id": "LBYQbq-7Dvg"
+    },
+    {
+      "bertscore_f1": 0.8473120927810669,
+      "meteor": 0.0,
+      "semantic_composite": 0.28243736426035565,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "LDos_KU6084"
+    },
+    {
+      "bertscore_f1": 0.9101935029029846,
+      "meteor": 0.23445463812436282,
+      "semantic_composite": 0.5067734336757824,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.37567216,
+      "video_id": "LI9DacxH6Ao"
+    },
+    {
+      "bertscore_f1": 0.9146785736083984,
+      "meteor": 0.7352941176470589,
+      "semantic_composite": 0.8044887304184858,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.7634935,
+      "video_id": "LJuzoIUr4d4"
+    },
+    {
+      "bertscore_f1": 0.9329568147659302,
+      "meteor": 0.7552083333333334,
+      "semantic_composite": 0.8484360060330879,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.85714287,
+      "video_id": "LKiaCf1QZFw"
+    },
+    {
+      "bertscore_f1": 0.9166508913040161,
+      "meteor": 0.31453240636914104,
+      "semantic_composite": 0.571714582557719,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.48396045,
+      "video_id": "LNb5uNQXkwg"
+    },
+    {
+      "bertscore_f1": 0.9061981439590454,
+      "meteor": 0.14925373134328357,
+      "semantic_composite": 0.5350836151007763,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.54979897,
+      "video_id": "LOB9f-SQJn0"
+    },
+    {
+      "bertscore_f1": 0.858094334602356,
+      "meteor": 0.15625,
+      "semantic_composite": 0.3886596115341187,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.1516345,
+      "video_id": "LQ8zkNuUREU"
+    },
+    {
+      "bertscore_f1": 0.8848280906677246,
+      "meteor": 0.27777777777777785,
+      "semantic_composite": 0.5055729894818342,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.3541131,
+      "video_id": "LRaDnSW9n6U"
+    },
+    {
+      "bertscore_f1": 0.8941316604614258,
+      "meteor": 0.7488207547169811,
+      "semantic_composite": 0.6842136583928022,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.40968856,
+      "video_id": "LSz_xBDBPNc"
+    },
+    {
+      "bertscore_f1": 0.8820824027061462,
+      "meteor": 0.036764705882352935,
+      "semantic_composite": 0.49054291619616636,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.55278164,
+      "video_id": "LT1xMLzH21o"
+    },
+    {
+      "bertscore_f1": 0.883091390132904,
+      "meteor": 0.0,
+      "semantic_composite": 0.41714259671096804,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.3683364,
+      "video_id": "LUZHLX2pBdk"
+    },
+    {
+      "bertscore_f1": 0.8816797137260437,
+      "meteor": 0.1234567901234568,
+      "semantic_composite": 0.4089965979498335,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.22185329,
+      "video_id": "L_QWBOPgucA"
+    },
+    {
+      "bertscore_f1": 0.8874508738517761,
+      "meteor": 0.1785714285714286,
+      "semantic_composite": 0.45381516080773493,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.29542318,
+      "video_id": "La-SNVkM06w"
+    },
+    {
+      "bertscore_f1": 0.9139818549156189,
+      "meteor": 0.3357712765957447,
+      "semantic_composite": 0.5814377771704545,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.4945602,
+      "video_id": "LbieW0jTtoA"
+    },
+    {
+      "bertscore_f1": 0.8718736171722412,
+      "meteor": 0.05050505050505051,
+      "semantic_composite": 0.30745955589243057,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "Lc79Goppqec"
+    },
+    {
+      "bertscore_f1": 0.9332659840583801,
+      "meteor": 0.7095046854082998,
+      "semantic_composite": 0.7098757298222266,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.48685652,
+      "video_id": "LfdH03plmIw"
+    },
+    {
+      "bertscore_f1": 0.9102166891098022,
+      "meteor": 0.22123893805309733,
+      "semantic_composite": 0.5426731690542999,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.49656388,
+      "video_id": "Lg_fVCxXhgY"
+    },
+    {
+      "bertscore_f1": 0.8732476234436035,
+      "meteor": 0.12195121951219513,
+      "semantic_composite": 0.3317329476519329,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "LjH-8x3DDqQ"
+    },
+    {
+      "bertscore_f1": 0.9081637263298035,
+      "meteor": 0.14150943396226415,
+      "semantic_composite": 0.43760699676402254,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.26314783,
+      "video_id": "LjKQRBfH6dw"
+    },
+    {
+      "bertscore_f1": 0.8854430317878723,
+      "meteor": 0.16233766233766234,
+      "semantic_composite": 0.511048898041845,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.485366,
+      "video_id": "LjLG1o7FDGM"
+    },
+    {
+      "bertscore_f1": 0.915823757648468,
+      "meteor": 0.2631578947368421,
+      "semantic_composite": 0.72632721746177,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "LjSq8xGEuzw"
+    },
+    {
+      "bertscore_f1": 0.9211300611495972,
+      "meteor": 0.6013071895424837,
+      "semantic_composite": 0.7605576168973602,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.7592356,
+      "video_id": "LkdfiZcQ7lU"
+    },
+    {
+      "bertscore_f1": 0.9337761402130127,
+      "meteor": 0.45454545454545453,
+      "semantic_composite": 0.4627738649194891,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "Loyn1vxCI6E"
+    },
+    {
+      "bertscore_f1": 0.9093582034111023,
+      "meteor": 0.15822784810126583,
+      "semantic_composite": 0.5238682971707894,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.50401884,
+      "video_id": "Ltv4vx1UOl4"
+    },
+    {
+      "bertscore_f1": 1.000000238418579,
+      "meteor": 0.5,
+      "semantic_composite": 0.5000000794728597,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "Lua4I9I8nfc"
+    },
+    {
+      "bertscore_f1": 0.9129007458686829,
+      "meteor": 0.3846153846153847,
+      "semantic_composite": 0.4325053768280225,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "LusRurRrmf0"
+    },
+    {
+      "bertscore_f1": 0.8919966220855713,
+      "meteor": 0.1818181818181818,
+      "semantic_composite": 0.3738905879679177,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.04785696,
+      "video_id": "LxZuar32o1o"
+    },
+    {
+      "bertscore_f1": 0.9317041039466858,
+      "meteor": 0.3206896551724139,
+      "semantic_composite": 0.5341200263730332,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.34996632,
+      "video_id": "LziNpkXGoDE"
+    },
+    {
+      "bertscore_f1": 0.8861223459243774,
+      "meteor": 0.0847457627118644,
+      "semantic_composite": 0.3236227028787473,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "M39nNQb1Nj0"
+    },
+    {
+      "bertscore_f1": 0.8575037717819214,
+      "meteor": 0.07874015748031496,
+      "semantic_composite": 0.3120813097540788,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "M57Mawo4W-Y"
+    },
+    {
+      "bertscore_f1": 0.84577476978302,
+      "meteor": 0.08849557522123894,
+      "semantic_composite": 0.3587750616680863,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.14205484,
+      "video_id": "M6cWJmBBhnI"
+    },
+    {
+      "bertscore_f1": 0.9999999403953552,
+      "meteor": 0.5,
+      "semantic_composite": 0.4999999801317851,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "M76Yl8Oor8Y"
+    },
+    {
+      "bertscore_f1": 0.8851529955863953,
+      "meteor": 0.0,
+      "semantic_composite": 0.2950509985287984,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "MA173ZVzSXc"
+    },
+    {
+      "bertscore_f1": 0.7972971200942993,
+      "meteor": 0.0,
+      "semantic_composite": 0.2657657066980998,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "MCWKUjMdpF4"
+    },
+    {
+      "bertscore_f1": 0.8896008729934692,
+      "meteor": 0.07751937984496124,
+      "semantic_composite": 0.3223734176128102,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "MGrxiff_3Jc"
+    },
+    {
+      "bertscore_f1": 0.8616576790809631,
+      "meteor": 0.02906976744186046,
+      "semantic_composite": 0.36811598217427455,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.2136205,
+      "video_id": "MLJ0wxf_cmw"
+    },
+    {
+      "bertscore_f1": 0.8841829895973206,
+      "meteor": 0.26315789473684215,
+      "semantic_composite": 0.38244696144472085,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "MM19feoJGmM"
+    },
+    {
+      "bertscore_f1": 0.8727914094924927,
+      "meteor": 0.125,
+      "semantic_composite": 0.33259713649749756,
+      "status": "passed",
+      "stratum": "audio_or_text",
+      "sts": 0.0,
+      "video_id": "MQg3_AIydkw"
+    },
+    {
+      "bertscore_f1": 0.8938397169113159,
+      "meteor": 0.14084507042253522,
+      "semantic_composite": 0.4526720691112837,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.32333142,
+      "video_id": "MQlY_bh3Hkk"
+    },
+    {
+      "bertscore_f1": 0.9057034850120544,
+      "meteor": 0.1851851851851852,
+      "semantic_composite": 0.4316783433990799,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.20414636,
+      "video_id": "MRBm4oGh6Xk"
+    },
+    {
+      "bertscore_f1": 0.8582037091255188,
+      "meteor": 0.0,
+      "semantic_composite": 0.2860679030418396,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "MRMbXhOIFJM"
+    },
+    {
+      "bertscore_f1": 0.9246898293495178,
+      "meteor": 0.22321428571428567,
+      "semantic_composite": 0.5390027816879345,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.46910423,
+      "video_id": "MS3Ybxlb2LQ"
+    },
+    {
+      "bertscore_f1": 0.8332841992378235,
+      "meteor": 0.0,
+      "semantic_composite": 0.27776139974594116,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "MUQK3vhVOiw"
+    },
+    {
+      "bertscore_f1": 0.912716805934906,
+      "meteor": 0.267478813559322,
+      "semantic_composite": 0.47633097649807604,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.24879731,
+      "video_id": "MWYG4ljwoJI"
+    },
+    {
+      "bertscore_f1": 0.9014723896980286,
+      "meteor": 0.7181571815718159,
+      "semantic_composite": 0.7259821237566149,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.5583168,
+      "video_id": "MXU4K2gyFvk"
+    },
+    {
+      "bertscore_f1": 0.938624382019043,
+      "meteor": 0.0,
+      "semantic_composite": 0.31287479400634766,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "MY7bx0IsNbo"
+    },
+    {
+      "bertscore_f1": 0.9057741165161133,
+      "meteor": 0.22727272727272727,
+      "semantic_composite": 0.5715345279296135,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.58155674,
+      "video_id": "MZLX5Y17EgU"
+    },
+    {
+      "bertscore_f1": 0.9097174406051636,
+      "meteor": 0.3846153846153847,
+      "semantic_composite": 0.43144427507351607,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "MZQzSUEgp1U"
+    },
+    {
+      "bertscore_f1": 0.8745180368423462,
+      "meteor": 0.12605042016806722,
+      "semantic_composite": 0.33352281900347114,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "MdCT-ky8_FM"
+    },
+    {
+      "bertscore_f1": 0.9077523946762085,
+      "meteor": 0.0,
+      "semantic_composite": 0.4263353648920695,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.3712537,
+      "video_id": "MdMKHhFFqJQ"
+    },
+    {
+      "bertscore_f1": 0.8791269063949585,
+      "meteor": 0.16997803514376997,
+      "semantic_composite": 0.4904604905129095,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.42227653,
+      "video_id": "Mf0sSHQNBIM"
+    },
+    {
+      "bertscore_f1": 0.8919299244880676,
+      "meteor": 0.19230769230769232,
+      "semantic_composite": 0.4040723222652533,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.12797935,
+      "video_id": "MgsGBZrPtLw"
+    },
+    {
+      "bertscore_f1": 0.9773609638214111,
+      "meteor": 0.2631578947368421,
+      "semantic_composite": 0.7468396195194177,
+      "status": "passed",
+      "stratum": "audio_or_text",
+      "sts": 1.0,
+      "video_id": "Mi-NpnCBegw"
+    },
+    {
+      "bertscore_f1": 0.9081010818481445,
+      "meteor": 0.0,
+      "semantic_composite": 0.30270036061604816,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "Mj3kccs07fg"
+    },
+    {
+      "bertscore_f1": 0.8723732233047485,
+      "meteor": 0.30643203883495146,
+      "semantic_composite": 0.4828077873799,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.2696181,
+      "video_id": "MjV1CZxCOeE"
+    },
+    {
+      "bertscore_f1": 0.9250676035881042,
+      "meteor": 0.625,
+      "semantic_composite": 0.7532023345293681,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.7095394,
+      "video_id": "MnNCjbPsiek"
+    },
+    {
+      "bertscore_f1": 0.9121267199516296,
+      "meteor": 0.14705882352941174,
+      "semantic_composite": 0.44113025449368043,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.26420522,
+      "video_id": "MphrquLK8gc"
+    },
+    {
+      "bertscore_f1": 0.8958847522735596,
+      "meteor": 0.0,
+      "semantic_composite": 0.2986282507578532,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "Mr5ajtVsATc"
+    },
+    {
+      "bertscore_f1": 0.8477357029914856,
+      "meteor": 0.0,
+      "semantic_composite": 0.28257856766382855,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "Msbpqv5aOxk"
+    },
+    {
+      "bertscore_f1": 0.9326831102371216,
+      "meteor": 0.38265306122448983,
+      "semantic_composite": 0.5456810238205372,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.3217069,
+      "video_id": "MuRg3XtN_38"
+    },
+    {
+      "bertscore_f1": 0.9999999403953552,
+      "meteor": 0.5,
+      "semantic_composite": 0.4999999801317851,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "N2ApImsBgDI"
+    },
+    {
+      "bertscore_f1": 0.9121348261833191,
+      "meteor": 0.3262529501596558,
+      "semantic_composite": 0.6403612721143249,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.68269604,
+      "video_id": "N3fVfEAst_s"
+    },
+    {
+      "bertscore_f1": 0.8843225240707397,
+      "meteor": 0.0,
+      "semantic_composite": 0.2947741746902466,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "N5-nI2V_GS0"
+    },
+    {
+      "bertscore_f1": 0.9589519500732422,
+      "meteor": 0.0,
+      "semantic_composite": 0.36591933669108073,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.13880606,
+      "video_id": "N623MG6xnak"
+    },
+    {
+      "bertscore_f1": 0.929455041885376,
+      "meteor": 0.2961033950617284,
+      "semantic_composite": 0.6368073356490348,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.68486357,
+      "video_id": "N6OwNSQplrE"
+    },
+    {
+      "bertscore_f1": 0.8867518901824951,
+      "meteor": 0.09803921568627452,
+      "semantic_composite": 0.3913967119562565,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.18939903,
+      "video_id": "N7pUP__a5FM"
+    },
+    {
+      "bertscore_f1": 0.8824936747550964,
+      "meteor": 0.08547008547008547,
+      "semantic_composite": 0.34665482340839393,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.07200071,
+      "video_id": "N7rvWwZX_ZM"
+    },
+    {
+      "bertscore_f1": 0.8658491969108582,
+      "meteor": 0.17647058823529413,
+      "semantic_composite": 0.4180050517153841,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.21169537,
+      "video_id": "N8cBmFGn7do"
+    },
+    {
+      "bertscore_f1": 0.8716008067131042,
+      "meteor": 0.056818181818181816,
+      "semantic_composite": 0.30947299617709534,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "N9oznAO-AGE"
+    },
+    {
+      "bertscore_f1": 0.8592362999916077,
+      "meteor": 0.072992700729927,
+      "semantic_composite": 0.34418584524051155,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.100328535,
+      "video_id": "NBNC_NWBy9Y"
+    },
+    {
+      "bertscore_f1": 0.9798122644424438,
+      "meteor": 0.8440677966101694,
+      "semantic_composite": 0.9412933536842044,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "NBxr52ifOcA"
+    },
+    {
+      "bertscore_f1": 0.844998836517334,
+      "meteor": 0.0,
+      "semantic_composite": 0.29092731383911136,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.027783105,
+      "video_id": "NFd2lPoV8Wo"
+    },
+    {
+      "bertscore_f1": 0.8863816857337952,
+      "meteor": 0.20604395604395603,
+      "semantic_composite": 0.45941863392591703,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.28583026,
+      "video_id": "NK5Ln-1tVGc"
+    },
+    {
+      "bertscore_f1": 0.8863787651062012,
+      "meteor": 0.15789473684210528,
+      "semantic_composite": 0.4167662573161022,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.20602527,
+      "video_id": "NM3dmMD45iI"
+    },
+    {
+      "bertscore_f1": 0.872839629650116,
+      "meteor": 0.0684931506849315,
+      "semantic_composite": 0.3680336601116825,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.1627682,
+      "video_id": "NN7G28sBOlY"
+    },
+    {
+      "bertscore_f1": 0.8812891244888306,
+      "meteor": 0.1639344262295082,
+      "semantic_composite": 0.5098910602394463,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.48444963,
+      "video_id": "NNtFFnEXrjw"
+    },
+    {
+      "bertscore_f1": 0.9449838399887085,
+      "meteor": 0.0,
+      "semantic_composite": 0.3149946133295695,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "NQM30GUj_7s"
+    },
+    {
+      "bertscore_f1": 0.8965890407562256,
+      "meteor": 0.14492753623188406,
+      "semantic_composite": 0.34717219232936986,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "NS4xBlXvjVY"
+    },
+    {
+      "bertscore_f1": 0.8691727519035339,
+      "meteor": 0.15630252100840333,
+      "semantic_composite": 0.3994492309706457,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.17287242,
+      "video_id": "NTFy32oOlsU"
+    },
+    {
+      "bertscore_f1": 0.8776678442955017,
+      "meteor": 0.091324200913242,
+      "semantic_composite": 0.4347303484029146,
+      "status": "passed",
+      "stratum": "audio_or_text",
+      "sts": 0.335199,
+      "video_id": "NUmb2P3Bzu8"
+    },
+    {
+      "bertscore_f1": 0.8860028386116028,
+      "meteor": 0.0,
+      "semantic_composite": 0.2953342795372009,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "NVkXXOpygeg"
+    },
+    {
+      "bertscore_f1": 0.8351279497146606,
+      "meteor": 0.07692307692307694,
+      "semantic_composite": 0.3040170088792459,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "NW3Mhr76ClM"
+    },
+    {
+      "bertscore_f1": 0.8452897071838379,
+      "meteor": 0.078125,
+      "semantic_composite": 0.41891601572794596,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.33333334,
+      "video_id": "NbhaZCj6cVE"
+    },
+    {
+      "bertscore_f1": 0.902517557144165,
+      "meteor": 0.2238805970149254,
+      "semantic_composite": 0.44382123805303014,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.20506556,
+      "video_id": "NhrHBFbw9Uo"
+    },
+    {
+      "bertscore_f1": 0.9231083989143372,
+      "meteor": 0.234375,
+      "semantic_composite": 0.4835199329714457,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.2930764,
+      "video_id": "NjfNx1uhEJE"
+    },
+    {
+      "bertscore_f1": 0.9080610871315002,
+      "meteor": 0.2380952380952381,
+      "semantic_composite": 0.5497708417422461,
+      "status": "passed",
+      "stratum": "audio_or_text",
+      "sts": 0.5031562,
+      "video_id": "NkXPPJoZ-h8"
+    },
+    {
+      "bertscore_f1": 0.9051066637039185,
+      "meteor": 0.6847545219638244,
+      "semantic_composite": 0.707255595222581,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.5319056,
+      "video_id": "NsF80sL5wy4"
+    },
+    {
+      "bertscore_f1": 0.8407267928123474,
+      "meteor": 0.0,
+      "semantic_composite": 0.28024226427078247,
+      "status": "passed",
+      "stratum": "audio_or_text",
+      "sts": 0.0,
+      "video_id": "Nvg0mgGelUU"
+    },
+    {
+      "bertscore_f1": 0.886548638343811,
+      "meteor": 0.3647058823529412,
+      "semantic_composite": 0.6331034735655842,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.6480559,
+      "video_id": "Nvg87OLVObE"
+    },
+    {
+      "bertscore_f1": 0.8637031316757202,
+      "meteor": 0.0,
+      "semantic_composite": 0.28790104389190674,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "NwUjBfzE7CU"
+    },
+    {
+      "bertscore_f1": 0.8411188721656799,
+      "meteor": 0.0,
+      "semantic_composite": 0.28037295738856,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "O-d2M-zIMPo"
+    },
+    {
+      "bertscore_f1": 0.8971119523048401,
+      "meteor": 0.13157894736842107,
+      "semantic_composite": 0.4388254865577537,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.28778556,
+      "video_id": "O44HmlgDbTs"
+    },
+    {
+      "bertscore_f1": 0.8631911873817444,
+      "meteor": 0.4166666666666667,
+      "semantic_composite": 0.6533902513494704,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.6803129,
+      "video_id": "O5Qh7EZ3M1I"
+    },
+    {
+      "bertscore_f1": 0.9160383343696594,
+      "meteor": 0.0,
+      "semantic_composite": 0.5165222114565532,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.6335283,
+      "video_id": "O60MtMuSpf8"
+    },
+    {
+      "bertscore_f1": 1.0,
+      "meteor": 0.5,
+      "semantic_composite": 0.8333333333333334,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "O6VNkADtKV4"
+    },
+    {
+      "bertscore_f1": 0.865089476108551,
+      "meteor": 0.2542372881355932,
+      "semantic_composite": 0.5112479614147147,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.41441712,
+      "video_id": "O7lBcBruXHM"
+    },
+    {
+      "bertscore_f1": 0.8739901781082153,
+      "meteor": 0.640096618357488,
+      "semantic_composite": 0.6720809988219011,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.5021562,
+      "video_id": "OGTZn0v_g1I"
+    },
+    {
+      "bertscore_f1": 0.8721292614936829,
+      "meteor": 0.28169014084507044,
+      "semantic_composite": 0.4786631674462511,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.2821701,
+      "video_id": "OHIPf6PUzfk"
+    },
+    {
+      "bertscore_f1": 0.8456994295120239,
+      "meteor": 0.20833333333333331,
+      "semantic_composite": 0.41582281428178575,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.19343568,
+      "video_id": "OJ7Cf6IlTfM"
+    },
+    {
+      "bertscore_f1": 0.8911677598953247,
+      "meteor": 0.0,
+      "semantic_composite": 0.2970559199651082,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "OKy74dEPaaw"
+    },
+    {
+      "bertscore_f1": 0.9001472592353821,
+      "meteor": 0.11450381679389314,
+      "semantic_composite": 0.43931737200975846,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.30330104,
+      "video_id": "OQ1nmIuImes"
+    },
+    {
+      "bertscore_f1": 0.9013217687606812,
+      "meteor": 0.1764705882352941,
+      "semantic_composite": 0.5094773789986584,
+      "status": "passed",
+      "stratum": "audio_or_text",
+      "sts": 0.45063978,
+      "video_id": "OThOm8Gyfv0"
+    },
+    {
+      "bertscore_f1": 0.865754246711731,
+      "meteor": 0.4265202702702703,
+      "semantic_composite": 0.43986990999400044,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.027335213,
+      "video_id": "OUwnypSOteg"
+    },
+    {
+      "bertscore_f1": 0.890905499458313,
+      "meteor": 0.12820512820512822,
+      "semantic_composite": 0.38728824588781374,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.14275411,
+      "video_id": "OV6VkWpi_0M"
+    },
+    {
+      "bertscore_f1": 0.8832153081893921,
+      "meteor": 0.35714285714285715,
+      "semantic_composite": 0.41345272177741643,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "OVAy9Y-zh1E"
+    },
+    {
+      "bertscore_f1": 0.9003927111625671,
+      "meteor": 0.2542372881355932,
+      "semantic_composite": 0.5391787464327201,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.46290624,
+      "video_id": "OVMLkh4we3c"
+    },
+    {
+      "bertscore_f1": 1.0,
+      "meteor": 0.9375,
+      "semantic_composite": 0.9791666666666666,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "OWN6O_7_Zro"
+    },
+    {
+      "bertscore_f1": 0.9129509329795837,
+      "meteor": 0.20833333333333331,
+      "semantic_composite": 0.5087484887709723,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.4049612,
+      "video_id": "OXW2JaSW1GE"
+    },
+    {
+      "bertscore_f1": 0.8873692750930786,
+      "meteor": 0.11904761904761905,
+      "semantic_composite": 0.3419141837135659,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.019325657,
+      "video_id": "OYGEa7yHiXQ"
+    },
+    {
+      "bertscore_f1": 0.8607685565948486,
+      "meteor": 0.0,
+      "semantic_composite": 0.2869228521982829,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "OZDiRSO0tm8"
+    },
+    {
+      "bertscore_f1": 0.853153645992279,
+      "meteor": 0.0,
+      "semantic_composite": 0.284384548664093,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "OcqojDJjc48"
+    },
+    {
+      "bertscore_f1": 1.000000238418579,
+      "meteor": 0.5,
+      "semantic_composite": 0.5000000794728597,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "Od_pstVp5Sk"
+    },
+    {
+      "bertscore_f1": 0.8697487115859985,
+      "meteor": 0.1,
+      "semantic_composite": 0.32324957052866615,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "OegrkuMK4Mc"
+    },
+    {
+      "bertscore_f1": 0.9211581349372864,
+      "meteor": 0.18181818181818182,
+      "semantic_composite": 0.4728524655851561,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.31558108,
+      "video_id": "Oepj9j_fkO4"
+    },
+    {
+      "bertscore_f1": 0.8321914076805115,
+      "meteor": 0.0,
+      "semantic_composite": 0.27739713589350384,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "Ord-GrcULgE"
+    },
+    {
+      "bertscore_f1": 0.8420799374580383,
+      "meteor": 0.0,
+      "semantic_composite": 0.35333199248601277,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.21791604,
+      "video_id": "OtBRqhlx97A"
+    },
+    {
+      "bertscore_f1": 0.872793436050415,
+      "meteor": 0.0,
+      "semantic_composite": 0.37434094535013834,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.2502294,
+      "video_id": "OvGHkeKuLNk"
+    },
+    {
+      "bertscore_f1": 0.911982536315918,
+      "meteor": 0.5,
+      "semantic_composite": 0.47066084543863934,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "OxBUQ5pV5X8"
+    },
+    {
+      "bertscore_f1": 0.8291507959365845,
+      "meteor": 0.0,
+      "semantic_composite": 0.29078575731219486,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.043206476,
+      "video_id": "OzNdzgQi1CA"
+    },
+    {
+      "bertscore_f1": 0.8573498129844666,
+      "meteor": 0.27777777777777785,
+      "semantic_composite": 0.3783758635874148,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "PAmo_TwQvOI"
+    },
+    {
+      "bertscore_f1": 0.8607246279716492,
+      "meteor": 0.0,
+      "semantic_composite": 0.28690820932388306,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "PJPqGJzIwfg"
+    },
+    {
+      "bertscore_f1": 0.9288771748542786,
+      "meteor": 0.6540540540540541,
+      "semantic_composite": 0.7228771429694443,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.5857002,
+      "video_id": "PJxUqMJWo0w"
+    },
+    {
+      "bertscore_f1": 0.9215664863586426,
+      "meteor": 0.0,
+      "semantic_composite": 0.5741326621195476,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.8008315,
+      "video_id": "PKgoIkEP_6c"
+    },
+    {
+      "bertscore_f1": 0.8756654262542725,
+      "meteor": 0.09375,
+      "semantic_composite": 0.4698220420847575,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.4400507,
+      "video_id": "PMbimV2LIbE"
+    },
+    {
+      "bertscore_f1": 0.9252331256866455,
+      "meteor": 0.4166666666666667,
+      "semantic_composite": 0.4472999307844374,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "POH-lLoKOLs"
+    },
+    {
+      "bertscore_f1": 0.8743677139282227,
+      "meteor": 0.0,
+      "semantic_composite": 0.2914559046427409,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "PTwap56YrbE"
+    },
+    {
+      "bertscore_f1": 0.8771994113922119,
+      "meteor": 0.3155006858710563,
+      "semantic_composite": 0.41636855075442275,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.056405555,
+      "video_id": "PUxRZtAntBE"
+    },
+    {
+      "bertscore_f1": 0.8998183012008667,
+      "meteor": 0.5,
+      "semantic_composite": 0.6462118004002889,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.5388171,
+      "video_id": "PV6Tz265kx8"
+    },
+    {
+      "bertscore_f1": 0.8697552680969238,
+      "meteor": 0.1692019400352734,
+      "semantic_composite": 0.5098098827107324,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.49047244,
+      "video_id": "PVBx6n2iGo8"
+    },
+    {
+      "bertscore_f1": 0.9415708184242249,
+      "meteor": 0.3362573099415205,
+      "semantic_composite": 0.6948701427885817,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.8067823,
+      "video_id": "PW1sQlKz26g"
+    },
+    {
+      "bertscore_f1": 0.8850623965263367,
+      "meteor": 0.136986301369863,
+      "semantic_composite": 0.43263238263206655,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.27584845,
+      "video_id": "PWP17NlIgs8"
+    },
+    {
+      "bertscore_f1": 0.8987376093864441,
+      "meteor": 0.08333333333333333,
+      "semantic_composite": 0.4506242742399258,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.36980188,
+      "video_id": "PXboa0HtgZI"
+    },
+    {
+      "bertscore_f1": 0.940323531627655,
+      "meteor": 0.4166666666666667,
+      "semantic_composite": 0.6606633994314406,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.625,
+      "video_id": "PZWAlJSL7Kc"
+    },
+    {
+      "bertscore_f1": 0.881446897983551,
+      "meteor": 0.2941176470588236,
+      "semantic_composite": 0.48239712501412485,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.27162683,
+      "video_id": "PZjuizzTJ38"
+    },
+    {
+      "bertscore_f1": 0.9171087741851807,
+      "meteor": 0.2977594339622642,
+      "semantic_composite": 0.5825227160491483,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.53269994,
+      "video_id": "PcDuz7j9LL8"
+    },
+    {
+      "bertscore_f1": 0.9207727313041687,
+      "meteor": 0.0,
+      "semantic_composite": 0.3069242437680562,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "PgKOzRgYMAI"
+    },
+    {
+      "bertscore_f1": 0.8841438293457031,
+      "meteor": 0.09433962264150944,
+      "semantic_composite": 0.3261611506624042,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "Ph5M5xWoPRE"
+    },
+    {
+      "bertscore_f1": 0.9038034677505493,
+      "meteor": 0.1111111111111111,
+      "semantic_composite": 0.4546444929538868,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.3490189,
+      "video_id": "Pi8HvqoDxX8"
+    },
+    {
+      "bertscore_f1": 0.8952722549438477,
+      "meteor": 0.2702702702702703,
+      "semantic_composite": 0.3885141750713726,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "PiIrinu42DQ"
+    },
+    {
+      "bertscore_f1": 0.8981133103370667,
+      "meteor": 0.6552706552706554,
+      "semantic_composite": 0.7181209985359073,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.60097903,
+      "video_id": "Pkjvnn7lJEo"
+    },
+    {
+      "bertscore_f1": 0.9083777666091919,
+      "meteor": 0.0,
+      "semantic_composite": 0.30279258886973065,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "Pne0cC8Zn70"
+    },
+    {
+      "bertscore_f1": 0.8743005990982056,
+      "meteor": 0.07462686567164178,
+      "semantic_composite": 0.31630915492328243,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "PplfkMi3JFs"
+    },
+    {
+      "bertscore_f1": 0.8855876326560974,
+      "meteor": 0.0,
+      "semantic_composite": 0.29519587755203247,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "Ppp5gODf8PU"
+    },
+    {
+      "bertscore_f1": 0.8610388040542603,
+      "meteor": 0.0,
+      "semantic_composite": 0.2870129346847534,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "PxeevNPl86k"
+    },
+    {
+      "bertscore_f1": 0.8744387626647949,
+      "meteor": 0.0,
+      "semantic_composite": 0.29147958755493164,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "Pxnq5xf6m6o"
+    },
+    {
+      "bertscore_f1": 0.8413116931915283,
+      "meteor": 0.0,
+      "semantic_composite": 0.2804372310638428,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "PyphToMehZQ"
+    },
+    {
+      "bertscore_f1": 0.8728151321411133,
+      "meteor": 0.10638297872340424,
+      "semantic_composite": 0.3973715802881725,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.21291663,
+      "video_id": "Q5eSe5WBHcQ"
+    },
+    {
+      "bertscore_f1": 0.9223520159721375,
+      "meteor": 0.4166666666666667,
+      "semantic_composite": 0.4463395608796014,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "Q6HqOkL4MCA"
+    },
+    {
+      "bertscore_f1": 0.9268130660057068,
+      "meteor": 0.6526315789473685,
+      "semantic_composite": 0.7847507483176918,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.7748076,
+      "video_id": "Q6Zx5bJHSuU"
+    },
+    {
+      "bertscore_f1": 0.8622174859046936,
+      "meteor": 0.0,
+      "semantic_composite": 0.2874058286348979,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "Q6aMqZwNJlg"
+    },
+    {
+      "bertscore_f1": 0.9371412396430969,
+      "meteor": 0.44834307992202727,
+      "semantic_composite": 0.7951614398550414,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "QFljXc4WpFA"
+    },
+    {
+      "bertscore_f1": 0.8366833925247192,
+      "meteor": 0.0,
+      "semantic_composite": 0.27889446417490643,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "QJuU4NALRfs"
+    },
+    {
+      "bertscore_f1": 0.9038925170898438,
+      "meteor": 0.20000000000000004,
+      "semantic_composite": 0.39191292369661457,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.071846254,
+      "video_id": "QKR5_es5p-8"
+    },
+    {
+      "bertscore_f1": 0.9225696921348572,
+      "meteor": 0.13739545997610514,
+      "semantic_composite": 0.4917355340369875,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.41524145,
+      "video_id": "QL68DPwP1P0"
+    },
+    {
+      "bertscore_f1": 0.8802433609962463,
+      "meteor": 0.42592592592592593,
+      "semantic_composite": 0.5949588456407241,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.47870725,
+      "video_id": "QN7iuxaKVOE"
+    },
+    {
+      "bertscore_f1": 0.8678587675094604,
+      "meteor": 0.09803921568627452,
+      "semantic_composite": 0.3514154777319116,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.08834845,
+      "video_id": "QRBvXoSRGDE"
+    },
+    {
+      "bertscore_f1": 0.9507575631141663,
+      "meteor": 0.0,
+      "semantic_composite": 0.6070892210380554,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.8705101,
+      "video_id": "Q_cDYrCPVvc"
+    },
+    {
+      "bertscore_f1": 0.9079712629318237,
+      "meteor": 0.17241379310344826,
+      "semantic_composite": 0.5267950186784239,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.5,
+      "video_id": "Q_hGnEy6dYw"
+    },
+    {
+      "bertscore_f1": 0.8116319179534912,
+      "meteor": 0.0,
+      "semantic_composite": 0.27054397265116376,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "QgQRjBsxT-M"
+    },
+    {
+      "bertscore_f1": 0.9017050862312317,
+      "meteor": 0.125,
+      "semantic_composite": 0.3422350287437439,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "QgzFuzktegE"
+    },
+    {
+      "bertscore_f1": 0.9268279075622559,
+      "meteor": 0.0,
+      "semantic_composite": 0.30894263585408527,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "QhczbmyAPQw"
+    },
+    {
+      "bertscore_f1": 0.9227800965309143,
+      "meteor": 0.3194444444444444,
+      "semantic_composite": 0.6213493136584529,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.6218234,
+      "video_id": "QlGfDlxPvPw"
+    },
+    {
+      "bertscore_f1": 0.8524104952812195,
+      "meteor": 0.0,
+      "semantic_composite": 0.2841368317604065,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "QmXwE6NCFaI"
+    },
+    {
+      "bertscore_f1": 0.8777082562446594,
+      "meteor": 0.0,
+      "semantic_composite": 0.2925694187482198,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.0,
+      "video_id": "QwSEnsMHR3I"
+    },
+    {
+      "bertscore_f1": 0.9851593375205994,
+      "meteor": 0.8782623626373625,
+      "semantic_composite": 0.9544739000526539,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "QxTUhUj5mXs"
+    },
+    {
+      "bertscore_f1": 0.9384292364120483,
+      "meteor": 0.7886904761904763,
+      "semantic_composite": 0.8523845175341749,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.83003384,
+      "video_id": "Qz39qVt6NGA"
+    },
+    {
+      "bertscore_f1": 0.8984977006912231,
+      "meteor": 0.18867924528301888,
+      "semantic_composite": 0.4444114253247473,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.24605733,
+      "video_id": "R17SNKI79Hc"
+    },
+    {
+      "bertscore_f1": 0.9161169528961182,
+      "meteor": 0.45454545454545453,
+      "semantic_composite": 0.4568874691471909,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "R3wb56nmOaA"
+    },
+    {
+      "bertscore_f1": 0.9098238348960876,
+      "meteor": 0.2702702702702703,
+      "semantic_composite": 0.582430078388786,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.56719613,
+      "video_id": "R8nElUYfrec"
+    },
+    {
+      "bertscore_f1": 0.8587116599082947,
+      "meteor": 0.0892857142857143,
+      "semantic_composite": 0.31599912473133634,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "R9AKnfthxxk"
+    },
+    {
+      "bertscore_f1": 0.8890259861946106,
+      "meteor": 0.0,
+      "semantic_composite": 0.29634199539820355,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "R9jhwptmirQ"
+    },
+    {
+      "bertscore_f1": 0.8885945081710815,
+      "meteor": 0.34307065217391297,
+      "semantic_composite": 0.5706592867816648,
+      "status": "passed",
+      "stratum": "causal",
+      "sts": 0.4803127,
+      "video_id": "RIbj7xukchQ"
+    },
+    {
+      "bertscore_f1": 0.8915939927101135,
+      "meteor": 0.1388888888888889,
+      "semantic_composite": 0.4760028005330008,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.39752552,
+      "video_id": "RJARe9mGjK0"
+    },
+    {
+      "bertscore_f1": 0.8570579886436462,
+      "meteor": 0.1388888888888889,
+      "semantic_composite": 0.33198229251084505,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "RM3SjNFXqVM"
+    },
+    {
+      "bertscore_f1": 0.9079390168190002,
+      "meteor": 0.18633540372670807,
+      "semantic_composite": 0.5195534068485694,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.4643858,
+      "video_id": "RMH5uw9BzWs"
+    },
+    {
+      "bertscore_f1": 0.9027997255325317,
+      "meteor": 0.0,
+      "semantic_composite": 0.30093324184417725,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "RRI9JuEZ5y4"
+    },
+    {
+      "bertscore_f1": 0.8436252474784851,
+      "meteor": 0.0,
+      "semantic_composite": 0.2832537514928284,
+      "status": "passed",
+      "stratum": "audio_or_text",
+      "sts": 0.006136007,
+      "video_id": "RS5Ayq-m2TU"
+    },
+    {
+      "bertscore_f1": 0.8974316120147705,
+      "meteor": 0.4708860759493671,
+      "semantic_composite": 0.6104987293213792,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.4631785,
+      "video_id": "RWxbEgaAcSE"
+    },
+    {
+      "bertscore_f1": 1.000000238418579,
+      "meteor": 0.5,
+      "semantic_composite": 0.833333412806193,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 1.0,
+      "video_id": "RXvT_6NXqaI"
+    },
+    {
+      "bertscore_f1": 0.8995981216430664,
+      "meteor": 0.24935022742040283,
+      "semantic_composite": 0.5289505063544898,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.43790317,
+      "video_id": "RYU4tMwkqps"
+    },
+    {
+      "bertscore_f1": 0.8975452184677124,
+      "meteor": 0.0,
+      "semantic_composite": 0.2991817394892375,
+      "status": "passed",
+      "stratum": "counting",
+      "sts": 0.0,
+      "video_id": "RZrkA52TGBA"
+    },
+    {
+      "bertscore_f1": 0.8674435615539551,
+      "meteor": 0.052910052910052914,
+      "semantic_composite": 0.40838620482133603,
+      "status": "passed",
+      "stratum": "temporal",
+      "sts": 0.304805,
+      "video_id": "Ra6a04vhaZ4"
+    },
+    {
+      "bertscore_f1": 0.908649206161499,
+      "meteor": 0.0,
+      "semantic_composite": 0.4695497353871663,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.5,
+      "video_id": "Rc1h9aZ1Lv8"
+    },
+    {
+      "bertscore_f1": 0.8625534772872925,
+      "meteor": 0.0,
+      "semantic_composite": 0.28751782576243085,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "RdgLPaYXaDI"
+    },
+    {
+      "bertscore_f1": 0.8956665992736816,
+      "meteor": 0.30303030303030304,
+      "semantic_composite": 0.5765434674346616,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.5309335,
+      "video_id": "RjEjcM_Z0oU"
+    },
+    {
+      "bertscore_f1": 0.8096165060997009,
+      "meteor": 0.0,
+      "semantic_composite": 0.2698721686999003,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.0,
+      "video_id": "RmM3982Qbow"
+    },
+    {
+      "bertscore_f1": 0.9333441853523254,
+      "meteor": 0.45454545454545453,
+      "semantic_composite": 0.6609500466325934,
+      "status": "passed",
+      "stratum": "other",
+      "sts": 0.5949605,
+      "video_id": "RwDFP3Vpwoo"
+    }
+  ],
+  "schema_version": 1
+}

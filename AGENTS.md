@@ -23,3 +23,29 @@ Markdown and HTML must not be hand-edited.
 - The helper is idempotent. If it reports a conflicting path, stop and report
   the conflict; never remove or overwrite that path automatically.
 - Never copy, move, delete, stage, or commit dataset contents.
+
+## Full-panel VQA artifact reference
+
+The completed 2026-08-10 full-panel AV event-map experiment is documented in
+[`docs/experiments/2026-08-10-vqa-plaintext-full-panel.qmd`](docs/experiments/2026-08-10-vqa-plaintext-full-panel.qmd).
+Its compact, reviewable evidence-of-record files are under
+[`docs/experiments/artifacts/vqa-plaintext-full-20260810/`](docs/experiments/artifacts/vqa-plaintext-full-20260810/):
+
+- `summary.json`, `correction.json`, `maps.jsonl`, and `results.jsonl` preserve
+  the complete 475-row timeline/selector run and hashes.
+- `selector-quality.json` contains the post-freeze METEOR, BERTScore-F1, STS,
+  and explicitly degenerate NDCG summary.
+- `selected-evidence/evidence.json`, `manifest.json`,
+  `requests.frames.json`, and `requests.whisper.json` preserve selected
+  timestamps, decoded PTS provenance, hashes, and the two answer-input arms.
+- The local `selected-evidence/frames/`, `audio/`, and `contact-sheets/`
+  directories are the complete private inspection bundle (5,700 JPEG frames,
+  475 WAV files, and 475 contact sheets). They are intentionally ignored by
+  Git because they are private derived media and total roughly 782 MB; do not
+  delete them when inspecting this run. The manifests and hashes remain the
+  audit record.
+
+Do not reprovision dstack to recover this run. Inference is complete and the
+remote development pod was stopped. If the local inspection bundle is absent,
+classify that as an audit gap and use the tracked manifests rather than
+silently rerunning or changing the experiment.

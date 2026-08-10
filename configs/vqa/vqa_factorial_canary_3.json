@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "manifest_version": "trecvid-vqa-factorial-canary-2026-08-09-v1",
+  "label_policy": "label-free-inference-input",
+  "example_count": 3,
+  "examples": [
+    {
+      "video_id": "CtinYSH3nVw",
+      "question": "What happens before the man gets into a car?"
+    },
+    {
+      "video_id": "LKiaCf1QZFw",
+      "question": "What does this woman say at the end of the video?"
+    },
+    {
+      "video_id": "IVqpg_1aWXU",
+      "question": "What is written on the toy airplane?"
+    }
+  ]
+}

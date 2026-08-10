@@ -12,7 +12,7 @@ import argparse
 import hashlib
 import json
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 from urllib import request as urllib_request
@@ -116,11 +116,11 @@ def _failure_detail(kind: str, error: Exception) -> str:
     categories = (
         ("does not include the opening portion", "missing_opening_anchor"),
         ("does not include the ending portion", "missing_ending_anchor"),
-        ("event description must be at most 16 words", "description_too_long"),
+        ("event description must be at most 48 words", "description_too_long"),
         ("timestamps must be strictly increasing", "timestamps_not_increasing"),
         ("timestamp is outside clip", "timestamp_out_of_range"),
         ("must end with ANSWER", "missing_answer"),
-        ("1–6 event lines", "event_count_invalid"),
+        ("1–8 event lines", "event_count_invalid"),
         ("unknown event", "unknown_event"),
         ("unique IDs", "duplicate_event"),
         ("SELECT and ANSWER", "selector_shape_invalid"),
@@ -218,6 +218,7 @@ def run_plaintext_canary(
             "map_response_sha256": item["map_response_sha256"],
             "map_text_sha256": item["map_text_sha256"],
             "map_answer": item["parsed_map"]["answer"],
+            "coverage_warnings": item["parsed_map"]["coverage_warnings"],
             "events": item["parsed_map"]["events"],
             "cells": item["cells"],
             "selector_request_sha256": event_map.canonical_sha256(selector_request),

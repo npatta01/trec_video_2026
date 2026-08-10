@@ -89,6 +89,68 @@ specialist role.
 
 ## What has been tried
 
+### Full-panel Qwen3.5-4B baseline extension
+
+- **Reason for testing:** extend the established 30-row visual baseline
+  to every 2025 training row that has both an annotation and local
+  media, and measure whether a remote GPU makes that larger evidence
+  boundary practical.
+- **Tested condition and panel:** Qwen3.5-4B with the pinned revision
+  and 12 uniform temporal midpoint frames on 475 locally available VQA
+  2025 training rows. Six of the 481 annotation records had no local
+  video and were excluded before inference. VQA testing, VQA 2026, and
+  VTT caption/search rows were not part of this quality panel.
+- **Observed result:** all `475/475` label-free inference rows
+  completed. The local diagnostic score was `0.090526` normalized exact
+  match, `0.240696` token F1, and `0.156063` lexical METEOR. The known
+  30-row overlap reproduced the prior baseline exactly (`0.300000` exact
+  match and `0.430725` token F1). On an NVIDIA L40S, frame preparation
+  took `1,932.15` seconds and model workload took `531.50` seconds; the
+  dstack task cost approximately `$0.72`.
+- **Current condition-bound status:** **Verified full-panel baseline
+  reference; not a promotion comparison.** Retain Qwen3.5-4B with 12
+  frames as the visual control for the next matched evidence experiment.
+- **What this rules out now:** treating the 475-row Qwen baseline as
+  unmeasured, or assuming that local execution requires the earlier
+  roughly twelve-hour estimate when a comparable L40S is available.
+- **What it does not rule out:** a different model, grounding gains,
+  answer-selection failures, or performance on the unlabeled 2025 test
+  and 2026 collections. The related [matched full-panel Whisper/frame
+  audit](research-speech-transcripts.md#matched-full-panel-frame-audio-audit)
+  is recorded under Speech and Transcript Evidence rather than
+  duplicated here; the single visual condition itself cannot establish a
+  winning solution.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the
+  full annotation JSONs do not carry the category taxonomy used by
+  selected development panels, so this record reports aggregate metrics
+  rather than a post-hoc category leaderboard. The metrics are local
+  diagnostics, not an official competition submission score.
+- **Reconsider when:** a label-blind matched Whisper/grounding arm
+  freezes on the same 475 IDs and produces a paired improvement with
+  predeclared non-regression rules; do not rerun this control unless the
+  inference contract changes.
+
+<details>
+
+<summary>
+
+Method, result, validity risks, and evidence
+</summary>
+
+The input manifest contained only `video_id` and `question`; annotation
+answers and incorrect answers were loaded only after the remote
+predictions froze. The run used the pinned CUDA image and Transformers
+revision recorded in the [sanitized score
+artifact](../../docs/experiments/artifacts/qwen35-4b-12f-full-20260803-c1-score.json).
+Remote prediction and output checksum manifests were verified locally.
+The [canonical run plan](../../plans/qwen35-475-dstack.md) preserves the
+input boundary, immutable run identifiers, and the next decision. The
+score uses the repository’s normalized exact-match and token-F1
+diagnostic contract; METEOR was computed locally with the deterministic
+lexical-only convention. Raw media, predictions, annotations,
+credentials, and private bucket locators are not included in this hub.
+</details>
+
 <a name="compatibility-gate-models"></a>
 
 ### Three-video compatibility gate

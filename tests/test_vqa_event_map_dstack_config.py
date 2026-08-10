@@ -148,9 +148,24 @@ def _write_preflight_fixture(root: Path) -> dict[str, str]:
 
 def _embedded_preflight_source() -> str:
     runner = RUNNER.read_text(encoding="utf-8")
-    command = '"$EXPECTED_REQUEST_FILE_SHA256" "$EXPECTED_INFERENCE_MODULE_SHA256" "$EXPECTED_PANEL_IDS_SHA256" <<\'PY\''
+    command = (
+        '"$EXPECTED_REQUEST_FILE_SHA256" "$EXPECTED_INFERENCE_MODULE_SHA256" '
+        '"$EXPECTED_PANEL_IDS_SHA256" "$RUNNER_SHA256" <<\'PY\''
+    )
     command_index = runner.index(command)
     source_start = runner.index("import hashlib\n", command_index)
+    source_end = runner.index("\nPY\n", source_start)
+    return runner[source_start:source_end] + "\n"
+
+
+def _embedded_terminal_source() -> str:
+    runner = RUNNER.read_text(encoding="utf-8")
+    command = (
+        '"$MODEL_STARTUP_SECONDS" "$INFERENCE_SECONDS" '
+        '"$FINALIZATION_SECONDS" <<\'PY\''
+    )
+    command_index = runner.index(command)
+    source_start = runner.index("import json\n", command_index)
     source_end = runner.index("\nPY\n", source_start)
     return runner[source_start:source_end] + "\n"
 
@@ -288,6 +303,7 @@ def test_embedded_preflight_writes_artifact_for_a_valid_bundle(tmp_path: Path) -
             pins["request_sha256"],
             pins["module_sha256"],
             pins["ids_sha256"],
+            "5" * 64,
         ],
         input=_embedded_preflight_source(),
         capture_output=True,
@@ -304,9 +320,95 @@ def test_embedded_preflight_writes_artifact_for_a_valid_bundle(tmp_path: Path) -
         "controller_sha256": pins["controller_sha256"],
         "protocol_sha256": pins["protocol_sha256"],
         "request_file_sha256": pins["request_sha256"],
+        "inference_module_sha256": pins["module_sha256"],
+        "runner_sha256": "5" * 64,
         "row_count": 8,
         "condition_id": "v-map,av-map",
         "slice_id": "",
+    }
+
+
+def test_runner_instruments_bounded_producer_phases_and_attests_its_bytes() -> None:
+    text = RUNNER.read_text(encoding="utf-8")
+    main = text[text.index("main() {") :]
+
+    assert 'RUNNER_SHA256="$(sha256sum "$RUNNER_PATH"' in text
+    assert 'require_sha256 RUNNER_SHA256 "$RUNNER_SHA256"' in text
+    assert '"runner_sha256": preflight["runner_sha256"]' in text
+    assert '"inference_module_sha256": preflight["inference_module_sha256"]' in text
+    assert '"producer_timings": {' in text
+    assert '"clock": "monotonic"' in text
+    assert '"bootstrap_download_seconds"' in text
+    assert '"normalization": {' in text
+    assert '"media_count"' in text
+    assert '"model_startup_seconds"' in text
+    assert '"inference_seconds"' in text
+    assert '"finalization_seconds"' in text
+    assert '"phase_total_seconds"' in text
+    assert main.index("bootstrap_runtime") < main.index(
+        'BOOTSTRAP_DOWNLOAD_SECONDS="$(phase_elapsed'
+    )
+    assert main.index("normalize_inputs") < main.index(
+        'NORMALIZATION_SECONDS="$(phase_elapsed'
+    )
+    assert main.index("start_server") < main.index(
+        'MODEL_STARTUP_SECONDS="$(phase_elapsed'
+    )
+    assert main.index("run_workload") < main.index('INFERENCE_SECONDS="$(phase_elapsed')
+
+
+def test_embedded_terminal_reconciles_and_records_producer_phases(
+    tmp_path: Path,
+) -> None:
+    output_path = tmp_path / "terminal-status.json"
+    preflight_path = tmp_path / "preflight.json"
+    preflight = {
+        "source_bundle_sha256": "1" * 64,
+        "controller_sha256": "2" * 64,
+        "protocol_sha256": "3" * 64,
+        "request_file_sha256": "4" * 64,
+        "inference_module_sha256": "5" * 64,
+        "runner_sha256": "6" * 64,
+    }
+    preflight_path.write_text(json.dumps(preflight), encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            "python3",
+            "-",
+            str(output_path),
+            CURRENT_CANARY_RUN_ID,
+            CURRENT_CANARY_ATTEMPT_UUID,
+            f"{REMOTE_ROOT}-{CURRENT_CANARY_RUN_ID}",
+            "7" * 64,
+            "8",
+            str(preflight_path),
+            "300",
+            "4",
+            "80",
+            "500",
+            "80",
+            "40",
+        ],
+        input=_embedded_terminal_source(),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    terminal = json.loads(output_path.read_text(encoding="utf-8"))
+    assert terminal["runner_sha256"] == "6" * 64
+    assert terminal["inference_module_sha256"] == "5" * 64
+    assert terminal["producer_timings"] == {
+        "schema_version": 1,
+        "clock": "monotonic",
+        "bootstrap_download_seconds": 300.0,
+        "normalization": {"media_count": 4, "seconds": 80.0},
+        "model_startup_seconds": 500.0,
+        "inference_seconds": 80.0,
+        "finalization_seconds": 40.0,
+        "phase_total_seconds": 1000.0,
     }
 
 

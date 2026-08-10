@@ -6,3 +6,10 @@
 __pycache__/
 .pytest_cache/
 *.py[cod]
+
+# Private, derived media for the 2026-08-10 full-panel inspection bundle.
+# Keep the compact manifests and scores tracked; retain the local JPEG/WAV
+# evidence for inspection without putting private media in Git history.
+docs/experiments/artifacts/vqa-plaintext-full-20260810/selected-evidence/frames/
+docs/experiments/artifacts/vqa-plaintext-full-20260810/selected-evidence/audio/
+docs/experiments/artifacts/vqa-plaintext-full-20260810/selected-evidence/contact-sheets/

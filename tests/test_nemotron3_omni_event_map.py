@@ -409,7 +409,7 @@ def test_plaintext_requests_disable_thinking_and_guided_decoding() -> None:
         frozen_map="E1|1.0|Opening shot.\nE2|19.0|Ending shot.",
     )
 
-    assert map_request["max_tokens"] == 256
+    assert map_request["max_tokens"] == 512
     assert map_request["stop"] == ["\nEND"]
     assert map_request["temperature"] == 0.0
     assert map_request["top_p"] == 1.0
@@ -461,6 +461,43 @@ def test_plaintext_map_parser_allows_timeline_without_optional_direct_answer() -
     parsed = event_map.parse_plaintext_map(payload, duration_seconds=20.0)
     assert parsed["answer"] is None
     assert "ANSWER|" not in parsed["map_text"]
+
+
+def test_plaintext_map_parser_splits_records_emitted_on_one_line() -> None:
+    payload = {
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {
+                    "content": (
+                        "E1|0.0|A dog stands over a duck on a gravel path.|"
+                        "E2|8.0|The duck runs away after appearing to play dead."
+                    )
+                },
+            }
+        ]
+    }
+    parsed = event_map.parse_plaintext_map(payload, duration_seconds=12.0)
+    assert [event["event_id"] for event in parsed["events"]] == ["E1", "E2"]
+
+
+def test_plaintext_map_salvage_handles_incomplete_and_unit_suffixed_output() -> None:
+    payload = {
+        "choices": [
+            {
+                "finish_reason": "length",
+                "message": {
+                    "content": (
+                        "E1|0.00 seconds|Opening scene.\n"
+                        "E2|19.00 seconds|Ending scene that was truncated"
+                    )
+                },
+            }
+        ]
+    }
+    parsed = event_map.salvage_plaintext_map(payload, duration_seconds=18.0)
+    assert [event["event_id"] for event in parsed["events"]] == ["E1"]
+    assert "out_of_range_record_discarded" in parsed["parse_warnings"]
 
 
 def test_plaintext_map_parser_accepts_single_salient_scene() -> None:
@@ -528,7 +565,7 @@ def test_plaintext_map_accepts_last_third_anchor_and_sixteen_word_description() 
 @pytest.mark.parametrize(
     ("content", "message"),
     [
-        ("ANSWER|answer", "1–6"),
+        ("ANSWER|answer", "1–8"),
         ("E1|10.0|Opening.\nE2|5.0|Backwards.\nANSWER|answer", "increasing"),
         ("E1|1.0|Opening.\nE2|19.0|Ending.\nEXTRA|bad\nANSWER|answer", "line"),
     ],

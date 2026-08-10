@@ -32,14 +32,15 @@ CANONICAL_PANEL_IDS_SHA256 = (
 EXPECTED_ROW_COUNT = 475
 SHARD_COUNTS = (119, 119, 119, 118)
 MAX_OUTPUT_TOKENS = 768
-PLAINTEXT_MAP_MAX_TOKENS = 256
+PLAINTEXT_MAP_MAX_TOKENS = 512
 PLAINTEXT_SELECTOR_MAX_TOKENS = 64
 PLAINTEXT_STOP = ["\nEND"]
-PLAINTEXT_EVENT_DESCRIPTION_MAX_WORDS = 16
+PLAINTEXT_EVENT_DESCRIPTION_MAX_WORDS = 48
 PLAINTEXT_OPENING_ANCHOR_MAX_FRACTION = 1.0 / 3.0
 PLAINTEXT_ENDING_ANCHOR_MIN_FRACTION = 1.0 / 2.0
 PLAINTEXT_MIN_EVENTS = 1
 MAX_EVENTS = 6
+PLAINTEXT_MAX_EVENTS = 8
 MAX_SELECTED_INTERVALS = 2
 MAX_SELECTED_SECONDS = 6.0
 COVERAGE_TOLERANCE_SECONDS = 0.25
@@ -413,6 +414,10 @@ def _plaintext_lines(payload: Mapping[str, Any], *, kind: str) -> list[str]:
     content, _finish_reason = _response_content(payload)
     if _MARKDOWN.search(content):
         raise ValueError(f"{kind} contains markdown or thinking content")
+    # The stop token can be emitted immediately after the final record rather
+    # than on its own line (for example ``E2|...|END``). Remove only that
+    # terminal marker; embedded END text remains invalid below.
+    content = re.sub(r"\|END\s*$", "", content.strip())
     lines = content.strip().splitlines()
     if not lines or any(not line.strip() for line in lines):
         raise ValueError(f"{kind} protocol is empty or has blank lines")
@@ -443,12 +448,12 @@ def build_plaintext_map_request(
         "Watch the complete video, including audio, from beginning to end.\n\n"
         "For the question below, produce a compact timeline of the strongest scenes.\n"
         "Return only this line format:\n\n"
-        "E1|<representative timestamp in seconds>|<factual description, at most 16 words>\n"
-        "E2|<representative timestamp in seconds>|<factual description, at most 16 words>\n"
+        "E1|<representative timestamp in seconds>|<factual description, at most 48 words>\n"
+        "E2|<representative timestamp in seconds>|<factual description, at most 48 words>\n"
         "...\n"
         "END\n\n"
         "Requirements:\n"
-        "- Produce 1–6 event lines; one line is acceptable for a single salient scene.\n"
+        "- Produce 1–8 event lines; one line is acceptable for a single salient scene.\n"
         "- IDs must be E1, E2, ... in order.\n"
         "- Timestamps must be strictly increasing and between 0 and D.\n"
         "- Include the opening and ending portions of the video.\n"
@@ -520,7 +525,16 @@ def parse_plaintext_map(
     duration = _finite(duration_seconds, "duration_seconds")
     if duration <= 0:
         raise ValueError("duration_seconds must be positive")
-    lines = _plaintext_lines(payload, kind="map")
+    lines = []
+    for line in _plaintext_lines(payload, kind="map"):
+        # Nemotron occasionally emits several protocol records on one line
+        # despite the newline instruction. Split only at record boundaries;
+        # descriptions themselves remain unchanged and are still validated.
+        lines.extend(
+            part.strip()
+            for part in re.split(r"\|(?=E\d+\||ANSWER\|)", line)
+            if part.strip()
+        )
     answer_line_index = next(
         (index for index, line in enumerate(lines) if line.startswith("ANSWER|")),
         None,
@@ -534,20 +548,33 @@ def parse_plaintext_map(
         if not answer or len(answer.split()) > 20:
             raise ValueError("map answer must be at most 20 words")
         event_lines = lines[:-1]
-    if not PLAINTEXT_MIN_EVENTS <= len(event_lines) <= MAX_EVENTS:
-        raise ValueError("map must contain 1–6 event lines")
+    if not PLAINTEXT_MIN_EVENTS <= len(event_lines) <= PLAINTEXT_MAX_EVENTS:
+        raise ValueError("map must contain 1–8 event lines")
     events: list[dict[str, Any]] = []
     previous_timestamp = -math.inf
     for index, line in enumerate(event_lines, start=1):
         parts = line.split("|", 2)
         if len(parts) != 3 or parts[0] != f"E{index}":
             raise ValueError("map event line IDs or fields are invalid")
+        timestamp_text = parts[1].strip()
+        timestamp_match = re.fullmatch(
+            r"([+-]?(?:\d+(?:\.\d*)?|\.\d+))(?:\s*(?:seconds?|sec|s))?",
+            timestamp_text,
+            flags=re.IGNORECASE,
+        )
+        if timestamp_match is None:
+            raise ValueError("map timestamp is not finite")
         try:
-            timestamp = float(parts[1])
+            timestamp = float(timestamp_match.group(1))
         except ValueError as error:
             raise ValueError("map timestamp is not finite") from error
-        if not math.isfinite(timestamp) or not 0.0 <= timestamp <= duration:
+        if not math.isfinite(timestamp) or timestamp < 0.0:
             raise ValueError("map timestamp is outside clip")
+        if timestamp > duration:
+            if timestamp - duration <= 0.1:
+                timestamp = duration
+            else:
+                raise ValueError("map timestamp is outside clip")
         if timestamp <= previous_timestamp:
             raise ValueError("map timestamps must be strictly increasing")
         description = parts[2].strip()
@@ -555,23 +582,144 @@ def parse_plaintext_map(
             raise ValueError("map event description is invalid")
         if len(description.split()) > PLAINTEXT_EVENT_DESCRIPTION_MAX_WORDS:
             raise ValueError(
-                "map event description must be at most 16 words"
+                "map event description must be at most 32 words"
             )
         events.append(
             {"event_id": f"E{index}", "timestamp": timestamp, "description": description}
         )
         previous_timestamp = timestamp
+    coverage_warnings: list[str] = []
+    if any(
+        events[index]["timestamp"] == events[index - 1]["timestamp"]
+        for index in range(1, len(events))
+    ):
+        coverage_warnings.append("duplicate_timestamp_observation")
     if len(events) > 1:
         if events[0]["timestamp"] > duration * PLAINTEXT_OPENING_ANCHOR_MAX_FRACTION:
-            raise ValueError("map does not include the opening portion")
+            coverage_warnings.append("missing_opening_anchor")
         if events[-1]["timestamp"] < duration * PLAINTEXT_ENDING_ANCHOR_MIN_FRACTION:
-            raise ValueError("map does not include the ending portion")
+            coverage_warnings.append("missing_ending_anchor")
     return {
         "answer": answer,
         "events": events,
+        "coverage_warnings": coverage_warnings,
         "map_text": "\n".join(
             [
                 *(f'{event["event_id"]}|{event["timestamp"]:.6f}|{event["description"]}' for event in events),
+                *([f"ANSWER|{answer}"] if answer is not None else []),
+            ]
+        ),
+    }
+
+
+def salvage_plaintext_map(
+    payload: Mapping[str, Any], *, duration_seconds: float
+) -> dict[str, Any]:
+    """Recover explicit event records from bounded formatting drift.
+
+    This is deliberately label-blind and content-preserving: it may discard
+    malformed records, normalize timestamps, and clip a description, but it
+    never creates a timestamped scene that was absent from the completion.
+    """
+
+    duration = _finite(duration_seconds, "duration_seconds")
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise ValueError("salvage completion choices are missing")
+    choice = choices[0]
+    message = choice.get("message") if isinstance(choice, Mapping) else None
+    content = message.get("content") if isinstance(message, Mapping) else None
+    if not isinstance(content, str) or not content.strip():
+        raise ValueError("salvage completion content is missing")
+
+    text = re.sub(r"\|END\s*$", "", content.strip())
+    text = re.sub(r"\|(?=E\d+\||ANSWER\|)", "\n", text)
+    warnings: list[str] = []
+    events: list[dict[str, Any]] = []
+    answer: str | None = None
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line == "END":
+            continue
+        if line.startswith("ANSWER|"):
+            candidate = line[len("ANSWER|") :].strip()
+            if candidate and len(candidate.split()) <= 20:
+                answer = candidate
+            else:
+                warnings.append("answer_discarded")
+            continue
+        match = re.match(r"^E\d+\|([^|]+)\|(.+)$", line)
+        if match is None:
+            warnings.append("malformed_record_discarded")
+            continue
+        timestamp_match = re.fullmatch(
+            r"\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))(?:\s*(?:seconds?|sec|s))?\s*",
+            match.group(1),
+            flags=re.IGNORECASE,
+        )
+        if timestamp_match is None:
+            warnings.append("timestamp_discarded")
+            continue
+        timestamp = float(timestamp_match.group(1))
+        if timestamp < 0.0 or timestamp > duration + 0.5:
+            warnings.append("out_of_range_record_discarded")
+            continue
+        if timestamp > duration:
+            timestamp = duration
+            warnings.append("timestamp_clamped")
+        description = match.group(2).strip().removesuffix("|END").strip()
+        if not description:
+            warnings.append("empty_record_discarded")
+            continue
+        words = description.split()
+        if len(words) > PLAINTEXT_EVENT_DESCRIPTION_MAX_WORDS:
+            description = " ".join(words[:PLAINTEXT_EVENT_DESCRIPTION_MAX_WORDS])
+            warnings.append("description_clipped")
+        events.append({"timestamp": timestamp, "description": description})
+
+    if not events:
+        raise ValueError("salvage found no explicit event records")
+    if len(events) > PLAINTEXT_MAX_EVENTS:
+        events = events[:PLAINTEXT_MAX_EVENTS]
+        warnings.append("event_count_truncated")
+    if any(
+        events[index]["timestamp"] < events[index - 1]["timestamp"]
+        for index in range(1, len(events))
+    ):
+        events.sort(key=lambda event: float(event["timestamp"]))
+        warnings.append("events_sorted_by_timestamp")
+    unique_events: list[dict[str, Any]] = []
+    for event in events:
+        if unique_events and event["timestamp"] == unique_events[-1]["timestamp"]:
+            warnings.append("duplicate_timestamp_observation_discarded")
+            continue
+        unique_events.append(event)
+    events = unique_events
+    normalized_events = [
+        {
+            "event_id": f"E{index}",
+            "timestamp": event["timestamp"],
+            "description": event["description"],
+        }
+        for index, event in enumerate(events, start=1)
+    ]
+    coverage_warnings: list[str] = []
+    if len(normalized_events) > 1:
+        if normalized_events[0]["timestamp"] > duration * PLAINTEXT_OPENING_ANCHOR_MAX_FRACTION:
+            coverage_warnings.append("missing_opening_anchor")
+        if normalized_events[-1]["timestamp"] < duration * PLAINTEXT_ENDING_ANCHOR_MIN_FRACTION:
+            coverage_warnings.append("missing_ending_anchor")
+    return {
+        "answer": answer,
+        "events": normalized_events,
+        "coverage_warnings": coverage_warnings,
+        "parse_warnings": sorted(set(warnings)),
+        "map_text": "\n".join(
+            [
+                *(
+                    f'{event["event_id"]}|{event["timestamp"]:.6f}|{event["description"]}'
+                    for event in normalized_events
+                ),
                 *([f"ANSWER|{answer}"] if answer is not None else []),
             ]
         ),

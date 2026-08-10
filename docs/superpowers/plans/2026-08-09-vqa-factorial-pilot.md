@@ -384,14 +384,15 @@ git commit -m "feat: add parallel VQA factorial runner"
 ### Task 4: Canary preview, launch, and integrity decision
 
 **Files:**
-- Create (generated/private): `data/vqa/benchmarks/vqa-factorial-canary-20260809-e1/`
+- Create (generated/private): `data/vqa/benchmarks/vqa-factorial-canary-20260809-e1-failed/`
+- Create (generated/private): `data/vqa/benchmarks/vqa-factorial-canary-20260809-e2/`
 - Modify: `docs/superpowers/plans/2026-08-09-vqa-factorial-pilot.md`
 
 **Interfaces:**
 - Consumes Task 3 canary dstack config.
 - Produces a pass/fail gate and measured per-cell runtime/VRAM projection.
 
-- [ ] **Step 1: Run infrastructure preflight and offer check**
+- [x] **Step 1: Run infrastructure preflight and offer check**
 
 ```bash
 /home/npatta01/.agents/skills/running-dstack-hf-experiments/scripts/preflight.sh
@@ -400,7 +401,7 @@ dstack offer --gpu L40S:1 --max-offers 20 --json
 
 Expected: direct HF mode and at least two available offers.
 
-- [ ] **Step 2: Preview without provisioning**
+- [x] **Step 2: Preview without provisioning**
 
 ```bash
 echo n | dstack apply -f dstack/vqa-factorial-canary.dstack.yml
@@ -408,7 +409,7 @@ echo n | dstack apply -f dstack/vqa-factorial-canary.dstack.yml
 
 Expected: resolved single-GPU offer, pinned files/env/resources, no run created.
 
-- [ ] **Step 3: Submit exactly once**
+- [x] **Step 3: Submit exactly once per immutable remote prefix**
 
 ```bash
 dstack apply -f dstack/vqa-factorial-canary.dstack.yml -y -d
@@ -416,17 +417,50 @@ dstack apply -f dstack/vqa-factorial-canary.dstack.yml -y -d
 
 Record the returned run name. Do not resubmit the same remote prefix.
 
-- [ ] **Step 4: Monitor and download durable artifacts**
+- [x] **Step 4: Monitor and download durable artifacts**
 
 Use `dstack ps`, `dstack logs`, and HF Bucket sync. Download to a new private
 benchmark directory, verify `SHA256SUMS`, and compare remote/local file hashes.
 
-- [ ] **Step 5: Apply the canary gate**
+- [x] **Step 5: Apply the canary gate**
 
 Pass only if every request completes, the repeated deterministic answer is
 identical, evidence hashes match, no reference field enters requests, no
 OOM/NaN occurs, and the observed 8B throughput supports a full-panel run.
 Otherwise stop before Task 5 and record the exact failure.
+
+**Observed 2026-08-09:**
+
+- `e1` was preserved as a checksum-valid failed artifact after the canary caught
+  an over-strict buffer-dtype validator. Its terminal-bound payload checksum is
+  `4597136e079e96f03aee7e58075938c4f8c9dd91b1e40f4d60eae80eb7540307`.
+  The artifact proves all 723 parameters were CUDA BF16 and all three Qwen
+  buffers were CUDA float32. No answer-quality conclusion was drawn from `e1`.
+- Corrected run `vqa-factorial-canary-20260809-e2` completed with dstack run ID
+  `8a280e45-6d6b-4d84-96fe-43c4332b6024`, exit 0, and cost `$0.0496` on one
+  VastAI L40S. The terminal-bound payload checksum is
+  `cc60b3f3fce9302f7828e28355971a3c19cacec6514602cd55078c4a59b11b3f`;
+  all 89 payload files passed `SHA256SUMS` verification.
+- All 16 expected predictions completed. `4b-current` and its repeated arm had
+  byte-identical answer lists. Requested/applied OCR pixel bounds were
+  `589824/589824`; base cells were `262144/262144`. No labels entered remote
+  requests, and no OOM, NaN, empty answer, or runtime-attestation failure
+  occurred.
+- Cached-condition wall time was about 11 seconds for three rows. Peak PyTorch
+  allocation was 10.1 GB for 4B, 18.6 GB for base 8B, and 19.9 GB for the
+  high-resolution OCR row. Per-condition telemetry reached 100% utilization;
+  the live dstack sample reached 94%.
+- Speech and OCR answers matched the references in every base cell; high
+  resolution did not change the already-correct OCR answer. All temporal cells
+  missed the single reference wording. Inspection showed the relevant selfie,
+  approach, confrontation, and timestamped offensive speech were present in
+  the supplied evidence, while several generated confrontation answers remain
+  literally before the car entry. Treat this row as both an answerer failure
+  and an annotation/temporal-specificity diagnostic, not proof of a locator
+  failure.
+- The exact speech canary was initially classified as `general`; commit
+  `735df43` fixes noun-phrase speech questions before the full run. Operational
+  canary gate: **pass**. Proceed to the complete 475-row factorial.
 
 - [ ] **Step 6: Commit only the updated canonical plan record**
 
@@ -437,6 +471,8 @@ timing, and gate result to this plan, then commit that plan update.
 
 **Files:**
 - Create (generated/private): `data/vqa/benchmarks/vqa-factorial-475-20260809-f1/`
+- Create: `scripts/score_vqa_factorial.py`
+- Create: `tests/test_score_vqa_factorial.py`
 - Create: `docs/experiments/artifacts/vqa-factorial-475-20260809-f1.json`
 - Modify: `docs/project-status/research-routing.qmd`
 - Modify: `docs/project-status/experiment-ledger.qmd`
@@ -471,10 +507,17 @@ prediction list.
 
 - [ ] **Step 4: Score all four cells**
 
-Run Task 1's semantic scorer in the pinned Podman environment. Emit per-row and
-aggregate METEOR/BERTScore/STS/composite, paired bootstrap effects, answer
-length, strata, completion, wall time, GPU-hours, utilization, and VRAM. NDCG
-is marked degenerate because these are one-answer cells.
+Run one explicit four-cell scorer in the pinned Podman environment while
+preserving Task 1's two-condition scorer unchanged. Validate and align all four
+canonical 475-ID prediction sets before joining labels. Reuse the frozen
+`4b-current` numeric rows only after proving its artifact/model/panel/scorer
+binding; score unique new prediction/reference pairs once. Emit per-row and
+aggregate METEOR/BERTScore/STS/composite, paired bootstrap effects versus
+`4b-current`, row-paired model and prompt main effects, their interaction,
+answer length, strata, completion, wall time, GPU-hours, utilization, and VRAM.
+NDCG is marked degenerate because these are one-answer cells. Keep raw text and
+metric caches private; the tracked artifact contains IDs, strata, hashes, and
+numeric metrics only.
 
 - [ ] **Step 5: Apply the predeclared decision rule**
 

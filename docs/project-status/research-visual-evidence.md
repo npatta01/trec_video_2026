@@ -92,6 +92,14 @@ aria-label="Visual-evidence decisions">
 
 ## What has been tried
 
+The [2026-08-10 full-panel AV timeline and scene-selection
+diagnostic](../experiments/2026-08-10-vqa-plaintext-full-panel.qmd) is
+the canonical dated record for the complete 475-video event-map pass. It
+completed 474/475 maps and 462/475 selector answers, but was **Not
+promoted under the tested condition**: the failed rows had
+answer-relevant evidence, which shifts the next test toward multi-scene
+context and downstream answer use rather than another one-shot selector.
+
 <a name="frozen-30-protocol-v2"></a>
 
 ### Frozen-30 protocol v2: global frame budget

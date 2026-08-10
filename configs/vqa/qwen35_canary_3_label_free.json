@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "manifest_version": "trecvid-qwen35-canary-2026-08-03-v1",
+  "label_policy": "label-free-inference-input",
+  "examples": [
+    {
+      "video_id": "LKiaCf1QZFw",
+      "question": "What does this woman say at the end of the video?"
+    },
+    {
+      "video_id": "Ie-KCtcZ7uc",
+      "question": "What is the first question asked of these young men driving away in a Bentley Bentayga?"
+    },
+    {
+      "video_id": "J1CS47pBX_M",
+      "question": "What is the first thing that is said in this video?"
+    }
+  ]
+}

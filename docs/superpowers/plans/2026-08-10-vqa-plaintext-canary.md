@@ -12,7 +12,7 @@
 
 - The decision panel is exactly 475 unique videos with annotations; the 1,883-row test set remains untouched.
 - The canary uses exactly the four frozen normalized videos and AV input; no prompt grid or retry is allowed.
-- Map decoding is `enable_thinking=false`, temperature 0, top-p 1, top-k 1, max 256 tokens, stop `\nEND`; event descriptions are at most 16 words.
+- Map decoding is `enable_thinking=false`, temperature 0, top-p 1, top-k 1, max 256 tokens, stop `\nEND`; event descriptions are at most 32 words.
 - Selector decoding is `enable_thinking=false`, temperature 0, top-p 1, top-k 1, max 64 tokens, stop `\nEND`.
 - No `response_format`, JSON schema, grammar, or LLM repair is allowed.
 - A full-run GO requires 4/4 map and 4/4 selector primary parses, valid deterministic coverage, disjoint shifted windows, complete hashes, nonempty selector answers, and non-catastrophic semantic canary scores.

@@ -14,6 +14,7 @@ readonly MAX_OUTPUT_TOKENS=768
 readonly MIN_L40S_MEMORY_MIB=45000
 readonly HF_CLI_VERSION="1.24.0"
 readonly EXPECTED_PANEL_IDS_SHA256="95a623c0add252541b9c81ff4910e949dc81db17482add2c467b761237b22b0f"
+readonly RUNNER_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 
 MODE="${EXPERIMENT_MODE:-}"
 RUN_ID="${EXPERIMENT_RUN_ID:-}"
@@ -41,6 +42,14 @@ TELEMETRY_PID=""
 REMOTE_RESERVED="false"
 FINALIZED="false"
 FAILURE_STAGE="initializing"
+RUNNER_SHA256=""
+BOOTSTRAP_DOWNLOAD_SECONDS=""
+NORMALIZATION_COUNT=""
+NORMALIZATION_SECONDS=""
+MODEL_STARTUP_SECONDS=""
+INFERENCE_SECONDS=""
+FINALIZATION_STARTED=""
+FINALIZATION_SECONDS=""
 
 die() {
   echo "error: $*" >&2
@@ -49,6 +58,22 @@ die() {
 
 require_sha256() {
   [[ "$2" =~ ^[0-9a-f]{64}$ ]] || die "$1 must be an exact SHA-256"
+}
+
+phase_now() {
+  "$PYTHON_BIN" - <<'PY'
+import time
+print(f"{time.monotonic():.9f}")
+PY
+}
+
+phase_elapsed() {
+  "$PYTHON_BIN" - "$1" <<'PY'
+import sys
+import time
+started = float(sys.argv[1])
+print(f"{max(0.0, time.monotonic() - started):.9f}")
+PY
 }
 
 hf_cli() {
@@ -77,6 +102,7 @@ validate_identity() {
   require_sha256 EXPECTED_REQUEST_FILE_SHA256 "$EXPECTED_REQUEST_FILE_SHA256"
   require_sha256 EXPECTED_INFERENCE_MODULE_SHA256 "$EXPECTED_INFERENCE_MODULE_SHA256"
   require_sha256 EXPECTED_METADATA_BUNDLE_SHA256 "$EXPECTED_METADATA_BUNDLE_SHA256"
+  require_sha256 RUNNER_SHA256 "$RUNNER_SHA256"
   [[ "$(uname -m)" == "x86_64" ]] || die "amd64 runtime is required"
   [[ -x "$PYTHON_BIN" ]] || die "pinned image interpreter is unavailable"
   [[ "$(sha256sum /dstack/run/src/trec_video_2026/vqa_experiments/nemotron3_omni_event_map.py | awk '{print $1}')" == "$EXPECTED_INFERENCE_MODULE_SHA256" ]] \
@@ -187,7 +213,7 @@ verify_label_free_bundle() {
     || die "metadata bundle digest mismatch"
   "$PYTHON_BIN" - "$INPUT_DIR" "$request_file" "$MODE" "$CONDITIONS" "$SLICE_ID" "$ATTEMPT_UUID" "$OUTPUT_DIR/preflight.json" \
     "$EXPECTED_SOURCE_BUNDLE_SHA256" "$EXPECTED_CONTROLLER_SHA256" "$EXPECTED_PROTOCOL_SHA256" \
-    "$EXPECTED_REQUEST_FILE_SHA256" "$EXPECTED_INFERENCE_MODULE_SHA256" "$EXPECTED_PANEL_IDS_SHA256" <<'PY' >/dev/null 2>&1 \
+    "$EXPECTED_REQUEST_FILE_SHA256" "$EXPECTED_INFERENCE_MODULE_SHA256" "$EXPECTED_PANEL_IDS_SHA256" "$RUNNER_SHA256" <<'PY' >/dev/null 2>&1 \
     || die "event-map preflight identity, order, label, or media binding failed"
 import hashlib
 import json
@@ -209,6 +235,7 @@ request_path = Path(sys.argv[2]).resolve(strict=True)
     expected_request,
     expected_module,
     expected_panel_ids,
+    expected_runner,
 ) = sys.argv[3:]
 preflight_path = Path(preflight_path)
 controller_path = root / "event-map-controller.json"
@@ -265,6 +292,8 @@ if protocol.get("protocol_sha256") != expected_protocol:
     raise SystemExit("protocol is not the pinned artifact")
 if protocol.get("inference_module_sha256") != expected_module:
     raise SystemExit("protocol inference module is not the pinned source")
+if re.fullmatch(r"[0-9a-f]{64}", expected_runner) is None:
+    raise SystemExit("runner digest is not an exact SHA-256")
 request_bytes = request_path.read_bytes()
 request_rows = [json.loads(line) for line in request_bytes.decode("utf-8").splitlines() if line.strip()]
 if not request_rows:
@@ -321,6 +350,8 @@ preflight_path.write_text(json.dumps({
     "controller_sha256": protocol["controller_sha256"],
     "protocol_sha256": protocol["protocol_sha256"],
     "request_file_sha256": identity["file_sha256"],
+    "inference_module_sha256": expected_module,
+    "runner_sha256": expected_runner,
     "row_count": len(request_rows),
     "condition_id": condition,
     "slice_id": slice_id,
@@ -373,6 +404,19 @@ for video_id in requested_ids:
     })
 output_path.write_text(json.dumps({"schema_version": 1, "rows": normalized_rows}, sort_keys=True) + "\n", encoding="utf-8")
 PY
+  NORMALIZATION_COUNT="$("$PYTHON_BIN" - "$INPUT_DIR/normalized-controller.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+rows = payload.get("rows")
+if not isinstance(rows, list) or not rows:
+    raise SystemExit("normalized media count is unavailable")
+print(len(rows))
+PY
+)" || die "normalized media count attestation failed"
+  [[ "$NORMALIZATION_COUNT" =~ ^[1-9][0-9]*$ ]] \
+    || die "normalized media count attestation failed"
 }
 
 reserve_remote_prefix() {
@@ -577,6 +621,8 @@ Path(sys.argv[1]).write_text(json.dumps({
     "controller_sha256": preflight["controller_sha256"],
     "protocol_sha256": preflight["protocol_sha256"],
     "request_file_sha256": preflight["request_file_sha256"],
+    "inference_module_sha256": preflight["inference_module_sha256"],
+    "runner_sha256": preflight["runner_sha256"],
 }, sort_keys=True) + "\n", encoding="utf-8")
 PY
   hf_cli buckets cp "$OUTPUT_DIR/failure-status.json" \
@@ -591,13 +637,26 @@ finalize_success() {
   local payload_checksum
   payload_checksum="$(sha256sum "$OUTPUT_DIR/SHA256SUMS" | awk '{print $1}')"
   publish_and_verify_payload || die "private payload publication verification failed"
-  "$PYTHON_BIN" - "$OUTPUT_DIR/terminal-status.json" "$RUN_ID" "$ATTEMPT_UUID" "$HF_REMOTE_URI" "$payload_checksum" "$row_count" "$OUTPUT_DIR/preflight.json" <<'PY' >/dev/null 2>&1 \
+  FINALIZATION_SECONDS="$(phase_elapsed "$FINALIZATION_STARTED")"
+  "$PYTHON_BIN" - "$OUTPUT_DIR/terminal-status.json" "$RUN_ID" "$ATTEMPT_UUID" "$HF_REMOTE_URI" "$payload_checksum" "$row_count" "$OUTPUT_DIR/preflight.json" \
+    "$BOOTSTRAP_DOWNLOAD_SECONDS" "$NORMALIZATION_COUNT" "$NORMALIZATION_SECONDS" \
+    "$MODEL_STARTUP_SECONDS" "$INFERENCE_SECONDS" "$FINALIZATION_SECONDS" <<'PY' >/dev/null 2>&1 \
     || die "terminal marker finalization failed"
 import json
 import sys
 from pathlib import Path
 
 preflight = json.loads(Path(sys.argv[7]).read_text(encoding="utf-8"))
+bootstrap_download, normalization_count, normalization, model_startup, inference, finalization = sys.argv[8:]
+phase_values = [
+    float(bootstrap_download),
+    float(normalization),
+    float(model_startup),
+    float(inference),
+    float(finalization),
+]
+if any(value <= 0 for value in phase_values) or int(normalization_count) <= 0:
+    raise SystemExit("producer phase timing is invalid")
 Path(sys.argv[1]).write_text(json.dumps({
     "schema_version": 1,
     "status": "complete",
@@ -610,6 +669,21 @@ Path(sys.argv[1]).write_text(json.dumps({
     "controller_sha256": preflight["controller_sha256"],
     "protocol_sha256": preflight["protocol_sha256"],
     "request_file_sha256": preflight["request_file_sha256"],
+    "inference_module_sha256": preflight["inference_module_sha256"],
+    "runner_sha256": preflight["runner_sha256"],
+    "producer_timings": {
+        "schema_version": 1,
+        "clock": "monotonic",
+        "bootstrap_download_seconds": phase_values[0],
+        "normalization": {
+            "media_count": int(normalization_count),
+            "seconds": phase_values[1],
+        },
+        "model_startup_seconds": phase_values[2],
+        "inference_seconds": phase_values[3],
+        "finalization_seconds": phase_values[4],
+        "phase_total_seconds": sum(phase_values),
+    },
 }, sort_keys=True) + "\n", encoding="utf-8")
 PY
   hf_cli buckets cp "$OUTPUT_DIR/terminal-status.json" \
@@ -634,8 +708,11 @@ on_exit() {
 }
 
 main() {
+  local phase_start
   mkdir -p "$OUTPUT_DIR"
   trap on_exit EXIT
+  RUNNER_SHA256="$(sha256sum "$RUNNER_PATH" | awk '{print $1}')"
+  phase_start="$(phase_now)"
   FAILURE_STAGE="identity"
   validate_identity
   FAILURE_STAGE="runtime-bootstrap"
@@ -646,12 +723,20 @@ main() {
   verify_label_free_bundle
   FAILURE_STAGE="output-reservation"
   reserve_remote_prefix
+  BOOTSTRAP_DOWNLOAD_SECONDS="$(phase_elapsed "$phase_start")"
+  phase_start="$(phase_now)"
   FAILURE_STAGE="media-normalization"
   normalize_inputs
+  NORMALIZATION_SECONDS="$(phase_elapsed "$phase_start")"
+  phase_start="$(phase_now)"
   FAILURE_STAGE="server-startup"
   start_server
+  MODEL_STARTUP_SECONDS="$(phase_elapsed "$phase_start")"
+  phase_start="$(phase_now)"
   FAILURE_STAGE="inference"
   run_workload || die "event-map inference failed"
+  INFERENCE_SECONDS="$(phase_elapsed "$phase_start")"
+  FINALIZATION_STARTED="$(phase_now)"
   FAILURE_STAGE="output-verification"
   verify_outputs
   FAILURE_STAGE="artifact-finalization"
