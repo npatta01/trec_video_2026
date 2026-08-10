@@ -583,6 +583,45 @@ Commit: `git add configs/vqa/vqa_submission_canary_6.json configs/vqa/vqa_submis
 
 ---
 
+### Task 11: Add the OpenRouter transport for the paid Gemini canary
+
+**Files:**
+- Create: `src/trec_video_2026/vqa_submission_openrouter.py`
+- Create: `tests/test_vqa_submission_openrouter.py`
+- Modify: `scripts/run_vqa_submission.py`
+- Modify: `tests/test_run_vqa_submission_script.py`
+
+**Interfaces:**
+- Consumes: `GeminiTransport`, `UploadedFileRecord`, `GenerationResult`, `TokenUsage`, and `GeminiSubmissionClient` from `vqa_submission_gemini`.
+- Produces: `OpenRouterTransport`, `create_openrouter_transport`, and `preflight_openrouter_transport`; CLI support for `run --transport openrouter` and `preflight-live --provider openrouter`.
+
+- [ ] **Step 1: Write failing transport and CLI tests**
+
+Use an injected fake URL opener and no network. Tests must cover model mapping, authenticated preflight, base64 multimodal content conversion, strict structured-output requests, deterministic seed, privacy routing, token usage parsing, in-memory deletion, missing authentication, malformed provider output, and secret-safe HTTP failures. CLI tests cover the new provider choices without reading a real credential.
+
+- [ ] **Step 2: Verify RED**
+
+Run: `uv run pytest tests/test_vqa_submission_openrouter.py tests/test_run_vqa_submission_script.py -q`
+Expected: failures name the missing OpenRouter module and CLI choices.
+
+- [ ] **Step 3: Implement the thin standard-library transport**
+
+Map `gemini-3.1-pro-preview` to `google/gemini-3.1-pro-preview`. `upload` validates an allowed regular media file and retains bytes only in memory under an opaque hash-derived ID; it never persists a data URI. Convert uploaded parts to OpenRouter chat content: video as `video_url`, images as `image_url`, audio as `input_audio`, and prompts as `text`. POST non-streaming chat completions with strict JSON Schema output, high reasoning excluded from the response, a deterministic request-derived seed, bounded output tokens, and provider routing `{zdr: true, data_collection: "deny", require_parameters: true}`. Parse exactly one successful JSON message plus token usage into `GenerationResult`. Errors never expose credentials, headers, provider bodies, data URIs, or client representations.
+
+`create_openrouter_transport()` reads only `OPENROUTER_API_KEY` from the process environment. `preflight_openrouter_transport()` performs an authenticated model-catalog GET without prompts or media and returns only authentication status, model ID, input modalities, and structured-output support.
+
+- [ ] **Step 4: Wire the existing reviewed client and CLI**
+
+`run --transport openrouter` wraps `OpenRouterTransport` in the existing `GeminiSubmissionClient`; direct `gemini` and `fixture` behavior remains unchanged. `preflight-live --provider openrouter` runs only the no-media catalog check and emits bounded safe JSON.
+
+- [ ] **Step 5: Run focused tests and commit**
+
+Run: `uv run pytest tests/test_vqa_submission_openrouter.py tests/test_run_vqa_submission_script.py tests/test_vqa_submission_gemini.py -q`
+Expected: all pass without network access.
+Commit: `git add src/trec_video_2026/vqa_submission_openrouter.py tests/test_vqa_submission_openrouter.py scripts/run_vqa_submission.py tests/test_run_vqa_submission_script.py && git commit -m "feat: add OpenRouter VQA transport"`
+
+---
+
 ### Task 8: Execute and preserve the six-row canary
 
 **Files:**
@@ -591,7 +630,7 @@ Commit: `git add configs/vqa/vqa_submission_canary_6.json configs/vqa/vqa_submis
 - Create after successful inference: `docs/experiments/artifacts/vqa-submission-canary-20260810/`
 
 **Interfaces:**
-- Consumes: configured paid Gemini authentication, prepared canary bundle, and all earlier tasks.
+- Consumes: configured paid OpenRouter authentication, prepared canary bundle, and all earlier tasks.
 - Produces: six-row timelines, evidence, ten candidates per row, rankings, frozen predictions, terminal status, sanitized artifact projection, and QMD evidence record.
 
 - [ ] **Step 1: Run one row with an explicit spend stop**
@@ -599,9 +638,9 @@ Commit: `git add configs/vqa/vqa_submission_canary_6.json configs/vqa/vqa_submis
 Run:
 
 ```bash
-uv run --extra gemini python scripts/run_vqa_submission.py run \
+uv run python scripts/run_vqa_submission.py run \
   --prepared data/vqa/benchmarks/vqa-submission-canary-20260810-a1 \
-  --transport gemini --limit 1 --max-provider-usd 2
+  --transport openrouter --limit 1 --max-provider-usd 2
 ```
 
 Expected: one row completes, every uploaded provider file records deletion, ten unique candidates and one ranking persist, and no labels are loaded.
@@ -616,9 +655,9 @@ Expected: one complete row, five pending rows, zero integrity failures, finite u
 Run:
 
 ```bash
-uv run --extra gemini python scripts/run_vqa_submission.py run \
+uv run python scripts/run_vqa_submission.py run \
   --prepared data/vqa/benchmarks/vqa-submission-canary-20260810-a1 \
-  --transport gemini --max-provider-usd 10
+  --transport openrouter --max-provider-usd 10
 uv run python scripts/run_vqa_submission.py freeze \
   --prepared data/vqa/benchmarks/vqa-submission-canary-20260810-a1
 ```
