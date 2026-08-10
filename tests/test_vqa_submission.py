@@ -314,6 +314,42 @@ def test_verifier_randomization_is_seeded_and_hides_pass_names(
     )
 
 
+def test_verifier_payload_blinds_private_provenance_and_hashes(
+    tmp_path: Path,
+) -> None:
+    request = build_verifier_request(
+        _row(tmp_path),
+        _timeline(),
+        _evidence_plan(tmp_path),
+        _ten_candidates(),
+        seed=20260810,
+    )
+    payload = request.to_model_payload()
+    serialized = json.dumps(payload, sort_keys=True)
+
+    assert all(
+        set(candidate.to_model_dict())
+        == {"public_id", "candidate_text", "support_span_ids"}
+        for candidate in request.candidates
+    )
+    assert "c" * 64 not in serialized
+    assert "source_request_sha256" not in serialized
+    assert "pass_id" not in serialized
+    assert "condition_id" not in serialized
+    assert "confidence" not in serialized
+
+    first = request.candidates[0]
+    assert request.private_pass_id(first.public_id) == first.pass_id
+    assert first.source_request_sha256 == "c" * 64
+    original_hash = request.model_visible_bytes_sha256
+    private_change = dataclasses.replace(first, source_request_sha256="d" * 64)
+    private_request = dataclasses.replace(
+        request,
+        candidates=(private_change,) + request.candidates[1:],
+    )
+    assert private_request.model_visible_bytes_sha256 == original_hash
+
+
 def test_verifier_maps_only_a_valid_complete_public_permutation(
     tmp_path: Path,
 ) -> None:

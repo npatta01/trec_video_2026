@@ -1465,7 +1465,6 @@ class VerifierCandidate:
             "public_id": self.public_id,
             "candidate_text": self.candidate_text,
             "support_span_ids": list(self.support_span_ids),
-            "source_request_sha256": self.source_request_sha256,
         }
 
 
