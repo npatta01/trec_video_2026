@@ -422,6 +422,40 @@ def test_uniform_frame_extraction_writes_twelve_hashed_frames(tmp_path: Path) ->
     assert len(evidence["frames"]) == 12
 
 
+def test_uniform_frame_extraction_handles_audio_longer_than_video(
+    tmp_path: Path,
+) -> None:
+    media = tmp_path / "audio-longer.webm"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=blue:s=64x64:d=1:r=30",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=1000:duration=1.1",
+            "-c:v",
+            "libvpx-vp9",
+            "-c:a",
+            "libopus",
+            "-y",
+            str(media),
+        ],
+        check=True,
+    )
+
+    frames, timestamps = extract_uniform_frames(media, tmp_path / "frames")
+
+    assert len(frames) == len(timestamps) == 12
+    assert all(path.is_file() and path.stat().st_size > 0 for path in frames)
+
+
 def test_resume_prefix_requires_exact_completed_query_order() -> None:
     requests = [
         {"query_id": 1, "video_id": "one"},

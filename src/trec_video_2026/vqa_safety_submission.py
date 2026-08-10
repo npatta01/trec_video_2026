@@ -88,6 +88,40 @@ def uniform_timestamps(
     )
 
 
+def _last_decodable_video_timestamp(ffprobe: str, media: Path) -> float:
+    """Return the final decoded video PTS when container duration runs longer."""
+
+    completed = subprocess.run(
+        [
+            ffprobe,
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_frames",
+            "-show_entries",
+            "frame=best_effort_timestamp_time",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            str(media),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    timestamps = []
+    for line in completed.stdout.splitlines():
+        try:
+            timestamp = float(line.strip())
+        except ValueError:
+            continue
+        if math.isfinite(timestamp) and timestamp >= 0:
+            timestamps.append(timestamp)
+    if not timestamps:
+        raise RuntimeError(f"ffprobe found no decodable video timestamps: {media}")
+    return max(timestamps)
+
+
 def extract_uniform_frames(
     media_path: Path | str, destination: Path | str
 ) -> tuple[tuple[Path, ...], tuple[float, ...]]:
@@ -143,28 +177,41 @@ def extract_uniform_frames(
     stage = Path(tempfile.mkdtemp(prefix=f".{output.name}.", dir=output.parent))
     try:
         records: list[dict[str, Any]] = []
+        last_video_timestamp: float | None = None
         for index, timestamp in enumerate(timestamps, start=1):
             frame = stage / f"frame-{index:02d}.png"
-            subprocess.run(
-                [
-                    ffmpeg,
-                    "-hide_banner",
-                    "-loglevel",
-                    "error",
-                    "-ss",
-                    f"{timestamp:.6f}",
-                    "-i",
-                    str(media),
-                    "-map",
-                    "0:v:0",
-                    "-frames:v",
-                    "1",
-                    "-y",
-                    str(frame),
-                ],
-                check=True,
-                capture_output=True,
-            )
+            command = [
+                ffmpeg,
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-ss",
+                f"{timestamp:.6f}",
+                "-i",
+                str(media),
+                "-map",
+                "0:v:0",
+                "-frames:v",
+                "1",
+                "-y",
+                str(frame),
+            ]
+            subprocess.run(command, check=True, capture_output=True)
+            if not frame.is_file() or frame.stat().st_size == 0:
+                if last_video_timestamp is None:
+                    last_video_timestamp = _last_decodable_video_timestamp(
+                        ffprobe, media
+                    )
+                command[5] = f"{min(timestamp, last_video_timestamp):.6f}"
+                subprocess.run(
+                    command,
+                    check=True,
+                    capture_output=True,
+                )
+            if not frame.is_file() or frame.stat().st_size == 0:
+                raise RuntimeError(
+                    f"ffmpeg produced no frame for {media} at {timestamp}"
+                )
             records.append(
                 {
                     "path": frame.name,
