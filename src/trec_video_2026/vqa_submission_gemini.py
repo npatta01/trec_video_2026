@@ -32,6 +32,23 @@ from trec_video_2026.vqa_submission_evidence import (
 
 _SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
 _MAX_ERROR_LENGTH = 256
+_FAILURE_CODES = frozenset(
+    {
+        "provider_request",
+        "provider_upload",
+        "provider_generation",
+        "provider_failure",
+        "protocol_upload_record",
+        "protocol_media_mime",
+        "protocol_schema",
+        "protocol_no_response",
+        "protocol_failure",
+        "cleanup_delete",
+        "auth_vertex_unsupported",
+    }
+)
+_ORPHAN_UPLOAD_SLOT_RE = re.compile(r"orphan-upload-[1-9][0-9]*\Z")
+_ORPHAN_UPLOAD_STATUSES = frozenset({"succeeded", "failed"})
 _MIME_TYPES = {
     ".avi": "video/x-msvideo",
     ".jpeg": "image/jpeg",
@@ -213,12 +230,16 @@ class GeminiError(RuntimeError):
         *,
         failure_code: str = "provider_request",
         uploaded_file_deletion_status: Mapping[str, bool] | None = None,
+        orphan_upload_deletion_status: Mapping[str, str] | None = None,
     ) -> None:
         super().__init__(message)
-        self.failure_code = failure_code
+        self.failure_code = _normalize_failure_code(failure_code, self)
         self.failure_record: FailureRecord | None = None
         self.uploaded_file_deletion_status = MappingProxyType(
             dict(uploaded_file_deletion_status or {})
+        )
+        self.orphan_upload_deletion_status = MappingProxyType(
+            _safe_orphan_upload_status(orphan_upload_deletion_status)
         )
 
 
@@ -232,6 +253,31 @@ class ProviderProtocolError(GeminiError):
 
 class ProviderAuthenticationError(GeminiError):
     """Gemini's SDK could not be constructed with its standard authentication."""
+
+
+def _normalize_failure_code(code: object, error: GeminiError) -> str:
+    if isinstance(code, str) and code in _FAILURE_CODES:
+        return code
+    if isinstance(error, ProviderProtocolError):
+        return "protocol_failure"
+    return "provider_failure"
+
+
+def _safe_orphan_upload_status(
+    statuses: Mapping[str, str] | None,
+) -> dict[str, str]:
+    if not isinstance(statuses, Mapping):
+        return {}
+    safe_statuses: dict[str, str] = {}
+    for slot, status in statuses.items():
+        if (
+            isinstance(slot, str)
+            and _ORPHAN_UPLOAD_SLOT_RE.fullmatch(slot) is not None
+            and isinstance(status, str)
+            and status in _ORPHAN_UPLOAD_STATUSES
+        ):
+            safe_statuses[slot] = status
+    return safe_statuses
 
 
 @dataclass(frozen=True, slots=True)
@@ -281,11 +327,14 @@ class FailureRecord:
     usage: TokenUsage
     elapsed_seconds: float
     response_sha256: str | None
-    uploaded_file_deletion_status: Mapping[str, bool]
+    uploaded_file_deletion_status: Mapping[str, bool | str]
 
     def __post_init__(self) -> None:
-        if not isinstance(self.failure_code, str) or not self.failure_code:
-            raise ValueError("failure_code must be a non-empty string")
+        if (
+            not isinstance(self.failure_code, str)
+            or self.failure_code not in _FAILURE_CODES
+        ):
+            raise ValueError("failure_code is not allowed")
         if not isinstance(self.request_sha256, str) or _SHA256_RE.fullmatch(
             self.request_sha256
         ) is None:
@@ -312,8 +361,17 @@ class FailureRecord:
         ) is None:
             raise ValueError("response_sha256 must be a lowercase 64-hex SHA-256")
         statuses = dict(self.uploaded_file_deletion_status)
-        if any(not isinstance(value, bool) for value in statuses.values()):
-            raise TypeError("deletion statuses must be booleans")
+        for slot, status in statuses.items():
+            if isinstance(status, bool):
+                continue
+            if (
+                isinstance(slot, str)
+                and _ORPHAN_UPLOAD_SLOT_RE.fullmatch(slot) is not None
+                and isinstance(status, str)
+                and status in _ORPHAN_UPLOAD_STATUSES
+            ):
+                continue
+            raise TypeError("deletion statuses must be safe booleans or orphan statuses")
         object.__setattr__(self, "elapsed_seconds", float(self.elapsed_seconds))
         object.__setattr__(self, "uploaded_file_deletion_status", MappingProxyType(statuses))
 
@@ -513,6 +571,26 @@ def _bounded_message(error: BaseException) -> str:
     if any(word not in _SAFE_ERROR_WORDS for word in words):
         return SAFE_ERROR_MARKER
     return message
+
+
+def _reconstruct_transport_error(error: GeminiError) -> GeminiError:
+    error_type = (
+        ProviderProtocolError
+        if isinstance(error, ProviderProtocolError)
+        else ProviderError
+    )
+    failure_code = (
+        "protocol_failure"
+        if error_type is ProviderProtocolError
+        else "provider_failure"
+    )
+    return error_type(
+        f"{type(error).__name__}: {_bounded_message(error)}",
+        failure_code=failure_code,
+        orphan_upload_deletion_status=_safe_orphan_upload_status(
+            getattr(error, "orphan_upload_deletion_status", None)
+        ),
+    )
 
 
 def _transport_error(operation: str, error: BaseException) -> ProviderError:
@@ -849,6 +927,8 @@ class GeminiSubmissionClient:
             for role, path, mime_type in _request_files(request, payload):
                 try:
                     record = self._transport.upload(path, mime_type=mime_type)
+                except GeminiError as error:
+                    raise _reconstruct_transport_error(error) from None
                 except Exception as error:  # noqa: BLE001 - provider boundary
                     raise _transport_error("upload", error) from None
                 if not isinstance(record, UploadedFileRecord):
@@ -897,9 +977,13 @@ class GeminiSubmissionClient:
                 failure_code="cleanup_delete",
             )
         if failure is not None:
+            failure.__context__ = None
+            failure.__cause__ = None
             failure.uploaded_file_deletion_status = MappingProxyType(
                 dict(deletion_status)
             )
+            failure_status = dict(deletion_status)
+            failure_status.update(failure.orphan_upload_deletion_status)
             failure.failure_record = FailureRecord(
                 failure_code=failure.failure_code,
                 request_sha256=request_hash,
@@ -908,7 +992,7 @@ class GeminiSubmissionClient:
                 usage=usage,
                 elapsed_seconds=time.monotonic() - started,
                 response_sha256=response_sha256,
-                uploaded_file_deletion_status=deletion_status,
+                uploaded_file_deletion_status=failure_status,
             )
             raise failure
         if attempts < 1 or parsed is None:
@@ -949,8 +1033,8 @@ class GeminiSubmissionClient:
                 parts=tuple(parts),
                 schema=schema,
             )
-        except GeminiError:
-            raise
+        except GeminiError as error:
+            raise _reconstruct_transport_error(error) from None
         except Exception as error:  # noqa: BLE001 - provider boundary
             raise _transport_error("generation", error) from None
         if not isinstance(result, GenerationResult):
@@ -965,6 +1049,7 @@ class _GoogleGenaiTransport:
 
     def __init__(self, client: object) -> None:
         self._client = client
+        self._orphan_upload_count = 0
 
     def upload(self, path: Path, *, mime_type: str) -> UploadedFileRecord:
         uploaded = self._client.files.upload(
@@ -978,14 +1063,20 @@ class _GoogleGenaiTransport:
             )
         except Exception:
             orphan_id = _provider_file_id_or_none(uploaded)
+            orphan_status: dict[str, str] = {}
             if orphan_id is not None:
+                self._orphan_upload_count += 1
+                orphan_slot = f"orphan-upload-{self._orphan_upload_count}"
                 try:
                     self._client.files.delete(name=orphan_id)
                 except Exception:
-                    pass
+                    orphan_status[orphan_slot] = "failed"
+                else:
+                    orphan_status[orphan_slot] = "succeeded"
             raise ProviderProtocolError(
                 "Gemini upload response did not contain a valid file record",
                 failure_code="protocol_upload_record",
+                orphan_upload_deletion_status=orphan_status,
             ) from None
 
     def generate(

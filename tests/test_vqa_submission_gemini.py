@@ -20,7 +20,9 @@ from trec_video_2026.vqa_submission import (
 from trec_video_2026.vqa_submission_evidence import ValidatedTimeline
 import trec_video_2026.vqa_submission_gemini as gemini
 from trec_video_2026.vqa_submission_gemini import (
+    FailureRecord,
     GenerationResult,
+    GeminiError,
     GeminiSubmissionClient,
     ProviderAuthenticationError,
     ProviderError,
@@ -560,6 +562,9 @@ def test_google_upload_orphan_is_deleted_when_response_adaptation_fails(
     assert deleted == ["files/orphan"]
     assert "object at" not in str(raised.value)
     assert "files/orphan" not in str(raised.value)
+    assert raised.value.orphan_upload_deletion_status == {
+        "orphan-upload-1": "succeeded"
+    }
 
 
 def test_google_orphan_delete_failure_does_not_mask_primary_protocol_error(
@@ -582,6 +587,107 @@ def test_google_orphan_delete_failure_does_not_mask_primary_protocol_error(
 
     assert "SECRET" not in str(raised.value)
     assert "delete failed" not in str(raised.value)
+    assert raised.value.orphan_upload_deletion_status == {
+        "orphan-upload-1": "failed"
+    }
+
+
+@pytest.mark.parametrize(
+    ("transport_error", "expected_type", "expected_message"),
+    [
+        (
+            ProviderError("token=SECRET", failure_code="token=SECRET"),
+            ProviderError,
+            "ProviderError: [REDACTED]",
+        ),
+        (
+            ProviderProtocolError(
+                '{"Authorization": "Bearer SECRET"}',
+                failure_code="token=SECRET",
+            ),
+            ProviderProtocolError,
+            "ProviderProtocolError: [REDACTED]",
+        ),
+        (
+            ProviderError("provider failed", failure_code="provider_generation"),
+            ProviderError,
+            "ProviderError: provider failed",
+        ),
+    ],
+)
+def test_transport_gemini_errors_are_reconstructed_and_bounded(
+    tmp_path: Path,
+    transport_error: GeminiError,
+    expected_type: type[GeminiError],
+    expected_message: str,
+) -> None:
+    transport = FakeTransport(error=transport_error)
+
+    with pytest.raises(expected_type) as raised:
+        GeminiSubmissionClient(transport, model_id=MODEL_ID).answer(
+            _answer_request(tmp_path)
+        )
+
+    assert raised.value is not transport_error
+    assert str(raised.value) == expected_message
+    assert raised.value.__context__ is None
+    assert raised.value.failure_code == (
+        "protocol_failure"
+        if isinstance(transport_error, ProviderProtocolError)
+        else "provider_failure"
+    )
+    assert raised.value.failure_record is not None
+    assert "SECRET" not in json.dumps(raised.value.failure_record.to_dict())
+
+
+def test_failure_record_rejects_untrusted_failure_code_without_persisting_it() -> None:
+    with pytest.raises(ValueError, match="failure_code") as raised:
+        FailureRecord(
+            failure_code="token=SECRET",
+            request_sha256="a" * 64,
+            model_id=MODEL_ID,
+            attempt_count=0,
+            usage=TokenUsage(),
+            elapsed_seconds=0.0,
+            response_sha256=None,
+            uploaded_file_deletion_status={},
+        )
+
+    assert "SECRET" not in str(raised.value)
+
+
+@pytest.mark.parametrize("delete_succeeds", [True, False])
+def test_orphan_upload_status_reaches_client_failure_record_opaquely(
+    tmp_path: Path, delete_succeeds: bool
+) -> None:
+    media_path = tmp_path / "video.mp4"
+    media_path.write_bytes(b"video")
+    deleted: list[str] = []
+
+    class Files:
+        def upload(self, **_: object) -> object:
+            return types.SimpleNamespace(name="files/orphan", uri=object())
+
+        def delete(self, *, name: str) -> None:
+            deleted.append(name)
+            if not delete_succeeds:
+                raise RuntimeError("delete failed; token=SECRET")
+
+    transport = gemini._GoogleGenaiTransport(types.SimpleNamespace(files=Files()))
+
+    with pytest.raises(ProviderProtocolError) as raised:
+        GeminiSubmissionClient(transport, model_id=MODEL_ID).answer(
+            _answer_request(tmp_path)
+        )
+
+    assert deleted == ["files/orphan"]
+    assert raised.value.failure_record is not None
+    assert raised.value.failure_record.uploaded_file_deletion_status == {
+        "orphan-upload-1": "succeeded" if delete_succeeds else "failed"
+    }
+    serialized = json.dumps(raised.value.failure_record.to_dict())
+    assert "files/orphan" not in serialized
+    assert "SECRET" not in serialized
 
 
 def test_create_google_transport_rejects_vertex_client_before_upload(monkeypatch) -> None:
