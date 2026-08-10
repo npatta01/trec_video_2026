@@ -851,3 +851,121 @@ def test_live_candidates_use_live_provenance_not_fixture(
     candidate = prediction["predictions"][0]["candidates"][0]
     assert candidate["runtime_provenance"]["provider"] != "fixture"
     assert candidate["support_span_ids"] != ["fixture"]
+
+
+def test_timeline_missing_nested_schema_is_failed(tmp_path: Path) -> None:
+    module, run_dir = _prepare_one_row(tmp_path)
+
+    class PartialTimeline(module.FixtureTransport):
+        def generate(self, request: dict[str, object]) -> dict[str, object]:
+            if request["stage"] == "timeline":
+                return {
+                    "schema_version": 1,
+                    "duration_seconds": 2.0,
+                    "events": [
+                        {
+                            "span_id": "event-1",
+                            "start_seconds": 0.0,
+                            "end_seconds": 1.0,
+                        }
+                    ],
+                    "support_spans": [],
+                }
+            return super().generate(request)
+
+    module.run_prepared(run_dir, transport=PartialTimeline())
+    timeline_attempts = [
+        row for row in _jsonl(run_dir / "attempts.jsonl") if row["stage"] == "timeline"
+    ]
+    assert timeline_attempts[-1]["status"] == "failed"
+
+
+def test_failed_then_successful_timeline_reconstructs_success_only(
+    tmp_path: Path,
+) -> None:
+    module, run_dir = _prepare_one_row(tmp_path)
+
+    class RetryTimeline(module.FixtureTransport):
+        calls = 0
+
+        def generate(self, request: dict[str, object]) -> dict[str, object]:
+            if request["stage"] == "timeline":
+                self.calls += 1
+                if self.calls == 1:
+                    return {"events": [{}], "support_spans": []}
+            return super().generate(request)
+
+    transport = RetryTimeline()
+    module.run_prepared(run_dir, transport=transport)
+    module.run_prepared(run_dir, transport=transport)
+    timeline_rows = _jsonl(run_dir / "timeline.jsonl")
+    assert len(timeline_rows) == 1
+    assert timeline_rows[0]["status"] == "completed"
+    assert [
+        row["status"]
+        for row in _jsonl(run_dir / "attempts.jsonl")
+        if row["stage"] == "timeline"
+    ].count("completed") == 1
+
+
+def test_freeze_requires_matching_timeline_artifact(tmp_path: Path) -> None:
+    module, run_dir = _prepare_one_row(tmp_path)
+    module.run_prepared(run_dir, transport=module.FixtureTransport())
+    (run_dir / "timeline.jsonl").unlink()
+    with pytest.raises(ValueError, match="timeline"):
+        module.freeze(run_dir)
+
+
+def test_freeze_rejects_empty_evidence_frame_list(tmp_path: Path) -> None:
+    module, run_dir = _prepare_one_row(tmp_path)
+    module.run_prepared(run_dir, transport=module.FixtureTransport())
+    evidence_path = next((run_dir / "evidence" / "rows").glob("*/manifest.json"))
+    evidence = json.loads(evidence_path.read_text())
+    evidence["frames"] = []
+    evidence_path.write_text(json.dumps(evidence))
+    with pytest.raises(ValueError, match="frame|evidence"):
+        module.freeze(run_dir)
+
+
+def test_freeze_rejects_removed_evidence_frame(tmp_path: Path) -> None:
+    module, run_dir = _prepare_one_row(tmp_path)
+    module.run_prepared(run_dir, transport=module.FixtureTransport())
+    evidence_path = next((run_dir / "evidence" / "rows").glob("*/manifest.json"))
+    evidence = json.loads(evidence_path.read_text())
+    Path(evidence["frames"][0]["frame_path"]).unlink()
+    with pytest.raises(ValueError, match="frame|evidence"):
+        module.freeze(run_dir)
+
+
+@pytest.mark.parametrize("label_value", ["missing", "false", 0, 1, True])
+def test_freeze_requires_boolean_false_labels_loaded(
+    tmp_path: Path, label_value: object
+) -> None:
+    module, run_dir = _prepare_one_row(tmp_path)
+    module.run_prepared(run_dir, transport=module.FixtureTransport())
+    terminal_path = run_dir / "terminal-status.json"
+    terminal = json.loads(terminal_path.read_text())
+    if label_value == "missing":
+        terminal.pop("labels_loaded", None)
+    else:
+        terminal["labels_loaded"] = label_value
+    terminal_path.write_text(json.dumps(terminal))
+    with pytest.raises(ValueError, match="labels_loaded"):
+        module.freeze(run_dir)
+
+
+def test_freeze_rejects_verifier_frame_provenance_tamper(tmp_path: Path) -> None:
+    module, run_dir = _prepare_one_row(tmp_path)
+    module.run_prepared(run_dir, transport=module.FixtureTransport())
+    attempts_path = run_dir / "attempts.jsonl"
+    attempts = _jsonl(attempts_path)
+    verifier = next(
+        row
+        for row in attempts
+        if row["stage"] == "verifier" and row["status"] == "completed"
+    )
+    verifier["request"]["frame_paths"] = ["/tmp/injected-frame.png"]
+    verifier["request_sha256"] = module.canonical_request_sha256(verifier["request"])
+    attempts_path.write_text("".join(json.dumps(row) + "\n" for row in attempts))
+    with pytest.raises(ValueError, match="frame|provenance|evidence"):
+        module.freeze(run_dir)

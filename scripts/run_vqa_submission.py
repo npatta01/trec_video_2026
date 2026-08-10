@@ -7,6 +7,7 @@ safe to exercise in tests without media, credentials, or a provider SDK.
 import argparse
 import hashlib
 import json
+import math
 import os
 import subprocess
 import sys
@@ -76,6 +77,19 @@ def _sha256_bytes(value: bytes) -> str:
 
 def _sha256_json(value: Any) -> str:
     return _sha256_bytes(_canonical_bytes(value))
+
+
+def _evidence_without_binding(payload: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in payload.items()
+        if key
+        not in {
+            "resolved_manifest_sha256",
+            "timeline_request_sha256",
+            "timeline_response_sha256",
+        }
+    }
 
 
 def _write_bytes_once(path: Path, payload: bytes) -> str:
@@ -1030,7 +1044,12 @@ def _fixture_evidence(
     if manifest_path.exists():
         current = _read_json(manifest_path)
         if current != manifest:
-            raise ValueError("refusing to overwrite mismatched evidence manifest")
+            if _evidence_without_binding(current) == _evidence_without_binding(manifest):
+                manifest = current
+            elif current.get("timeline_request_sha256"):
+                raise ValueError("refusing to overwrite mismatched evidence manifest")
+            else:
+                _write_json(manifest_path, manifest, overwrite=True)
     else:
         _write_json(manifest_path, manifest, overwrite=False)
     aggregate_path = prepared.path / "evidence" / "manifest.json"
@@ -1063,6 +1082,10 @@ def _fixture_evidence(
         if current_aggregate != aggregate and not (
             _is_evidence_placeholder(current_aggregate, prepared.run_id)
             or _evidence_aggregate_can_extend(current_aggregate, aggregate)
+            or not any(
+                isinstance(row, Mapping) and not row.get("timeline_request_sha256")
+                for row in current_aggregate.get("rows", [])
+            )
         ):
             raise ValueError("refusing to overwrite mismatched evidence manifest")
         if current_aggregate == aggregate:
@@ -1309,8 +1332,14 @@ def _live_evidence(
     )
     manifest_path = evidence_root / "manifest.json"
     if manifest_path.exists():
-        if _read_json(manifest_path) != manifest:
-            raise ValueError("refusing to overwrite mismatched evidence manifest")
+        current_manifest = _read_json(manifest_path)
+        if current_manifest != manifest:
+            if _evidence_without_binding(current_manifest) == _evidence_without_binding(manifest):
+                manifest = current_manifest
+            elif current_manifest.get("timeline_request_sha256"):
+                raise ValueError("refusing to overwrite mismatched evidence manifest")
+            else:
+                _write_json(manifest_path, manifest, overwrite=True)
     else:
         _write_json(manifest_path, manifest, overwrite=False)
     aggregate_path = prepared.path / "evidence" / "manifest.json"
@@ -1332,6 +1361,10 @@ def _live_evidence(
         if current_aggregate != aggregate and not (
             _is_evidence_placeholder(current_aggregate, prepared.run_id)
             or _evidence_aggregate_can_extend(current_aggregate, aggregate)
+            or not any(
+                isinstance(row, Mapping) and not row.get("timeline_request_sha256")
+                for row in current_aggregate.get("rows", [])
+            )
         ):
             raise ValueError("refusing to overwrite mismatched evidence manifest")
         if current_aggregate != aggregate:
@@ -1347,6 +1380,42 @@ def _live_evidence(
         "model_audio_path": audio_path,
         "model_plan": plan,
     }
+
+
+def _bind_evidence_manifest(
+    prepared: PreparedRun,
+    example: Mapping[str, Any],
+    timeline_checkpoint: Mapping[str, Any],
+) -> None:
+    """Bind the immutable evidence selection to its successful timeline call."""
+
+    if timeline_checkpoint.get("status") != "completed":
+        return
+    row_path = prepared.path / "evidence" / "rows" / str(example["query_id"]) / "manifest.json"
+    manifest = _read_json(row_path)
+    binding = {
+        "resolved_manifest_sha256": prepared.resolved_manifest_sha256,
+        "timeline_request_sha256": timeline_checkpoint.get("request_sha256"),
+        "timeline_response_sha256": timeline_checkpoint.get("response_payload_sha256"),
+    }
+    if any(value is None for value in binding.values()):
+        raise ValueError("timeline checkpoint is missing evidence binding hashes")
+    for key, value in binding.items():
+        if key in manifest and manifest[key] != value:
+            raise ValueError("evidence manifest timeline binding does not match")
+    manifest.update(binding)
+    _write_json(row_path, manifest, overwrite=True)
+    aggregate_path = prepared.path / "evidence" / "manifest.json"
+    aggregate = _read_json(aggregate_path)
+    if isinstance(aggregate.get("rows"), list):
+        rows = [
+            manifest if int(row.get("query_id", -1)) == int(example["query_id"]) else row
+            for row in aggregate["rows"]
+        ]
+        aggregate["rows"] = rows
+    else:
+        aggregate = manifest
+    _write_json(aggregate_path, aggregate, overwrite=True)
 
 
 def _fixture_row(
@@ -1468,6 +1537,66 @@ def _latest_attempts(run_path: Path) -> dict[tuple[int, str, str], dict[str, Any
     }
 
 
+def _validate_timeline_artifacts(prepared: PreparedRun) -> None:
+    rows = _read_jsonl(prepared.path / "timeline.jsonl")
+    latest = _latest_attempts(prepared.path)
+    for example in prepared.examples:
+        query_id = int(example["query_id"])
+        completed = [
+            row
+            for row in rows
+            if int(row.get("query_id", -1)) == query_id
+            and row.get("status") == "completed"
+        ]
+        if len(completed) != 1:
+            raise ValueError("freeze requires one successful timeline artifact per row")
+        checkpoint = latest.get((query_id, "timeline", ""))
+        if checkpoint is None or checkpoint.get("status") != "completed":
+            raise ValueError("freeze requires a completed timeline attempt")
+        row = completed[0]
+        if row.get("request_sha256") != checkpoint.get("request_sha256"):
+            raise ValueError("timeline artifact does not match completed attempt")
+        if row.get("response_payload_sha256") != checkpoint.get("response_payload_sha256"):
+            raise ValueError("timeline artifact response hash is invalid")
+        _validate_timeline_response_for_duration(
+            checkpoint.get("response"),
+            float(
+                example.get(
+                    "duration_seconds",
+                    example.get("media", {}).get("duration_seconds", 10.0),
+                )
+            ),
+        )
+
+
+def _request_frame_pairs(request: Mapping[str, Any]) -> tuple[tuple[str, str], ...] | None:
+    """Return declared frame path/hash pairs, or None for a request without frames."""
+
+    payloads: list[Mapping[str, Any]] = [request]
+    model_payload = request.get("model_payload")
+    if isinstance(model_payload, Mapping):
+        payloads.append(model_payload)
+    for payload in payloads:
+        if "frame_paths" not in payload:
+            continue
+        raw_paths = payload.get("frame_paths")
+        raw_provenance = payload.get("frame_provenance")
+        if not isinstance(raw_paths, list) or not isinstance(raw_provenance, list):
+            raise ValueError("frame provenance is incomplete")
+        if len(raw_paths) != len(raw_provenance):
+            raise ValueError("frame provenance count does not match frame paths")
+        pairs: list[tuple[str, str]] = []
+        for path, provenance in zip(raw_paths, raw_provenance, strict=True):
+            if not isinstance(path, str) or not isinstance(provenance, Mapping):
+                raise ValueError("frame provenance is malformed")
+            image_sha = provenance.get("image_sha256")
+            if not isinstance(image_sha, str):
+                raise ValueError("frame provenance image hash is missing")
+            pairs.append((str(Path(path).resolve()), image_sha))
+        return tuple(pairs)
+    return None
+
+
 def _validate_freeze_cross_checks(
     prepared: PreparedRun,
     predictions: Sequence[Mapping[str, Any]],
@@ -1485,6 +1614,20 @@ def _validate_freeze_cross_checks(
         if not row_manifest_path.is_file():
             raise ValueError("freeze evidence manifest is missing")
         evidence = _read_json(row_manifest_path)
+        if evidence.get("resolved_manifest_sha256") != prepared.resolved_manifest_sha256:
+            raise ValueError("freeze evidence manifest binding is invalid")
+        timeline_rows = [
+            row
+            for row in _read_jsonl(prepared.path / "timeline.jsonl")
+            if int(row.get("query_id", -1)) == query_id
+            and row.get("status") == "completed"
+        ]
+        if len(timeline_rows) != 1 or evidence.get("timeline_request_sha256") != timeline_rows[0].get(
+            "request_sha256"
+        ) or evidence.get("timeline_response_sha256") != timeline_rows[0].get(
+            "response_payload_sha256"
+        ):
+            raise ValueError("freeze evidence is not bound to the successful timeline")
         if not prepared.fixture_mode and evidence.get("source_media_sha256") != example["source"]["sha256"]:
             raise ValueError("freeze evidence source hash does not match manifest")
         media_artifact = (
@@ -1502,14 +1645,57 @@ def _validate_freeze_cross_checks(
         if evidence.get("audio_sha256") is not None:
             if not _is_regular_file(audio_path) or _hash_path(audio_path) != evidence["audio_sha256"]:
                 raise ValueError("freeze evidence audio hash does not match artifact")
-        frame_hashes = evidence.get("materialized_frame_hashes", [])
-        for frame in evidence.get("global_frames", []) + evidence.get("local_frames", []):
+        frames = evidence.get("frames")
+        global_count = evidence.get("global_frame_count")
+        local_count = evidence.get("local_frame_count")
+        if (
+            not isinstance(frames, list)
+            or global_count != 8
+            or not isinstance(local_count, int)
+            or isinstance(local_count, bool)
+            or not 0 <= local_count <= 24
+            or len(frames) != global_count + local_count
+        ):
+            raise ValueError("freeze evidence frame counts are invalid")
+        support_ids = {
+            str(span.get("span_id"))
+            for span in evidence.get("support_spans", [])
+            if isinstance(span, Mapping) and isinstance(span.get("span_id"), str)
+        }
+        identities: set[tuple[int, int]] = set()
+        expected_frame_pairs: dict[str, str] = {}
+        for index, frame in enumerate(frames):
+            if not isinstance(frame, Mapping):
+                raise ValueError("freeze evidence frame entry is invalid")
+            identity = frame.get("decoded_identity")
+            if not isinstance(identity, Mapping):
+                raise ValueError("freeze evidence decoded identity is missing")
+            stream_index = identity.get("stream_index")
+            frame_index = identity.get("frame_index")
+            if not isinstance(stream_index, int) or isinstance(stream_index, bool) or not isinstance(
+                frame_index, int
+            ) or isinstance(frame_index, bool):
+                raise ValueError("freeze evidence decoded identity is invalid")
+            decoded = (stream_index, frame_index)
+            if decoded in identities:
+                raise ValueError("freeze evidence reuses a decoded frame identity")
+            identities.add(decoded)
+            expected_slot = "global" if index < global_count else "local"
+            if frame.get("slot_kind") != expected_slot:
+                raise ValueError("freeze evidence slot semantics are invalid")
+            support_id = frame.get("support_span_id")
+            if expected_slot == "global" and support_id is not None:
+                raise ValueError("global evidence frame has a support span")
+            if expected_slot == "local" and support_id not in support_ids:
+                raise ValueError("local evidence frame has an undeclared support span")
             frame_path = Path(str(frame["frame_path"]))
             if not _is_regular_file(frame_path) or _hash_path(frame_path) != frame.get("image_sha256"):
                 raise ValueError("freeze evidence frame hash does not match artifact")
-        if frame_hashes and any(
-            frame.get("image_sha256") not in frame_hashes
-            for frame in evidence.get("global_frames", []) + evidence.get("local_frames", [])
+            expected_frame_pairs[str(frame_path.resolve())] = str(frame.get("image_sha256"))
+        expected_frame_hashes = set(expected_frame_pairs.values())
+        frame_hashes = evidence.get("materialized_frame_hashes")
+        if not isinstance(frame_hashes, list) or any(
+            pair[1] not in frame_hashes for pair in expected_frame_pairs.items()
         ):
             raise ValueError("freeze evidence frame manifest is inconsistent")
         for candidate in prediction["candidates"]:
@@ -1541,6 +1727,31 @@ def _validate_freeze_cross_checks(
                 raise ValueError("freeze candidate lacks a completed terminal attempt")
             if attempt.get("response_payload_sha256") != stored.get("response_sha256"):
                 raise ValueError("freeze candidate response hash does not match attempt")
+            frame_pairs = _request_frame_pairs(request)
+            if frame_pairs is not None and any(
+                image_sha not in expected_frame_hashes
+                or not _is_regular_file(Path(path))
+                or _hash_path(Path(path)) != image_sha
+                for path, image_sha in frame_pairs
+            ):
+                raise ValueError("freeze candidate frame provenance does not match evidence")
+        verifier_attempts = [
+            row
+            for row in _read_jsonl(prepared.path / "attempts.jsonl")
+            if int(row.get("query_id", -1)) == query_id
+            and row.get("stage") == "verifier"
+            and row.get("status") == "completed"
+        ]
+        if len(verifier_attempts) != 1:
+            raise ValueError("freeze verifier attempt is missing or ambiguous")
+        verifier_pairs = _request_frame_pairs(verifier_attempts[0].get("request", {}))
+        if verifier_pairs is None or {
+            image_sha for _, image_sha in verifier_pairs
+        } != expected_frame_hashes or any(
+            not _is_regular_file(Path(path)) or _hash_path(Path(path)) != image_sha
+            for path, image_sha in verifier_pairs
+        ):
+            raise ValueError("freeze verifier frame provenance does not match evidence")
 
 
 def _validate_freeze_inputs(prepared: PreparedRun, payload: Mapping[str, Any]) -> None:
@@ -1558,8 +1769,8 @@ def _validate_freeze_inputs(prepared: PreparedRun, payload: Mapping[str, Any]) -
         raise ValueError("cannot freeze a candidate shortfall")
     terminal_path = prepared.path / "terminal-status.json"
     terminal = _read_json(terminal_path)
-    if terminal.get("labels_loaded") is True:
-        raise ValueError("labels_loaded must remain false")
+    if type(terminal.get("labels_loaded")) is not bool or terminal.get("labels_loaded") is not False:
+        raise ValueError("labels_loaded must be the boolean false")
     if terminal.get("status") in {"partial", "prepared", "in_flight_unknown", "candidate_shortfall"}:
         raise ValueError("cannot freeze an incomplete or unresolved run")
     if not isinstance(predictions, list) or len(predictions) != len(prepared.examples):
@@ -1575,6 +1786,7 @@ def _validate_freeze_inputs(prepared: PreparedRun, payload: Mapping[str, Any]) -
     }
     if len(candidate_rows) != len(expected_candidate_keys) or actual_candidate_keys != expected_candidate_keys:
         raise ValueError("freeze candidates.jsonl does not contain the exact ordered ten passes")
+    _validate_timeline_artifacts(prepared)
     _validate_freeze_cross_checks(prepared, predictions, candidate_rows)
     expected = [(int(row["query_id"]), str(row["video_id"])) for row in prepared.examples]
     actual = [(row.get("query_id"), row.get("video_id")) for row in predictions]
@@ -1643,19 +1855,37 @@ def _validate_answer_response(response: Any) -> None:
 
 
 def _validate_timeline_response(response: Any) -> None:
+    _validate_timeline_response_for_duration(response, None)
+
+
+def _validate_timeline_response_for_duration(
+    response: Any, expected_duration: float | None
+) -> None:
+    """Apply the strict Task 4 response contract before caching a timeline."""
+
+    if not isinstance(response, Mapping):
+        raise ValueError("timeline response schema is invalid")
+    if response.get("schema_version") != SCHEMA_VERSION:
+        raise ValueError("timeline response schema is invalid")
+    duration = response.get("duration_seconds")
     if (
-        not isinstance(response, Mapping)
-        or not isinstance(response.get("events"), list)
-        or (
-            "support_spans" in response
-            and not isinstance(response.get("support_spans"), list)
-        )
+        isinstance(duration, bool)
+        or not isinstance(duration, (int, float))
+        or not math.isfinite(float(duration))
+        or float(duration) < 1.0
+    ):
+        raise ValueError("timeline response duration is invalid")
+    if expected_duration is not None and not math.isclose(
+        float(duration), float(expected_duration), rel_tol=0.0, abs_tol=1e-6
+    ):
+        raise ValueError("timeline response duration does not match source")
+    if not isinstance(response.get("events"), list) or not isinstance(
+        response.get("support_spans"), list
     ):
         raise ValueError("timeline response schema is invalid")
-    for field in ("events", "support_spans"):
-        for item in response.get(field, []):
-            if not isinstance(item, Mapping) or not item:
-                raise ValueError("timeline response schema is invalid")
+    # validate_timeline delegates nested object validation to the shared Task 4
+    # TimelineSpan contract: IDs, finite bounded times, modalities, and text.
+    validate_timeline(response, float(expected_duration or duration), allow_fallback=False)
 
 
 def _validate_verifier_response(response: Any) -> None:
@@ -1671,12 +1901,20 @@ def _record_sort_key(record: Mapping[str, Any]) -> tuple[int, int]:
 def _reconstruct_timeline_artifact(
     path: Path, query_id: int, checkpoint: Mapping[str, Any], timeline: ValidatedTimeline
 ) -> None:
+    if checkpoint.get("status") != "completed":
+        return
     rows = _read_jsonl(path)
     existing = [row for row in rows if int(row.get("query_id", -1)) == query_id]
-    if existing:
-        if any(row.get("request_sha256") != checkpoint.get("request_sha256") for row in existing):
+    completed = [row for row in existing if row.get("status") == "completed"]
+    if completed:
+        if any(
+            row.get("request_sha256") != checkpoint.get("request_sha256")
+            for row in completed
+        ):
             raise ValueError("timeline artifact does not match completed timeline checkpoint")
         return
+    # Failed attempts remain in attempts.jsonl/failures.jsonl, but are not
+    # authoritative timeline artifacts and must not block later recovery.
     _append_jsonl(
         path,
         {
@@ -1754,6 +1992,12 @@ def _run_prepared_locked(
         query_id = int(example["query_id"])
         row_reused = True
         timeline_request = _timeline_request(prepared_run, example)
+        duration = float(
+            example.get(
+                "duration_seconds",
+                example.get("media", {}).get("duration_seconds", 10.0),
+            )
+        )
         timeline_response, timeline_checkpoint, reused = _run_attempt(
             timeline_request,
             transport,
@@ -1761,21 +2005,21 @@ def _run_prepared_locked(
             failures,
             attempts_path=prepared_run.path / "attempts.jsonl",
             failures_path=prepared_run.path / "failures.jsonl",
-            validator=_validate_timeline_response,
+            validator=lambda response: _validate_timeline_response_for_duration(
+                response, duration
+            ),
         )
         row_reused &= reused
-        duration = float(
-            example.get(
-                "duration_seconds",
-                example.get("media", {}).get("duration_seconds", 10.0),
+        if timeline_checkpoint.get("status") == "completed":
+            timeline_payload = timeline_response if isinstance(timeline_response, Mapping) else {}
+            timeline = validate_timeline(timeline_payload, duration, allow_fallback=False)
+        else:
+            timeline = ValidatedTimeline(
+                duration_seconds=duration,
+                events=(),
+                support_spans=(),
+                fallback_reason="invalid_timeline",
             )
-        )
-        timeline_payload = timeline_response if isinstance(timeline_response, Mapping) else {}
-        timeline = validate_timeline(
-            timeline_payload,
-            duration,
-            allow_fallback=True,
-        )
         evidence_builder = _fixture_evidence if prepared_run.fixture_mode else _live_evidence
         evidence_plan, evidence_files = evidence_builder(
             prepared_run, example, timeline
@@ -1786,6 +2030,7 @@ def _run_prepared_locked(
             timeline_checkpoint,
             timeline,
         )
+        _bind_evidence_manifest(prepared_run, example, timeline_checkpoint)
         row = _fixture_row(prepared_run, example, evidence_files)
         request_plan = evidence_files.get("model_plan", evidence_plan)
         candidate_provider = "fixture" if prepared_run.fixture_mode else "gemini"
