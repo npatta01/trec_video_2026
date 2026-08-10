@@ -36,6 +36,7 @@ PASS_IDS = (
     "detail-temporal-route",
     "conservative-synthesis",
 )
+SUPPORT_STATUSES = ("supported", "contradicted", "uncertain")
 FALLBACK_PASS_PRECEDENCE = (
     "global-local-timeline",
     "direct-av",
@@ -78,7 +79,26 @@ _SAFE_PROVENANCE_FIELDS = frozenset(
         "status",
     }
 )
-_SAFE_PROVENANCE_STATUSES = frozenset({"failed", "passed", "timed_out", "unsupported"})
+_SAFE_PROVENANCE_STATUSES = frozenset(
+    {"failed", "passed", "timed_out", "unsupported"}
+)
+_FILE_HASH_CHUNK_BYTES = 1024 * 1024
+_CANDIDATE_LEAKAGE_PATTERNS = (
+    re.compile(r"\breference\s+answer\b", re.IGNORECASE),
+    re.compile(r"\bgold\s+answer\b", re.IGNORECASE),
+    re.compile(r"\bmetric\s*=", re.IGNORECASE),
+    re.compile(r"\bscore\s*=", re.IGNORECASE),
+    re.compile(
+        r"(?:^|[\{\[\(,])\s*[\"']?"
+        r"(?:annotation|label|reference|gold|metric|score)"
+        r"[\"']?\s*[:=]",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:annotation|label)[_\s-]*(?:payload|record|field|data)\b",
+        re.IGNORECASE,
+    ),
+)
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -156,6 +176,44 @@ def _validate_sha256(value: Any, field: str) -> str:
     return value
 
 
+def _require_regular_file(path: Path, field: str) -> Path:
+    path = Path(path)
+    if not path.is_file():
+        raise ValueError(f"{field} must be an existing regular file: {path}")
+    return path
+
+
+def _sha256_file(path: Path, field: str) -> str:
+    path = _require_regular_file(path, field)
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as handle:
+            while chunk := handle.read(_FILE_HASH_CHUNK_BYTES):
+                digest.update(chunk)
+    except OSError as exc:
+        raise ValueError(f"unable to read {field}: {path}") from exc
+    return digest.hexdigest()
+
+
+def _verify_file_hash(path: Path, declared: Any, field: str) -> str:
+    actual = _sha256_file(path, field)
+    if declared is not None:
+        _validate_sha256(declared, field)
+        if declared != actual:
+            raise ValueError(f"{field} does not match current file bytes: {path}")
+    return actual
+
+
+def _validate_candidate_text(text: Any) -> str:
+    _nonempty_text(text, "candidate text")
+    for pattern in _CANDIDATE_LEAKAGE_PATTERNS:
+        if pattern.search(text):
+            raise ValueError(
+                "candidate text contains forbidden label or annotation marker"
+            )
+    return text
+
+
 def _validate_text_tuple(value: Any, field: str) -> tuple[str, ...]:
     values = _as_tuple(value, field)
     for index, item in enumerate(values):
@@ -197,7 +255,10 @@ def _validate_runtime_provenance(
 
 
 def _validate_verifier_contract(
-    ranked_pass_ids: Sequence[str], support_by_pass: Mapping[str, str]
+    ranked_pass_ids: Sequence[str],
+    support_by_pass: Mapping[str, str],
+    selected_pass_id: str | None,
+    status_by_pass: Mapping[str, str] | None,
 ) -> None:
     if (
         len(ranked_pass_ids) != len(PASS_IDS)
@@ -205,6 +266,12 @@ def _validate_verifier_contract(
         or set(ranked_pass_ids) != set(PASS_IDS)
     ):
         raise ValueError("ranked_pass_ids must be a complete permutation")
+    if selected_pass_id != ranked_pass_ids[0]:
+        raise ValueError("selected_pass_id must equal the ranked first pass")
+    if status_by_pass is None or set(status_by_pass) != set(PASS_IDS):
+        raise ValueError("status_by_pass must cover every pass exactly")
+    if any(status not in SUPPORT_STATUSES for status in status_by_pass.values()):
+        raise ValueError("status_by_pass contains an unsupported status")
     if not set(support_by_pass).issubset(set(ranked_pass_ids)):
         raise ValueError("support_by_pass contains an unknown ranked pass")
     for pass_id, support in support_by_pass.items():
@@ -415,6 +482,8 @@ class CandidateRecord:
 class VerifierDecision:
     ranked_pass_ids: tuple[str, ...]
     support_by_pass: Mapping[str, str]
+    selected_pass_id: str | None = None
+    status_by_pass: Mapping[str, str] | None = None
 
     def __post_init__(self) -> None:
         ranked_pass_ids = _validate_text_tuple(self.ranked_pass_ids, "ranked_pass_ids")
@@ -424,17 +493,50 @@ class VerifierDecision:
         for pass_id, support in support_by_pass.items():
             if not isinstance(pass_id, str) or not isinstance(support, str):
                 raise TypeError("support_by_pass must map pass IDs to strings")
-        _validate_verifier_contract(ranked_pass_ids, support_by_pass)
+        selected_pass_id = self.selected_pass_id
+        status_by_pass = self.status_by_pass
+        if status_by_pass is not None:
+            status_by_pass = dict(status_by_pass)
+            if any(
+                not isinstance(pass_id, str) or not isinstance(status, str)
+                for pass_id, status in status_by_pass.items()
+            ):
+                raise TypeError("status_by_pass must map pass IDs to statuses")
+        _validate_verifier_contract(
+            ranked_pass_ids,
+            support_by_pass,
+            selected_pass_id,
+            status_by_pass,
+        )
         object.__setattr__(self, "ranked_pass_ids", ranked_pass_ids)
         object.__setattr__(
             self, "support_by_pass", MappingProxyType(copy.deepcopy(support_by_pass))
         )
+        object.__setattr__(self, "selected_pass_id", selected_pass_id)
+        object.__setattr__(
+            self,
+            "status_by_pass",
+            MappingProxyType(copy.deepcopy(status_by_pass)),
+        )
+
+    @property
+    def support_status_by_pass(self) -> Mapping[str, str]:
+        if self.status_by_pass is None:
+            raise ValueError("status_by_pass is required")
+        return self.status_by_pass
 
     def to_dict(self) -> dict[str, Any]:
-        _validate_verifier_contract(self.ranked_pass_ids, self.support_by_pass)
+        _validate_verifier_contract(
+            self.ranked_pass_ids,
+            self.support_by_pass,
+            self.selected_pass_id,
+            self.status_by_pass,
+        )
         return {
             "ranked_pass_ids": list(self.ranked_pass_ids),
             "support_by_pass": dict(self.support_by_pass),
+            "selected_pass_id": self.selected_pass_id,
+            "status_by_pass": dict(self.support_status_by_pass),
         }
 
 
@@ -799,6 +901,30 @@ def _frame_values(frames: Sequence[Any]) -> tuple[tuple[Path, ...], tuple[float,
     )
 
 
+def _transcript_for_scope(
+    full_transcript: str | None,
+    overlap_transcript: str | None,
+    *,
+    include_overlap: bool,
+) -> str | None:
+    if full_transcript is None:
+        if include_overlap and overlap_transcript is not None:
+            return "Overlapping support-span transcript:\n" + overlap_transcript
+        return None
+    if (
+        include_overlap
+        and overlap_transcript is not None
+        and overlap_transcript != full_transcript
+    ):
+        return (
+            "Full timestamped transcript:\n"
+            + full_transcript
+            + "\n\nOverlapping support-span transcript:\n"
+            + overlap_transcript
+        )
+    return full_transcript
+
+
 def _context(row: Any, timeline: Any, evidence_plan: Any) -> dict[str, Any]:
     if isinstance(row, Mapping):
         audit_label_free_payload(row)
@@ -828,21 +954,29 @@ def _context(row: Any, timeline: Any, evidence_plan: Any) -> dict[str, Any]:
         _row_value(row, "media_path", "media", "video_path"), "media_path"
     )
     audio_path = _as_optional_path(_row_value(row, "audio_path", "audio"), "audio_path")
-    transcript = evidence_plan.transcript.text if evidence_plan.transcript else None
-    frames = tuple(evidence_plan.all_frames)
-    source_sha256 = next(
-        (
-            frame.source_media_sha256
-            for frame in frames
-            if frame.source_media_sha256 is not None
-        ),
-        None,
+    overlap_transcript = (
+        evidence_plan.transcript.text.strip()
+        if evidence_plan.transcript and evidence_plan.transcript.text.strip()
+        else None
     )
+    full_transcript = _row_value(
+        row,
+        "full_transcript",
+        "timestamped_whisper",
+        "whisper_text",
+    )
+    if full_transcript is not None:
+        _nonempty_text(full_transcript, "full_transcript")
+        full_transcript = full_transcript.strip()
+    frames = tuple(evidence_plan.all_frames)
     row_source_sha256 = _row_value(
-        row, "media_sha256", "source_media_sha256", default=source_sha256
+        row, "media_sha256", "source_media_sha256"
     )
     if row_source_sha256 is not None:
         _validate_sha256(row_source_sha256, "media_sha256")
+    row_audio_sha256 = _row_value(row, "audio_sha256", "source_audio_sha256")
+    if row_audio_sha256 is not None:
+        _validate_sha256(row_audio_sha256, "audio_sha256")
     return {
         "run_id": run_id,
         "video_id": video_id,
@@ -851,10 +985,12 @@ def _context(row: Any, timeline: Any, evidence_plan: Any) -> dict[str, Any]:
         "audio_path": audio_path,
         "question_route": route_question(question),
         "timeline_payload": timeline_payload,
-        "transcript": transcript,
+        "full_transcript": full_transcript,
+        "overlap_transcript": overlap_transcript,
         "source_span_ids": _source_span_ids(evidence_plan),
         "all_frames": frames,
         "media_sha256": row_source_sha256,
+        "audio_sha256": row_audio_sha256,
     }
 
 
@@ -900,10 +1036,10 @@ def _scene_boundary_frames(all_frames: Sequence[Any], timeline: Any) -> tuple[An
 
 def _candidate_text(candidate: Any) -> str:
     if isinstance(candidate, CandidateRecord):
-        return candidate.answer
+        return _validate_candidate_text(candidate.answer)
     if not isinstance(candidate, str) or not candidate.strip():
         raise ValueError("candidate text must be a non-empty string")
-    return candidate
+    return _validate_candidate_text(candidate)
 
 
 def _build_answer_request(
@@ -944,6 +1080,7 @@ def _build_answer_request(
         timeline_payload=timeline_payload,
         frame_provenance=_frame_provenance(frames),
         media_bytes_sha256=context["media_sha256"],
+        audio_bytes_sha256=context["audio_sha256"],
         candidate_texts=tuple(candidate_texts),
         attempt=attempt,
         excluded_normalized_answers=tuple(excluded_normalized_answers),
@@ -957,7 +1094,7 @@ _PASS_INSTRUCTIONS = {
     "global-local-timeline": "Use the complete global and local evidence, transcript, and frozen timeline. Answer concisely.",
     "question-specialist": "Use the union evidence and apply the deterministic question specialist route before answering concisely.",
     "local-only": "Use only dense support-span frames and overlapping transcript text. Avoid unsupported specificity.",
-    "audio-first": "Prioritize relevant speech and audio transcript, checking global visual context before answering.",
+    "audio-first": "Prioritize relevant speech. Distinguish the full timestamped transcript from the overlapping support-span transcript and check global visual context.",
     "scene-boundary": "Compare frames around detected event boundaries with global context and answer concisely.",
     "detail-temporal-route": "Use the deterministic route-specific evidence view and answer only what it supports.",
     "conservative-synthesis": "Synthesize only from the supplied candidate texts and union evidence; add no unsupported detail.",
@@ -986,6 +1123,7 @@ class AnswerRequest:
     timeline_payload: Mapping[str, Any] | None = None
     frame_provenance: tuple[Mapping[str, Any], ...] = ()
     media_bytes_sha256: str | None = None
+    audio_bytes_sha256: str | None = None
     candidate_texts: tuple[str, ...] = ()
     candidate_pass_ids: tuple[str, ...] = ()
     attempt: int | None = None
@@ -1024,7 +1162,7 @@ class AnswerRequest:
         source_span_ids = _validate_text_tuple(self.source_span_ids, "source_span_ids")
         if len(set(source_span_ids)) != len(source_span_ids):
             raise ValueError("source_span_ids must be unique")
-        candidate_texts = _validate_text_tuple(self.candidate_texts, "candidate_texts")
+        candidate_texts = tuple(_candidate_text(text) for text in self.candidate_texts)
         if len(candidate_texts) > 9:
             raise ValueError(
                 "conservative-synthesis accepts at most nine candidate texts"
@@ -1040,6 +1178,8 @@ class AnswerRequest:
             raise ValueError("excluded_normalized_answers must be sorted and unique")
         if self.media_bytes_sha256 is not None:
             _validate_sha256(self.media_bytes_sha256, "media_bytes_sha256")
+        if self.audio_bytes_sha256 is not None:
+            _validate_sha256(self.audio_bytes_sha256, "audio_bytes_sha256")
         if self.timeline_payload is not None:
             audit_label_free_payload(self.timeline_payload)
         provenance = tuple(_freeze(item) for item in self.frame_provenance)
@@ -1056,8 +1196,17 @@ class AnswerRequest:
             object.__setattr__(self, "media_path", Path(self.media_path))
         if self.audio_path is not None:
             object.__setattr__(self, "audio_path", Path(self.audio_path))
+        if self.pass_id in {"direct-av", "direct-av-alternate"}:
+            if self.media_path is None:
+                raise ValueError("direct AV passes require native media")
+        if self.pass_id == "audio-first" and self.audio_path is None:
+            raise ValueError("audio-first requires a separate audio evidence file")
+        if len(provenance) != len(paths):
+            raise ValueError("frame_provenance and frame_paths must have equal length")
+        self._model_visible_file_records()
 
     def to_model_payload(self) -> dict[str, Any]:
+        self._model_visible_file_records()
         payload: dict[str, Any] = {
             "run_id": self.run_id,
             "condition_id": self.condition_id,
@@ -1085,7 +1234,7 @@ class AnswerRequest:
         if self.candidate_texts:
             payload["candidate_texts"] = list(self.candidate_texts)
         if self.excluded_normalized_answers:
-            payload["excluded_normalized_answers"] = list(
+            payload["excluded_normalized_texts"] = list(
                 self.excluded_normalized_answers
             )
         audit_label_free_payload(payload)
@@ -1093,18 +1242,62 @@ class AnswerRequest:
 
     @property
     def request_sha256(self) -> str:
+        self._model_visible_file_records()
         return canonical_sha256(self.to_model_payload())
 
     @property
     def model_visible_bytes_sha256(self) -> str:
-        material = {
-            "payload": self.to_model_payload(),
-            "media_bytes_sha256": self.media_bytes_sha256,
-            "frame_image_sha256": [
-                item.get("image_sha256") for item in self.frame_provenance
-            ],
-        }
-        return canonical_sha256(material)
+        return canonical_sha256(
+            {
+                "payload": self.to_model_payload(),
+                "files": self._model_visible_file_records(),
+            }
+        )
+
+    def _model_visible_file_records(self) -> list[dict[str, str]]:
+        records: list[dict[str, str]] = []
+        if self.media_path is not None:
+            records.append(
+                {
+                    "role": "native-media",
+                    "path": str(self.media_path.resolve()),
+                    "sha256": _verify_file_hash(
+                        self.media_path,
+                        self.media_bytes_sha256,
+                        "media_sha256",
+                    ),
+                }
+            )
+        if self.audio_path is not None:
+            records.append(
+                {
+                    "role": "audio",
+                    "path": str(self.audio_path.resolve()),
+                    "sha256": _verify_file_hash(
+                        self.audio_path,
+                        self.audio_bytes_sha256,
+                        "audio_sha256",
+                    ),
+                }
+            )
+        for index, (path, provenance) in enumerate(
+            zip(self.frame_paths, self.frame_provenance, strict=True)
+        ):
+            declared_path = provenance.get("frame_path")
+            if declared_path is not None and Path(declared_path).resolve() != path.resolve():
+                raise ValueError("frame provenance path does not match frame path")
+            records.append(
+                {
+                    "role": f"frame-{index}",
+                    "path": str(path.resolve()),
+                    "sha256": _verify_file_hash(
+                        path,
+                        provenance.get("image_sha256"),
+                        "image_sha256",
+                    ),
+                }
+            )
+        return records
 
     @property
     def model_visible_byte_sha256(self) -> str:
@@ -1138,12 +1331,11 @@ def build_answer_requests(
     local_frames = tuple(evidence_plan.local_frames)
     all_frames = tuple(evidence_plan.all_frames)
     route = context["question_route"]
-    route_frames = (
-        all_frames
-        if route in {"count", "temporal"}
-        else local_frames or global_frames
-        if route == "ocr-detail"
-        else all_frames
+    route_frames = all_frames
+    full_transcript = context["full_transcript"]
+    overlap_transcript = context["overlap_transcript"]
+    union_transcript = _transcript_for_scope(
+        full_transcript, overlap_transcript, include_overlap=True
     )
     boundary_frames = _scene_boundary_frames(all_frames, timeline)
     views: dict[
@@ -1159,62 +1351,63 @@ def build_answer_requests(
         ),
         "global-transcript": (
             global_frames,
-            context["transcript"],
+            full_transcript,
             None,
             _PASS_INSTRUCTIONS["global-transcript"],
             None,
         ),
         "global-local-timeline": (
             all_frames,
-            context["transcript"],
+            full_transcript,
             context["timeline_payload"],
             _PASS_INSTRUCTIONS["global-local-timeline"],
             None,
         ),
         "question-specialist": (
             all_frames,
-            context["transcript"],
+            full_transcript,
             context["timeline_payload"],
             f"{_PASS_INSTRUCTIONS['question-specialist']} Route: {route}.",
             None,
         ),
         "local-only": (
             local_frames,
-            context["transcript"],
+            overlap_transcript,
             None,
             _PASS_INSTRUCTIONS["local-only"],
             None,
         ),
         "audio-first": (
             global_frames,
-            context["transcript"],
+            union_transcript,
             None,
             _PASS_INSTRUCTIONS["audio-first"],
             "audio-on",
         ),
         "scene-boundary": (
             boundary_frames,
-            context["transcript"],
+            full_transcript,
             None,
             _PASS_INSTRUCTIONS["scene-boundary"],
             None,
         ),
         "detail-temporal-route": (
             route_frames,
-            context["transcript"],
-            context["timeline_payload"] if route in {"count", "temporal"} else None,
+            full_transcript,
+            context["timeline_payload"],
             f"{_PASS_INSTRUCTIONS['detail-temporal-route']} Route: {route}.",
             None,
         ),
         "conservative-synthesis": (
             all_frames,
-            context["transcript"],
+            union_transcript,
             context["timeline_payload"],
             _PASS_INSTRUCTIONS["conservative-synthesis"],
             None,
         ),
     }
-    candidate_texts = tuple(_candidate_text(candidate) for candidate in candidates[:9])
+    validated_candidate_texts = tuple(_candidate_text(candidate) for candidate in candidates)
+    candidate_texts = validated_candidate_texts[:9]
     requests: dict[str, AnswerRequest] = {}
     for pass_id in PASS_IDS:
         frames, transcript, timeline_payload, instruction, audio_mode = views[pass_id]
@@ -1245,6 +1438,20 @@ class VerifierCandidate:
     confidence: float
     source_request_sha256: str
 
+    def __post_init__(self) -> None:
+        _nonempty_text(self.public_id, "public_id")
+        if self.pass_id not in PASS_IDS:
+            raise ValueError("verifier candidate pass_id is unknown")
+        _validate_candidate_text(self.candidate_text)
+        support_span_ids = _validate_text_tuple(
+            self.support_span_ids, "support_span_ids"
+        )
+        if len(set(support_span_ids)) != len(support_span_ids):
+            raise ValueError("support_span_ids must be unique")
+        _finite_number(self.confidence, "confidence")
+        _validate_sha256(self.source_request_sha256, "source_request_sha256")
+        object.__setattr__(self, "support_span_ids", support_span_ids)
+
     @property
     def text(self) -> str:
         return self.candidate_text
@@ -1258,6 +1465,7 @@ class VerifierCandidate:
             "public_id": self.public_id,
             "candidate_text": self.candidate_text,
             "support_span_ids": list(self.support_span_ids),
+            "source_request_sha256": self.source_request_sha256,
         }
 
 
@@ -1339,8 +1547,10 @@ class VerifierRequest:
         object.__setattr__(self, "frame_timestamps", timestamps)
         object.__setattr__(self, "source_span_ids", source_span_ids)
         object.__setattr__(self, "frame_provenance", provenance)
+        self._model_visible_file_records()
 
     def to_model_payload(self) -> dict[str, Any]:
+        self._model_visible_file_records()
         payload = {
             "run_id": self.run_id,
             "video_id": self.video_id,
@@ -1359,6 +1569,7 @@ class VerifierRequest:
 
     @property
     def request_sha256(self) -> str:
+        self._model_visible_file_records()
         return canonical_sha256(self.to_model_payload())
 
     @property
@@ -1366,12 +1577,30 @@ class VerifierRequest:
         return canonical_sha256(
             {
                 "payload": self.to_model_payload(),
-                "media_bytes_sha256": self.media_bytes_sha256,
-                "frame_image_sha256": [
-                    item.get("image_sha256") for item in self.frame_provenance
-                ],
+                "files": self._model_visible_file_records(),
             }
         )
+
+    def _model_visible_file_records(self) -> list[dict[str, str]]:
+        records: list[dict[str, str]] = []
+        for index, (path, provenance) in enumerate(
+            zip(self.frame_paths, self.frame_provenance, strict=True)
+        ):
+            declared_path = provenance.get("frame_path")
+            if declared_path is not None and Path(declared_path).resolve() != path.resolve():
+                raise ValueError("frame provenance path does not match frame path")
+            records.append(
+                {
+                    "role": f"frame-{index}",
+                    "path": str(path.resolve()),
+                    "sha256": _verify_file_hash(
+                        path,
+                        provenance.get("image_sha256"),
+                        "image_sha256",
+                    ),
+                }
+            )
+        return records
 
     def private_pass_id(self, public_id: str) -> str:
         for candidate in self.candidates:
@@ -1383,6 +1612,9 @@ class VerifierRequest:
         self,
         ranked_public_ids: Sequence[str],
         support_by_public_id: Mapping[str, str] | None = None,
+        *,
+        status_by_public_id: Mapping[str, str] | None = None,
+        selected_public_id: str | None = None,
     ) -> VerifierDecision:
         ranked_public_ids = tuple(ranked_public_ids)
         expected = {candidate.public_id for candidate in self.candidates}
@@ -1397,11 +1629,24 @@ class VerifierRequest:
         )
         if not set(support_by_public_id).issubset(expected):
             raise ValueError("support_by_public_id contains an unknown candidate")
+        if status_by_public_id is None or set(status_by_public_id) != expected:
+            raise ValueError("status_by_public_id must cover every public ID exactly")
+        if any(status not in SUPPORT_STATUSES for status in status_by_public_id.values()):
+            raise ValueError("status_by_public_id contains an unsupported status")
+        if selected_public_id is None:
+            raise ValueError("selected public ID is required")
+        if selected_public_id != ranked_public_ids[0]:
+            raise ValueError("selected public ID must equal the ranked first candidate")
         return VerifierDecision(
             tuple(self.private_pass_id(public_id) for public_id in ranked_public_ids),
             {
                 self.private_pass_id(public_id): support
                 for public_id, support in support_by_public_id.items()
+            },
+            selected_pass_id=self.private_pass_id(selected_public_id),
+            status_by_pass={
+                self.private_pass_id(public_id): status
+                for public_id, status in status_by_public_id.items()
             },
         )
 
@@ -1424,18 +1669,27 @@ def build_verifier_request(
         raise TypeError("verifier candidates must be CandidateRecord values")
     if {candidate.pass_id for candidate in candidate_rows} != set(PASS_IDS):
         raise ValueError("verifier candidates must contain the exact ten passes")
+    candidates_by_pass = {candidate.pass_id: candidate for candidate in candidate_rows}
+    ordered_candidates = tuple(candidates_by_pass[pass_id] for pass_id in PASS_IDS)
+    normalized_answers = set()
+    for candidate in ordered_candidates:
+        _validate_candidate_text(candidate.answer)
+        normalized = _normalized_answer(candidate.answer)
+        if normalized in normalized_answers:
+            raise ValueError("candidates contain duplicate normalized answers")
+        normalized_answers.add(normalized)
     verifier_candidates = [
         VerifierCandidate(
             public_id=public_candidate_id(
                 context["run_id"], context["video_id"], candidate.pass_id, seed
             ),
-            candidate_text=candidate.answer,
+            candidate_text=_validate_candidate_text(candidate.answer),
             pass_id=candidate.pass_id,
             support_span_ids=candidate.support_span_ids,
             confidence=candidate.confidence,
             source_request_sha256=candidate.request_sha256,
         )
-        for candidate in candidate_rows
+        for candidate in ordered_candidates
     ]
     random.Random(seed).shuffle(verifier_candidates)
     frame_paths, frame_timestamps = _frame_values(context["all_frames"])
@@ -1445,13 +1699,16 @@ def build_verifier_request(
         question=context["question"],
         frame_paths=frame_paths,
         frame_timestamps=frame_timestamps,
-        transcript=context["transcript"],
+        transcript=_transcript_for_scope(
+            context["full_transcript"],
+            context["overlap_transcript"],
+            include_overlap=True,
+        ),
         timeline_payload=context["timeline_payload"],
         candidates=tuple(verifier_candidates),
         seed=seed,
         source_span_ids=context["source_span_ids"],
         frame_provenance=_frame_provenance(context["all_frames"]),
-        media_bytes_sha256=context["media_sha256"],
     )
 
 
@@ -1482,14 +1739,21 @@ def build_backfill_request(
     )
     excluded = tuple(
         sorted(
-            {_normalized_answer(_candidate_text(candidate)) for candidate in candidates}
+            {
+                _normalized_answer(_candidate_text(candidate))
+                for candidate in candidates
+            }
         )
     )
     return _build_answer_request(
         context,
         pass_id=f"backfill-{attempt}",
         frames=tuple(evidence_plan.all_frames),
-        transcript=context["transcript"],
+        transcript=_transcript_for_scope(
+            context["full_transcript"],
+            context["overlap_transcript"],
+            include_overlap=True,
+        ),
         timeline_payload=None,
         instruction=(
             "Generate one additional concise response independently supported by the union evidence. "
@@ -1506,6 +1770,7 @@ __all__ = [
     "MODEL_ID",
     "PASS_IDS",
     "SCHEMA_VERSION",
+    "SUPPORT_STATUSES",
     "AnswerRequest",
     "CandidateRecord",
     "RankedPrediction",

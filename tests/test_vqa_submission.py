@@ -90,13 +90,34 @@ def _ranked_payload() -> dict[str, object]:
     return {"run_id": "r1", "row_count": 1, "predictions": []}
 
 
-def _row(*, question: str = "How many people are visible?") -> dict[str, object]:
+def _fixture_files(tmp_path: Path) -> tuple[Path, Path, tuple[Path, ...]]:
+    media_path = tmp_path / "video.mp4"
+    audio_path = tmp_path / "audio.wav"
+    media_path.write_bytes(b"native video bytes")
+    audio_path.write_bytes(b"separate audio bytes")
+    frame_dir = tmp_path / "frames"
+    frame_dir.mkdir(exist_ok=True)
+    frame_paths = tuple(
+        frame_dir / f"frame-{index:02d}.jpg" for index in range(32)
+    )
+    for index, frame_path in enumerate(frame_paths):
+        frame_path.write_bytes(f"frame bytes {index}".encode())
+    return media_path, audio_path, frame_paths
+
+
+def _row(
+    tmp_path: Path, *, question: str = "How many people are visible?"
+) -> dict[str, object]:
+    media_path, audio_path, _frame_paths = _fixture_files(tmp_path)
     return {
         "run_id": "run-1",
         "video_id": "video-1",
         "question": question,
-        "media_path": Path("/data/video.mp4"),
-        "audio_path": Path("/data/video.wav"),
+        "media_path": media_path,
+        "audio_path": audio_path,
+        "media_sha256": hashlib.sha256(media_path.read_bytes()).hexdigest(),
+        "audio_sha256": hashlib.sha256(audio_path.read_bytes()).hexdigest(),
+        "full_transcript": "[00:00.00] The full accepted transcript.",
     }
 
 
@@ -118,11 +139,14 @@ def _timeline() -> ValidatedTimeline:
     )
 
 
-def _evidence_plan() -> EvidencePlan:
+def _evidence_plan(tmp_path: Path) -> EvidencePlan:
     timeline = _timeline()
+    media_path, _audio_path, frame_paths = _fixture_files(tmp_path)
+    source_sha256 = hashlib.sha256(media_path.read_bytes()).hexdigest()
     frames = []
     for index in range(32):
         is_local = index >= 8
+        image_sha256 = hashlib.sha256(frame_paths[index].read_bytes()).hexdigest()
         frames.append(
             FrameSelection(
                 requested_time_seconds=round(0.5 * index, 3),
@@ -130,9 +154,9 @@ def _evidence_plan() -> EvidencePlan:
                 stream_index=0,
                 frame_index=index,
                 time_base="1/30",
-                source_media_sha256="a" * 64,
-                image_sha256=("b" * 62) + format(index, "02x"),
-                frame_path=Path(f"/data/frames/frame-{index:02d}.jpg"),
+                source_media_sha256=source_sha256,
+                image_sha256=image_sha256,
+                frame_path=frame_paths[index],
                 slot_kind="local" if is_local else "global",
                 support_span_id=(
                     timeline.support_spans[(index - 8) % 3].span_id
@@ -157,6 +181,15 @@ def _nine_candidates() -> tuple[CandidateRecord, ...]:
     return _ten_candidates()[:9]
 
 
+def _decision(ranked_pass_ids: tuple[str, ...] = PASS_IDS) -> VerifierDecision:
+    return VerifierDecision(
+        ranked_pass_ids,
+        {"direct-av": "span-1"},
+        selected_pass_id=ranked_pass_ids[0],
+        status_by_pass={pass_id: "supported" for pass_id in PASS_IDS},
+    )
+
+
 def test_label_free_audit_rejects_nested_reference_paths() -> None:
     payload = {
         "request": {
@@ -169,26 +202,33 @@ def test_label_free_audit_rejects_nested_reference_paths() -> None:
         audit_label_free_payload(payload)
 
 
-def test_answer_matrix_contains_exact_ten_passes() -> None:
-    requests = build_answer_requests(_row(), _timeline(), _evidence_plan())
+def test_pass_matrix_contains_exact_ten_passes(tmp_path: Path) -> None:
+    requests = build_answer_requests(
+        _row(tmp_path), _timeline(), _evidence_plan(tmp_path)
+    )
 
     assert tuple(requests) == PASS_IDS
-    assert requests["direct-av"].media_path == Path("/data/video.mp4")
+    assert requests["direct-av"].media_path is not None
+    assert requests["direct-av"].media_path.is_file()
     assert len(requests["global-local-timeline"].frame_paths) == 32
     assert requests["local-only"].frame_paths == tuple(
-        frame.frame_path for frame in _evidence_plan().local_frames
+        frame.frame_path for frame in _evidence_plan(tmp_path).local_frames
     )
 
 
-def test_no_answer_request_contains_reference_or_scores() -> None:
+def test_payload_has_no_forbidden_fields(tmp_path: Path) -> None:
     for request in build_answer_requests(
-        _row(), _timeline(), _evidence_plan()
+        _row(tmp_path), _timeline(), _evidence_plan(tmp_path)
     ).values():
         audit_label_free_payload(request.to_model_payload())
 
 
-def test_answer_requests_hash_model_visible_provenance_and_span_ids() -> None:
-    request = build_answer_requests(_row(), _timeline(), _evidence_plan())[
+def test_request_hash_has_model_visible_provenance_and_span_ids(
+    tmp_path: Path,
+) -> None:
+    request = build_answer_requests(
+        _row(tmp_path), _timeline(), _evidence_plan(tmp_path)
+    )[
         "global-local-timeline"
     ]
 
@@ -198,14 +238,19 @@ def test_answer_requests_hash_model_visible_provenance_and_span_ids() -> None:
     assert len(request.frame_provenance) == 32
 
 
-def test_native_media_is_limited_to_direct_av_views() -> None:
-    requests = build_answer_requests(_row(), _timeline(), _evidence_plan())
+def test_native_media_is_limited_to_direct_av_views(tmp_path: Path) -> None:
+    requests = build_answer_requests(
+        _row(tmp_path), _timeline(), _evidence_plan(tmp_path)
+    )
 
-    assert requests["direct-av"].media_path == Path("/data/video.mp4")
-    assert requests["direct-av-alternate"].media_path == Path("/data/video.mp4")
+    assert requests["direct-av"].media_path is not None
+    assert requests["direct-av"].media_path.is_file()
+    assert requests["direct-av-alternate"].media_path is not None
+    assert requests["direct-av-alternate"].media_path.is_file()
     assert requests["global-transcript"].media_path is None
     assert requests["audio-first"].media_path is None
-    assert requests["audio-first"].audio_path == Path("/data/video.wav")
+    assert requests["audio-first"].audio_path is not None
+    assert requests["audio-first"].audio_path.is_file()
 
 
 @pytest.mark.parametrize(
@@ -226,11 +271,13 @@ def test_question_routing_uses_deterministic_label_free_rules(
     assert route_question(question) == route_question(question)
 
 
-def test_conservative_synthesis_sees_only_first_nine_candidates() -> None:
+def test_conservative_synthesis_sees_only_first_nine_candidates(
+    tmp_path: Path,
+) -> None:
     requests = build_answer_requests(
-        _row(),
+        _row(tmp_path),
         _timeline(),
-        _evidence_plan(),
+        _evidence_plan(tmp_path),
         candidates=_nine_candidates(),
     )
     synthesis = requests["conservative-synthesis"]
@@ -242,9 +289,15 @@ def test_conservative_synthesis_sees_only_first_nine_candidates() -> None:
     audit_label_free_payload(synthesis.to_model_payload())
 
 
-def test_verifier_randomization_is_seeded_and_hides_pass_names() -> None:
+def test_verifier_randomization_is_seeded_and_hides_pass_names(
+    tmp_path: Path,
+) -> None:
     request = build_verifier_request(
-        _row(), _timeline(), _evidence_plan(), _ten_candidates(), seed=20260810
+        _row(tmp_path),
+        _timeline(),
+        _evidence_plan(tmp_path),
+        _ten_candidates(),
+        seed=20260810,
     )
 
     assert [item.public_id for item in request.candidates] != list(PASS_IDS)
@@ -252,18 +305,32 @@ def test_verifier_randomization_is_seeded_and_hides_pass_names() -> None:
     assert (
         request.candidates
         == build_verifier_request(
-            _row(), _timeline(), _evidence_plan(), _ten_candidates(), seed=20260810
+            _row(tmp_path),
+            _timeline(),
+            _evidence_plan(tmp_path),
+            _ten_candidates(),
+            seed=20260810,
         ).candidates
     )
 
 
-def test_verifier_maps_only_a_valid_complete_public_permutation() -> None:
+def test_verifier_maps_only_a_valid_complete_public_permutation(
+    tmp_path: Path,
+) -> None:
     request = build_verifier_request(
-        _row(), _timeline(), _evidence_plan(), _ten_candidates(), seed=20260810
+        _row(tmp_path),
+        _timeline(),
+        _evidence_plan(tmp_path),
+        _ten_candidates(),
+        seed=20260810,
     )
     public_ids = tuple(item.public_id for item in request.candidates)
 
-    decision = request.map_public_ranking(public_ids)
+    decision = request.map_public_ranking(
+        public_ids,
+        status_by_public_id={public_id: "uncertain" for public_id in public_ids},
+        selected_public_id=public_ids[0],
+    )
 
     assert set(decision.ranked_pass_ids) == set(PASS_IDS)
     assert (
@@ -274,9 +341,9 @@ def test_verifier_maps_only_a_valid_complete_public_permutation() -> None:
         request.map_public_ranking(public_ids[:-1])
 
 
-def test_backfill_excludes_existing_normalized_answers() -> None:
+def test_backfill_excludes_existing_normalized_answers(tmp_path: Path) -> None:
     request = build_backfill_request(
-        _row(), _evidence_plan(), _nine_candidates(), attempt=1
+        _row(tmp_path), _evidence_plan(tmp_path), _nine_candidates(), attempt=1
     )
 
     assert request.attempt == 1
@@ -286,15 +353,250 @@ def test_backfill_excludes_existing_normalized_answers() -> None:
     assert request.candidate_texts == ()
 
 
-def test_backfill_is_bounded_to_two_attempts() -> None:
+def test_backfill_is_bounded_to_two_attempts(tmp_path: Path) -> None:
     assert (
         build_backfill_request(
-            _row(), _evidence_plan(), _nine_candidates(), attempt=2
+            _row(tmp_path), _evidence_plan(tmp_path), _nine_candidates(), attempt=2
         ).attempt
         == 2
     )
     with pytest.raises(ValueError, match="attempt"):
-        build_backfill_request(_row(), _evidence_plan(), _nine_candidates(), attempt=3)
+        build_backfill_request(
+            _row(tmp_path), _evidence_plan(tmp_path), _nine_candidates(), attempt=3
+        )
+
+
+@pytest.mark.parametrize("attempt", [1, 2])
+def test_backfill_payload_and_hashes(
+    tmp_path: Path, attempt: int
+) -> None:
+    request = build_backfill_request(
+        _row(tmp_path), _evidence_plan(tmp_path), _nine_candidates(), attempt=attempt
+    )
+
+    payload = request.to_model_payload()
+
+    assert "excluded_normalized_texts" in payload
+    assert "excluded_normalized_answers" not in payload
+    audit_label_free_payload(payload)
+    assert len(request.request_sha256) == 64
+    assert len(request.model_visible_bytes_sha256) == 64
+
+
+def test_model_visible_hash_revalidates_native_audio_and_frame_bytes(
+    tmp_path: Path,
+) -> None:
+    row = _row(tmp_path)
+    plan = _evidence_plan(tmp_path)
+    requests = build_answer_requests(row, _timeline(), plan)
+    direct = requests["direct-av"]
+    frame_request = requests["global-local-timeline"]
+    original_media = Path(row["media_path"]).read_bytes()
+    original_audio = Path(row["audio_path"]).read_bytes()
+    original_frame = frame_request.frame_paths[0].read_bytes()
+
+    assert direct.model_visible_bytes_sha256
+    Path(row["media_path"]).write_bytes(b"replaced media bytes")
+    with pytest.raises(ValueError, match="media_sha256"):
+        direct.model_visible_bytes_sha256
+    Path(row["media_path"]).write_bytes(original_media)
+    Path(row["audio_path"]).write_bytes(b"replaced audio bytes")
+    with pytest.raises(ValueError, match="audio_sha256"):
+        direct.model_visible_bytes_sha256
+    Path(row["audio_path"]).write_bytes(original_audio)
+    Path(frame_request.frame_paths[0]).write_bytes(b"replaced frame bytes")
+    with pytest.raises(ValueError, match="image_sha256"):
+        frame_request.model_visible_bytes_sha256
+    Path(frame_request.frame_paths[0]).write_bytes(original_frame)
+
+
+def test_frame_hashes_are_revalidated_for_verifier(tmp_path: Path) -> None:
+    row = _row(tmp_path)
+    plan = _evidence_plan(tmp_path)
+    request = build_verifier_request(
+        row, _timeline(), plan, _ten_candidates(), seed=20260810
+    )
+    assert request.model_visible_bytes_sha256
+
+    frame_path = request.frame_paths[0]
+    original = frame_path.read_bytes()
+    frame_path.write_bytes(b"replaced verifier frame bytes")
+    with pytest.raises(ValueError, match="image_sha256"):
+        request.model_visible_bytes_sha256
+    frame_path.write_bytes(original)
+
+
+def test_verifier_rejects_frame_provenance_path_mismatch(tmp_path: Path) -> None:
+    row = _row(tmp_path)
+    plan = _evidence_plan(tmp_path)
+    request = build_verifier_request(
+        row, _timeline(), plan, _ten_candidates(), seed=20260810
+    )
+    provenance = list(request.frame_provenance)
+    provenance[0] = {
+        **provenance[0],
+        "frame_path": str(request.frame_paths[1]),
+    }
+
+    with pytest.raises(ValueError, match="provenance path"):
+        dataclasses.replace(request, frame_provenance=tuple(provenance))
+
+
+def test_requests_fail_closed_for_missing_media_audio_and_frames(
+    tmp_path: Path,
+) -> None:
+    row = _row(tmp_path)
+    plan = _evidence_plan(tmp_path)
+    Path(row["media_path"]).unlink()
+    with pytest.raises(ValueError, match="regular file"):
+        build_answer_requests(row, _timeline(), plan)
+
+    row = _row(tmp_path)
+    plan = _evidence_plan(tmp_path)
+    row["audio_path"] = None
+    row.pop("audio_sha256")
+    with pytest.raises(ValueError, match="audio"):
+        build_answer_requests(row, _timeline(), plan)
+
+    row = _row(tmp_path)
+    plan = _evidence_plan(tmp_path)
+    Path(plan.global_frames[0].frame_path).unlink()
+    with pytest.raises(ValueError, match="regular file"):
+        build_answer_requests(row, _timeline(), plan)
+
+    row = _row(tmp_path)
+    plan = _evidence_plan(tmp_path)
+    Path(plan.global_frames[0].frame_path).unlink()
+    with pytest.raises(ValueError, match="regular file"):
+        build_verifier_request(row, _timeline(), plan, _ten_candidates(), seed=1)
+
+
+def test_ocr_detail_route_keeps_global_frames_and_adds_local_frames(
+    tmp_path: Path,
+) -> None:
+    requests = build_answer_requests(
+        _row(tmp_path, question="What text is written on the sign?"),
+        _timeline(),
+        _evidence_plan(tmp_path),
+    )
+
+    detail_paths = requests["detail-temporal-route"].frame_paths
+    global_paths = tuple(frame.frame_path for frame in _evidence_plan(tmp_path).global_frames)
+    local_paths = tuple(frame.frame_path for frame in _evidence_plan(tmp_path).local_frames)
+    assert detail_paths[:8] == global_paths
+    assert set(local_paths).issubset(detail_paths)
+
+
+def test_full_and_overlap_transcripts_use_their_declared_scopes(
+    tmp_path: Path,
+) -> None:
+    row = _row(tmp_path)
+    plan = _evidence_plan(tmp_path)
+    requests = build_answer_requests(row, _timeline(), plan)
+
+    assert requests["global-transcript"].transcript == row["full_transcript"]
+    assert requests["global-local-timeline"].transcript == row["full_transcript"]
+    assert requests["local-only"].transcript == plan.transcript.text
+    assert "Full timestamped transcript:" in requests["audio-first"].transcript
+    assert "Overlapping support-span transcript:" in requests["audio-first"].transcript
+
+
+@pytest.mark.parametrize(
+    "malicious",
+    [
+        "reference answer: cat",
+        "gold answer: cat",
+        "metric=0.9",
+        "score=0.9",
+        '{"annotation": "cat"}',
+        '{"label": "cat"}',
+        '{"annotation_payload": "cat"}',
+    ],
+)
+def test_candidate_payload_markers_are_rejected(
+    tmp_path: Path, malicious: str
+) -> None:
+    bad = _candidate("direct-av", malicious)
+    candidates = (_ten_candidates()[1:])
+    candidates = (bad,) + candidates
+    row = _row(tmp_path)
+    plan = _evidence_plan(tmp_path)
+
+    with pytest.raises(ValueError, match="candidate"):
+        build_answer_requests(row, _timeline(), plan, candidates=(bad,))
+    with pytest.raises(ValueError, match="candidate"):
+        build_backfill_request(row, plan, (bad,), attempt=1)
+    with pytest.raises(ValueError, match="candidate"):
+        build_verifier_request(row, _timeline(), plan, candidates, seed=1)
+
+
+def test_legitimate_numeric_wording_is_allowed_for_candidates(tmp_path: Path) -> None:
+    candidate = _candidate("direct-av", "the score is 3-2")
+    row = _row(tmp_path)
+    plan = _evidence_plan(tmp_path)
+    build_answer_requests(row, _timeline(), plan, candidates=(candidate,))
+    build_backfill_request(row, plan, (candidate,), attempt=1)
+
+
+def test_verifier_contract_requires_rank_one_selection_and_all_statuses(
+    tmp_path: Path,
+) -> None:
+    request = build_verifier_request(
+        _row(tmp_path), _timeline(), _evidence_plan(tmp_path), _ten_candidates(), seed=1
+    )
+    public_ids = tuple(item.public_id for item in request.candidates)
+    statuses = {public_id: "supported" for public_id in public_ids}
+
+    decision = request.map_public_ranking(
+        public_ids,
+        status_by_public_id=statuses,
+        selected_public_id=public_ids[0],
+    )
+    assert decision.selected_pass_id == decision.ranked_pass_ids[0]
+    assert set(decision.status_by_pass) == set(PASS_IDS)
+    assert set(decision.status_by_pass.values()) == {"supported"}
+
+    with pytest.raises(ValueError, match="status"):
+        request.map_public_ranking(
+            public_ids,
+            status_by_public_id={public_ids[0]: "supported"},
+            selected_public_id=public_ids[0],
+        )
+    with pytest.raises(ValueError, match="ranked first"):
+        request.map_public_ranking(
+            public_ids,
+            status_by_public_id=statuses,
+            selected_public_id=public_ids[1],
+        )
+
+
+def test_verifier_seeded_order_is_canonical_before_shuffle(tmp_path: Path) -> None:
+    row = _row(tmp_path)
+    plan = _evidence_plan(tmp_path)
+    canonical = build_verifier_request(
+        row, _timeline(), plan, _ten_candidates(), seed=17
+    )
+    reversed_input = build_verifier_request(
+        row, _timeline(), plan, tuple(reversed(_ten_candidates())), seed=17
+    )
+
+    assert canonical.candidates == reversed_input.candidates
+
+
+def test_verifier_rejects_normalized_duplicates_before_construction(
+    tmp_path: Path,
+) -> None:
+    candidates = list(_ten_candidates())
+    candidates[1] = dataclasses.replace(candidates[1], answer="answer 0.")
+
+    with pytest.raises(ValueError, match="duplicate normalized"):
+        build_verifier_request(
+            _row(tmp_path),
+            _timeline(),
+            _evidence_plan(tmp_path),
+            candidates,
+            seed=1,
+        )
 
 
 def test_label_free_audit_rejects_forbidden_path_components() -> None:
@@ -425,17 +727,19 @@ def test_verifier_rejects_duplicate_ranked_pass_ids() -> None:
 
 
 def test_verifier_serializes_complete_ranking_and_consistent_support() -> None:
-    decision = VerifierDecision(PASS_IDS, {"direct-av": "span-1"})
+    decision = _decision()
 
     assert decision.to_dict() == {
         "ranked_pass_ids": list(PASS_IDS),
         "support_by_pass": {"direct-av": "span-1"},
+        "selected_pass_id": "direct-av",
+        "status_by_pass": {pass_id: "supported" for pass_id in PASS_IDS},
     }
 
 
 def test_verifier_ranking_returns_candidates_in_decision_order() -> None:
     candidates = _ten_candidates()
-    decision = VerifierDecision(tuple(reversed(PASS_IDS)), {})
+    decision = _decision(tuple(reversed(PASS_IDS)))
 
     ranked = apply_verifier_ranking(candidates, decision)
 
