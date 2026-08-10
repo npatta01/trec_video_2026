@@ -969,3 +969,20 @@ def test_freeze_rejects_verifier_frame_provenance_tamper(tmp_path: Path) -> None
     attempts_path.write_text("".join(json.dumps(row) + "\n" for row in attempts))
     with pytest.raises(ValueError, match="frame|provenance|evidence"):
         module.freeze(run_dir)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("support_span_ids", ["tampered-support"]), ("provider", "tampered-provider"), ("runtime", "tampered-runtime")],
+)
+def test_freeze_rejects_candidate_provenance_tamper(
+    tmp_path: Path, field: str, value: object
+) -> None:
+    module, run_dir = _prepare_one_row(tmp_path)
+    module.run_prepared(run_dir, transport=module.FixtureTransport())
+    candidates_path = run_dir / "candidates.jsonl"
+    candidates = _jsonl(candidates_path)
+    candidates[0][field] = value
+    candidates_path.write_text("".join(json.dumps(row) + "\n" for row in candidates))
+    with pytest.raises(ValueError, match="candidate|provenance"):
+        module.freeze(run_dir)

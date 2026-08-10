@@ -1439,6 +1439,22 @@ def _fixture_row(
 def _candidate_model(record: Mapping[str, Any]) -> CandidateRecord:
     provider = str(record.get("provider", "fixture"))
     support_span_ids = tuple(str(item) for item in record.get("support_span_ids", ("fixture",)))
+    runtime_provenance = record.get("runtime_provenance")
+    if not isinstance(runtime_provenance, Mapping):
+        runtime_provenance = {
+            "model_id": MODEL_ID,
+            "provider": provider,
+            "runtime": str(record.get("runtime", provider)),
+            "status": "passed",
+            "request_sha256": str(record["request_sha256"]),
+            "response_sha256": str(record["response_sha256"]),
+        }
+    else:
+        runtime_provenance = dict(runtime_provenance)
+        if "provider" in record:
+            runtime_provenance["provider"] = str(record["provider"])
+        if "runtime" in record:
+            runtime_provenance["runtime"] = str(record["runtime"])
     return CandidateRecord(
         video_id=str(record["video_id"]),
         pass_id=str(record["pass_id"]),
@@ -1447,14 +1463,20 @@ def _candidate_model(record: Mapping[str, Any]) -> CandidateRecord:
         confidence=float(record["confidence"]),
         support_span_ids=support_span_ids,
         request_sha256=str(record["request_sha256"]),
-        runtime_provenance={
-            "model_id": MODEL_ID,
-            "provider": provider,
-            "runtime": str(record.get("runtime", provider)),
-            "status": "passed",
-            "request_sha256": str(record["request_sha256"]),
-            "response_sha256": str(record["response_sha256"]),
-        },
+        runtime_provenance=runtime_provenance,
+    )
+
+
+def _candidate_record_from_prediction(candidate: Mapping[str, Any]) -> CandidateRecord:
+    return CandidateRecord(
+        video_id=str(candidate["video_id"]),
+        pass_id=str(candidate["pass_id"]),
+        answer=str(candidate["answer"]),
+        elapsed_seconds=float(candidate["elapsed_seconds"]),
+        confidence=float(candidate["confidence"]),
+        support_span_ids=tuple(str(item) for item in candidate["support_span_ids"]),
+        request_sha256=str(candidate["request_sha256"]),
+        runtime_provenance=candidate["runtime_provenance"],
     )
 
 
@@ -1703,6 +1725,13 @@ def _validate_freeze_cross_checks(
             stored = by_candidate.get(key)
             if stored is None:
                 raise ValueError("freeze candidate is missing from candidates.jsonl")
+            try:
+                persisted_candidate = _candidate_model(stored)
+                ranked_candidate = _candidate_record_from_prediction(candidate)
+            except (KeyError, TypeError, ValueError) as error:
+                raise ValueError("freeze candidate provenance is invalid") from error
+            if persisted_candidate.to_dict() != ranked_candidate.to_dict():
+                raise ValueError("freeze candidate provenance does not match candidates.jsonl")
             if stored.get("answer") != candidate.get("answer"):
                 raise ValueError("freeze candidate answer does not match candidates.jsonl")
             request = stored.get("request")
