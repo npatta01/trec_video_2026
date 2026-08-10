@@ -312,7 +312,7 @@ class OpenRouterTransport:
             },
         }
         seed_input = dict(payload)
-        seed = int(hashlib.sha256(_json_bytes(seed_input)).hexdigest()[:16], 16)
+        seed = int(hashlib.sha256(_json_bytes(seed_input)).hexdigest()[:16], 16) & 0x7FFF_FFFF
         payload["seed"] = seed
         request = urllib.request.Request(
             OPENROUTER_CHAT_URL,

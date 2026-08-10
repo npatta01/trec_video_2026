@@ -179,6 +179,30 @@ def test_generate_posts_exact_multimodal_request_and_parses_usage(
     assert json.loads(second_opener.requests[0].data)["seed"] == body["seed"]
 
 
+def test_deterministic_seed_is_signed_31_bit_and_tracks_visible_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema = {"type": "object", "additionalProperties": False}
+    seeds: list[int] = []
+    for parts in (
+        ("Describe the clip.",),
+        ("Describe the clip.",),
+        ("Describe the changed clip.",),
+    ):
+        opener = FakeOpener([_success_response()])
+        transport = _transport(monkeypatch, opener)
+
+        transport.generate(model=MODEL_ID, parts=parts, schema=schema)
+
+        seed = json.loads(opener.requests[0].data)["seed"]
+        assert isinstance(seed, int)
+        seeds.append(seed)
+
+    assert all(0 <= seed <= 2_147_483_647 for seed in seeds)
+    assert seeds[0] == seeds[1]
+    assert seeds[0] != seeds[2]
+
+
 def test_response_read_is_bounded_and_oversized_body_is_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
