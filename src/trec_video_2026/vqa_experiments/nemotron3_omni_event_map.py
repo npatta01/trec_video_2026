@@ -35,6 +35,8 @@ MAX_OUTPUT_TOKENS = 768
 PLAINTEXT_MAP_MAX_TOKENS = 256
 PLAINTEXT_SELECTOR_MAX_TOKENS = 64
 PLAINTEXT_STOP = ["\nEND"]
+PLAINTEXT_EVENT_DESCRIPTION_MAX_WORDS = 16
+PLAINTEXT_EDGE_ANCHOR_FRACTION = 1.0 / 3.0
 MAX_EVENTS = 6
 MAX_SELECTED_INTERVALS = 2
 MAX_SELECTED_SECONDS = 6.0
@@ -439,8 +441,8 @@ def build_plaintext_map_request(
         "Watch the complete video, including audio, from beginning to end.\n\n"
         "For the question below, produce a compact timeline and a direct answer.\n"
         "Return only this line format:\n\n"
-        "E1|<representative timestamp in seconds>|<factual description, at most 12 words>\n"
-        "E2|<representative timestamp in seconds>|<factual description, at most 12 words>\n"
+        "E1|<representative timestamp in seconds>|<factual description, at most 16 words>\n"
+        "E2|<representative timestamp in seconds>|<factual description, at most 16 words>\n"
         "...\n"
         "ANSWER|<answer, at most 20 words>\n"
         "END\n\n"
@@ -548,15 +550,17 @@ def parse_plaintext_map(
         description = parts[2].strip()
         if not description or "|" in description:
             raise ValueError("map event description is invalid")
-        if len(description.split()) > 12:
-            raise ValueError("map event description must be at most 12 words")
+        if len(description.split()) > PLAINTEXT_EVENT_DESCRIPTION_MAX_WORDS:
+            raise ValueError(
+                "map event description must be at most 16 words"
+            )
         events.append(
             {"event_id": f"E{index}", "timestamp": timestamp, "description": description}
         )
         previous_timestamp = timestamp
-    if events[0]["timestamp"] > duration * 0.25:
+    if events[0]["timestamp"] > duration * PLAINTEXT_EDGE_ANCHOR_FRACTION:
         raise ValueError("map does not include the opening portion")
-    if events[-1]["timestamp"] < duration * 0.75:
+    if events[-1]["timestamp"] < duration * (1.0 - PLAINTEXT_EDGE_ANCHOR_FRACTION):
         raise ValueError("map does not include the ending portion")
     return {
         "answer": answer,

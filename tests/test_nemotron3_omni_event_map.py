@@ -470,6 +470,26 @@ def test_plaintext_selector_parser_and_edge_shift_are_deterministic() -> None:
     assert edge_windows == [{"event_id": "E1", "start": 0.0, "end": 2.0}]
 
 
+def test_plaintext_map_accepts_last_third_anchor_and_sixteen_word_description() -> None:
+    payload = {
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {
+                    "content": (
+                        "E1|0.0|The opening scene establishes the setting.\n"
+                        "E2|5.0|The subject performs the central action in the middle of the clip.\n"
+                        "E3|10.0|The final scene shows the subject leaving the room.\n"
+                        "ANSWER|The subject performs an action and leaves."
+                    )
+                },
+            }
+        ]
+    }
+    parsed = event_map.parse_plaintext_map(payload, duration_seconds=13.765)
+    assert parsed["events"][-1]["timestamp"] == 10.0
+
+
 @pytest.mark.parametrize(
     ("content", "message"),
     [
