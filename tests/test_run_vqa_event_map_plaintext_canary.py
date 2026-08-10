@@ -150,4 +150,5 @@ def test_canary_fails_closed_and_does_not_repair_bad_map(tmp_path: Path) -> None
     assert calls == 4
     assert all(row["status"] == "failed" for row in rows)
     assert all(row["error_type"] == "map_parse_failed" for row in rows)
+    assert all(row["failure_detail"] == "map_event_count_invalid" for row in rows)
     assert all("selected_event_ids" not in row for row in rows)

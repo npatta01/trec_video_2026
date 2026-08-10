@@ -109,6 +109,28 @@ def _failed_row(base: Mapping[str, Any], error_type: str, elapsed: float) -> dic
     }
 
 
+def _failure_detail(kind: str, error: Exception) -> str:
+    """Map parser exceptions to a bounded diagnostic taxonomy."""
+
+    text = str(error)
+    categories = (
+        ("does not include the opening portion", "missing_opening_anchor"),
+        ("does not include the ending portion", "missing_ending_anchor"),
+        ("event description must be at most 16 words", "description_too_long"),
+        ("timestamps must be strictly increasing", "timestamps_not_increasing"),
+        ("timestamp is outside clip", "timestamp_out_of_range"),
+        ("must end with ANSWER", "missing_answer"),
+        ("2–6 event lines", "event_count_invalid"),
+        ("unknown event", "unknown_event"),
+        ("unique IDs", "duplicate_event"),
+        ("SELECT and ANSWER", "selector_shape_invalid"),
+    )
+    for phrase, category in categories:
+        if phrase in text:
+            return f"{kind}_{category}"
+    return f"{kind}_invalid"
+
+
 def run_plaintext_canary(
     *,
     requests_path: Path,
@@ -157,10 +179,15 @@ def run_plaintext_canary(
             parsed_map = event_map.parse_plaintext_map(
                 map_response, duration_seconds=duration
             )
+        except ValueError as error:
+            failed = _failed_row(base, "map_parse_failed", time.monotonic() - started)
+            failed["failure_detail"] = _failure_detail("map", error)
+            results_by_id[video_id] = failed
+            continue
         except Exception:
-            results_by_id[video_id] = _failed_row(
-                base, "map_parse_failed", time.monotonic() - started
-            )
+            failed = _failed_row(base, "map_request_failed", time.monotonic() - started)
+            failed["failure_detail"] = "map_transport_or_response_invalid"
+            results_by_id[video_id] = failed
             continue
 
         map_text_sha256 = event_map.canonical_sha256(parsed_map["map_text"])
@@ -210,12 +237,23 @@ def run_plaintext_canary(
                 parsed_selector["selected_event_ids"],
                 duration_seconds=item["duration"],
             )
-        except Exception:
-            results_by_id[video_id] = _failed_row(
+        except ValueError as error:
+            failed = _failed_row(
                 selector_base,
                 "selector_parse_failed",
                 time.monotonic() - item["started"],
             )
+            failed["failure_detail"] = _failure_detail("selector", error)
+            results_by_id[video_id] = failed
+            continue
+        except Exception:
+            failed = _failed_row(
+                selector_base,
+                "selector_request_failed",
+                time.monotonic() - item["started"],
+            )
+            failed["failure_detail"] = "selector_transport_or_response_invalid"
+            results_by_id[video_id] = failed
             continue
         results_by_id[video_id] = (
             {
