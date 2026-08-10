@@ -1656,7 +1656,9 @@ def _valid_ranked_passes(response: Mapping[str, Any] | None) -> tuple[str, ...] 
     selected = response.get("selected_pass_id")
     if (
         not isinstance(ranked, list)
-        or tuple(ranked) not in (tuple(PASS_IDS), tuple(FALLBACK_PASS_PRECEDENCE))
+        or len(ranked) != len(PASS_IDS)
+        or not all(isinstance(pass_id, str) for pass_id in ranked)
+        or set(ranked) != set(PASS_IDS)
         or selected != ranked[0]
     ):
         return None

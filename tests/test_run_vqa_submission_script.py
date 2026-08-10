@@ -298,6 +298,49 @@ def test_invalid_timeline_is_global_only_and_invalid_verifier_uses_precedence(
     )
 
 
+def test_verifier_accepts_any_complete_pass_permutation() -> None:
+    module = _load_script()
+    ranked = list(module.PASS_IDS[1:]) + [module.PASS_IDS[0]]
+
+    assert module._valid_ranked_passes(
+        {"ranked_pass_ids": ranked, "selected_pass_id": ranked[0]}
+    ) == tuple(ranked)
+
+
+@pytest.mark.parametrize(
+    "case", ["duplicate", "unknown", "missing", "extra", "selected-not-first"]
+)
+def test_verifier_rejects_malformed_pass_rankings(
+    case: str,
+) -> None:
+    module = _load_script()
+    ranked = list(module.PASS_IDS[1:]) + [module.PASS_IDS[0]]
+    selected = ranked[0]
+    if case == "duplicate":
+        ranked[-1] = ranked[-2]
+    elif case == "unknown":
+        ranked[-1] = "unknown-pass"
+    elif case == "missing":
+        ranked.pop()
+    elif case == "extra":
+        ranked.append("extra-pass")
+    else:
+        selected = module.PASS_IDS[0]
+
+    assert module._valid_ranked_passes(
+        {"ranked_pass_ids": ranked, "selected_pass_id": selected}
+    ) is None
+
+
+def test_verifier_rejects_non_list_pass_ranking() -> None:
+    module = _load_script()
+    ranked = tuple(module.PASS_IDS)
+
+    assert module._valid_ranked_passes(
+        {"ranked_pass_ids": ranked, "selected_pass_id": ranked[0]}
+    ) is None
+
+
 def test_candidate_shortfall_binds_configured_baseline_ranked_list(
     tmp_path: Path,
 ) -> None:
