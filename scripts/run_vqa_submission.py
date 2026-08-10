@@ -35,6 +35,10 @@ from trec_video_2026.vqa_submission_gemini import (
     create_google_transport,
     preflight_google_transport,
 )
+from trec_video_2026.vqa_submission_openrouter import (
+    create_openrouter_transport,
+    preflight_openrouter_transport,
+)
 from trec_video_2026.vqa_submission import (
     MODEL_ID,
     FALLBACK_PASS_PRECEDENCE,
@@ -735,8 +739,20 @@ def _candidate_record(
     }
 
 
+def _runtime_provider(transport: object, *, fixture_mode: bool) -> str:
+    if fixture_mode:
+        return "fixture"
+    provider = getattr(transport, "provider_name", None)
+    if not isinstance(provider, str) or not provider:
+        provider = getattr(getattr(transport, "_transport", None), "provider_name", None)
+    return provider if isinstance(provider, str) and provider else "gemini"
+
+
 def _timeline_request(
-    prepared: PreparedRun, example: Mapping[str, Any]
+    prepared: PreparedRun,
+    example: Mapping[str, Any],
+    *,
+    provider_video: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     request = {
         "schema_version": SCHEMA_VERSION,
@@ -751,12 +767,22 @@ def _timeline_request(
         ),
     }
     if not prepared.fixture_mode:
-        media_path = str(example["media_path"])
+        media_path = str(
+            provider_video["path"] if provider_video is not None else example["media_path"]
+        )
         audio_path, audio_sha = _live_audio_path(prepared, example)
         request["media_path"] = media_path
         request["audio_path"] = str(audio_path)
-        request["media_sha256"] = example["source"]["sha256"]
+        request["media_sha256"] = (
+            provider_video["sha256"]
+            if provider_video is not None
+            else example["source"]["sha256"]
+        )
+        request["source_media_sha256"] = example["source"]["sha256"]
         request["audio_sha256"] = audio_sha
+        if provider_video is not None:
+            request["provider_video_path"] = provider_video["path"]
+            request["provider_video_sha256"] = provider_video["sha256"]
     return _bind_request(prepared, request)
 
 
@@ -1262,6 +1288,95 @@ def _extract_live_audio(media_path: Path, destination: Path) -> str:
     return _hash_path(destination)
 
 
+def _live_provider_video(
+    prepared: PreparedRun, example: Mapping[str, Any]
+) -> dict[str, str]:
+    """Create or validate the durable video-only WebM sent through OpenRouter."""
+
+    media_path = Path(str(example["media_path"]))
+    source_sha = _safe_source_metadata(source_fingerprint(media_path))["sha256"]
+    evidence_root = prepared.path / "evidence" / "rows" / str(example["query_id"])
+    destination = evidence_root / "provider-video.webm"
+    if destination.is_symlink() or (destination.exists() and not destination.is_file()):
+        raise ValueError("refusing to reuse unsafe provider video path")
+
+    expected_sha: str | None = None
+    manifest_path = evidence_root / "manifest.json"
+    if manifest_path.exists():
+        manifest = _read_json(manifest_path)
+        declared_source = manifest.get("source_media_sha256")
+        declared_path = manifest.get("provider_video_path")
+        declared_provider = manifest.get("provider_video_sha256")
+        if declared_source is not None and declared_source != source_sha:
+            raise ValueError("provider video source hash does not match current media")
+        if declared_path is not None and declared_path != str(destination):
+            raise ValueError("provider video path does not match the row evidence")
+        if declared_provider is not None:
+            if not isinstance(declared_provider, str):
+                raise ValueError("provider video hash is invalid")
+            expected_sha = declared_provider
+
+    if destination.exists():
+        actual_sha = _hash_path(destination)
+        if expected_sha is not None and actual_sha != expected_sha:
+            raise ValueError("provider video hash does not match the evidence manifest")
+        return {
+            "path": str(destination),
+            "sha256": actual_sha,
+            "source_sha256": source_sha,
+        }
+
+    evidence_root.mkdir(parents=True, exist_ok=True)
+    fd, temporary_name = tempfile.mkstemp(
+        prefix=".provider-video.", suffix=".webm.tmp", dir=evidence_root
+    )
+    os.close(fd)
+    temporary = Path(temporary_name)
+    try:
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-i",
+                str(media_path),
+                "-map",
+                "0:v:0",
+                "-an",
+                "-c:v",
+                "copy",
+                "-f",
+                "webm",
+                "-y",
+                str(temporary),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        if not _is_regular_file(temporary):
+            raise ValueError("provider video stream-copy did not create a regular file")
+        with temporary.open("rb") as handle:
+            os.fsync(handle.fileno())
+        if destination.exists() or destination.is_symlink():
+            raise ValueError("provider video artifact appeared during creation")
+        os.replace(temporary, destination)
+        directory_fd = os.open(evidence_root, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    except subprocess.CalledProcessError:
+        raise ValueError("provider video stream-copy failed") from None
+    finally:
+        temporary.unlink(missing_ok=True)
+    return {
+        "path": str(destination),
+        "sha256": _hash_path(destination),
+        "source_sha256": source_sha,
+    }
+
+
 def _live_audio_path(prepared: PreparedRun, example: Mapping[str, Any]) -> tuple[Path, str]:
     media_path = Path(str(example["media_path"]))
     audio_path = prepared.path / "evidence" / "rows" / str(example["query_id"]) / "audio.wav"
@@ -1272,8 +1387,21 @@ def _live_evidence(
     prepared: PreparedRun,
     example: Mapping[str, Any],
     timeline: ValidatedTimeline,
+    *,
+    provider_video: Mapping[str, str] | None = None,
 ) -> tuple[EvidencePlan, dict[str, Any]]:
     media_path = Path(str(example["media_path"]))
+    source_media_sha = _safe_source_metadata(source_fingerprint(media_path))["sha256"]
+    model_media_path = (
+        Path(provider_video["path"])
+        if provider_video is not None
+        else media_path
+    )
+    model_media_sha = (
+        provider_video["sha256"]
+        if provider_video is not None
+        else source_media_sha
+    )
     audio_path, audio_sha = _live_audio_path(prepared, example)
     duration = float(example["media"]["duration_seconds"])
     inventory = _decode_live_frame_inventory(media_path, duration)
@@ -1322,14 +1450,19 @@ def _live_evidence(
             "run_id": prepared.run_id,
             "query_id": example["query_id"],
             "video_id": example["video_id"],
-            "source_media_sha256": _safe_source_metadata(
-                source_fingerprint(media_path)
-            )["sha256"],
+            "source_media_sha256": source_media_sha,
             "audio_sha256": audio_sha,
             "materialized_frame_hashes": [frame.image_sha256 for frame in materialized],
             "timeline_fallback_reason": timeline.fallback_reason,
         }
     )
+    if provider_video is not None:
+        manifest.update(
+            {
+                "provider_video_path": provider_video["path"],
+                "provider_video_sha256": provider_video["sha256"],
+            }
+        )
     manifest_path = evidence_root / "manifest.json"
     if manifest_path.exists():
         current_manifest = _read_json(manifest_path)
@@ -1372,11 +1505,14 @@ def _live_evidence(
     else:
         _write_json(aggregate_path, aggregate, overwrite=False)
     return plan, {
-        "media_path": media_path,
+        "media_path": model_media_path,
         "audio_path": audio_path,
-        "media_sha256": manifest["source_media_sha256"],
+        "media_sha256": model_media_sha,
+        "source_media_sha256": manifest["source_media_sha256"],
         "audio_sha256": manifest["audio_sha256"],
-        "model_media_path": media_path,
+        "provider_video_path": manifest.get("provider_video_path"),
+        "provider_video_sha256": manifest.get("provider_video_sha256"),
+        "model_media_path": model_media_path,
         "model_audio_path": audio_path,
         "model_plan": plan,
     }
@@ -1433,7 +1569,30 @@ def _fixture_row(
             "audio_sha256": evidence_files["audio_sha256"],
         }
     )
+    if evidence_files.get("provider_video_path") is not None:
+        row["provider_video_path"] = evidence_files["provider_video_path"]
+        row["provider_video_sha256"] = evidence_files["provider_video_sha256"]
+        row["source_media_sha256"] = evidence_files["source_media_sha256"]
     return row
+
+
+def _bind_provider_video_request(
+    request: Mapping[str, Any], provider_video: Mapping[str, str] | None
+) -> dict[str, Any]:
+    if provider_video is None:
+        return dict(request)
+    bound = dict(request)
+    bound.update(
+        {
+            "media_path": provider_video["path"],
+            "media_sha256": provider_video["sha256"],
+            "source_media_sha256": provider_video["source_sha256"],
+            "provider_video_path": provider_video["path"],
+            "provider_video_sha256": provider_video["sha256"],
+        }
+    )
+    audit_label_free_payload(bound)
+    return bound
 
 
 def _candidate_model(record: Mapping[str, Any]) -> CandidateRecord:
@@ -2020,7 +2179,17 @@ def _run_prepared_locked(
     for example in selected:
         query_id = int(example["query_id"])
         row_reused = True
-        timeline_request = _timeline_request(prepared_run, example)
+        provider_name = _runtime_provider(
+            transport, fixture_mode=prepared_run.fixture_mode
+        )
+        provider_video = (
+            _live_provider_video(prepared_run, example)
+            if not prepared_run.fixture_mode and provider_name == "openrouter"
+            else None
+        )
+        timeline_request = _timeline_request(
+            prepared_run, example, provider_video=provider_video
+        )
         duration = float(
             example.get(
                 "duration_seconds",
@@ -2049,10 +2218,17 @@ def _run_prepared_locked(
                 support_spans=(),
                 fallback_reason="invalid_timeline",
             )
-        evidence_builder = _fixture_evidence if prepared_run.fixture_mode else _live_evidence
-        evidence_plan, evidence_files = evidence_builder(
-            prepared_run, example, timeline
-        )
+        if prepared_run.fixture_mode:
+            evidence_plan, evidence_files = _fixture_evidence(
+                prepared_run, example, timeline
+            )
+        else:
+            evidence_plan, evidence_files = _live_evidence(
+                prepared_run,
+                example,
+                timeline,
+                provider_video=provider_video,
+            )
         _reconstruct_timeline_artifact(
             prepared_run.path / "timeline.jsonl",
             query_id,
@@ -2062,7 +2238,7 @@ def _run_prepared_locked(
         _bind_evidence_manifest(prepared_run, example, timeline_checkpoint)
         row = _fixture_row(prepared_run, example, evidence_files)
         request_plan = evidence_files.get("model_plan", evidence_plan)
-        candidate_provider = "fixture" if prepared_run.fixture_mode else "gemini"
+        candidate_provider = provider_name
         candidate_support_spans = tuple(
             span.span_id for span in request_plan.support_spans
         )
@@ -2073,6 +2249,7 @@ def _run_prepared_locked(
             request["stage"] = "answer"
             request["query_id"] = query_id
             request = _bind_request(prepared_run, request)
+            request = _bind_provider_video_request(request, provider_video)
             response, checkpoint, pass_reused = _run_attempt(
                 request,
                 transport,
@@ -2104,6 +2281,7 @@ def _run_prepared_locked(
         request["stage"] = "answer"
         request["query_id"] = query_id
         request = _bind_request(prepared_run, request)
+        request = _bind_provider_video_request(request, provider_video)
         response, checkpoint, pass_reused = _run_attempt(
             request,
             transport,
@@ -2142,6 +2320,7 @@ def _run_prepared_locked(
             request["attempt"] = attempt
             request["query_id"] = query_id
             request = _bind_request(prepared_run, request)
+            request = _bind_provider_video_request(request, provider_video)
             response, checkpoint, backfill_reused = _run_attempt(
                 request,
                 transport,
@@ -2260,6 +2439,9 @@ def _run_prepared_locked(
                 verifier_payload["query_id"] = query_id
                 verifier_payload["request_sha256"] = verifier_request.request_sha256
                 verifier_payload = _bind_request(prepared_run, verifier_payload)
+                verifier_payload = _bind_provider_video_request(
+                    verifier_payload, provider_video
+                )
                 verifier_response, verifier_checkpoint, verifier_reused = _run_attempt(
                     verifier_payload,
                     transport,
@@ -2475,9 +2657,15 @@ def _google_sdk_version() -> str:
         return "unavailable"
 
 
-def preflight_live(model_id: str = MODEL_ID) -> dict[str, Any]:
+def preflight_live(
+    model_id: str = MODEL_ID, *, provider: str = "gemini"
+) -> dict[str, Any]:
     if model_id != MODEL_ID:
         raise ValueError(f"model_id must be {MODEL_ID}")
+    if provider == "openrouter":
+        return preflight_openrouter_transport(model_id=model_id)
+    if provider != "gemini":
+        raise ValueError("provider must be gemini or openrouter")
     preflight_google_transport()
     return {
         "model_id": model_id,
@@ -2497,11 +2685,16 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     run_parser = subparsers.add_parser("run")
     run_parser.add_argument("--prepared", required=True, type=Path)
-    run_parser.add_argument("--transport", choices=("fixture", "gemini"), required=True)
+    run_parser.add_argument(
+        "--transport", choices=("fixture", "gemini", "openrouter"), required=True
+    )
     run_parser.add_argument("--limit", type=int)
 
     preflight_parser = subparsers.add_parser("preflight-live")
     preflight_parser.add_argument("--model-id", default=MODEL_ID)
+    preflight_parser.add_argument(
+        "--provider", choices=("gemini", "openrouter"), default="gemini"
+    )
 
     for name in ("freeze", "status"):
         command_parser = subparsers.add_parser(name)
@@ -2514,14 +2707,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         prepared_run = PreparedRun.load(args.prepared)
         if args.transport == "fixture" and not prepared_run.fixture_mode:
             raise ValueError("fixture transport is only valid for fixture_mode runs")
-        if args.transport == "gemini" and prepared_run.fixture_mode:
-            raise ValueError("gemini transport requires a non-fixture prepared run")
+        if args.transport in {"gemini", "openrouter"} and prepared_run.fixture_mode:
+            raise ValueError(f"{args.transport} transport requires a non-fixture prepared run")
         transport: Any
         if args.transport == "fixture":
             transport = FixtureTransport()
-        else:
+        elif args.transport == "gemini":
             transport = GeminiSubmissionClient(
                 create_google_transport(), model_id=prepared_run.model_id
+            )
+        else:
+            transport = GeminiSubmissionClient(
+                create_openrouter_transport(), model_id=prepared_run.model_id
             )
         run_prepared(
             prepared_run,
@@ -2534,7 +2731,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(_canonical_bytes(status(args.prepared)).decode("utf-8"))
     elif args.command == "preflight-live":
         try:
-            print(_canonical_bytes(preflight_live(args.model_id)).decode("utf-8"))
+            print(
+                _canonical_bytes(
+                    preflight_live(args.model_id, provider=args.provider)
+                ).decode("utf-8")
+            )
         except ProviderAuthenticationError as error:
             print(str(error) or AUTHENTICATION_ERROR_MESSAGE, file=sys.stderr)
             return 2

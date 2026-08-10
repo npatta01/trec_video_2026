@@ -551,11 +551,13 @@ def test_nonfixture_prepare_resolves_media_and_records_source_metadata(
     assert manifest["examples"][0]["media"]["duration_seconds"] == 2.0
 
 
-def _live_fixture_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def _live_fixture_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, media_suffix: str = ".mp4"
+):
     module = _load_script()
     dataset_root = tmp_path / "canonical-data"
     dataset_root.mkdir()
-    media = dataset_root / "video.mp4"
+    media = dataset_root / f"video{media_suffix}"
     media.write_bytes(b"synthetic live media")
     config = tmp_path / "live-config.json"
     config.write_text(
@@ -570,7 +572,7 @@ def _live_fixture_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
                         "query_id": 1,
                         "video_id": "video-1",
                         "question": "What happens?",
-                        "media": "video.mp4",
+                        "media": media.name,
                     }
                 ],
             }
@@ -1107,3 +1109,160 @@ def test_freeze_rejects_candidate_provenance_tamper(
     candidates_path.write_text("".join(json.dumps(row) + "\n" for row in candidates))
     with pytest.raises(ValueError, match="candidate|provenance"):
         module.freeze(run_dir)
+
+
+def test_openrouter_run_transport_is_wrapped_for_nonfixture_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module, run_dir, _media = _live_fixture_run(tmp_path, monkeypatch)
+    class OpenRouterTransportStub:
+        provider_name = "openrouter"
+
+    sentinel = OpenRouterTransportStub()
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(module, "create_openrouter_transport", lambda: sentinel)
+
+    class CapturingClient:
+        def __init__(self, transport: object, *, model_id: str) -> None:
+            self._transport = transport
+            captured["transport"] = transport
+            captured["model_id"] = model_id
+
+    monkeypatch.setattr(module, "GeminiSubmissionClient", CapturingClient)
+    monkeypatch.setattr(
+        module,
+        "run_prepared",
+        lambda prepared, *, transport, limit=None: captured.update(
+            {"prepared": prepared, "wrapped": transport, "limit": limit}
+        ),
+    )
+
+    assert module.main(
+        ["run", "--prepared", str(run_dir), "--transport", "openrouter"]
+    ) == 0
+    assert captured["transport"] is sentinel
+    assert captured["model_id"] == module.MODEL_ID
+    assert module._runtime_provider(captured["wrapped"], fixture_mode=False) == "openrouter"
+
+
+def test_openrouter_preflight_prints_only_safe_fields(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_script()
+    monkeypatch.setattr(
+        module,
+        "preflight_openrouter_transport",
+        lambda *, model_id: {
+            "authenticated": True,
+            "model_id": model_id,
+            "input_modalities": ["audio", "image", "text", "video"],
+            "structured_outputs": True,
+        },
+    )
+
+    assert module.main(["preflight-live", "--provider", "openrouter"]) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "authenticated": True,
+        "model_id": module.MODEL_ID,
+        "input_modalities": ["audio", "image", "text", "video"],
+        "structured_outputs": True,
+    }
+
+
+def test_openrouter_live_mkv_gets_one_durable_video_only_copy_and_exact_resume(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module, run_dir, media = _live_fixture_run(
+        tmp_path, monkeypatch, media_suffix=".mkv"
+    )
+    source_sha = module._hash_path(media)
+    copy_calls: list[list[str]] = []
+
+    def fake_copy(command: list[str], **kwargs: object) -> None:
+        copy_calls.append(command)
+        Path(command[-1]).write_bytes(b"stream-copied-webm")
+
+    monkeypatch.setattr(module.subprocess, "run", fake_copy)
+    monkeypatch.setattr(
+        module,
+        "_decode_live_frame_inventory",
+        lambda path, duration: [
+            {
+                "stream_index": 0,
+                "frame_index": index,
+                "actual_pts_seconds": (index + 0.5) * duration / 40,
+                "time_base": "1/1000",
+                "source_media_sha256": source_sha,
+            }
+            for index in range(40)
+        ],
+    )
+    monkeypatch.setattr(
+        module,
+        "_extract_live_frame",
+        lambda path, frame, destination: (
+            destination.parent.mkdir(parents=True, exist_ok=True),
+            destination.write_bytes(b"frame"),
+            module._hash_path(destination),
+        )[-1],
+    )
+    monkeypatch.setattr(
+        module,
+        "_extract_live_audio",
+        lambda path, destination: (
+            destination.parent.mkdir(parents=True, exist_ok=True),
+            destination.write_bytes(b"wav"),
+            module._hash_path(destination),
+        )[-1],
+    )
+
+    captured: list[dict[str, object]] = []
+
+    class OpenRouterFixture(module.FixtureTransport):
+        provider_name = "openrouter"
+
+        def generate(self, request: dict[str, object]) -> dict[str, object]:
+            captured.append(request)
+            return super().generate(request)
+
+    first = module.run_prepared(run_dir, transport=OpenRouterFixture())
+    assert first.completed_rows == 1
+    assert len(copy_calls) == 1
+    copy_command = copy_calls[0]
+    assert "-map" in copy_command
+    assert copy_command[copy_command.index("-map") + 1] == "0:v:0"
+    assert "-an" in copy_command
+    assert copy_command[copy_command.index("-c:v") + 1] == "copy"
+    provider_video = run_dir / "evidence" / "rows" / "1" / "provider-video.webm"
+    assert provider_video.is_file()
+    assert provider_video.read_bytes() == b"stream-copied-webm"
+
+    timeline = next(row for row in captured if row["stage"] == "timeline")
+    answer = next(row for row in captured if row["stage"] == "answer")
+    for request in (timeline, answer):
+        assert request["media_path"] == str(provider_video)
+        assert request["media_sha256"] == module._hash_path(provider_video)
+        assert request["source_media_sha256"] == source_sha
+        assert request["provider_video_sha256"] == module._hash_path(provider_video)
+        audio_path = request.get("audio_path") or request["model_payload"]["audio_path"]
+        assert audio_path != str(provider_video)
+    evidence = json.loads(
+        (run_dir / "evidence" / "rows" / "1" / "manifest.json").read_text()
+    )
+    assert evidence["source_media_sha256"] == source_sha
+    assert evidence["provider_video_sha256"] == module._hash_path(provider_video)
+    assert evidence["provider_video_path"] == str(provider_video)
+
+    first_attempts = _jsonl(run_dir / "attempts.jsonl")
+    first_request_hashes = [row["request_sha256"] for row in first_attempts]
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *args, **kwargs: pytest.fail("resume recreated provider video"),
+    )
+    second = module.run_prepared(run_dir, transport=OpenRouterFixture())
+    assert second.reused_rows == 1
+    assert [row["request_sha256"] for row in _jsonl(run_dir / "attempts.jsonl")] == (
+        first_request_hashes
+    )
