@@ -23,14 +23,14 @@ die() {
   || die "run name mismatch"
 [[ -x "$PYTHON_BIN" ]] || die "pinned image interpreter is missing"
 [[ -f "$INPUT_MOUNT/shard-$SHARD_INDEX.tar" ]] || die "shard archive is missing"
-[[ -f "$INPUT_MOUNT/source-v2.tar" ]] || die "source archive is missing"
+[[ -f "$INPUT_MOUNT/source-v3.tar" ]] || die "source archive is missing"
 mkdir -p "$WORK_ROOT/input" "$WORK_ROOT/output" "$OUTPUT_MOUNT"
 [[ -z "$(find "$OUTPUT_MOUNT" -mindepth 1 -maxdepth 1 -print -quit)" ]] \
   || die "output mount is not empty"
 
 echo "$EXPECTED_ARCHIVE_SHA256  $INPUT_MOUNT/shard-$SHARD_INDEX.tar" | sha256sum -c -
-echo "${EXPECTED_SOURCE_SHA256:?EXPECTED_SOURCE_SHA256 is required}  $INPUT_MOUNT/source-v2.tar" | sha256sum -c -
-tar -C "$WORK_ROOT" -xf "$INPUT_MOUNT/source-v2.tar"
+echo "${EXPECTED_SOURCE_SHA256:?EXPECTED_SOURCE_SHA256 is required}  $INPUT_MOUNT/source-v3.tar" | sha256sum -c -
+tar -C "$WORK_ROOT" -xf "$INPUT_MOUNT/source-v3.tar"
 tar -C "$WORK_ROOT/input" -xf "$INPUT_MOUNT/shard-$SHARD_INDEX.tar"
 mkdir -p /dstack
 [[ ! -e /dstack/input ]] || die "/dstack/input already exists"

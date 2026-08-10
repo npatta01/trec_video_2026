@@ -160,6 +160,30 @@ def test_ranked_tail_prompt_excludes_primary_and_requests_exact_json(
     assert "The person stays" in repair_instruction
 
 
+def test_generated_answers_with_slashes_do_not_trigger_input_path_audit(
+    tmp_path: Path,
+) -> None:
+    del tmp_path
+    frame = Path("/safe/frame.jpg")
+
+    tail = build_ranked_tail_messages(
+        question="What is shown?",
+        frame_paths=(frame,),
+        frame_timestamps=(0.5,),
+        primary_answer="A question/answer screen",
+    )
+    repair = build_ranked_repair_messages(
+        question="What is shown?",
+        frame_paths=(frame,),
+        frame_timestamps=(0.5,),
+        excluded_answers=("A question/answer screen",),
+        missing_count=1,
+    )
+
+    assert "question/answer" in tail[0]["content"][-1]["text"]
+    assert "question/answer" in repair[0]["content"][-1]["text"]
+
+
 def test_parse_ranked_tail_accepts_only_ordered_nonempty_strings() -> None:
     text = json.dumps({"answers": [f"candidate {index}" for index in range(1, 10)]})
     assert parse_ranked_tail(text) == tuple(
