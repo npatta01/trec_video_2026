@@ -463,6 +463,27 @@ def test_plaintext_map_parser_allows_timeline_without_optional_direct_answer() -
     assert "ANSWER|" not in parsed["map_text"]
 
 
+def test_plaintext_map_parser_accepts_single_salient_scene() -> None:
+    payload = {
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {
+                    "content": "E1|0.0|A single explosion is heard at the beginning."
+                },
+            }
+        ]
+    }
+    parsed = event_map.parse_plaintext_map(payload, duration_seconds=26.176)
+    assert parsed["events"] == [
+        {
+            "event_id": "E1",
+            "timestamp": 0.0,
+            "description": "A single explosion is heard at the beginning.",
+        }
+    ]
+
+
 def test_plaintext_selector_parser_and_edge_shift_are_deterministic() -> None:
     parsed_map = event_map.parse_plaintext_map(
         _plaintext_map_payload(), duration_seconds=20.0
@@ -507,10 +528,9 @@ def test_plaintext_map_accepts_last_third_anchor_and_sixteen_word_description() 
 @pytest.mark.parametrize(
     ("content", "message"),
     [
-        ("E1|1.0|Only one event.\nANSWER|answer", "2–6"),
+        ("ANSWER|answer", "1–6"),
         ("E1|10.0|Opening.\nE2|5.0|Backwards.\nANSWER|answer", "increasing"),
         ("E1|1.0|Opening.\nE2|19.0|Ending.\nEXTRA|bad\nANSWER|answer", "line"),
-        ("E1|1.0|Opening.", "2–6"),
     ],
 )
 def test_plaintext_map_parser_rejects_malformed_protocol(

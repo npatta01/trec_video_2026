@@ -120,7 +120,7 @@ def _failure_detail(kind: str, error: Exception) -> str:
         ("timestamps must be strictly increasing", "timestamps_not_increasing"),
         ("timestamp is outside clip", "timestamp_out_of_range"),
         ("must end with ANSWER", "missing_answer"),
-        ("2–6 event lines", "event_count_invalid"),
+        ("1–6 event lines", "event_count_invalid"),
         ("unknown event", "unknown_event"),
         ("unique IDs", "duplicate_event"),
         ("SELECT and ANSWER", "selector_shape_invalid"),

@@ -38,6 +38,7 @@ PLAINTEXT_STOP = ["\nEND"]
 PLAINTEXT_EVENT_DESCRIPTION_MAX_WORDS = 16
 PLAINTEXT_OPENING_ANCHOR_MAX_FRACTION = 1.0 / 3.0
 PLAINTEXT_ENDING_ANCHOR_MIN_FRACTION = 1.0 / 2.0
+PLAINTEXT_MIN_EVENTS = 1
 MAX_EVENTS = 6
 MAX_SELECTED_INTERVALS = 2
 MAX_SELECTED_SECONDS = 6.0
@@ -447,7 +448,7 @@ def build_plaintext_map_request(
         "...\n"
         "END\n\n"
         "Requirements:\n"
-        "- Produce 2–6 event lines.\n"
+        "- Produce 1–6 event lines; one line is acceptable for a single salient scene.\n"
         "- IDs must be E1, E2, ... in order.\n"
         "- Timestamps must be strictly increasing and between 0 and D.\n"
         "- Include the opening and ending portions of the video.\n"
@@ -533,8 +534,8 @@ def parse_plaintext_map(
         if not answer or len(answer.split()) > 20:
             raise ValueError("map answer must be at most 20 words")
         event_lines = lines[:-1]
-    if not 2 <= len(event_lines) <= MAX_EVENTS:
-        raise ValueError("map must contain 2–6 event lines")
+    if not PLAINTEXT_MIN_EVENTS <= len(event_lines) <= MAX_EVENTS:
+        raise ValueError("map must contain 1–6 event lines")
     events: list[dict[str, Any]] = []
     previous_timestamp = -math.inf
     for index, line in enumerate(event_lines, start=1):
@@ -560,10 +561,11 @@ def parse_plaintext_map(
             {"event_id": f"E{index}", "timestamp": timestamp, "description": description}
         )
         previous_timestamp = timestamp
-    if events[0]["timestamp"] > duration * PLAINTEXT_OPENING_ANCHOR_MAX_FRACTION:
-        raise ValueError("map does not include the opening portion")
-    if events[-1]["timestamp"] < duration * PLAINTEXT_ENDING_ANCHOR_MIN_FRACTION:
-        raise ValueError("map does not include the ending portion")
+    if len(events) > 1:
+        if events[0]["timestamp"] > duration * PLAINTEXT_OPENING_ANCHOR_MAX_FRACTION:
+            raise ValueError("map does not include the opening portion")
+        if events[-1]["timestamp"] < duration * PLAINTEXT_ENDING_ANCHOR_MIN_FRACTION:
+            raise ValueError("map does not include the ending portion")
     return {
         "answer": answer,
         "events": events,

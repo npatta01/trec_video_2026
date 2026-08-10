@@ -133,7 +133,7 @@ def test_canary_fails_closed_and_does_not_repair_bad_map(tmp_path: Path) -> None
             "choices": [
                 {
                     "finish_reason": "stop",
-                    "message": {"content": "E1|1.0|Only one event.\nANSWER|answer"},
+                    "message": {"content": "ANSWER|answer"},
                 }
             ]
         }
