@@ -277,6 +277,25 @@ def generate_answer(
         transcript=transcript,
         answer_policy=answer_policy,
     )
+    return generate_from_messages(
+        processor=processor,
+        model=model,
+        messages=messages,
+        max_new_tokens=max_new_tokens,
+        normalize=True,
+    )
+
+
+def generate_from_messages(
+    *,
+    processor: Any,
+    model: Any,
+    messages: list[dict[str, Any]],
+    max_new_tokens: int,
+    normalize: bool,
+) -> str:
+    """Generate deterministically from an already constructed message payload."""
+
     inputs = processor.apply_chat_template(
         messages,
         tokenize=True,
@@ -295,7 +314,7 @@ def generate_answer(
     )
     answer_ids = generated[0][input_length:]
     text = processor.decode(answer_ids, skip_special_tokens=True)
-    answer = normalize_generated_answer(text)
+    answer = normalize_generated_answer(text) if normalize else text.strip()
     if not answer:
         raise ValueError("Model returned an empty answer")
     return answer

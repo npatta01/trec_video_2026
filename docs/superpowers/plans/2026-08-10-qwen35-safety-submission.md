@@ -4,9 +4,9 @@
 
 **Goal:** Freeze and prepare a private, validator-ready 2,443-query TRECVID 2026 AG safety submission with the verified Qwen3.5-4B uniform-12 path at rank 1.
 
-**Architecture:** A local preparation module creates a label-free query/media contract and deduplicated uniform-frame evidence plan. A pinned CUDA dstack task runs one baseline answer and one nine-answer tail request per query, freezes the complete ranking, and writes immutable private outputs. A host-side finalizer verifies the freeze, serializes the official JSON schema, runs the pinned NIST validator, and records checksums without uploading to Evalbase.
+**Architecture:** A local preparation module creates a label-free query/media contract and deduplicated uniform-frame evidence plan. The Framework host's pinned rootless ROCm Podman runtime runs one baseline answer and one nine-answer tail request per query, freezes the complete ranking, and writes immutable private outputs without transferring licensed media. A host-side finalizer verifies the freeze, serializes the official JSON schema, runs the pinned NIST validator, and records checksums without uploading to Evalbase.
 
-**Tech Stack:** Python 3.12, pytest, PyAV/ffmpeg, Qwen3.5-4B, Transformers 5 pinned source revision, dstack 0.20.29, Hugging Face Buckets CLI 1.26.0, NIST VQA validator commit `e06cb7854d7defe53e86412c2bba0ca5f636ea40`.
+**Tech Stack:** Python 3.12, pytest, ffmpeg/ffprobe, Qwen3.5-4B, Transformers 5 pinned source revision, rootless Podman with ROCm 7.2.4, NIST VQA validator commit `e06cb7854d7defe53e86412c2bba0ca5f636ea40`.
 
 ## Global Constraints
 
@@ -31,23 +31,23 @@
 - Consumes: official topic JSON and the two local 2026 media directories.
 - Produces: `build_test_manifest(topics_path, dataset_root) -> dict`, with ordered query records and source hashes.
 
-- [ ] **Step 1: Write failing manifest tests**
+- [x] **Step 1: Write failing manifest tests**
 
   Cover duplicate query IDs, two queries sharing one video, supplied WebM and
   downloaded YouTube resolution, unavailable media, forbidden label fields,
   and exact source-order preservation.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
   Run: `uv run pytest tests/test_vqa_safety_submission.py -q`
 
-- [ ] **Step 3: Implement the minimal manifest builder and CLI**
+- [x] **Step 3: Implement the minimal manifest builder and CLI**
 
   Store `query_id`, `video_id`, `question`, dataset-relative `media`,
   availability, byte size, and SHA-256. Refuse ambiguous media matches and
   write atomically to a new run root.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
   Run: `uv run pytest tests/test_vqa_safety_submission.py -q`
 
@@ -64,23 +64,23 @@
   `build_ranked_tail_request`, `parse_ranked_tail`, and
   `complete_ranked_candidates`.
 
-- [ ] **Step 1: Write failing request and parsing tests**
+- [x] **Step 1: Write failing request and parsing tests**
 
   Assert exact twelve bin-midpoint frames, reuse across duplicate video IDs,
   unchanged rank-1 `current` prompt behavior, exclusion of the frozen rank-1
   answer from the tail prompt, strict ordered JSON parsing, normalized
   deduplication, and bounded fallback completion.
 
-- [ ] **Step 2: Run focused tests and verify RED**
+- [x] **Step 2: Run focused tests and verify RED**
 
   Run: `uv run pytest tests/test_vqa_safety_submission.py tests/test_vqa_models.py -q`
 
-- [ ] **Step 3: Implement evidence and candidate contracts**
+- [x] **Step 3: Implement evidence and candidate contracts**
 
   Keep unavailable-media requests explicit and question-only. Record every
   parse/repair/fallback disposition in the private prediction row.
 
-- [ ] **Step 4: Run focused tests and verify GREEN**
+- [x] **Step 4: Run focused tests and verify GREEN**
 
   Run: `uv run pytest tests/test_vqa_safety_submission.py tests/test_vqa_models.py -q`
 
@@ -97,57 +97,57 @@
   `submission-top1.json`, `submission-top5.json`,
   `submission-top10.json`, validator report, and `SHA256SUMS`.
 
-- [ ] **Step 1: Write failing finalization tests**
+- [x] **Step 1: Write failing finalization tests**
 
   Test freeze-before-write, tamper rejection, exact 2,443-row/order checks on
   a parameterized fixture, ten-answer uniqueness, contiguous ranks, finite
   times, overwrite refusal, and nonzero validator propagation.
 
-- [ ] **Step 2: Run focused tests and verify RED**
+- [x] **Step 2: Run focused tests and verify RED**
 
   Run: `uv run pytest tests/test_vqa_safety_submission.py -q`
 
-- [ ] **Step 3: Implement the finalizer**
+- [x] **Step 3: Implement the finalizer**
 
   Reuse `freeze_predictions`, `verify_prediction_freeze`, and
   `serialize_ag_submission`. Pin and record the validator revision and invoke
   it in an isolated temporary directory.
 
-- [ ] **Step 4: Run focused tests and verify GREEN**
+- [x] **Step 4: Run focused tests and verify GREEN**
 
   Run: `uv run pytest tests/test_vqa_safety_submission.py tests/test_vqa_submission.py -q`
 
-### Task 4: Pinned remote task and resumable inference
+### Task 4: Pinned local ROCm task and resumable inference
 
 **Files:**
-- Create: `scripts/run-qwen35-safety-submission-dstack.sh`
-- Create: `dstack/qwen35-safety-submission.dstack.yml`
-- Create: `tests/test_qwen35_safety_submission_dstack.py`
+- Create: `src/trec_video_2026/vqa_safety_runner.py`
+- Create: `scripts/run-qwen35-safety-submission-local.sh`
+- Modify: `tests/test_vqa_safety_submission.py`
 
 **Interfaces:**
-- Consumes: immutable private HF Bucket input bundle and repository code.
+- Consumes: the local immutable manifest, shared local dataset, and repository code.
 - Produces: resumable query-level rank-1/tail results, runtime attestation,
-  terminal status, and an immutable private HF output bundle.
+  terminal status, and a private local output bundle.
 
-- [ ] **Step 1: Write failing executable contract tests**
+- [x] **Step 1: Write failing executable contract tests**
 
-  Exercise the shell entry point in preflight mode and assert fail-closed run
-  name, input/output URI, manifest hash, model/runtime revisions, expected
-  query count, no labels, and resumable checkpoint rules.
+  Exercise the runner helpers and assert exact resume-prefix identity, model
+  and runtime revisions, expected query count, no labels, and checkpoint rules.
 
-- [ ] **Step 2: Run focused tests and verify RED**
+- [x] **Step 2: Run focused tests and verify RED**
 
-  Run: `uv run pytest tests/test_qwen35_safety_submission_dstack.py -q`
+  Run: `uv run pytest tests/test_vqa_safety_submission.py tests/test_vqa_transformers_runner.py -q`
 
-- [ ] **Step 3: Implement the pinned dstack task**
+- [x] **Step 3: Implement the pinned rootless Podman task**
 
-  Reuse the verified CUDA image and model revision. Extract frames once per
-  available video, run rank 1 before the tail, checkpoint each query, sync
-  only private artifacts, and enforce terminal completion before freeze.
+  Reuse the verified ROCm image and pinned model revision. Mount the canonical
+  dataset locally, extract frames once per available video, run rank 1 before
+  the tail, checkpoint each query, and enforce terminal completion before
+  freeze.
 
-- [ ] **Step 4: Run focused tests and verify GREEN**
+- [x] **Step 4: Run focused tests and verify GREEN**
 
-  Run: `uv run pytest tests/test_qwen35_safety_submission_dstack.py -q`
+  Run: `uv run pytest tests/test_vqa_safety_submission.py tests/test_vqa_transformers_runner.py -q`
 
 ### Task 5: Prepare, canary, execute, freeze, and validate
 
@@ -157,33 +157,30 @@
 **Interfaces:**
 - Produces: the final private top-10 submission and audit bundle.
 
-- [ ] **Step 1: Run the full local test suite relevant to submission**
+- [x] **Step 1: Run the full local test suite relevant to submission**
 
-  Run: `uv run pytest tests/test_vqa_safety_submission.py tests/test_qwen35_safety_submission_dstack.py tests/test_vqa_submission.py tests/test_vqa_models.py -q`
+  Run: `uv run pytest tests/test_vqa_safety_submission.py tests/test_vqa_transformers_runner.py tests/test_vqa_submission.py tests/test_vqa_models.py -q`
 
 - [ ] **Step 2: Prepare and audit the local immutable input bundle**
 
   Confirm 2,443 queries, 1,956 videos, 1,946 available videos, ten
-  unavailable videos, exact source hashes, no labels, and private write-once
-  HF prefix emptiness before upload.
+  unavailable videos, exact source hashes, and no labels.
 
-- [ ] **Step 3: Preview dstack offers without launching**
+- [x] **Step 3: Verify the local ROCm runtime without inference**
 
-  Run: `echo "n" | dstack apply -f dstack/qwen35-safety-submission.dstack.yml`
-  Inspect the full offer and cost output. Because the user already authorized
-  the run, submit detached only if the preview has a valid offer at or below
-  the configured price and duration cap.
+  Confirm the pinned rootless image, ROCm visibility, BF16 support, local
+  cache mount, and canonical data mount before loading the model.
 
-- [ ] **Step 4: Run a bounded live canary and inspect artifacts**
+- [x] **Step 4: Run a bounded live canary and inspect artifacts**
 
   Require successful rank-1 and ranked-tail output, unique ten-answer
-  completion, correct timing, runtime attestation, and remote sync before the
-  full workload proceeds.
+  completion, correct timing, and runtime attestation before the full
+  workload proceeds.
 
 - [ ] **Step 5: Execute the full run and monitor to terminal status**
 
-  Use detached dstack execution, normal non-diagnostic logs, and resumable
-  checkpoints. Do not claim completion until all 2,443 query rows exist.
+  Use rootless Podman, local logs, and resumable checkpoints. Do not claim
+  completion until all 2,443 query rows exist.
 
 - [ ] **Step 6: Download, freeze, serialize, and validate**
 
@@ -197,4 +194,3 @@
   Confirm no private run artifact is tracked or staged and report the local
   submission path, hash, validator result, fallback counts, and remaining
   upload action.
-

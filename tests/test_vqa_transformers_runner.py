@@ -15,6 +15,7 @@ from trec_video_2026.vqa_transformers_runner import (
     MIN_PIXELS_PER_FRAME,
     attach_request_identity,
     generate_answer,
+    generate_from_messages,
     generation_compat_kwargs,
     load_legacy_optional_processor,
     load_processor,
@@ -62,6 +63,25 @@ class FakeModel:
     def generate(self, **kwargs):
         self.kwargs = kwargs
         return [FakeRow()]
+
+
+def test_generate_from_messages_uses_deterministic_non_thinking_decode() -> None:
+    processor = FakeProcessor()
+    model = FakeModel()
+    messages = [{"role": "user", "content": [{"type": "text", "text": "Prompt"}]}]
+
+    result = generate_from_messages(
+        processor=processor,
+        model=model,
+        messages=messages,
+        max_new_tokens=128,
+        normalize=False,
+    )
+
+    assert result == "Answer: Across a tennis net."
+    assert processor.kwargs["enable_thinking"] is False
+    assert model.kwargs["do_sample"] is False
+    assert model.kwargs["max_new_tokens"] == 128
 
 
 def _install_fake_main_runtime(
@@ -116,9 +136,7 @@ def _install_fake_main_runtime(
     monkeypatch.setattr(transformers_runner, "generate_answer", fake_generate_answer)
 
 
-def _main_request(
-    video_id: str, question: str | None = None
-) -> dict[str, object]:
+def _main_request(video_id: str, question: str | None = None) -> dict[str, object]:
     request: dict[str, object] = {
         "run_id": "run-1",
         "condition_id": "condition-1",
@@ -144,6 +162,7 @@ def _invoke_main(
     generation_calls: list[dict[str, object]] = []
     _install_fake_main_runtime(monkeypatch, processor_calls, generation_calls)
     if setup_error is not None:
+
         def failing_load_processor(*args, **kwargs):
             raise RuntimeError(setup_error)
 

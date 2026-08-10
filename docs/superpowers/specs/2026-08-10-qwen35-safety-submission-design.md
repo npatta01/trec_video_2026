@@ -68,13 +68,18 @@ No submission is uploaded to Evalbase without a separate explicit request.
 
 ## Execution gates
 
+The producing runtime is the Framework host's existing rootless ROCm Podman
+image, with the canonical dataset mounted locally. This avoids transferring
+licensed 2026 media to remote object storage. A remote dstack fallback would
+require separate authorization for the dataset transfer and is not part of
+this freeze.
+
 1. Local unit and contract tests pass.
 2. A label-free one-query fixture proves manifest, ranked-tail parsing,
    freezing, serialization, and validator invocation.
-3. A small live GPU canary completes before the full task is submitted.
+3. A one-query live ROCm canary completes before the full local run starts.
 4. The full run freezes all 2,443 queries and records explicit handling for
    every unavailable-media row.
 5. The official validator exits zero on the top-10 file; top-1 and top-5 are
    retained as analysis views and are not expected to satisfy the required
    ten-answer upload contract.
-
