@@ -491,7 +491,7 @@ def build_plaintext_selector_request(
     text = (
         "Select the one or two mapped events that contain the strongest evidence.\n\n"
         "Return only:\n\n"
-        "SELECT|E#\n"
+        "SELECT|E1\n"
         "ANSWER|<answer, at most 20 words>\n"
         "END\n\n"
         "Choose exactly one strongest event. Never select two or more events. "
