@@ -207,7 +207,7 @@ Expected: module import fails.
 
 - [ ] **Step 3: Implement schema-constrained timeline validation**
 
-Accept chronological events and at most three support spans. Require finite `0 <= start < end <= duration`, unique span IDs, sorted events, declared modality values from `{visual, speech, non_speech_audio, visible_text}`, and bounded descriptions. One fallback record contains no free-form unvalidated fields.
+Accept chronological events and at most three support spans. Require finite `0 <= start < end <= duration`, unique span IDs, sorted events, declared modality values from `{visual, speech, non_speech_audio, visible_text}`, and bounded descriptions. Expand a support span shorter than one second around its midpoint to exactly one second while clamping to `[0, duration]`; reject media shorter than one second. One fallback record contains no free-form unvalidated fields.
 
 - [ ] **Step 4: Write failing frame-allocation tests**
 

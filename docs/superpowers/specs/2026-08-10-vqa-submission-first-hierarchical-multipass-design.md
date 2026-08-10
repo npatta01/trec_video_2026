@@ -37,7 +37,9 @@ question. It emits a schema-constrained, label-blind record containing:
 
 The stage does not emit the final submission answer. Its output is an
 inspectable retrieval plan, not trusted evidence. Timestamps are clamped and
-validated against the source duration. Invalid output gets one fixed schema
+validated against the source duration. Support spans shorter than one second
+are expanded around their midpoint to exactly one second within source bounds
+before evidence allocation. Invalid output gets one fixed schema
 repair attempt; a second failure activates deterministic global evidence only.
 
 ### Stage 2: global and local evidence materialization
