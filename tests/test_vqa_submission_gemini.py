@@ -342,6 +342,40 @@ def test_simple_provider_message_remains_bounded_and_class_prefixed(
     assert str(raised.value) == "RuntimeError: provider failed"
 
 
+def test_generation_result_freezes_allowlisted_provider_metadata() -> None:
+    result = GenerationResult(
+        payload={"answer": "ok"},
+        raw_response='{"answer":"ok"}',
+        usage=TokenUsage(input_tokens=1, output_tokens=1),
+        provider_metadata={
+            "provider": "Google AI Studio",
+            "model": "google/gemini-3.1-pro-preview",
+            "request_id": "gen-test",
+            "reported_cost_usd": 0.0125,
+        },
+    )
+
+    assert result.provider_metadata == {
+        "provider": "Google AI Studio",
+        "model": "google/gemini-3.1-pro-preview",
+        "request_id": "gen-test",
+        "reported_cost_usd": 0.0125,
+    }
+    with pytest.raises(TypeError):
+        result.provider_metadata["provider"] = "other"  # type: ignore[index]
+
+
+@pytest.mark.parametrize("cost", [-0.01, float("inf"), float("nan"), True])
+def test_generation_result_rejects_invalid_reported_cost(cost: object) -> None:
+    with pytest.raises(ValueError, match="reported_cost_usd"):
+        GenerationResult(
+            payload={"answer": "ok"},
+            raw_response='{"answer":"ok"}',
+            usage=TokenUsage(input_tokens=1, output_tokens=1),
+            provider_metadata={"reported_cost_usd": cost},
+        )
+
+
 def test_timeline_requires_metadata_and_returns_normalized_validated_timeline(
     tmp_path: Path,
 ) -> None:

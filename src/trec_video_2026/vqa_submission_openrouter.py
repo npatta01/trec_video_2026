@@ -5,11 +5,13 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import math
 import os
 import stat
 import urllib.error
 import urllib.request
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -34,6 +36,40 @@ MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 MAX_REQUEST_BYTES = 30_000_000
 MAX_OUTPUT_TOKENS = 32768
 HTTP_TIMEOUT_SECONDS = 120.0
+
+
+@dataclass(frozen=True, slots=True)
+class OpenRouterRequestPolicy:
+    """Optional request controls for one pinned OpenRouter generation."""
+
+    max_output_tokens: int = MAX_OUTPUT_TOKENS
+    temperature: float | None = None
+    provider_order: tuple[str, ...] = ()
+    allow_fallbacks: bool | None = None
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.max_output_tokens, bool)
+            or not isinstance(self.max_output_tokens, int)
+            or self.max_output_tokens <= 0
+        ):
+            raise ValueError("max_output_tokens must be a positive integer")
+        if self.temperature is not None and (
+            isinstance(self.temperature, bool)
+            or not isinstance(self.temperature, (int, float))
+            or not math.isfinite(float(self.temperature))
+            or self.temperature < 0
+        ):
+            raise ValueError("temperature must be a finite non-negative number")
+        if (
+            not isinstance(self.provider_order, tuple)
+            or not all(isinstance(provider, str) and provider for provider in self.provider_order)
+        ):
+            raise ValueError("provider_order must contain non-empty provider names")
+        if self.allow_fallbacks is not None and not isinstance(
+            self.allow_fallbacks, bool
+        ):
+            raise TypeError("allow_fallbacks must be a boolean or None")
 
 _MODEL_MAP = {MODEL_ID: OPENROUTER_MODEL_ID}
 _ALLOWED_MIME_TYPES = frozenset(
@@ -124,11 +160,20 @@ class OpenRouterTransport:
 
     provider_name = "openrouter"
 
-    def __init__(self, api_key: str, *, opener: _Opener | None = None) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        *,
+        opener: _Opener | None = None,
+        policy: OpenRouterRequestPolicy | None = None,
+    ) -> None:
         if not isinstance(api_key, str) or not api_key.strip():
             raise ProviderAuthenticationError(AUTHENTICATION_ERROR_MESSAGE)
+        if policy is not None and not isinstance(policy, OpenRouterRequestPolicy):
+            raise TypeError("policy must be an OpenRouterRequestPolicy or None")
         self._api_key = api_key
         self._opener = opener
+        self._policy = policy or OpenRouterRequestPolicy()
         self._uploads: dict[str, tuple[str, str]] = {}
 
     def __repr__(self) -> str:
@@ -273,6 +318,34 @@ class OpenRouterTransport:
         }
         return rendered, identity
 
+    @staticmethod
+    def _provider_metadata(response: Mapping[str, object]) -> dict[str, object]:
+        metadata: dict[str, object] = {}
+        for key in ("provider", "model"):
+            value = response.get(key)
+            if isinstance(value, str) and value.strip():
+                metadata[key] = value
+        request_id = response.get("request_id")
+        if request_id is None:
+            request_id = response.get("id")
+        if isinstance(request_id, str) and request_id.strip():
+            metadata["request_id"] = request_id
+        usage = response.get("usage")
+        if isinstance(usage, Mapping) and "cost" in usage:
+            cost = usage.get("cost")
+            if cost is not None:
+                if (
+                    isinstance(cost, bool)
+                    or not isinstance(cost, (int, float))
+                    or not math.isfinite(float(cost))
+                    or cost < 0
+                ):
+                    raise ProviderProtocolError(
+                        "OpenRouter reported cost was invalid"
+                    )
+                metadata["reported_cost_usd"] = float(cost)
+        return metadata
+
     def generate(
         self,
         *,
@@ -296,7 +369,7 @@ class OpenRouterTransport:
             "model": model_slug,
             "messages": [{"role": "user", "content": content}],
             "stream": False,
-            "max_tokens": MAX_OUTPUT_TOKENS,
+            "max_tokens": self._policy.max_output_tokens,
             "reasoning": {"effort": "high", "exclude": True},
             "provider": {
                 "zdr": True,
@@ -312,6 +385,12 @@ class OpenRouterTransport:
                 },
             },
         }
+        if self._policy.temperature is not None:
+            payload["temperature"] = self._policy.temperature
+        if self._policy.provider_order:
+            payload["provider"]["order"] = list(self._policy.provider_order)
+        if self._policy.allow_fallbacks is not None:
+            payload["provider"]["allow_fallbacks"] = self._policy.allow_fallbacks
         seed_input = dict(payload)
         seed = int(hashlib.sha256(_json_bytes(seed_input)).hexdigest()[:16], 16) & 0x7FFF_FFFF
         payload["seed"] = seed
@@ -373,6 +452,7 @@ class OpenRouterTransport:
                 total_tokens=total_tokens,
                 cached_input_tokens=cached_tokens or 0,
             ),
+            provider_metadata=self._provider_metadata(response),
         )
 
     def preflight(self, *, model_id: str) -> dict[str, object]:
@@ -426,11 +506,13 @@ class OpenRouterTransport:
 
 
 def create_openrouter_transport(
-    *, opener: _Opener | None = None
+    *,
+    opener: _Opener | None = None,
+    policy: OpenRouterRequestPolicy | None = None,
 ) -> GeminiTransport:
     """Create an OpenRouter transport from only OPENROUTER_API_KEY."""
 
-    return OpenRouterTransport(_api_key(), opener=opener)
+    return OpenRouterTransport(_api_key(), opener=opener, policy=policy)
 
 
 def preflight_openrouter_transport(
@@ -449,6 +531,7 @@ __all__ = [
     "OPENROUTER_CHAT_URL",
     "OPENROUTER_MODEL_ID",
     "OPENROUTER_MODELS_URL",
+    "OpenRouterRequestPolicy",
     "OpenRouterTransport",
     "create_openrouter_transport",
     "preflight_openrouter_transport",

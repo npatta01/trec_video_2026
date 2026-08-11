@@ -155,6 +155,9 @@ def test_generate_posts_exact_multimodal_request_and_parses_usage(
         total_tokens=28,
         cached_input_tokens=3,
     )
+    assert "temperature" not in body
+    assert "order" not in body["provider"]
+    assert "allow_fallbacks" not in body["provider"]
 
     second_opener = FakeOpener([_success_response()])
     second_transport = _transport(monkeypatch, second_opener)
@@ -177,6 +180,67 @@ def test_generate_posts_exact_multimodal_request_and_parses_usage(
     ) + ("What happened?",)
     second_transport.generate(model=MODEL_ID, parts=second_parts, schema=schema)
     assert json.loads(second_opener.requests[0].data)["seed"] == body["seed"]
+
+
+def test_frontier_policy_pins_route_and_disables_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opener = FakeOpener(
+        [
+            FakeResponse(
+                {
+                    "id": "gen-frontier-test",
+                    "provider": "Google AI Studio",
+                    "model": MODEL_SLUG,
+                    "choices": [
+                        {
+                            "finish_reason": "stop",
+                            "message": {
+                                "role": "assistant",
+                                "content": '{"answer":"ok"}',
+                            },
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 21,
+                        "completion_tokens": 7,
+                        "total_tokens": 28,
+                        "cost": 0.0125,
+                        "secret": "must-not-escape",
+                    },
+                    "untrusted": "must-not-escape",
+                }
+            )
+        ]
+    )
+    transport = openrouter.OpenRouterTransport(
+        "test-secret",
+        opener=opener,
+        policy=openrouter.OpenRouterRequestPolicy(
+            max_output_tokens=16384,
+            temperature=0.1,
+            provider_order=("Google AI Studio",),
+            allow_fallbacks=False,
+        ),
+    )
+
+    result = transport.generate(
+        model=MODEL_ID,
+        parts=("Describe the clip.",),
+        schema={"type": "object", "additionalProperties": False},
+    )
+
+    body = json.loads(opener.requests[-1].data)
+    assert body["max_tokens"] == 16384
+    assert body["temperature"] == 0.1
+    assert body["provider"]["order"] == ["Google AI Studio"]
+    assert body["provider"]["allow_fallbacks"] is False
+    assert result.provider_metadata == {
+        "provider": "Google AI Studio",
+        "model": MODEL_SLUG,
+        "request_id": "gen-frontier-test",
+        "reported_cost_usd": 0.0125,
+    }
 
 
 def test_deterministic_seed_is_signed_31_bit_and_tracks_visible_request(

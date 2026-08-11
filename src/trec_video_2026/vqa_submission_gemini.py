@@ -9,7 +9,7 @@ import math
 import re
 import time
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Protocol
@@ -128,6 +128,9 @@ _SENSITIVE_ERROR_RE = re.compile(
     r"(?is)(?:authorization|proxy-authorization|x-goog-api-key|x-api-key|"
     r"api[_ -]?key|access[_ -]?token|refresh[_ -]?token|bearer|token|secret|"
     r"password|credential)"
+)
+_ALLOWED_PROVIDER_METADATA_KEYS = frozenset(
+    {"provider", "model", "request_id", "reported_cost_usd"}
 )
 
 
@@ -424,12 +427,36 @@ class GenerationResult:
     payload: object
     raw_response: bytes | str
     usage: TokenUsage
+    provider_metadata: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not isinstance(self.raw_response, (bytes, str)):
             raise TypeError("raw_response must be bytes or text")
         if not isinstance(self.usage, TokenUsage):
             raise TypeError("usage must be TokenUsage")
+        if not isinstance(self.provider_metadata, Mapping):
+            raise TypeError("provider_metadata must be a mapping")
+        metadata = dict(self.provider_metadata)
+        if any(key not in _ALLOWED_PROVIDER_METADATA_KEYS for key in metadata):
+            raise ValueError("provider metadata contains an unsafe key")
+        for key in ("provider", "model", "request_id"):
+            if key in metadata and (
+                not isinstance(metadata[key], str) or not metadata[key].strip()
+            ):
+                raise ValueError(f"{key} metadata must be a non-empty string")
+        if "reported_cost_usd" in metadata:
+            cost = metadata["reported_cost_usd"]
+            if (
+                isinstance(cost, bool)
+                or not isinstance(cost, (int, float))
+                or not math.isfinite(float(cost))
+                or cost < 0
+            ):
+                raise ValueError(
+                    "reported_cost_usd must be a finite non-negative number"
+                )
+            metadata["reported_cost_usd"] = float(cost)
+        object.__setattr__(self, "provider_metadata", MappingProxyType(metadata))
 
     @property
     def raw_bytes(self) -> bytes:
