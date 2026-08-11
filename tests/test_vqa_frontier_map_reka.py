@@ -153,18 +153,22 @@ def _deterministic_seed(body: dict[str, object]) -> int:
     return int(hashlib.sha256(encoded).hexdigest()[:16], 16) & 0x7FFF_FFFF
 
 
+def _upload_part(tmp_path: Path, transport: RekaTransport) -> dict[str, str]:
+    video = tmp_path / "clip.mp4"
+    video.write_bytes(b"video-bytes")
+    upload = transport.upload(video, mime_type="video/mp4")
+    return {"file_id": upload.file_id, "mime_type": "video/mp4"}
+
+
 def test_reka_posts_one_native_video_request_and_parses_usage(
     tmp_path: Path,
 ) -> None:
-    video = tmp_path / "clip.mp4"
-    video.write_bytes(b"video-bytes")
     opener = FakeOpener([FakeResponse(_response_payload())])
     transport = RekaTransport("test-secret", opener=opener)
 
-    upload = transport.upload(video, mime_type="video/mp4")
     result = transport.generate(
         model=REKA_MODEL_ID,
-        parts=[{"file_id": upload.file_id, "mime_type": "video/mp4"}, "frozen prompt"],
+        parts=[_upload_part(tmp_path, transport), "frozen prompt"],
         schema=EVENT_MAP_SCHEMA,
     )
 
@@ -197,21 +201,21 @@ def test_reka_posts_one_native_video_request_and_parses_usage(
     ) in content[1]["text"]
 
 
-def test_reka_rejects_invalid_json_without_repair_or_retry() -> None:
+def test_reka_rejects_invalid_json_without_repair_or_retry(tmp_path: Path) -> None:
     opener = FakeOpener([FakeResponse(_response_payload(content="not-json"))])
     transport = RekaTransport("test-secret", opener=opener)
 
     with pytest.raises(ProviderProtocolError, match="valid JSON"):
         transport.generate(
             model=REKA_MODEL_ID,
-            parts=["frozen prompt"],
+            parts=[_upload_part(tmp_path, transport), "frozen prompt"],
             schema={"type": "object"},
         )
 
     assert len(opener.requests) == 1
 
 
-def test_reka_locally_validates_response_schema() -> None:
+def test_reka_locally_validates_response_schema(tmp_path: Path) -> None:
     invalid = valid_payload()
     invalid.pop("top1_answer")
     opener = FakeOpener(
@@ -222,14 +226,14 @@ def test_reka_locally_validates_response_schema() -> None:
     with pytest.raises(ProviderProtocolError, match="schema"):
         transport.generate(
             model=REKA_MODEL_ID,
-            parts=["frozen prompt"],
+            parts=[_upload_part(tmp_path, transport), "frozen prompt"],
             schema=EVENT_MAP_SCHEMA,
         )
 
     assert len(opener.requests) == 1
 
 
-def test_reka_bounds_response_reads_and_provider_errors() -> None:
+def test_reka_bounds_response_reads_and_provider_errors(tmp_path: Path) -> None:
     secret = "test-secret"
     response = BoundedResponse(b"x" * (MAX_RESPONSE_BYTES + 1))
     opener = FakeOpener([response])
@@ -238,7 +242,7 @@ def test_reka_bounds_response_reads_and_provider_errors() -> None:
     with pytest.raises(ProviderProtocolError) as raised:
         transport.generate(
             model=REKA_MODEL_ID,
-            parts=["frozen prompt"],
+            parts=[_upload_part(tmp_path, transport), "frozen prompt"],
             schema={"type": "object"},
         )
 
@@ -248,7 +252,7 @@ def test_reka_bounds_response_reads_and_provider_errors() -> None:
     assert len(str(raised.value)) <= 256
 
 
-def test_reka_repr_and_http_errors_redact_credentials() -> None:
+def test_reka_repr_and_http_errors_redact_credentials(tmp_path: Path) -> None:
     secret = "reka-test-secret"
     opener = FakeOpener([FakeResponse({"error": {"message": secret}} , status=500)])
     transport = RekaTransport(secret, opener=opener)
@@ -257,11 +261,41 @@ def test_reka_repr_and_http_errors_redact_credentials() -> None:
     with pytest.raises(ProviderError) as raised:
         transport.generate(
             model=REKA_MODEL_ID,
-            parts=["frozen prompt"],
+            parts=[_upload_part(tmp_path, transport), "frozen prompt"],
             schema={"type": "object"},
         )
     assert secret not in str(raised.value)
     assert len(str(raised.value)) <= 256
+
+
+@pytest.mark.parametrize(
+    "shape", ["prompt-only", "video-only", "reversed", "extra", "empty-prompt"]
+)
+def test_reka_rejects_noncanonical_parts_before_network(
+    tmp_path: Path, shape: str
+) -> None:
+    opener = FakeOpener([])
+    transport = RekaTransport("test-secret", opener=opener)
+    video_part = _upload_part(tmp_path, transport)
+    parts_by_shape = {
+        "prompt-only": ["frozen prompt"],
+        "video-only": [video_part],
+        "reversed": ["frozen prompt", video_part],
+        "extra": [video_part, "frozen prompt", "extra text"],
+        "empty-prompt": [video_part, "   "],
+    }
+
+    with pytest.raises(
+        ProviderProtocolError,
+        match="exactly one video followed by one non-empty prompt",
+    ):
+        transport.generate(
+            model=REKA_MODEL_ID,
+            parts=parts_by_shape[shape],
+            schema={"type": "object"},
+        )
+
+    assert opener.requests == []
 
 
 def test_missing_reka_credentials_fail_before_network(

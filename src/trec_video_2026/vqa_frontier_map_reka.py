@@ -45,6 +45,9 @@ _ALLOWED_MIME_TYPES = frozenset(
         "video/x-msvideo",
     }
 )
+_INVALID_GENERATION_SHAPE = (
+    "Reka request must contain exactly one video followed by one non-empty prompt"
+)
 
 
 class _Opener(Protocol):
@@ -361,22 +364,23 @@ class RekaTransport:
             raise ProviderProtocolError("Reka request parts were invalid")
         if not isinstance(schema, Mapping):
             raise ProviderProtocolError("Reka response schema was invalid")
+        if len(parts) != 2:
+            raise ProviderProtocolError(_INVALID_GENERATION_SHAPE)
+        video_part, prompt_part = parts
+        if (
+            not isinstance(video_part, Mapping)
+            or "file_id" not in video_part
+            or not isinstance(prompt_part, str)
+            or not prompt_part.strip()
+        ):
+            raise ProviderProtocolError(_INVALID_GENERATION_SHAPE)
         seen_file_ids: set[str] = set()
-        content = [self._part_content(part, seen_file_ids) for part in parts]
-        if not content:
-            raise ProviderProtocolError("Reka request parts were empty")
-        if any(
-            item["type"] == "video_url" for item in content
-        ) and any(
-            item["type"] == "video_url" for item in content[1:]
-        ):
-            raise ProviderProtocolError("Reka request contains multiple videos")
-        if any(
-            item["type"] == "video_url" for item in content
-        ) and any(
-            item["type"] == "text" for item in content[:1]
-        ):
-            raise ProviderProtocolError("Reka request content must start with video")
+        content = [
+            self._part_content(video_part, seen_file_ids),
+            self._part_content(prompt_part, seen_file_ids),
+        ]
+        if content[0]["type"] != "video_url":
+            raise ProviderProtocolError(_INVALID_GENERATION_SHAPE)
         payload: dict[str, object] = {
             "model": REKA_MODEL_ID,
             "messages": [{"role": "user", "content": content}],
