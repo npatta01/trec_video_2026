@@ -463,6 +463,49 @@ def test_candidate_sheet_projects_questions_and_excludes_labels(tmp_path: Path) 
     assert all("annotation" not in row for row in sheet["candidates"])
 
 
+def test_candidate_sheet_skips_annotations_without_media(tmp_path: Path) -> None:
+    annotation_root = tmp_path / "vqa/2025/training/annotations"
+    annotation_root.mkdir(parents=True)
+
+    present_id = "present-video"
+    present_question = "What happens after the person opens the box?"
+    (annotation_root / f"{present_id}.json").write_text(
+        json.dumps(
+            {
+                "video_url": f"https://example.test/{present_id}",
+                "question": present_question,
+                "correct_answer": "private answer",
+            }
+        ),
+        encoding="utf-8",
+    )
+    _media_path(tmp_path, present_id)
+    PROBED_DURATIONS[present_id] = 4.0
+
+    missing_id = "missing-video"
+    (annotation_root / f"{missing_id}.json").write_text(
+        json.dumps(
+            {
+                "video_url": f"https://example.test/{missing_id}",
+                "question": "What is happening in the scene?",
+                "correct_answer": "private answer",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    sheet = build_candidate_sheet(tmp_path)
+
+    assert sheet["example_count"] == 1
+    assert sheet["missing_media_count"] == 1
+    candidates = sheet["candidates"]
+    assert isinstance(candidates, list)
+    assert [row["video_id"] for row in candidates] == [present_id]
+    serialized = json.dumps(sheet)
+    assert missing_id not in serialized
+    assert f"{missing_id}.json" not in serialized
+
+
 def test_verify_canonical_data_root_requires_exact_resolved_match(
     tmp_path: Path,
 ) -> None:

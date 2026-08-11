@@ -244,12 +244,16 @@ def _question_projection(annotation_path: Path) -> tuple[str, str]:
     return annotation_path.stem, question
 
 
-def _locate_media(media_root: Path, video_id: str) -> Path:
-    matches = [
+def _media_matches(media_root: Path, video_id: str) -> list[Path]:
+    return [
         candidate
         for suffix in SUPPORTED_MEDIA_SUFFIXES
         if (candidate := media_root / f"{video_id}{suffix}").is_file()
     ]
+
+
+def _locate_media(media_root: Path, video_id: str) -> Path:
+    matches = _media_matches(media_root, video_id)
     if not matches:
         raise ValueError(f"media file is missing for {video_id}")
     if len(matches) > 1:
@@ -286,16 +290,21 @@ def _candidate_row(data_root: Path, annotation_path: Path) -> dict[str, object]:
 
 
 def build_candidate_sheet(data_root: Path) -> dict[str, object]:
-    candidates = [
-        _candidate_row(data_root, annotation_path)
-        for annotation_path in sorted(_annotations_root(data_root).glob("*.json"))
-    ]
+    media_root = _media_root(data_root)
+    candidates = []
+    missing_media_count = 0
+    for annotation_path in sorted(_annotations_root(data_root).glob("*.json")):
+        if not _media_matches(media_root, annotation_path.stem):
+            missing_media_count += 1
+            continue
+        candidates.append(_candidate_row(data_root, annotation_path))
     return {
         "schema_version": SCHEMA_VERSION,
         "run_id": RUN_ID,
         "selection_policy": SELECTION_POLICY,
         "reference_policy": REFERENCE_POLICY,
         "example_count": len(candidates),
+        "missing_media_count": missing_media_count,
         "candidates": candidates,
     }
 
