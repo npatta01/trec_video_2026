@@ -4,11 +4,14 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
 import pytest
 
+from trec_video_2026 import vqa_frontier_map_runner as runner_module
+from trec_video_2026.vqa_benchmark import probe_media
 from trec_video_2026.vqa_frontier_map_runner import (
     FixtureTransport,
     freeze_provider_outputs,
@@ -359,6 +362,116 @@ def _prepare_real_runner_freeze(tmp_path: Path) -> tuple[Path, dict]:
         transport=FixtureTransport(provider="reka"),
     )
     return prepared.path, freeze_provider_outputs(prepared)
+
+
+def _prepare_ordinary_runner_freeze(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[Path, Path, Path]:
+    ffmpeg = shutil.which("ffmpeg")
+    assert ffmpeg is not None, "ffmpeg is required for audit media integration"
+    source_root = tmp_path / "canonical-data"
+    media_root = source_root / "vqa/2025/training/videos_original"
+    media_root.mkdir(parents=True)
+    template = media_root / "template.mkv"
+    subprocess.run(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=96x64:rate=10:duration=2",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=2",
+            "-shortest",
+            "-c:v",
+            "ffv1",
+            "-c:a",
+            "pcm_s16le",
+            str(template),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    metadata = probe_media(template)
+    rows = []
+    media_by_id = {}
+    for ordinal, (phase, video_id) in enumerate(
+        (
+            ("evaluation", "ordinary-eval"),
+            ("preflight", "ordinary-preflight-1"),
+            ("preflight", "ordinary-preflight-2"),
+        ),
+        start=1,
+    ):
+        media = media_root / f"{video_id}.mkv"
+        shutil.copyfile(template, media)
+        media_by_id[video_id] = media
+        rows.append(
+            {
+                "ordinal": ordinal,
+                "phase": phase,
+                "video_id": video_id,
+                "question": f"What happens in ordinary clip {ordinal}?",
+                "category": "temporal",
+                "evidence_topology": "single",
+                "selection_rationale": "ordinary approved-panel audit regression",
+                "media_relative_path": str(media.relative_to(source_root)),
+                "media_sha256": _sha256(media),
+                "size_bytes": media.stat().st_size,
+                "duration_seconds": metadata.duration_seconds,
+                "has_audio": metadata.has_audio,
+                "has_video": metadata.has_video,
+            }
+        )
+    panel = tmp_path / "ordinary-panel.json"
+    panel.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": "ordinary-audit-integration",
+                "selection_policy": "frozen-panel",
+                "reference_policy": "not-read-not-serialized",
+                "evaluation_count": 1,
+                "preflight_count": 2,
+                "examples": rows,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    prepared = prepare_run(panel, tmp_path / "ordinary-prepared")
+    monkeypatch.setattr(runner_module, "_canonical_data_root", lambda: source_root)
+    run_phase(
+        prepared,
+        phase="preflight",
+        provider="gemini",
+        transport=FixtureTransport(),
+    )
+    run_phase(
+        prepared,
+        phase="preflight",
+        provider="reka",
+        transport=FixtureTransport(provider="reka"),
+    )
+    run_phase(
+        prepared,
+        phase="panel",
+        provider="gemini",
+        transport=FixtureTransport(raw_response="not-json"),
+    )
+    run_phase(
+        prepared,
+        phase="panel",
+        provider="reka",
+        transport=FixtureTransport(provider="reka"),
+    )
+    freeze_provider_outputs(prepared)
+    return prepared.path, source_root, media_by_id["ordinary-eval"]
 
 
 def test_blind_packet_masks_question_answer_support_and_relevance(tmp_path: Path) -> None:
@@ -735,6 +848,82 @@ def test_cli_build_reconstructs_rows_from_real_runner_freeze(
     assert succeeded["map_payload_present"] is True
     for manifest in output.glob("rows/*/*/*.json"):
         assert "raw_response" not in manifest.read_text(encoding="utf-8")
+
+
+def test_cli_build_ordinary_runner_freeze_extracts_bound_audit_media(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    prepared, source_root, _ = _prepare_ordinary_runner_freeze(tmp_path, monkeypatch)
+    panel_row = _read_json(prepared / "panel.json")["examples"][0]
+    output = tmp_path / "ordinary-audit"
+    monkeypatch.setattr(
+        audit_module, "_canonical_data_root", lambda: source_root, raising=False
+    )
+
+    assert "source_hashes" not in panel_row
+    assert "overview_path" not in panel_row
+    assert "keyframe_paths" not in panel_row
+    assert (
+        audit_module.main(
+            ["build", "--prepared", str(prepared), "--output", str(output)]
+        )
+        == 0
+    )
+    assert json.loads(capsys.readouterr().out)["row_count"] == 2
+
+    for provider in ("gemini", "reka"):
+        row_dir = output / "rows" / provider / "ordinary-eval"
+        aware = _read_json(row_dir / "aware.json")
+        overview = row_dir / "overview.jpg"
+        keyframes = sorted((row_dir / "event-keyframes").glob("*.jpg"))
+        assert overview.read_bytes().startswith(b"\xff\xd8")
+        assert len(aware["overview_timestamps"]) == 6
+        if provider == "gemini":
+            assert aware["failure_code"] == "invalid_json"
+            assert aware["map_payload_present"] is False
+            assert aware["event_timestamps"] == []
+            assert aware["event_keyframes"] == []
+            assert keyframes == []
+        else:
+            assert aware["event_timestamps"] == [0.5]
+            assert len(keyframes) == 1
+            assert aware["event_keyframes"] == [
+                {
+                    "path": str(keyframes[0].relative_to(output)),
+                    "requested_timestamp_seconds": 0.5,
+                    "sha256": _sha256(keyframes[0]),
+                    "source_media_sha256": panel_row["media_sha256"],
+                }
+            ]
+        assert "raw_response" not in (row_dir / "aware.json").read_text()
+
+
+def test_cli_build_ordinary_runner_freeze_rejects_source_media_tampering(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    prepared, source_root, source_media = _prepare_ordinary_runner_freeze(
+        tmp_path, monkeypatch
+    )
+    source_media.write_bytes(source_media.read_bytes() + b"tampered")
+    output = tmp_path / "tampered-source-audit"
+    monkeypatch.setattr(
+        audit_module, "_canonical_data_root", lambda: source_root, raising=False
+    )
+
+    assert (
+        audit_module.main(
+            ["build", "--prepared", str(prepared), "--output", str(output)]
+        )
+        == 1
+    )
+    assert "source media bytes do not match frozen panel identity" in json.loads(
+        capsys.readouterr().out
+    )["error"]
+    assert not output.exists()
 
 
 @pytest.mark.parametrize("artifact_kind", ["panel", "results", "raw"])

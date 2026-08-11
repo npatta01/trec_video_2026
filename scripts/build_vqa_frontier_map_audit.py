@@ -14,23 +14,38 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 try:
+    from trec_video_2026.vqa_benchmark import (
+        bin_midpoint_timestamps,
+        probe_media,
+        source_fingerprint,
+    )
     from trec_video_2026.vqa_frontier_map import (
         mask_question_fields,
         validate_event_map,
     )
+    from trec_video_2026.vqa_frontier_map_panel import CANONICAL_DATA_ROOT
     from trec_video_2026.vqa_submission import canonical_sha256
 except ModuleNotFoundError:  # pragma: no cover - direct script execution fallback
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+    from trec_video_2026.vqa_benchmark import (
+        bin_midpoint_timestamps,
+        probe_media,
+        source_fingerprint,
+    )
     from trec_video_2026.vqa_frontier_map import (
         mask_question_fields,
         validate_event_map,
     )
+    from trec_video_2026.vqa_frontier_map_panel import CANONICAL_DATA_ROOT
     from trec_video_2026.vqa_submission import canonical_sha256
 
 
@@ -96,6 +111,7 @@ REFERENCE_FIELDS = frozenset(
         "annotations",
     }
 )
+OVERVIEW_FRAME_COUNT = 6
 
 
 class AuditPacket:
@@ -136,29 +152,6 @@ def build_audit_packet(
         keyframe_dir = row_dir / "event-keyframes"
         keyframe_dir.mkdir(parents=True, exist_ok=True)
 
-        source_hashes = _source_hashes(row)
-        overview_source = _validated_source_path(row.get("overview_path"), source_hashes)
-        overview_dest = row_dir / "overview.jpg"
-        shutil.copyfile(overview_source, overview_dest)
-
-        keyframe_sources = [
-            _validated_source_path(value, source_hashes)
-            for value in _sequence(row.get("keyframe_paths"), "keyframe_paths")
-        ]
-        keyframe_entries = []
-        for frame_index, keyframe_source in enumerate(keyframe_sources, start=1):
-            destination = keyframe_dir / keyframe_source.name
-            if destination.exists():
-                destination = keyframe_dir / f"{frame_index:04d}{keyframe_source.suffix}"
-            shutil.copyfile(keyframe_source, destination)
-            keyframe_entries.append(
-                {
-                    "path": str(destination.relative_to(root)),
-                    "sha256": _sha256_path(destination),
-                    "source_sha256": _sha256_path(keyframe_source),
-                }
-            )
-
         map_payload = row.get("map")
         failure_code = row.get("failure_code")
         map_payload_present = isinstance(map_payload, Mapping)
@@ -171,6 +164,14 @@ def build_audit_packet(
         if failure_code and map_payload_present:
             raise ValueError("failed provider row cannot include map content")
 
+        overview_dest, keyframe_entries, overview_timestamps = _materialize_audit_media(
+            row,
+            map_payload=map_payload if map_payload_present else None,
+            row_dir=row_dir,
+            keyframe_dir=keyframe_dir,
+            root=root,
+        )
+
         common = _common_manifest_fields(
             row,
             index=index,
@@ -179,6 +180,7 @@ def build_audit_packet(
             root=root,
             map_payload_present=map_payload_present,
             failure_code=failure_code,
+            overview_timestamps=overview_timestamps,
         )
         blind = _blind_manifest(common, map_payload)
         aware = _aware_manifest(common, row, map_payload)
@@ -422,6 +424,7 @@ def _common_manifest_fields(
     root: Path,
     map_payload_present: bool,
     failure_code: Any,
+    overview_timestamps: list[int | float],
 ) -> dict[str, Any]:
     provider_audio_state = row.get("provider_audio_state", "unverified")
     if provider_audio_state not in ALLOWED_PROVIDER_AUDIO_STATES:
@@ -442,8 +445,14 @@ def _common_manifest_fields(
         "failure_code": failure_code,
         "overview_path": str(overview.relative_to(root)),
         "overview_sha256": _sha256_path(overview),
+        "overview_timestamps": overview_timestamps,
         "event_keyframes": list(keyframes),
-        "event_timestamps": _event_timestamps(events),
+        "event_timestamps": [
+            frame["requested_timestamp_seconds"]
+            for frame in keyframes
+            if "requested_timestamp_seconds" in frame
+        ]
+        or _event_timestamps(events),
     }
 
 
@@ -523,8 +532,16 @@ def _map_events(map_payload: Any) -> list[Mapping[str, Any]]:
 def _event_timestamps(events: Sequence[Mapping[str, Any]]) -> list[int | float]:
     timestamps: list[int | float] = []
     for event in events:
+        keyframe_seconds = event.get("keyframe_seconds")
+        if isinstance(keyframe_seconds, list):
+            timestamps.extend(
+                timestamp
+                for timestamp in keyframe_seconds
+                if isinstance(timestamp, int | float) and not isinstance(timestamp, bool)
+            )
+            continue
         timestamp = event.get("timestamp")
-        if isinstance(timestamp, int | float):
+        if isinstance(timestamp, int | float) and not isinstance(timestamp, bool):
             timestamps.append(timestamp)
     return timestamps
 
@@ -910,8 +927,7 @@ def _reconstruct_provider_row(
         duration_seconds=panel_row.get("duration_seconds"),
         parse=status == "succeeded",
     )
-    overview, keyframes, source_hashes = _prepared_audit_media(root, panel_row)
-    return {
+    reconstructed = {
         "provider": provider,
         "video_id": video_id,
         "panel_row_id": panel_row.get("ordinal"),
@@ -920,10 +936,33 @@ def _reconstruct_provider_row(
         "provider_audio_state": "unverified",
         "map": map_payload,
         "failure_code": failure_code,
-        "overview_path": str(overview),
-        "keyframe_paths": [str(path) for path in keyframes],
-        "source_hashes": source_hashes,
     }
+    if all(
+        field in panel_row
+        for field in ("overview_path", "keyframe_paths", "source_hashes")
+    ):
+        overview, keyframes, source_hashes = _prepared_audit_media(root, panel_row)
+        reconstructed.update(
+            {
+                "overview_path": str(overview),
+                "keyframe_paths": [str(path) for path in keyframes],
+                "source_hashes": source_hashes,
+            }
+        )
+        return reconstructed
+
+    canonical_source = _resolve_canonical_source(panel_row)
+    reconstructed.update(
+        {
+            "_canonical_source": canonical_source,
+            "source_hashes": {
+                str(canonical_source["relative_path"]): str(
+                    canonical_source["sha256"]
+                )
+            },
+        }
+    )
+    return reconstructed
 
 
 def _verified_raw_map(
@@ -991,6 +1030,236 @@ def _prepared_audit_media(
         resolved.append(path)
         normalized_hashes[str(path)] = str(expected)
     return resolved[0], resolved[1:], normalized_hashes
+
+
+def _canonical_data_root() -> Path:
+    return CANONICAL_DATA_ROOT.resolve(strict=True)
+
+
+def _resolve_canonical_source(panel_row: Mapping[str, Any]) -> dict[str, Any]:
+    relative_path = _required_text(panel_row, "media_relative_path")
+    parsed = Path(relative_path)
+    if parsed.is_absolute():
+        raise ValueError(f"source media path escape: {relative_path}")
+    root = _canonical_data_root()
+    if _contains_symlink(root):
+        raise ValueError(f"canonical dataset root cannot be a symlink: {root}")
+    candidate = root / parsed
+    if _contains_symlink(candidate):
+        raise ValueError(f"source media path cannot be a symlink: {relative_path}")
+    try:
+        resolved = candidate.resolve(strict=True)
+    except OSError as error:
+        raise ValueError(f"source media path is missing: {relative_path}") from error
+    if not resolved.is_relative_to(root) or not resolved.is_file():
+        raise ValueError(f"source media path escape: {relative_path}")
+    source = {
+        "path": str(resolved),
+        "relative_path": relative_path,
+        "sha256": panel_row.get("media_sha256"),
+        "size_bytes": panel_row.get("size_bytes"),
+        "duration_seconds": panel_row.get("duration_seconds"),
+        "has_audio": panel_row.get("has_audio"),
+        "has_video": panel_row.get("has_video"),
+    }
+    _verify_canonical_source(source)
+    return source
+
+
+def _verify_canonical_source(source: Mapping[str, Any]) -> Path:
+    path_value = source.get("path")
+    if not isinstance(path_value, str):
+        raise TypeError("canonical source path must be text")
+    path = Path(path_value)
+    root = _canonical_data_root()
+    if _contains_symlink(path):
+        raise ValueError(f"source media path cannot be a symlink: {path}")
+    resolved = path.resolve(strict=True)
+    if not resolved.is_relative_to(root) or not resolved.is_file():
+        raise ValueError("source media path must stay beneath canonical dataset root")
+    identity = source_fingerprint(resolved)
+    if (
+        identity.sha256 != source.get("sha256")
+        or identity.size_bytes != source.get("size_bytes")
+    ):
+        raise ValueError("source media bytes do not match frozen panel identity")
+    metadata = probe_media(resolved)
+    duration = source.get("duration_seconds")
+    if not isinstance(duration, int | float) or isinstance(duration, bool):
+        raise TypeError("frozen source duration_seconds must be numeric")
+    if (
+        not math.isclose(
+            metadata.duration_seconds,
+            float(duration),
+            rel_tol=0.0,
+            abs_tol=1e-6,
+        )
+        or metadata.has_audio != source.get("has_audio")
+        or metadata.has_video != source.get("has_video")
+    ):
+        raise ValueError("source media metadata does not match frozen panel identity")
+    return resolved
+
+
+def _materialize_audit_media(
+    row: Mapping[str, Any],
+    *,
+    map_payload: Mapping[str, Any] | None,
+    row_dir: Path,
+    keyframe_dir: Path,
+    root: Path,
+) -> tuple[Path, list[dict[str, Any]], list[int | float]]:
+    canonical_source = row.get("_canonical_source")
+    if isinstance(canonical_source, Mapping):
+        return _generate_audit_media(
+            canonical_source,
+            map_payload=map_payload,
+            row_dir=row_dir,
+            keyframe_dir=keyframe_dir,
+            root=root,
+        )
+
+    source_hashes = _source_hashes(row)
+    overview_source = _validated_source_path(row.get("overview_path"), source_hashes)
+    overview = row_dir / "overview.jpg"
+    shutil.copyfile(overview_source, overview)
+    timestamps = _event_timestamps(_map_events(map_payload)) if map_payload else []
+    keyframe_sources = (
+        [
+            _validated_source_path(value, source_hashes)
+            for value in _sequence(row.get("keyframe_paths"), "keyframe_paths")
+        ]
+        if map_payload is not None
+        else []
+    )
+    keyframes: list[dict[str, Any]] = []
+    for frame_index, keyframe_source in enumerate(keyframe_sources, start=1):
+        destination = keyframe_dir / keyframe_source.name
+        if destination.exists():
+            destination = keyframe_dir / f"{frame_index:04d}{keyframe_source.suffix}"
+        shutil.copyfile(keyframe_source, destination)
+        entry: dict[str, Any] = {
+            "path": str(destination.relative_to(root)),
+            "sha256": _sha256_path(destination),
+            "source_sha256": _sha256_path(keyframe_source),
+        }
+        if frame_index <= len(timestamps):
+            entry["requested_timestamp_seconds"] = timestamps[frame_index - 1]
+        keyframes.append(entry)
+    return overview, keyframes, []
+
+
+def _generate_audit_media(
+    source: Mapping[str, Any],
+    *,
+    map_payload: Mapping[str, Any] | None,
+    row_dir: Path,
+    keyframe_dir: Path,
+    root: Path,
+) -> tuple[Path, list[dict[str, Any]], list[int | float]]:
+    media = _verify_canonical_source(source)
+    duration = float(source["duration_seconds"])
+    overview_timestamps = list(
+        bin_midpoint_timestamps(duration, count=OVERVIEW_FRAME_COUNT)
+    )
+    overview = row_dir / "overview.jpg"
+    with tempfile.TemporaryDirectory(prefix=".overview-", dir=row_dir) as temporary:
+        temporary_root = Path(temporary)
+        for index, timestamp in enumerate(overview_timestamps, start=1):
+            _extract_jpeg(
+                media,
+                timestamp,
+                temporary_root / f"frame-{index:04d}.jpg",
+            )
+        _build_contact_sheet(temporary_root, overview)
+
+    keyframes: list[dict[str, Any]] = []
+    timestamps = _event_timestamps(_map_events(map_payload)) if map_payload else []
+    for index, timestamp in enumerate(timestamps, start=1):
+        destination = keyframe_dir / f"{index:04d}.jpg"
+        _extract_jpeg(media, float(timestamp), destination)
+        keyframes.append(
+            {
+                "path": str(destination.relative_to(root)),
+                "requested_timestamp_seconds": timestamp,
+                "sha256": _sha256_path(destination),
+                "source_media_sha256": source["sha256"],
+            }
+        )
+    _verify_canonical_source(source)
+    return overview, keyframes, overview_timestamps
+
+
+def _extract_jpeg(media: Path, timestamp: float, output: Path) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        raise RuntimeError("ffmpeg is required to build audit media")
+    subprocess.run(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-nostdin",
+            "-ss",
+            f"{timestamp:.6f}",
+            "-i",
+            str(media),
+            "-map",
+            "0:v:0",
+            "-frames:v",
+            "1",
+            "-q:v",
+            "2",
+            "-y",
+            str(output),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    _validate_generated_jpeg(output)
+
+
+def _build_contact_sheet(frame_dir: Path, output: Path) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        raise RuntimeError("ffmpeg is required to build audit media")
+    subprocess.run(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-nostdin",
+            "-framerate",
+            "1",
+            "-start_number",
+            "1",
+            "-i",
+            str(frame_dir / "frame-%04d.jpg"),
+            "-vf",
+            "scale=320:-2,tile=3x2:padding=4:margin=4:color=black",
+            "-frames:v",
+            "1",
+            "-q:v",
+            "2",
+            "-y",
+            str(output),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    _validate_generated_jpeg(output)
+
+
+def _validate_generated_jpeg(path: Path) -> None:
+    if _contains_symlink(path) or not path.is_file():
+        raise ValueError(f"ffmpeg did not create a regular audit JPEG: {path}")
+    payload = path.read_bytes()
+    if len(payload) < 4 or not payload.startswith(b"\xff\xd8") or not payload.endswith(
+        b"\xff\xd9"
+    ):
+        raise ValueError(f"ffmpeg output is not a complete JPEG: {path}")
 
 
 def _read_jsonl(path: Path, label: str) -> list[Mapping[str, Any]]:
