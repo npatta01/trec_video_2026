@@ -46,7 +46,7 @@
   Run a targeted sensitive-content scan, Markdown link checks,
   `git diff --check`, and relevant existing tests.
 
-- [ ] **Step 4: Commit and publish a draft pull request**
+- [x] **Step 4: Commit and publish a draft pull request**
 
   Stage only the ledger, design, and plan files; push the isolated branch and
   create a draft PR against `main`.
