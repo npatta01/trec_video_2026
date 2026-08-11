@@ -76,6 +76,10 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
     path.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
 
 
+def _read_jsonl(path: Path) -> list[dict]:
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
 def _annotation_root_sha256(root: Path) -> str:
     digest = hashlib.sha256()
     for path in sorted(root.glob("*.json")):
@@ -270,20 +274,21 @@ def make_scoring_fixture(
     _write_jsonl(audit_root / "verdicts.blind.jsonl", blind_verdicts)
     _write_jsonl(audit_root / "verdicts.aware.jsonl", aware_verdicts)
     audit_packet_manifest = audit_root / "packet-manifest.json"
+    packet_rows = [
+        {
+            "provider": row["provider"],
+            "video_id": row["video_id"],
+            "map_payload_present": row["map_payload_present"],
+            "failure_code": row.get("failure_code"),
+        }
+        for row in provider_rows
+    ]
     _write_json(
         audit_packet_manifest,
         {
             "schema_version": 1,
             "row_count": 70,
-            "rows": [
-                {
-                    "provider": row["provider"],
-                    "video_id": row["video_id"],
-                    "map_payload_present": row["map_payload_present"],
-                    "failure_code": row.get("failure_code"),
-                }
-                for row in provider_rows
-            ],
+            "rows": packet_rows,
         },
     )
     audit_freeze = audit_root / "freeze.json"
@@ -306,10 +311,17 @@ def make_scoring_fixture(
                     "video_id": row["video_id"],
                     "map_payload_present": row["map_payload_present"],
                     "failure_code": row.get("failure_code"),
-                    "blind_verdict_sha256": "0" * 64,
-                    "aware_verdict_sha256": "1" * 64,
+                    "packet_row_sha256": _canonical_sha256(packet_row),
+                    "blind_verdict_sha256": _canonical_sha256(blind_verdict),
+                    "aware_verdict_sha256": _canonical_sha256(aware_verdict),
                 }
-                for row in provider_rows
+                for row, packet_row, blind_verdict, aware_verdict in zip(
+                    provider_rows,
+                    packet_rows,
+                    blind_verdicts,
+                    aware_verdicts,
+                    strict=True,
+                )
             ],
         },
     )
@@ -408,6 +420,10 @@ def test_score_verifies_qwen_sha256sums_before_annotation_load(tmp_path: Path) -
         score_frontier_map(**fixture.kwargs)
 
 
+def _poison_annotation_parse(fixture: ScoringFixture) -> None:
+    (fixture.annotations_root / "v001.json").write_text("{not valid json")
+
+
 @pytest.mark.parametrize("view", ["blind", "aware"])
 def test_score_rejects_missing_two_view_audit_data_before_annotation_load(
     tmp_path: Path,
@@ -418,6 +434,92 @@ def test_score_rejects_missing_two_view_audit_data_before_annotation_load(
     (fixture.audit_freeze.parent / f"verdicts.{view}.jsonl").unlink()
 
     with pytest.raises(ValueError, match=f"{view}.*audit"):
+        score_frontier_map(**fixture.kwargs)
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement", "row_selector", "message"),
+    [
+        ("map_payload_present", False, "completed", "map_payload_present"),
+        ("failure_code", "stale_failure", "failed", "failure_code"),
+        ("provider", "wrong-provider", "completed", "provider/video"),
+        ("video_id", "wrong-video", "completed", "provider/video"),
+    ],
+)
+def test_score_rejects_packet_row_binding_tampering_before_annotations(
+    tmp_path: Path,
+    field: str,
+    replacement: object,
+    row_selector: str,
+    message: str,
+) -> None:
+    fixture = make_scoring_fixture(tmp_path)
+    _poison_annotation_parse(fixture)
+    packet = json.loads(fixture.audit_packet_manifest.read_text())
+    index = next(
+        index
+        for index, row in enumerate(packet["rows"])
+        if (row["failure_code"] is None) == (row_selector == "completed")
+    )
+    packet["rows"][index][field] = replacement
+    _write_json(fixture.audit_packet_manifest, packet)
+    freeze = json.loads(fixture.audit_freeze.read_text())
+    freeze["bindings"]["packet_manifest_sha256"] = _sha256(fixture.audit_packet_manifest)
+    _write_json(fixture.audit_freeze, freeze)
+
+    with pytest.raises(ValueError, match=f"audit.*{message}"):
+        score_frontier_map(**fixture.kwargs)
+
+
+@pytest.mark.parametrize(
+    ("field", "message"),
+    [
+        ("packet_row_sha256", "packet row digest"),
+        ("blind_verdict_sha256", "blind verdict digest"),
+        ("aware_verdict_sha256", "aware verdict digest"),
+    ],
+)
+def test_score_rejects_stale_freeze_row_digests_before_annotations(
+    tmp_path: Path,
+    field: str,
+    message: str,
+) -> None:
+    fixture = make_scoring_fixture(tmp_path)
+    _poison_annotation_parse(fixture)
+    freeze = json.loads(fixture.audit_freeze.read_text())
+    freeze["rows"][0][field] = "f" * 64
+    _write_json(fixture.audit_freeze, freeze)
+
+    with pytest.raises(ValueError, match=f"audit.*{message}"):
+        score_frontier_map(**fixture.kwargs)
+
+
+@pytest.mark.parametrize(
+    ("view", "mutation", "message"),
+    [
+        ("blind", {"notes": "stale blind note"}, "blind verdict digest"),
+        ("aware", {"confidence": 1}, "aware verdict digest"),
+        ("blind", {"view": "aware"}, "blind.*view"),
+        ("aware", {"view": "blind"}, "aware.*view"),
+    ],
+)
+def test_score_rejects_stale_or_wrong_view_verdict_content_before_annotations(
+    tmp_path: Path,
+    view: str,
+    mutation: dict,
+    message: str,
+) -> None:
+    fixture = make_scoring_fixture(tmp_path)
+    _poison_annotation_parse(fixture)
+    verdict_path = fixture.audit_freeze.parent / f"verdicts.{view}.jsonl"
+    rows = _read_jsonl(verdict_path)
+    rows[0].update(mutation)
+    _write_jsonl(verdict_path, rows)
+    freeze = json.loads(fixture.audit_freeze.read_text())
+    freeze["bindings"][f"{view}_verdicts_sha256"] = _sha256(verdict_path)
+    _write_json(fixture.audit_freeze, freeze)
+
+    with pytest.raises(ValueError, match=f"audit.*{message}"):
         score_frontier_map(**fixture.kwargs)
 
 

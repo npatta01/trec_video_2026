@@ -409,7 +409,9 @@ def _verify_audit_freeze(
     )
     packet_rows = _packet_rows(packet_path)
     if len(packet_rows) != len(expected) or sorted(packet_rows) != sorted(expected):
-        raise ValueError("packet audit manifest rows do not match provider rows")
+        raise ValueError(
+            "packet audit manifest provider/video rows do not match provider rows"
+        )
     blind = _read_view_verdicts(root / "verdicts.blind.jsonl", "blind")
     aware = _read_view_verdicts(root / "verdicts.aware.jsonl", "aware")
     _require_bound_hash(
@@ -428,6 +430,33 @@ def _verify_audit_freeze(
         raise ValueError("blind audit verdict rows do not match provider rows")
     if len(aware) != len(expected) or sorted(aware) != sorted(expected):
         raise ValueError("aware audit verdict rows do not match provider rows")
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise TypeError("audit freeze rows must be objects")
+        key = (_text(row, "provider"), _text(row, "video_id"))
+        packet_row = packet_rows[key]
+        if row.get("map_payload_present") != packet_row.get("map_payload_present"):
+            raise ValueError("audit freeze map_payload_present mismatch")
+        if row.get("failure_code") != packet_row.get("failure_code"):
+            raise ValueError("audit freeze failure_code mismatch")
+        _require_row_digest(
+            row,
+            "packet_row_sha256",
+            _canonical_sha256(packet_row),
+            description="packet row digest",
+        )
+        _require_row_digest(
+            row,
+            "blind_verdict_sha256",
+            _canonical_sha256(blind[key]),
+            description="blind verdict digest",
+        )
+        _require_row_digest(
+            row,
+            "aware_verdict_sha256",
+            _canonical_sha256(aware[key]),
+            description="aware verdict digest",
+        )
     return aware
 
 
@@ -447,7 +476,21 @@ def _require_bound_hash(
         raise ValueError(f"{description} hash mismatch")
 
 
-def _packet_rows(path: Path) -> list[tuple[str, str]]:
+def _require_row_digest(
+    row: Mapping[str, Any],
+    key: str,
+    expected: str,
+    *,
+    description: str,
+) -> None:
+    actual = row.get(key)
+    if not isinstance(actual, str):
+        raise ValueError(f"audit freeze missing {description}")
+    if actual != expected:
+        raise ValueError(f"audit freeze {description} mismatch")
+
+
+def _packet_rows(path: Path) -> dict[tuple[str, str], Mapping[str, Any]]:
     if not path.is_file():
         raise ValueError("packet audit manifest file is missing")
     payload = _read_json(path)
@@ -456,7 +499,15 @@ def _packet_rows(path: Path) -> list[tuple[str, str]]:
         raise TypeError("packet audit manifest rows must be a list")
     if payload.get("row_count") != len(rows):
         raise ValueError("packet audit manifest row count is invalid")
-    return [(_text(row, "provider"), _text(row, "video_id")) for row in rows]
+    result: dict[tuple[str, str], Mapping[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise TypeError("packet audit manifest rows must be objects")
+        key = (_text(row, "provider"), _text(row, "video_id"))
+        if key in result:
+            raise ValueError("packet audit manifest has duplicate provider/video rows")
+        result[key] = row
+    return result
 
 
 def _read_view_verdicts(
@@ -472,7 +523,7 @@ def _read_view_verdicts(
         if not isinstance(verdict, Mapping):
             raise TypeError(f"{view} verdict line {line_number} must be an object")
         if verdict.get("view") != view:
-            raise ValueError(f"{view} verdict file contains a wrong-view row")
+            raise ValueError(f"audit {view} verdict view mismatch")
         if view == "aware":
             decision = verdict.get("usable_map_decision")
             if decision not in {"usable", "unusable"}:
@@ -482,13 +533,7 @@ def _read_view_verdicts(
         key = (_text(verdict, "provider"), _text(verdict, "video_id"))
         if key in verdicts:
             raise ValueError(f"duplicate {view} audit verdict")
-        if view == "aware":
-            verdicts[key] = {
-                "usable_map_decision": decision,
-                "confidence": verdict.get("confidence"),
-            }
-        else:
-            verdicts[key] = {"view": "blind"}
+        verdicts[key] = verdict
     return verdicts
 
 

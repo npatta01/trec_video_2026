@@ -46,8 +46,8 @@ AWARE_REQUIRED_FIELDS = frozenset(
         "notes",
     }
 )
+QUESTION_FIELD = "question"
 QUESTION_AWARE_FIELDS = (
-    "question",
     "top1_answer",
     "support_span",
     "support_spans",
@@ -236,6 +236,7 @@ def freeze_audit(audit: str | Path) -> dict[str, Any]:
                 "video_id": key[1],
                 "map_payload_present": bool(row.get("map_payload_present")),
                 "failure_code": row.get("failure_code"),
+                "packet_row_sha256": _sha256_json(row),
                 "blind_verdict_sha256": _sha256_json(blind_verdicts[key]),
                 "aware_verdict_sha256": _sha256_json(aware),
             }
@@ -323,6 +324,8 @@ def _aware_manifest(
     common: Mapping[str, Any], row: Mapping[str, Any], map_payload: Any
 ) -> dict[str, Any]:
     aware = dict(common)
+    if QUESTION_FIELD in row and row[QUESTION_FIELD] is not None:
+        aware[QUESTION_FIELD] = row[QUESTION_FIELD]
     if isinstance(map_payload, Mapping):
         for field in QUESTION_AWARE_FIELDS:
             if field in row and row[field] is not None:

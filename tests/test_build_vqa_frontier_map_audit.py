@@ -259,6 +259,43 @@ def test_failed_provider_row_strips_fabricated_answer_support_and_map_fields(
             assert forbidden not in serialized
 
 
+def test_failed_aware_packet_keeps_question_for_unusable_review_only(
+    tmp_path: Path,
+) -> None:
+    row = _base_row(tmp_path)
+    row["failure_code"] = "provider_timeout"
+    row["map"] = None
+    row["top1_answer"] = "fabricated red mug"
+    row["support_span"] = {"start": 1.0, "end": 2.0}
+    row["support_spans"] = [{"start": 1.0, "end": 2.0}]
+    row["support_explanation"] = "fabricated support"
+    row["explanation"] = "fabricated explanation"
+    row["could_be_wrong"] = "fabricated uncertainty"
+
+    packet = build_audit_packet(make_frozen_run(tmp_path, rows=[row]), output=tmp_path / "audit")
+    aware = _read_json(packet.root / "rows" / "gemini" / "video-001" / "aware.json")
+    serialized = json.dumps(aware).lower()
+
+    assert aware["question"] == "What does the person pick up after opening the drawer?"
+    assert aware["failure_code"] == "provider_timeout"
+    assert aware["map_payload_present"] is False
+    for forbidden in (
+        "top1_answer",
+        "fabricated red mug",
+        "support_span",
+        "support_spans",
+        "support_explanation",
+        "fabricated support",
+        "explanation",
+        "fabricated explanation",
+        "could_be_wrong",
+        "fabricated uncertainty",
+        "\"map\"",
+        "\"events\"",
+    ):
+        assert forbidden not in serialized
+
+
 @pytest.mark.parametrize(
     "provider_audio_state",
     ["provider_reported", "not_claimed", "unverified"],
@@ -350,3 +387,4 @@ def test_audit_freeze_writes_complete_hash_bound_boundary(tmp_path: Path) -> Non
     assert freeze["bindings"]["packet_manifest_sha256"] == _sha256(audit / "packet-manifest.json")
     assert freeze["bindings"]["blind_verdicts_sha256"] == _sha256(audit / "verdicts.blind.jsonl")
     assert freeze["bindings"]["aware_verdicts_sha256"] == _sha256(audit / "verdicts.aware.jsonl")
+    assert "packet_row_sha256" in freeze["rows"][0]
