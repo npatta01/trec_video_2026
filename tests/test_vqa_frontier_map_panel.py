@@ -16,6 +16,7 @@ from trec_video_2026.vqa_frontier_map_panel import (
     build_candidate_sheet,
     classify_question,
     validate_panel_manifest,
+    verify_canonical_data_root,
 )
 
 
@@ -200,6 +201,13 @@ def _write_candidate_annotation(
     )
 
 
+def _set_row_duration(row: dict[str, object], duration: float) -> None:
+    video_id = row["video_id"]
+    assert isinstance(video_id, str)
+    PROBED_DURATIONS[video_id] = duration
+    row["duration_seconds"] = duration
+
+
 def test_sound_rule_does_not_match_heart_substring() -> None:
     assert classify_question("What is the heart made of?") == "other_global"
     assert classify_question("What sound is heard after the door closes?") == "sound"
@@ -243,6 +251,56 @@ def test_panel_requires_distinct_preflight_rows(tmp_path: Path) -> None:
         validate_panel_manifest(payload, tmp_path)
 
 
+def test_panel_accepts_exact_30_second_boundary_for_selected_rows(
+    tmp_path: Path,
+) -> None:
+    payload = make_panel_fixture(tmp_path)
+    examples = payload["examples"]
+    assert isinstance(examples, list)
+
+    evaluation_row = examples[0]
+    preflight_row = examples[-2]
+    assert isinstance(evaluation_row, dict)
+    assert isinstance(preflight_row, dict)
+    _set_row_duration(evaluation_row, 30.0)
+    _set_row_duration(preflight_row, 30.0)
+
+    panel = validate_panel_manifest(payload, tmp_path)
+
+    assert panel.evaluation_rows[0].duration_seconds == 30.0
+    assert panel.preflight_rows[0].duration_seconds == 30.0
+
+
+def test_panel_rejects_evaluation_rows_longer_than_30_seconds(
+    tmp_path: Path,
+) -> None:
+    payload = make_panel_fixture(tmp_path)
+    examples = payload["examples"]
+    assert isinstance(examples, list)
+
+    row = examples[0]
+    assert isinstance(row, dict)
+    _set_row_duration(row, 30.1)
+
+    with pytest.raises(ValueError, match="30\\.0"):
+        validate_panel_manifest(payload, tmp_path)
+
+
+def test_panel_rejects_preflight_rows_longer_than_30_seconds(
+    tmp_path: Path,
+) -> None:
+    payload = make_panel_fixture(tmp_path)
+    examples = payload["examples"]
+    assert isinstance(examples, list)
+
+    row = examples[-1]
+    assert isinstance(row, dict)
+    _set_row_duration(row, 30.1)
+
+    with pytest.raises(ValueError, match="30\\.0"):
+        validate_panel_manifest(payload, tmp_path)
+
+
 def test_panel_binds_duration_and_media_identity_to_current_bytes(tmp_path: Path) -> None:
     payload = make_panel_fixture(tmp_path)
     validate_panel_manifest(payload, tmp_path)
@@ -264,6 +322,68 @@ def test_panel_requires_three_topologies_per_category(tmp_path: Path) -> None:
             row["evidence_topology"] = "single"
 
     with pytest.raises(ValueError, match="topolog"):
+        validate_panel_manifest(payload, tmp_path)
+
+
+def test_panel_rejects_preflight_reuse_of_evaluation_video_id(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = make_panel_fixture(tmp_path)
+    examples = payload["examples"]
+    assert isinstance(examples, list)
+
+    evaluation_row = examples[0]
+    preflight_row = examples[-2]
+    assert isinstance(evaluation_row, dict)
+    assert isinstance(preflight_row, dict)
+    preflight_row["video_id"] = evaluation_row["video_id"]
+    preflight_row["media_relative_path"] = evaluation_row["media_relative_path"]
+    preflight_row["media_sha256"] = evaluation_row["media_sha256"]
+    preflight_row["size_bytes"] = evaluation_row["size_bytes"]
+    preflight_row["duration_seconds"] = evaluation_row["duration_seconds"]
+
+    candidate_sheet = build_candidate_sheet(tmp_path)
+    candidates = candidate_sheet["candidates"]
+    assert isinstance(candidates, list)
+    reused_candidate = dict(candidates[0])
+    reused_candidate["question"] = preflight_row["question"]
+    reused_candidate["category"] = preflight_row["category"]
+    candidates.append(reused_candidate)
+    monkeypatch.setattr(panel_module, "build_candidate_sheet", lambda data_root: candidate_sheet)
+
+    with pytest.raises(ValueError, match="preflight"):
+        validate_panel_manifest(payload, tmp_path)
+
+
+def test_panel_rejects_preflight_reuse_of_another_preflight_video_id(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = make_panel_fixture(tmp_path)
+    examples = payload["examples"]
+    assert isinstance(examples, list)
+
+    first_preflight = examples[-2]
+    second_preflight = examples[-1]
+    assert isinstance(first_preflight, dict)
+    assert isinstance(second_preflight, dict)
+    second_preflight["video_id"] = first_preflight["video_id"]
+    second_preflight["media_relative_path"] = first_preflight["media_relative_path"]
+    second_preflight["media_sha256"] = first_preflight["media_sha256"]
+    second_preflight["size_bytes"] = first_preflight["size_bytes"]
+    second_preflight["duration_seconds"] = first_preflight["duration_seconds"]
+
+    candidate_sheet = build_candidate_sheet(tmp_path)
+    candidates = candidate_sheet["candidates"]
+    assert isinstance(candidates, list)
+    reused_candidate = dict(candidates[-2])
+    reused_candidate["question"] = second_preflight["question"]
+    reused_candidate["category"] = second_preflight["category"]
+    candidates.append(reused_candidate)
+    monkeypatch.setattr(panel_module, "build_candidate_sheet", lambda data_root: candidate_sheet)
+
+    with pytest.raises(ValueError, match="preflight"):
         validate_panel_manifest(payload, tmp_path)
 
 
@@ -318,7 +438,7 @@ def test_candidate_sheet_projects_questions_and_excludes_labels(tmp_path: Path) 
         row["video_id"]: row for row in candidates if isinstance(row, dict)
     }
     first = candidate_by_id["v01"]
-    assert {
+    assert set(first) == {
         "video_id",
         "question",
         "category",
@@ -327,11 +447,15 @@ def test_candidate_sheet_projects_questions_and_excludes_labels(tmp_path: Path) 
         "media_relative_path",
         "media_sha256",
         "size_bytes",
-    } <= set(first)
+    }
+    assert all(set(row) == set(first) for row in candidates if isinstance(row, dict))
     assert first["category"] == "temporal"
     assert first["duration_seconds"] == 1.0
     assert first["media_relative_path"] == "vqa/2025/training/videos_original/v01.mp4"
     serialized = json.dumps(sheet)
+    assert "annotation_filename" not in serialized
+    assert "annotation_sha256" not in serialized
+    assert "annotation_size_bytes" not in serialized
     assert "correct_answer" not in serialized
     assert "incorrect_answers" not in serialized
     assert '"reference":' not in serialized
@@ -339,10 +463,27 @@ def test_candidate_sheet_projects_questions_and_excludes_labels(tmp_path: Path) 
     assert all("annotation" not in row for row in sheet["candidates"])
 
 
-def test_cli_freeze_writes_canonical_manifest_and_refuses_overwrite(
+def test_verify_canonical_data_root_requires_exact_resolved_match(
     tmp_path: Path,
 ) -> None:
+    expected_root = tmp_path / "canonical"
+    expected_root.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(expected_root, target_is_directory=True)
+    other_root = tmp_path / "other"
+    other_root.mkdir()
+
+    assert verify_canonical_data_root(alias, expected_root=expected_root) == expected_root.resolve()
+    with pytest.raises(ValueError, match="canonical dataset root"):
+        verify_canonical_data_root(other_root, expected_root=expected_root)
+
+
+def test_cli_freeze_writes_canonical_manifest_and_refuses_overwrite(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     cli = _load_cli_module()
+    monkeypatch.setattr(cli, "verify_canonical_data_root", lambda path: path.resolve())
     selection = tmp_path / "selection.json"
     selection.write_text(
         json.dumps(make_panel_fixture(tmp_path)), encoding="utf-8"
@@ -376,8 +517,12 @@ def test_cli_freeze_writes_canonical_manifest_and_refuses_overwrite(
         )
 
 
-def test_cli_freeze_refuses_symlinked_output(tmp_path: Path) -> None:
+def test_cli_freeze_refuses_symlinked_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     cli = _load_cli_module()
+    monkeypatch.setattr(cli, "verify_canonical_data_root", lambda path: path.resolve())
     selection = tmp_path / "selection.json"
     selection.write_text(json.dumps(make_panel_fixture(tmp_path)), encoding="utf-8")
     target = tmp_path / "target.json"

@@ -10,6 +10,7 @@ from pathlib import Path
 from trec_video_2026.vqa_frontier_map_panel import (
     build_candidate_sheet,
     validate_panel_manifest,
+    verify_canonical_data_root,
     write_json_atomically,
 )
 
@@ -31,8 +32,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    data_root = verify_canonical_data_root(args.data_root)
     if args.command == "candidates":
-        write_json_atomically(args.output, build_candidate_sheet(args.data_root))
+        write_json_atomically(args.output, build_candidate_sheet(data_root))
         return 0
 
     if args.output.is_symlink():
@@ -40,7 +42,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.output.exists():
         raise FileExistsError(f"Output already exists: {args.output}")
     selection = json.loads(args.selection.read_text(encoding="utf-8"))
-    manifest = validate_panel_manifest(selection, args.data_root)
+    manifest = validate_panel_manifest(selection, data_root)
     write_json_atomically(args.output, manifest.to_payload())
     return 0
 

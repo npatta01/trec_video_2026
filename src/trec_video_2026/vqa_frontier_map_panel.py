@@ -21,6 +21,7 @@ SCHEMA_VERSION = 1
 RUN_ID = "frontier-video-map-20260811"
 SELECTION_POLICY = "question-only-category-purity-duration-topology-v1"
 REFERENCE_POLICY = "not-read-not-serialized"
+CANONICAL_DATA_ROOT = Path("/home/npatta01/data/competitions/trec_video_2026/data")
 CATEGORIES = (
     "temporal",
     "counting",
@@ -32,6 +33,7 @@ CATEGORIES = (
 )
 EVALUATION_PER_CATEGORY = 5
 PREFLIGHT_ROWS = 2
+MAX_SELECTED_DURATION_SECONDS = 30.0
 SUPPORTED_MEDIA_SUFFIXES = (".mkv", ".mp4", ".webm", ".mov")
 
 _QUESTION_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -222,6 +224,18 @@ def _media_root(data_root: Path) -> Path:
     return path
 
 
+def verify_canonical_data_root(
+    data_root: Path,
+    *,
+    expected_root: Path = CANONICAL_DATA_ROOT,
+) -> Path:
+    resolved = data_root.resolve(strict=True)
+    expected = expected_root.resolve(strict=True)
+    if resolved != expected:
+        raise ValueError(f"data root must resolve to canonical dataset root: {expected}")
+    return resolved
+
+
 def _question_projection(annotation_path: Path) -> tuple[str, str]:
     payload = json.loads(annotation_path.read_text(encoding="utf-8"))
     if not isinstance(payload, Mapping):
@@ -256,15 +270,11 @@ def _candidate_row(data_root: Path, annotation_path: Path) -> dict[str, object]:
     category = classify_question(question)
     media_path = _locate_media(_media_root(data_root), video_id)
     media_identity = source_fingerprint(media_path)
-    annotation_identity = source_fingerprint(annotation_path)
     metadata = probe_media(media_path)
     return {
         "video_id": video_id,
         "question": question,
         "category": category,
-        "annotation_filename": annotation_path.name,
-        "annotation_sha256": annotation_identity.sha256,
-        "annotation_size_bytes": annotation_identity.size_bytes,
         "evidence_topology_hints": list(_TOPOLOGY_HINTS[category]),
         "media_relative_path": _safe_relative_path(
             data_root, media_path, kind="Media"
@@ -272,8 +282,6 @@ def _candidate_row(data_root: Path, annotation_path: Path) -> dict[str, object]:
         "media_sha256": media_identity.sha256,
         "size_bytes": media_identity.size_bytes,
         "duration_seconds": metadata.duration_seconds,
-        "has_audio": metadata.has_audio,
-        "has_video": metadata.has_video,
     }
 
 
@@ -369,15 +377,28 @@ def _validate_counts(
 
 
 def _validate_preflight_distinct(
-    evaluation_rows: Sequence[PanelRow], preflight_rows: Sequence[PanelRow]
+    evaluation_rows: Sequence[PanelRow],
+    preflight_rows: Sequence[PanelRow],
 ) -> None:
-    evaluation_ids = {(row.video_id, row.question) for row in evaluation_rows}
-    preflight_ids = {(row.video_id, row.question) for row in preflight_rows}
-    if len(preflight_ids) != len(preflight_rows) or evaluation_ids & preflight_ids:
-        raise ValueError("preflight rows must be distinct")
+    evaluation_video_ids = {row.video_id for row in evaluation_rows}
+    preflight_video_ids = [row.video_id for row in preflight_rows]
+    if len(preflight_video_ids) != len(set(preflight_video_ids)):
+        raise ValueError("preflight rows must use distinct video_ids")
+    if evaluation_video_ids & set(preflight_video_ids):
+        raise ValueError("preflight rows must not reuse evaluation video_ids")
 
 
-def _candidate_index(candidate_sheet: Mapping[str, object]) -> dict[tuple[str, str], dict[str, object]]:
+def _validate_selected_duration_limit(row: PanelRow) -> None:
+    if row.duration_seconds > MAX_SELECTED_DURATION_SECONDS:
+        raise ValueError(
+            f"selected rows must be <= {MAX_SELECTED_DURATION_SECONDS:.1f} seconds: "
+            f"{row.video_id}"
+        )
+
+
+def _candidate_index(
+    candidate_sheet: Mapping[str, object],
+) -> dict[tuple[str, str], dict[str, object]]:
     raw_candidates = candidate_sheet.get("candidates")
     if not isinstance(raw_candidates, list):
         raise ValueError("candidate sheet must contain a candidate list")
@@ -392,7 +413,8 @@ def _candidate_index(candidate_sheet: Mapping[str, object]) -> dict[tuple[str, s
 
 
 def _validate_row_against_candidate(
-    row: PanelRow, candidate_index: Mapping[tuple[str, str], dict[str, object]]
+    row: PanelRow,
+    candidate_index: Mapping[tuple[str, str], dict[str, object]],
 ) -> None:
     candidate = candidate_index.get((row.video_id, row.question))
     if candidate is None:
@@ -460,7 +482,8 @@ def _duration_bands(durations: Sequence[float]) -> tuple[float, float]:
 
 
 def _validate_duration_coverage(
-    evaluation_rows: Sequence[PanelRow], candidate_sheet: Mapping[str, object]
+    evaluation_rows: Sequence[PanelRow],
+    candidate_sheet: Mapping[str, object],
 ) -> None:
     raw_candidates = candidate_sheet.get("candidates")
     if not isinstance(raw_candidates, list):
@@ -516,6 +539,7 @@ def validate_panel_manifest(payload: object, data_root: Path) -> PanelManifest:
     candidate_sheet = build_candidate_sheet(data_root)
     candidate_index = _candidate_index(candidate_sheet)
     for row in rows:
+        _validate_selected_duration_limit(row)
         _validate_row_against_candidate(row, candidate_index)
         _validate_media_identity(row, data_root)
     _validate_topology_diversity(evaluation_rows)
@@ -556,13 +580,16 @@ def write_json_atomically(path: Path, payload: Mapping[str, object]) -> None:
 
 
 __all__ = [
+    "CANONICAL_DATA_ROOT",
     "CATEGORIES",
     "EVALUATION_PER_CATEGORY",
+    "MAX_SELECTED_DURATION_SECONDS",
     "PREFLIGHT_ROWS",
     "PanelManifest",
     "PanelRow",
     "build_candidate_sheet",
     "classify_question",
     "validate_panel_manifest",
+    "verify_canonical_data_root",
     "write_json_atomically",
 ]
