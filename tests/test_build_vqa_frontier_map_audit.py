@@ -9,6 +9,13 @@ import sys
 
 import pytest
 
+from trec_video_2026.vqa_frontier_map_runner import (
+    FixtureTransport,
+    freeze_provider_outputs,
+    prepare_run,
+    run_phase,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/build_vqa_frontier_map_audit.py"
 
@@ -231,6 +238,127 @@ def _sha256_json(value: dict) -> str:
     return hashlib.sha256(
         json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
+
+
+class _SecondPanelRowInvalidJsonTransport(FixtureTransport):
+    def generate(self, **kwargs):
+        if self.call_count == 1:
+            self.raw_response = "not-json"
+        return super().generate(**kwargs)
+
+
+def _runner_panel_row(
+    prepared: Path,
+    *,
+    ordinal: int,
+    phase: str,
+    video_id: str,
+) -> dict:
+    row = {
+        "ordinal": ordinal,
+        "phase": phase,
+        "video_id": video_id,
+        "question": f"What happens after synthetic event {ordinal}?",
+        "category": "temporal_reasoning",
+        "evidence_topology": "single",
+        "selection_rationale": "synthetic offline audit integration fixture",
+        "media_relative_path": f"synthetic/{video_id}.mp4",
+        "media_sha256": f"{ordinal:064x}",
+        "size_bytes": 1024 + ordinal,
+        "duration_seconds": 30.0,
+        "has_audio": True,
+        "has_video": True,
+    }
+    if phase == "evaluation":
+        overview_relative = f"audit-media/{video_id}/overview.jpg"
+        keyframe_relative = f"audit-media/{video_id}/event-keyframes/0001.jpg"
+        overview = _write_synthetic_jpeg(
+            prepared / overview_relative, f"{video_id}-overview"
+        )
+        keyframe = _write_synthetic_jpeg(
+            prepared / keyframe_relative, f"{video_id}-keyframe"
+        )
+        row |= {
+            "overview_path": overview_relative,
+            "keyframe_paths": [keyframe_relative],
+            "source_hashes": {
+                overview_relative: _sha256(overview),
+                keyframe_relative: _sha256(keyframe),
+            },
+        }
+    return row
+
+
+def _prepare_real_runner_freeze(tmp_path: Path) -> tuple[Path, dict]:
+    prepared_root = tmp_path / "real-prepared"
+    rows = [
+        _runner_panel_row(
+            prepared_root,
+            ordinal=1,
+            phase="evaluation",
+            video_id="eval-success",
+        ),
+        _runner_panel_row(
+            prepared_root,
+            ordinal=2,
+            phase="evaluation",
+            video_id="eval-failure",
+        ),
+        _runner_panel_row(
+            prepared_root,
+            ordinal=3,
+            phase="preflight",
+            video_id="preflight-001",
+        ),
+        _runner_panel_row(
+            prepared_root,
+            ordinal=4,
+            phase="preflight",
+            video_id="preflight-002",
+        ),
+    ]
+    panel = tmp_path / "runner-panel.json"
+    panel.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": "synthetic-audit-integration",
+                "selection_policy": "synthetic-offline-fixture",
+                "reference_policy": "not-read-not-serialized",
+                "evaluation_count": 2,
+                "preflight_count": 2,
+                "examples": rows,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    prepared = prepare_run(panel, prepared_root)
+    run_phase(
+        prepared,
+        phase="preflight",
+        provider="gemini",
+        transport=FixtureTransport(),
+    )
+    run_phase(
+        prepared,
+        phase="preflight",
+        provider="reka",
+        transport=FixtureTransport(provider="reka"),
+    )
+    run_phase(
+        prepared,
+        phase="panel",
+        provider="gemini",
+        transport=_SecondPanelRowInvalidJsonTransport(),
+    )
+    run_phase(
+        prepared,
+        phase="panel",
+        provider="reka",
+        transport=FixtureTransport(provider="reka"),
+    )
+    return prepared.path, freeze_provider_outputs(prepared)
 
 
 def test_blind_packet_masks_question_answer_support_and_relevance(tmp_path: Path) -> None:
@@ -566,6 +694,95 @@ def test_cli_build_validate_freeze_verifies_prepared_run_and_includes_terminal_f
     )
     assert run("validate", "--audit", str(output))["row_count"] == 2
     assert run("freeze", "--audit", str(output))["frozen"] is True
+
+
+def test_cli_build_reconstructs_rows_from_real_runner_freeze(
+    tmp_path: Path,
+) -> None:
+    prepared, freeze = _prepare_real_runner_freeze(tmp_path)
+    provider_artifact = _read_json(prepared / "provider-results.json")
+    output = tmp_path / "real-audit"
+
+    assert freeze["status"] == "frozen"
+    assert provider_artifact["provider_result_count"] == 4
+    assert "provider_results" not in provider_artifact
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "build",
+            "--prepared",
+            str(prepared),
+            "--output",
+            str(output),
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert json.loads(result.stdout)["row_count"] == 4
+    failed = _read_json(
+        output / "rows" / "gemini" / "eval-failure" / "aware.json"
+    )
+    succeeded = _read_json(
+        output / "rows" / "gemini" / "eval-success" / "aware.json"
+    )
+    assert failed["failure_code"] == "invalid_json"
+    assert failed["map_payload_present"] is False
+    assert succeeded["map_payload_present"] is True
+    for manifest in output.glob("rows/*/*/*.json"):
+        assert "raw_response" not in manifest.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("artifact_kind", ["panel", "results", "raw"])
+def test_cli_build_rejects_tampered_real_runner_artifacts_before_copying_media(
+    tmp_path: Path,
+    artifact_kind: str,
+) -> None:
+    prepared, _ = _prepare_real_runner_freeze(tmp_path)
+    if artifact_kind == "panel":
+        panel = _read_json(prepared / "panel.json")
+        panel["examples"][0]["question"] = "tampered question"
+        (prepared / "panel.json").write_text(
+            json.dumps(panel, sort_keys=True), encoding="utf-8"
+        )
+    elif artifact_kind == "results":
+        result_path = prepared / "results" / "gemini.jsonl"
+        results = [json.loads(line) for line in result_path.read_text().splitlines()]
+        next(row for row in results if row["phase"] == "panel")["status"] = "tampered"
+        (prepared / "results" / "gemini.jsonl").write_text(
+            "".join(json.dumps(row, sort_keys=True) + "\n" for row in results),
+            encoding="utf-8",
+        )
+    else:
+        raw_path = prepared / "raw" / "gemini" / "eval-success.json"
+        raw = _read_json(raw_path)
+        raw["raw_response"] += " tampered"
+        raw_path.write_text(json.dumps(raw, sort_keys=True), encoding="utf-8")
+    output = tmp_path / "tampered-audit"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "build",
+            "--prepared",
+            str(prepared),
+            "--output",
+            str(output),
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 1
+    assert "hash mismatch" in json.loads(result.stdout)["error"]
+    assert not output.exists()
 
 
 def test_cli_build_rejects_stale_provider_freeze_before_copying_media(

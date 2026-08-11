@@ -20,10 +20,18 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 try:
-    from trec_video_2026.vqa_frontier_map import mask_question_fields
+    from trec_video_2026.vqa_frontier_map import (
+        mask_question_fields,
+        validate_event_map,
+    )
+    from trec_video_2026.vqa_submission import canonical_sha256
 except ModuleNotFoundError:  # pragma: no cover - direct script execution fallback
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-    from trec_video_2026.vqa_frontier_map import mask_question_fields
+    from trec_video_2026.vqa_frontier_map import (
+        mask_question_fields,
+        validate_event_map,
+    )
+    from trec_video_2026.vqa_submission import canonical_sha256
 
 
 ALLOWED_PROVIDER_AUDIO_STATES = frozenset(
@@ -761,20 +769,240 @@ def _load_prepared_frozen_run(prepared: str | Path) -> dict[str, Any]:
         "provider freeze artifact",
     )
     bindings = freeze.get("bindings")
-    if isinstance(bindings, Mapping) and "bindings_sha256" in freeze:
-        _require_hash(
-            _sha256_json(bindings),
-            freeze.get("bindings_sha256"),
-            "provider freeze bindings",
-        )
+    if not isinstance(bindings, Mapping):
+        raise ValueError("provider freeze bindings must be an object")
+    _require_hash(
+        _sha256_json(bindings),
+        freeze.get("bindings_sha256"),
+        "provider freeze bindings",
+    )
     artifact = _read_json(artifact_path)
+    for key, expected in bindings.items():
+        if artifact.get(key) != expected:
+            raise ValueError(f"provider freeze binding mismatch: {key}")
     rows = artifact.get("provider_results")
     if not isinstance(rows, list):
-        raise ValueError("provider freeze artifact does not contain provider rows")
+        return _reconstruct_prepared_provider_rows(root, artifact)
     return {
         "panel_manifest": artifact.get("panel_manifest", {}),
         "provider_results": rows,
     }
+
+
+def _reconstruct_prepared_provider_rows(
+    root: Path, artifact: Mapping[str, Any]
+) -> dict[str, Any]:
+    panel_path = _safe_relative_path(root, "panel.json", "prepared panel")
+    panel = _read_json(panel_path)
+    _require_hash(
+        canonical_sha256(panel), artifact.get("panel_sha256"), "prepared panel"
+    )
+    examples = _sequence(panel.get("examples"), "prepared panel examples")
+    evaluation_rows: dict[str, Mapping[str, Any]] = {}
+    for index, row in enumerate(examples):
+        if not isinstance(row, Mapping):
+            raise TypeError(f"prepared panel example {index} must be an object")
+        if row.get("phase") != "evaluation":
+            continue
+        video_id = _required_text(row, "video_id")
+        if video_id in evaluation_rows:
+            raise ValueError(f"duplicate prepared panel video_id: {video_id}")
+        evaluation_rows[video_id] = row
+
+    provider_summaries = artifact.get("providers")
+    if not isinstance(provider_summaries, Mapping) or not provider_summaries:
+        raise ValueError("provider freeze artifact providers must be an object")
+    frozen_results: dict[str, list[Mapping[str, Any]]] = {}
+    for provider in sorted(provider_summaries):
+        _safe_segment(str(provider))
+        summary = provider_summaries[provider]
+        if not isinstance(summary, Mapping):
+            raise TypeError(f"provider summary must be an object: {provider}")
+        result_path = _safe_relative_path(
+            root, f"results/{provider}.jsonl", f"{provider} results"
+        )
+        panel_results = [
+            row
+            for row in _read_jsonl(result_path, f"{provider} results")
+            if row.get("phase") == "panel"
+        ]
+        if len(panel_results) != summary.get("panel_results"):
+            raise ValueError(f"{provider} result count mismatch")
+        _require_hash(
+            canonical_sha256(panel_results),
+            summary.get("results_sha256"),
+            f"{provider} results",
+        )
+        frozen_results[str(provider)] = panel_results
+    _require_hash(
+        canonical_sha256(frozen_results),
+        artifact.get("results_sha256"),
+        "provider results",
+    )
+    if sum(map(len, frozen_results.values())) != artifact.get(
+        "provider_result_count"
+    ):
+        raise ValueError("provider result count mismatch")
+
+    reconstructed = [
+        _reconstruct_provider_row(root, artifact, provider, result, evaluation_rows)
+        for provider, results in frozen_results.items()
+        for result in results
+    ]
+    expected = {
+        (provider, video_id)
+        for provider in frozen_results
+        for video_id in evaluation_rows
+    }
+    actual = {(row["provider"], row["video_id"]) for row in reconstructed}
+    if actual != expected or len(reconstructed) != len(expected):
+        raise ValueError("provider result coverage mismatch")
+    return {
+        "panel_manifest": {
+            "run_id": panel.get("run_id"),
+            "panel_sha256": artifact.get("panel_sha256"),
+            "evaluation_count": len(evaluation_rows),
+        },
+        "provider_results": reconstructed,
+    }
+
+
+def _reconstruct_provider_row(
+    root: Path,
+    artifact: Mapping[str, Any],
+    provider: str,
+    result: Mapping[str, Any],
+    evaluation_rows: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    video_id = _required_text(result, "video_id")
+    panel_row = evaluation_rows.get(video_id)
+    if panel_row is None:
+        raise ValueError(f"provider result is outside evaluation panel: {video_id}")
+    if result.get("provider") != provider:
+        raise ValueError(f"provider result identity mismatch: {provider}/{video_id}")
+    for field in ("run_id", "panel_sha256", "schema_sha256"):
+        if result.get(field) != artifact.get(field):
+            raise ValueError(f"provider result {field} mismatch: {provider}/{video_id}")
+    for result_field, panel_field in (
+        ("source_sha256", "media_sha256"),
+        ("source_size_bytes", "size_bytes"),
+        ("category", "category"),
+        ("duration_seconds", "duration_seconds"),
+    ):
+        if result.get(result_field) != panel_row.get(panel_field):
+            raise ValueError(
+                f"provider result {result_field} mismatch: {provider}/{video_id}"
+            )
+
+    status = result.get("status")
+    if status not in {"succeeded", "failed"}:
+        raise ValueError(f"provider result status is not terminal: {provider}/{video_id}")
+    failure_code = result.get("failure_code") if status == "failed" else None
+    if status == "failed" and (
+        not isinstance(failure_code, str) or not failure_code.strip()
+    ):
+        raise ValueError(f"failed provider result has no failure_code: {provider}/{video_id}")
+    map_payload = _verified_raw_map(
+        root,
+        provider=provider,
+        video_id=video_id,
+        result=result,
+        duration_seconds=panel_row.get("duration_seconds"),
+        parse=status == "succeeded",
+    )
+    overview, keyframes, source_hashes = _prepared_audit_media(root, panel_row)
+    return {
+        "provider": provider,
+        "video_id": video_id,
+        "panel_row_id": panel_row.get("ordinal"),
+        "category": panel_row.get("category"),
+        "question": panel_row.get("question"),
+        "provider_audio_state": "unverified",
+        "map": map_payload,
+        "failure_code": failure_code,
+        "overview_path": str(overview),
+        "keyframe_paths": [str(path) for path in keyframes],
+        "source_hashes": source_hashes,
+    }
+
+
+def _verified_raw_map(
+    root: Path,
+    *,
+    provider: str,
+    video_id: str,
+    result: Mapping[str, Any],
+    duration_seconds: Any,
+    parse: bool,
+) -> Mapping[str, Any] | None:
+    response_sha256 = result.get("response_sha256")
+    if response_sha256 is None:
+        if parse:
+            raise ValueError(f"successful provider result has no response hash: {provider}/{video_id}")
+        return None
+    raw_path = _safe_relative_path(
+        root, f"raw/{provider}/{video_id}.json", f"{provider}/{video_id} raw response"
+    )
+    raw = _read_json(raw_path)
+    for field, expected in (
+        ("run_id", result.get("run_id")),
+        ("provider", provider),
+        ("video_id", video_id),
+    ):
+        if raw.get(field) != expected:
+            raise ValueError(f"raw response {field} mismatch: {provider}/{video_id}")
+    raw_response = raw.get("raw_response")
+    if not isinstance(raw_response, str):
+        raise TypeError(f"raw response must be text: {provider}/{video_id}")
+    _require_hash(
+        hashlib.sha256(raw_response.encode("utf-8")).hexdigest(),
+        response_sha256,
+        f"{provider}/{video_id} raw response",
+    )
+    _require_hash(
+        canonical_sha256(raw_response),
+        raw.get("raw_response_sha256"),
+        f"{provider}/{video_id} raw response record",
+    )
+    if not parse:
+        return None
+    payload = json.loads(raw_response)
+    if not isinstance(payload, Mapping):
+        raise TypeError(f"provider map must be an object: {provider}/{video_id}")
+    validate_event_map(payload, duration_seconds)
+    return payload
+
+
+def _prepared_audit_media(
+    root: Path, panel_row: Mapping[str, Any]
+) -> tuple[Path, list[Path], dict[str, str]]:
+    hashes = _source_hashes(panel_row)
+    values = [
+        panel_row.get("overview_path"),
+        *_sequence(panel_row.get("keyframe_paths"), "keyframe_paths"),
+    ]
+    resolved: list[Path] = []
+    normalized_hashes: dict[str, str] = {}
+    for index, value in enumerate(values):
+        field = "overview_path" if index == 0 else f"keyframe_paths[{index - 1}]"
+        path = _safe_relative_path(root, value, field)
+        expected = hashes.get(value)
+        _require_hash(_sha256_path(path), expected, field)
+        resolved.append(path)
+        normalized_hashes[str(path)] = str(expected)
+    return resolved[0], resolved[1:], normalized_hashes
+
+
+def _read_jsonl(path: Path, label: str) -> list[Mapping[str, Any]]:
+    rows: list[Mapping[str, Any]] = []
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        if not isinstance(row, Mapping):
+            raise TypeError(f"{label} line {line_number} must be an object")
+        rows.append(row)
+    return rows
 
 
 def _write_stdout_json(payload: Mapping[str, Any]) -> None:
