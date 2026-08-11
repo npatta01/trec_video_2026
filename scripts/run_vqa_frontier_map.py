@@ -83,6 +83,7 @@ def _pinned_route(prepared: Path) -> tuple[str, ...]:
             isinstance(row, dict)
             and row.get("phase") == "preflight"
             and isinstance(row.get("route"), str)
+            and row["route"] not in {"openrouter-unpinned", "openrouter-dynamic-preflight"}
         ):
             routes.add(row["route"])
     if len(routes) == 1:

@@ -6,12 +6,14 @@ import copy
 import json
 import math
 import os
+import re
 import tempfile
 from collections.abc import Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from types import MappingProxyType
-from typing import Protocol
+from typing import Iterator, Protocol
 
 from trec_video_2026.vqa_frontier_map import (
     EVENT_MAP_PROMPT_VERSION,
@@ -49,9 +51,13 @@ PRICE_SNAPSHOT = {
 PRICE_SNAPSHOT_DATE = "2026-08-11"
 SCHEMA_VERSION = 1
 RUNNER_ID = "frontier-map-runner-v1"
+CONSERVATIVE_INPUT_TOKEN_CEILING = 1_000_000
+CONSERVATIVE_GEMINI_OUTPUT_TOKEN_CEILING = 32_768
+CONSERVATIVE_REKA_OUTPUT_TOKEN_CEILING = 16_384
 _PROVIDERS = ("gemini", "reka")
 _PHASES = ("preflight", "panel")
 _TERMINAL_ATTEMPT_STATUSES = frozenset({"succeeded", "failed"})
+_SAFE_VIDEO_ID_RE = re.compile(r"[A-Za-z0-9_-]+\Z")
 _FORBIDDEN_LABEL_KEYS = frozenset(
     {
         "annotation",
@@ -83,6 +89,10 @@ class AmbiguousStartedAttemptError(RuntimeError):
 
 class CostGateError(RuntimeError):
     """Raised when preflight or cost gates forbid provider dispatch."""
+
+
+class LockContentionError(RuntimeError):
+    """Raised when another process already owns a provider/video request claim."""
 
 
 class FrontierTransport(Protocol):
@@ -235,6 +245,8 @@ def prepare_fixture_run(
 def prepare_run(panel: Path, output: Path) -> PreparedFrontierRun:
     """Prepare an immutable offline run from an already frozen panel JSON."""
 
+    if _prepared_dir_has_run_artifacts(output):
+        raise FileExistsError(f"output already contains existing run artifacts: {output}")
     payload = json.loads(panel.read_text(encoding="utf-8"))
     if not isinstance(payload, Mapping):
         raise ValueError("panel must be a JSON object")
@@ -255,6 +267,13 @@ def load_prepared(path: Path) -> PreparedFrontierRun:
 
     manifest = _read_json(path / "run-manifest.json")
     panel = _read_json(path / "panel.json")
+    if manifest.get("panel_sha256") != canonical_sha256(panel):
+        raise ValueError("panel identity does not match the prepared manifest")
+    expected_prompt_sha256 = _prompt_template_sha256()
+    if manifest.get("prompt_sha256") != expected_prompt_sha256:
+        raise ValueError("prompt identity does not match the prepared manifest")
+    if manifest.get("schema_sha256") != canonical_sha256(EVENT_MAP_SCHEMA):
+        raise ValueError("schema identity does not match the prepared manifest")
     raw_rows = panel.get("examples")
     if not isinstance(raw_rows, list):
         raise ValueError("prepared panel must contain examples")
@@ -295,92 +314,143 @@ def run_phase(
     passed = failed = skipped = input_tokens = output_tokens = 0
     estimated_cost = 0.0
     for row in rows:
-        _fail_on_ambiguous_started_attempts(prepared, provider=provider, phase=phase)
-        route = _expected_route(prepared, provider=provider, phase=phase, transport=transport)
+        _validate_video_id(row.video_id)
+        prompt = build_event_map_prompt(row.question, row.duration_seconds)
+        route = _expected_route(
+            prepared,
+            provider=provider,
+            phase=phase,
+            row=row,
+            transport=transport,
+        )
         request = _request_record(
             prepared,
             row=row,
             phase=phase,
             provider=provider,
             route=route,
+            prompt_sha256=canonical_sha256(prompt),
         )
-        completed = _matching_completed_result(prepared, provider, request)
-        if completed is not None:
-            skipped += 1
-            continue
-        next_cost = _transport_estimate(transport, provider, row)
-        if _cumulative_cost(prepared) + next_cost > PRICE_SNAPSHOT["absolute_cap_usd"]:
-            raise CostGateError("absolute cumulative cost cap would be exceeded")
-        _ensure_request_record(prepared, request)
-        attempt_index = _next_attempt_index(prepared, request)
-        started_attempt = _attempt_record(
-            request,
-            status="started",
-            attempt_index=attempt_index,
-        )
-        _append_jsonl(prepared.path / "attempts.jsonl", started_attempt)
-        try:
-            generated = transport.generate(
-                model=str(request["model_id"]),
-                parts=_provider_parts(row),
-                schema=EVENT_MAP_SCHEMA,
+        with _request_claim(prepared, request):
+            _fail_on_ambiguous_started_attempts(
+                prepared, provider=provider, phase=phase
             )
-            raw_payload = _parse_raw_response(generated.raw_response)
-            validate_event_map(raw_payload, row.duration_seconds)
-        except json.JSONDecodeError:
-            failed += 1
-            _append_jsonl(
-                prepared.path / "attempts.jsonl",
-                _attempt_record(
-                    request,
-                    status="failed",
-                    attempt_index=attempt_index,
-                    failure_code="invalid_json",
-                ),
+            terminal_failure = _matching_terminal_failure(
+                prepared, provider, request
             )
-            continue
-        except (ProviderAuthenticationError, ProviderError, ProviderProtocolError, ValueError):
-            failed += 1
-            _append_jsonl(
-                prepared.path / "attempts.jsonl",
-                _attempt_record(
-                    request,
-                    status="failed",
-                    attempt_index=attempt_index,
-                    failure_code="provider_or_schema_failure",
-                ),
-            )
-            continue
-        usage = generated.usage
-        cost = _estimated_cost_usd(
-            provider=provider,
-            input_tokens=usage.input_tokens,
-            output_tokens=usage.output_tokens,
-            duration_seconds=row.duration_seconds,
-            provider_metadata=generated.provider_metadata,
-        )
-        result = _result_record(
-            request,
-            generated=generated,
-            estimated_cost_usd=cost,
-        )
-        _write_raw_response(prepared, provider, row.video_id, generated.raw_response)
-        _append_jsonl(prepared.path / "results" / f"{provider}.jsonl", result)
-        _append_jsonl(
-            prepared.path / "attempts.jsonl",
-            _attempt_record(
+            if terminal_failure is not None:
+                failed += 1
+                continue
+            completed = _matching_completed_result(prepared, provider, request)
+            if completed is not None:
+                skipped += 1
+                continue
+            next_cost = _transport_estimate(transport, provider, row)
+            if (
+                _cumulative_cost(prepared) + next_cost
+                >= PRICE_SNAPSHOT["absolute_cap_usd"]
+            ):
+                raise CostGateError("absolute cumulative cost cap would be exceeded")
+            _ensure_request_record(prepared, request)
+            attempt_index = _next_attempt_index(prepared, request)
+            started_attempt = _attempt_record(
                 request,
-                status="succeeded",
+                status="started",
                 attempt_index=attempt_index,
+            )
+            _append_jsonl(prepared.path / "attempts.jsonl", started_attempt)
+            uploaded: UploadedFileRecord | None = None
+            generated: GenerationResult | None = None
+            try:
+                source_path = _source_path(prepared, row)
+                uploaded = transport.upload(
+                    source_path,
+                    mime_type=_mime_type(row.media_relative_path),
+                )
+                generated = transport.generate(
+                    model=str(request["model_id"]),
+                    parts=_provider_parts(uploaded, prompt),
+                    schema=EVENT_MAP_SCHEMA,
+                )
+                raw_payload = _parse_raw_response(generated.raw_response)
+                validate_event_map(raw_payload, row.duration_seconds)
+            except json.JSONDecodeError:
+                failed += 1
+                failure_cost, failure_input, failure_output = _failure_cost(
+                    provider=provider,
+                    row=row,
+                    generated=generated,
+                    fallback_cost=next_cost,
+                )
+                _append_jsonl(
+                    prepared.path / "attempts.jsonl",
+                    _attempt_record(
+                        request,
+                        status="failed",
+                        attempt_index=attempt_index,
+                        failure_code="invalid_json",
+                        input_tokens=failure_input,
+                        output_tokens=failure_output,
+                        estimated_cost_usd=failure_cost,
+                    ),
+                )
+                continue
+            except (
+                ProviderAuthenticationError,
+                ProviderError,
+                ProviderProtocolError,
+                ValueError,
+                OSError,
+            ):
+                failed += 1
+                _append_jsonl(
+                    prepared.path / "attempts.jsonl",
+                    _attempt_record(
+                        request,
+                        status="failed",
+                        attempt_index=attempt_index,
+                        failure_code="provider_or_schema_failure",
+                        estimated_cost_usd=next_cost,
+                    ),
+                )
+                continue
+            finally:
+                if uploaded is not None:
+                    transport.delete(uploaded.file_id)
+            usage = generated.usage
+            cost = _estimated_cost_usd(
+                provider=provider,
                 input_tokens=usage.input_tokens,
                 output_tokens=usage.output_tokens,
+                duration_seconds=row.duration_seconds,
+                provider_metadata=generated.provider_metadata,
+            )
+            observed_route = _observed_route(provider, route, generated.provider_metadata)
+            result_request = _request_with_route(request, observed_route)
+            if result_request["request_sha256"] != request["request_sha256"]:
+                _ensure_request_record(prepared, result_request)
+            result = _result_record(
+                result_request,
+                generated=generated,
                 estimated_cost_usd=cost,
-            ),
-        )
-        passed += 1
-        input_tokens += usage.input_tokens
-        output_tokens += usage.output_tokens
-        estimated_cost += cost
+            )
+            _write_raw_response(prepared, provider, row.video_id, generated.raw_response)
+            _append_jsonl(prepared.path / "results" / f"{provider}.jsonl", result)
+            _append_jsonl(
+                prepared.path / "attempts.jsonl",
+                _attempt_record(
+                    result_request,
+                    status="succeeded",
+                    attempt_index=attempt_index,
+                    input_tokens=usage.input_tokens,
+                    output_tokens=usage.output_tokens,
+                    estimated_cost_usd=cost,
+                ),
+            )
+            passed += 1
+            input_tokens += usage.input_tokens
+            output_tokens += usage.output_tokens
+            estimated_cost += cost
 
     _write_terminal_status(prepared)
     return FrontierRunSummary(
@@ -534,18 +604,16 @@ def _write_prepared_run(
     *,
     fixture: bool,
 ) -> PreparedFrontierRun:
+    if _prepared_dir_has_run_artifacts(path):
+        raise FileExistsError(f"output already contains existing run artifacts: {path}")
     path.mkdir(parents=True, exist_ok=True)
     for directory in ("results", "raw/gemini", "raw/reka"):
         (path / directory).mkdir(parents=True, exist_ok=True)
+    for row in rows:
+        _validate_video_id(row.video_id)
+        _validate_media_relative_path(row.media_relative_path)
     panel_sha256 = canonical_sha256(panel_payload)
-    prompt_sha256 = canonical_sha256(
-        {
-            "prompt_version": EVENT_MAP_PROMPT_VERSION,
-            "prompt_template_sha256": canonical_sha256(
-                build_event_map_prompt("{question}", 30.0)
-            ),
-        }
-    )
+    prompt_sha256 = _prompt_template_sha256()
     schema_sha256 = canonical_sha256(EVENT_MAP_SCHEMA)
     provider_configs = {
         "gemini": {
@@ -583,6 +651,8 @@ def _write_prepared_run(
     }
     _write_json_atomically(path / "panel.json", panel_payload)
     _write_json_atomically(path / "run-manifest.json", manifest)
+    if fixture:
+        _ensure_fixture_media(prepared)
     _write_terminal_status(prepared)
     return prepared
 
@@ -687,6 +757,7 @@ def _request_record(
     phase: str,
     provider: str,
     route: str,
+    prompt_sha256: str,
 ) -> dict[str, object]:
     config = prepared.provider_configs[provider]
     identity = {
@@ -705,13 +776,23 @@ def _request_record(
         "source_sha256": row.media_sha256,
         "source_size_bytes": row.size_bytes,
         "panel_sha256": prepared.panel_sha256,
-        "prompt_sha256": prepared.prompt_sha256,
+        "prompt_sha256": prompt_sha256,
         "schema_sha256": prepared.schema_sha256,
         "model_id": config["model_id"],
         "route": route,
         "price_snapshot_date": PRICE_SNAPSHOT_DATE,
     }
     return {**identity, "request_sha256": canonical_sha256(identity)}
+
+
+def _request_with_route(
+    request: Mapping[str, object], route: str
+) -> dict[str, object]:
+    updated = copy.deepcopy(dict(request))
+    updated["route"] = route
+    unsigned = {key: value for key, value in updated.items() if key != "request_sha256"}
+    updated["request_sha256"] = canonical_sha256(unsigned)
+    return updated
 
 
 def _result_record(
@@ -752,6 +833,7 @@ def _attempt_record(
         "video_id": request["video_id"],
         "request_sha256": request["request_sha256"],
         "source_sha256": request["source_sha256"],
+        "panel_sha256": request["panel_sha256"],
         "model_id": request["model_id"],
         "route": request["route"],
         "prompt_sha256": request["prompt_sha256"],
@@ -767,12 +849,12 @@ def _attempt_record(
     return record
 
 
-def _provider_parts(row: PanelRow) -> tuple[object, str]:
+def _provider_parts(uploaded: UploadedFileRecord, prompt: str) -> tuple[object, str]:
     media_identity = {
-        "file_id": f"sha256-{row.media_sha256}",
-        "mime_type": "video/mp4",
+        "file_id": uploaded.file_id,
+        "mime_type": uploaded.mime_type,
     }
-    return (media_identity, build_event_map_prompt(row.question, row.duration_seconds))
+    return (media_identity, prompt)
 
 
 def _parse_raw_response(raw_response: bytes | str) -> object:
@@ -787,6 +869,7 @@ def _write_raw_response(
     video_id: str,
     raw_response: bytes | str,
 ) -> None:
+    _validate_video_id(video_id)
     if isinstance(raw_response, bytes):
         raw_text = raw_response.decode("utf-8", errors="replace")
     else:
@@ -800,6 +883,65 @@ def _write_raw_response(
         "raw_response": raw_text,
     }
     _write_json_atomically(prepared.path / "raw" / provider / f"{video_id}.json", payload)
+
+
+def _source_path(prepared: PreparedFrontierRun, row: PanelRow) -> Path:
+    _validate_video_id(row.video_id)
+    _validate_media_relative_path(row.media_relative_path)
+    fixture_path = prepared.path / "fixture-media" / f"{row.video_id}.mp4"
+    if fixture_path.is_file():
+        return fixture_path.resolve(strict=True)
+    local_relative = prepared.path / row.media_relative_path
+    if local_relative.is_file():
+        return local_relative.resolve(strict=True)
+    data_relative = Path("data") / row.media_relative_path
+    if data_relative.is_file():
+        return data_relative.resolve(strict=True)
+    raise ValueError("source media is not available for upload")
+
+
+def _mime_type(media_relative_path: str) -> str:
+    suffix = Path(media_relative_path).suffix.lower()
+    return {
+        ".avi": "video/x-msvideo",
+        ".mkv": "video/x-matroska",
+        ".mov": "video/quicktime",
+        ".mp4": "video/mp4",
+        ".webm": "video/webm",
+    }.get(suffix, "video/mp4")
+
+
+def _ensure_fixture_media(prepared: PreparedFrontierRun) -> None:
+    root = prepared.path / "fixture-media"
+    root.mkdir(parents=True, exist_ok=True)
+    for row in prepared.examples:
+        _validate_video_id(row.video_id)
+        path = root / f"{row.video_id}.mp4"
+        if not path.exists():
+            path.write_bytes(f"synthetic fixture media {row.video_id}\n".encode())
+
+
+def _failure_cost(
+    *,
+    provider: str,
+    row: PanelRow,
+    generated: object,
+    fallback_cost: float,
+) -> tuple[float, int, int]:
+    if isinstance(generated, GenerationResult):
+        usage = generated.usage
+        return (
+            _estimated_cost_usd(
+                provider=provider,
+                input_tokens=usage.input_tokens,
+                output_tokens=usage.output_tokens,
+                duration_seconds=row.duration_seconds,
+                provider_metadata=generated.provider_metadata,
+            ),
+            usage.input_tokens,
+            usage.output_tokens,
+        )
+    return fallback_cost, 0, 0
 
 
 def _estimated_cost_usd(
@@ -836,7 +978,22 @@ def _transport_estimate(
     if callable(estimator):
         value = estimator(provider, row)
         return _number(value)
-    return 0.0
+    return _conservative_next_call_estimate(provider, row)
+
+
+def _conservative_next_call_estimate(provider: str, row: PanelRow) -> float:
+    output_ceiling = (
+        CONSERVATIVE_GEMINI_OUTPUT_TOKEN_CEILING
+        if provider == "gemini"
+        else CONSERVATIVE_REKA_OUTPUT_TOKEN_CEILING
+    )
+    return _estimated_cost_usd(
+        provider=provider,
+        input_tokens=CONSERVATIVE_INPUT_TOKEN_CEILING,
+        output_tokens=output_ceiling,
+        duration_seconds=row.duration_seconds,
+        provider_metadata={},
+    )
 
 
 def _expected_route(
@@ -844,18 +1001,58 @@ def _expected_route(
     *,
     provider: str,
     phase: str,
+    row: PanelRow,
     transport: FrontierTransport,
 ) -> str:
     if provider == "reka":
         return "reka-direct"
-    route = getattr(transport, "route", None)
-    if isinstance(route, str) and route.strip():
-        return route.strip()
+    existing = _successful_result_for_row(
+        prepared, provider=provider, phase=phase, video_id=row.video_id
+    )
+    if existing is not None and isinstance(existing.get("route"), str):
+        return str(existing["route"])
     if phase == "panel":
         pinned = _pinned_gemini_route(prepared)
         if pinned is not None:
             return pinned
-    return "openrouter-unpinned"
+        raise CostGateError("preflight route pin is missing")
+    route = getattr(transport, "route", None)
+    if isinstance(route, str) and route.strip():
+        return route.strip()
+    observed_route = getattr(transport, "observed_route", None)
+    if isinstance(observed_route, str) and observed_route.strip():
+        return observed_route.strip()
+    return "openrouter-dynamic-preflight"
+
+
+def _observed_route(
+    provider: str,
+    requested_route: str,
+    provider_metadata: Mapping[str, object],
+) -> str:
+    if provider != "gemini":
+        return requested_route
+    observed = provider_metadata.get("provider")
+    if isinstance(observed, str) and observed.strip():
+        return observed.strip()
+    return requested_route
+
+
+def _successful_result_for_row(
+    prepared: PreparedFrontierRun,
+    *,
+    provider: str,
+    phase: str,
+    video_id: str,
+) -> Mapping[str, object] | None:
+    for result in _provider_results(prepared, provider):
+        if (
+            result.get("phase") == phase
+            and result.get("video_id") == video_id
+            and _result_still_bound_to_prepared(prepared, result)
+        ):
+            return result
+    return None
 
 
 def _pinned_gemini_route(prepared: PreparedFrontierRun) -> str | None:
@@ -864,6 +1061,7 @@ def _pinned_gemini_route(prepared: PreparedFrontierRun) -> str | None:
         for result in _provider_results(prepared, "gemini")
         if result.get("phase") == "preflight"
         and isinstance(result.get("route"), str)
+        and result.get("route") not in {"openrouter-unpinned", "openrouter-dynamic-preflight"}
         and _result_still_bound_to_prepared(prepared, result)
     }
     if not routes:
@@ -881,6 +1079,21 @@ def _matching_completed_result(
     for result in _provider_results(prepared, provider):
         if _matches_request_binding(prepared, result, request):
             return result
+    return None
+
+
+def _matching_terminal_failure(
+    prepared: PreparedFrontierRun,
+    provider: str,
+    request: Mapping[str, object],
+) -> Mapping[str, object] | None:
+    for attempt in _attempt_records(prepared):
+        if (
+            attempt.get("status") == "failed"
+            and attempt.get("provider") == provider
+            and _matches_attempt_binding(prepared, attempt, request)
+        ):
+            return attempt
     return None
 
 
@@ -907,15 +1120,50 @@ def _matches_request_binding(
     )
 
 
+def _matches_attempt_binding(
+    prepared: PreparedFrontierRun,
+    attempt: Mapping[str, object],
+    request: Mapping[str, object],
+) -> bool:
+    required = (
+        "request_sha256",
+        "source_sha256",
+        "model_id",
+        "route",
+        "prompt_sha256",
+        "schema_sha256",
+        "panel_sha256",
+        "provider",
+        "phase",
+        "video_id",
+    )
+    return all(attempt.get(field) == request.get(field) for field in required) and (
+        attempt.get("run_id") == prepared.run_id
+    )
+
+
 def _result_still_bound_to_prepared(
     prepared: PreparedFrontierRun, result: Mapping[str, object]
 ) -> bool:
-    return (
-        result.get("run_id") == prepared.run_id
-        and result.get("panel_sha256") == prepared.panel_sha256
-        and result.get("prompt_sha256") == prepared.prompt_sha256
-        and result.get("schema_sha256") == prepared.schema_sha256
-        and result.get("status") == "succeeded"
+    if (
+        result.get("run_id") != prepared.run_id
+        or result.get("panel_sha256") != prepared.panel_sha256
+        or result.get("schema_sha256") != prepared.schema_sha256
+        or result.get("status") != "succeeded"
+    ):
+        return False
+    video_id = result.get("video_id")
+    phase = result.get("phase")
+    if not isinstance(video_id, str) or phase not in _PHASES:
+        return False
+    row = next(
+        (candidate for candidate in _rows_for_phase(prepared, str(phase)) if candidate.video_id == video_id),
+        None,
+    )
+    if row is None:
+        return False
+    return result.get("prompt_sha256") == canonical_sha256(
+        build_event_map_prompt(row.question, row.duration_seconds)
     )
 
 
@@ -928,6 +1176,40 @@ def _ensure_request_record(
     ):
         return
     _append_jsonl(prepared.path / "requests.jsonl", request)
+
+
+@contextmanager
+def _request_claim(
+    prepared: PreparedFrontierRun,
+    request: Mapping[str, object],
+) -> Iterator[None]:
+    lock_dir = prepared.path / "locks"
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = lock_dir / f"{request['request_sha256']}.lock"
+    try:
+        fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as error:
+        raise LockContentionError("request is already claimed by another process") from error
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "run_id": prepared.run_id,
+                        "provider": request["provider"],
+                        "phase": request["phase"],
+                        "video_id": request["video_id"],
+                        "request_sha256": request["request_sha256"],
+                    },
+                    sort_keys=True,
+                )
+                + "\n"
+            )
+            handle.flush()
+            os.fsync(handle.fileno())
+        yield
+    finally:
+        lock_path.unlink(missing_ok=True)
 
 
 def _next_attempt_index(
@@ -988,9 +1270,6 @@ def _attempt_key(attempt: Mapping[str, object]) -> tuple[object, ...]:
 
 
 def _enforce_panel_gates(prepared: PreparedFrontierRun) -> None:
-    preflight_rows = _rows_for_phase(prepared, "preflight")
-    if not preflight_rows:
-        return
     if not _complete_preflight(prepared):
         raise CostGateError("panel phase requires complete preflight")
     projection = project_cost(prepared)
@@ -999,23 +1278,33 @@ def _enforce_panel_gates(prepared: PreparedFrontierRun) -> None:
 
 
 def _complete_preflight(prepared: PreparedFrontierRun) -> bool:
-    preflight_count = len(_rows_for_phase(prepared, "preflight"))
-    if preflight_count == 0:
-        return True
+    preflight_rows = _rows_for_phase(prepared, "preflight")
+    if len(preflight_rows) != 2:
+        return False
+    expected_video_ids = {row.video_id for row in preflight_rows}
+    if len(expected_video_ids) != 2:
+        return False
     for provider in _PROVIDERS:
         results = [
             result
             for result in _provider_results(prepared, provider)
             if result.get("phase") == "preflight"
             and _result_still_bound_to_prepared(prepared, result)
+            and result.get("video_id") in expected_video_ids
         ]
-        if len(results) != preflight_count:
+        if len(results) != 2:
+            return False
+        if {result.get("video_id") for result in results} != expected_video_ids:
             return False
     return True
 
 
 def _require_complete_panel_outputs(prepared: PreparedFrontierRun) -> None:
-    expected = len(_rows_for_phase(prepared, "panel"))
+    evaluation_rows = _rows_for_phase(prepared, "panel")
+    expected = len(evaluation_rows)
+    expected_by_video = {row.video_id: row for row in evaluation_rows}
+    if len(expected_by_video) != expected:
+        raise ValueError("provider outputs are not complete")
     for provider in _PROVIDERS:
         results = [
             result
@@ -1024,6 +1313,32 @@ def _require_complete_panel_outputs(prepared: PreparedFrontierRun) -> None:
             and _result_still_bound_to_prepared(prepared, result)
         ]
         if len(results) != expected:
+            raise ValueError("provider outputs are not complete")
+        seen: set[str] = set()
+        for result in results:
+            video_id = result.get("video_id")
+            if not isinstance(video_id, str) or video_id not in expected_by_video:
+                raise ValueError("provider outputs are not complete")
+            if video_id in seen:
+                raise ValueError("provider outputs are not complete")
+            seen.add(video_id)
+            route = result.get("route")
+            if not isinstance(route, str) or not route.strip():
+                raise ValueError("provider outputs are not complete")
+            row = expected_by_video[video_id]
+            expected_request = _request_record(
+                prepared,
+                row=row,
+                phase="panel",
+                provider=provider,
+                route=route,
+                prompt_sha256=canonical_sha256(
+                    build_event_map_prompt(row.question, row.duration_seconds)
+                ),
+            )
+            if not _matches_request_binding(prepared, result, expected_request):
+                raise ValueError("provider outputs are not complete")
+        if seen != set(expected_by_video):
             raise ValueError("provider outputs are not complete")
 
 
@@ -1035,12 +1350,63 @@ def _cumulative_cost(prepared: PreparedFrontierRun) -> float:
             for result in _provider_results(prepared, provider)
             if _result_still_bound_to_prepared(prepared, result)
         )
+    total += sum(
+        _number(attempt.get("estimated_cost_usd", 0.0))
+        for attempt in _attempt_records(prepared)
+        if attempt.get("run_id") == prepared.run_id and attempt.get("status") == "failed"
+    )
     return total
 
 
 def _rows_for_phase(prepared: PreparedFrontierRun, phase: str) -> tuple[PanelRow, ...]:
     row_phase = "evaluation" if phase == "panel" else phase
     return tuple(row for row in prepared.examples if row.phase == row_phase)
+
+
+def _validate_video_id(video_id: str) -> None:
+    if (
+        not isinstance(video_id, str)
+        or _SAFE_VIDEO_ID_RE.fullmatch(video_id) is None
+    ):
+        raise ValueError("video_id must be a safe identifier")
+
+
+def _validate_media_relative_path(media_relative_path: str) -> None:
+    if not isinstance(media_relative_path, str) or not media_relative_path:
+        raise ValueError("media path must be relative")
+    path = Path(media_relative_path)
+    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+        raise ValueError("media path must be a safe relative path")
+
+
+def _prepared_dir_has_run_artifacts(path: Path) -> bool:
+    if not path.exists():
+        return False
+    artifact_names = {
+        "attempts.jsonl",
+        "fixture-media",
+        "freeze.json",
+        "locks",
+        "panel.json",
+        "provider-results.json",
+        "raw",
+        "requests.jsonl",
+        "results",
+        "run-manifest.json",
+        "terminal-status.json",
+    }
+    return any((path / name).exists() for name in artifact_names)
+
+
+def _prompt_template_sha256() -> str:
+    return canonical_sha256(
+        {
+            "prompt_version": EVENT_MAP_PROMPT_VERSION,
+            "prompt_template_sha256": canonical_sha256(
+                build_event_map_prompt("{question}", 30.0)
+            ),
+        }
+    )
 
 
 def _validate_phase_provider(phase: str, provider: str) -> None:
@@ -1141,10 +1507,16 @@ def _read_json(path: Path) -> Mapping[str, object]:
 def _row_from_mapping(raw: object, *, location: str) -> PanelRow:
     if not isinstance(raw, Mapping):
         raise ValueError(f"{location} must be an object")
+    video_id = _required_text(raw.get("video_id"), f"{location}.video_id")
+    media_relative_path = _required_text(
+        raw.get("media_relative_path"), f"{location}.media_relative_path"
+    )
+    _validate_video_id(video_id)
+    _validate_media_relative_path(media_relative_path)
     return PanelRow(
         ordinal=_required_int(raw.get("ordinal"), f"{location}.ordinal"),
         phase=_required_text(raw.get("phase"), f"{location}.phase"),
-        video_id=_required_text(raw.get("video_id"), f"{location}.video_id"),
+        video_id=video_id,
         question=_required_text(raw.get("question"), f"{location}.question"),
         category=_required_text(raw.get("category"), f"{location}.category"),
         evidence_topology=_required_text(
@@ -1153,9 +1525,7 @@ def _row_from_mapping(raw: object, *, location: str) -> PanelRow:
         selection_rationale=_required_text(
             raw.get("selection_rationale"), f"{location}.selection_rationale"
         ),
-        media_relative_path=_required_text(
-            raw.get("media_relative_path"), f"{location}.media_relative_path"
-        ),
+        media_relative_path=media_relative_path,
         media_sha256=_required_text(raw.get("media_sha256"), f"{location}.media_sha256"),
         size_bytes=_required_int(raw.get("size_bytes"), f"{location}.size_bytes"),
         duration_seconds=_required_float(
@@ -1238,6 +1608,7 @@ __all__ = [
     "CostGateError",
     "FixtureTransport",
     "FrontierRunSummary",
+    "LockContentionError",
     "PreparedFrontierRun",
     "freeze_provider_outputs",
     "load_prepared",
