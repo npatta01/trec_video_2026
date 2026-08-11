@@ -36,7 +36,10 @@ Choose the path that matches your goal:
    [benchmark results](reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md).
 3. **Add an experiment or result:** follow the
    [experiment and result guide](docs/project-status/adding-experiments.md).
-4. **Understand historical context:** use the [report index](reports/trecvid_vqa_2026/README.md)
+4. **Review prepared or submitted organizer runs:** use the
+   [submission ledger](docs/submissions/README.md). Private run files remain
+   local and are identified there by SHA-256.
+5. **Understand historical context:** use the [report index](reports/trecvid_vqa_2026/README.md)
    and the [execution-plan index](plans/README.md). Historical checklists and
    earlier conclusions are records, not live work queues.
 
@@ -86,6 +89,7 @@ and do not change sharing permissions without confirming the applicable terms.
 | `tests/` | Automated checks for tracked code and contracts. |
 | `docs/project-status/` | Current newcomer-oriented status and decision pages. |
 | `docs/experiments/` | Sanitized, dated experiment findings. |
+| `docs/submissions/` | Sanitized organizer-submission ledger and upload metadata. |
 | `plans/` | Historical GitHub-issue execution plans and their outcomes. |
 | `docs/superpowers/plans/` | Historical implementation plans; unchecked boxes are not status. |
 | `reports/trecvid_vqa_2026/` | July 12 field guide plus later Markdown experiment evidence. |
