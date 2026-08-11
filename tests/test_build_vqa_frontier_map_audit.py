@@ -4,6 +4,8 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -23,6 +25,7 @@ def _load_module():
 audit_module = _load_module()
 build_audit_packet = audit_module.build_audit_packet
 freeze_audit = audit_module.freeze_audit
+verify_audit_freeze = audit_module.verify_audit_freeze
 
 
 def _sha256(path: Path) -> str:
@@ -53,20 +56,70 @@ def _base_row(tmp_path: Path, *, provider: str = "gemini", video_id: str = "vide
         "could_be_wrong": "maybe handle is hidden",
         "provider_audio_state": "provider_reported",
         "map": {
+            "schema_version": 1,
+            "question_interpretation": {
+                "meaning": "Identify the object picked up after the drawer opens.",
+                "required_modalities": ["visual"],
+                "required_evidence": "the object in the person's hand",
+            },
             "events": [
                 {
+                    "event_id": "E1",
+                    "start_seconds": 1.0,
+                    "end_seconds": 2.0,
                     "timestamp": 1.25,
+                    "keyframe_seconds": [1.25],
+                    "scene": "kitchen",
                     "description": "person opens drawer",
                     "entities": ["person", "drawer"],
+                    "actions": ["opens drawer"],
+                    "relations": ["person interacts with drawer"],
+                    "state_before": "drawer closed",
+                    "state_change": "drawer opens",
+                    "state_after": "drawer open",
+                    "visual_observations": ["drawer front moves outward"],
+                    "speech_observations": ["absent"],
+                    "sound_observations": ["absent"],
+                    "visible_text": ["absent"],
+                    "question_relevance": "setup only",
+                    "confidence": 0.95,
+                    "gaps": [],
                 },
                 {
+                    "event_id": "E2",
+                    "start_seconds": 2.0,
+                    "end_seconds": 4.0,
+                    "keyframe_seconds": [3.75],
+                    "scene": "kitchen",
                     "timestamp": 3.75,
                     "description": "person picks up red mug",
                     "entities": ["person", "red mug"],
+                    "actions": ["picks up mug"],
+                    "relations": ["person holds red mug"],
+                    "state_before": "mug in drawer",
+                    "state_change": "person lifts mug",
+                    "state_after": "mug in person's hand",
+                    "visual_observations": ["red mug is visible in hand"],
+                    "speech_observations": ["absent"],
+                    "sound_observations": ["absent"],
+                    "visible_text": ["absent"],
+                    "question_relevance": "direct answer evidence",
+                    "confidence": 0.9,
+                    "gaps": ["handle partly occluded"],
                 },
             ],
-            "support": [{"start": 1.25, "end": 4.5, "reason": "object interaction"}],
-            "explanation": "The visible action changes from opening to picking up the mug.",
+            "support_spans": [
+                {
+                    "event_ids": ["E2"],
+                    "start_seconds": 2.0,
+                    "end_seconds": 4.0,
+                    "modalities": ["visual"],
+                    "claim": "E2 shows the red mug in the person's hand.",
+                }
+            ],
+            "top1_answer": "a red mug",
+            "support_explanation": "E2 shows the red mug in the person's hand.",
+            "could_be_wrong_because": ["the handle is partly occluded"],
         },
         "overview_path": str(overview),
         "keyframe_paths": [str(path) for path in keyframes],
@@ -151,6 +204,35 @@ def make_complete_audit_fixture(
     return packet.root
 
 
+def _write_provider_run_fixture(path: Path, frozen_run: dict) -> Path:
+    path.mkdir()
+    artifact = path / "provider-results.json"
+    artifact_payload = {
+        "schema_version": 1,
+        "provider_results": frozen_run["provider_results"],
+        "panel_manifest": frozen_run["panel_manifest"],
+    }
+    artifact.write_text(json.dumps(artifact_payload, sort_keys=True), encoding="utf-8")
+    freeze = {
+        "schema_version": 1,
+        "status": "frozen",
+        "artifact_sha256": _sha256(artifact),
+        "bindings": {"schema_version": 1},
+        "bindings_sha256": _sha256_json({"schema_version": 1}),
+    }
+    (path / "freeze.json").write_text(json.dumps(freeze, sort_keys=True), encoding="utf-8")
+    (path / "frozen-run.json").write_text(
+        json.dumps(frozen_run, sort_keys=True), encoding="utf-8"
+    )
+    return path
+
+
+def _sha256_json(value: dict) -> str:
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
 def test_blind_packet_masks_question_answer_support_and_relevance(tmp_path: Path) -> None:
     packet = build_audit_packet(make_frozen_run(tmp_path), output=tmp_path / "audit")
 
@@ -159,6 +241,27 @@ def test_blind_packet_masks_question_answer_support_and_relevance(tmp_path: Path
 
     for forbidden in ("question", "top1_answer", "support_span", "relevance", "could_be_wrong"):
         assert forbidden not in text
+
+
+def test_blind_packet_uses_canonical_mask_and_preserves_observational_chronology(
+    tmp_path: Path,
+) -> None:
+    packet = build_audit_packet(make_frozen_run(tmp_path), output=tmp_path / "audit")
+    blind = _read_json(packet.root / "rows" / "gemini" / "video-001" / "blind.json")
+    expected = audit_module.mask_question_fields(_base_row(tmp_path)["map"])
+
+    assert blind["map"] == expected
+    assert [event["event_id"] for event in blind["map"]["events"]] == ["E1", "E2"]
+    assert [event["state_change"] for event in blind["map"]["events"]] == [
+        "drawer opens",
+        "person lifts mug",
+    ]
+    assert all("question_relevance" not in event for event in blind["map"]["events"])
+    assert "question_interpretation" not in blind["map"]
+    assert "support_spans" not in blind["map"]
+    assert "top1_answer" not in blind["map"]
+    assert "support_explanation" not in blind["map"]
+    assert "could_be_wrong_because" not in blind["map"]
 
 
 def test_aware_packet_keeps_question_context_without_reference_text(tmp_path: Path) -> None:
@@ -388,3 +491,138 @@ def test_audit_freeze_writes_complete_hash_bound_boundary(tmp_path: Path) -> Non
     assert freeze["bindings"]["blind_verdicts_sha256"] == _sha256(audit / "verdicts.blind.jsonl")
     assert freeze["bindings"]["aware_verdicts_sha256"] == _sha256(audit / "verdicts.aware.jsonl")
     assert "packet_row_sha256" in freeze["rows"][0]
+
+
+def test_audit_freeze_verification_accepts_untampered_artifacts(tmp_path: Path) -> None:
+    audit = make_complete_audit_fixture(tmp_path, row_count=1)
+    freeze = freeze_audit(audit)
+
+    assert verify_audit_freeze(audit) == freeze
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        "rows/gemini/video-000/blind.json",
+        "rows/gemini/video-000/aware.json",
+        "rows/gemini/video-000/overview.jpg",
+        "rows/gemini/video-000/event-keyframes/0001.jpg",
+        "packet-manifest.json",
+        "blind-manifest.json",
+        "aware-manifest.json",
+        "verdicts.blind.jsonl",
+        "verdicts.aware.jsonl",
+    ],
+)
+def test_post_freeze_tampering_of_each_artifact_class_is_rejected(
+    tmp_path: Path, relative_path: str
+) -> None:
+    audit = make_complete_audit_fixture(tmp_path, row_count=1)
+    freeze_audit(audit)
+    target = audit / relative_path
+    target.write_bytes(target.read_bytes() + b"tampered")
+
+    with pytest.raises(ValueError, match="hash mismatch"):
+        verify_audit_freeze(audit)
+
+
+def test_cli_build_validate_freeze_verifies_prepared_run_and_includes_terminal_failure(
+    tmp_path: Path,
+) -> None:
+    success = _base_row(tmp_path, video_id="video-000")
+    failure = _base_row(tmp_path, video_id="video-001")
+    failure["map"] = None
+    failure["failure_code"] = "provider_timeout"
+    frozen_run = make_frozen_run(tmp_path, rows=[success, failure])
+    prepared = _write_provider_run_fixture(tmp_path / "prepared", frozen_run)
+    output = tmp_path / "audit"
+
+    def run(*args: str) -> dict:
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), *args],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return json.loads(result.stdout)
+
+    assert run("build", "--prepared", str(prepared), "--output", str(output))["row_count"] == 2
+    assert run("validate", "--audit", str(output))["row_count"] == 2
+    assert (output / "rows" / "gemini" / "video-001" / "blind.json").is_file()
+    assert _read_json(output / "rows" / "gemini" / "video-001" / "aware.json")[
+        "failure_code"
+    ] == "provider_timeout"
+    _write_jsonl(
+        output / "verdicts.blind.jsonl",
+        [_verdict("gemini", "video-000", "blind"), _verdict("gemini", "video-001", "blind")],
+    )
+    _write_jsonl(
+        output / "verdicts.aware.jsonl",
+        [
+            _verdict("gemini", "video-000", "aware"),
+            _verdict("gemini", "video-001", "aware", usable_map_decision="unusable"),
+        ],
+    )
+    assert run("validate", "--audit", str(output))["row_count"] == 2
+    assert run("freeze", "--audit", str(output))["frozen"] is True
+
+
+def test_cli_build_rejects_stale_provider_freeze_before_copying_media(
+    tmp_path: Path,
+) -> None:
+    prepared = _write_provider_run_fixture(
+        tmp_path / "prepared",
+        make_frozen_run(tmp_path, rows=[_base_row(tmp_path, video_id="video-000")]),
+    )
+    artifact = prepared / "provider-results.json"
+    artifact.write_bytes(artifact.read_bytes() + b"\n")
+    output = tmp_path / "audit"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "build",
+            "--prepared",
+            str(prepared),
+            "--output",
+            str(output),
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 1
+    assert "provider freeze artifact hash mismatch" in json.loads(result.stdout)["error"]
+    assert not output.exists()
+
+
+def test_build_refuses_nonempty_or_symlink_output_root(tmp_path: Path) -> None:
+    frozen_run = make_frozen_run(tmp_path)
+    output = tmp_path / "audit"
+    output.mkdir()
+    (output / "existing.txt").write_text("preserve me", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="overwrite"):
+        build_audit_packet(frozen_run, output=output)
+
+    linked_output = tmp_path / "linked-audit"
+    linked_output.symlink_to(output, target_is_directory=True)
+    with pytest.raises(ValueError, match="symlink"):
+        build_audit_packet(frozen_run, output=linked_output)
+
+
+def test_freeze_verification_rejects_manifest_path_escape(tmp_path: Path) -> None:
+    audit = make_complete_audit_fixture(tmp_path, row_count=1)
+    freeze_audit(audit)
+    manifest = _read_json(audit / "packet-manifest.json")
+    manifest["rows"][0]["blind_manifest"] = "../escaped.json"
+    (audit / "packet-manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True), encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="path escape"):
+        verify_audit_freeze(audit)
