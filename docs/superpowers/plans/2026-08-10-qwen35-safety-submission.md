@@ -4,9 +4,9 @@
 
 **Goal:** Freeze and prepare a private, validator-ready 2,443-query TRECVID 2026 AG safety submission with the verified Qwen3.5-4B uniform-12 path at rank 1.
 
-**Architecture:** A local preparation module creates a label-free query/media contract and deduplicated uniform-frame evidence plan. The Framework host's pinned rootless ROCm Podman runtime runs one baseline answer and one nine-answer tail request per query, freezes the complete ranking, and writes immutable private outputs without transferring licensed media. A host-side finalizer verifies the freeze, serializes the official JSON schema, runs the pinned NIST validator, and records checksums without uploading to Evalbase.
+**Architecture:** A local preparation module creates a label-free query/media contract and deduplicated uniform-frame evidence plan. The ordered request set is split into eight balanced contiguous shards and executed on pinned NVIDIA CUDA containers, with every completed query checkpointed to persistent pod storage for exact-prefix resume. A host-side merger requires exact, gap-free request coverage before the finalizer freezes the ranking, serializes the official JSON schema, runs the pinned NIST validator, and records checksums without uploading to Evalbase.
 
-**Tech Stack:** Python 3.12, pytest, ffmpeg/ffprobe, Qwen3.5-4B, Transformers 5 pinned source revision, rootless Podman with ROCm 7.2.4, NIST VQA validator commit `e06cb7854d7defe53e86412c2bba0ca5f636ea40`.
+**Tech Stack:** Python 3.12, pytest, ffmpeg/ffprobe, Qwen3.5-4B, Transformers 5 pinned source revision, pinned Runpod CUDA 12.4 container, NIST VQA validator commit `e06cb7854d7defe53e86412c2bba0ca5f636ea40`.
 
 ## Global Constraints
 
@@ -117,11 +117,12 @@
 
   Run: `uv run pytest tests/test_vqa_safety_submission.py tests/test_vqa_submission.py -q`
 
-### Task 4: Pinned local ROCm task and resumable inference
+### Task 4: Pinned, sharded, resumable inference
 
 **Files:**
 - Create: `src/trec_video_2026/vqa_safety_runner.py`
 - Create: `scripts/run-qwen35-safety-submission-local.sh`
+- Create: `scripts/run-qwen35-safety-shard-runpod.sh`
 - Modify: `tests/test_vqa_safety_submission.py`
 
 **Interfaces:**
@@ -177,20 +178,37 @@
   completion, correct timing, and runtime attestation before the full
   workload proceeds.
 
-- [ ] **Step 5: Execute the full run and monitor to terminal status**
+- [x] **Step 5: Execute the full run and monitor to terminal status**
 
-  Use rootless Podman, local logs, and resumable checkpoints. Do not claim
-  completion until all 2,443 query rows exist.
+  Use eight balanced contiguous GPU shards, durable per-query checkpoints,
+  and exact-prefix resume. Download and checksum each terminal shard before
+  releasing its GPU. Do not claim completion until all 2,443 query rows exist.
 
-- [ ] **Step 6: Download, freeze, serialize, and validate**
+- [x] **Step 6: Download, freeze, serialize, and validate**
 
   Run the finalizer, verify the prediction freeze and all SHA-256 entries,
   and require the pinned NIST validator to exit zero on
   `submission-top10.json`.
 
-- [ ] **Step 7: Final privacy and repository checks**
+- [x] **Step 7: Final privacy and repository checks**
 
   Run: `git diff --check && git status --short`
   Confirm no private run artifact is tracked or staged and report the local
   submission path, hash, validator result, fallback counts, and remaining
   upload action.
+
+## Completion evidence
+
+- Eight ordered shards completed with terminal return code zero. Their row
+  counts are `306, 306, 306, 305, 305, 305, 305, 305`, totaling 2,443.
+- The strict merge produced `predictions.raw.json` with SHA-256
+  `5cfc3f7024c3ae1565b78da39d5ad7b5149cfd2f52c0bceca274d1e957c8e890`.
+- The immutable top-10 submission has SHA-256
+  `c01873efb9a5f5cf1090368f1bed4fd91b6ecbf51d806f8670ecabc3d82322a7`.
+- The pinned NIST validator accepted all 2,443 entries with ten answers per
+  query, zero errors, and zero warnings.
+- Candidate completion used 786 model repair answers and 650 deterministic
+  fallback answers; every rank-1 answer came from the frozen uniform-12 path.
+- All submission Runpod instances were deleted after their outputs were
+  downloaded and checksum-verified. Upload to Evalbase remains a separate,
+  explicitly authorized action and was not performed.
