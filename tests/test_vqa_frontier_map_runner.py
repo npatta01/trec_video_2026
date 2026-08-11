@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -7,6 +8,7 @@ import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import FrozenInstanceError, is_dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -84,11 +86,13 @@ class StrictUploadTransport:
         *,
         provider_name: str = "openrouter",
         observed_route: str = "strict-provider-route",
+        observed_model: str | None = None,
         input_tokens: int = 100,
         output_tokens: int = 50,
     ) -> None:
         self.provider_name = provider_name
         self.observed_route = observed_route
+        self.observed_model = observed_model
         self.input_tokens = input_tokens
         self.output_tokens = output_tokens
         self.uploaded: dict[str, Path] = {}
@@ -175,13 +179,130 @@ class StrictUploadTransport:
             ),
             provider_metadata={
                 "provider": self.observed_route,
-                "model": model,
+                "model": self.observed_model or model,
                 "request_id": f"strict-{self.call_count}",
             },
         )
 
 
-def test_fixture_run_makes_one_call_per_provider_row_and_freezes(tmp_path: Path) -> None:
+class MetadataOnlyOpenRouterTransport(StrictUploadTransport):
+    """OpenRouter-shaped fake whose route is available only in metadata."""
+
+    def __init__(
+        self, *, observed_route: str, observed_model: str | None = None
+    ) -> None:
+        super().__init__(observed_route=observed_route, observed_model=observed_model)
+        self._metadata_route = observed_route
+        self._metadata_model = observed_model
+        del self.observed_route
+
+    def generate(
+        self,
+        *,
+        model: str,
+        parts: Sequence[object],
+        schema: Mapping[str, object],
+    ) -> GenerationResult:
+        assert len(parts) == 2
+        video_part, prompt = parts
+        assert isinstance(video_part, Mapping)
+        assert video_part.get("file_id") in self.uploaded
+        assert isinstance(prompt, str) and prompt.strip()
+        self.call_count += 1
+        self.generated_parts.append(tuple(parts))
+        raw = json.dumps(
+            {
+                "schema_version": 1,
+                "question_interpretation": {
+                    "meaning": "Identify the metadata-only fixture event.",
+                    "required_modalities": ["visual"],
+                    "required_evidence": "The uploaded video and prompt.",
+                },
+                "events": [
+                    {
+                        "event_id": "E1",
+                        "start_seconds": 0.0,
+                        "end_seconds": 1.0,
+                        "keyframe_seconds": [0.5],
+                        "scene": "Metadata-only OpenRouter fixture scene.",
+                        "entities": ["fixture"],
+                        "actions": ["fixture changes"],
+                        "relations": ["fixture in scene"],
+                        "state_before": "before",
+                        "state_change": "changed",
+                        "state_after": "after",
+                        "visual_observations": ["fixture changed"],
+                        "speech_observations": [],
+                        "sound_observations": [],
+                        "visible_text": [],
+                        "question_relevance": "direct",
+                        "confidence": 0.9,
+                        "gaps": [],
+                    }
+                ],
+                "support_spans": [
+                    {
+                        "event_ids": ["E1"],
+                        "start_seconds": 0.0,
+                        "end_seconds": 1.0,
+                        "modalities": ["visual"],
+                        "claim": "The uploaded source supports the map.",
+                    }
+                ],
+                "top1_answer": "The fixture changed.",
+                "support_explanation": "The uploaded source shows the change.",
+                "could_be_wrong_because": ["The fixture is synthetic."],
+            },
+            sort_keys=True,
+        )
+        return GenerationResult(
+            payload=json.loads(raw),
+            raw_response=raw,
+            usage=TokenUsage(
+                input_tokens=self.input_tokens, output_tokens=self.output_tokens
+            ),
+            provider_metadata={
+                "provider": self._metadata_route,
+                "model": self._metadata_model or model,
+                "request_id": f"metadata-only-{self.call_count}",
+            },
+        )
+
+
+def _make_live_prepared(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[PreparedFrontierRun, Path]:
+    seed = prepare_fixture_run(tmp_path / "seed", evaluation_rows=0, preflight_rows=1)
+    payload = json.loads((seed.path / "panel.json").read_text(encoding="utf-8"))
+    source_root = tmp_path / "canonical-data"
+    media = source_root / "media" / "preflight-001.mp4"
+    media.parent.mkdir(parents=True)
+    media_bytes = b"synthetic live media bytes"
+    media.write_bytes(media_bytes)
+    row = payload["examples"][0]
+    row["selection_rationale"] = "synthetic live-media fixture"
+    row["media_relative_path"] = "media/preflight-001.mp4"
+    row["media_sha256"] = hashlib.sha256(media_bytes).hexdigest()
+    row["size_bytes"] = len(media_bytes)
+    payload["selection_policy"] = "frozen-panel"
+    panel = tmp_path / "live-panel.json"
+    panel.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    prepared = prepare_run(panel, tmp_path / "prepared")
+    monkeypatch.setattr(runner_module, "_canonical_data_root", lambda: source_root)
+    monkeypatch.setattr(
+        runner_module,
+        "_probe_media",
+        lambda path: SimpleNamespace(
+            duration_seconds=30.0, has_audio=True, has_video=True
+        ),
+    )
+    return prepared, media
+
+
+def test_fixture_run_makes_one_call_per_provider_row_and_freezes(
+    tmp_path: Path,
+) -> None:
     prepared = prepare_fixture_run(tmp_path, evaluation_rows=2, preflight_rows=2)
     gemini = FixtureTransport(provider="openrouter")
     reka = FixtureTransport(provider="reka")
@@ -206,14 +327,28 @@ def test_invalid_json_is_terminal_without_content_retry(tmp_path: Path) -> None:
     prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
     transport = FixtureTransport(raw_response="not-json")
 
-    summary = run_phase(prepared, phase="preflight", provider="gemini", transport=transport)
+    summary = run_phase(
+        prepared, phase="preflight", provider="gemini", transport=transport
+    )
 
     assert summary.failed == 1
     assert transport.call_count == 1
     attempts = _read_jsonl(prepared.path / "attempts.jsonl")
     assert [attempt["status"] for attempt in attempts] == ["started", "failed"]
     assert attempts[-1]["failure_code"] == "invalid_json"
-    assert _read_jsonl(prepared.path / "results" / "gemini.jsonl") == []
+    results = _read_jsonl(prepared.path / "results" / "gemini.jsonl")
+    assert len(results) == 1
+    assert results[0]["status"] == "failed"
+    assert results[0]["failure_code"] == "invalid_json"
+    assert results[0]["input_tokens"] == 100
+    assert results[0]["output_tokens"] == 50
+    assert results[0]["estimated_cost_usd"] > 0
+    raw_record = json.loads(
+        (prepared.path / "raw" / "gemini" / "preflight-001.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert raw_record["raw_response"] == "not-json"
 
 
 def test_prepared_run_is_immutable_and_writes_safe_manifest(tmp_path: Path) -> None:
@@ -343,7 +478,9 @@ def test_provider_ledgers_are_separate_and_wrong_transport_provider_is_rejected(
             transport=FixtureTransport(provider="reka"),
         )
 
-    run_phase(prepared, phase="preflight", provider="gemini", transport=FixtureTransport())
+    run_phase(
+        prepared, phase="preflight", provider="gemini", transport=FixtureTransport()
+    )
     run_phase(
         prepared,
         phase="preflight",
@@ -363,11 +500,17 @@ def test_panel_refuses_without_complete_preflight_and_review_cost_gate(
     prepared = prepare_fixture_run(tmp_path, evaluation_rows=1, preflight_rows=2)
 
     with pytest.raises(CostGateError, match="preflight"):
-        run_phase(prepared, phase="panel", provider="gemini", transport=FixtureTransport())
+        run_phase(
+            prepared, phase="panel", provider="gemini", transport=FixtureTransport()
+        )
 
-    run_phase(prepared, phase="preflight", provider="gemini", transport=FixtureTransport())
+    run_phase(
+        prepared, phase="preflight", provider="gemini", transport=FixtureTransport()
+    )
     with pytest.raises(CostGateError, match="preflight"):
-        run_phase(prepared, phase="panel", provider="gemini", transport=FixtureTransport())
+        run_phase(
+            prepared, phase="panel", provider="gemini", transport=FixtureTransport()
+        )
 
     run_phase(
         prepared,
@@ -379,10 +522,14 @@ def test_panel_refuses_without_complete_preflight_and_review_cost_gate(
     assert projection["authorized_to_continue"] is False
     assert projection["observed_projected_usd"] > PRICE_SNAPSHOT["review_threshold_usd"]
     with pytest.raises(CostGateError, match="review"):
-        run_phase(prepared, phase="panel", provider="gemini", transport=FixtureTransport())
+        run_phase(
+            prepared, phase="panel", provider="gemini", transport=FixtureTransport()
+        )
 
 
-def test_cumulative_absolute_cost_cap_is_checked_before_dispatch(tmp_path: Path) -> None:
+def test_cumulative_absolute_cost_cap_is_checked_before_dispatch(
+    tmp_path: Path,
+) -> None:
     prepared = prepare_fixture_run(tmp_path, evaluation_rows=2, preflight_rows=2)
     run_phase(
         prepared,
@@ -420,7 +567,9 @@ def test_project_cost_uses_reported_openrouter_cost_and_reka_video_minutes(
         prepared,
         phase="preflight",
         provider="reka",
-        transport=FixtureTransport(provider="reka", input_tokens=1_000_000, output_tokens=0),
+        transport=FixtureTransport(
+            provider="reka", input_tokens=1_000_000, output_tokens=0
+        ),
     )
 
     projection = project_cost(prepared)
@@ -440,7 +589,9 @@ def test_status_and_freeze_require_complete_provider_outputs(tmp_path: Path) -> 
     with pytest.raises(ValueError, match="complete"):
         freeze_provider_outputs(prepared)
 
-    run_phase(prepared, phase="preflight", provider="gemini", transport=FixtureTransport())
+    run_phase(
+        prepared, phase="preflight", provider="gemini", transport=FixtureTransport()
+    )
     run_phase(
         prepared,
         phase="preflight",
@@ -487,6 +638,75 @@ def test_real_transport_uploads_actual_source_before_generate_and_artifacts_stay
     assert "data:" not in serialized_request
 
 
+def test_live_upload_revalidates_source_identity_before_transport(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prepared, media = _make_live_prepared(tmp_path, monkeypatch)
+    media.write_bytes(b"altered bytes")
+    transport = StrictUploadTransport()
+
+    summary = run_phase(
+        prepared, phase="preflight", provider="gemini", transport=transport
+    )
+
+    assert summary.failed == 1
+    assert transport.upload_paths == []
+    attempts = _read_jsonl(prepared.path / "attempts.jsonl")
+    assert [attempt["status"] for attempt in attempts] == ["started", "failed"]
+    assert attempts[-1]["failure_code"] == "source_identity_mismatch"
+    result = _read_jsonl(prepared.path / "results" / "gemini.jsonl")[0]
+    assert result["status"] == "failed"
+    assert result["failure_code"] == "source_identity_mismatch"
+    assert status(prepared)["ambiguous_started_attempts"] == 0
+
+
+def test_live_upload_ignores_alternate_cwd_data_tree_before_transport(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prepared, media = _make_live_prepared(tmp_path, monkeypatch)
+    media.unlink()
+    alternate = tmp_path / "alternate-cwd"
+    shadow = alternate / "data" / "media" / "preflight-001.mp4"
+    shadow.parent.mkdir(parents=True)
+    shadow.write_bytes(b"synthetic live media bytes")
+    monkeypatch.chdir(alternate)
+    transport = StrictUploadTransport()
+
+    summary = run_phase(
+        prepared, phase="preflight", provider="gemini", transport=transport
+    )
+
+    assert summary.failed == 1
+    assert transport.upload_paths == []
+    assert transport.call_count == 0
+    result = _read_jsonl(prepared.path / "results" / "gemini.jsonl")[0]
+    assert result["status"] == "failed"
+    assert result["failure_code"] == "source_identity_mismatch"
+
+
+def test_live_upload_revalidates_media_shape_before_transport(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prepared, _media = _make_live_prepared(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        runner_module,
+        "_probe_media",
+        lambda path: SimpleNamespace(
+            duration_seconds=31.0, has_audio=True, has_video=True
+        ),
+    )
+    transport = StrictUploadTransport()
+
+    summary = run_phase(
+        prepared, phase="preflight", provider="gemini", transport=transport
+    )
+
+    assert summary.failed == 1
+    assert transport.upload_paths == []
+    result = _read_jsonl(prepared.path / "results" / "gemini.jsonl")[0]
+    assert result["failure_code"] == "source_identity_mismatch"
+
+
 def test_terminal_failed_attempt_is_reused_without_rebilling(tmp_path: Path) -> None:
     prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
     first = FixtureTransport(raw_response="not-json")
@@ -498,10 +718,13 @@ def test_terminal_failed_attempt_is_reused_without_rebilling(tmp_path: Path) -> 
     assert failed.failed == 1
     assert reused.failed == 1
     assert second.call_count == 0
-    assert [attempt["status"] for attempt in _read_jsonl(prepared.path / "attempts.jsonl")] == [
+    assert [
+        attempt["status"] for attempt in _read_jsonl(prepared.path / "attempts.jsonl")
+    ] == [
         "started",
         "failed",
     ]
+    assert len(_read_jsonl(prepared.path / "results" / "gemini.jsonl")) == 1
 
 
 def test_request_lock_blocks_reentrant_duplicate_paid_call(tmp_path: Path) -> None:
@@ -540,7 +763,9 @@ def test_request_binds_actual_row_prompt_and_panel_edits_fail_before_reuse(
     tmp_path: Path,
 ) -> None:
     prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=2)
-    run_phase(prepared, phase="preflight", provider="gemini", transport=FixtureTransport())
+    run_phase(
+        prepared, phase="preflight", provider="gemini", transport=FixtureTransport()
+    )
     requests = _read_jsonl(prepared.path / "requests.jsonl")
 
     row_by_video = {row.video_id: row for row in prepared.examples}
@@ -558,13 +783,20 @@ def test_request_binds_actual_row_prompt_and_panel_edits_fail_before_reuse(
     panel_path.write_text(json.dumps(panel, sort_keys=True), encoding="utf-8")
 
     with pytest.raises(ValueError, match="panel"):
-        run_phase(prepared.path, phase="preflight", provider="gemini", transport=FixtureTransport())
+        run_phase(
+            prepared.path,
+            phase="preflight",
+            provider="gemini",
+            transport=FixtureTransport(),
+        )
 
 
 def test_openrouter_observed_preflight_route_is_recorded_and_cli_pins_panel_route(
     tmp_path: Path,
 ) -> None:
-    prepared = prepare_fixture_run(tmp_path / "prepared", evaluation_rows=1, preflight_rows=2)
+    prepared = prepare_fixture_run(
+        tmp_path / "prepared", evaluation_rows=1, preflight_rows=2
+    )
     observed_route = "openrouter/google-vertex"
     run_phase(
         prepared,
@@ -580,12 +812,20 @@ def test_openrouter_observed_preflight_route_is_recorded_and_cli_pins_panel_rout
     )
 
     result = _read_jsonl(prepared.path / "results" / "gemini.jsonl")[0]
-    assert result["route"] == observed_route
+    assert result["requested_route"] == observed_route
+    assert result["observed_route"] == observed_route
+    assert result["route"] == result["requested_route"]
+    assert (
+        result["request_sha256"]
+        == _read_jsonl(prepared.path / "requests.jsonl")[0]["request_sha256"]
+    )
     assert result["route"] != "openrouter-unpinned"
 
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("run_vqa_frontier_map_cli", _cli_script())
+    spec = importlib.util.spec_from_file_location(
+        "run_vqa_frontier_map_cli", _cli_script()
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -597,10 +837,128 @@ def test_openrouter_observed_preflight_route_is_recorded_and_cli_pins_panel_rout
 
     module.create_openrouter_transport = openrouter_factory
 
-    assert module.main(["run", "--prepared", str(prepared.path), "--provider", "gemini"]) == 0
+    assert (
+        module.main(["run", "--prepared", str(prepared.path), "--provider", "gemini"])
+        == 0
+    )
     assert constructed
     assert constructed[0].provider_order == (observed_route,)
     assert "openrouter-unpinned" not in constructed[0].provider_order
+
+
+def test_metadata_only_openrouter_preflight_preserves_request_sha_and_observed_route(
+    tmp_path: Path,
+) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=1, preflight_rows=2)
+    observed_route = "openrouter/google-vertex"
+    transport = MetadataOnlyOpenRouterTransport(observed_route=observed_route)
+
+    summary = run_phase(
+        prepared, phase="preflight", provider="gemini", transport=transport
+    )
+
+    assert summary.passed == 2
+    assert status(prepared)["ambiguous_started_attempts"] == 0
+    requests = _read_jsonl(prepared.path / "requests.jsonl")
+    results = _read_jsonl(prepared.path / "results" / "gemini.jsonl")
+    assert len(requests) == 2
+    assert len(results) == 2
+    for request, result in zip(requests, results, strict=True):
+        assert "observed_route" not in request
+        assert request["requested_route"] == "openrouter-dynamic-preflight"
+        assert result["request_sha256"] == request["request_sha256"]
+        assert result["requested_route"] == request["requested_route"]
+        assert result["observed_route"] == observed_route
+        assert result["observed_model"] == request["model_id"]
+    assert [
+        attempt["status"] for attempt in _read_jsonl(prepared.path / "attempts.jsonl")
+    ] == [
+        "started",
+        "succeeded",
+        "started",
+        "succeeded",
+    ]
+
+
+def test_observed_model_mismatch_is_terminal_without_ambiguous_started_attempt(
+    tmp_path: Path,
+) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
+    transport = MetadataOnlyOpenRouterTransport(
+        observed_route="openrouter/google-vertex",
+        observed_model="different-model",
+    )
+
+    summary = run_phase(
+        prepared, phase="preflight", provider="gemini", transport=transport
+    )
+    retry = run_phase(
+        prepared,
+        phase="preflight",
+        provider="gemini",
+        transport=MetadataOnlyOpenRouterTransport(
+            observed_route="openrouter/google-vertex"
+        ),
+    )
+
+    assert summary.failed == 1
+    assert retry.failed == 1
+    assert transport.call_count == 1
+    result = _read_jsonl(prepared.path / "results" / "gemini.jsonl")[0]
+    assert result["status"] == "failed"
+    assert result["failure_code"] == "observed_model_mismatch"
+    assert result["observed_model"] == "different-model"
+    assert result["input_tokens"] == 100
+    assert result["output_tokens"] == 50
+    assert status(prepared)["ambiguous_started_attempts"] == 0
+
+
+def test_panel_gemini_observed_route_must_equal_preflight_pin_and_failure_freezes(
+    tmp_path: Path,
+) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=1, preflight_rows=2)
+    pinned_route = "openrouter/google-vertex"
+    run_phase(
+        prepared,
+        phase="preflight",
+        provider="gemini",
+        transport=MetadataOnlyOpenRouterTransport(observed_route=pinned_route),
+    )
+    run_phase(
+        prepared,
+        phase="preflight",
+        provider="reka",
+        transport=StrictUploadTransport(provider_name="reka", observed_route="reka"),
+    )
+
+    gemini_panel = run_phase(
+        prepared,
+        phase="panel",
+        provider="gemini",
+        transport=MetadataOnlyOpenRouterTransport(observed_route="openrouter/fallback"),
+    )
+    reka_panel = run_phase(
+        prepared,
+        phase="panel",
+        provider="reka",
+        transport=StrictUploadTransport(provider_name="reka", observed_route="reka"),
+    )
+    freeze = freeze_provider_outputs(prepared)
+
+    assert gemini_panel.failed == 1
+    assert reka_panel.passed == 1
+    panel_results = [
+        result
+        for result in _read_jsonl(prepared.path / "results" / "gemini.jsonl")
+        if result["phase"] == "panel"
+    ]
+    assert len(panel_results) == 1
+    assert panel_results[0]["status"] == "failed"
+    assert panel_results[0]["requested_route"] == pinned_route
+    assert panel_results[0]["observed_route"] == "openrouter/fallback"
+    assert panel_results[0]["failure_code"] == "observed_route_mismatch"
+    assert freeze["status"] == "frozen"
+    assert freeze["bindings"]["provider_result_count"] == 2
 
 
 def test_real_transport_absent_estimate_and_failed_attempts_count_against_cap(
@@ -707,7 +1065,9 @@ def test_run_wide_budget_lock_serializes_distinct_request_cost_checks(
     assert first.passed == 1
     assert observed_started_before_reentry == ["started"]
     attempts = _read_jsonl(prepared.path / "attempts.jsonl")
-    assert [attempt["status"] for attempt in attempts if attempt["provider"] == "gemini"] == [
+    assert [
+        attempt["status"] for attempt in attempts if attempt["provider"] == "gemini"
+    ] == [
         "started",
         "succeeded",
     ]
@@ -725,7 +1085,9 @@ def test_run_wide_budget_lock_serializes_distinct_request_cost_checks(
 
 def test_panel_requires_exact_four_successful_preflight_results(tmp_path: Path) -> None:
     prepared = prepare_fixture_run(tmp_path, evaluation_rows=1, preflight_rows=1)
-    run_phase(prepared, phase="preflight", provider="gemini", transport=FixtureTransport())
+    run_phase(
+        prepared, phase="preflight", provider="gemini", transport=FixtureTransport()
+    )
     run_phase(
         prepared,
         phase="preflight",
@@ -734,14 +1096,18 @@ def test_panel_requires_exact_four_successful_preflight_results(tmp_path: Path) 
     )
 
     with pytest.raises(CostGateError, match="preflight"):
-        run_phase(prepared, phase="panel", provider="gemini", transport=FixtureTransport())
+        run_phase(
+            prepared, phase="panel", provider="gemini", transport=FixtureTransport()
+        )
 
 
 def test_freeze_requires_exact_unique_provider_by_evaluation_row_coverage(
     tmp_path: Path,
 ) -> None:
     prepared = prepare_fixture_run(tmp_path, evaluation_rows=2, preflight_rows=2)
-    run_phase(prepared, phase="preflight", provider="gemini", transport=FixtureTransport())
+    run_phase(
+        prepared, phase="preflight", provider="gemini", transport=FixtureTransport()
+    )
     run_phase(
         prepared,
         phase="preflight",
@@ -771,7 +1137,9 @@ def test_freeze_requires_exact_unique_provider_by_evaluation_row_coverage(
 def test_prepare_refuses_existing_run_directory_and_rejects_unsafe_video_ids(
     tmp_path: Path,
 ) -> None:
-    source = prepare_fixture_run(tmp_path / "source", evaluation_rows=1, preflight_rows=2)
+    source = prepare_fixture_run(
+        tmp_path / "source", evaluation_rows=1, preflight_rows=2
+    )
     panel_path = tmp_path / "panel.json"
     panel_path.write_text(
         (source.path / "panel.json").read_text(encoding="utf-8"),
@@ -803,7 +1171,9 @@ def test_cli_fixture_lifecycle_outputs_compact_safe_json(tmp_path: Path) -> None
         encoding="utf-8",
     )
 
-    prepared = _run_cli("prepare", "--panel", str(panel), "--output", str(prepared_path))
+    prepared = _run_cli(
+        "prepare", "--panel", str(panel), "--output", str(prepared_path)
+    )
     assert prepared == {
         "status": "prepared",
         "run_id": "frontier-video-map-20260811-fixture",
@@ -816,9 +1186,9 @@ def test_cli_fixture_lifecycle_outputs_compact_safe_json(tmp_path: Path) -> None
     )["summary"] == {"expected": 4, "failed": 0, "passed": 4, "skipped": 0}
     projection = _run_cli("project-cost", "--prepared", str(prepared_path))
     assert projection["authorized_to_continue"] is True
-    assert _run_cli(
-        "run", "--prepared", str(prepared_path), "--provider", "fixture"
-    )["summary"] == {"expected": 2, "failed": 0, "passed": 2, "skipped": 0}
+    assert _run_cli("run", "--prepared", str(prepared_path), "--provider", "fixture")[
+        "summary"
+    ] == {"expected": 2, "failed": 0, "passed": 2, "skipped": 0}
     status_payload = _run_cli("status", "--prepared", str(prepared_path))
     assert status_payload["frozen"] is False
     freeze = _run_cli("freeze", "--prepared", str(prepared_path))
@@ -827,7 +1197,9 @@ def test_cli_fixture_lifecycle_outputs_compact_safe_json(tmp_path: Path) -> None
 
 
 def test_cli_rejects_fixture_provider_for_nonfixture_manifest(tmp_path: Path) -> None:
-    prepared = prepare_fixture_run(tmp_path / "prepared", evaluation_rows=1, preflight_rows=2)
+    prepared = prepare_fixture_run(
+        tmp_path / "prepared", evaluation_rows=1, preflight_rows=2
+    )
     manifest_path = prepared.path / "run-manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["fixture_manifest"] = False
@@ -856,7 +1228,9 @@ def test_cli_real_provider_construction_paths_are_offline_monkeypatchable(
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
-    prepared = prepare_fixture_run(tmp_path / "prepared", evaluation_rows=1, preflight_rows=2)
+    prepared = prepare_fixture_run(
+        tmp_path / "prepared", evaluation_rows=1, preflight_rows=2
+    )
     constructed: list[tuple[str, object]] = []
 
     class OfflineTransport(FixtureTransport):
@@ -874,9 +1248,22 @@ def test_cli_real_provider_construction_paths_are_offline_monkeypatchable(
     module.create_openrouter_transport = openrouter_factory
     module.create_reka_transport = reka_factory
 
-    assert module.main(["preflight", "--prepared", str(prepared.path), "--provider", "gemini"]) == 0
-    assert module.main(["preflight", "--prepared", str(prepared.path), "--provider", "reka"]) == 0
-    assert module.main(["run", "--prepared", str(prepared.path), "--provider", "gemini"]) == 0
+    assert (
+        module.main(
+            ["preflight", "--prepared", str(prepared.path), "--provider", "gemini"]
+        )
+        == 0
+    )
+    assert (
+        module.main(
+            ["preflight", "--prepared", str(prepared.path), "--provider", "reka"]
+        )
+        == 0
+    )
+    assert (
+        module.main(["run", "--prepared", str(prepared.path), "--provider", "gemini"])
+        == 0
+    )
 
     assert constructed[0][0] == "openrouter"
     assert constructed[1] == ("reka", None)

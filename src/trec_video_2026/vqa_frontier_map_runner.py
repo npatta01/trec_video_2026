@@ -15,6 +15,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Iterator, Protocol
 
+from trec_video_2026.vqa_benchmark import probe_media, source_fingerprint
 from trec_video_2026.vqa_frontier_map import (
     EVENT_MAP_PROMPT_VERSION,
     EVENT_MAP_SCHEMA,
@@ -22,6 +23,7 @@ from trec_video_2026.vqa_frontier_map import (
     validate_event_map,
 )
 from trec_video_2026.vqa_frontier_map_panel import (
+    CANONICAL_DATA_ROOT,
     CATEGORIES,
     PanelRow,
     RUN_ID as PANEL_RUN_ID,
@@ -93,6 +95,18 @@ class CostGateError(RuntimeError):
 
 class LockContentionError(RuntimeError):
     """Raised when another process already owns a provider/video request claim."""
+
+
+class _SourceIdentityError(ValueError):
+    """Raised when current source bytes or media metadata no longer match the panel."""
+
+
+class _TerminalProviderResponseError(ValueError):
+    """Raised when provider metadata makes the response terminally unusable."""
+
+    def __init__(self, failure_code: str) -> None:
+        super().__init__(failure_code)
+        self.failure_code = failure_code
 
 
 class FrontierTransport(Protocol):
@@ -190,7 +204,9 @@ class FixtureTransport:
         except json.JSONDecodeError:
             payload = raw_response
         metadata: dict[str, object] = {
-            "provider": self.route if self.provider_name == "openrouter" else self.provider_name,
+            "provider": self.route
+            if self.provider_name == "openrouter"
+            else self.provider_name,
             "model": model,
             "request_id": f"fixture-{self.call_count}",
         }
@@ -246,7 +262,9 @@ def prepare_run(panel: Path, output: Path) -> PreparedFrontierRun:
     """Prepare an immutable offline run from an already frozen panel JSON."""
 
     if _prepared_dir_has_run_artifacts(output):
-        raise FileExistsError(f"output already contains existing run artifacts: {output}")
+        raise FileExistsError(
+            f"output already contains existing run artifacts: {output}"
+        )
     payload = json.loads(panel.read_text(encoding="utf-8"))
     if not isinstance(payload, Mapping):
         raise ValueError("panel must be a JSON object")
@@ -426,28 +444,37 @@ def _run_claimed_request(
             parts=_provider_parts(uploaded, prompt),
             schema=EVENT_MAP_SCHEMA,
         )
+        observed_model = _observed_model(
+            str(request["model_id"]), generated.provider_metadata
+        )
+        observed_route = _observed_route(
+            provider, str(request["requested_route"]), generated.provider_metadata
+        )
+        if observed_model != request["model_id"]:
+            raise _TerminalProviderResponseError("observed_model_mismatch")
+        if (
+            provider == "gemini"
+            and phase == "panel"
+            and observed_route != request["requested_route"]
+        ):
+            raise _TerminalProviderResponseError("observed_route_mismatch")
         raw_payload = _parse_raw_response(generated.raw_response)
         validate_event_map(raw_payload, row.duration_seconds)
-    except json.JSONDecodeError:
+    except _SourceIdentityError:
         failed += 1
-        failure_cost, failure_input, failure_output = _failure_cost(
+        summary_cost, summary_input, summary_output = _record_terminal_failure(
+            prepared=prepared,
             provider=provider,
             row=row,
+            request=request,
+            attempt_index=attempt_index,
+            failure_code="source_identity_mismatch",
             generated=generated,
-            fallback_cost=next_cost,
+            fallback_cost=0.0,
         )
-        _append_jsonl(
-            prepared.path / "attempts.jsonl",
-            _attempt_record(
-                request,
-                status="failed",
-                attempt_index=attempt_index,
-                failure_code="invalid_json",
-                input_tokens=failure_input,
-                output_tokens=failure_output,
-                estimated_cost_usd=failure_cost,
-            ),
-        )
+        input_tokens += summary_input
+        output_tokens += summary_output
+        estimated_cost += summary_cost
         return FrontierRunSummary(
             provider=provider,
             phase=phase,
@@ -457,7 +484,59 @@ def _run_claimed_request(
             skipped=skipped,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
-            estimated_cost_usd=estimated_cost,
+            estimated_cost_usd=round(estimated_cost, 6),
+        )
+    except _TerminalProviderResponseError as error:
+        failed += 1
+        summary_cost, summary_input, summary_output = _record_terminal_failure(
+            prepared=prepared,
+            provider=provider,
+            row=row,
+            request=request,
+            attempt_index=attempt_index,
+            failure_code=error.failure_code,
+            generated=generated,
+            fallback_cost=next_cost,
+        )
+        input_tokens += summary_input
+        output_tokens += summary_output
+        estimated_cost += summary_cost
+        return FrontierRunSummary(
+            provider=provider,
+            phase=phase,
+            expected=1,
+            passed=passed,
+            failed=failed,
+            skipped=skipped,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            estimated_cost_usd=round(estimated_cost, 6),
+        )
+    except json.JSONDecodeError:
+        failed += 1
+        summary_cost, summary_input, summary_output = _record_terminal_failure(
+            prepared=prepared,
+            provider=provider,
+            row=row,
+            request=request,
+            attempt_index=attempt_index,
+            failure_code="invalid_json",
+            generated=generated,
+            fallback_cost=next_cost,
+        )
+        input_tokens += summary_input
+        output_tokens += summary_output
+        estimated_cost += summary_cost
+        return FrontierRunSummary(
+            provider=provider,
+            phase=phase,
+            expected=1,
+            passed=passed,
+            failed=failed,
+            skipped=skipped,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            estimated_cost_usd=round(estimated_cost, 6),
         )
     except (
         ProviderAuthenticationError,
@@ -467,16 +546,19 @@ def _run_claimed_request(
         OSError,
     ):
         failed += 1
-        _append_jsonl(
-            prepared.path / "attempts.jsonl",
-            _attempt_record(
-                request,
-                status="failed",
-                attempt_index=attempt_index,
-                failure_code="provider_or_schema_failure",
-                estimated_cost_usd=next_cost,
-            ),
+        summary_cost, summary_input, summary_output = _record_terminal_failure(
+            prepared=prepared,
+            provider=provider,
+            row=row,
+            request=request,
+            attempt_index=attempt_index,
+            failure_code="provider_or_schema_failure",
+            generated=generated,
+            fallback_cost=next_cost,
         )
+        input_tokens += summary_input
+        output_tokens += summary_output
+        estimated_cost += summary_cost
         return FrontierRunSummary(
             provider=provider,
             phase=phase,
@@ -486,7 +568,7 @@ def _run_claimed_request(
             skipped=skipped,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
-            estimated_cost_usd=estimated_cost,
+            estimated_cost_usd=round(estimated_cost, 6),
         )
     finally:
         if uploaded is not None:
@@ -500,22 +582,24 @@ def _run_claimed_request(
         provider_metadata=generated.provider_metadata,
     )
     observed_route = _observed_route(
-        provider, str(request["route"]), generated.provider_metadata
+        provider, str(request["requested_route"]), generated.provider_metadata
     )
-    result_request = _request_with_route(request, observed_route)
-    if result_request["request_sha256"] != request["request_sha256"]:
-        _ensure_request_record(prepared, result_request)
+    observed_model = _observed_model(
+        str(request["model_id"]), generated.provider_metadata
+    )
     result = _result_record(
-        result_request,
+        request,
         generated=generated,
         estimated_cost_usd=cost,
+        observed_route=observed_route,
+        observed_model=observed_model,
     )
     _write_raw_response(prepared, provider, row.video_id, generated.raw_response)
     _append_jsonl(prepared.path / "results" / f"{provider}.jsonl", result)
     _append_jsonl(
         prepared.path / "attempts.jsonl",
         _attempt_record(
-            result_request,
+            request,
             status="succeeded",
             attempt_index=attempt_index,
             input_tokens=usage.input_tokens,
@@ -556,7 +640,9 @@ def project_cost(prepared: PreparedFrontierRun | Path) -> dict[str, object]:
             if result.get("phase") == "preflight"
             and _result_still_bound_to_prepared(prepared, result)
         ]
-        observed = sum(_number(result.get("estimated_cost_usd")) for result in preflight_results)
+        observed = sum(
+            _number(result.get("estimated_cost_usd")) for result in preflight_results
+        )
         observed_total += observed
         observed_duration = sum(
             _number(result.get("duration_seconds")) for result in preflight_results
@@ -567,7 +653,9 @@ def project_cost(prepared: PreparedFrontierRun | Path) -> dict[str, object]:
         else:
             row_scale = len(evaluation_rows) / len(preflight_results)
             duration_scale = (
-                panel_duration / observed_duration if observed_duration > 0 else row_scale
+                panel_duration / observed_duration
+                if observed_duration > 0
+                else row_scale
             )
             panel_projection = observed * max(row_scale, duration_scale)
         projected_panel_total += panel_projection
@@ -604,7 +692,7 @@ def status(prepared: PreparedFrontierRun | Path) -> dict[str, object]:
         results = [
             result
             for result in _provider_results(prepared, provider)
-            if _result_still_bound_to_prepared(prepared, result)
+            if _terminal_result_still_bound_to_prepared(prepared, result)
         ]
         for phase in _PHASES:
             complete_results[provider][phase] = sum(
@@ -634,7 +722,7 @@ def freeze_provider_outputs(prepared: PreparedFrontierRun | Path) -> dict[str, o
             result
             for result in _provider_results(prepared, provider)
             if result.get("phase") == "panel"
-            and _result_still_bound_to_prepared(prepared, result)
+            and _terminal_result_still_bound_to_prepared(prepared, result)
         ]
         for provider in _PROVIDERS
     }
@@ -854,19 +942,10 @@ def _request_record(
         "schema_sha256": prepared.schema_sha256,
         "model_id": config["model_id"],
         "route": route,
+        "requested_route": route,
         "price_snapshot_date": PRICE_SNAPSHOT_DATE,
     }
     return {**identity, "request_sha256": canonical_sha256(identity)}
-
-
-def _request_with_route(
-    request: Mapping[str, object], route: str
-) -> dict[str, object]:
-    updated = copy.deepcopy(dict(request))
-    updated["route"] = route
-    unsigned = {key: value for key, value in updated.items() if key != "request_sha256"}
-    updated["request_sha256"] = canonical_sha256(unsigned)
-    return updated
 
 
 def _result_record(
@@ -874,12 +953,16 @@ def _result_record(
     *,
     generated: GenerationResult,
     estimated_cost_usd: float,
+    observed_route: str,
+    observed_model: str,
 ) -> dict[str, object]:
     usage = generated.usage
     provider_metadata = dict(generated.provider_metadata)
     return {
         **copy.deepcopy(dict(request)),
         "status": "succeeded",
+        "observed_route": observed_route,
+        "observed_model": observed_model,
         "response_sha256": generated.response_sha256,
         "input_tokens": usage.input_tokens,
         "output_tokens": usage.output_tokens,
@@ -887,6 +970,84 @@ def _result_record(
         "estimated_cost_usd": round(estimated_cost_usd, 6),
         "provider_request_id": provider_metadata.get("request_id"),
     }
+
+
+def _failed_result_record(
+    request: Mapping[str, object],
+    *,
+    failure_code: str,
+    generated: GenerationResult | None,
+    estimated_cost_usd: float,
+    input_tokens: int,
+    output_tokens: int,
+) -> dict[str, object]:
+    provider_metadata = (
+        dict(generated.provider_metadata) if generated is not None else {}
+    )
+    record = {
+        **copy.deepcopy(dict(request)),
+        "status": "failed",
+        "failure_code": failure_code,
+        "observed_route": _observed_route(
+            str(request["provider"]),
+            str(request["requested_route"]),
+            provider_metadata,
+        ),
+        "observed_model": _observed_model(str(request["model_id"]), provider_metadata),
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": input_tokens + output_tokens,
+        "estimated_cost_usd": round(estimated_cost_usd, 6),
+        "provider_request_id": provider_metadata.get("request_id"),
+    }
+    if generated is not None:
+        record["response_sha256"] = generated.response_sha256
+    return record
+
+
+def _record_terminal_failure(
+    *,
+    prepared: PreparedFrontierRun,
+    provider: str,
+    row: PanelRow,
+    request: Mapping[str, object],
+    attempt_index: int,
+    failure_code: str,
+    generated: GenerationResult | None,
+    fallback_cost: float,
+) -> tuple[float, int, int]:
+    failure_cost, failure_input, failure_output = _failure_cost(
+        provider=provider,
+        row=row,
+        generated=generated,
+        fallback_cost=fallback_cost,
+    )
+    if generated is not None:
+        _write_raw_response(prepared, provider, row.video_id, generated.raw_response)
+    _append_jsonl(
+        prepared.path / "results" / f"{provider}.jsonl",
+        _failed_result_record(
+            request,
+            failure_code=failure_code,
+            generated=generated,
+            estimated_cost_usd=failure_cost,
+            input_tokens=failure_input,
+            output_tokens=failure_output,
+        ),
+    )
+    _append_jsonl(
+        prepared.path / "attempts.jsonl",
+        _attempt_record(
+            request,
+            status="failed",
+            attempt_index=attempt_index,
+            failure_code=failure_code,
+            input_tokens=failure_input,
+            output_tokens=failure_output,
+            estimated_cost_usd=failure_cost,
+        ),
+    )
+    return failure_cost, failure_input, failure_output
 
 
 def _attempt_record(
@@ -907,9 +1068,11 @@ def _attempt_record(
         "video_id": request["video_id"],
         "request_sha256": request["request_sha256"],
         "source_sha256": request["source_sha256"],
+        "source_size_bytes": request["source_size_bytes"],
         "panel_sha256": request["panel_sha256"],
         "model_id": request["model_id"],
         "route": request["route"],
+        "requested_route": request["requested_route"],
         "prompt_sha256": request["prompt_sha256"],
         "schema_sha256": request["schema_sha256"],
         "status": status,
@@ -956,7 +1119,9 @@ def _write_raw_response(
         "raw_response_sha256": canonical_sha256(raw_text),
         "raw_response": raw_text,
     }
-    _write_json_atomically(prepared.path / "raw" / provider / f"{video_id}.json", payload)
+    _write_json_atomically(
+        prepared.path / "raw" / provider / f"{video_id}.json", payload
+    )
 
 
 def _source_path(prepared: PreparedFrontierRun, row: PanelRow) -> Path:
@@ -965,13 +1130,48 @@ def _source_path(prepared: PreparedFrontierRun, row: PanelRow) -> Path:
     fixture_path = prepared.path / "fixture-media" / f"{row.video_id}.mp4"
     if fixture_path.is_file():
         return fixture_path.resolve(strict=True)
-    local_relative = prepared.path / row.media_relative_path
-    if local_relative.is_file():
-        return local_relative.resolve(strict=True)
-    data_relative = Path("data") / row.media_relative_path
-    if data_relative.is_file():
-        return data_relative.resolve(strict=True)
-    raise ValueError("source media is not available for upload")
+    data_root = _canonical_data_root()
+    root = data_root.resolve(strict=True)
+    try:
+        source_path = (root / row.media_relative_path).resolve(strict=True)
+    except OSError as error:
+        raise _SourceIdentityError(
+            "source media is not available for upload"
+        ) from error
+    if not source_path.is_relative_to(root):
+        raise _SourceIdentityError("source media must stay beneath canonical data root")
+    if source_path.is_symlink():
+        raise _SourceIdentityError("source media must not be a symlink")
+    if not source_path.is_file():
+        raise _SourceIdentityError("source media is not available for upload")
+    identity = source_fingerprint(source_path)
+    if identity.sha256 != row.media_sha256 or identity.size_bytes != row.size_bytes:
+        raise _SourceIdentityError(
+            "source media bytes do not match frozen panel identity"
+        )
+    metadata = _probe_media(source_path)
+    if (
+        not math.isclose(
+            metadata.duration_seconds,
+            row.duration_seconds,
+            rel_tol=0.0,
+            abs_tol=1e-6,
+        )
+        or metadata.has_audio != row.has_audio
+        or metadata.has_video != row.has_video
+    ):
+        raise _SourceIdentityError(
+            "source media metadata does not match frozen panel identity"
+        )
+    return source_path
+
+
+def _canonical_data_root() -> Path:
+    return CANONICAL_DATA_ROOT.resolve(strict=True)
+
+
+def _probe_media(path: Path) -> object:
+    return probe_media(path)
 
 
 def _mime_type(media_relative_path: str) -> str:
@@ -1039,7 +1239,10 @@ def _estimated_cost_usd(
             input_tokens * PRICE_SNAPSHOT["reka_input_per_million"]
             + output_tokens * PRICE_SNAPSHOT["reka_output_per_million"]
         ) / 1_000_000
-        return token_cost + (duration_seconds / 60.0) * PRICE_SNAPSHOT["reka_video_per_minute"]
+        return (
+            token_cost
+            + (duration_seconds / 60.0) * PRICE_SNAPSHOT["reka_video_per_minute"]
+        )
     raise ValueError("unknown provider")
 
 
@@ -1112,6 +1315,16 @@ def _observed_route(
     return requested_route
 
 
+def _observed_model(
+    requested_model: str,
+    provider_metadata: Mapping[str, object],
+) -> str:
+    observed = provider_metadata.get("model")
+    if isinstance(observed, str) and observed.strip():
+        return observed.strip()
+    return requested_model
+
+
 def _successful_result_for_row(
     prepared: PreparedFrontierRun,
     *,
@@ -1131,11 +1344,13 @@ def _successful_result_for_row(
 
 def _pinned_gemini_route(prepared: PreparedFrontierRun) -> str | None:
     routes = {
-        str(result["route"])
+        str(result["observed_route"])
         for result in _provider_results(prepared, "gemini")
         if result.get("phase") == "preflight"
-        and isinstance(result.get("route"), str)
-        and result.get("route") not in {"openrouter-unpinned", "openrouter-dynamic-preflight"}
+        and result.get("status") == "succeeded"
+        and isinstance(result.get("observed_route"), str)
+        and result.get("observed_route")
+        not in {"openrouter-unpinned", "openrouter-dynamic-preflight"}
         and _result_still_bound_to_prepared(prepared, result)
     }
     if not routes:
@@ -1161,6 +1376,11 @@ def _matching_terminal_failure(
     provider: str,
     request: Mapping[str, object],
 ) -> Mapping[str, object] | None:
+    for result in _provider_results(prepared, provider):
+        if result.get("status") == "failed" and _matches_terminal_result_binding(
+            prepared, result, request
+        ):
+            return result
     for attempt in _attempt_records(prepared):
         if (
             attempt.get("status") == "failed"
@@ -1176,11 +1396,24 @@ def _matches_request_binding(
     result: Mapping[str, object],
     request: Mapping[str, object],
 ) -> bool:
+    return (
+        _matches_terminal_result_binding(prepared, result, request)
+        and result.get("status") == "succeeded"
+    )
+
+
+def _matches_terminal_result_binding(
+    prepared: PreparedFrontierRun,
+    result: Mapping[str, object],
+    request: Mapping[str, object],
+) -> bool:
     required = (
         "request_sha256",
         "source_sha256",
+        "source_size_bytes",
         "model_id",
         "route",
+        "requested_route",
         "prompt_sha256",
         "schema_sha256",
         "panel_sha256",
@@ -1189,7 +1422,7 @@ def _matches_request_binding(
         "video_id",
     )
     return all(result.get(field) == request.get(field) for field in required) and (
-        result.get("status") == "succeeded"
+        result.get("status") in _TERMINAL_ATTEMPT_STATUSES
         and result.get("run_id") == prepared.run_id
     )
 
@@ -1202,8 +1435,10 @@ def _matches_attempt_binding(
     required = (
         "request_sha256",
         "source_sha256",
+        "source_size_bytes",
         "model_id",
         "route",
+        "requested_route",
         "prompt_sha256",
         "schema_sha256",
         "panel_sha256",
@@ -1219,25 +1454,48 @@ def _matches_attempt_binding(
 def _result_still_bound_to_prepared(
     prepared: PreparedFrontierRun, result: Mapping[str, object]
 ) -> bool:
+    return (
+        _terminal_result_still_bound_to_prepared(prepared, result)
+        and result.get("status") == "succeeded"
+    )
+
+
+def _terminal_result_still_bound_to_prepared(
+    prepared: PreparedFrontierRun, result: Mapping[str, object]
+) -> bool:
     if (
         result.get("run_id") != prepared.run_id
         or result.get("panel_sha256") != prepared.panel_sha256
         or result.get("schema_sha256") != prepared.schema_sha256
-        or result.get("status") != "succeeded"
+        or result.get("status") not in _TERMINAL_ATTEMPT_STATUSES
     ):
         return False
     video_id = result.get("video_id")
     phase = result.get("phase")
-    if not isinstance(video_id, str) or phase not in _PHASES:
+    provider = result.get("provider")
+    if (
+        not isinstance(video_id, str)
+        or phase not in _PHASES
+        or provider not in _PROVIDERS
+    ):
         return False
     row = next(
-        (candidate for candidate in _rows_for_phase(prepared, str(phase)) if candidate.video_id == video_id),
+        (
+            candidate
+            for candidate in _rows_for_phase(prepared, str(phase))
+            if candidate.video_id == video_id
+        ),
         None,
     )
     if row is None:
         return False
-    return result.get("prompt_sha256") == canonical_sha256(
-        build_event_map_prompt(row.question, row.duration_seconds)
+    return (
+        result.get("prompt_sha256")
+        == canonical_sha256(build_event_map_prompt(row.question, row.duration_seconds))
+        and result.get("source_sha256") == row.media_sha256
+        and result.get("source_size_bytes") == row.size_bytes
+        and result.get("model_id")
+        == prepared.provider_configs[str(provider)]["model_id"]
     )
 
 
@@ -1300,7 +1558,9 @@ def _request_claim(
     try:
         fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     except FileExistsError as error:
-        raise LockContentionError("request is already claimed by another process") from error
+        raise LockContentionError(
+            "request is already claimed by another process"
+        ) from error
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(
@@ -1421,7 +1681,7 @@ def _require_complete_panel_outputs(prepared: PreparedFrontierRun) -> None:
             result
             for result in _provider_results(prepared, provider)
             if result.get("phase") == "panel"
-            and _result_still_bound_to_prepared(prepared, result)
+            and _terminal_result_still_bound_to_prepared(prepared, result)
         ]
         if len(results) != expected:
             raise ValueError("provider outputs are not complete")
@@ -1447,7 +1707,7 @@ def _require_complete_panel_outputs(prepared: PreparedFrontierRun) -> None:
                     build_event_map_prompt(row.question, row.duration_seconds)
                 ),
             )
-            if not _matches_request_binding(prepared, result, expected_request):
+            if not _matches_terminal_result_binding(prepared, result, expected_request):
                 raise ValueError("provider outputs are not complete")
         if seen != set(expected_by_video):
             raise ValueError("provider outputs are not complete")
@@ -1464,7 +1724,8 @@ def _cumulative_cost(prepared: PreparedFrontierRun) -> float:
     total += sum(
         _number(attempt.get("estimated_cost_usd", 0.0))
         for attempt in _attempt_records(prepared)
-        if attempt.get("run_id") == prepared.run_id and attempt.get("status") == "failed"
+        if attempt.get("run_id") == prepared.run_id
+        and attempt.get("status") == "failed"
     )
     return total
 
@@ -1475,10 +1736,7 @@ def _rows_for_phase(prepared: PreparedFrontierRun, phase: str) -> tuple[PanelRow
 
 
 def _validate_video_id(video_id: str) -> None:
-    if (
-        not isinstance(video_id, str)
-        or _SAFE_VIDEO_ID_RE.fullmatch(video_id) is None
-    ):
+    if not isinstance(video_id, str) or _SAFE_VIDEO_ID_RE.fullmatch(video_id) is None:
         raise ValueError("video_id must be a safe identifier")
 
 
@@ -1576,7 +1834,9 @@ def _append_jsonl(path: Path, payload: Mapping[str, object]) -> None:
 
 def _write_terminal_status(prepared: PreparedFrontierRun) -> None:
     payload = status(prepared)
-    _write_json_atomically(prepared.path / "terminal-status.json", payload, replace=True)
+    _write_json_atomically(
+        prepared.path / "terminal-status.json", payload, replace=True
+    )
 
 
 def _write_json_atomically(
@@ -1637,7 +1897,9 @@ def _row_from_mapping(raw: object, *, location: str) -> PanelRow:
             raw.get("selection_rationale"), f"{location}.selection_rationale"
         ),
         media_relative_path=media_relative_path,
-        media_sha256=_required_text(raw.get("media_sha256"), f"{location}.media_sha256"),
+        media_sha256=_required_text(
+            raw.get("media_sha256"), f"{location}.media_sha256"
+        ),
         size_bytes=_required_int(raw.get("size_bytes"), f"{location}.size_bytes"),
         duration_seconds=_required_float(
             raw.get("duration_seconds"), f"{location}.duration_seconds"
@@ -1706,7 +1968,9 @@ def _reject_label_fields(value: object, *, location: str = "$") -> None:
     if isinstance(value, Mapping):
         for key, nested in value.items():
             if _normalized_key(key) in _FORBIDDEN_LABEL_KEYS:
-                raise ValueError(f"label-free manifest contains forbidden field at {location}.{key}")
+                raise ValueError(
+                    f"label-free manifest contains forbidden field at {location}.{key}"
+                )
             _reject_label_fields(nested, location=f"{location}.{key}")
     elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         for index, nested in enumerate(value):
