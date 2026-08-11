@@ -110,11 +110,46 @@ def test_validate_event_map_rejects_contract_violations(mutation: str) -> None:
         validate_event_map(payload, duration_seconds=4.0)
 
 
-def test_validate_event_map_rejects_support_outside_cited_event() -> None:
+def test_validate_event_map_accepts_long_support_span_contained_within_cited_event() -> None:
     payload = valid_payload()
     support_spans = payload["support_spans"]
     assert isinstance(support_spans, list)
     support_spans[0]["start_seconds"] = 1.5
+
+    result = validate_event_map(payload, duration_seconds=4.0)
+
+    assert result.support_spans[0].start_seconds == 1.5
+    assert result.support_spans[0].end_seconds == 4.0
+
+
+def test_validate_event_map_rejects_support_outside_cited_event() -> None:
+    payload = valid_payload()
+    events = payload["events"]
+    assert isinstance(events, list)
+    events[0]["end_seconds"] = 3.5
+    events[0]["keyframe_seconds"] = [1.0, 3.0]
+
+    with pytest.raises(ValueError, match="contained"):
+        validate_event_map(payload, duration_seconds=4.0)
+
+
+def test_validate_event_map_rejects_support_crossing_gap_between_cited_events() -> None:
+    payload = valid_payload()
+    events = payload["events"]
+    assert isinstance(events, list)
+    second = copy.deepcopy(events[0])
+    events[0]["end_seconds"] = 1.5
+    events[0]["keyframe_seconds"] = [1.0, 1.25]
+    second["event_id"] = "E2"
+    second["start_seconds"] = 2.5
+    second["end_seconds"] = 4.0
+    second["keyframe_seconds"] = [2.75, 3.5]
+    events.append(second)
+    support_spans = payload["support_spans"]
+    assert isinstance(support_spans, list)
+    support_spans[0]["event_ids"] = ["E1", "E2"]
+    support_spans[0]["start_seconds"] = 1.0
+    support_spans[0]["end_seconds"] = 3.0
 
     with pytest.raises(ValueError, match="contained"):
         validate_event_map(payload, duration_seconds=4.0)

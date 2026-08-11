@@ -489,18 +489,23 @@ def _validate_support_spans(
             if event is None:
                 raise ValueError(f"support_spans[{index}] cites unknown event_id {event_id}")
             cited_events.append(event)
-        earliest = min(event.start_seconds for event in cited_events)
-        latest = max(event.end_seconds for event in cited_events)
-        if span.start_seconds < earliest or span.end_seconds > latest:
+        sorted_events = tuple(
+            sorted(cited_events, key=lambda event: (event.start_seconds, event.end_seconds))
+        )
+        coverage_point = span.start_seconds
+        coverage_complete = False
+        for event in sorted_events:
+            if event.end_seconds < coverage_point:
+                continue
+            if event.start_seconds > coverage_point + 1e-9:
+                break
+            coverage_point = max(coverage_point, event.end_seconds)
+            if coverage_point >= span.end_seconds - 1e-9:
+                coverage_complete = True
+                break
+        if not coverage_complete:
             raise ValueError(
                 f"support_spans[{index}] must be contained within its cited events"
-            )
-        cited_duration = latest - earliest
-        span_duration = span.end_seconds - span.start_seconds
-        max_focused_duration = max(2.0, cited_duration / 2.0)
-        if span_duration > max_focused_duration + 1e-9:
-            raise ValueError(
-                f"support_spans[{index}] must be contained within a focused portion of its cited events"
             )
 
 
