@@ -217,6 +217,48 @@ def test_failed_provider_row_has_no_fabricated_map_content_and_requires_unusable
     assert freeze["rows"][0]["map_payload_present"] is False
 
 
+def test_failed_provider_row_requires_frozen_failure_code_when_map_absent(
+    tmp_path: Path,
+) -> None:
+    row = _base_row(tmp_path)
+    row["map"] = None
+
+    with pytest.raises(ValueError, match="failure_code"):
+        build_audit_packet(make_frozen_run(tmp_path, rows=[row]), output=tmp_path / "audit")
+
+
+def test_failed_provider_row_strips_fabricated_answer_support_and_map_fields(
+    tmp_path: Path,
+) -> None:
+    row = _base_row(tmp_path)
+    row["failure_code"] = "provider_timeout"
+    row["map"] = None
+    row["top1_answer"] = "fabricated red mug"
+    row["support_span"] = {"start": 1.0, "end": 2.0}
+    row["support_spans"] = [{"start": 1.0, "end": 2.0}]
+    row["support_explanation"] = "fabricated support"
+    row["explanation"] = "fabricated explanation"
+
+    packet = build_audit_packet(make_frozen_run(tmp_path, rows=[row]), output=tmp_path / "audit")
+    row_dir = packet.root / "rows" / "gemini" / "video-001"
+    blind_text = json.dumps(_read_json(row_dir / "blind.json")).lower()
+    aware_text = json.dumps(_read_json(row_dir / "aware.json")).lower()
+
+    for serialized in (blind_text, aware_text):
+        assert "\"events\"" not in serialized
+        for forbidden in (
+            "top1_answer",
+            "fabricated red mug",
+            "support_span",
+            "support_spans",
+            "support_explanation",
+            "fabricated support",
+            "explanation",
+            "fabricated explanation",
+        ):
+            assert forbidden not in serialized
+
+
 @pytest.mark.parametrize(
     "provider_audio_state",
     ["provider_reported", "not_claimed", "unverified"],

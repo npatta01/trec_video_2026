@@ -164,6 +164,7 @@ def score_frontier_map(
             completed_count=EXPECTED_PANEL_COUNT,
             total_count=EXPECTED_PANEL_COUNT,
             completed_rows=qwen_scored,
+            cost=_zero_cost_summary(EXPECTED_PANEL_COUNT),
         )
     }
     complete_panel_rows: dict[str, list[dict[str, Any]]] = {
@@ -171,6 +172,7 @@ def score_frontier_map(
     }
     sanitized_rows: list[dict[str, Any]] = []
     failure_counts: dict[str, dict[str, int]] = {}
+    provider_costs: dict[str, dict[str, Any]] = {}
 
     for provider in providers:
         completed_by_video = {
@@ -199,7 +201,9 @@ def score_frontier_map(
             completed_count=len(completed_rows),
             total_count=EXPECTED_PANEL_COUNT,
             completed_rows=completed_rows,
+            cost=_cost_summary(provider_rows[provider]),
         )
+        provider_costs[provider] = conditions[provider]["cost"]
         failure_counts[provider] = dict(
             sorted(
                 Counter(
@@ -232,6 +236,7 @@ def score_frontier_map(
         "failure_counts": failure_counts,
         "map_gate": map_gate,
         "reka_diagnostics": conditions.get("reka", {}),
+        "costs": _report_costs(provider_costs),
         "degenerate_ndcg": {
             "explicit": True,
             "conditions": {
@@ -380,6 +385,8 @@ def _verify_audit_freeze(
     if not isinstance(rows, list):
         raise TypeError("audit freeze rows must be a list")
     expected = list(provider_keys)
+    if len(rows) != len(expected):
+        raise ValueError("audit freeze row count does not match provider rows")
     actual = [(_text(row, "provider"), _text(row, "video_id")) for row in rows]
     if sorted(actual) != sorted(expected):
         raise ValueError("audit freeze rows do not match provider rows")
@@ -388,40 +395,100 @@ def _verify_audit_freeze(
         raise TypeError("audit freeze bindings must be an object")
     if bindings.get("provider_rows") != len(expected):
         raise ValueError("audit freeze provider row count is invalid")
+    if bindings.get("blind_verdicts") != len(expected):
+        raise ValueError("blind audit verdict count is invalid")
+    if bindings.get("aware_verdicts") != len(expected):
+        raise ValueError("aware audit verdict count is invalid")
     root = audit_freeze.parent
-    for name in ("blind", "aware"):
-        digest_key = f"{name}_verdicts_sha256"
-        verdict_path = root / f"verdicts.{name}.jsonl"
-        if digest_key in bindings and bindings[digest_key] != _sha256_path(verdict_path):
-            raise ValueError(f"audit freeze {name} verdict hash mismatch")
-    aware = _read_aware_verdicts(root / "verdicts.aware.jsonl")
-    if sorted(aware) != sorted(expected):
-        raise ValueError("aware audit verdicts do not match provider rows")
+    packet_path = root / "packet-manifest.json"
+    _require_bound_hash(
+        bindings,
+        "packet_manifest_sha256",
+        packet_path,
+        description="packet audit manifest",
+    )
+    packet_rows = _packet_rows(packet_path)
+    if len(packet_rows) != len(expected) or sorted(packet_rows) != sorted(expected):
+        raise ValueError("packet audit manifest rows do not match provider rows")
+    blind = _read_view_verdicts(root / "verdicts.blind.jsonl", "blind")
+    aware = _read_view_verdicts(root / "verdicts.aware.jsonl", "aware")
+    _require_bound_hash(
+        bindings,
+        "blind_verdicts_sha256",
+        root / "verdicts.blind.jsonl",
+        description="blind audit verdict",
+    )
+    _require_bound_hash(
+        bindings,
+        "aware_verdicts_sha256",
+        root / "verdicts.aware.jsonl",
+        description="aware audit verdict",
+    )
+    if len(blind) != len(expected) or sorted(blind) != sorted(expected):
+        raise ValueError("blind audit verdict rows do not match provider rows")
+    if len(aware) != len(expected) or sorted(aware) != sorted(expected):
+        raise ValueError("aware audit verdict rows do not match provider rows")
     return aware
 
 
-def _read_aware_verdicts(path: Path) -> dict[tuple[str, str], Mapping[str, Any]]:
+def _require_bound_hash(
+    bindings: Mapping[str, Any],
+    key: str,
+    path: Path,
+    *,
+    description: str,
+) -> None:
+    expected = bindings.get(key)
+    if not isinstance(expected, str):
+        raise ValueError(f"audit freeze missing {description} hash binding")
+    if not path.is_file():
+        raise ValueError(f"{description} file is missing")
+    if expected != _sha256_path(path):
+        raise ValueError(f"{description} hash mismatch")
+
+
+def _packet_rows(path: Path) -> list[tuple[str, str]]:
+    if not path.is_file():
+        raise ValueError("packet audit manifest file is missing")
+    payload = _read_json(path)
+    rows = payload.get("rows")
+    if not isinstance(rows, list):
+        raise TypeError("packet audit manifest rows must be a list")
+    if payload.get("row_count") != len(rows):
+        raise ValueError("packet audit manifest row count is invalid")
+    return [(_text(row, "provider"), _text(row, "video_id")) for row in rows]
+
+
+def _read_view_verdicts(
+    path: Path, view: str
+) -> dict[tuple[str, str], Mapping[str, Any]]:
     verdicts: dict[tuple[str, str], Mapping[str, Any]] = {}
     if not path.is_file():
-        raise ValueError("aware audit verdicts are missing")
+        raise ValueError(f"{view} audit verdict file is missing")
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         if not line.strip():
             continue
         verdict = json.loads(line)
         if not isinstance(verdict, Mapping):
-            raise TypeError(f"aware verdict line {line_number} must be an object")
-        if verdict.get("view") != "aware":
-            raise ValueError("aware verdict file contains a non-aware row")
-        decision = verdict.get("usable_map_decision")
-        if decision not in {"usable", "unusable"}:
-            raise ValueError("aware verdict usable-map decision is invalid")
+            raise TypeError(f"{view} verdict line {line_number} must be an object")
+        if verdict.get("view") != view:
+            raise ValueError(f"{view} verdict file contains a wrong-view row")
+        if view == "aware":
+            decision = verdict.get("usable_map_decision")
+            if decision not in {"usable", "unusable"}:
+                raise ValueError("aware verdict usable-map decision is invalid")
+        else:
+            decision = None
         key = (_text(verdict, "provider"), _text(verdict, "video_id"))
         if key in verdicts:
-            raise ValueError("duplicate aware audit verdict")
-        verdicts[key] = {
-            "usable_map_decision": decision,
-            "confidence": verdict.get("confidence"),
-        }
+            raise ValueError(f"duplicate {view} audit verdict")
+        if view == "aware":
+            verdicts[key] = {
+                "usable_map_decision": decision,
+                "confidence": verdict.get("confidence"),
+            }
+        else:
+            verdicts[key] = {"view": "blind"}
     return verdicts
 
 
@@ -518,15 +585,24 @@ def _condition_summary(
     completed_count: int,
     total_count: int,
     completed_rows: Sequence[Mapping[str, Any]],
+    cost: Mapping[str, Any],
 ) -> dict[str, Any]:
     failure_zero = factorial._aggregate_rows(rows)
     failure_zero["completed_count"] = completed_count
     failure_zero["completion_rate"] = completed_count / total_count
     failure_zero["failure_zero"] = True
+    failure_zero["cost"] = {
+        "total_usd": cost["total_usd"],
+        "denominator": total_count,
+    }
     if completed_rows:
         completed_cases = factorial._aggregate_rows(completed_rows)
     else:
         completed_cases = _empty_completed_summary()
+    completed_cases["cost"] = {
+        "total_usd": cost["completed_usd"],
+        "denominator": completed_count,
+    }
     summary = dict(failure_zero)
     summary.update(
         {
@@ -536,9 +612,49 @@ def _condition_summary(
                 "completed": completed_count,
                 "total": total_count,
             },
+            "cost": dict(cost),
         }
     )
     return summary
+
+
+def _cost_summary(provider_rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    completed_usd = sum(
+        float(row["cost_usd"]) for row in provider_rows if row["status"] == "completed"
+    )
+    total_usd = sum(float(row["cost_usd"]) for row in provider_rows)
+    completed = sum(row["status"] == "completed" for row in provider_rows)
+    total = len(provider_rows)
+    return {
+        "total_usd": total_usd,
+        "completed_usd": completed_usd,
+        "failed_usd": total_usd - completed_usd,
+        "completed": completed,
+        "total": total,
+        "completion_rate": completed / total if total else 0.0,
+    }
+
+
+def _zero_cost_summary(total: int) -> dict[str, Any]:
+    return {
+        "total_usd": 0.0,
+        "completed_usd": 0.0,
+        "failed_usd": 0.0,
+        "completed": total,
+        "total": total,
+        "completion_rate": 1.0 if total else 0.0,
+    }
+
+
+def _report_costs(provider_costs: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    return {
+        "providers": {provider: dict(cost) for provider, cost in provider_costs.items()},
+        "total_usd": sum(float(cost["total_usd"]) for cost in provider_costs.values()),
+        "completed_usd": sum(
+            float(cost["completed_usd"]) for cost in provider_costs.values()
+        ),
+        "failed_usd": sum(float(cost["failed_usd"]) for cost in provider_costs.values()),
+    }
 
 
 def _empty_completed_summary() -> dict[str, Any]:

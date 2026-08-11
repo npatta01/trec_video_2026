@@ -51,6 +51,7 @@ QUESTION_AWARE_FIELDS = (
     "top1_answer",
     "support_span",
     "support_spans",
+    "support_explanation",
     "explanation",
 )
 BLIND_MASKED_FIELDS = frozenset(
@@ -148,6 +149,10 @@ def build_audit_packet(
         map_payload_present = isinstance(map_payload, Mapping)
         if failure_code is not None and not isinstance(failure_code, str):
             raise ValueError("failure_code must be text when present")
+        if not map_payload_present and (
+            not isinstance(failure_code, str) or not failure_code.strip()
+        ):
+            raise ValueError("absent map payload requires a frozen failure_code")
         if failure_code and map_payload_present:
             raise ValueError("failed provider row cannot include map content")
 
@@ -318,10 +323,10 @@ def _aware_manifest(
     common: Mapping[str, Any], row: Mapping[str, Any], map_payload: Any
 ) -> dict[str, Any]:
     aware = dict(common)
-    for field in QUESTION_AWARE_FIELDS:
-        if field in row and row[field] is not None:
-            aware[field] = row[field]
     if isinstance(map_payload, Mapping):
+        for field in QUESTION_AWARE_FIELDS:
+            if field in row and row[field] is not None:
+                aware[field] = row[field]
         aware["map"] = _strip_reference_fields(map_payload)
         if "explanation" in map_payload and "explanation" not in aware:
             aware["explanation"] = map_payload["explanation"]

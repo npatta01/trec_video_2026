@@ -51,6 +51,7 @@ class ScoringFixture:
     provider_results: Path
     provider_freeze: Path
     audit_freeze: Path
+    audit_packet_manifest: Path
     annotations_root: Path
     qwen_baseline: Path
     qwen_sha256sums: Path
@@ -268,6 +269,23 @@ def make_scoring_fixture(
     audit_root = tmp_path / "audit"
     _write_jsonl(audit_root / "verdicts.blind.jsonl", blind_verdicts)
     _write_jsonl(audit_root / "verdicts.aware.jsonl", aware_verdicts)
+    audit_packet_manifest = audit_root / "packet-manifest.json"
+    _write_json(
+        audit_packet_manifest,
+        {
+            "schema_version": 1,
+            "row_count": 70,
+            "rows": [
+                {
+                    "provider": row["provider"],
+                    "video_id": row["video_id"],
+                    "map_payload_present": row["map_payload_present"],
+                    "failure_code": row.get("failure_code"),
+                }
+                for row in provider_rows
+            ],
+        },
+    )
     audit_freeze = audit_root / "freeze.json"
     _write_json(
         audit_freeze,
@@ -278,6 +296,7 @@ def make_scoring_fixture(
                 "provider_rows": 70,
                 "blind_verdicts": 70,
                 "aware_verdicts": 70,
+                "packet_manifest_sha256": _sha256(audit_packet_manifest),
                 "blind_verdicts_sha256": _sha256(audit_root / "verdicts.blind.jsonl"),
                 "aware_verdicts_sha256": _sha256(audit_root / "verdicts.aware.jsonl"),
             },
@@ -342,6 +361,7 @@ def make_scoring_fixture(
         provider_results=provider_results,
         provider_freeze=provider_freeze,
         audit_freeze=audit_freeze,
+        audit_packet_manifest=audit_packet_manifest,
         annotations_root=annotations,
         qwen_baseline=qwen_baseline,
         qwen_sha256sums=qwen_sha256sums,
@@ -388,6 +408,36 @@ def test_score_verifies_qwen_sha256sums_before_annotation_load(tmp_path: Path) -
         score_frontier_map(**fixture.kwargs)
 
 
+@pytest.mark.parametrize("view", ["blind", "aware"])
+def test_score_rejects_missing_two_view_audit_data_before_annotation_load(
+    tmp_path: Path,
+    view: str,
+) -> None:
+    fixture = make_scoring_fixture(tmp_path)
+    (fixture.annotations_root / "v001.json").write_text("{not valid json")
+    (fixture.audit_freeze.parent / f"verdicts.{view}.jsonl").unlink()
+
+    with pytest.raises(ValueError, match=f"{view}.*audit"):
+        score_frontier_map(**fixture.kwargs)
+
+
+@pytest.mark.parametrize("view", ["blind", "aware"])
+def test_score_rejects_hash_consistent_but_row_mismatched_audit_view_before_annotations(
+    tmp_path: Path,
+    view: str,
+) -> None:
+    fixture = make_scoring_fixture(tmp_path)
+    (fixture.annotations_root / "v001.json").write_text("{not valid json")
+    verdict_path = fixture.audit_freeze.parent / f"verdicts.{view}.jsonl"
+    verdict_path.write_text("\n".join(verdict_path.read_text().splitlines()[:-1]) + "\n")
+    freeze = json.loads(fixture.audit_freeze.read_text())
+    freeze["bindings"][f"{view}_verdicts_sha256"] = _sha256(verdict_path)
+    _write_json(fixture.audit_freeze, freeze)
+
+    with pytest.raises(ValueError, match=f"{view}.*audit.*row"):
+        score_frontier_map(**fixture.kwargs)
+
+
 def test_score_reports_failure_zero_completed_case_gate_and_paired_comparisons(
     tmp_path: Path,
 ) -> None:
@@ -414,6 +464,34 @@ def test_score_reports_failure_zero_completed_case_gate_and_paired_comparisons(
     assert "semantic_composite" in comparison["metric_deltas"]
     assert comparison["bootstrap_intervals"]["semantic_composite"]["iterations"] == 25
     assert result["degenerate_ndcg"]["explicit"] is True
+
+
+def test_score_reports_safe_condition_and_report_level_cost_aggregates(
+    tmp_path: Path,
+) -> None:
+    result = score_frontier_map(**make_scoring_fixture(tmp_path).kwargs)
+
+    gemini_cost = result["conditions"]["gemini"]["cost"]
+    assert gemini_cost == {
+        "total_usd": pytest.approx(0.35),
+        "completed_usd": pytest.approx(0.28),
+        "failed_usd": pytest.approx(0.07),
+        "completed": 28,
+        "total": 35,
+        "completion_rate": pytest.approx(28 / 35),
+    }
+    assert result["conditions"]["gemini"]["failure_zero"]["cost"] == {
+        "total_usd": pytest.approx(0.35),
+        "denominator": 35,
+    }
+    assert result["conditions"]["gemini"]["completed_cases"]["cost"] == {
+        "total_usd": pytest.approx(0.28),
+        "denominator": 28,
+    }
+    assert result["costs"]["providers"]["gemini"]["total_usd"] == pytest.approx(0.35)
+    assert result["costs"]["providers"]["reka"]["completed_usd"] == pytest.approx(0.30)
+    assert result["costs"]["total_usd"] == pytest.approx(0.70)
+    assert "media_path" not in json.dumps(result["costs"]).lower()
 
 
 def test_score_rejects_unapproved_failure_cause_labels(tmp_path: Path) -> None:
