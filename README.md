@@ -2,8 +2,9 @@
 
 Local tooling and evidence records for the TRECVID 2026 Video Question
 Answering (VQA) work. This repository contains code and sanitized aggregate
-findings; the competition dataset, media, predictions, transcripts, and raw
-logs stay local and ignored.
+findings. The competition dataset, media, transcripts, raw predictions, and
+logs stay local and ignored; explicitly approved final organizer-upload files
+may be tracked under `submissions/` in this private repository.
 
 ## Current baseline
 
@@ -79,6 +80,8 @@ transcripts, predictions, and runtime artifacts. Keep it local and ignored.
 Credentials belong in private `0600` configuration files outside the
 repository. Do not publish data, raw artifacts, credentials, or private URLs,
 and do not change sharing permissions without confirming the applicable terms.
+An explicitly authorized final submission file belongs under `submissions/`,
+never under a reusable source or report directory.
 
 ## Repository map
 
@@ -90,6 +93,7 @@ and do not change sharing permissions without confirming the applicable terms.
 | `docs/project-status/` | Current newcomer-oriented status and decision pages. |
 | `docs/experiments/` | Sanitized, dated experiment findings. |
 | `docs/submissions/` | Sanitized organizer-submission ledger and upload metadata. |
+| `submissions/` | Explicitly approved final organizer-upload files in this private repository. |
 | `plans/` | Historical GitHub-issue execution plans and their outcomes. |
 | `docs/superpowers/plans/` | Historical implementation plans; unchecked boxes are not status. |
 | `reports/trecvid_vqa_2026/` | July 12 field guide plus later Markdown experiment evidence. |
