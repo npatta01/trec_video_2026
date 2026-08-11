@@ -880,13 +880,35 @@ def test_metadata_only_openrouter_preflight_preserves_request_sha_and_observed_r
     ]
 
 
+def test_openrouter_provider_slug_matches_approved_internal_model_identity(
+    tmp_path: Path,
+) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
+    transport = MetadataOnlyOpenRouterTransport(
+        observed_route="openrouter/google-vertex",
+        observed_model="google/gemini-3.1-pro-preview",
+    )
+
+    summary = run_phase(
+        prepared, phase="preflight", provider="gemini", transport=transport
+    )
+
+    assert summary.passed == 1
+    assert summary.failed == 0
+    result = _read_jsonl(prepared.path / "results" / "gemini.jsonl")[0]
+    assert result["status"] == "succeeded"
+    assert result["model_id"] == "gemini-3.1-pro-preview"
+    assert result["observed_model"] == "google/gemini-3.1-pro-preview"
+    assert status(prepared)["ambiguous_started_attempts"] == 0
+
+
 def test_observed_model_mismatch_is_terminal_without_ambiguous_started_attempt(
     tmp_path: Path,
 ) -> None:
     prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
     transport = MetadataOnlyOpenRouterTransport(
         observed_route="openrouter/google-vertex",
-        observed_model="different-model",
+        observed_model="unapproved/gemini-3.1-pro-preview",
     )
 
     summary = run_phase(
@@ -907,7 +929,7 @@ def test_observed_model_mismatch_is_terminal_without_ambiguous_started_attempt(
     result = _read_jsonl(prepared.path / "results" / "gemini.jsonl")[0]
     assert result["status"] == "failed"
     assert result["failure_code"] == "observed_model_mismatch"
-    assert result["observed_model"] == "different-model"
+    assert result["observed_model"] == "unapproved/gemini-3.1-pro-preview"
     assert result["input_tokens"] == 100
     assert result["output_tokens"] == 50
     assert status(prepared)["ambiguous_started_attempts"] == 0

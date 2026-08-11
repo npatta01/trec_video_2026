@@ -59,6 +59,9 @@ CONSERVATIVE_REKA_OUTPUT_TOKEN_CEILING = 16_384
 _PROVIDERS = ("gemini", "reka")
 _PHASES = ("preflight", "panel")
 _TERMINAL_ATTEMPT_STATUSES = frozenset({"succeeded", "failed"})
+_OPENROUTER_MODEL_SLUG_BY_INTERNAL_ID: Mapping[str, str] = MappingProxyType(
+    {"gemini-3.1-pro-preview": "google/gemini-3.1-pro-preview"}
+)
 _SAFE_VIDEO_ID_RE = re.compile(r"[A-Za-z0-9_-]+\Z")
 _FORBIDDEN_LABEL_KEYS = frozenset(
     {
@@ -450,7 +453,11 @@ def _run_claimed_request(
         observed_route = _observed_route(
             provider, str(request["requested_route"]), generated.provider_metadata
         )
-        if observed_model != request["model_id"]:
+        if not _observed_model_identity_is_approved(
+            provider=provider,
+            requested_model=str(request["model_id"]),
+            observed_model=observed_model,
+        ):
             raise _TerminalProviderResponseError("observed_model_mismatch")
         if (
             provider == "gemini"
@@ -1323,6 +1330,17 @@ def _observed_model(
     if isinstance(observed, str) and observed.strip():
         return observed.strip()
     return requested_model
+
+
+def _observed_model_identity_is_approved(
+    *, provider: str, requested_model: str, observed_model: str
+) -> bool:
+    if observed_model == requested_model:
+        return True
+    return (
+        provider == "gemini"
+        and _OPENROUTER_MODEL_SLUG_BY_INTERNAL_ID.get(requested_model) == observed_model
+    )
 
 
 def _successful_result_for_row(
