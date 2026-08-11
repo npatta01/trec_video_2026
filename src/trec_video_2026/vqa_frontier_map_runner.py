@@ -331,132 +331,206 @@ def run_phase(
             route=route,
             prompt_sha256=canonical_sha256(prompt),
         )
-        with _request_claim(prepared, request):
-            _fail_on_ambiguous_started_attempts(
-                prepared, provider=provider, phase=phase
-            )
-            terminal_failure = _matching_terminal_failure(
-                prepared, provider, request
-            )
-            if terminal_failure is not None:
-                failed += 1
-                continue
-            completed = _matching_completed_result(prepared, provider, request)
-            if completed is not None:
-                skipped += 1
-                continue
-            next_cost = _transport_estimate(transport, provider, row)
-            if (
-                _cumulative_cost(prepared) + next_cost
-                >= PRICE_SNAPSHOT["absolute_cap_usd"]
-            ):
-                raise CostGateError("absolute cumulative cost cap would be exceeded")
-            _ensure_request_record(prepared, request)
-            attempt_index = _next_attempt_index(prepared, request)
-            started_attempt = _attempt_record(
-                request,
-                status="started",
-                attempt_index=attempt_index,
-            )
-            _append_jsonl(prepared.path / "attempts.jsonl", started_attempt)
-            uploaded: UploadedFileRecord | None = None
-            generated: GenerationResult | None = None
-            try:
-                source_path = _source_path(prepared, row)
-                uploaded = transport.upload(
-                    source_path,
-                    mime_type=_mime_type(row.media_relative_path),
-                )
-                generated = transport.generate(
-                    model=str(request["model_id"]),
-                    parts=_provider_parts(uploaded, prompt),
-                    schema=EVENT_MAP_SCHEMA,
-                )
-                raw_payload = _parse_raw_response(generated.raw_response)
-                validate_event_map(raw_payload, row.duration_seconds)
-            except json.JSONDecodeError:
-                failed += 1
-                failure_cost, failure_input, failure_output = _failure_cost(
+        with _run_dispatch_budget_claim(prepared, request):
+            with _request_claim(prepared, request):
+                summary = _run_claimed_request(
+                    prepared=prepared,
+                    phase=phase,
                     provider=provider,
                     row=row,
-                    generated=generated,
-                    fallback_cost=next_cost,
+                    prompt=prompt,
+                    request=request,
+                    transport=transport,
                 )
-                _append_jsonl(
-                    prepared.path / "attempts.jsonl",
-                    _attempt_record(
-                        request,
-                        status="failed",
-                        attempt_index=attempt_index,
-                        failure_code="invalid_json",
-                        input_tokens=failure_input,
-                        output_tokens=failure_output,
-                        estimated_cost_usd=failure_cost,
-                    ),
-                )
-                continue
-            except (
-                ProviderAuthenticationError,
-                ProviderError,
-                ProviderProtocolError,
-                ValueError,
-                OSError,
-            ):
-                failed += 1
-                _append_jsonl(
-                    prepared.path / "attempts.jsonl",
-                    _attempt_record(
-                        request,
-                        status="failed",
-                        attempt_index=attempt_index,
-                        failure_code="provider_or_schema_failure",
-                        estimated_cost_usd=next_cost,
-                    ),
-                )
-                continue
-            finally:
-                if uploaded is not None:
-                    transport.delete(uploaded.file_id)
-            usage = generated.usage
-            cost = _estimated_cost_usd(
-                provider=provider,
-                input_tokens=usage.input_tokens,
-                output_tokens=usage.output_tokens,
-                duration_seconds=row.duration_seconds,
-                provider_metadata=generated.provider_metadata,
-            )
-            observed_route = _observed_route(provider, route, generated.provider_metadata)
-            result_request = _request_with_route(request, observed_route)
-            if result_request["request_sha256"] != request["request_sha256"]:
-                _ensure_request_record(prepared, result_request)
-            result = _result_record(
-                result_request,
-                generated=generated,
-                estimated_cost_usd=cost,
-            )
-            _write_raw_response(prepared, provider, row.video_id, generated.raw_response)
-            _append_jsonl(prepared.path / "results" / f"{provider}.jsonl", result)
-            _append_jsonl(
-                prepared.path / "attempts.jsonl",
-                _attempt_record(
-                    result_request,
-                    status="succeeded",
-                    attempt_index=attempt_index,
-                    input_tokens=usage.input_tokens,
-                    output_tokens=usage.output_tokens,
-                    estimated_cost_usd=cost,
-                ),
-            )
-            passed += 1
-            input_tokens += usage.input_tokens
-            output_tokens += usage.output_tokens
-            estimated_cost += cost
+        passed += summary.passed
+        failed += summary.failed
+        skipped += summary.skipped
+        input_tokens += summary.input_tokens
+        output_tokens += summary.output_tokens
+        estimated_cost += summary.estimated_cost_usd
 
     _write_terminal_status(prepared)
     return FrontierRunSummary(
         provider=provider,
         phase=phase,
         expected=len(rows),
+        passed=passed,
+        failed=failed,
+        skipped=skipped,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        estimated_cost_usd=round(estimated_cost, 6),
+    )
+
+
+def _run_claimed_request(
+    *,
+    prepared: PreparedFrontierRun,
+    phase: str,
+    provider: str,
+    row: PanelRow,
+    prompt: str,
+    request: Mapping[str, object],
+    transport: FrontierTransport,
+) -> FrontierRunSummary:
+    passed = failed = skipped = input_tokens = output_tokens = 0
+    estimated_cost = 0.0
+    _fail_on_ambiguous_started_attempts(prepared, provider=provider, phase=phase)
+    terminal_failure = _matching_terminal_failure(prepared, provider, request)
+    if terminal_failure is not None:
+        failed += 1
+        return FrontierRunSummary(
+            provider=provider,
+            phase=phase,
+            expected=1,
+            passed=passed,
+            failed=failed,
+            skipped=skipped,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            estimated_cost_usd=estimated_cost,
+        )
+    completed = _matching_completed_result(prepared, provider, request)
+    if completed is not None:
+        skipped += 1
+        return FrontierRunSummary(
+            provider=provider,
+            phase=phase,
+            expected=1,
+            passed=passed,
+            failed=failed,
+            skipped=skipped,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            estimated_cost_usd=estimated_cost,
+        )
+    next_cost = _transport_estimate(transport, provider, row)
+    if _cumulative_cost(prepared) + next_cost >= PRICE_SNAPSHOT["absolute_cap_usd"]:
+        raise CostGateError("absolute cumulative cost cap would be exceeded")
+    _ensure_request_record(prepared, request)
+    attempt_index = _next_attempt_index(prepared, request)
+    _append_jsonl(
+        prepared.path / "attempts.jsonl",
+        _attempt_record(request, status="started", attempt_index=attempt_index),
+    )
+    uploaded: UploadedFileRecord | None = None
+    generated: GenerationResult | None = None
+    try:
+        source_path = _source_path(prepared, row)
+        uploaded = transport.upload(
+            source_path,
+            mime_type=_mime_type(row.media_relative_path),
+        )
+        generated = transport.generate(
+            model=str(request["model_id"]),
+            parts=_provider_parts(uploaded, prompt),
+            schema=EVENT_MAP_SCHEMA,
+        )
+        raw_payload = _parse_raw_response(generated.raw_response)
+        validate_event_map(raw_payload, row.duration_seconds)
+    except json.JSONDecodeError:
+        failed += 1
+        failure_cost, failure_input, failure_output = _failure_cost(
+            provider=provider,
+            row=row,
+            generated=generated,
+            fallback_cost=next_cost,
+        )
+        _append_jsonl(
+            prepared.path / "attempts.jsonl",
+            _attempt_record(
+                request,
+                status="failed",
+                attempt_index=attempt_index,
+                failure_code="invalid_json",
+                input_tokens=failure_input,
+                output_tokens=failure_output,
+                estimated_cost_usd=failure_cost,
+            ),
+        )
+        return FrontierRunSummary(
+            provider=provider,
+            phase=phase,
+            expected=1,
+            passed=passed,
+            failed=failed,
+            skipped=skipped,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            estimated_cost_usd=estimated_cost,
+        )
+    except (
+        ProviderAuthenticationError,
+        ProviderError,
+        ProviderProtocolError,
+        ValueError,
+        OSError,
+    ):
+        failed += 1
+        _append_jsonl(
+            prepared.path / "attempts.jsonl",
+            _attempt_record(
+                request,
+                status="failed",
+                attempt_index=attempt_index,
+                failure_code="provider_or_schema_failure",
+                estimated_cost_usd=next_cost,
+            ),
+        )
+        return FrontierRunSummary(
+            provider=provider,
+            phase=phase,
+            expected=1,
+            passed=passed,
+            failed=failed,
+            skipped=skipped,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            estimated_cost_usd=estimated_cost,
+        )
+    finally:
+        if uploaded is not None:
+            transport.delete(uploaded.file_id)
+    usage = generated.usage
+    cost = _estimated_cost_usd(
+        provider=provider,
+        input_tokens=usage.input_tokens,
+        output_tokens=usage.output_tokens,
+        duration_seconds=row.duration_seconds,
+        provider_metadata=generated.provider_metadata,
+    )
+    observed_route = _observed_route(
+        provider, str(request["route"]), generated.provider_metadata
+    )
+    result_request = _request_with_route(request, observed_route)
+    if result_request["request_sha256"] != request["request_sha256"]:
+        _ensure_request_record(prepared, result_request)
+    result = _result_record(
+        result_request,
+        generated=generated,
+        estimated_cost_usd=cost,
+    )
+    _write_raw_response(prepared, provider, row.video_id, generated.raw_response)
+    _append_jsonl(prepared.path / "results" / f"{provider}.jsonl", result)
+    _append_jsonl(
+        prepared.path / "attempts.jsonl",
+        _attempt_record(
+            result_request,
+            status="succeeded",
+            attempt_index=attempt_index,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            estimated_cost_usd=cost,
+        ),
+    )
+    passed += 1
+    input_tokens += usage.input_tokens
+    output_tokens += usage.output_tokens
+    estimated_cost += cost
+    return FrontierRunSummary(
+        provider=provider,
+        phase=phase,
+        expected=1,
         passed=passed,
         failed=failed,
         skipped=skipped,
@@ -1176,6 +1250,43 @@ def _ensure_request_record(
     ):
         return
     _append_jsonl(prepared.path / "requests.jsonl", request)
+
+
+@contextmanager
+def _run_dispatch_budget_claim(
+    prepared: PreparedFrontierRun,
+    request: Mapping[str, object],
+) -> Iterator[None]:
+    lock_dir = prepared.path / "locks"
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = lock_dir / "run-dispatch-budget.lock"
+    try:
+        fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as error:
+        raise LockContentionError(
+            "run dispatch and budget check is already claimed"
+        ) from error
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "run_id": prepared.run_id,
+                        "provider": request["provider"],
+                        "phase": request["phase"],
+                        "video_id": request["video_id"],
+                        "request_sha256": request["request_sha256"],
+                        "lock_scope": "run-dispatch-budget",
+                    },
+                    sort_keys=True,
+                )
+                + "\n"
+            )
+            handle.flush()
+            os.fsync(handle.fileno())
+        yield
+    finally:
+        lock_path.unlink(missing_ok=True)
 
 
 @contextmanager

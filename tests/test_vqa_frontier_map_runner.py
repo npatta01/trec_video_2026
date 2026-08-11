@@ -17,6 +17,7 @@ from trec_video_2026.vqa_frontier_map_runner import (
     CostGateError,
     FixtureTransport,
     PreparedFrontierRun,
+    LockContentionError,
     prepare_fixture_run,
     project_cost,
     freeze_provider_outputs,
@@ -633,6 +634,93 @@ def test_real_transport_absent_estimate_and_failed_attempts_count_against_cap(
         run_phase(prepared, phase="preflight", provider="gemini", transport=transport)
 
     assert transport.call_count == 0
+
+
+def test_run_wide_budget_lock_serializes_distinct_request_cost_checks(
+    tmp_path: Path,
+) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
+    first_cost = PRICE_SNAPSHOT["absolute_cap_usd"] - 0.0005
+    second_cost = 0.0005
+    observed_started_before_reentry: list[str] = []
+
+    class BudgetTransport(StrictUploadTransport):
+        def __init__(
+            self,
+            *,
+            provider_name: str,
+            reported_cost_usd: float,
+            reenter: bool = False,
+        ) -> None:
+            super().__init__(provider_name=provider_name)
+            self.reported_cost_usd = reported_cost_usd
+            self.reenter = reenter
+
+        def estimate_cost_usd(self, provider: str, row: object) -> float:
+            return self.reported_cost_usd
+
+        def generate(
+            self,
+            *,
+            model: str,
+            parts: Sequence[object],
+            schema: Mapping[str, object],
+        ) -> GenerationResult:
+            if self.reenter:
+                attempts = _read_jsonl(prepared.path / "attempts.jsonl")
+                observed_started_before_reentry.extend(
+                    attempt["status"]
+                    for attempt in attempts
+                    if attempt["provider"] == "gemini"
+                )
+                with pytest.raises(LockContentionError):
+                    run_phase(
+                        prepared,
+                        phase="preflight",
+                        provider="reka",
+                        transport=BudgetTransport(
+                            provider_name="reka",
+                            reported_cost_usd=second_cost,
+                        ),
+                    )
+            result = super().generate(model=model, parts=parts, schema=schema)
+            metadata = dict(result.provider_metadata)
+            metadata["reported_cost_usd"] = self.reported_cost_usd
+            return GenerationResult(
+                payload=result.payload,
+                raw_response=result.raw_response,
+                usage=result.usage,
+                provider_metadata=metadata,
+            )
+
+    first = run_phase(
+        prepared,
+        phase="preflight",
+        provider="gemini",
+        transport=BudgetTransport(
+            provider_name="openrouter",
+            reported_cost_usd=first_cost,
+            reenter=True,
+        ),
+    )
+
+    assert first.passed == 1
+    assert observed_started_before_reentry == ["started"]
+    attempts = _read_jsonl(prepared.path / "attempts.jsonl")
+    assert [attempt["status"] for attempt in attempts if attempt["provider"] == "gemini"] == [
+        "started",
+        "succeeded",
+    ]
+    with pytest.raises(CostGateError, match="absolute"):
+        run_phase(
+            prepared,
+            phase="preflight",
+            provider="reka",
+            transport=BudgetTransport(
+                provider_name="reka",
+                reported_cost_usd=second_cost,
+            ),
+        )
 
 
 def test_panel_requires_exact_four_successful_preflight_results(tmp_path: Path) -> None:
