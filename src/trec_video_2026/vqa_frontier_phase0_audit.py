@@ -186,11 +186,9 @@ def build_audit_packet(
             condition: _request_hash(result)
             for condition, result in row_results.items()
         }
-        raw_paths = {
-            condition: result.get("raw_response_path")
-            for condition, result in row_results.items()
-            if result.get("raw_response_path")
-        }
+        raw_response_metadata = _capture_raw_response_metadata(
+            prepared_obj.path, row_results
+        )
         common = {
             "schema_version": SCHEMA_VERSION,
             "phase": phase,
@@ -242,26 +240,32 @@ def build_audit_packet(
                 "ffprobe_version": media["ffprobe_version"],
                 "result_hashes": result_hashes,
                 "request_hashes": request_hashes,
-                "raw_response_paths": raw_paths,
+                "raw_response_paths": raw_response_metadata["paths"],
+                "raw_response_sha256": raw_response_metadata["response_sha256"],
+                "raw_response_bindings": raw_response_metadata["bindings"],
                 "overview_frames": media["overview_frames"],
                 "event_keyframes": media["event_keyframes"],
                 "answer_citations": media["answer_citations"],
                 "media": media,
             }
         )
+        blind_path = row_dir / "blind.json"
+        aware_path = row_dir / "aware.json"
+        _write_json_once(blind_path, blind)
+        _write_json_once(aware_path, aware)
         packet_rows.append(
             {
                 "video_id": row.video_id,
                 "blind_manifest": f"rows/{row.video_id}/blind.json",
                 "aware_manifest": f"rows/{row.video_id}/aware.json",
+                "blind_manifest_sha256": _sha256_file(blind_path),
+                "aware_manifest_sha256": _sha256_file(aware_path),
                 "source_media_sha256": source["sha256"],
                 "result_hashes": result_hashes,
                 "request_hashes": request_hashes,
                 "media_sha256": canonical_sha256(media),
             }
         )
-        _write_json_once(row_dir / "blind.json", blind)
-        _write_json_once(row_dir / "aware.json", aware)
 
     _write_json_once(
         packet.blind_manifest,
@@ -291,6 +295,7 @@ def build_audit_packet(
             "run_id": prepared_obj.run_id,
             "panel_sha256": prepared_obj.panel_sha256,
             "phase": phase,
+            "prediction_root": str(prepared_obj.path),
             "prediction_freeze_sha256": _sha256_file(
                 prepared_obj.path / f"{phase}-freeze.json"
             ),
@@ -330,8 +335,11 @@ def validate_audit_packet(root: Path) -> Mapping[str, object]:
     phase = _required_text(packet_manifest.get("phase"), "phase")
     if phase not in {"pilot", "screen"}:
         raise ValueError("packet phase is invalid")
-    _validate_manifest_rows(packet, packet_manifest, blind_manifest, aware_manifest)
+    row_summary = _validate_manifest_rows(
+        packet, packet_manifest, blind_manifest, aware_manifest
+    )
     _reject_reference_fields(private_manifest)
+    raw_summary = _validate_raw_response_bindings(private_manifest)
     media_summary = _validate_evidence_media(
         packet, packet_manifest, private_manifest, aware_manifest
     )
@@ -360,6 +368,8 @@ def validate_audit_packet(root: Path) -> Mapping[str, object]:
             "row_count": len(expected_ids),
             "map_verdict_count": len(map_verdicts),
             "answer_verdict_count": len(answer_verdicts),
+            **row_summary,
+            **raw_summary,
             **media_summary,
             "frozen": True,
             "decision": freeze["bindings"]["decision"],
@@ -370,6 +380,8 @@ def validate_audit_packet(root: Path) -> Mapping[str, object]:
         "row_count": len(expected_ids),
         "map_verdict_count": len(map_verdicts),
         "answer_verdict_count": len(answer_verdicts),
+        **row_summary,
+        **raw_summary,
         **media_summary,
         "frozen": False,
     }
@@ -507,6 +519,64 @@ def _results_for_row(
     if set(found) != expected:
         raise ValueError("prediction freeze is missing an audit condition")
     return found
+
+
+def _capture_raw_response_metadata(
+    prediction_root: Path, results: Mapping[str, Mapping[str, Any]]
+) -> dict[str, dict[str, list[Any]]]:
+    root = _safe_prediction_root(prediction_root)
+    paths: dict[str, list[str]] = {}
+    response_hashes: dict[str, list[str]] = {}
+    bindings: dict[str, list[dict[str, Any]]] = {}
+    for condition, result in results.items():
+        raw_paths = result.get("raw_response_paths")
+        raw_hashes = result.get("raw_response_sha256")
+        if not isinstance(raw_paths, list) or not isinstance(raw_hashes, list):
+            raise ValueError("prediction raw response paths and hashes are missing")
+        if len(raw_paths) != len(raw_hashes):
+            raise ValueError("prediction raw response path/hash count mismatch")
+        if not raw_paths:
+            raise ValueError("prediction raw response paths are empty")
+        condition_paths: list[str] = []
+        condition_hashes: list[str] = []
+        condition_bindings: list[dict[str, Any]] = []
+        for index, (raw_path, response_hash) in enumerate(
+            zip(raw_paths, raw_hashes, strict=True), 1
+        ):
+            relative = _required_text(
+                raw_path, f"raw response path {condition}[{index}]"
+            )
+            response_sha256 = _required_sha256(
+                response_hash, f"raw response hash {condition}[{index}]"
+            )
+            path = _safe_raw_response_path(
+                root, relative, f"raw response {condition}[{index}]"
+            )
+            file_sha256, size_bytes = _verify_raw_response_file(
+                path,
+                response_sha256=response_sha256,
+                expected_file_sha256=None,
+                expected_size=None,
+                label=f"raw response {condition}[{index}]",
+            )
+            condition_paths.append(relative)
+            condition_hashes.append(response_sha256)
+            condition_bindings.append(
+                {
+                    "path": relative,
+                    "response_sha256": response_sha256,
+                    "file_sha256": file_sha256,
+                    "size_bytes": size_bytes,
+                }
+            )
+        paths[condition] = condition_paths
+        response_hashes[condition] = condition_hashes
+        bindings[condition] = condition_bindings
+    return {
+        "paths": paths,
+        "response_sha256": response_hashes,
+        "bindings": bindings,
+    }
 
 
 def _validated_map(result: Mapping[str, Any], duration: float) -> Mapping[str, Any]:
@@ -836,6 +906,13 @@ def _audit_artifact(
     private_rows = private_manifest.get("rows")
     if not isinstance(private_rows, list):
         raise ValueError("private manifest rows are missing")
+    row_summary = _validate_manifest_rows(
+        packet,
+        packet_manifest,
+        _read_json(packet.blind_manifest),
+        _read_json(packet.aware_manifest),
+    )
+    raw_summary = _validate_raw_response_bindings(private_manifest)
     media_summary = _validate_evidence_media(
         packet,
         packet_manifest,
@@ -884,6 +961,8 @@ def _audit_artifact(
                 _read_jsonl(packet.answer_verdicts, "answer verdicts")
             ),
         },
+        **row_summary,
+        **raw_summary,
         **media_summary,
     }
     if screen_freeze is not None:
@@ -928,13 +1007,21 @@ def _verify_audit_freeze(packet: AuditPacket) -> Mapping[str, Any]:
     }
     if dict(manifest_hashes) != expected_manifests or dict(verdict_hashes) != expected_verdicts:
         raise ValueError("audit manifest or verdict binding changed")
+    row_summary = _validate_manifest_rows(
+        packet,
+        _read_json(packet.packet_manifest),
+        _read_json(packet.blind_manifest),
+        _read_json(packet.aware_manifest),
+    )
+    raw_summary = _validate_raw_response_bindings(_read_json(packet.private_manifest))
     media_summary = _validate_evidence_media(
         packet,
         _read_json(packet.packet_manifest),
         _read_json(packet.private_manifest),
         _read_json(packet.aware_manifest),
     )
-    if any(artifact.get(key) != value for key, value in media_summary.items()):
+    inventory_summary = {**row_summary, **raw_summary, **media_summary}
+    if any(artifact.get(key) != value for key, value in inventory_summary.items()):
         raise ValueError("audit evidence media binding changed")
     return freeze
 
@@ -1085,6 +1172,119 @@ def _validate_evidence_media(
     }
 
 
+def _validate_raw_response_bindings(
+    private_manifest: Mapping[str, Any],
+) -> dict[str, int | str]:
+    root = _safe_prediction_root(
+        _required_text(
+            private_manifest.get("prediction_root"), "raw response prediction root"
+        )
+    )
+    rows = private_manifest.get("rows")
+    if not isinstance(rows, list):
+        raise ValueError("raw response manifest rows are missing")
+    inventory: list[dict[str, Any]] = []
+    seen_paths: set[str] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise ValueError("raw response manifest row must be an object")
+        video_id = _required_text(row.get("video_id"), "raw response video_id")
+        result_hashes = row.get("result_hashes")
+        paths_by_condition = row.get("raw_response_paths")
+        hashes_by_condition = row.get("raw_response_sha256")
+        bindings_by_condition = row.get("raw_response_bindings")
+        if not all(
+            isinstance(value, Mapping)
+            for value in (
+                result_hashes,
+                paths_by_condition,
+                hashes_by_condition,
+                bindings_by_condition,
+            )
+        ):
+            raise ValueError("raw response manifest bindings are missing")
+        expected_conditions = set(result_hashes)
+        if not (
+            set(paths_by_condition)
+            == set(hashes_by_condition)
+            == set(bindings_by_condition)
+            == expected_conditions
+        ):
+            raise ValueError("raw response manifest condition bindings differ")
+        for condition in result_hashes:
+            raw_paths = paths_by_condition[condition]
+            raw_hashes = hashes_by_condition[condition]
+            bindings = bindings_by_condition[condition]
+            if not isinstance(raw_paths, list) or not isinstance(raw_hashes, list) or not isinstance(bindings, list):
+                raise ValueError("raw response manifest bindings must be lists")
+            if len(raw_paths) != len(raw_hashes) or len(raw_paths) != len(bindings):
+                raise ValueError("raw response path/hash count mismatch")
+            if not raw_paths:
+                raise ValueError("raw response path list is empty")
+            for index, (raw_path, response_hash, binding) in enumerate(
+                zip(raw_paths, raw_hashes, bindings, strict=True), 1
+            ):
+                if not isinstance(binding, Mapping):
+                    raise ValueError("raw response binding must be an object")
+                _validate_verdict_keys(
+                    binding,
+                    {"path", "response_sha256", "file_sha256", "size_bytes"},
+                    "raw response binding",
+                )
+                relative = _required_text(
+                    raw_path, f"raw response path {video_id}/{condition}[{index}]"
+                )
+                response_sha256 = _required_sha256(
+                    response_hash,
+                    f"raw response hash {video_id}/{condition}[{index}]",
+                )
+                if (
+                    binding.get("path") != relative
+                    or binding.get("response_sha256") != response_sha256
+                ):
+                    raise ValueError("raw response path/hash binding changed")
+                file_sha256 = _required_sha256(
+                    binding.get("file_sha256"),
+                    f"raw response file SHA-256 {video_id}/{condition}[{index}]",
+                )
+                size_bytes = _required_nonnegative_int(
+                    binding.get("size_bytes"),
+                    f"raw response file size {video_id}/{condition}[{index}]",
+                )
+                path = _safe_raw_response_path(
+                    root,
+                    relative,
+                    f"raw response {video_id}/{condition}[{index}]",
+                )
+                actual_file_sha256, actual_size_bytes = _verify_raw_response_file(
+                    path,
+                    response_sha256=response_sha256,
+                    expected_file_sha256=file_sha256,
+                    expected_size=size_bytes,
+                    label=f"raw response {video_id}/{condition}[{index}]",
+                )
+                if actual_file_sha256 != file_sha256 or actual_size_bytes != size_bytes:
+                    raise ValueError("raw response file identity changed")
+                inventory_key = f"{video_id}:{condition}:{relative}"
+                if inventory_key in seen_paths:
+                    raise ValueError("duplicate raw response path binding")
+                seen_paths.add(inventory_key)
+                inventory.append(
+                    {
+                        "key": inventory_key,
+                        "path": relative,
+                        "response_sha256": response_sha256,
+                        "file_sha256": file_sha256,
+                        "size_bytes": size_bytes,
+                    }
+                )
+    inventory.sort(key=lambda item: item["key"])
+    return {
+        "raw_response_file_count": len(inventory),
+        "raw_response_files_sha256": canonical_sha256(inventory),
+    }
+
+
 def _verify_native_source(
     private_row: Mapping[str, Any], expected_sha256: str, expected_size: int
 ) -> None:
@@ -1105,6 +1305,73 @@ def _verify_native_source(
         raise ValueError("native source media size changed")
     if _sha256_file(resolved) != expected_sha256:
         raise ValueError("native source media SHA-256 changed")
+
+
+def _safe_prediction_root(value: Path | str) -> Path:
+    root = Path(value)
+    if not root.is_absolute() or root.is_symlink() or not root.is_dir():
+        raise ValueError("raw response prediction root is missing or unsafe")
+    try:
+        resolved = root.resolve(strict=True)
+    except OSError as error:
+        raise ValueError("raw response prediction root is missing or unsafe") from error
+    canonical = _canonical_root()
+    if not resolved.is_relative_to(canonical):
+        raise ValueError("raw response prediction root escapes canonical private root")
+    _reject_symlink_components(canonical, resolved)
+    return resolved
+
+
+def _safe_raw_response_path(root: Path, value: str, label: str) -> Path:
+    relative = Path(value)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError(f"{label} path escapes prediction root")
+    candidate = root / relative
+    try:
+        _reject_symlink_components(root, candidate)
+    except ValueError as error:
+        raise ValueError(f"{label} path contains a symlink") from error
+    resolved = candidate.resolve(strict=False)
+    if not resolved.is_relative_to(root):
+        raise ValueError(f"{label} path escapes prediction root")
+    if candidate.is_symlink() or not candidate.is_file():
+        raise ValueError(f"{label} file is missing or unsafe")
+    try:
+        metadata = candidate.stat(follow_symlinks=False)
+    except OSError as error:
+        raise ValueError(f"{label} file is missing or unsafe") from error
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ValueError(f"{label} file is not a regular file")
+    return candidate
+
+
+def _verify_raw_response_file(
+    path: Path,
+    *,
+    response_sha256: str,
+    expected_file_sha256: str | None,
+    expected_size: int | None,
+    label: str,
+) -> tuple[str, int]:
+    try:
+        metadata = path.stat(follow_symlinks=False)
+    except OSError as error:
+        raise ValueError(f"{label} file is missing or unsafe") from error
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ValueError(f"{label} file is not a regular file")
+    size_bytes = metadata.st_size
+    if expected_size is not None and size_bytes != expected_size:
+        raise ValueError(f"{label} size changed")
+    file_sha256 = _sha256_file(path)
+    if expected_file_sha256 is not None and file_sha256 != expected_file_sha256:
+        raise ValueError(f"{label} file SHA-256 changed")
+    payload = _read_json(path)
+    raw_response = payload.get("raw_response")
+    if not isinstance(raw_response, str):
+        raise ValueError(f"{label} record is invalid")
+    if hashlib.sha256(raw_response.encode("utf-8")).hexdigest() != response_sha256:
+        raise ValueError(f"{label} response SHA-256 changed")
+    return file_sha256, size_bytes
 
 
 def _expected_event_frames(
@@ -1271,7 +1538,7 @@ def _validate_manifest_rows(
     packet_manifest: Mapping[str, Any],
     blind_manifest: Mapping[str, Any],
     aware_manifest: Mapping[str, Any],
-) -> None:
+) -> dict[str, int | str | dict[str, dict[str, str]]]:
     rows = packet_manifest.get("rows")
     blind_rows = blind_manifest.get("rows")
     aware_rows = aware_manifest.get("rows")
@@ -1282,6 +1549,8 @@ def _validate_manifest_rows(
     if packet_manifest.get("row_count") != len(rows):
         raise ValueError("packet manifest row count is invalid")
     seen: set[str] = set()
+    row_hashes: dict[str, dict[str, str]] = {}
+    inventory: list[dict[str, str]] = []
     for index, row in enumerate(rows):
         if not isinstance(row, Mapping):
             raise ValueError("packet manifest row must be an object")
@@ -1289,13 +1558,64 @@ def _validate_manifest_rows(
         if video_id in seen:
             raise ValueError("duplicate audit video row")
         seen.add(video_id)
-        for field in ("blind_manifest", "aware_manifest"):
+        expected_paths = {
+            "blind_manifest": f"rows/{video_id}/blind.json",
+            "aware_manifest": f"rows/{video_id}/aware.json",
+        }
+        paths: dict[str, Path] = {}
+        for field, expected_path in expected_paths.items():
+            if row.get(field) != expected_path:
+                raise ValueError(f"audit row manifest path changed: {field}")
             path = _safe_packet_path(packet.root, row.get(field), field)
             if not path.is_file() or path.is_symlink():
                 raise ValueError(f"audit row manifest is missing: {field}")
+            paths[field] = path
+        blind_row = blind_rows[index]
+        aware_row = aware_rows[index]
+        if not isinstance(blind_row, Mapping) or not isinstance(aware_row, Mapping):
+            raise ValueError("audit row manifest rows must be objects")
+        if blind_row.get("video_id") != video_id or aware_row.get("video_id") != video_id:
+            raise ValueError("audit row manifest video ID/order changed")
+        if blind_row.get("video_id") != aware_row.get("video_id"):
+            raise ValueError("audit row manifest row identities differ")
+        view_fields = {"question", "frozen_answers", "answer_citations"}
+        blind_common = {
+            key: value for key, value in blind_row.items() if key not in view_fields
+        }
+        aware_common = {
+            key: value for key, value in aware_row.items() if key not in view_fields
+        }
+        if blind_common != aware_common:
+            raise ValueError("audit row manifest common fields differ")
+        if _read_json(paths["blind_manifest"]) != blind_row:
+            raise ValueError("audit row manifest blind row differs from aggregate")
+        if _read_json(paths["aware_manifest"]) != aware_row:
+            raise ValueError("audit row manifest aware row differs from aggregate")
+        blind_hash = _required_sha256(
+            row.get("blind_manifest_sha256"), "blind row manifest SHA-256"
+        )
+        aware_hash = _required_sha256(
+            row.get("aware_manifest_sha256"), "aware row manifest SHA-256"
+        )
+        if _sha256_file(paths["blind_manifest"]) != blind_hash:
+            raise ValueError("audit row manifest blind SHA-256 changed")
+        if _sha256_file(paths["aware_manifest"]) != aware_hash:
+            raise ValueError("audit row manifest aware SHA-256 changed")
+        row_hashes[video_id] = {"blind": blind_hash, "aware": aware_hash}
+        inventory.extend(
+            [
+                {"path": expected_paths["blind_manifest"], "sha256": blind_hash},
+                {"path": expected_paths["aware_manifest"], "sha256": aware_hash},
+            ]
+        )
         _reject_blind_leakage(blind_rows[index])
         _reject_reference_fields(blind_rows[index])
         _reject_reference_fields(aware_rows[index])
+    return {
+        "row_manifest_hashes": row_hashes,
+        "row_manifest_file_count": len(inventory),
+        "row_manifest_files_sha256": canonical_sha256(inventory),
+    }
 
 
 def _validate_map_verdicts(
@@ -1430,10 +1750,21 @@ def _validate_answer_verdicts(
             raise ValueError("answer verdict question is missing")
         if not isinstance(verdict["frozen_answer"], str) or not verdict["frozen_answer"].strip():
             raise ValueError("answer verdict frozen answer is missing")
+        aware_row = _aware_row(packet, str(verdict["video_id"]))
+        expected_question = _required_text(
+            aware_row.get("question"), "aware manifest question"
+        )
+        if verdict["question"] != expected_question:
+            raise ValueError("answer verdict question differs from aware manifest")
         claims = verdict["claim_checks"]
         if not isinstance(claims, list):
             raise ValueError("answer claim_checks must be a list")
         answer = _aware_answer(packet, str(verdict["video_id"]), str(verdict["condition_id"]))
+        expected_answer = _required_text(
+            answer.get("top1_answer"), "aware manifest frozen answer"
+        )
+        if verdict["frozen_answer"] != expected_answer:
+            raise ValueError("answer verdict frozen answer differs from aware manifest")
         expected_claims = _claim_ids(answer)
         claim_rows = _unique_by(claims, "claim_id", "answer claim checks")
         if require_complete and set(claim_rows) != set(expected_claims):
@@ -1488,16 +1819,22 @@ def _event_ids_for_video(packet: AuditPacket, video_id: str) -> list[str]:
 def _aware_answer(
     packet: AuditPacket, video_id: str, condition: str
 ) -> Mapping[str, Any]:
+    row = _aware_row(packet, video_id)
+    answers = row.get("frozen_answers")
+    if isinstance(answers, Mapping) and isinstance(answers.get(condition), Mapping):
+        return answers[condition]
+    raise ValueError("answer condition is missing from aware manifest")
+
+
+def _aware_row(packet: AuditPacket, video_id: str) -> Mapping[str, Any]:
     manifest = _read_json(packet.aware_manifest)
     rows = manifest.get("rows")
     if not isinstance(rows, list):
         raise ValueError("aware manifest rows are missing")
     for row in rows:
         if isinstance(row, Mapping) and row.get("video_id") == video_id:
-            answers = row.get("frozen_answers")
-            if isinstance(answers, Mapping) and isinstance(answers.get(condition), Mapping):
-                return answers[condition]
-    raise ValueError("answer condition is missing from aware manifest")
+            return row
+    raise ValueError("audit video is missing from aware manifest")
 
 
 def _claim_ids(answer: Mapping[str, Any]) -> list[str]:

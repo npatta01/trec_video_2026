@@ -423,6 +423,117 @@ def test_real_media_manifest_binds_pts_hashes_and_ffmpeg(tmp_path: Path, monkeyp
     assert len(row["event_keyframes"]) == 2
 
 
+def test_private_manifest_binds_plural_raw_response_paths_hashes_and_sizes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="pilot")
+    packet = build_audit_packet(prepared, phase="pilot", output=tmp_path / "audit")
+
+    private = json.loads(packet.private_manifest.read_text(encoding="utf-8"))
+    row = private["rows"][0]
+    paths = row["raw_response_paths"]["neutral_map"]
+    response_hashes = row["raw_response_sha256"]["neutral_map"]
+    bindings = row["raw_response_bindings"]["neutral_map"]
+    assert paths == ["raw/neutral_map/pilot-video.json"]
+    assert len(paths) == len(response_hashes) == len(bindings) == 1
+    assert bindings[0]["path"] == paths[0]
+    assert bindings[0]["response_sha256"] == response_hashes[0]
+    raw_path = prepared / paths[0]
+    assert bindings[0]["file_sha256"] == _sha256(raw_path)
+    assert bindings[0]["size_bytes"] == raw_path.stat().st_size
+
+
+def test_validate_frozen_audit_rejects_tampered_reviewer_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="pilot")
+    packet = build_audit_packet(prepared, phase="pilot", output=tmp_path / "audit")
+    _write_verdicts(packet)
+    freeze_pilot_audit(packet.root)
+
+    row_path = packet.root / "rows" / "pilot-video" / "blind.json"
+    row = json.loads(row_path.read_text(encoding="utf-8"))
+    row["video_id"] = "tampered-video"
+    row_path.write_text(json.dumps(row), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="row manifest"):
+        validate_audit_packet(packet.root)
+
+
+@pytest.mark.parametrize("field", ["question", "frozen_answer"])
+def test_screen_answer_verdict_must_match_aware_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="screen")
+    packet = build_audit_packet(prepared, phase="screen", output=tmp_path / "audit")
+    _write_verdicts(packet)
+    lines = packet.answer_verdicts.read_text(encoding="utf-8").splitlines()
+    verdict = json.loads(lines[0])
+    verdict[field] = f"mismatched {field}"
+    lines[0] = json.dumps(verdict)
+    packet.answer_verdicts.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="aware manifest"):
+        freeze_screen_audit(packet.root)
+
+
+@pytest.mark.parametrize("mutation", ["delete", "replace", "symlink"])
+def test_validate_frozen_audit_rejects_changed_raw_response(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="pilot")
+    packet = build_audit_packet(prepared, phase="pilot", output=tmp_path / "audit")
+    _write_verdicts(packet)
+    freeze_pilot_audit(packet.root)
+
+    private = json.loads(packet.private_manifest.read_text(encoding="utf-8"))
+    raw_path = prepared / private["rows"][0]["raw_response_paths"]["neutral_map"][0]
+    if mutation == "delete":
+        raw_path.unlink()
+    elif mutation == "replace":
+        raw_path.write_bytes(b"mutated raw response")
+    else:
+        replacement = tmp_path / "replacement-raw-response.json"
+        shutil.copyfile(raw_path, replacement)
+        raw_path.unlink()
+        raw_path.symlink_to(replacement)
+
+    with pytest.raises(ValueError, match="raw response"):
+        validate_audit_packet(packet.root)
+
+
+def test_validate_rejects_raw_response_path_hash_count_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="pilot")
+    packet = build_audit_packet(prepared, phase="pilot", output=tmp_path / "audit")
+    private = json.loads(packet.private_manifest.read_text(encoding="utf-8"))
+    private["rows"][0]["raw_response_sha256"]["neutral_map"] = []
+    packet.private_manifest.write_text(json.dumps(private), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="raw response.*count"):
+        validate_audit_packet(packet.root)
+
+
 def test_build_preserves_six_bound_overview_source_frames(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -490,10 +601,18 @@ def test_freeze_binds_result_media_manifests_and_verdicts_immutably(tmp_path: Pa
     assert len(freeze["bindings_sha256"]) == 64
     assert set(freeze["bindings"]) == {"run_id", "panel_sha256", "phase", "decision"}
     assert json.loads((packet.root / "audit.json").read_text())["decision"] == "usable_for_screen"
+    audit = json.loads(packet.audit_json.read_text(encoding="utf-8"))
+    packet_row = json.loads(packet.packet_manifest.read_text(encoding="utf-8"))["rows"][0]
+    assert audit["row_manifest_hashes"]["pilot-video"]["blind"] == packet_row[
+        "blind_manifest_sha256"
+    ]
+    assert audit["raw_response_file_count"] == 1
     with pytest.raises(FileExistsError):
         freeze_pilot_audit(packet.root)
 
-    assert validate_audit_packet(packet.root)["frozen"] is True
+    status = validate_audit_packet(packet.root)
+    assert status["frozen"] is True
+    assert status["raw_response_file_count"] == 1
 
 
 @pytest.mark.parametrize("mutation", ["delete", "replace"])
