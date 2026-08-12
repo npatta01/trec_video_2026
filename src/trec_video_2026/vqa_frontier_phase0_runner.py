@@ -36,10 +36,14 @@ from trec_video_2026.vqa_frontier_phase0_contract import (
     validate_neutral_map,
 )
 from trec_video_2026.vqa_frontier_phase0_panel import (
+    CATEGORIES,
     CONDITIONS,
     PHASE0_RUN_ID,
     PanelRow,
     Phase0Panel,
+    QWEN_CONDITION_ID,
+    REFERENCE_POLICY,
+    SELECTION_POLICY,
 )
 from trec_video_2026.vqa_frontier_response_store import (
     RawResponseConflictError,
@@ -59,7 +63,10 @@ from trec_video_2026.vqa_submission_gemini import (
     ProviderResponseEvidenceError,
     UploadedFileRecord,
 )
-from trec_video_2026.vqa_submission_openrouter import OpenRouterRequestPolicy
+from trec_video_2026.vqa_submission_openrouter import (
+    OpenRouterRequestPolicy,
+    OpenRouterTransport,
+)
 
 
 SCHEMA_VERSION = 1
@@ -90,6 +97,7 @@ _PHASES = ("pilot", "screen")
 _DEFAULT_INPUT_TOKENS = 1_000_000
 _MAP_OUTPUT_TOKENS = 8192
 _ANSWER_OUTPUT_TOKENS = 4096
+_RESPONSE_FORMAT_POLICY = "prompt-json-local-validation-v3-exact-fence"
 
 
 class Phase0RunnerError(RuntimeError):
@@ -102,6 +110,10 @@ class PilotGateError(Phase0RunnerError):
 
 class CostGateError(Phase0RunnerError):
     """Raised before a provider call would cross the hard cost cap."""
+
+
+class CostUnknownError(CostGateError):
+    """Raised when provider billing cannot be determined conservatively."""
 
 
 class AmbiguousStartedAttemptError(Phase0RunnerError):
@@ -150,10 +162,10 @@ class Phase0RunSummary:
     skipped: int
     input_tokens: int = 0
     output_tokens: int = 0
-    observed_cost_usd: float = 0.0
+    observed_cost_usd: float | None = 0.0
 
     @property
-    def estimated_cost_usd(self) -> float:
+    def estimated_cost_usd(self) -> float | None:
         """Compatibility name used by the neighboring frontier runner."""
 
         return self.observed_cost_usd
@@ -176,6 +188,7 @@ def prepare_run(panel: Path, output: Path) -> PreparedPhase0Run:
         "raw/direct_answer",
         "raw/map_guided_answer",
         "delivery/gemini",
+        "request-claims",
     ):
         (output / directory).mkdir(parents=True, exist_ok=True)
     _write_json_once(output / "panel.json", payload)
@@ -254,6 +267,7 @@ def run_pilot(
     """Run the single question-blind pilot map, resuming exact completions."""
 
     prepared = _coerce_prepared(prepared)
+    _ensure_cost_known(prepared)
     _fail_on_ambiguous_started_attempts(prepared)
     row = prepared.pilot_row
     summary = _dispatch_condition(
@@ -276,6 +290,7 @@ def authorize_screen(
     """Record a usable, frozen pilot audit as the screen authorization."""
 
     prepared = _coerce_prepared(prepared)
+    _ensure_cost_known(prepared)
     pilot_freeze = prepared.path / "pilot-freeze.json"
     if not pilot_freeze.is_file():
         raise PilotGateError("pilot audit authorization requires frozen pilot results")
@@ -288,6 +303,20 @@ def authorize_screen(
     decision = _audit_decision(audit)
     if decision != "usable_for_screen":
         raise PilotGateError("pilot audit authorization is not usable_for_screen")
+    retained_audit = prepared.path / "pilot-audit-freeze.json"
+    source_freeze = Path(pilot_audit_freeze)
+    if retained_audit.exists() or retained_audit.is_symlink():
+        if retained_audit.read_bytes() != source_freeze.read_bytes():
+            raise FileExistsError("refusing to overwrite retained pilot audit freeze")
+    else:
+        _write_bytes_once(retained_audit, source_freeze.read_bytes())
+    retained_artifact = prepared.path / "pilot-audit.json"
+    source_artifact = Path(pilot_audit_freeze).parent / "audit.json"
+    if retained_artifact.exists() or retained_artifact.is_symlink():
+        if retained_artifact.read_bytes() != source_artifact.read_bytes():
+            raise FileExistsError("refusing to overwrite retained pilot audit artifact")
+    else:
+        _write_bytes_once(retained_artifact, source_artifact.read_bytes())
     payload = {
         "schema_version": SCHEMA_VERSION,
         "status": "authorized",
@@ -295,6 +324,8 @@ def authorize_screen(
         "panel_sha256": prepared.panel_sha256,
         "pilot_freeze_sha256": _sha256_file(pilot_freeze),
         "pilot_audit_freeze_sha256": _sha256_file(Path(pilot_audit_freeze)),
+        "pilot_audit_artifact_sha256": audit["artifact_sha256"],
+        "pilot_audit_bindings_sha256": audit["bindings_sha256"],
         "pilot_audit_decision": decision,
     }
     path = prepared.path / "pilot-authorization.json"
@@ -317,6 +348,7 @@ def run_screen_row(
     """Run one fresh row in neutral/direct/guided order."""
 
     prepared = _coerce_prepared(prepared)
+    _ensure_cost_known(prepared)
     if isinstance(ordinal, bool) or not isinstance(ordinal, int) or not 1 <= ordinal <= 7:
         raise ValueError("screen ordinal must be between 1 and 7")
     if not (prepared.path / "pilot-authorization.json").is_file():
@@ -359,6 +391,7 @@ def run_screen_remaining(
     """Run ordinals two through seven after the immutable cost gate."""
 
     prepared = _coerce_prepared(prepared)
+    _ensure_cost_known(prepared)
     gate = prepared.path / "cost-gate.json"
     if not gate.is_file():
         raise CostGateError("remaining screen requires an authorized cost gate")
@@ -377,23 +410,42 @@ def run_screen_remaining(
 
 def project_remaining_cost(
     prepared: PreparedPhase0Run | Path,
+    *,
+    _screen_limit: int | None = None,
 ) -> Mapping[str, object]:
     """Project the complete 22-call run from observed per-condition means."""
 
     prepared = _coerce_prepared(prepared)
+    _ensure_cost_known(prepared)
     conditions: dict[str, dict[str, object]] = {}
     observed_total = 0.0
     projected_remaining = 0.0
     for condition_id in _CONDITIONS:
         results = _bound_results(prepared, condition_id)
-        unrepresented_calls, unrepresented_cost = _unrepresented_terminal_attempts(
-            prepared, condition_id
+        if _screen_limit is not None:
+            allowed_ids = {
+                row.video_id for row in prepared.screen_rows[:_screen_limit]
+            }
+            results = [
+                result
+                for result in results
+                if result.get("phase") == "pilot"
+                or result.get("video_id") in allowed_ids
+            ]
+        allowed_ids = None
+        if _screen_limit is not None:
+            allowed_ids = {
+                row.video_id for row in prepared.screen_rows[:_screen_limit]
+            }
+        unrepresented_calls, unrepresented_cost, _ = _unrepresented_terminal_attempts(
+            prepared, condition_id, allowed_video_ids=allowed_ids
         )
         observed_cost = sum(
-            _number(result.get("estimated_cost_usd", 0.0)) for result in results
+            _number(result.get("cost_usd")) for result in results
         ) + unrepresented_cost
         observed_calls = len(results) + unrepresented_calls
-        expected_calls = 1 + len(prepared.screen_rows) if condition_id == "neutral_map" else len(prepared.screen_rows)
+        screen_count = len(prepared.screen_rows)
+        expected_calls = 1 + screen_count if condition_id == "neutral_map" else screen_count
         remaining_calls = max(0, expected_calls - observed_calls)
         observed_mean = observed_cost / observed_calls if observed_calls else None
         mean_for_projection = (
@@ -432,11 +484,13 @@ def authorize_remaining(prepared: PreparedPhase0Run | Path) -> Mapping[str, obje
     """Freeze the first-row hashes and the below-cap remaining projection."""
 
     prepared = _coerce_prepared(prepared)
+    _ensure_cost_known(prepared)
     _verify_pilot_authorization(prepared)
     first_row = _first_row_results(prepared)
     if set(first_row) != set(_CONDITIONS):
         raise CostGateError("first screen row is not complete")
     projection = project_remaining_cost(prepared)
+    first_row_projection = project_remaining_cost(prepared, _screen_limit=1)
     if projection["projected_total_usd_lt_cap"] is not True:
         raise CostGateError("projected total would reach USD 25")
     payload = {
@@ -451,6 +505,8 @@ def authorize_remaining(prepared: PreparedPhase0Run | Path) -> Mapping[str, obje
         "projected_total_usd": projection["projected_total_usd"],
         "absolute_cap_usd": ABSOLUTE_CAP_USD,
         "projected_total_usd_lt_cap": True,
+        "projection_snapshot": first_row_projection,
+        "projection_snapshot_sha256": canonical_sha256(first_row_projection),
     }
     path = prepared.path / "cost-gate.json"
     if path.exists() or path.is_symlink():
@@ -467,6 +523,7 @@ def freeze_pilot(prepared: PreparedPhase0Run | Path) -> Mapping[str, object]:
     """Freeze the complete pilot result set and its request bindings."""
 
     prepared = _coerce_prepared(prepared)
+    _ensure_cost_known(prepared)
     results = _require_complete_phase(prepared, "pilot")
     return _freeze_phase(prepared, "pilot", results)
 
@@ -475,8 +532,14 @@ def freeze_screen(prepared: PreparedPhase0Run | Path) -> Mapping[str, object]:
     """Freeze all 21 screen results after the cost-gated run completes."""
 
     prepared = _coerce_prepared(prepared)
+    _ensure_cost_known(prepared)
     if not (prepared.path / "cost-gate.json").is_file():
         raise CostGateError("screen freeze requires an authorized cost gate")
+    pilot_freeze = prepared.path / "pilot-freeze.json"
+    if not pilot_freeze.is_file():
+        raise PilotGateError("screen freeze requires frozen pilot results")
+    _verify_freeze_file(pilot_freeze)
+    _verify_pilot_authorization(prepared)
     _verify_cost_gate(prepared, _read_json(prepared.path / "cost-gate.json"))
     results = _require_complete_phase(prepared, "screen")
     return _freeze_phase(prepared, "screen", results)
@@ -503,9 +566,20 @@ def status(prepared: PreparedPhase0Run | Path) -> Mapping[str, object]:
     }
     attempts = _read_jsonl(prepared.path / "attempts.jsonl")
     ambiguous = len(_ambiguous_attempts(prepared, attempts))
+    ambiguous_claims = len(_orphan_claims(prepared))
+    observed_cost, cost_known = _cost_state(prepared)
+    failure_codes: dict[str, int] = {}
+    for record in (*attempts, *_all_terminal_results(prepared)):
+        code = record.get("failure_code")
+        if isinstance(code, str):
+            failure_codes[code] = failure_codes.get(code, 0) + 1
+    cost_state = None
+    cost_state_path = prepared.path / "cost-state.json"
+    if cost_state_path.is_file():
+        cost_state = _read_json(cost_state_path).get("state")
     return {
         "schema_version": SCHEMA_VERSION,
-        "status": _state_name(prepared, counts, ambiguous),
+        "status": _state_name(prepared, counts, ambiguous, ambiguous_claims),
         "run_id": prepared.run_id,
         "panel_sha256": prepared.panel_sha256,
         "counts": counts,
@@ -519,7 +593,11 @@ def status(prepared: PreparedPhase0Run | Path) -> Mapping[str, object]:
             if attempt.get("run_id") == prepared.run_id
         ),
         "ambiguous_started_attempts": ambiguous,
-        "observed_cost_usd": round(_cumulative_cost(prepared), 6),
+        "ambiguous_request_claims": ambiguous_claims,
+        "cost_known": cost_known,
+        "cost_state": cost_state,
+        "failure_codes": failure_codes,
+        "observed_cost_usd": None if observed_cost is None else round(observed_cost, 6),
         "pilot_frozen": (prepared.path / "pilot-freeze.json").is_file(),
         "pilot_authorized": (prepared.path / "pilot-authorization.json").is_file(),
         "cost_gate_authorized": (prepared.path / "cost-gate.json").is_file(),
@@ -542,6 +620,7 @@ def _dispatch_condition(
         raise ValueError("unsupported Phase 0 phase")
     if phase == "pilot" and condition_id != "neutral_map":
         raise ValueError("pilot permits only neutral_map")
+    _ensure_cost_known(prepared)
     _fail_on_ambiguous_started_attempts(prepared)
     prompt, schema, provider_schema, validated_map = _condition_inputs(
         condition_id,
@@ -561,6 +640,7 @@ def _dispatch_condition(
         delivery=delivery,
         neutral_map=validated_map,
     )
+    _ensure_request_record(prepared, request)
     existing = _existing_logical_result(prepared, phase, row, condition_id)
     if existing is not None:
         if existing.get("request_sha256") != request["request_sha256"] or not _binding_matches(existing, request):
@@ -573,25 +653,29 @@ def _dispatch_condition(
         skipped["output_tokens"] = 0
         skipped["estimated_cost_usd"] = 0.0
         return skipped
-    _ensure_request_record(prepared, request)
+    _validate_transport(transport, condition_id)
     next_cost = _transport_estimate(transport, condition_id, row)
-    if _cumulative_cost(prepared) + next_cost >= ABSOLUTE_CAP_USD:
+    if _known_cumulative_cost(prepared) + next_cost >= ABSOLUTE_CAP_USD:
         raise CostGateError("next provider call would reach USD 25")
+    _claim_request(prepared, request)
     total_cost = 0.0
+    total_cost_known = True
     total_input = 0
     total_output = 0
     raw_hashes: list[str] = []
     raw_paths: list[str] = []
-    last_failure: str | None = None
     for attempt_index in (1, 2):
         if attempt_index == 2 and (
-            _cumulative_cost(prepared) + next_cost >= ABSOLUTE_CAP_USD
+            _known_cumulative_cost(prepared) + total_cost + next_cost
+            >= ABSOLUTE_CAP_USD
         ):
             result = _result_record(
                 request,
                 status="failed",
                 output=None,
                 estimated_cost_usd=total_cost,
+                cost_known=total_cost_known,
+                cost_reason="cost_gate",
                 input_tokens=total_input,
                 output_tokens=total_output,
                 raw_hashes=raw_hashes,
@@ -604,45 +688,42 @@ def _dispatch_condition(
             prepared.path / "attempts.jsonl",
             _attempt_record(request, status="started", attempt_index=attempt_index),
         )
-        uploaded: UploadedFileRecord | None = None
-        generated: GenerationResult | None = None
-        attempt_cost = 0.0
-        attempt_input = 0
-        attempt_output = 0
-        try:
-            uploaded = transport.upload(delivery.path, mime_type=delivery.mime_type)
-            if uploaded.sha256 is not None and uploaded.sha256 != delivery.sha256:
-                raise DeliveryMediaError("uploaded delivery identity changed")
-            generated = transport.generate(
-                model=MODEL_ID,
-                parts=(
-                    {"file_id": uploaded.file_id, "mime_type": uploaded.mime_type},
-                    prompt,
-                ),
-                schema=provider_schema,
-            )
-            raw_path = _preserve_generation(
-                prepared,
-                condition_id=condition_id,
-                video_id=row.video_id,
-                generated=generated,
-            )
-            raw_hashes.append(generated.response_sha256)
-            raw_paths.append(raw_path)
-            _validate_provider_model(generated)
-            parsed = parse_prompt_json_response(generated.raw_response)
-            output = _validate_output(
-                condition_id,
-                parsed,
-                row.duration_seconds,
-                validated_map,
-            )
-            attempt_input = generated.usage.input_tokens
-            attempt_output = generated.usage.output_tokens
-            attempt_cost = _generation_cost(generated)
-            total_cost += attempt_cost
-            total_input += attempt_input
-            total_output += attempt_output
+        outcome = _execute_attempt(
+            prepared,
+            condition_id=condition_id,
+            row=row,
+            transport=transport,
+            delivery=delivery,
+            prompt=prompt,
+            provider_schema=provider_schema,
+            validated_map=validated_map,
+        )
+        generated = outcome["generated"]
+        if isinstance(generated, GenerationResult):
+            raw_hashes.extend(outcome["raw_hashes"])
+            raw_paths.extend(outcome["raw_paths"])
+        attempt_input = int(outcome["input_tokens"])
+        attempt_output = int(outcome["output_tokens"])
+        attempt_cost = outcome["cost_usd"]
+        attempt_known = bool(outcome["cost_known"])
+        total_input += attempt_input
+        total_output += attempt_output
+        if attempt_known and total_cost_known:
+            total_cost += float(attempt_cost)
+        else:
+            total_cost_known = False
+        error = outcome["error"]
+        cleanup_error = outcome["cleanup_error"]
+        if cleanup_error is not None:
+            failure_code = "cleanup_failure"
+        elif not attempt_known:
+            failure_code = "cost_unknown"
+        elif error is None:
+            failure_code = None
+        else:
+            failure_code = _failure_code(error, generated)
+        terminal_status = "succeeded" if error is None and cleanup_error is None else "failed"
+        if failure_code is None:
             _append_jsonl(
                 prepared.path / "attempts.jsonl",
                 _attempt_record(
@@ -651,88 +732,160 @@ def _dispatch_condition(
                     attempt_index=attempt_index,
                     input_tokens=attempt_input,
                     output_tokens=attempt_output,
-                    estimated_cost_usd=attempt_cost,
+                    cost_usd=float(attempt_cost),
+                    cost_known=attempt_known,
+                    cost_reason=outcome["cost_reason"],
                 ),
             )
             result = _result_record(
                 request,
-                status="succeeded",
-                output=output,
+                status=terminal_status,
+                output=outcome["output"],
                 estimated_cost_usd=total_cost,
+                cost_known=total_cost_known,
+                cost_reason=outcome["cost_reason"],
                 input_tokens=total_input,
                 output_tokens=total_output,
                 raw_hashes=raw_hashes,
                 raw_paths=raw_paths,
             )
             _append_result(prepared, condition_id, result)
+            _record_cost_state(prepared)
             return result
-        except Exception as error:
-            if isinstance(error, (AmbiguousStartedAttemptError, RequestBindingError)):
-                raise
-            if isinstance(error, ProviderResponseEvidenceError):
-                generated = error.generation_result
-                try:
-                    raw_path = _preserve_generation(
-                        prepared,
-                        condition_id=condition_id,
-                        video_id=row.video_id,
-                        generated=generated,
-                    )
-                    raw_hashes.append(generated.response_sha256)
-                    raw_paths.append(raw_path)
-                except RawResponseConflictError:
-                    raise AmbiguousStartedAttemptError(
-                        "raw response conflict requires operator review"
-                    ) from error
-            if generated is not None:
-                attempt_input = generated.usage.input_tokens
-                attempt_output = generated.usage.output_tokens
-                attempt_cost = _generation_cost(generated)
-            elif isinstance(error, DeliveryMediaError):
-                attempt_cost = 0.0
-            else:
-                attempt_cost = next_cost
-            total_cost += attempt_cost
-            total_input += attempt_input
-            total_output += attempt_output
-            failure_code = _failure_code(error, generated)
-            last_failure = failure_code
-            _append_jsonl(
-                prepared.path / "attempts.jsonl",
-                _attempt_record(
-                    request,
-                    status="failed",
-                    attempt_index=attempt_index,
-                    failure_code=failure_code,
-                    input_tokens=attempt_input,
-                    output_tokens=attempt_output,
-                    estimated_cost_usd=attempt_cost,
-                ),
-            )
-            if attempt_index == 1 and failure_code in _RETRYABLE:
-                continue
-            result = _result_record(
+        _append_jsonl(
+            prepared.path / "attempts.jsonl",
+            _attempt_record(
                 request,
                 status="failed",
-                output=None,
-                estimated_cost_usd=total_cost,
-                input_tokens=total_input,
-                output_tokens=total_output,
-                raw_hashes=raw_hashes,
-                raw_paths=raw_paths,
-                failure_code=last_failure,
-            )
-            _append_result(prepared, condition_id, result)
-            return result
-        finally:
-            if uploaded is not None:
-                try:
-                    transport.delete(uploaded.file_id)
-                except Exception:
-                    # Cleanup failure is terminally observable in the attempt
-                    # record only when the provider itself returned a result.
-                    pass
+                attempt_index=attempt_index,
+                failure_code=failure_code,
+                input_tokens=attempt_input,
+                output_tokens=attempt_output,
+                cost_usd=attempt_cost,
+                cost_known=attempt_known,
+                cost_reason=outcome["cost_reason"],
+            ),
+        )
+        total_failure = failure_code
+        if attempt_index == 1 and attempt_known and failure_code in _RETRYABLE:
+            continue
+        result = _result_record(
+            request,
+            status="failed",
+            output=None,
+            estimated_cost_usd=total_cost,
+            cost_known=total_cost_known,
+            cost_reason=outcome["cost_reason"],
+            input_tokens=total_input,
+            output_tokens=total_output,
+            raw_hashes=raw_hashes,
+            raw_paths=raw_paths,
+            failure_code=total_failure,
+        )
+        _append_result(prepared, condition_id, result)
+        _record_cost_state(prepared)
+        return result
     raise RuntimeError("unreachable retry loop")
+
+
+def _execute_attempt(
+    prepared: PreparedPhase0Run,
+    *,
+    condition_id: str,
+    row: PanelRow,
+    transport: FrontierTransport,
+    delivery: DeliveryMedia,
+    prompt: str,
+    provider_schema: Mapping[str, object],
+    validated_map: NeutralVideoMap | None,
+) -> dict[str, object]:
+    uploaded: UploadedFileRecord | None = None
+    generated: GenerationResult | None = None
+    error: Exception | None = None
+    cleanup_error: Exception | None = None
+    output: Mapping[str, object] | None = None
+    raw_hashes: list[str] = []
+    raw_paths: list[str] = []
+    try:
+        try:
+            uploaded = transport.upload(delivery.path, mime_type=delivery.mime_type)
+            if (
+                not isinstance(uploaded, UploadedFileRecord)
+                or uploaded.sha256 != delivery.sha256
+                or uploaded.mime_type != delivery.mime_type
+            ):
+                raise DeliveryMediaError("uploaded delivery identity changed")
+        except Exception as upload_error:
+            error = upload_error
+        if error is None:
+            try:
+                generated = transport.generate(
+                    model=MODEL_ID,
+                    parts=(
+                        {"file_id": uploaded.file_id, "mime_type": uploaded.mime_type},
+                        prompt,
+                    ),
+                    schema=provider_schema,
+                )
+                if not isinstance(generated, GenerationResult):
+                    raise TypeError("transport returned an invalid generation result")
+                raw_path = _preserve_generation(
+                    prepared,
+                    condition_id=condition_id,
+                    video_id=row.video_id,
+                    generated=generated,
+                )
+                raw_hashes.append(generated.response_sha256)
+                raw_paths.append(raw_path)
+                _validate_provider_model(generated)
+                parsed = parse_prompt_json_response(generated.raw_response)
+                output = _validate_output(
+                    condition_id,
+                    parsed,
+                    row.duration_seconds,
+                    validated_map,
+                )
+            except ProviderResponseEvidenceError as evidence_error:
+                generated = evidence_error.generation_result
+                raw_path = _preserve_generation(
+                    prepared,
+                    condition_id=condition_id,
+                    video_id=row.video_id,
+                    generated=generated,
+                )
+                raw_hashes.append(generated.response_sha256)
+                raw_paths.append(raw_path)
+                error = evidence_error
+            except AmbiguousStartedAttemptError:
+                raise
+            except Exception as generation_error:
+                error = generation_error
+    finally:
+        if uploaded is not None:
+            try:
+                transport.delete(uploaded.file_id)
+            except Exception as delete_error:
+                cleanup_error = delete_error
+    cost_usd, cost_known, cost_reason = _cost_observation(
+        generated=generated,
+        error=error,
+        provider_reached=uploaded is not None,
+    )
+    if cleanup_error is not None and not cost_known and generated is None:
+        cost_reason = "cleanup_failure_cost_unknown"
+    return {
+        "generated": generated,
+        "error": error,
+        "cleanup_error": cleanup_error,
+        "output": output,
+        "raw_hashes": raw_hashes,
+        "raw_paths": raw_paths,
+        "input_tokens": 0 if generated is None else generated.usage.input_tokens,
+        "output_tokens": 0 if generated is None else generated.usage.output_tokens,
+        "cost_usd": cost_usd,
+        "cost_known": cost_known,
+        "cost_reason": cost_reason,
+    }
 
 
 def _condition_inputs(
@@ -814,7 +967,7 @@ def _request_record(
     neutral_map: NeutralVideoMap | None,
 ) -> dict[str, object]:
     policy = MAP_POLICY if condition_id == "neutral_map" else ANSWER_POLICY
-    identity: dict[str, object] = {
+    binding: dict[str, object] = {
         "schema_version": SCHEMA_VERSION,
         "run_id": prepared.run_id,
         "phase": phase,
@@ -824,23 +977,31 @@ def _request_record(
         "video_id": row.video_id,
         "model_id": MODEL_ID,
         "provider": OPENROUTER_PROVIDER,
+        "route": "openrouter-pinned-model-no-fallback",
         "condition_id": condition_id,
         "prompt_sha256": canonical_sha256(prompt),
         "schema_sha256": canonical_sha256(schema),
         "provider_schema_sha256": canonical_sha256(provider_schema),
-        "response_format_policy": "prompt-json-local-validation-v3-exact-fence",
-        "max_output_tokens": policy.max_output_tokens,
-        "temperature": policy.temperature,
-        "allow_fallbacks": policy.allow_fallbacks,
-        "use_structured_outputs": policy.use_structured_outputs,
+        "response_format_policy": _RESPONSE_FORMAT_POLICY,
+        "request_policy": _policy_payload(policy),
         "delivery_provider": DELIVERY_PROVIDER,
         **delivery.request_identity(),
+        "delivery_source_sha256": delivery.source_sha256,
+        "delivery_source_size_bytes": delivery.source_size_bytes,
         "neutral_map_sha256": None
         if neutral_map is None
         else neutral_map.sha256,
     }
-    identity["request_sha256"] = canonical_sha256(identity)
-    return identity
+    request_sha256 = canonical_sha256(binding)
+    return {
+        **binding,
+        "request_binding": binding,
+        "request_binding_sha256": request_sha256,
+        "request_sha256": request_sha256,
+        # Keep these flattened fields as an operator-friendly compatibility
+        # projection; the nested binding is the authoritative identity.
+        **binding["request_policy"],
+    }
 
 
 def _attempt_record(
@@ -852,6 +1013,9 @@ def _attempt_record(
     input_tokens: int = 0,
     output_tokens: int = 0,
     estimated_cost_usd: float = 0.0,
+    cost_usd: float | None = None,
+    cost_known: bool = True,
+    cost_reason: str = "not_dispatched",
 ) -> dict[str, object]:
     record = {
         "schema_version": SCHEMA_VERSION,
@@ -860,6 +1024,8 @@ def _attempt_record(
         "video_id": request["video_id"],
         "condition_id": request["condition_id"],
         "request_sha256": request["request_sha256"],
+        "request_binding_sha256": request["request_binding_sha256"],
+        "request_binding": request["request_binding"],
         "source_sha256": request["source_sha256"],
         "delivery_sha256": request["delivery_sha256"],
         "model_id": request["model_id"],
@@ -870,7 +1036,13 @@ def _attempt_record(
         "attempt_index": attempt_index,
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
-        "estimated_cost_usd": round(estimated_cost_usd, 6),
+        "estimated_cost_usd": None if not cost_known else round(
+            estimated_cost_usd if cost_usd is None else cost_usd, 6
+        ),
+        "cost_usd": None if not cost_known or cost_usd is None else round(cost_usd, 6),
+        "cost_known": cost_known,
+        "cost_status": "known" if cost_known else "unknown",
+        "cost_reason": cost_reason,
     }
     if failure_code is not None:
         record["failure_code"] = failure_code
@@ -883,6 +1055,8 @@ def _result_record(
     status: str,
     output: Mapping[str, object] | None,
     estimated_cost_usd: float,
+    cost_known: bool,
+    cost_reason: str,
     input_tokens: int,
     output_tokens: int,
     raw_hashes: Sequence[str],
@@ -897,7 +1071,11 @@ def _result_record(
         "raw_response_paths": list(raw_paths),
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
-        "estimated_cost_usd": round(estimated_cost_usd, 6),
+        "estimated_cost_usd": None if not cost_known else round(estimated_cost_usd, 6),
+        "cost_usd": None if not cost_known else round(estimated_cost_usd, 6),
+        "cost_known": cost_known,
+        "cost_status": "known" if cost_known else "unknown",
+        "cost_reason": cost_reason,
     }
     if failure_code is not None:
         record["failure_code"] = failure_code
@@ -994,35 +1172,26 @@ def _existing_logical_result(
     ]
     if len(matches) > 1:
         raise RequestBindingError("multiple terminal records bind one request")
-    if matches and not _result_hash_valid(matches[0]):
+    if matches and (
+        not _result_hash_valid(matches[0]) or not _result_binding_valid(matches[0])
+    ):
         raise RequestBindingError("terminal result identity changed")
     return matches[0] if matches else None
 
 
 def _binding_matches(existing: Mapping[str, object], request: Mapping[str, object]) -> bool:
-    fields = (
-        "request_sha256",
-        "run_id",
-        "phase",
-        "panel_sha256",
-        "source_sha256",
-        "source_size_bytes",
-        "video_id",
-        "model_id",
-        "provider",
-        "condition_id",
-        "prompt_sha256",
-        "schema_sha256",
-        "provider_schema_sha256",
-        "delivery_provider",
-        "delivery_policy_version",
-        "delivery_sha256",
-        "delivery_size_bytes",
-        "delivery_mime_type",
-        "delivery_derived",
-        "neutral_map_sha256",
+    return (
+        all(existing.get(key) == request.get(key) for key in request)
+        and
+        existing.get("request_sha256") == request.get("request_sha256")
+        and existing.get("request_binding_sha256")
+        == request.get("request_binding_sha256")
+        and existing.get("request_binding") == request.get("request_binding")
+        and canonical_sha256(existing.get("request_binding"))
+        == existing.get("request_binding_sha256")
+        and canonical_sha256(request.get("request_binding"))
+        == request.get("request_binding_sha256")
     )
-    return all(existing.get(field) == request.get(field) for field in fields)
 
 
 def _ensure_request_record(
@@ -1030,6 +1199,16 @@ def _ensure_request_record(
     request: Mapping[str, object],
 ) -> None:
     records = _read_jsonl(prepared.path / "requests.jsonl")
+    logical_matches = [
+        existing
+        for existing in records
+        if existing.get("run_id") == request["run_id"]
+        and existing.get("phase") == request["phase"]
+        and existing.get("video_id") == request["video_id"]
+        and existing.get("condition_id") == request["condition_id"]
+    ]
+    if len(logical_matches) > 1:
+        raise RequestBindingError("multiple request records bind one logical request")
     for existing in records:
         if existing.get("request_sha256") == request["request_sha256"]:
             if not _binding_matches(existing, request):
@@ -1045,16 +1224,112 @@ def _ensure_request_record(
     _append_jsonl(prepared.path / "requests.jsonl", request)
 
 
+def _claim_request(
+    prepared: PreparedPhase0Run,
+    request: Mapping[str, object],
+) -> None:
+    path = prepared.path / "request-claims" / f"{request['request_sha256']}.json"
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "status": "claimed",
+        "run_id": prepared.run_id,
+        "phase": request["phase"],
+        "video_id": request["video_id"],
+        "condition_id": request["condition_id"],
+        "request_sha256": request["request_sha256"],
+        "request_binding_sha256": request["request_binding_sha256"],
+        "request_binding": request["request_binding"],
+    }
+    try:
+        _write_json_once(path, payload)
+    except FileExistsError as error:
+        existing = _read_json(path)
+        if (
+            existing == payload
+            and _result_for_request_is_valid(prepared, request)
+        ):
+            return
+        raise AmbiguousStartedAttemptError(
+            "permanent request claim without a valid terminal result requires operator review"
+        ) from error
+
+
+def _result_for_request_is_valid(
+    prepared: PreparedPhase0Run,
+    request: Mapping[str, object],
+) -> bool:
+    for condition in _CONDITIONS:
+        for result in _read_jsonl(prepared.path / "results" / f"{condition}.jsonl"):
+            if (
+                result.get("run_id") == prepared.run_id
+                and result.get("request_sha256") == request["request_sha256"]
+                and result.get("status") in _TERMINAL
+                and _result_hash_valid(result)
+                and result.get("request_binding_sha256")
+                == request.get("request_binding_sha256")
+                and result.get("request_binding") == request.get("request_binding")
+            ):
+                return True
+    return False
+
+
 def _fail_on_ambiguous_started_attempts(prepared: PreparedPhase0Run) -> None:
+    if _orphan_claims(prepared):
+        raise AmbiguousStartedAttemptError(
+            "permanent request claim without a valid terminal result requires operator review"
+        )
     ambiguous = _ambiguous_attempts(prepared, _read_jsonl(prepared.path / "attempts.jsonl"))
     if ambiguous:
+        if any(
+            (
+                isinstance(attempt.get("request_sha256"), str)
+                and (prepared.path / "request-claims" / f"{attempt['request_sha256']}.json").is_file()
+                and not _result_for_request_is_valid(
+                    prepared,
+                    {
+                        "request_sha256": attempt["request_sha256"],
+                        "request_binding_sha256": attempt.get("request_binding_sha256"),
+                        "request_binding": attempt.get("request_binding"),
+                    },
+                )
+            )
+            for attempt in ambiguous
+        ):
+            raise AmbiguousStartedAttemptError(
+                "permanent request claim without a valid terminal result requires operator review"
+            )
         raise AmbiguousStartedAttemptError("started attempt lacks a terminal record")
+
+
+def _orphan_claims(prepared: PreparedPhase0Run) -> list[Mapping[str, object]]:
+    claims_dir = prepared.path / "request-claims"
+    if not claims_dir.is_dir() or claims_dir.is_symlink():
+        return []
+    orphaned: list[Mapping[str, object]] = []
+    for path in sorted(claims_dir.glob("*.json")):
+        try:
+            claim = _read_json(path)
+        except ValueError:
+            orphaned.append({"path": path.name})
+            continue
+        if claim.get("run_id") != prepared.run_id:
+            orphaned.append(claim)
+            continue
+        if not _result_for_request_is_valid(prepared, claim):
+            orphaned.append(claim)
+    return orphaned
 
 
 def _ambiguous_attempts(
     prepared: PreparedPhase0Run,
     attempts: Sequence[Mapping[str, object]],
 ) -> list[Mapping[str, object]]:
+    invalid_bindings = [
+        attempt
+        for attempt in attempts
+        if attempt.get("run_id") == prepared.run_id
+        and not _request_binding_record_valid(attempt)
+    ]
     terminal_keys = {
         (
             attempt.get("condition_id"),
@@ -1066,7 +1341,7 @@ def _ambiguous_attempts(
         for attempt in attempts
         if attempt.get("run_id") == prepared.run_id and attempt.get("status") in _TERMINAL
     }
-    return [
+    ambiguous = invalid_bindings + [
         attempt
         for attempt in attempts
         if attempt.get("run_id") == prepared.run_id
@@ -1080,6 +1355,41 @@ def _ambiguous_attempts(
         )
         not in terminal_keys
     ]
+    terminal_results = [
+        result
+        for condition in _CONDITIONS
+        for result in _read_jsonl(prepared.path / "results" / f"{condition}.jsonl")
+        if result.get("run_id") == prepared.run_id
+        and result.get("status") in _TERMINAL
+        and _result_hash_valid(result)
+        and _result_binding_valid(result)
+    ]
+    for attempt in attempts:
+        if attempt.get("run_id") != prepared.run_id or attempt.get("status") not in _TERMINAL:
+            continue
+        matches = [
+            result
+            for result in terminal_results
+            if result.get("request_sha256") == attempt.get("request_sha256")
+        ]
+        if len(matches) != 1:
+            ambiguous.append(attempt)
+    return ambiguous
+
+
+def _request_binding_record_valid(record: Mapping[str, object]) -> bool:
+    binding = record.get("request_binding")
+    digest = record.get("request_binding_sha256")
+    return (
+        isinstance(binding, Mapping)
+        and isinstance(digest, str)
+        and canonical_sha256(binding) == digest
+        and record.get("request_sha256") == digest
+        and all(
+            key not in record or record.get(key) == value
+            for key, value in binding.items()
+        )
+    )
 
 
 def _neutral_map_from_result(
@@ -1103,9 +1413,13 @@ def _summary_from_outcomes(
         skipped=sum(result.get("status") == "skipped" for result in outcomes),
         input_tokens=sum(_int(result.get("input_tokens", 0)) for result in outcomes),
         output_tokens=sum(_int(result.get("output_tokens", 0)) for result in outcomes),
-        observed_cost_usd=round(
-            sum(_number(result.get("estimated_cost_usd", 0.0)) for result in outcomes),
-            6,
+        observed_cost_usd=(
+            None
+            if any(result.get("cost_known") is not True for result in outcomes)
+            else round(
+                sum(_number(result.get("cost_usd", 0.0)) for result in outcomes),
+                6,
+            )
         ),
     )
 
@@ -1122,20 +1436,67 @@ def _combine_summaries(
         skipped=sum(summary.skipped for summary in summaries),
         input_tokens=sum(summary.input_tokens for summary in summaries),
         output_tokens=sum(summary.output_tokens for summary in summaries),
-        observed_cost_usd=round(
-            sum(summary.observed_cost_usd for summary in summaries), 6
+        observed_cost_usd=(
+            None
+            if any(summary.observed_cost_usd is None for summary in summaries)
+            else round(sum(summary.observed_cost_usd or 0.0 for summary in summaries), 6)
         ),
     )
 
 
-def _generation_cost(generated: GenerationResult) -> float:
-    reported = generated.provider_metadata.get("reported_cost_usd")
-    if reported is not None:
-        return _number(reported)
-    return (
-        generated.usage.input_tokens * 2.0
-        + generated.usage.output_tokens * 12.0
-    ) / 1_000_000
+def _cost_observation(
+    *,
+    generated: GenerationResult | None,
+    error: Exception | None,
+    provider_reached: bool,
+) -> tuple[float | None, bool, str]:
+    metadata = {} if generated is None else generated.provider_metadata
+    reported = metadata.get("reported_cost_usd")
+    if reported is None and error is not None:
+        reported = getattr(error, "reported_cost_usd", None)
+    if isinstance(reported, (int, float)) and not isinstance(reported, bool):
+        if math.isfinite(float(reported)) and float(reported) >= 0:
+            return float(reported), True, "provider_reported"
+    usage = None if generated is None else generated.usage
+    if usage is None and error is not None:
+        usage = getattr(error, "usage", None)
+    input_tokens = getattr(usage, "input_tokens", None)
+    output_tokens = getattr(usage, "output_tokens", None)
+    if (
+        isinstance(input_tokens, int)
+        and not isinstance(input_tokens, bool)
+        and isinstance(output_tokens, int)
+        and not isinstance(output_tokens, bool)
+        and (input_tokens > 0 or output_tokens > 0)
+    ):
+        return (
+            (input_tokens * 2.0 + output_tokens * 12.0) / 1_000_000,
+            True,
+            "token_usage",
+        )
+    if not provider_reached:
+        return 0.0, True, "provider_not_reached"
+    return None, False, "missing_provider_cost_and_usage"
+
+
+def _validate_transport(transport: FrontierTransport, condition_id: str) -> None:
+    if getattr(transport, "provider_name", None) != OPENROUTER_PROVIDER:
+        raise Phase0RunnerError("transport provider must be openrouter")
+    if getattr(transport, "response_format_policy", None) != _RESPONSE_FORMAT_POLICY:
+        raise Phase0RunnerError("transport response-format policy is not exact-fence")
+    if not all(callable(getattr(transport, name, None)) for name in ("upload", "generate", "delete")):
+        raise Phase0RunnerError("transport must expose callable upload/generate/delete")
+    expected = MAP_POLICY if condition_id == "neutral_map" else ANSWER_POLICY
+    identity = getattr(transport, "policy_identity", None)
+    observed = identity.get(condition_id) if isinstance(identity, Mapping) else None
+    if observed is None:
+        public_policy = getattr(transport, "request_policy", None)
+        if public_policy is not None:
+            observed = public_policy
+    if isinstance(transport, OpenRouterTransport):
+        observed = getattr(transport, "_policy", None)
+    if observed != expected:
+        raise Phase0RunnerError("transport request policy does not match condition")
 
 
 def _transport_estimate(
@@ -1167,32 +1528,59 @@ def _failure_code(error: BaseException, generated: GenerationResult | None) -> s
     status_code = getattr(error, "status_code", None)
     if status_code == 429:
         return "rate_limit"
-    message = str(error).casefold()
-    if "rate" in message and "limit" in message:
-        return "rate_limit"
-    if "truncat" in message or "maximum output" in message or "length" in message and "response" in message:
-        return "truncated"
     if generated is not None and not generated.raw_response:
         return "empty"
+    if isinstance(status_code, int) and 500 <= status_code <= 599:
+        return "transport"
+    if isinstance(status_code, int) and 400 <= status_code <= 499:
+        return "http_client_error"
+    if isinstance(error, ProviderResponseEvidenceError):
+        return "truncated" if _has_truncation_evidence(generated) else "provider_protocol"
     if isinstance(error, json.JSONDecodeError):
         return "invalid_json"
-    if isinstance(error, ProviderResponseEvidenceError):
-        code = getattr(error, "failure_code", "")
-        return "truncated" if code in {"protocol_no_response", "protocol_failure"} and "truncat" in message else "provider_protocol"
     if isinstance(error, ProviderError):
         code = getattr(error, "failure_code", "")
-        if code in {"provider_request", "provider_generation", "provider_failure"}:
+        if code in {"provider_request", "provider_generation"}:
+            return "transport"
+        message = str(error).casefold()
+        if any(
+            marker in message
+            for marker in ("timeout", "timed out", "connection reset", "temporarily unavailable")
+        ) and not (isinstance(status_code, int) and 400 <= status_code <= 499):
             return "transport"
         if code == "protocol_no_response":
             return "empty"
         return "provider_failure"
     if isinstance(error, ProviderProtocolError):
-        return "schema_validation"
+        return "provider_protocol"
     if isinstance(error, DeliveryMediaError):
         return "delivery_media"
+    if isinstance(error, OSError):
+        return "filesystem_error"
     if isinstance(error, ValueError):
         return "schema_validation"
-    return "transport"
+    return "internal_error"
+
+
+def _has_truncation_evidence(generated: GenerationResult | None) -> bool:
+    if generated is None:
+        return False
+    try:
+        payload = json.loads(generated.raw_response)
+    except (TypeError, json.JSONDecodeError):
+        return False
+    if not isinstance(payload, Mapping):
+        return False
+    for key in ("finish_reason", "finishReason", "finish", "reason"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.casefold() in {
+            "length",
+            "max_tokens",
+            "max_output_tokens",
+            "truncated",
+        }:
+            return True
+    return False
 
 
 def _validate_provider_model(generated: GenerationResult) -> None:
@@ -1294,6 +1682,7 @@ def _bound_results(
     condition_id: str,
 ) -> list[Mapping[str, object]]:
     results = []
+    logical: dict[tuple[object, object, object], Mapping[str, object]] = {}
     for result in _read_jsonl(prepared.path / "results" / f"{condition_id}.jsonl"):
         if (
             result.get("run_id") == prepared.run_id
@@ -1301,10 +1690,22 @@ def _bound_results(
             and result.get("status") in _TERMINAL
             and isinstance(result.get("result_sha256"), str)
         ):
-            if not _result_hash_valid(result):
+            if not _result_hash_valid(result) or not _result_binding_valid(result):
                 raise RequestBindingError("terminal result identity changed")
+            key = (result.get("phase"), result.get("video_id"), condition_id)
+            if key in logical:
+                raise RequestBindingError("multiple terminal records bind one request")
+            logical[key] = result
             results.append(result)
     return results
+
+
+def _all_terminal_results(prepared: PreparedPhase0Run) -> list[Mapping[str, object]]:
+    return [
+        result
+        for condition in _CONDITIONS
+        for result in _bound_results(prepared, condition)
+    ]
 
 
 def _result_hash_valid(result: Mapping[str, object]) -> bool:
@@ -1316,44 +1717,124 @@ def _result_hash_valid(result: Mapping[str, object]) -> bool:
     return canonical_sha256(unsigned) == declared
 
 
+def _result_binding_valid(result: Mapping[str, object]) -> bool:
+    binding = result.get("request_binding")
+    digest = result.get("request_binding_sha256")
+    policy = binding.get("request_policy") if isinstance(binding, Mapping) else None
+    flattened_policy_valid = isinstance(policy, Mapping) and all(
+        result.get(key) == value for key, value in policy.items()
+    )
+    return (
+        isinstance(binding, Mapping)
+        and isinstance(digest, str)
+        and canonical_sha256(binding) == digest
+        and result.get("request_sha256") == digest
+        and all(result.get(key) == value for key, value in binding.items())
+        and flattened_policy_valid
+    )
+
+
 def _unrepresented_terminal_attempts(
     prepared: PreparedPhase0Run,
     condition_id: str,
-) -> tuple[int, float]:
+    *,
+    allowed_video_ids: set[str] | None = None,
+) -> tuple[int, float, bool]:
     result_hashes = {
         str(result.get("request_sha256"))
         for result in _bound_results(prepared, condition_id)
     }
-    grouped: dict[str, float] = {}
+    grouped: dict[str, tuple[float, bool]] = {}
+    unknown = False
     for attempt in _read_jsonl(prepared.path / "attempts.jsonl"):
         request_sha256 = attempt.get("request_sha256")
         if (
             attempt.get("run_id") == prepared.run_id
             and attempt.get("condition_id") == condition_id
+            and (
+                allowed_video_ids is None
+                or attempt.get("video_id") in allowed_video_ids
+                or attempt.get("phase") == "pilot"
+            )
             and attempt.get("status") in _TERMINAL
             and isinstance(request_sha256, str)
             and request_sha256 not in result_hashes
         ):
-            grouped[request_sha256] = grouped.get(request_sha256, 0.0) + _number(
-                attempt.get("estimated_cost_usd", 0.0)
-            )
-    return len(grouped), sum(grouped.values())
+            known = attempt.get("cost_known") is True and attempt.get("cost_usd") is not None
+            if not known:
+                unknown = True
+                grouped.setdefault(request_sha256, (0.0, False))
+            else:
+                current, current_known = grouped.get(request_sha256, (0.0, True))
+                grouped[request_sha256] = (current + _number(attempt["cost_usd"]), current_known)
+    return len(grouped), sum(value[0] for value in grouped.values()), unknown
+
+
+def _cost_state(prepared: PreparedPhase0Run) -> tuple[float | None, bool]:
+    total = 0.0
+    known = True
+    for condition in _CONDITIONS:
+        for result in _bound_results(prepared, condition):
+            if result.get("cost_known") is not True or result.get("cost_usd") is None:
+                known = False
+            else:
+                total += _number(result["cost_usd"])
+        _, attempt_cost, attempts_known = _unrepresented_terminal_attempts(
+            prepared, condition
+        )
+        total += attempt_cost
+        known = known and not attempts_known
+    return (total if known else None), known
+
+
+def _known_cumulative_cost(prepared: PreparedPhase0Run) -> float:
+    total, known = _cost_state(prepared)
+    if not known or total is None:
+        raise CostUnknownError("cost_unknown blocks further provider calls")
+    return total
 
 
 def _cumulative_cost(prepared: PreparedPhase0Run) -> float:
-    result_cost = sum(
-        _number(result.get("estimated_cost_usd", 0.0))
-        for condition in _CONDITIONS
-        for result in _bound_results(prepared, condition)
+    return _known_cumulative_cost(prepared)
+
+
+def _ensure_cost_known(prepared: PreparedPhase0Run) -> None:
+    total, known = _cost_state(prepared)
+    if not known or total is None:
+        _write_cost_state(prepared, "cost_unknown", None)
+        raise CostUnknownError("cost_unknown blocks dispatch, authorization, and freeze")
+
+
+def _record_cost_state(prepared: PreparedPhase0Run) -> None:
+    total, known = _cost_state(prepared)
+    if not known:
+        _write_cost_state(prepared, "cost_unknown", None)
+    elif total is not None and total >= ABSOLUTE_CAP_USD:
+        _write_cost_state(prepared, "cap_reached", total)
+    else:
+        _write_cost_state(prepared, "known", total)
+
+
+def _write_cost_state(
+    prepared: PreparedPhase0Run,
+    state: str,
+    observed_cost: float | None,
+) -> None:
+    _write_json_replace(
+        prepared.path / "cost-state.json",
+        {
+            "schema_version": SCHEMA_VERSION,
+            "run_id": prepared.run_id,
+            "panel_sha256": prepared.panel_sha256,
+            "state": state,
+            "cost_known": state != "cost_unknown",
+            "observed_cost_usd": None if observed_cost is None else round(observed_cost, 6),
+        },
     )
-    attempt_cost = sum(
-        _unrepresented_terminal_attempts(prepared, condition)[1]
-        for condition in _CONDITIONS
-    )
-    return result_cost + attempt_cost
 
 
 def _verify_cost_gate(prepared: PreparedPhase0Run, gate: Mapping[str, object]) -> None:
+    _ensure_cost_known(prepared)
     if (
         gate.get("status") != "authorized"
         or gate.get("run_id") != prepared.run_id
@@ -1365,6 +1846,17 @@ def _verify_cost_gate(prepared: PreparedPhase0Run, gate: Mapping[str, object]) -
     hashes = gate.get("first_row_result_hashes")
     if not isinstance(hashes, Mapping) or any(hashes.get(condition) != first.get(condition, {}).get("result_sha256") for condition in _CONDITIONS):
         raise CostGateError("cost gate first-row result binding changed")
+    snapshot = gate.get("projection_snapshot")
+    snapshot_sha = gate.get("projection_snapshot_sha256")
+    if (
+        not isinstance(snapshot, Mapping)
+        or not isinstance(snapshot_sha, str)
+        or canonical_sha256(snapshot) != snapshot_sha
+    ):
+        raise CostGateError("cost gate projection snapshot is missing or forged")
+    recomputed = project_remaining_cost(prepared, _screen_limit=1)
+    if recomputed != snapshot:
+        raise CostGateError("cost gate first-row projection binding changed")
 
 
 def _verify_pilot_authorization(prepared: PreparedPhase0Run) -> None:
@@ -1374,6 +1866,17 @@ def _verify_pilot_authorization(prepared: PreparedPhase0Run) -> None:
         raise PilotGateError("pilot audit authorization binding changed")
     if payload.get("pilot_freeze_sha256") != _sha256_file(prepared.path / "pilot-freeze.json"):
         raise PilotGateError("pilot audit authorization is stale")
+    audit_path = prepared.path / "pilot-audit-freeze.json"
+    if not audit_path.is_file():
+        raise PilotGateError("pilot audit freeze artifact is not retained")
+    audit = _read_json(audit_path)
+    _verify_audit_freeze(prepared, audit_path, audit)
+    if (
+        payload.get("pilot_audit_freeze_sha256") != _sha256_file(audit_path)
+        or payload.get("pilot_audit_artifact_sha256") != audit.get("artifact_sha256")
+        or payload.get("pilot_audit_bindings_sha256") != audit.get("bindings_sha256")
+    ):
+        raise PilotGateError("pilot audit authorization audit binding changed")
 
 
 def _verify_freeze_file(path: Path) -> None:
@@ -1387,21 +1890,41 @@ def _verify_audit_freeze(
     path: Path,
     freeze: Mapping[str, object],
 ) -> None:
-    if freeze.get("status") != "frozen":
+    if (
+        freeze.get("schema_version") != SCHEMA_VERSION
+        or freeze.get("status") != "frozen"
+        or not isinstance(freeze.get("artifact_sha256"), str)
+        or not _SHA256.fullmatch(str(freeze.get("artifact_sha256")))
+        or not isinstance(freeze.get("bindings_sha256"), str)
+        or not _SHA256.fullmatch(str(freeze.get("bindings_sha256")))
+    ):
         raise PilotGateError("pilot audit authorization requires a frozen audit")
     bindings = freeze.get("bindings")
-    if isinstance(bindings, Mapping):
-        if bindings.get("run_id") is not None and bindings.get("run_id") != prepared.run_id:
-            raise PilotGateError("pilot audit freeze run binding is invalid")
-        if bindings.get("panel_sha256") is not None and bindings.get("panel_sha256") != prepared.panel_sha256:
-            raise PilotGateError("pilot audit freeze panel binding is invalid")
-    artifact_sha = freeze.get("artifact_sha256")
-    if isinstance(artifact_sha, str):
-        artifact = path.parent / "audit.json"
-        if artifact.is_file():
-            verify_json_artifact(artifact, dict(freeze))
-        else:
-            raise PilotGateError("pilot audit artifact bound by freeze is missing")
+    if not isinstance(bindings, Mapping):
+        raise PilotGateError("pilot audit freeze bindings are missing")
+    required = {"run_id", "panel_sha256", "phase"}
+    decision_keys = {"decision", "neutral_map_decision"}
+    if not required <= set(bindings) or len(set(bindings) & decision_keys) != 1:
+        raise PilotGateError("pilot audit freeze core bindings are incomplete")
+    if (
+        bindings.get("run_id") != prepared.run_id
+        or bindings.get("panel_sha256") != prepared.panel_sha256
+        or bindings.get("phase") != "pilot"
+    ):
+        raise PilotGateError("pilot audit freeze core binding is invalid")
+    if not isinstance(_audit_decision(freeze), str):
+        raise PilotGateError("pilot audit freeze decision is invalid")
+    artifact = (
+        path.with_name("pilot-audit.json")
+        if path.name == "pilot-audit-freeze.json"
+        else path.parent / "audit.json"
+    )
+    if not artifact.is_file() or artifact.is_symlink():
+        raise PilotGateError("pilot audit artifact bound by freeze is missing")
+    try:
+        verify_json_artifact(artifact, dict(freeze))
+    except (TypeError, ValueError) as error:
+        raise PilotGateError("pilot audit artifact freeze verification failed") from error
 
 
 def _audit_decision(freeze: Mapping[str, object]) -> object:
@@ -1420,9 +1943,17 @@ def _state_name(
     prepared: PreparedPhase0Run,
     counts: Mapping[str, Mapping[str, int]],
     ambiguous: int,
+    ambiguous_claims: int = 0,
 ) -> str:
-    if ambiguous:
+    if ambiguous or ambiguous_claims:
         return "blocked-ambiguous-attempt"
+    _, cost_known = _cost_state(prepared)
+    if not cost_known:
+        return "blocked-cost-unknown"
+    if (prepared.path / "cost-state.json").is_file():
+        cost_state = _read_json(prepared.path / "cost-state.json").get("state")
+        if cost_state == "cap_reached":
+            return "blocked-cost-cap"
     if (prepared.path / "screen-freeze.json").is_file():
         return "screen-frozen"
     if sum(counts[c]["screen_terminal"] for c in _CONDITIONS) == len(prepared.screen_rows) * len(_CONDITIONS):
@@ -1500,6 +2031,31 @@ def _parse_panel(payload: Mapping[str, object]) -> Phase0Panel:
     if not isinstance(payload, Mapping):
         raise ValueError("panel must be an object")
     _reject_labels(payload)
+    expected_keys = {
+        "schema_version",
+        "run_id",
+        "selection_policy",
+        "reference_policy",
+        "conditions",
+        "pilot_count",
+        "screen_count",
+        "bindings",
+        "examples",
+    }
+    if set(payload) != expected_keys:
+        raise ValueError("panel manifest fields do not match the frozen contract")
+    if payload.get("schema_version") != SCHEMA_VERSION:
+        raise ValueError("panel schema_version does not match")
+    if payload.get("run_id") != PHASE0_RUN_ID:
+        raise ValueError("panel run_id does not match")
+    if payload.get("selection_policy") != SELECTION_POLICY:
+        raise ValueError("panel selection_policy does not match")
+    if payload.get("reference_policy") != REFERENCE_POLICY:
+        raise ValueError("panel reference_policy does not match")
+    if payload.get("conditions") != list(_CONDITIONS):
+        raise ValueError("panel conditions do not match")
+    if payload.get("pilot_count") != 1 or payload.get("screen_count") != 7:
+        raise ValueError("panel counts do not match")
     raw_rows = payload.get("examples")
     if not isinstance(raw_rows, list):
         raise ValueError("panel must contain examples")
@@ -1508,29 +2064,60 @@ def _parse_panel(payload: Mapping[str, object]) -> Phase0Panel:
     screen = tuple(row for row in rows if row.phase == "screen")
     if len(pilot) != 1 or len(screen) != 7:
         raise ValueError("panel must contain one pilot and seven screen rows")
-    if [row.ordinal for row in screen] != sorted(row.ordinal for row in screen):
-        screen = tuple(sorted(screen, key=lambda row: row.ordinal))
+    if [row.ordinal for row in rows] != sorted(row.ordinal for row in rows):
+        raise ValueError("panel ordinals must be in exact ordered-manifest order")
+    if len({row.ordinal for row in rows}) != len(rows):
+        raise ValueError("panel ordinals must be unique")
     if len({row.video_id for row in rows}) != len(rows):
         raise ValueError("panel video IDs must be unique")
-    if payload.get("conditions") not in (None, list(_CONDITIONS)):
-        raise ValueError("panel conditions do not match")
+    if tuple(row.category for row in screen) != CATEGORIES:
+        raise ValueError("panel screen categories are not in frozen order")
     bindings = payload.get("bindings")
-    binding = bindings if isinstance(bindings, Mapping) else {}
-    run_id = payload.get("run_id", PHASE0_RUN_ID)
-    if not isinstance(run_id, str) or not run_id.strip():
-        raise ValueError("panel run_id must be non-empty")
+    if not isinstance(bindings, Mapping):
+        raise ValueError("panel bindings are required")
+    required_bindings = {
+        "source_panel_sha256",
+        "qwen_predictions_sha256",
+        "selected_ordered_ids_sha256",
+        "source_media_sha256",
+        "selection_policy",
+    }
+    optional_bindings = {
+        "source_panel_file_sha256",
+        "qwen_prediction_file_sha256",
+    }
+    if set(bindings) - required_bindings - optional_bindings:
+        raise ValueError("panel contains an unknown binding")
+    if set(bindings) & required_bindings != required_bindings:
+        raise ValueError("panel is missing a required binding")
+    if bindings.get("selection_policy") != SELECTION_POLICY:
+        raise ValueError("panel binding selection_policy does not match")
+    for field in required_bindings - {"selection_policy"} | optional_bindings & set(bindings):
+        if _SHA256.fullmatch(_text(bindings.get(field), field)) is None:
+            raise ValueError(f"{field} must be a lowercase SHA-256 digest")
+    expected_ids_sha = canonical_sha256([row.video_id for row in rows])
+    expected_media_sha = canonical_sha256(
+        [
+            {"video_id": row.video_id, "source_sha256": row.media_sha256}
+            for row in rows
+        ]
+    )
+    if bindings["selected_ordered_ids_sha256"] != expected_ids_sha:
+        raise ValueError("panel ordered-id binding does not match rows")
+    if bindings["source_media_sha256"] != expected_media_sha:
+        raise ValueError("panel source-media binding does not match rows")
     return Phase0Panel(
-        schema_version=int(payload.get("schema_version", SCHEMA_VERSION)),
-        run_id=run_id,
-        selection_policy=str(payload.get("selection_policy", "synthetic-offline-fixture")),
-        reference_policy=str(payload.get("reference_policy", "not-read-not-serialized")),
-        source_panel_sha256=str(binding.get("source_panel_sha256", canonical_sha256(payload))),
-        qwen_predictions_sha256=str(binding.get("qwen_predictions_sha256", canonical_sha256([]))),
-        selected_ordered_ids_sha256=str(binding.get("selected_ordered_ids_sha256", canonical_sha256([row.video_id for row in rows]))),
-        source_media_sha256=str(binding.get("source_media_sha256", canonical_sha256([{"video_id": row.video_id, "source_sha256": row.media_sha256} for row in rows]))),
+        schema_version=SCHEMA_VERSION,
+        run_id=PHASE0_RUN_ID,
+        selection_policy=SELECTION_POLICY,
+        reference_policy=REFERENCE_POLICY,
+        source_panel_sha256=str(bindings["source_panel_sha256"]),
+        qwen_predictions_sha256=str(bindings["qwen_predictions_sha256"]),
+        selected_ordered_ids_sha256=str(bindings["selected_ordered_ids_sha256"]),
+        source_media_sha256=str(bindings["source_media_sha256"]),
         rows=(pilot[0], *screen),
-        source_panel_file_sha256=None,
-        qwen_prediction_file_sha256=None,
+        source_panel_file_sha256=bindings.get("source_panel_file_sha256"),
+        qwen_prediction_file_sha256=bindings.get("qwen_prediction_file_sha256"),
     )
 
 
@@ -1538,16 +2125,37 @@ def _parse_row(raw: object, index: int) -> PanelRow:
     if not isinstance(raw, Mapping):
         raise ValueError(f"examples[{index}] must be an object")
     phase = raw.get("phase")
+    required = {
+        "ordinal", "phase", "video_id", "question", "category",
+        "evidence_topology", "selection_rationale", "media_relative_path",
+        "media_sha256", "size_bytes", "duration_seconds", "has_audio",
+        "has_video", "condition_ids",
+    }
+    if phase == "screen":
+        required |= {"qwen_condition_id", "qwen_status"}
+    if phase == "pilot":
+        if "qwen_condition_id" in raw or "qwen_status" in raw:
+            raise ValueError("pilot row must not contain Qwen fields")
+    if set(raw) != required:
+        raise ValueError(f"examples[{index}] fields do not match the frozen contract")
     if phase not in {"pilot", "screen"}:
         raise ValueError("panel row phase must be pilot or screen")
     condition_ids = raw.get("condition_ids")
     expected = ["neutral_map"] if phase == "pilot" else list(_CONDITIONS)
     if condition_ids != expected:
         raise ValueError("panel row condition_ids do not match the phase")
+    if phase == "screen" and (
+        raw.get("qwen_condition_id") != QWEN_CONDITION_ID
+        or raw.get("qwen_status") != "passed"
+    ):
+        raise ValueError("screen row must bind the passed Qwen baseline")
     video_id = _text(raw.get("video_id"), "video_id")
     if _SAFE_ID.fullmatch(video_id) is None:
         raise ValueError("video_id must be a safe path segment")
     media_path = _text(raw.get("media_relative_path"), "media_relative_path")
+    category = _text(raw.get("category"), "category")
+    if category not in CATEGORIES:
+        raise ValueError("category is not a frozen Phase 0 category")
     duration = _number(raw.get("duration_seconds"))
     if duration <= 0:
         raise ValueError("duration_seconds must be greater than zero")
@@ -1562,18 +2170,20 @@ def _parse_row(raw: object, index: int) -> PanelRow:
         phase=phase,
         video_id=video_id,
         question=_text(raw.get("question"), "question"),
-        category=_text(raw.get("category"), "category"),
+        category=category,
         evidence_topology=_text(raw.get("evidence_topology"), "evidence_topology"),
         selection_rationale=_text(raw.get("selection_rationale"), "selection_rationale"),
         media_relative_path=media_path,
         media_sha256=media_sha,
         size_bytes=size,
         duration_seconds=duration,
-        has_audio=bool(raw.get("has_audio")),
-        has_video=bool(raw.get("has_video")),
+        has_audio=_bool(raw.get("has_audio")),
+        has_video=_bool(raw.get("has_video")),
         condition_ids=tuple(condition_ids),
-        qwen_condition_id=raw.get("qwen_condition_id") if isinstance(raw.get("qwen_condition_id"), str) else None,
-        qwen_status=raw.get("qwen_status") if isinstance(raw.get("qwen_status"), str) else None,
+        qwen_condition_id=_text(raw.get("qwen_condition_id"), "qwen_condition_id")
+        if phase == "screen" else None,
+        qwen_status=_text(raw.get("qwen_status"), "qwen_status")
+        if phase == "screen" else None,
     )
 
 
@@ -1687,6 +2297,23 @@ def _write_json_replace(path: Path, payload: Mapping[str, object]) -> None:
     temporary.replace(path)
 
 
+def _write_bytes_once(path: Path, content: bytes) -> None:
+    if path.exists() or path.is_symlink():
+        raise FileExistsError(f"artifact already exists: {path.name}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile("wb", dir=path.parent, delete=False) as handle:
+        handle.write(content)
+        handle.flush()
+        os.fsync(handle.fileno())
+        temporary = Path(handle.name)
+    try:
+        os.link(temporary, path)
+    except FileExistsError as error:
+        raise FileExistsError(f"artifact already exists: {path.name}") from error
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def _write_terminal_status(prepared: PreparedPhase0Run) -> None:
     _write_json_replace(prepared.path / "terminal-status.json", status(prepared))
 
@@ -1708,6 +2335,12 @@ def _text(value: object, field: str) -> str:
 def _int(value: object) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError("value must be an integer")
+    return value
+
+
+def _bool(value: object) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError("value must be a boolean")
     return value
 
 

@@ -7,6 +7,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+from trec_video_2026.vqa_frontier_phase0_panel import (
+    CATEGORIES,
+    CONDITIONS,
+    PHASE0_RUN_ID,
+    QWEN_CONDITION_ID,
+    REFERENCE_POLICY,
+    SELECTION_POLICY,
+)
+from trec_video_2026.vqa_submission import canonical_sha256
+
 
 def test_prepare_preflight_and_status_cli_stdout_is_safe(tmp_path: Path) -> None:
     panel_path = tmp_path / "panel.json"
@@ -72,12 +82,33 @@ def _panel_payload() -> dict[str, object]:
         _row(index + 1, "screen", f"screen-video-{index}", media_sha256)
         for index in range(1, 8)
     )
+    for index, row in enumerate(rows):
+        if row["phase"] == "screen":
+            row["category"] = CATEGORIES[index - 1]
+            row["qwen_condition_id"] = QWEN_CONDITION_ID
+            row["qwen_status"] = "passed"
     return {
         "schema_version": 1,
-        "run_id": "vqa-frontier-phase0-20260812",
-        "selection_policy": "synthetic-offline-fixture",
-        "reference_policy": "not-read-not-serialized",
-        "conditions": ["neutral_map", "direct_answer", "map_guided_answer"],
+        "run_id": PHASE0_RUN_ID,
+        "selection_policy": SELECTION_POLICY,
+        "reference_policy": REFERENCE_POLICY,
+        "conditions": list(CONDITIONS),
+        "pilot_count": 1,
+        "screen_count": 7,
+        "bindings": {
+            "source_panel_sha256": "a" * 64,
+            "qwen_predictions_sha256": "b" * 64,
+            "selected_ordered_ids_sha256": canonical_sha256(
+                [row["video_id"] for row in rows]
+            ),
+            "source_media_sha256": canonical_sha256(
+                [
+                    {"video_id": row["video_id"], "source_sha256": row["media_sha256"]}
+                    for row in rows
+                ]
+            ),
+            "selection_policy": SELECTION_POLICY,
+        },
         "examples": rows,
     }
 
@@ -88,7 +119,7 @@ def _row(
     video_id: str,
     media_sha256: str,
 ) -> dict[str, object]:
-    return {
+    row = {
         "ordinal": ordinal,
         "phase": phase,
         "video_id": video_id,
@@ -106,3 +137,7 @@ def _row(
         if phase == "pilot"
         else ["neutral_map", "direct_answer", "map_guided_answer"],
     }
+    if phase == "screen":
+        row["qwen_condition_id"] = QWEN_CONDITION_ID
+        row["qwen_status"] = "passed"
+    return row
