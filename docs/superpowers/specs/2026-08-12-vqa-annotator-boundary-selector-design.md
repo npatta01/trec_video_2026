@@ -1,7 +1,7 @@
 # VQA Annotator, Boundary Selector, and All-Modality Answering Design
 
 **Date:** 2026-08-12
-**Status:** Approved in conversation; implementation not started
+**Status:** Revised and approved in conversation; implementation not started
 
 ## Objective
 
@@ -13,11 +13,18 @@ boundaries, and asks a separate multimodal answerer for one supported answer.
 The annotation is a temporal map and evidence control plane. It does not
 replace the native video, and it does not produce the final answer.
 
+The immediate work is a frontier-model capability experiment, not construction
+of this complete architecture. Gemini must first demonstrate that it can create
+a faithful question-blind map and use that map to answer on a small frozen
+panel. The decomposer, selector, specialist refinements, and local-model system
+remain a future design until that evidence exists.
+
 ## Decisions already made
 
 - Optimize for the single best-supported answer. Ranked answers two through ten
   remain a downstream submission concern.
-- Annotate the full native video and audio before answering.
+- Annotate the full native video and audio without the VQA question, reference,
+  or any answer hypothesis.
 - Preserve a natural-language scene description plus structured entities,
   actions, state changes, timestamps, audio, uncertainty, and evidence
   references.
@@ -34,6 +41,13 @@ replace the native video, and it does not produce the final answer.
   textual or visual claim.
 - Multiple inference paths are allowed when they reveal different evidence,
   not merely to manufacture answer diversity.
+- The first frontier screen uses exactly one annotation pass per video. The
+  annotator interface may support later refinement passes, but only a measured
+  omission, boundary error, or perception gap can justify testing one.
+- Question-type routing and specialist evidence tools are deferred. The
+  frontier screen supplies complete native video and audio to both answer
+  conditions and tests the map before adding OCR, Whisper, tracking, dense
+  frames, crops, or super-resolution.
 
 ## Non-goals
 
@@ -45,6 +59,8 @@ replace the native video, and it does not produce the final answer.
 - Do not optimize this design around runtime amortization or the current
   one-question-per-video development layout.
 - Do not implement final top-ten answer construction in this architecture.
+- Do not build the decomposer, selector, refinement pipeline, or local-model
+  production path before the frontier capability gate is interpreted.
 
 ## Architecture
 
@@ -69,9 +85,11 @@ The design has six modules with explicit seams.
 ### 1. Video annotator
 
 The annotator consumes the complete native video and audio. It is blind to the
-specific VQA question and to labels, but it is aware of the task's evidence
-needs: actions, entities, state transitions, causality, counting and tracking,
-visible text, speech, non-speech sound, and global context.
+specific VQA question, reference, labels, and answer hypotheses, but it is
+aware of the task's general evidence needs: actions, entities, state
+transitions, causality, counting and tracking, visible text, speech,
+non-speech sound, and global context. Question-blindness is a required property
+of the annotation layer, not an experimental variable in the frontier screen.
 
 It emits a coarse video summary and a chronological set of semantic scene or
 event records. Scene boundaries may overlap when an action or transition
@@ -81,6 +99,11 @@ one disjoint shot.
 The annotator records uncertainty and omitted or unreadable details instead of
 guessing. It does not emit `top1_answer`, question relevance, or any equivalent
 answer field.
+
+The interface permits a future annotation-refinement pass that receives the
+frozen first map and native media but still no VQA question or reference. Phase
+0 does not exercise that interface. A second pass becomes a separate condition
+only after audited first-pass failures establish what it must recover.
 
 ### 2. Question decomposer
 
@@ -133,7 +156,8 @@ Every selected interval carries all available modalities:
 - neighboring temporal context;
 - provenance and uncertainty.
 
-Question type controls additional processing, not modality removal:
+In a future production system, question type may request additional processing
+but may not remove a modality:
 
 - OCR/detail: source-resolution frames, targeted crops, adjacent frames,
   multi-frame agreement, OCR, then optional super-resolution.
@@ -150,6 +174,11 @@ but not a frozen final answer. Refinement occurs before final answer generation.
 Super-resolved imagery must be supplied alongside its original source crop and
 may support a claim only when the reading or observation is consistent with
 original or neighboring source frames.
+
+All processing in this subsection is deferred during the frontier screen. Both
+answer conditions receive the complete native video and audio. Phase 0 tests
+whether the map itself helps before introducing question-type routing or any
+specialist evidence operation.
 
 ### 5. Frozen evidence packet
 
@@ -264,6 +293,24 @@ unresolved_obligations[]
 could_be_wrong_because[]
 ```
 
+The obligation-linked grounded answer is the future production contract. Phase
+0 uses the smaller matched frontier answer record below because the decomposer
+is not implemented:
+
+```text
+top1_answer
+claims[]:
+  text
+  supporting_spans[]
+  supporting_modalities[]
+  map_event_ids[]
+could_be_wrong_because[]
+```
+
+The direct and map-guided conditions share this exact schema. For direct
+answers, `map_event_ids` must be an empty array. For map-guided answers, every
+material claim must cite at least one supporting stable map event ID.
+
 ## Error handling and fallback behavior
 
 - Annotation uncertainty remains visible to downstream stages.
@@ -290,67 +337,122 @@ Transcripts, and Models.
 
 ### Question
 
-Does a full-video annotator plus question-driven boundary selection and
-all-modality native clips produce better-supported top-1 answers than direct
-full-video answering, and where do remaining failures occur?
+Can Gemini 3.1 Pro Preview create a faithful question-blind event/state map of
+a complete native-audio/video clip, and does providing that frozen map improve
+the same model's evidence localization and top-1 answer over direct native-AV
+answering?
 
 ### Hypothesis
 
-Separating annotation, boundary selection, evidence refinement, and answering
-will reduce unsupported answer claims while retaining label-critical detail.
-Native clips will prevent the scene descriptions from becoming an irreversible
-information bottleneck.
+One neutral annotation pass will preserve the important scenes, entities,
+actions, state transitions, visible text, speech, sound, and timestamps needed
+for varied VQA questions. Given the same complete native video/audio, the map
+will help Gemini bind answer claims to evidence without removing label-critical
+detail.
 
 ### Falsifiers
 
-The architecture is not supported under the tested condition if one or more of
-these dominate:
+The frontier foundation is not supported under the tested condition if one or
+more of these dominate the seven fresh rows:
 
-- complete annotations fail to identify answer-relevant scenes;
-- selected boundaries omit evidence available in the scene map;
-- selected native clips plus annotations perform materially worse than the
-  same answerer with full native video plus annotations;
-- the separate answerer continues to embellish or discard supported detail;
-- full-video fallback is required for most non-global questions;
-- the observed improvement comes only from answer style rather than evidence
-  support or semantic correctness.
+- question-blind maps omit or materially mis-time answer-critical events;
+- maps contain answer-changing false claims or collapse entity identity;
+- map-guided answers cite map events that do not support their claims;
+- map-guided answers continue to embellish or discard supported detail;
+- direct native-AV answers are consistently stronger than map-guided answers;
+- any apparent gain comes from different answer instructions rather than map
+  availability;
+- both Gemini answer conditions fail even when audited native evidence is
+  available.
 
-### Phase 0: existing two-row decoupling check
+### Phase 0A: one spent-row neutral-annotation pilot
 
-Reuse the two frozen Gemini canary maps and media; do not rerun annotation.
-Remove answer-related fields, create evidence packets from the cited spans and
-all local modalities, and run the frozen answerer. This tests whether separating
-answering repairs the known unsupported temporal clause and underspecified
-sound answer.
+Use one of the two already-spent Gemini preflight videos, outside the 35 unused
+evaluation rows. Run exactly one new question-blind annotation call. Do not
+send the question or reference and do not rerun an answer condition.
 
-### Phase 1: seven-category canary
+The pilot validates only the neutral map contract and transport. Its map must:
 
-Use one previously unused frozen video from each of causal, counting,
-OCR/detail, other/global, sound, speech, and temporal. References remain hidden
-until every prediction is frozen.
+- cover the provider-perceived duration and the important chronological
+  scenes;
+- assign stable event and within-video entity IDs;
+- record event spans and key timestamps within source duration;
+- separate visual action, visible text, speech, and non-speech sound;
+- record uncertainty rather than guess;
+- contain no question, question relevance, answer, or answer hypothesis;
+- pass strict local schema validation without semantic repair.
 
-The experiment compares meaningfully different evidence conditions:
+The primary agent audits it against the complete native video/audio and grades
+each material map item as confirmed, contradicted, or unverifiable. This pilot
+does not estimate quality and does not count toward the seven-row result. If it
+is too coarse, invalid, or uninspectable, revise and re-review the contract
+before using fresh rows; do not consume evaluation rows to debug the prompt.
 
-1. Existing Qwen3.5-4B uniform-12 baseline, reused without inference.
-2. Direct frontier answer from the question and complete native AV.
-3. Complete native AV plus neutral annotations to the separate answerer.
-4. Selector-chosen native clips plus annotations and all derived modalities to
-   the same answerer. This is the proposed production path.
-5. Annotations and derived text evidence without native clips to the same
-   answerer. This is a diagnostic information-bottleneck control, not the
-   proposed production path.
+### Phase 0B: seven-category frontier mechanism screen
 
-Conditions three through five hold the answer model, prompt, decoding, and
-output contract fixed. A single neutral annotation pass supplies conditions
-three through five. These arms expose different information and are not
-candidate-diversity passes.
+Deterministically select exactly one previously unused frozen video from each
+of causal, counting, OCR/detail, other/global, sound, speech, and temporal.
+Record IDs, categories, durations, selection rule, source hashes, and matched
+Qwen baseline availability before any provider call. References remain hidden
+until all predictions and pre-reference audits are frozen.
 
-### Phase 2: directional 21-row gate
+For each video, run these three calls with `google/gemini-3.1-pro-preview`:
 
-If all seven canaries complete with valid, inspectable artifacts, add two more
-frozen unused rows per category for 21 total. Keep the remaining frozen rows as
-a confirmation boundary. Do not adapt the schema or prompts after seeing the
-21-row labels and then report the same rows as confirmation.
+1. **Question-blind annotation:** complete native video/audio without the VQA
+   question or reference produces one neutral map. There is no refinement pass.
+2. **Direct answer control:** question plus complete native video/audio produces
+   one top-1 answer with atomic claims and timestamped supporting spans.
+3. **Map-guided answer:** the same question, complete native video/audio, and
+   frozen neutral map produce one top-1 answer under the identical answer
+   contract. Claims must additionally cite stable map event IDs.
+
+Conditions two and three use the same model revision, native media, answer
+instruction, output schema, reasoning setting, temperature, and token ceiling.
+The direct arm leaves the shared `map_event_ids` field empty; the guided arm
+must populate it. Map availability and that required map-event binding are the
+only intended differences. The complete native video/audio remains available
+in both arms; the experiment does not replace it with selected clips.
+
+Reuse the existing matched Qwen3.5-4B answer as a no-inference reference. Do not
+run question-type routing, OCR, Whisper, independent audio checking, tracking,
+dense-frame inspection, crops, super-resolution, specialist models, candidate
+diversity, or a second annotation pass.
+
+### Audit and freeze order
+
+For every fresh row:
+
+1. Freeze provider responses, parsed records, usage, cost, and hashes.
+2. Audit the neutral map against the native video/audio without the question or
+   reference. Grade event coverage, ordering, identity, action, state change,
+   text, sound/speech observations, and boundaries as confirmed, contradicted,
+   or unverifiable.
+3. Reveal the question but not the reference. Audit whether the map contains
+   the evidence required by the question and whether each direct and map-guided
+   answer claim is supported by its cited native span. For the guided arm,
+   verify the cited map event as well.
+4. Freeze those audits and predictions before joining reference answers.
+5. Score both Gemini arms and the exact matched existing Qwen baseline.
+
+The answer contract permits no semantic retry. One identical retry is allowed
+only after an explicit transport, rate-limit, or empty/truncated response
+failure. Every attempt and possible duplicate charge remains in the ledger.
+
+### Cost boundary
+
+The prior two Gemini content calls averaged USD 0.031865 each. At that observed
+rate, the one-call pilot plus 21 fresh calls would cost about USD 0.70. Budget
+USD 1–3 for output and media variation, project remaining cost after the pilot
+and first complete fresh row, and stop before cumulative new paid inference
+reaches the user-authorized hard ceiling of USD 25.
+
+### Later confirmation boundary
+
+Seven rows are a mechanism screen, not a population benchmark and not proof
+that Gemini is a permanent model winner. A favorable result promotes Gemini to
+foundation candidate for a separately reviewed larger gate. It does not
+authorize the remaining 28 frozen rows, all 475 labeled rows, the in-house
+pipeline, or competition-test inference.
 
 ### Metrics and failure attribution
 
@@ -360,56 +462,60 @@ degenerate and is not quality evidence.
 
 Also report:
 
-- obligation completion;
-- answer-critical evidence coverage in the complete scene map;
-- selector recall relative to the complete map;
+- neutral-map event fidelity and answer-critical evidence coverage;
+- answer-claim native-span support;
+- guided-answer map-event citation validity;
 - clause-level citation support;
 - unsupported-detail rate;
-- refinement and full-video fallback frequency;
+- direct-versus-guided row-level wins, losses, and ties;
 - category-level completion, latency, and observed cost;
 - a post-freeze strong-judge failure classification.
 
 Every wrong or unsupported answer is classified as one or more of:
 
-1. question decomposition failure;
-2. annotation or perception failure;
-3. boundary-selection failure;
-4. refinement failure;
+1. neutral annotation coverage, timing, or perception failure;
+2. question or evidence-requirement misunderstanding;
+3. answer evidence-localization or map-use failure;
+4. native visual/audio perception failure;
 5. correct evidence but reasoning failure;
 6. answer normalization failure;
 7. genuinely ambiguous or insufficient evidence.
 
-Automated strong-model review should perform the first-pass classification.
-The timestamped media and derived evidence remain preserved for human
-inspection when needed, but manual review is not required to complete the
-initial scorecard.
+Automated strong-model review may assist the post-freeze classification, but it
+does not replace the primary agent's required native-media map and citation
+audit. The user is not required to evaluate manually.
 
 ### Decision logic
 
-- If full AV plus annotations succeeds but selected clips fail, improve the
-  selector or context policy rather than the answer model.
-- If selected clips plus annotations succeed but annotations-only fail, native
-  evidence is correctly carrying details that text compression loses.
-- If annotations-only matches the native-clip arm, the memory may be sufficient
-  for that category, but native evidence remains the audit and fallback layer.
-- If all separate-answerer conditions fail with supported evidence present,
-  strengthen or constrain the answerer.
-- If direct full AV remains clearly better, retain it as the primary path while
-  diagnosing whether annotation, selection, or decoupling caused the loss.
-- Advance beyond 21 rows only after the production arm completes, its cited
-  evidence is auditable, and gains are not confined to one category.
+- Faithful maps plus stronger map-guided answers promote Gemini and the map
+  architecture to a larger confirmation gate.
+- Faithful maps plus equally strong direct and guided answers also promote both
+  conditions to the next gate; the map is retained provisionally for grounding
+  and auditability, not claimed to improve answer quality.
+- Unfaithful maps plus tied answers require repairing neutral annotation before
+  any larger gate.
+- Faithful maps plus weak guided answers isolate an evidence-to-answer binding
+  or interface failure; do not add annotation passes to solve it.
+- Direct answers consistently stronger than guided answers retain direct
+  Gemini as the near-term candidate and trigger map-interface diagnosis.
+- Missing or mis-timed map events justify considering one targeted,
+  question-blind refinement-pass experiment on the observed failure mechanism.
+- Both Gemini answer conditions failing despite available evidence block Gemini
+  as the sole foundation until a stronger answer strategy or frontier
+  comparator is reviewed.
 
 ## Artifact requirements
 
 Preserve, privately where necessary:
 
 - frozen video panel and label-isolation declaration;
-- annotator, selector, refiner, and answerer model/configuration identities;
+- annotator and answerer model/configuration identities for Phase 0;
 - schemas, prompts, code revision, and hashes;
-- scene maps, question obligations, selected boundaries, and selection reasons;
+- question-blind scene maps, stable event IDs, cited boundaries, and audit
+  judgments;
 - source and delivered native media hashes;
-- clips, frames, crops, audio, transcripts, OCR, enhancements, and provenance;
-- every evidence packet and its hash;
+- native media, audit frames/audio when extracted, and provenance;
+- every provider request/response record and its hash;
 - provider responses, attempt ledger, token usage, latency, and cost;
 - frozen predictions before labels;
 - post-freeze metrics and failure taxonomy;
@@ -420,12 +526,13 @@ and raw provider responses remain outside tracked public artifacts.
 
 ## Implementation boundary
 
-Implementation should introduce deep modules around the contracts above rather
-than extend the current one-pass frontier runner into a monolith. The existing
-Gemini/OpenRouter delivery, raw-response preservation, artifact freezing, and
-media-provenance code should be reused behind the new module interfaces.
+The next implementation plan covers only the frontier Phase 0 contract,
+artifacts, one spent-row neutral-annotation pilot, and seven-row mechanism
+screen. It must not implement the future decomposer, selector, specialist
+refinements, local model pipeline, or top-ten submission layer.
 
-The implementation plan must sequence local contract validation before any
-paid inference and must not launch the seven-row canary until one synthetic or
-existing frozen end-to-end packet passes schema, provenance, and accessibility
-checks.
+Reuse the existing Gemini/OpenRouter delivery, raw-response preservation,
+artifact freezing, and media-provenance code behind small annotation and answer
+contracts. Validate schemas and artifact accessibility locally before the one
+paid pilot. Do not select or call the seven fresh rows until the pilot map and
+its required audit are complete and the projected total remains below USD 25.
