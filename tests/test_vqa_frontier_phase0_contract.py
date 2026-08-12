@@ -7,7 +7,9 @@ import pytest
 
 from trec_video_2026.vqa_frontier_phase0_contract import (
     GROUNDED_ANSWER_SCHEMA,
+    NEUTRAL_MAP_SCHEMA,
     PROVIDER_GROUNDED_ANSWER_SCHEMA,
+    PROVIDER_NEUTRAL_MAP_SCHEMA,
     GroundedAnswer,
     NeutralVideoMap,
     build_grounded_answer_prompt,
@@ -15,6 +17,39 @@ from trec_video_2026.vqa_frontier_phase0_contract import (
     validate_grounded_answer,
     validate_neutral_map,
 )
+
+
+GEMINI_DROPPED_SCHEMA_KEYWORDS = frozenset(
+    {
+        "additionalProperties",
+        "minimum",
+        "maximum",
+        "minItems",
+        "maxItems",
+        "minLength",
+        "maxLength",
+        "const",
+    }
+)
+STRUCTURAL_SCHEMA_KEYWORDS = frozenset({"type", "properties", "required", "items"})
+
+
+def schema_keyword_paths(
+    value: object,
+    keywords: frozenset[str],
+    path: tuple[str, ...] = (),
+) -> set[tuple[str, ...]]:
+    paths: set[tuple[str, ...]] = set()
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            nested_path = (*path, key)
+            if key in keywords:
+                paths.add(nested_path)
+            paths.update(schema_keyword_paths(nested, keywords, nested_path))
+    elif isinstance(value, list):
+        for index, nested in enumerate(value):
+            paths.update(schema_keyword_paths(nested, keywords, (*path, str(index))))
+    return paths
 
 
 def neutral_payload() -> dict[str, object]:
@@ -273,6 +308,85 @@ def test_direct_and_guided_use_the_same_schema() -> None:
     assert set(PROVIDER_GROUNDED_ANSWER_SCHEMA["properties"]) == set(
         GROUNDED_ANSWER_SCHEMA["properties"]
     )
+
+
+@pytest.mark.parametrize(
+    "provider_schema",
+    [PROVIDER_NEUTRAL_MAP_SCHEMA, PROVIDER_GROUNDED_ANSWER_SCHEMA],
+)
+def test_provider_schemas_recursively_drop_gemini_incompatible_keywords(
+    provider_schema: dict[str, object],
+) -> None:
+    assert not schema_keyword_paths(
+        provider_schema, GEMINI_DROPPED_SCHEMA_KEYWORDS
+    )
+    assert provider_schema["properties"]["schema_version"] == {"type": "integer"}
+
+
+@pytest.mark.parametrize(
+    ("local_schema", "provider_schema"),
+    [
+        (NEUTRAL_MAP_SCHEMA, PROVIDER_NEUTRAL_MAP_SCHEMA),
+        (GROUNDED_ANSWER_SCHEMA, PROVIDER_GROUNDED_ANSWER_SCHEMA),
+    ],
+)
+def test_provider_schemas_recursively_retain_structural_keywords(
+    local_schema: dict[str, object],
+    provider_schema: dict[str, object],
+) -> None:
+    assert schema_keyword_paths(
+        provider_schema, STRUCTURAL_SCHEMA_KEYWORDS
+    ) == schema_keyword_paths(local_schema, STRUCTURAL_SCHEMA_KEYWORDS)
+
+
+def test_provider_grounded_answer_retains_supporting_modalities_string_enum() -> None:
+    claims = PROVIDER_GROUNDED_ANSWER_SCHEMA["properties"]["claims"]
+    modalities = claims["items"]["properties"]["supporting_modalities"]
+
+    assert modalities["items"] == {
+        "type": "string",
+        "enum": ["audio", "neutral_map", "speech", "video", "visible_text"],
+    }
+
+
+def test_local_schemas_retain_strict_constraints() -> None:
+    retained = {
+        path[-1]
+        for local_schema in (NEUTRAL_MAP_SCHEMA, GROUNDED_ANSWER_SCHEMA)
+        for path in schema_keyword_paths(local_schema, GEMINI_DROPPED_SCHEMA_KEYWORDS)
+    }
+
+    assert retained == GEMINI_DROPPED_SCHEMA_KEYWORDS
+    for local_schema in (NEUTRAL_MAP_SCHEMA, GROUNDED_ANSWER_SCHEMA):
+        assert local_schema["properties"]["schema_version"] == {
+            "type": "integer",
+            "minimum": 0,
+            "const": 1,
+        }
+
+
+def test_local_validators_enforce_constraints_omitted_from_provider_schemas() -> None:
+    neutral = neutral_payload()
+    neutral["schema_version"] = 2
+    with pytest.raises(ValueError, match="schema_version must be 1"):
+        validate_neutral_map(neutral, 20.0)
+
+    neutral = neutral_payload()
+    events = neutral["events"]
+    assert isinstance(events, list)
+    events[0]["start_seconds"] = -0.1
+    with pytest.raises(ValueError, match="cannot be negative"):
+        validate_neutral_map(neutral, 20.0)
+
+    neutral = neutral_payload()
+    neutral["events"] = []
+    with pytest.raises(ValueError, match="events must not be empty"):
+        validate_neutral_map(neutral, 20.0)
+
+    answer = answer_payload(map_event_ids=[])
+    answer["top1_answer"] = ""
+    with pytest.raises(ValueError, match="top1_answer must be a non-empty string"):
+        validate_grounded_answer(answer, 20.0, allowed_map_event_ids=None)
 
 
 def test_direct_answer_requires_empty_map_event_ids() -> None:

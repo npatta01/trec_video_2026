@@ -265,10 +265,16 @@ def _provider_schema(value: object) -> object:
     if isinstance(value, Mapping):
         projected: dict[str, object] = {}
         for key, nested in value.items():
-            if key in {"minLength", "maxLength"}:
-                continue
-            if key == "const":
-                projected["enum"] = [_provider_schema(nested)]
+            if key in {
+                "additionalProperties",
+                "const",
+                "maximum",
+                "maxItems",
+                "maxLength",
+                "minimum",
+                "minItems",
+                "minLength",
+            }:
                 continue
             projected[str(key)] = _provider_schema(nested)
         return projected
