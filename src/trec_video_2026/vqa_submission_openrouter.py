@@ -127,6 +127,22 @@ def _json_bytes(value: object) -> bytes:
         ) from None
 
 
+def _stable_seed_payload(
+    payload: Mapping[str, object],
+    identities: Sequence[Mapping[str, object]],
+) -> dict[str, object]:
+    """Project a live request onto stable, content-addressed seed inputs."""
+
+    seed_payload = dict(payload)
+    seed_payload["messages"] = [
+        {
+            "role": "user",
+            "content": [dict(identity) for identity in identities],
+        }
+    ]
+    return seed_payload
+
+
 def _preserved_response_text(response: object) -> str:
     """Prefer assistant content, otherwise preserve the bounded response envelope."""
 
@@ -451,8 +467,7 @@ class OpenRouterTransport:
             payload["provider"]["order"] = list(self._policy.provider_order)
         if self._policy.allow_fallbacks is not None:
             payload["provider"]["allow_fallbacks"] = self._policy.allow_fallbacks
-        seed_input = dict(payload)
-        seed_input["messages"] = [{"role": "user", "content": identities}]
+        seed_input = _stable_seed_payload(payload, identities)
         seed = int(hashlib.sha256(_json_bytes(seed_input)).hexdigest()[:16], 16) & 0x7FFF_FFFF
         payload["seed"] = seed
         request_bytes = _json_bytes(payload)

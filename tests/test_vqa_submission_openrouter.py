@@ -478,6 +478,34 @@ def test_seed_uses_stable_media_identity_not_live_upload_ids(
     )
 
 
+def test_production_media_identity_is_content_addressed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = tmp_path / "first" / "clip.mp4"
+    second = tmp_path / "second" / "clip.mp4"
+    first.parent.mkdir()
+    second.parent.mkdir()
+    first.write_bytes(b"identical-video-bytes")
+    second.write_bytes(b"identical-video-bytes")
+    transport = _transport(monkeypatch, FakeOpener([]))
+    first_upload = transport.upload(first, mime_type="video/mp4")
+    second_upload = transport.upload(second, mime_type="video/mp4")
+
+    _, first_identity = transport._part_content(
+        {"file_id": first_upload.file_id, "mime_type": "video/mp4"}, set()
+    )
+    _, second_identity = transport._part_content(
+        {"file_id": second_upload.file_id, "mime_type": "video/mp4"}, set()
+    )
+
+    assert first_upload.file_id != second_upload.file_id
+    assert first_identity == second_identity == {
+        "type": "file",
+        "mime_type": "video/mp4",
+        "sha256": first_upload.sha256,
+    }
+
+
 def test_response_read_is_bounded_and_oversized_body_is_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
