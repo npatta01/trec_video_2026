@@ -449,7 +449,7 @@ def preflight_verifier(prepared: PreparedBoundaryVerifier | Path) -> dict[str, o
         != projected_cumulative
     ):
         raise ValueError("verifier cumulative cost binding changed")
-    if projected_cumulative > ABSOLUTE_CAP_USD:
+    if projected_cumulative >= ABSOLUTE_CAP_USD:
         raise BoundaryVerifierError(
             "projected cumulative verifier cost exceeds the USD 25 cap"
         )
@@ -582,7 +582,7 @@ def run_verifier(
         if not cost_known or cost is None
         else _cumulative_cost(prior_phase0_spend_usd, cost)
     )
-    if failure_code is None and cumulative_cost_usd is not None and cumulative_cost_usd > ABSOLUTE_CAP_USD:
+    if failure_code is None and cumulative_cost_usd is not None and cumulative_cost_usd >= ABSOLUTE_CAP_USD:
         failure_code = "cost_cap_exceeded"
     status = "succeeded" if output is not None and failure_code is None else "failed"
     result: dict[str, object] = {
@@ -638,8 +638,13 @@ def freeze_verifier(prepared: PreparedBoundaryVerifier | Path) -> dict[str, obje
         _verify_verifier_freeze(prepared, freeze)
         return dict(freeze)
     result = _read_json(prepared.path / "result.json")
-    bindings = _verifier_freeze_bindings(prepared, result)
+    terminal_evidence = _verifier_freeze_bindings(prepared, result)
+    bindings = {
+        key: value for key, value in terminal_evidence.items() if key in result
+    }
     freeze = freeze_json_artifact(prepared.path / "result.json", bindings=bindings)
+    freeze["terminal_evidence"] = terminal_evidence
+    freeze["terminal_evidence_sha256"] = canonical_sha256(terminal_evidence)
     artifact_chain = _artifact_chain(prepared)
     freeze["artifact_chain"] = artifact_chain
     freeze["artifact_chain_sha256"] = canonical_sha256(artifact_chain)
@@ -705,7 +710,23 @@ def _verify_verifier_freeze(
     bindings = freeze.get("bindings")
     if not isinstance(bindings, Mapping):
         raise ValueError("verifier freeze bindings are missing")
-    if bindings.get("status") == "succeeded" and "cumulative_cost_usd" not in bindings:
+    terminal_evidence = freeze.get("terminal_evidence")
+    if isinstance(terminal_evidence, Mapping):
+        if freeze.get("terminal_evidence_sha256") != canonical_sha256(
+            terminal_evidence
+        ):
+            raise ValueError("verifier terminal evidence binding changed")
+        expected_terminal_evidence = _verifier_freeze_bindings(prepared, result)
+        if dict(terminal_evidence) != expected_terminal_evidence:
+            raise ValueError("verifier terminal evidence changed")
+        expected_bindings = {
+            key: value
+            for key, value in expected_terminal_evidence.items()
+            if key in result
+        }
+        if dict(bindings) != expected_bindings:
+            raise ValueError("verifier freeze bindings changed")
+    elif bindings.get("status") == "succeeded" and "cumulative_cost_usd" not in bindings:
         expected_legacy = {
             "runner_id": RUNNER_ID,
             "status": "succeeded",
@@ -886,6 +907,12 @@ def _cumulative_cost(prior: float, projected: float) -> float:
 
 
 def _prior_phase0_spend(prepared: PreparedBoundaryVerifier) -> float:
+    if "prior_phase0_spend_usd" not in prepared.manifest:
+        source_run = Path(_text(prepared.manifest.get("source_run"), "source_run"))
+        pilot_results = _read_json(source_run / "pilot-results.json")
+        return _nonnegative_number(
+            pilot_results.get("observed_cost_usd"), "prior_phase0_spend_usd"
+        )
     return _nonnegative_number(
         prepared.manifest.get("prior_phase0_spend_usd"),
         "prior_phase0_spend_usd",
@@ -942,7 +969,16 @@ def _verifier_freeze_bindings(
     prior = _prior_phase0_spend(prepared)
     projected = _projected_call_cost(prepared)
     expected_projected_cumulative = _cumulative_cost(prior, projected)
-    if (
+    cumulative_fields = (
+        "prior_phase0_spend_usd",
+        "projected_call_cost_usd",
+        "projected_cumulative_cost_usd",
+        "cumulative_cost_usd",
+    )
+    cumulative_presence = [field in result for field in cumulative_fields]
+    if any(cumulative_presence) and not all(cumulative_presence):
+        raise BoundaryVerifierError("verifier result cumulative evidence is partial")
+    if all(cumulative_presence) and (
         result.get("prior_phase0_spend_usd") != prior
         or result.get("projected_call_cost_usd") != projected
         or result.get("projected_cumulative_cost_usd") != expected_projected_cumulative
@@ -978,7 +1014,10 @@ def _verifier_freeze_bindings(
     ):
         raise BoundaryVerifierError("verifier result cost evidence is missing")
     cumulative = _cumulative_cost(prior, float(cost))
-    if result.get("cumulative_cost_usd") != cumulative or cumulative > ABSOLUTE_CAP_USD:
+    if (
+        all(cumulative_presence)
+        and result.get("cumulative_cost_usd") != cumulative
+    ) or cumulative >= ABSOLUTE_CAP_USD:
         raise BoundaryVerifierError("verifier cumulative cost is not freezeable")
     return {
         "runner_id": RUNNER_ID,

@@ -702,16 +702,13 @@ def test_failed_freeze_detects_binding_mutation(tmp_path: Path) -> None:
         status_verifier(prepared)
 
 
-def test_preflight_binds_cumulative_spend_and_allows_exact_cap(
+def test_preflight_rejects_projected_cumulative_cost_at_exact_cap(
     tmp_path: Path,
 ) -> None:
     prepared = prepared_fixture(tmp_path, prior_phase0_spend_usd=24.5)
 
-    preflight = preflight_verifier(prepared)
-
-    assert preflight["prior_phase0_spend_usd"] == 24.5
-    assert preflight["projected_call_cost_usd"] == 0.5
-    assert preflight["projected_cumulative_cost_usd"] == 25.0
+    with pytest.raises(BoundaryVerifierError, match="cumulative|cap"):
+        preflight_verifier(prepared)
 
 
 def test_preflight_rejects_projected_cumulative_cost_over_cap(tmp_path: Path) -> None:
@@ -772,6 +769,74 @@ def test_request_result_and_freeze_preserve_cumulative_cost_calculation(
     assert request["projected_cumulative_cost_usd"] == 1.75
     assert result["cumulative_cost_usd"] == 1.3
     assert freeze["bindings"]["cumulative_cost_usd"] == 1.3
+
+
+def test_existing_legacy_failed_result_gets_additive_terminal_freeze(
+    tmp_path: Path,
+) -> None:
+    prepared = prepared_fixture(tmp_path, prior_phase0_spend_usd=0.045908)
+    run_verifier(
+        prepared,
+        OpenRouterTransport(
+            "fixture-key",
+            opener=FakeOpener(
+                FakeResponse(
+                    {
+                        "model": "google/gemini-3.1-pro-preview",
+                        "provider": "Google",
+                        "choices": [
+                            {
+                                "finish_reason": "stop",
+                                "message": {
+                                    "role": "assistant",
+                                    "content": json.dumps({"schema_version": 1}),
+                                },
+                            }
+                        ],
+                        "usage": {
+                            "prompt_tokens": 10,
+                            "completion_tokens": 10,
+                            "total_tokens": 20,
+                            "cost": 0.056864,
+                        },
+                    }
+                )
+            ),
+            policy=VERIFIER_POLICY,
+        ),
+    )
+    manifest_path = prepared.path / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest.pop("prior_phase0_spend_usd")
+    manifest.pop("projected_cumulative_cost_usd", None)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    result_path = prepared.path / "result.json"
+    result = json.loads(result_path.read_text())
+    for field in (
+        "prior_phase0_spend_usd",
+        "projected_call_cost_usd",
+        "projected_cumulative_cost_usd",
+        "cumulative_cost_usd",
+    ):
+        result.pop(field)
+    result_path.write_text(json.dumps(result), encoding="utf-8")
+
+    legacy = PreparedBoundaryVerifier(
+        prepared.path,
+        manifest,
+        prepared.draft_map,
+        prepared.source_path,
+        prepared.delivery,
+    )
+    freeze = freeze_verifier(legacy)
+
+    assert freeze["bindings"]["status"] == "failed"
+    assert freeze["bindings"]["failure_code"] == "schema_validation"
+    evidence = freeze["terminal_evidence"]
+    assert evidence["prior_phase0_spend_usd"] == 0.045908
+    assert evidence["cost_usd"] == 0.056864
+    assert evidence["cumulative_cost_usd"] == 0.102772
+    assert status_verifier(legacy)["frozen"] is True
 
 
 def test_preflight_rejects_audit_prediction_freeze_mismatch(tmp_path: Path) -> None:
