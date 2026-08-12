@@ -132,6 +132,7 @@ def test_render_html_contains_comparison_and_seek_controls(tmp_path: Path) -> No
     assert rendered.count('class="case-choice"') == 7
     assert 'id="native-video"' in rendered
     assert 'id="answer-grid"' in rendered
+    assert 'id="synthesis-section"' in rendered
     assert 'id="timeline-list"' in rendered
     assert 'id="frame-grid"' in rendered
     assert "seekVideo" in rendered

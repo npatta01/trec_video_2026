@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "experiment_id": "direct-gemini-scope-and-synthesis-controls-v1",
+  "date": "2026-08-12",
+  "evidence_validity": "diagnostic-seven-row-purposive-sample",
+  "decision_disposition": "do_not_promote_scope_prompt_or_synthesis_answer_path",
+  "panel": {
+    "videos": 7,
+    "predictions_frozen_before_labels": true,
+    "provider_received_labels_or_references": false
+  },
+  "conditions": {
+    "direct_native_av": {
+      "meteor": 0.3350466659,
+      "bertscore_f1": 0.8894052591,
+      "sts": 0.3033438766,
+      "semantic_composite": 0.5092652672
+    },
+    "scope_prompt_native_av": {
+      "meteor": 0.2042539017,
+      "bertscore_f1": 0.9010950242,
+      "sts": 0.3191859823,
+      "semantic_composite": 0.4748449694
+    },
+    "whole_video_synthesis_map_native_av": {
+      "meteor": 0.2102901172,
+      "bertscore_f1": 0.8967716183,
+      "sts": 0.3645946629,
+      "semantic_composite": 0.4905521328
+    }
+  },
+  "observed": {
+    "scope_control_gate_passed": false,
+    "synthesis_treatment_gate_passed": false,
+    "synthesis_observations_timestamp_grounded": "7/7",
+    "repeated_action_present_in_synthesis": true,
+    "repeated_action_repaired_in_answer": false,
+    "supported_answer_regressions": [
+      "speech"
+    ],
+    "provider_calls_scope_control": 7,
+    "provider_calls_synthesis_treatment": 14,
+    "synthesis_treatment_total_tokens": 253542
+  },
+  "private_evidence": {
+    "scope_root": "/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-scope-control-v1/",
+    "synthesis_root": "/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-whole-video-synthesis-v1/",
+    "scope_protocol_sha256": "de85e6961b21d0d4bc388fd957a06c80672c739916fdcddbfa02d8ed7c0f5a87",
+    "scope_prediction_freeze_sha256": "3b7d0e0df5e7dd09347abea5614dfffbac53339882cc505fd48e90ba11886645",
+    "scope_metrics_sha256": "d8fc34feb755aade6572d66661b1bdcdd093c2c0308cfeb33b9d7b63a5e2e918",
+    "synthesis_protocol_sha256": "2e597cbbf2b5b0e8bd48ba817fae8ee82bf57647cd1c02f2f976652394fe3f77",
+    "synthesis_prediction_freeze_sha256": "a05c3f65d09bb5921d0367d240eb8df4951e13598d45f147523490bcae00b427",
+    "synthesis_metrics_sha256": "7171d82745dce7ed89b5c2a3a5231b1e71f365afc2c50315c30046834127b7bf",
+    "synthesis_sha256s_sha256": "c19fd2435e11f5f8e66a46065555d5bb39d95ff120d4d1836cdb575c923f29e7"
+  },
+  "next_decision": "Retain question-blind whole-video synthesis as reusable context, but use question-driven verification for exact speech and ambiguous temporal semantics before final answering."
+}

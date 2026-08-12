@@ -143,6 +143,46 @@ preserved. The completed bundle contains all seven timelines, selected spans,
 timestamped frames, contact sheets, three answers, metrics, and provider
 metadata.
 
+## Scope control and whole-video synthesis treatment
+
+The same frozen seven rows were then used for a matched B/C diagnostic. B
+retained native AV and changed only the answer instruction: identify temporal
+scope and semantic target before giving one answer. C retained native AV,
+added the complete frozen question-blind timeline, and created one structured
+question-blind whole-video synthesis before answering. The synthesis represented
+overview, phases, repeated patterns and instances, state changes, salient
+audio/text, grounded inferences, and uncertainty. Labels and references were
+withheld from every provider call, and C predictions were frozen before
+scoring.
+
+| Answer path | METEOR | BERTScore-F1 | STS | Semantic composite |
+|---|---:|---:|---:|---:|
+| A · direct native AV | **0.335** | 0.889 | 0.303 | **0.509** |
+| B · scope prompt + native AV | 0.204 | **0.901** | 0.319 | 0.475 |
+| C · synthesis + map + native AV | 0.210 | 0.897 | **0.365** | 0.491 |
+
+B failed its gate: it did not repair the repeated-action answer and regressed
+the previously supported causal and speech rows. C recovered the causal answer
+and produced the best STS aggregate, but still did not beat A or pass its gate.
+Its diving synthesis explicitly captured three separate dives and three splash
+outcomes with grounded instances; the final answer nevertheless selected
+“water splashes” instead of the labeled repeated-action interpretation. C also
+missed the later speech instruction and incorrectly asserted that no such
+instruction occurred. It preserved the supported sound and OCR answers.
+
+All seven C syntheses passed the deterministic timestamp/range audit for every
+observation-bearing field. Whole-video synthesis can therefore recover global
+event structure while final question semantics remain wrong, and it does not
+guarantee exact-speech recovery. Retain synthesis as reusable context; do not
+promote either B or C as the answer path under the tested condition.
+
+C completed 14 successful provider calls with 232,882 prompt/media tokens,
+7,732 output tokens, 12,928 thinking tokens, and 253,542 total tokens. One
+earlier C attempt ended in a provider-side `503` before a response; its upload
+was deleted and the successful bounded retry is preserved separately. Direct
+Google billing cost was not exposed in the response artifacts, so this record
+does not invent an exact dollar figure.
+
 ## Cost and completion boundary
 
 The final v5 pilot plus verifier cost `$0.102772`. Including all preserved
@@ -172,12 +212,13 @@ still coarse.
 ## Next decision test
 
 Keep Google's direct native-AV answer as the frontier baseline and retain the
-question-blind timeline as reusable navigation evidence. The next test should
-operate only on the frozen seven-row bundle: improve question decomposition
-and evidence instructions for the clear temporal-scope failure, while treating
-the counting and global rows as adjudication cases. Do not scale the current
-timeline-only or timeline-plus-frame answer paths to 475 rows. Candidate
-ranking and top-10 serialization remain downstream concerns.
+question-blind timeline plus whole-video synthesis as reusable context. The
+next test should operate only on frozen evidence: use the question to identify
+claims that need exact temporal or speech verification, retrieve/inspect those
+spans, and then answer from both the global synthesis and targeted native AV.
+Treat the counting and global rows as adjudication cases. Do not scale B, C,
+timeline-only, or timeline-plus-frame answering to 475 rows. Candidate ranking
+and top-10 serialization remain downstream concerns.
 
 ## Artifact retention and reproducibility
 
@@ -217,3 +258,16 @@ frozen answers. The prediction-freeze and post-freeze metric SHA-256 values are
 `1803910ed7ecad623201ded3d0fdfd34b3a15a66bfa02f9aa120be59cb5b5719`
 and
 `483e184478707fa05176ecd272c719c8f01a84b6e774f8c40c13fcca198cdbc8`.
+
+The matched B scope control and C whole-video synthesis treatment are under:
+
+- `/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-scope-control-v1/`;
+- `/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-whole-video-synthesis-v1/`.
+
+The C root's `inspection.md` explains the result and links the private
+tailnet-only interactive inspector. Its prediction-freeze, post-freeze metric,
+and complete checksum-manifest SHA-256 values are
+`a05c3f65d09bb5921d0367d240eb8df4951e13598d45f147523490bcae00b427`,
+`7171d82745dce7ed89b5c2a3a5231b1e71f365afc2c50315c30046834127b7bf`,
+and
+`c19fd2435e11f5f8e66a46065555d5bb39d95ff120d4d1836cdb575c923f29e7`.

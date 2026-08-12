@@ -162,7 +162,9 @@ Question-blind whole-video synthesis:
 {synthesis_json}"""
 
 
-def _call_json(client: Any, contents: Any) -> tuple[dict[str, Any], str, dict[str, Any]]:
+def _call_json(
+    client: Any, contents: Any
+) -> tuple[dict[str, Any], str, dict[str, Any]]:
     started = time.monotonic()
     response = client.models.generate_content(
         model=MODEL,
@@ -252,7 +254,9 @@ def run_row(root: Path, video_id: str) -> None:
     """Run one synthesis and one answer call, reusing one uploaded video."""
 
     protocol = json.loads((root / "protocol.json").read_text())
-    row = next((item for item in protocol["rows"] if item["video_id"] == video_id), None)
+    row = next(
+        (item for item in protocol["rows"] if item["video_id"] == video_id), None
+    )
     if row is None:
         raise ValueError("video is not in the frozen protocol")
     row_root = root / "rows" / video_id
@@ -261,7 +265,10 @@ def run_row(root: Path, video_id: str) -> None:
         return
     media = Path(row["media_path"])
     timeline_path = Path(row["timeline_path"])
-    if _sha256(media) != row["media_sha256"] or _sha256(timeline_path) != row["timeline_sha256"]:
+    if (
+        _sha256(media) != row["media_sha256"]
+        or _sha256(timeline_path) != row["timeline_sha256"]
+    ):
         raise ValueError("frozen C input identity changed")
     timeline = timeline_path.read_text()
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
@@ -282,7 +289,10 @@ def run_row(root: Path, video_id: str) -> None:
         synthesis_json = json.dumps(synthesis, sort_keys=True)
         qa_prompt = answer_prompt(row["question"], timeline, synthesis_json)
         response, answer_metadata = _call(client, [video, qa_prompt], 4096)
-        _write_once(row_root / "answer" / "request.json", {"question": row["question"], "prompt": qa_prompt})
+        _write_once(
+            row_root / "answer" / "request.json",
+            {"question": row["question"], "prompt": qa_prompt},
+        )
         _write_once(row_root / "answer" / "response.txt", response)
         _write_once(row_root / "answer" / "metadata.json", answer_metadata)
         parsed = parse_answer(response)
@@ -308,7 +318,13 @@ def run_row(root: Path, video_id: str) -> None:
                 cleanup = "succeeded"
             except Exception:
                 cleanup = "failed"
-            _write_once(row_root / "cleanup.json", {"uploaded_file_deletion": cleanup})
+            cleanup_path = row_root / "cleanup.json"
+            if cleanup_path.exists():
+                attempt = 2
+                while (row_root / f"cleanup-attempt-{attempt}.json").exists():
+                    attempt += 1
+                cleanup_path = row_root / f"cleanup-attempt-{attempt}.json"
+            _write_once(cleanup_path, {"uploaded_file_deletion": cleanup})
     print(json.dumps({"video_id": video_id, "status": "complete", "cleanup": cleanup}))
 
 

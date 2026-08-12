@@ -144,3 +144,17 @@ timestamped frames/contact sheets, native AV deliveries, three frozen answer
 paths, and post-freeze references/metrics. Do not rerun Gemini to recover this
 result. Direct native AV was the strongest tested answer path; the derived
 timeline-only and timeline-plus-frame paths were not promoted.
+
+Two matched follow-ups on those seven rows are complete at:
+
+- `/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-scope-control-v1/`;
+- `/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-whole-video-synthesis-v1/`.
+
+The answer-only scope control and the synthesis-plus-map answer treatment both
+failed their promotion gates. The C synthesis itself correctly represented the
+global repeated-diving structure and all seven syntheses passed deterministic
+timestamp grounding, but final answering still missed temporal semantics and
+exact speech. Preserve both roots; do not rerun them. Start with C's
+`inspection.md` or the tailnet-only Gemini evidence inspector. The next test is
+question-driven temporal/speech verification over frozen global synthesis,
+not another global prompt rewrite and not a 475-row scale-up.

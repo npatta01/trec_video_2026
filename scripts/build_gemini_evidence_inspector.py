@@ -19,12 +19,18 @@ from score_direct_gemini_evidence_canary import (  # noqa: E402
     CONDITIONS,
     MANUAL_ASSESSMENTS,
 )
+from score_direct_gemini_scope_control import MANUAL_VERDICTS as SCOPE_VERDICTS  # noqa: E402
+from score_direct_gemini_synthesis_treatment import (  # noqa: E402
+    MANUAL_ASSESSMENTS as SYNTHESIS_VERDICTS,
+)
 
 
 ANSWER_LABELS = {
     "direct_answer": "Direct native AV",
     "timeline_answer": "Timeline only",
     "frame_answer": "Timeline + selected frames",
+    "scope_control": "B · Scope prompt + native AV",
+    "synthesis_treatment": "C · Synthesis + map + native AV",
 }
 
 
@@ -35,24 +41,47 @@ def _read_json(path: Path) -> Any:
 
 
 def _media_url(prefix: str, *parts: str) -> str:
-    if not prefix.startswith("/") or "://" in prefix or ".." in PurePosixPath(prefix).parts:
+    if (
+        not prefix.startswith("/")
+        or "://" in prefix
+        or ".." in PurePosixPath(prefix).parts
+    ):
         raise ValueError("media prefix must be a same-origin absolute URL path")
     return str(PurePosixPath(prefix, *parts))
 
 
-def load_cases(run_root: Path, media_prefix: str) -> list[dict[str, Any]]:
+def load_cases(
+    run_root: Path,
+    media_prefix: str,
+    scope_root: Path | None = None,
+    synthesis_root: Path | None = None,
+) -> list[dict[str, Any]]:
     """Validate and project the frozen private artifacts for the inspector."""
 
     metric_artifact = _read_json(run_root / "postfreeze-metrics.json")
     metric_rows = {
         (row["video_id"], row["condition"]): row for row in metric_artifact["rows"]
     }
+    scope_rows = {}
+    if scope_root is not None:
+        scope_rows = {
+            row["video_id"]: row
+            for row in _read_json(scope_root / "postfreeze-metrics.json")["rows"]
+            if row["condition"] == "scope_control"
+        }
+    synthesis_rows = {}
+    if synthesis_root is not None:
+        synthesis_rows = {
+            row["video_id"]: row
+            for row in _read_json(synthesis_root / "postfreeze-metrics.json")["rows"]
+            if row["condition"] == "synthesis_treatment"
+        }
     row_ids = {path.parent.name for path in (run_root / "rows").glob("*/complete.json")}
     expected_ids = set(MANUAL_ASSESSMENTS)
     if row_ids != expected_ids:
         raise ValueError(
-            f"Expected exactly seven frozen rows; missing={sorted(expected_ids-row_ids)}, "
-            f"extra={sorted(row_ids-expected_ids)}"
+            f"Expected exactly seven frozen rows; missing={sorted(expected_ids - row_ids)}, "
+            f"extra={sorted(row_ids - expected_ids)}"
         )
 
     cases = []
@@ -64,13 +93,15 @@ def load_cases(run_root: Path, media_prefix: str) -> list[dict[str, Any]]:
         videos = sorted((row_root / "delivery" / "delivery-media").glob("*.webm"))
         if len(videos) != 1:
             raise ValueError(f"Missing required artifact: one WebM for {video_id}")
-        assessment = MANUAL_ASSESSMENTS[video_id]
+        base_assessment = MANUAL_ASSESSMENTS[video_id]
         answers = []
         for condition in CONDITIONS:
             scored = metric_rows.get((video_id, condition))
             if scored is None:
-                raise ValueError(f"Missing required artifact: metric {video_id}/{condition}")
-            verdict, reason = assessment[condition]
+                raise ValueError(
+                    f"Missing required artifact: metric {video_id}/{condition}"
+                )
+            verdict, reason = base_assessment[condition]
             answers.append(
                 {
                     "condition": condition,
@@ -80,6 +111,36 @@ def load_cases(run_root: Path, media_prefix: str) -> list[dict[str, Any]]:
                     "reason": reason,
                     "semantic_composite": scored["metrics"]["semantic_composite"],
                 }
+            )
+        if scope_root is not None:
+            scored = scope_rows[video_id]
+            assessment = SCOPE_VERDICTS[video_id]
+            answers.append(
+                {
+                    "condition": "scope_control",
+                    "label": ANSWER_LABELS["scope_control"],
+                    "answer": scored["prediction"],
+                    "verdict": assessment["verdict"],
+                    "reason": assessment["reason"],
+                    "semantic_composite": scored["metrics"]["semantic_composite"],
+                }
+            )
+        synthesis = None
+        if synthesis_root is not None:
+            scored = synthesis_rows[video_id]
+            assessment = SYNTHESIS_VERDICTS[video_id]
+            answers.append(
+                {
+                    "condition": "synthesis_treatment",
+                    "label": ANSWER_LABELS["synthesis_treatment"],
+                    "answer": scored["prediction"],
+                    "verdict": assessment["verdict"],
+                    "reason": assessment["reason"],
+                    "semantic_composite": scored["metrics"]["semantic_composite"],
+                }
+            )
+            synthesis = _read_json(
+                synthesis_root / "rows" / video_id / "synthesis" / "response.json"
             )
         frames = []
         for frame in frame_manifest:
@@ -104,9 +165,9 @@ def load_cases(run_root: Path, media_prefix: str) -> list[dict[str, Any]]:
                 "category": complete["category"],
                 "question": complete["question"],
                 "reference": metric_rows[(video_id, CONDITIONS[0])]["reference"],
-                "overall": assessment["overall"],
-                "timeline_verdict": assessment["timeline"][0],
-                "timeline_reason": assessment["timeline"][1],
+                "overall": base_assessment["overall"],
+                "timeline_verdict": base_assessment["timeline"][0],
+                "timeline_reason": base_assessment["timeline"][1],
                 "answers": answers,
                 "timeline": timeline,
                 "selected_spans": complete["selected_spans"],
@@ -119,6 +180,7 @@ def load_cases(run_root: Path, media_prefix: str) -> list[dict[str, Any]]:
                     "delivery-media",
                     videos[0].name,
                 ),
+                "synthesis": synthesis,
             }
         )
     return cases
@@ -139,7 +201,7 @@ def render_html(cases: list[dict[str, Any]]) -> str:
     choices = "\n".join(
         f'<button class="case-choice" data-index="{index}" type="button">'
         f'<span class="case-category">{html.escape(case["category"])}</span>'
-        f'<span>{html.escape(case["video_id"])}</span></button>'
+        f"<span>{html.escape(case['video_id'])}</span></button>"
         for index, case in enumerate(cases)
     )
     return f"""<!doctype html>
@@ -170,7 +232,7 @@ def render_html(cases: list[dict[str, Any]]) -> str:
     .reference {{ padding: .75rem; background: #f1f5f9; border-radius: .65rem; }}
     .overall {{ margin-top: .75rem; line-height: 1.5; }}
     .section-title {{ margin: 1.3rem 0 .65rem; }}
-    .answer-grid {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }}
+    .answer-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: .75rem; }}
     .answer-card {{ border-top: .35rem solid var(--verdict); }}
     .answer-head {{ display: flex; justify-content: space-between; gap: .5rem; align-items: start; }}
     .badge {{ padding: .22rem .5rem; color: #fff; background: var(--verdict); border-radius: 999px; font-size: .72rem; font-weight: 800; text-transform: uppercase; }}
@@ -216,6 +278,11 @@ def render_html(cases: list[dict[str, Any]]) -> str:
       </div>
       <h2 class="section-title">What each path answered</h2>
       <section id="answer-grid" class="answer-grid"></section>
+      <section id="synthesis-section">
+        <h2 class="section-title">C · Question-blind whole-video synthesis</h2>
+        <div id="synthesis-overview" class="panel"></div>
+        <div id="synthesis-list" class="timeline-list"></div>
+      </section>
       <div class="evidence">
         <section>
           <h2 class="section-title">Question-blind timeline</h2>
@@ -250,6 +317,14 @@ def render_html(cases: list[dict[str, Any]]) -> str:
         const head = text('div', '', 'answer-head'); head.append(text('strong', answer.label), text('span', answer.verdict, 'badge'));
         card.append(head, text('p', answer.answer, 'answer-text'), text('p', answer.reason, 'why'), text('div', `Semantic composite: ${{answer.semantic_composite.toFixed(3)}}`, 'score')); return card;
       }}));
+      const synthesisSection = el('synthesis-section');
+      synthesisSection.style.display = item.synthesis ? 'block' : 'none';
+      if (item.synthesis) {{
+        el('synthesis-overview').textContent = item.synthesis.overview.description;
+        const phases = item.synthesis.phases.map(phase => seekButton(phase.start_seconds, phase.end_seconds, `${{phase.label}}: ${{phase.description}}`));
+        const patterns = item.synthesis.patterns.flatMap(pattern => pattern.instances.map(instance => seekButton(instance.start_seconds, instance.end_seconds, `Pattern (${{pattern.count}}×): ${{pattern.description}}`)));
+        el('synthesis-list').replaceChildren(...phases, ...patterns);
+      }}
       el('timeline-assessment').replaceChildren(text('strong', `${{item.timeline_verdict.toUpperCase()}}: `), document.createTextNode(item.timeline_reason));
       el('timeline-list').replaceChildren(...item.timeline.map(event => seekButton(event.start_seconds, event.end_seconds, event.description)));
       el('span-list').replaceChildren(...item.selected_spans.map(span => seekButton(span.start_seconds, span.end_seconds, span.reason)));
@@ -269,13 +344,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--media-prefix", required=True)
+    parser.add_argument("--scope-root", type=Path)
+    parser.add_argument("--synthesis-root", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    cases = load_cases(args.run_root, args.media_prefix)
+    cases = load_cases(
+        args.run_root, args.media_prefix, args.scope_root, args.synthesis_root
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(render_html(cases), encoding="utf-8")
     print(json.dumps({"output": str(args.output), "cases": len(cases)}))

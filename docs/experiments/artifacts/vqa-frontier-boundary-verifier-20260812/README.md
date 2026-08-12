@@ -32,6 +32,18 @@ timelines, selected timestamps and frames, native AV, three frozen answers, and
 post-freeze references/metrics. `category-canary.json` in this tracked index is
 the sanitized aggregate projection.
 
+Two matched follow-ups on those same seven frozen rows are retained at:
+
+- `/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-scope-control-v1/`;
+- `/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-whole-video-synthesis-v1/`.
+
+The first adds only a scope-first answer prompt. The second adds a structured,
+question-blind whole-video synthesis and the frozen timeline while retaining
+native AV at final answering. `scope-synthesis-controls.json` is the sanitized
+aggregate projection. The private synthesis root contains every request,
+response, parsed map/answer, provider metadata record, freeze, metric artifact,
+inspection note, and checksum manifest.
+
 The decisive private records are:
 
 - `pilot-audit-v5/freeze.json`: freezes the one-pass draft decision as
