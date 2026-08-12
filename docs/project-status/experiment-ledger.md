@@ -168,7 +168,7 @@ aria-label="Scrollable research theme status matrix" tabindex="0">
 | [Speech](research-speech-transcripts.md#current-working-answer) | Adds spoken words with explicit provenance | [Whisper ablation](research-speech-transcripts.md#automatic-transcript-ablation) | **Use selectively:** accepted Whisper | **Blocked:** human tier; **Possible:** alternate ASR | [Selective Whisper route](research-speech-transcripts.md#distribution-level-selective-whisper) |
 | [Native audio](research-native-audio.md#current-working-answer) | Preserves prosody and non-speech sound | [Audio on/off](research-native-audio.md#minicpm-audio-on-off) | **Do not default:** global audio on | **Possible:** routed sound/prosody | [Specialist panel](research-native-audio.md#matched-native-audio-specialist-panel) |
 | [Models](research-models.md#current-working-answer) | Separates compatibility, quality, and adaptation | [Candidate screens](research-models.md#failure-panel) | **Use:** Qwen3.5-4B; **Fast:** MiniCPM-o | **Possible:** repaired/specialist model or adaptation | [Bottleneck-first decision](research-models.md#bottleneck-first-adaptation-decision) |
-| [Routing](research-routing.md#current-working-answer) | Chooses evidence and separates retrieval from answering | [Route seeds](research-routing.md#taxonomy-audit) | **Use:** direct Gemini annotation canary; router unvalidated | **Do not promote:** OpenRouter map self-verifier; answer granularity unresolved | [Balanced direct-API annotation and answer-stage test](research-routing.md#frontier-boundary-verifier) |
+| [Routing](research-routing.md#current-working-answer) | Chooses evidence and separates retrieval from answering | [Route seeds](research-routing.md#taxonomy-audit) | **Use:** direct Gemini native AV as frontier baseline; timeline as navigation | **Do not promote:** OpenRouter self-verifier or derived timeline answer paths | [Frozen temporal-scope repair](research-routing.md#frontier-boundary-verifier) |
 
 </div>
 
@@ -329,13 +329,11 @@ reference, not a prescribed research sequence.
     path](research-models.md#repaired-complete-neutral-qwen3-omni-run),
     or [measure the bottleneck before
     adapting](research-models.md#bottleneck-first-adaptation-decision).
-6.  **Routing, fusion, and answer election:** first test an [independent
-    scene-boundary
-    verifier](research-routing.md#independent-scene-boundary-verifier),
-    then [measure retrieval, oracle-evidence answering, and end-to-end
-    answering
-    separately](research-routing.md#required-evidence-labels-and-three-way-measurement);
-    test election only if evidence paths are stable.
+6.  **Routing, fusion, and answer election:** use the completed
+    seven-category direct-API bundle to repair the clear temporal-scope
+    failure without new video calls, and adjudicate the counting/global
+    references before selecting a larger panel; test election only after
+    top-1 evidence use is stable.
 
 <span id="how-to-interpret-results" class="legacy-fragment-alias"
 aria-hidden="true"></span>

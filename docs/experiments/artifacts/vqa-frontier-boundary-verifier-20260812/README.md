@@ -23,6 +23,15 @@ Important private subdirectories:
 - `direct-gemini-timeline-v1/`: direct Google API follow-up with two stable
   question-blind timelines and separate answer-stage diagnostics.
 
+A later seven-category direct-Google diagnostic is retained separately at:
+
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-evidence-canary-v1/`
+
+Its private `inspection.md` is the complete human-readable index for the seven
+timelines, selected timestamps and frames, native AV, three frozen answers, and
+post-freeze references/metrics. `category-canary.json` in this tracked index is
+the sanitized aggregate projection.
+
 The decisive private records are:
 
 - `pilot-audit-v5/freeze.json`: freezes the one-pass draft decision as

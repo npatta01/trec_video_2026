@@ -2168,7 +2168,7 @@ vertical-align: -.125em;
 
 <div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
 <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="vqa-frontier-boundary-verifier-20260812.html"><i class="bi bi-file-code"></i>Github (GFM)</a></li></ul></div></div>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="2026-08-12-vqa-frontier-boundary-verifier.md"><i class="bi bi-file-code"></i>Github (GFM)</a></li></ul></div></div>
 <main class="content" id="quarto-document-content">
 
 <header id="title-block-header" class="quarto-title-block default">
@@ -2253,10 +2253,52 @@ vertical-align: -.125em;
 <p>The direct timeline recovered the complete event sequence, including the late interaction and final embrace. It placed the major transition near 10 seconds, although one endpoint remained about 0.75–1.0 seconds early. This overturns any Gemini-capability interpretation of the earlier failure and points instead to delivery/sampling, draft anchoring, and prompt/schema complexity.</p>
 <p>A subsequent question-plus-native-AV answer call still returned the immediate micro-event rather than the labeled broader outcome. A cheap text-only repair over the correct frozen timeline did the same. The remaining canary failure is therefore question interpretation/answer granularity, not missing video evidence.</p>
 </section>
+<section id="seven-category-direct-api-answer-screen" class="level2">
+<h2 class="anchored" data-anchor-id="seven-category-direct-api-answer-screen">Seven-category direct-API answer screen</h2>
+<p>The direct route was then tested on seven frozen labeled-training videos: one each for temporal, counting, causal, speech, sound, OCR/detail, and global questions. Each 11–17 second video received one question-blind native-AV timeline call and one separate question-plus-native-AV answer call. The frozen timeline was also used for a text-only answer and to select spans from which at most eight timestamped frames were extracted for a timeline-plus-frame answer. All predictions were frozen before references were read.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Answer path</th>
+<th style="text-align: right;">METEOR</th>
+<th style="text-align: right;">BERTScore-F1</th>
+<th style="text-align: right;">STS</th>
+<th style="text-align: right;">Semantic composite</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Direct native AV</td>
+<td style="text-align: right;">0.335</td>
+<td style="text-align: right;">0.889</td>
+<td style="text-align: right;">0.303</td>
+<td style="text-align: right;"><strong>0.509</strong></td>
+</tr>
+<tr class="even">
+<td>Timeline + selected frames</td>
+<td style="text-align: right;">0.219</td>
+<td style="text-align: right;">0.872</td>
+<td style="text-align: right;">0.262</td>
+<td style="text-align: right;">0.451</td>
+</tr>
+<tr class="odd">
+<td>Timeline only</td>
+<td style="text-align: right;">0.201</td>
+<td style="text-align: right;"><strong>0.898</strong></td>
+<td style="text-align: right;">0.173</td>
+<td style="text-align: right;">0.424</td>
+</tr>
+</tbody>
+</table>
+<p>These are descriptive scores on a purposive seven-row screen, not an estimate of full-panel quality. NDCG is exactly <code>1.0</code> and non-informative because each condition produced one answer. Normalized exact match was <code>0/7</code> for every arm, again demonstrating why exact match is not the project decision metric.</p>
+<p>Direct native AV produced clearly supported answers for the causal, speech, sound, and OCR/detail rows. Its one clear semantic miss was temporal: the question-blind timeline correctly recorded three successive dives, but both timeline-conditioned answer paths returned the immediate splash rather than the repeated action requested by the reference. The counting row is label- ambiguous on inspection: selected frames visibly contain three food groupings while the reference says two. The global row also contrasts a specific topical answer with a generic visual-description reference. Those two rows should not be treated as clean model failures without adjudication.</p>
+<p>The timeline-only path recovered the reference count, but lost fine OCR and speech evidence. Adding selected frames restored the airplane text but did not repair temporal scope, causal intent, or the counting disagreement. This supports an all-modality answer stage: the reusable timeline is valuable for coverage and navigation, but should guide—not replace—native AV, audio, and high-resolution visual evidence.</p>
+<p>Two initial text-only selector outputs were not preserved after a timestamp- parser failure; the replacement calls and explicit audit-gap records are retained, and no native-video call was repeated. One speech selector response hit its output ceiling; both the truncated response and one text-only retry are preserved. The completed bundle contains all seven timelines, selected spans, timestamped frames, contact sheets, three answers, metrics, and provider metadata.</p>
+</section>
 <section id="cost-and-completion-boundary" class="level2">
 <h2 class="anchored" data-anchor-id="cost-and-completion-boundary">Cost and completion boundary</h2>
 <p>The final v5 pilot plus verifier cost <code>$0.102772</code>. Including all preserved prompt/schema development attempts and the stopped partial v4 screen, observed Phase 0 provider cost was approximately <code>$0.972344</code>, well below the <code>$25</code> cap.</p>
-<p>The experiment did not run or score the seven-video answer screen. Therefore it reports no METEOR, BERTScore, STS, or NDCG comparison and makes no answer- quality claim. The single-video result tests only whether this same-model verification mechanism can catch a known failure.</p>
+<p>The earlier OpenRouter verifier experiment did not run its planned seven-video screen. The later direct-Google screen above is a separate, completed diagnostic and is the only source of the reported answer-quality metrics.</p>
 </section>
 <section id="what-this-rules-out-now" class="level2">
 <h2 class="anchored" data-anchor-id="what-this-rules-out-now">What this rules out now</h2>
@@ -2273,7 +2315,7 @@ vertical-align: -.125em;
 </section>
 <section id="next-decision-test" class="level2">
 <h2 class="anchored" data-anchor-id="next-decision-test">Next decision test</h2>
-<p>Keep the reusable annotation architecture and use Google’s direct native-AV route. The next test is a small category-balanced set, with question-blind timeline quality and top-1 answer quality measured separately. Reuse each frozen timeline to test question decomposition and a separate text answerer without paying to reprocess video. Candidate ranking and top-10 serialization remain downstream concerns.</p>
+<p>Keep Google’s direct native-AV answer as the frontier baseline and retain the question-blind timeline as reusable navigation evidence. The next test should operate only on the frozen seven-row bundle: improve question decomposition and evidence instructions for the clear temporal-scope failure, while treating the counting and global rows as adjudication cases. Do not scale the current timeline-only or timeline-plus-frame answer paths to 475 rows. Candidate ranking and top-10 serialization remain downstream concerns.</p>
 </section>
 <section id="artifact-retention-and-reproducibility" class="level2">
 <h2 class="anchored" data-anchor-id="artifact-retention-and-reproducibility">Artifact retention and reproducibility</h2>
@@ -2282,6 +2324,9 @@ vertical-align: -.125em;
 <p>The additive <code>pilot-audit-v5-v2/</code> bundle revalidates the frozen draft while binding the preserved raw response and both per-row reviewer manifests. Its audit and freeze SHA-256 values are <code>5757c2ad3a80dfc00f1e9fff14dea65403dc2718042edd66ed3d7d41e2c5f5c6</code> and <code>f0740a98c1110c098af58ce18842586c1903ff1576f18fc7d30c28e62a344c26</code>.</p>
 <p>The final <code>verifier-v5/</code> directory preserves the manifest, frozen draft, request, two-record attempt ledger, raw response, failed terminal result, additive terminal freeze, diagnostic audit, and diagnostic freeze. The terminal freeze SHA-256 is <code>0df48028449fbcdb9ceffbd72e1ca23b2b6d06c6791d15cd15b726dadea8836b</code>; the diagnostic audit SHA-256 is <code>72d3c6be270ea24c811a5b8db076f8e48bed157d9514b008cc91fbd805a7c49e</code>. These hardening steps were offline revalidation only. No provider rerun or GPU provisioning is needed to inspect the result.</p>
 <p>The <code>direct-gemini-timeline-v1/</code> directory preserves the direct-API timeline and answer calls, metadata, cleanup records, human audit, and checksums. Its audit SHA-256 is <code>fd0b88b7acd5cb61cdba867da5b2974033f22940c6a706410b3049fc7fe7750c</code>.</p>
+<p>The completed seven-category private bundle is under:</p>
+<p><code>/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-evidence-canary-v1/</code></p>
+<p>Its <code>inspection.md</code> links every native AV delivery, full question-blind timeline, selected span, timestamped frame/contact sheet, reference, and three frozen answers. The prediction-freeze and post-freeze metric SHA-256 values are <code>1803910ed7ecad623201ded3d0fdfd34b3a15a66bfa02f9aa120be59cb5b5719</code> and <code>483e184478707fa05176ecd272c719c8f01a84b6e774f8c40c13fcca198cdbc8</code>.</p>
 </section>
 
 </main>

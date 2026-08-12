@@ -156,7 +156,7 @@ link opens the visible theme record with the tested condition and limits.
 | [Speech](research-speech-transcripts.{{< meta report-ext >}}#current-working-answer) | Adds spoken words with explicit provenance | [Whisper ablation](research-speech-transcripts.{{< meta report-ext >}}#automatic-transcript-ablation) | **Use selectively:** accepted Whisper | **Blocked:** human tier; **Possible:** alternate ASR | [Selective Whisper route](research-speech-transcripts.{{< meta report-ext >}}#distribution-level-selective-whisper) |
 | [Native audio](research-native-audio.{{< meta report-ext >}}#current-working-answer) | Preserves prosody and non-speech sound | [Audio on/off](research-native-audio.{{< meta report-ext >}}#minicpm-audio-on-off) | **Do not default:** global audio on | **Possible:** routed sound/prosody | [Specialist panel](research-native-audio.{{< meta report-ext >}}#matched-native-audio-specialist-panel) |
 | [Models](research-models.{{< meta report-ext >}}#current-working-answer) | Separates compatibility, quality, and adaptation | [Candidate screens](research-models.{{< meta report-ext >}}#failure-panel) | **Use:** Qwen3.5-4B; **Fast:** MiniCPM-o | **Possible:** repaired/specialist model or adaptation | [Bottleneck-first decision](research-models.{{< meta report-ext >}}#bottleneck-first-adaptation-decision) |
-| [Routing](research-routing.{{< meta report-ext >}}#current-working-answer) | Chooses evidence and separates retrieval from answering | [Route seeds](research-routing.{{< meta report-ext >}}#taxonomy-audit) | **Use:** direct Gemini annotation canary; router unvalidated | **Do not promote:** OpenRouter map self-verifier; answer granularity unresolved | [Balanced direct-API annotation and answer-stage test](research-routing.{{< meta report-ext >}}#frontier-boundary-verifier) |
+| [Routing](research-routing.{{< meta report-ext >}}#current-working-answer) | Chooses evidence and separates retrieval from answering | [Route seeds](research-routing.{{< meta report-ext >}}#taxonomy-audit) | **Use:** direct Gemini native AV as frontier baseline; timeline as navigation | **Do not promote:** OpenRouter self-verifier or derived timeline answer paths | [Frozen temporal-scope repair](research-routing.{{< meta report-ext >}}#frontier-boundary-verifier) |
 :::
 
 ## Experiment index
@@ -265,9 +265,10 @@ a prescribed research sequence.
    abstention and matched controls](research-native-audio.{{< meta report-ext >}}#matched-native-audio-specialist-panel).
 5. **Repaired/specialist models or bottleneck-first adaptation:** [repair the
    strict Omni path](research-models.{{< meta report-ext >}}#repaired-complete-neutral-qwen3-omni-run), or [measure the bottleneck before adapting](research-models.{{< meta report-ext >}}#bottleneck-first-adaptation-decision).
-6. **Routing, fusion, and answer election:** first test an
-   [independent scene-boundary verifier](research-routing.{{< meta report-ext >}}#independent-scene-boundary-verifier), then [measure retrieval, oracle-evidence
-   answering, and end-to-end answering separately](research-routing.{{< meta report-ext >}}#required-evidence-labels-and-three-way-measurement); test election only if evidence paths are stable.
+6. **Routing, fusion, and answer election:** use the completed seven-category
+   direct-API bundle to repair the clear temporal-scope failure without new
+   video calls, and adjudicate the counting/global references before selecting
+   a larger panel; test election only after top-1 evidence use is stable.
 
 <span id="how-to-interpret-results" class="legacy-fragment-alias" aria-hidden="true"></span>
 

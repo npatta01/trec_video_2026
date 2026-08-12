@@ -29,6 +29,22 @@ def test_parse_selection_requires_span_and_answer() -> None:
         MODULE.parse_selection("ANSWER: result", 4.0)
 
 
+def test_parse_selection_accepts_bullets_and_numbered_spans() -> None:
+    parsed = MODULE.parse_selection(
+        "- SPAN 1: 1.0-2.5 | first\n* ANSWER: result\n", 3.0
+    )
+    assert parsed["spans"][0]["start_seconds"] == 1.0
+    assert parsed["answer"] == "result"
+
+
+def test_parse_selection_accepts_minute_second_timestamps() -> None:
+    parsed = MODULE.parse_selection(
+        "SPAN: 00:01.250-00:03.500 | relevant\nANSWER: result\n", 4.0
+    )
+    assert parsed["spans"][0]["start_seconds"] == 1.25
+    assert parsed["spans"][0]["end_seconds"] == 3.5
+
+
 def test_frame_timestamps_are_bounded_and_capped() -> None:
     spans = [
         {"start_seconds": 0.0, "end_seconds": 2.0},

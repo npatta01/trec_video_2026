@@ -134,3 +134,13 @@ decision `stop_two_stage`; do not rerun or scale it. Do not generalize that
 result to Gemini native-video capability: the direct Google follow-up recovered
 the complete sequence. The next test is a small category-balanced direct-API
 annotation sample with answering evaluated separately over frozen timelines.
+
+That seven-category test is now complete. Its private evidence-of-record is:
+
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-evidence-canary-v1/`
+
+Start with `inspection.md`; it links the complete timelines, selected spans,
+timestamped frames/contact sheets, native AV deliveries, three frozen answer
+paths, and post-freeze references/metrics. Do not rerun Gemini to recover this
+result. Direct native AV was the strongest tested answer path; the derived
+timeline-only and timeline-plus-frame paths were not promoted.

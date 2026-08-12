@@ -48,7 +48,11 @@ must abstain to the baseline when uncertain and pass route-level
 non-regression before it becomes a default decision rule. A same-model
 Gemini draft-plus-verifier pass is now a tested negative: its second
 pass repeated a known temporal error, so map acceptance must use
-independent evidence rather than self-agreement.
+independent evidence rather than self-agreement. On a later seven-row
+direct-API screen, native AV answering outscored timeline-only and
+timeline- plus-frame answering. The question-blind timeline remains
+useful navigation, but it should not replace the original modalities at
+the answer stage.
 
 <div class="theme-decision-strip" aria-label="Routing decisions">
 
@@ -59,9 +63,9 @@ independent evidence rather than self-agreement.
   self-verification.
 - **Still possible:** abstaining multi-label routing, grounded fusion,
   and evidence-aware answer election.
-- **Next test:** test an independent boundary verifier on the frozen
-  known-bad map, then measure selector recall, oracle-evidence
-  answering, and end-to-end answering separately.
+- **Next test:** use the frozen seven-row evidence to repair the clear
+  temporal-scope interpretation failure; adjudicate the two questionable
+  references before expanding the panel.
 
 </div>
 
@@ -250,15 +254,21 @@ GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
   explicit 4-fps sampling, high resolution, and high thinking recovered
   the complete sequence and late interaction. The remaining top-1
   failure was temporal answer granularity over correct evidence.
+- **Seven-category follow-up:** on one frozen video per category, direct
+  native AV had semantic composite `0.509`, versus `0.451` for timeline
+  plus selected frames and `0.424` for timeline only. Direct AV was
+  clearly supported on four rows, clearly missed temporal scope on one,
+  and encountered two questionable reference/task cases. The derived
+  answer paths are not promoted.
 - **What it does not rule out:** reusable question-blind scene maps or
   Gemini native video. It isolates the earlier failure to the tested
   route/verifier.
 - **Possible defect, audit gap, or uncertainty:** **Uncertainty**—one
   selected video tests a known failure mechanism but cannot estimate its
   prevalence.
-- **Reconsider when:** a small category-balanced direct-API annotation
-  sample passes dense audit and a separate answerer uses those frozen
-  maps correctly.
+- **Reconsider when:** question decomposition repairs the frozen
+  temporal case without regressing the supported answers, then passes a
+  larger adjudicated category-balanced sample.
 
 <details>
 

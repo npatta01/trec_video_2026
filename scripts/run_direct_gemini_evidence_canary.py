@@ -27,11 +27,13 @@ _TIMELINE = re.compile(
     r"(?:\d+:)?(?P<end>\d+(?:\.\d+)?)\s*\|\s*(?P<description>.+?)\s*$"
 )
 _SPAN = re.compile(
-    r"^\s*SPAN\s*:\s*(?P<start>\d+(?:\.\d+)?)\s*-\s*"
-    r"(?P<end>\d+(?:\.\d+)?)\s*\|\s*(?P<reason>.+?)\s*$",
+    r"^\s*(?:[-*]\s*)?SPAN(?:\s+\d+)?\s*:\s*(?P<start>[\d:.]+)\s*-\s*"
+    r"(?P<end>[\d:.]+)\s*\|\s*(?P<reason>.+?)\s*$",
     re.IGNORECASE,
 )
-_ANSWER = re.compile(r"^\s*ANSWER\s*:\s*(?P<answer>.+?)\s*$", re.IGNORECASE)
+_ANSWER = re.compile(
+    r"^\s*(?:[-*]\s*)?ANSWER\s*:\s*(?P<answer>.+?)\s*$", re.IGNORECASE
+)
 
 
 def _sha256(path: Path) -> str:
@@ -46,6 +48,16 @@ def _write_once(path: Path, value: Any) -> None:
         path.write_text(value, encoding="utf-8")
     else:
         path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _seconds(value: str) -> float:
+    parts = value.split(":")
+    if len(parts) > 3:
+        raise ValueError("timestamp has too many components")
+    total = 0.0
+    for part in parts:
+        total = total * 60 + float(part)
+    return total
 
 
 def parse_timeline(text: str, duration: float) -> list[dict[str, Any]]:
@@ -72,8 +84,8 @@ def parse_selection(text: str, duration: float) -> dict[str, Any]:
     for line in text.splitlines():
         span = _SPAN.match(line)
         if span:
-            start = float(span.group("start"))
-            end = float(span.group("end"))
+            start = _seconds(span.group("start"))
+            end = _seconds(span.group("end"))
             if start < 0 or end <= start or end > duration + 0.05:
                 raise ValueError("selected span is outside the video")
             spans.append(
@@ -105,6 +117,11 @@ def frame_timestamps(spans: list[dict[str, Any]], duration: float, maximum: int 
 def _metadata(response: Any, elapsed: float) -> dict[str, Any]:
     usage = getattr(response, "usage_metadata", None)
     text = response.text or ""
+    candidates = getattr(response, "candidates", None) or []
+    finish_reason = None
+    if candidates:
+        value = getattr(candidates[0], "finish_reason", None)
+        finish_reason = getattr(value, "name", str(value)) if value is not None else None
     return {
         "elapsed_seconds": round(elapsed, 6),
         "response_sha256": hashlib.sha256(text.encode()).hexdigest(),
@@ -116,6 +133,7 @@ def _metadata(response: Any, elapsed: float) -> dict[str, Any]:
         "cached_content_token_count": getattr(usage, "cached_content_token_count", None),
         "model_version": getattr(response, "model_version", None),
         "response_id": getattr(response, "response_id", None),
+        "finish_reason": finish_reason,
     }
 
 
@@ -261,41 +279,77 @@ def run_row(root: Path, video_id: str) -> None:
     uploaded = None
     cleanup = "not-uploaded"
     try:
-        uploaded = _upload(client, delivery.path)
-        video = _video_part(uploaded)
-        timeline_prompt = _timeline_prompt(float(row["duration_seconds"]))
-        timeline, timeline_metadata = _call(client, [video, timeline_prompt], 8192)
-        events = parse_timeline(timeline, float(row["duration_seconds"]))
-        _write_once(row_root / "timeline" / "request.json", {"prompt": timeline_prompt})
-        _write_once(row_root / "timeline" / "response.txt", timeline)
-        _write_once(row_root / "timeline" / "metadata.json", timeline_metadata)
-        _write_once(row_root / "timeline" / "events.json", events)
+        timeline_path = row_root / "timeline" / "response.txt"
+        if timeline_path.is_file():
+            timeline = timeline_path.read_text(encoding="utf-8")
+            parse_timeline(timeline, float(row["duration_seconds"]))
+        else:
+            uploaded = _upload(client, delivery.path)
+            video = _video_part(uploaded)
+            timeline_prompt = _timeline_prompt(float(row["duration_seconds"]))
+            timeline, timeline_metadata = _call(client, [video, timeline_prompt], 8192)
+            _write_once(row_root / "timeline" / "request.json", {"prompt": timeline_prompt})
+            _write_once(row_root / "timeline" / "response.txt", timeline)
+            _write_once(row_root / "timeline" / "metadata.json", timeline_metadata)
+            events = parse_timeline(timeline, float(row["duration_seconds"]))
+            _write_once(row_root / "timeline" / "events.json", events)
 
-        direct_prompt = _direct_prompt(row["question"])
-        direct_answer, direct_metadata = _call(client, [video, direct_prompt], 2048)
-        _write_once(row_root / "direct-answer" / "request.json", {"question": row["question"], "prompt": direct_prompt})
-        _write_once(row_root / "direct-answer" / "response.txt", direct_answer)
-        _write_once(row_root / "direct-answer" / "metadata.json", direct_metadata)
+        direct_path = row_root / "direct-answer" / "response.txt"
+        if direct_path.is_file():
+            direct_answer = direct_path.read_text(encoding="utf-8")
+        else:
+            if uploaded is None:
+                uploaded = _upload(client, delivery.path)
+            video = _video_part(uploaded)
+            direct_prompt = _direct_prompt(row["question"])
+            direct_answer, direct_metadata = _call(client, [video, direct_prompt], 2048)
+            _write_once(row_root / "direct-answer" / "request.json", {"question": row["question"], "prompt": direct_prompt})
+            _write_once(row_root / "direct-answer" / "response.txt", direct_answer)
+            _write_once(row_root / "direct-answer" / "metadata.json", direct_metadata)
 
         selection_prompt = _selection_prompt(row["question"], timeline)
-        selection_text, selection_metadata = _call(client, selection_prompt, 2048)
+        selection_path = row_root / "timeline-answer" / "response.txt"
+        if selection_path.is_file():
+            selection_text = selection_path.read_text(encoding="utf-8")
+        else:
+            if (
+                timeline_path.is_file()
+                and direct_path.is_file()
+                and (row_root / "cleanup.json").is_file()
+                and not (row_root / "timeline-answer" / "retry.json").is_file()
+            ):
+                _write_once(
+                    row_root / "timeline-answer" / "pre-preservation-audit-gap.json",
+                    {"status": "one_text_selector_response_not_preserved", "video_calls_reused": True},
+                )
+            selection_text, selection_metadata = _call(client, selection_prompt, 4096)
+            _write_once(row_root / "timeline-answer" / "request.json", {"question": row["question"], "timeline_sha256": hashlib.sha256(timeline.encode()).hexdigest(), "prompt": selection_prompt})
+            _write_once(row_root / "timeline-answer" / "response.txt", selection_text)
+            _write_once(row_root / "timeline-answer" / "metadata.json", selection_metadata)
         selection = parse_selection(selection_text, float(row["duration_seconds"]))
-        _write_once(row_root / "timeline-answer" / "request.json", {"question": row["question"], "timeline_sha256": hashlib.sha256(timeline.encode()).hexdigest(), "prompt": selection_prompt})
-        _write_once(row_root / "timeline-answer" / "response.txt", selection_text)
-        _write_once(row_root / "timeline-answer" / "metadata.json", selection_metadata)
-        _write_once(row_root / "timeline-answer" / "selection.json", selection)
+        selection_json = row_root / "timeline-answer" / "selection.json"
+        if not selection_json.exists():
+            _write_once(selection_json, selection)
 
-        timestamps = frame_timestamps(selection["spans"], float(row["duration_seconds"]))
-        frames = _extract_frames(delivery.path, timestamps, row_root / "selected-frames")
-        _write_once(row_root / "selected-frames" / "manifest.json", frames)
+        frame_manifest = row_root / "selected-frames" / "manifest.json"
+        if frame_manifest.is_file():
+            frames = json.loads(frame_manifest.read_text(encoding="utf-8"))
+        else:
+            timestamps = frame_timestamps(selection["spans"], float(row["duration_seconds"]))
+            frames = _extract_frames(delivery.path, timestamps, row_root / "selected-frames")
+            _write_once(frame_manifest, frames)
         frame_prompt = _frame_answer_prompt(row["question"], timeline, frames)
-        frame_parts: list[Any] = [frame_prompt]
-        for frame in frames:
-            frame_parts.append(types.Part.from_bytes(data=(row_root / "selected-frames" / frame["path"]).read_bytes(), mime_type="image/jpeg"))
-        frame_answer, frame_metadata = _call(client, frame_parts, 2048)
-        _write_once(row_root / "frame-answer" / "request.json", {"question": row["question"], "timeline_sha256": hashlib.sha256(timeline.encode()).hexdigest(), "frames": frames, "prompt": frame_prompt})
-        _write_once(row_root / "frame-answer" / "response.txt", frame_answer)
-        _write_once(row_root / "frame-answer" / "metadata.json", frame_metadata)
+        frame_answer_path = row_root / "frame-answer" / "response.txt"
+        if frame_answer_path.is_file():
+            frame_answer = frame_answer_path.read_text(encoding="utf-8")
+        else:
+            frame_parts: list[Any] = [frame_prompt]
+            for frame in frames:
+                frame_parts.append(types.Part.from_bytes(data=(row_root / "selected-frames" / frame["path"]).read_bytes(), mime_type="image/jpeg"))
+            frame_answer, frame_metadata = _call(client, frame_parts, 2048)
+            _write_once(row_root / "frame-answer" / "request.json", {"question": row["question"], "timeline_sha256": hashlib.sha256(timeline.encode()).hexdigest(), "frames": frames, "prompt": frame_prompt})
+            _write_once(row_root / "frame-answer" / "response.txt", frame_answer)
+            _write_once(row_root / "frame-answer" / "metadata.json", frame_metadata)
 
         _write_once(
             row_root / "complete.json",
@@ -318,7 +372,9 @@ def run_row(root: Path, video_id: str) -> None:
                 cleanup = "succeeded"
             except Exception:
                 cleanup = "failed"
-        _write_once(row_root / "cleanup.json", {"uploaded_file_deletion": cleanup})
+        cleanup_path = row_root / "cleanup.json"
+        if uploaded is not None and not cleanup_path.exists():
+            _write_once(cleanup_path, {"uploaded_file_deletion": cleanup})
     print(json.dumps({"video_id": video_id, "status": "complete", "cleanup": cleanup}))
 
 

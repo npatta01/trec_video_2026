@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "experiment_id": "direct-gemini-evidence-canary-v1",
+  "date": "2026-08-12",
+  "evidence_validity": "diagnostic-seven-row-purposive-sample",
+  "decision_disposition": "retain_direct_native_av_baseline_do_not_promote_derived_answer_paths",
+  "panel": {
+    "videos": 7,
+    "categories": [
+      "temporal",
+      "counting",
+      "causal",
+      "speech",
+      "sound",
+      "ocr_detail",
+      "other_global"
+    ],
+    "predictions_frozen_before_labels": true
+  },
+  "conditions": {
+    "direct_native_av": {
+      "meteor": 0.3350466659,
+      "bertscore_f1": 0.8894052591,
+      "sts": 0.3033438766,
+      "semantic_composite": 0.5092652672
+    },
+    "timeline_plus_selected_frames": {
+      "meteor": 0.2185959825,
+      "bertscore_f1": 0.8724818996,
+      "sts": 0.2623010029,
+      "semantic_composite": 0.4511262950
+    },
+    "timeline_only": {
+      "meteor": 0.2012035026,
+      "bertscore_f1": 0.8983987996,
+      "sts": 0.1733967857,
+      "semantic_composite": 0.4243330293
+    }
+  },
+  "observed": {
+    "clearly_supported_direct_answers": 4,
+    "clear_direct_semantic_misses": 1,
+    "reference_or_task_ambiguity_cases": 2,
+    "exact_match_per_condition": "0/7",
+    "ndcg": 1.0,
+    "ndcg_informative": false,
+    "native_video_calls_repeated_after_failure": 0,
+    "selector_pre_preservation_audit_gaps": 2,
+    "preserved_truncated_selector_attempts": 1
+  },
+  "private_evidence": {
+    "root": "/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-evidence-canary-v1/",
+    "inspection": "inspection.md",
+    "prediction_freeze": "predictions-freeze.json",
+    "postfreeze_metrics": "postfreeze-metrics.json",
+    "prediction_freeze_sha256": "1803910ed7ecad623201ded3d0fdfd34b3a15a66bfa02f9aa120be59cb5b5719",
+    "postfreeze_metrics_sha256": "483e184478707fa05176ecd272c719c8f01a84b6e774f8c40c13fcca198cdbc8"
+  },
+  "next_decision": "Use frozen evidence to test question decomposition for temporal scope; retain all modalities at final answering and do not scale derived answer paths yet."
+}
