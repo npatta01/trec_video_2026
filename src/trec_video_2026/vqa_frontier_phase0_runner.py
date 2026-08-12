@@ -80,13 +80,13 @@ MAP_POLICY = OpenRouterRequestPolicy(
     max_output_tokens=8192,
     temperature=0.0,
     allow_fallbacks=False,
-    use_structured_outputs=False,
+    use_structured_outputs=True,
 )
 ANSWER_POLICY = OpenRouterRequestPolicy(
     max_output_tokens=4096,
     temperature=0.0,
     allow_fallbacks=False,
-    use_structured_outputs=False,
+    use_structured_outputs=True,
 )
 _MODEL_SLUG = "google/gemini-3.1-pro-preview"
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]+\Z")
@@ -98,7 +98,7 @@ _PHASES = ("pilot", "screen")
 _DEFAULT_INPUT_TOKENS = 1_000_000
 _MAP_OUTPUT_TOKENS = 8192
 _ANSWER_OUTPUT_TOKENS = 4096
-_RESPONSE_FORMAT_POLICY = "prompt-json-local-validation-v3-exact-fence"
+_RESPONSE_FORMAT_POLICY = "native-json-schema-v1"
 
 
 class Phase0RunnerError(RuntimeError):

@@ -415,6 +415,8 @@ def test_request_hashes_bind_delivery_schema_and_guided_map_only(tmp_path: Path)
     assert by_condition["direct_answer"]["neutral_map_sha256"] is None
     assert by_condition["map_guided_answer"]["neutral_map_sha256"]
     for request in by_condition.values():
+        assert request["response_format_policy"] == "native-json-schema-v1"
+        assert request["use_structured_outputs"] is True
         assert request["request_sha256"] == request["request_binding_sha256"]
         assert request["request_sha256"] == canonical_sha256(request["request_binding"])
 
@@ -807,8 +809,18 @@ def test_actual_openrouter_length_evidence_retries_and_protocol_evidence_stops(
     )
     transport = OpenRouterTransport("fixture-key", opener=opener, policy=MAP_POLICY)
 
+    assert MAP_POLICY.use_structured_outputs is True
+    assert transport.response_format_policy == "native-json-schema-v1"
     assert run_pilot(prepared, transport).passed == 1
     assert len(opener.requests) == 2
+    request = json.loads(opener.requests[0].data)
+    assert request["response_format"]["type"] == "json_schema"
+    assert request["response_format"]["json_schema"]["strict"] is True
+    result = json.loads(
+        (prepared.path / "results" / "neutral_map.jsonl").read_text(encoding="utf-8")
+    )
+    assert result["status"] == "succeeded"
+    assert result["validated_output"]["events"][0]["event_id"] == "E1"
 
     protocol_prepared = prepared_fixture(tmp_path / "protocol")
     protocol_opener = AdapterOpener(
@@ -1196,7 +1208,7 @@ class RecordingTransport:
         }
 
     provider_name = "openrouter"
-    response_format_policy = "prompt-json-local-validation-v3-exact-fence"
+    response_format_policy = "native-json-schema-v1"
 
     def upload(self, path: Path, *, mime_type: str) -> UploadedFileRecord:
         return UploadedFileRecord(
@@ -1253,7 +1265,7 @@ class FixtureTransport(RecordingTransport):
 
 class FailOnceTransport:
     provider_name = "openrouter"
-    response_format_policy = "prompt-json-local-validation-v3-exact-fence"
+    response_format_policy = "native-json-schema-v1"
 
     def __init__(self, failure: str) -> None:
         self.failure = failure
