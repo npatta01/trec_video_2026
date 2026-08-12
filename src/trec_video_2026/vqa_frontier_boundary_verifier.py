@@ -300,6 +300,9 @@ def prepare_verifier(
     ):
         raise ValueError("pilot audit does not bind the supplied prediction freeze")
     pilot_results = _read_json(pilot_results_path)
+    prior_phase0_spend_usd = _nonnegative_number(
+        pilot_results.get("observed_cost_usd"), "prior_phase0_spend_usd"
+    )
     results_value = pilot_results.get("results")
     if not isinstance(results_value, list):
         raise ValueError("frozen pilot aggregate has no result list")
@@ -355,6 +358,10 @@ def prepare_verifier(
         "model_id": MODEL_ID,
         "max_output_tokens": VERIFIER_POLICY.max_output_tokens,
         "projected_call_cost_usd": PROJECTED_CALL_COST_USD,
+        "prior_phase0_spend_usd": prior_phase0_spend_usd,
+        "projected_cumulative_cost_usd": _cumulative_cost(
+            prior_phase0_spend_usd, PROJECTED_CALL_COST_USD
+        ),
         **delivery.request_identity(),
     }
     _write_json_once(output / "manifest.json", manifest)
@@ -412,15 +419,40 @@ def load_verifier(path: Path) -> PreparedBoundaryVerifier:
     for key, value in expected.items():
         if manifest.get(key) != value:
             raise ValueError(f"verifier manifest {key} binding changed")
+    if "prior_phase0_spend_usd" in manifest:
+        _nonnegative_number(
+            manifest["prior_phase0_spend_usd"], "prior_phase0_spend_usd"
+        )
+    if "projected_cumulative_cost_usd" in manifest:
+        prior = _nonnegative_number(
+            manifest.get("prior_phase0_spend_usd"), "prior_phase0_spend_usd"
+        )
+        projected = _nonnegative_number(
+            manifest.get("projected_call_cost_usd"), "projected_call_cost_usd"
+        )
+        if manifest["projected_cumulative_cost_usd"] != _cumulative_cost(
+            prior, projected
+        ):
+            raise ValueError("verifier cumulative cost binding changed")
     return PreparedBoundaryVerifier(root, manifest, draft, source_path, delivery)
 
 
 def preflight_verifier(prepared: PreparedBoundaryVerifier | Path) -> dict[str, object]:
     prepared = load_verifier(prepared) if isinstance(prepared, (str, Path)) else prepared
     _verify_upstream_chain(prepared)
-    projected = float(prepared.manifest["projected_call_cost_usd"])
-    if projected >= ABSOLUTE_CAP_USD:
-        raise BoundaryVerifierError("projected verifier cost reaches the USD 25 cap")
+    prior = _prior_phase0_spend(prepared)
+    projected = _projected_call_cost(prepared)
+    projected_cumulative = _cumulative_cost(prior, projected)
+    if (
+        "projected_cumulative_cost_usd" in prepared.manifest
+        and prepared.manifest["projected_cumulative_cost_usd"]
+        != projected_cumulative
+    ):
+        raise ValueError("verifier cumulative cost binding changed")
+    if projected_cumulative > ABSOLUTE_CAP_USD:
+        raise BoundaryVerifierError(
+            "projected cumulative verifier cost exceeds the USD 25 cap"
+        )
     return {
         "schema_version": 1,
         "status": "preflight-ready",
@@ -428,7 +460,9 @@ def preflight_verifier(prepared: PreparedBoundaryVerifier | Path) -> dict[str, o
         "model_id": MODEL_ID,
         "source_sha256": prepared.manifest["source_sha256"],
         "draft_map_sha256": prepared.draft_map.sha256,
+        "prior_phase0_spend_usd": prior,
         "projected_call_cost_usd": projected,
+        "projected_cumulative_cost_usd": projected_cumulative,
         "absolute_cap_usd": ABSOLUTE_CAP_USD,
     }
 
@@ -443,6 +477,11 @@ def run_verifier(
     if (prepared.path / "result.json").exists() or (prepared.path / "raw-response.json").exists():
         raise FileExistsError("verifier already has a terminal attempt")
     preflight_verifier(prepared)
+    prior_phase0_spend_usd = _prior_phase0_spend(prepared)
+    projected_call_cost_usd = _projected_call_cost(prepared)
+    projected_cumulative_cost_usd = _cumulative_cost(
+        prior_phase0_spend_usd, projected_call_cost_usd
+    )
     if (
         not isinstance(transport, OpenRouterTransport)
         or getattr(transport, "_policy", None) != VERIFIER_POLICY
@@ -465,7 +504,10 @@ def run_verifier(
         "max_output_tokens": VERIFIER_POLICY.max_output_tokens,
         "temperature": 0.0,
         "use_structured_outputs": True,
-        "projected_call_cost_usd": PROJECTED_CALL_COST_USD,
+        "prior_phase0_spend_usd": prior_phase0_spend_usd,
+        "projected_call_cost_usd": projected_call_cost_usd,
+        "projected_cumulative_cost_usd": projected_cumulative_cost_usd,
+        "absolute_cap_usd": ABSOLUTE_CAP_USD,
     }
     request = {**request_binding, "request_sha256": canonical_sha256(request_binding)}
     _write_json_once(prepared.path / "request.json", request)
@@ -535,7 +577,12 @@ def run_verifier(
         raw_sha = hashlib.sha256(generated.raw_response.encode("utf-8")).hexdigest()
     if failure_code is None and not cost_known:
         failure_code = "provider_evidence"
-    if failure_code is None and cost is not None and cost >= ABSOLUTE_CAP_USD:
+    cumulative_cost_usd = (
+        None
+        if not cost_known or cost is None
+        else _cumulative_cost(prior_phase0_spend_usd, cost)
+    )
+    if failure_code is None and cumulative_cost_usd is not None and cumulative_cost_usd > ABSOLUTE_CAP_USD:
         failure_code = "cost_cap_exceeded"
     status = "succeeded" if output is not None and failure_code is None else "failed"
     result: dict[str, object] = {
@@ -547,11 +594,15 @@ def run_verifier(
         "request_sha256": request["request_sha256"],
         "source_sha256": prepared.manifest["source_sha256"],
         "draft_map_sha256": prepared.draft_map.sha256,
+        "prior_phase0_spend_usd": prior_phase0_spend_usd,
+        "projected_call_cost_usd": projected_call_cost_usd,
+        "projected_cumulative_cost_usd": projected_cumulative_cost_usd,
         "raw_response_sha256": raw_sha,
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "cost_known": cost_known,
         "cost_usd": cost,
+        "cumulative_cost_usd": cumulative_cost_usd,
         "provider": None
         if generated is None
         else generated.provider_metadata.get("provider"),
@@ -571,6 +622,8 @@ def run_verifier(
             "raw_response_sha256": raw_sha,
             "cost_known": cost_known,
             "cost_usd": cost,
+            "prior_phase0_spend_usd": prior_phase0_spend_usd,
+            "cumulative_cost_usd": cumulative_cost_usd,
         },
     )
     return result
@@ -585,25 +638,7 @@ def freeze_verifier(prepared: PreparedBoundaryVerifier | Path) -> dict[str, obje
         _verify_verifier_freeze(prepared, freeze)
         return dict(freeze)
     result = _read_json(prepared.path / "result.json")
-    if (
-        result.get("status") != "succeeded"
-        or result.get("cost_known") is not True
-        or not isinstance(result.get("cost_usd"), (int, float))
-        or isinstance(result.get("cost_usd"), bool)
-        or float(result["cost_usd"]) >= ABSOLUTE_CAP_USD
-        or not isinstance(result.get("provider"), str)
-        or result.get("observed_model")
-        not in {MODEL_ID, "google/gemini-3.1-pro-preview"}
-    ):
-        raise BoundaryVerifierError("only a successful cost-known verifier result can freeze")
-    bindings = {
-        "runner_id": RUNNER_ID,
-        "status": "succeeded",
-        "video_id": prepared.manifest["video_id"],
-        "request_sha256": result["request_sha256"],
-        "source_sha256": prepared.manifest["source_sha256"],
-        "draft_map_sha256": prepared.draft_map.sha256,
-    }
+    bindings = _verifier_freeze_bindings(prepared, result)
     freeze = freeze_json_artifact(prepared.path / "result.json", bindings=bindings)
     artifact_chain = _artifact_chain(prepared)
     freeze["artifact_chain"] = artifact_chain
@@ -666,6 +701,24 @@ def _verify_verifier_freeze(
 ) -> None:
     _verify_upstream_chain(prepared)
     verify_json_artifact(prepared.path / "result.json", dict(freeze))
+    result = _read_json(prepared.path / "result.json")
+    bindings = freeze.get("bindings")
+    if not isinstance(bindings, Mapping):
+        raise ValueError("verifier freeze bindings are missing")
+    if bindings.get("status") == "succeeded" and "cumulative_cost_usd" not in bindings:
+        expected_legacy = {
+            "runner_id": RUNNER_ID,
+            "status": "succeeded",
+            "video_id": prepared.manifest["video_id"],
+            "request_sha256": result["request_sha256"],
+            "source_sha256": prepared.manifest["source_sha256"],
+            "draft_map_sha256": prepared.draft_map.sha256,
+        }
+        if dict(bindings) != expected_legacy:
+            raise ValueError("legacy verifier freeze bindings changed")
+        _validate_legacy_succeeded_result(result)
+    elif dict(bindings) != _verifier_freeze_bindings(prepared, result):
+        raise ValueError("verifier freeze bindings changed")
     chain = freeze.get("artifact_chain")
     if not isinstance(chain, Mapping):
         raise ValueError("verifier freeze artifact chain is missing")
@@ -684,6 +737,13 @@ def _verify_upstream_chain(prepared: PreparedBoundaryVerifier) -> None:
     pilot_freeze_path = source_run / "pilot-freeze.json"
     pilot_freeze = _read_json(pilot_freeze_path)
     verify_json_artifact(pilot_results_path, dict(pilot_freeze))
+    pilot_results = _read_json(pilot_results_path)
+    if "prior_phase0_spend_usd" in manifest:
+        prior_phase0_spend_usd = _nonnegative_number(
+            pilot_results.get("observed_cost_usd"), "prior_phase0_spend_usd"
+        )
+        if manifest["prior_phase0_spend_usd"] != prior_phase0_spend_usd:
+            raise ValueError("prior Phase 0 spend binding changed")
     audit_freeze_path = Path(
         _text(manifest.get("source_audit_freeze"), "source_audit_freeze")
     )
@@ -812,6 +872,132 @@ def _number(value: object, field: str) -> float:
     if not math.isfinite(result):
         raise ValueError(f"{field} must be finite")
     return result
+
+
+def _nonnegative_number(value: object, field: str) -> float:
+    result = _number(value, field)
+    if result < 0:
+        raise ValueError(f"{field} must be non-negative")
+    return result
+
+
+def _cumulative_cost(prior: float, projected: float) -> float:
+    return round(prior + projected, 6)
+
+
+def _prior_phase0_spend(prepared: PreparedBoundaryVerifier) -> float:
+    return _nonnegative_number(
+        prepared.manifest.get("prior_phase0_spend_usd"),
+        "prior_phase0_spend_usd",
+    )
+
+
+def _projected_call_cost(prepared: PreparedBoundaryVerifier) -> float:
+    return _nonnegative_number(
+        prepared.manifest.get("projected_call_cost_usd"),
+        "projected_call_cost_usd",
+    )
+
+
+def _validate_legacy_succeeded_result(result: Mapping[str, object]) -> None:
+    if (
+        result.get("status") != "succeeded"
+        or result.get("failure_code") is not None
+        or not isinstance(result.get("validated_output"), Mapping)
+        or result.get("cost_known") is not True
+        or not isinstance(result.get("cost_usd"), (int, float))
+        or isinstance(result.get("cost_usd"), bool)
+        or not math.isfinite(float(result["cost_usd"]))
+        or float(result["cost_usd"]) < 0
+        or not isinstance(result.get("provider"), str)
+        or not result["provider"].strip()
+        or result.get("observed_model")
+        not in {MODEL_ID, "google/gemini-3.1-pro-preview"}
+    ):
+        raise BoundaryVerifierError("legacy succeeded verifier result is not freezeable")
+
+
+def _verify_raw_response_evidence(
+    prepared: PreparedBoundaryVerifier, result: Mapping[str, object]
+) -> None:
+    raw_sha = result.get("raw_response_sha256")
+    if not isinstance(raw_sha, str) or not raw_sha:
+        raise BoundaryVerifierError("terminal verifier raw response evidence is missing")
+    raw_payload = _read_json(prepared.path / "raw-response.json")
+    raw_response = raw_payload.get("raw_response")
+    if (
+        not isinstance(raw_response, str)
+        or hashlib.sha256(raw_response.encode("utf-8")).hexdigest() != raw_sha
+        or raw_payload.get("raw_response_sha256") != raw_sha
+    ):
+        raise BoundaryVerifierError("terminal verifier raw response evidence changed")
+
+
+def _verifier_freeze_bindings(
+    prepared: PreparedBoundaryVerifier, result: Mapping[str, object]
+) -> dict[str, object]:
+    status = result.get("status")
+    if status not in {"succeeded", "failed"}:
+        raise BoundaryVerifierError("verifier result is not terminal")
+    prior = _prior_phase0_spend(prepared)
+    projected = _projected_call_cost(prepared)
+    expected_projected_cumulative = _cumulative_cost(prior, projected)
+    if (
+        result.get("prior_phase0_spend_usd") != prior
+        or result.get("projected_call_cost_usd") != projected
+        or result.get("projected_cumulative_cost_usd") != expected_projected_cumulative
+    ):
+        raise BoundaryVerifierError("verifier result cumulative projection binding changed")
+    if status == "succeeded":
+        _validate_legacy_succeeded_result(result)
+        _verify_raw_response_evidence(prepared, result)
+    else:
+        if result.get("failure_code") not in {
+            "provider_failure",
+            "provider_protocol",
+            "schema_validation",
+        }:
+            raise BoundaryVerifierError("verifier failure is not freezeable")
+        if result.get("validated_output") is not None:
+            raise BoundaryVerifierError("failed verifier result has validated output")
+        _verify_raw_response_evidence(prepared, result)
+        if not isinstance(result.get("provider"), str) or not result["provider"].strip():
+            raise BoundaryVerifierError("failed verifier provider evidence is missing")
+        if result.get("observed_model") not in {
+            MODEL_ID,
+            "google/gemini-3.1-pro-preview",
+        }:
+            raise BoundaryVerifierError("failed verifier model evidence is missing")
+    cost = result.get("cost_usd")
+    if (
+        result.get("cost_known") is not True
+        or not isinstance(cost, (int, float))
+        or isinstance(cost, bool)
+        or not math.isfinite(float(cost))
+        or float(cost) < 0
+    ):
+        raise BoundaryVerifierError("verifier result cost evidence is missing")
+    cumulative = _cumulative_cost(prior, float(cost))
+    if result.get("cumulative_cost_usd") != cumulative or cumulative > ABSOLUTE_CAP_USD:
+        raise BoundaryVerifierError("verifier cumulative cost is not freezeable")
+    return {
+        "runner_id": RUNNER_ID,
+        "status": status,
+        "failure_code": result.get("failure_code"),
+        "video_id": prepared.manifest["video_id"],
+        "request_sha256": result.get("request_sha256"),
+        "source_sha256": prepared.manifest["source_sha256"],
+        "draft_map_sha256": prepared.draft_map.sha256,
+        "raw_response_sha256": result.get("raw_response_sha256"),
+        "provider": result.get("provider"),
+        "observed_model": result.get("observed_model"),
+        "cost_known": result.get("cost_known"),
+        "cost_usd": cost,
+        "prior_phase0_spend_usd": prior,
+        "projected_call_cost_usd": projected,
+        "projected_cumulative_cost_usd": expected_projected_cumulative,
+        "cumulative_cost_usd": cumulative,
+    }
 
 
 def _text(value: object, field: str) -> str:

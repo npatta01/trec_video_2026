@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -172,6 +173,7 @@ def test_prepare_uses_frozen_aggregate_not_mutable_result_jsonl(
     pilot_results = {
         "schema_version": 1,
         "run_id": "fixture-run",
+        "observed_cost_usd": 0.75,
         "results": [
             {
                 "phase": "pilot",
@@ -268,6 +270,7 @@ def test_prepare_uses_frozen_aggregate_not_mutable_result_jsonl(
 
     assert prepared.draft_map.sha256 == validate_neutral_map(frozen_map, 4.0).sha256
     assert prepared.draft_map.sha256 != validate_neutral_map(mutable_map, 4.0).sha256
+    assert prepared.manifest["prior_phase0_spend_usd"] == 0.75
 
 
 class FakeResponse:
@@ -293,7 +296,9 @@ class FakeOpener:
         return self.response
 
 
-def prepared_fixture(tmp_path: Path) -> PreparedBoundaryVerifier:
+def prepared_fixture(
+    tmp_path: Path, *, prior_phase0_spend_usd: float | None = 0.0
+) -> PreparedBoundaryVerifier:
     root = tmp_path / "verifier"
     root.mkdir()
     (root / "attempts.jsonl").touch()
@@ -307,7 +312,13 @@ def prepared_fixture(tmp_path: Path) -> PreparedBoundaryVerifier:
     source_run.mkdir()
     pilot_results_path = source_run / "pilot-results.json"
     pilot_results_path.write_text(
-        json.dumps({"schema_version": 1, "run_id": "fixture-run"}),
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": "fixture-run",
+                "observed_cost_usd": prior_phase0_spend_usd,
+            }
+        ),
         encoding="utf-8",
     )
     pilot_freeze_path = source_run / "pilot-freeze.json"
@@ -349,6 +360,7 @@ def prepared_fixture(tmp_path: Path) -> PreparedBoundaryVerifier:
         "source_sha256": digest,
         "source_run": str(source_run),
         "source_audit_freeze": str(audit / "freeze.json"),
+        "prior_phase0_spend_usd": prior_phase0_spend_usd,
         "projected_call_cost_usd": 0.5,
     }
     (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
@@ -406,6 +418,62 @@ def test_one_call_runner_preserves_raw_freezes_and_refuses_retry(tmp_path: Path)
     assert status_verifier(prepared)["terminal_attempts"] == 1
     with pytest.raises(FileExistsError):
         run_verifier(prepared, transport)
+
+
+def test_status_preserves_legacy_succeeded_freeze_compatibility(tmp_path: Path) -> None:
+    prepared = prepared_fixture(tmp_path)
+    run_verifier(
+        prepared,
+        OpenRouterTransport(
+            "fixture-key",
+            opener=FakeOpener(
+                FakeResponse(
+                    {
+                        "model": "google/gemini-3.1-pro-preview",
+                        "provider": "Google AI Studio",
+                        "choices": [
+                            {
+                                "finish_reason": "stop",
+                                "message": {
+                                    "role": "assistant",
+                                    "content": json.dumps(verifier_output()),
+                                },
+                            }
+                        ],
+                        "usage": {
+                            "prompt_tokens": 100,
+                            "completion_tokens": 200,
+                            "total_tokens": 300,
+                            "cost": 0.05,
+                        },
+                    }
+                )
+            ),
+            policy=VERIFIER_POLICY,
+        ),
+    )
+    result_path = prepared.path / "result.json"
+    result = json.loads(result_path.read_text())
+    legacy_bindings = {
+        "runner_id": verifier_module.RUNNER_ID,
+        "status": "succeeded",
+        "video_id": "pilot-video",
+        "request_sha256": result["request_sha256"],
+        "source_sha256": prepared.manifest["source_sha256"],
+        "draft_map_sha256": prepared.draft_map.sha256,
+    }
+    legacy_freeze = freeze_json_artifact(result_path, bindings=legacy_bindings)
+    chain = verifier_module._artifact_chain(prepared)
+    legacy_freeze["artifact_chain"] = chain
+    legacy_freeze["artifact_chain_sha256"] = verifier_module.canonical_sha256(chain)
+    (prepared.path / "freeze.json").write_text(
+        json.dumps(legacy_freeze), encoding="utf-8"
+    )
+
+    status = status_verifier(prepared)
+
+    assert status["status"] == "succeeded"
+    assert status["frozen"] is True
 
 
 @pytest.mark.parametrize(
@@ -501,6 +569,209 @@ def test_terminal_schema_failure_is_preserved_without_retry(tmp_path: Path) -> N
     assert len(opener.requests) == 1
     with pytest.raises(FileExistsError):
         run_verifier(prepared, transport)
+
+
+def test_terminal_schema_failure_freezes_without_becoming_accepted(
+    tmp_path: Path,
+) -> None:
+    prepared = prepared_fixture(tmp_path, prior_phase0_spend_usd=1.25)
+    opener = FakeOpener(
+        FakeResponse(
+            {
+                "model": "google/gemini-3.1-pro-preview",
+                "provider": "Google AI Studio",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "role": "assistant",
+                            "content": json.dumps({"schema_version": 1}),
+                        },
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 10,
+                    "total_tokens": 20,
+                    "cost": 0.01,
+                },
+            }
+        )
+    )
+    run_verifier(
+        prepared,
+        OpenRouterTransport("fixture-key", opener=opener, policy=VERIFIER_POLICY),
+    )
+
+    freeze = freeze_verifier(prepared)
+    status = status_verifier(prepared)
+
+    assert freeze["status"] == "frozen"
+    assert freeze["bindings"]["status"] == "failed"
+    assert freeze["bindings"]["failure_code"] == "schema_validation"
+    assert freeze["bindings"]["raw_response_sha256"]
+    assert freeze["bindings"]["provider"] == "Google AI Studio"
+    assert freeze["bindings"]["observed_model"] == "google/gemini-3.1-pro-preview"
+    assert freeze["bindings"]["cost_usd"] == 0.01
+    assert freeze["bindings"]["cumulative_cost_usd"] == 1.26
+    assert status["status"] == "failed"
+    assert status["frozen"] is True
+
+
+@pytest.mark.parametrize("target", ["raw-response.json", "result.json"])
+def test_failed_freeze_detects_deletion_of_bound_artifacts(
+    tmp_path: Path, target: str
+) -> None:
+    prepared = prepared_fixture(tmp_path)
+    run_verifier(
+        prepared,
+        OpenRouterTransport(
+            "fixture-key",
+            opener=FakeOpener(
+                FakeResponse(
+                    {
+                        "model": "google/gemini-3.1-pro-preview",
+                        "provider": "Google AI Studio",
+                        "choices": [
+                            {
+                                "finish_reason": "stop",
+                                "message": {
+                                    "role": "assistant",
+                                    "content": json.dumps({"schema_version": 1}),
+                                },
+                            }
+                        ],
+                        "usage": {
+                            "prompt_tokens": 10,
+                            "completion_tokens": 10,
+                            "total_tokens": 20,
+                            "cost": 0.01,
+                        },
+                    }
+                )
+            ),
+            policy=VERIFIER_POLICY,
+        ),
+    )
+    freeze_verifier(prepared)
+    (prepared.path / target).unlink()
+
+    with pytest.raises((FileNotFoundError, ValueError)):
+        status_verifier(prepared)
+
+
+def test_failed_freeze_detects_binding_mutation(tmp_path: Path) -> None:
+    prepared = prepared_fixture(tmp_path)
+    run_verifier(
+        prepared,
+        OpenRouterTransport(
+            "fixture-key",
+            opener=FakeOpener(
+                FakeResponse(
+                    {
+                        "model": "google/gemini-3.1-pro-preview",
+                        "provider": "Google AI Studio",
+                        "choices": [
+                            {
+                                "finish_reason": "stop",
+                                "message": {
+                                    "role": "assistant",
+                                    "content": json.dumps({"schema_version": 1}),
+                                },
+                            }
+                        ],
+                        "usage": {
+                            "prompt_tokens": 10,
+                            "completion_tokens": 10,
+                            "total_tokens": 20,
+                            "cost": 0.01,
+                        },
+                    }
+                )
+            ),
+            policy=VERIFIER_POLICY,
+        ),
+    )
+    freeze_verifier(prepared)
+    freeze_path = prepared.path / "freeze.json"
+    freeze = json.loads(freeze_path.read_text())
+    freeze["bindings"]["status"] = "succeeded"
+    freeze_path.write_text(json.dumps(freeze), encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        status_verifier(prepared)
+
+
+def test_preflight_binds_cumulative_spend_and_allows_exact_cap(
+    tmp_path: Path,
+) -> None:
+    prepared = prepared_fixture(tmp_path, prior_phase0_spend_usd=24.5)
+
+    preflight = preflight_verifier(prepared)
+
+    assert preflight["prior_phase0_spend_usd"] == 24.5
+    assert preflight["projected_call_cost_usd"] == 0.5
+    assert preflight["projected_cumulative_cost_usd"] == 25.0
+
+
+def test_preflight_rejects_projected_cumulative_cost_over_cap(tmp_path: Path) -> None:
+    prepared = prepared_fixture(tmp_path, prior_phase0_spend_usd=24.51)
+
+    with pytest.raises(BoundaryVerifierError, match="cumulative|cap"):
+        preflight_verifier(prepared)
+
+
+@pytest.mark.parametrize("prior", [None, -0.01, math.nan, math.inf])
+def test_preflight_rejects_unknown_or_invalid_prior_spend(
+    tmp_path: Path, prior: float | None
+) -> None:
+    prepared = prepared_fixture(tmp_path, prior_phase0_spend_usd=prior)
+
+    with pytest.raises((TypeError, ValueError, BoundaryVerifierError)):
+        preflight_verifier(prepared)
+
+
+def test_request_result_and_freeze_preserve_cumulative_cost_calculation(
+    tmp_path: Path,
+) -> None:
+    prepared = prepared_fixture(tmp_path, prior_phase0_spend_usd=1.25)
+    response = FakeResponse(
+        {
+            "model": "google/gemini-3.1-pro-preview",
+            "provider": "Google AI Studio",
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {
+                        "role": "assistant",
+                        "content": json.dumps(verifier_output()),
+                    },
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 200,
+                "total_tokens": 300,
+                "cost": 0.05,
+            },
+        }
+    )
+    run_verifier(
+        prepared,
+        OpenRouterTransport(
+            "fixture-key", opener=FakeOpener(response), policy=VERIFIER_POLICY
+        ),
+    )
+
+    request = json.loads((prepared.path / "request.json").read_text())
+    result = json.loads((prepared.path / "result.json").read_text())
+    freeze = freeze_verifier(prepared)
+
+    for payload in (request, result, freeze["bindings"]):
+        assert payload["prior_phase0_spend_usd"] == 1.25
+    assert request["projected_cumulative_cost_usd"] == 1.75
+    assert result["cumulative_cost_usd"] == 1.3
+    assert freeze["bindings"]["cumulative_cost_usd"] == 1.3
 
 
 def test_preflight_rejects_audit_prediction_freeze_mismatch(tmp_path: Path) -> None:
