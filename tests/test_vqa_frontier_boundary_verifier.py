@@ -3,10 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
+from trec_video_2026 import vqa_frontier_boundary_verifier as verifier_module
 from trec_video_2026.vqa_frontier_boundary_verifier import (
     BoundaryVerifierError,
     PROVIDER_VERIFIER_SCHEMA,
@@ -14,10 +16,13 @@ from trec_video_2026.vqa_frontier_boundary_verifier import (
     PreparedBoundaryVerifier,
     build_verifier_prompt,
     freeze_verifier,
+    preflight_verifier,
+    prepare_verifier,
     run_verifier,
     status_verifier,
     validate_verifier_output,
 )
+from trec_video_2026.vqa_experiments.temporal_bottleneck import freeze_json_artifact
 from trec_video_2026.vqa_frontier_map_media import DeliveryMedia
 from trec_video_2026.vqa_frontier_phase0_contract import validate_neutral_map
 from trec_video_2026.vqa_submission_openrouter import OpenRouterTransport
@@ -156,6 +161,115 @@ def test_provider_schema_projection_omits_gemini_unsupported_keywords() -> None:
         assert keyword not in rendered
 
 
+def test_prepare_uses_frozen_aggregate_not_mutable_result_jsonl(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_run = tmp_path / "source-run"
+    (source_run / "results").mkdir(parents=True)
+    frozen_map = neutral_map()
+    mutable_map = neutral_map()
+    mutable_map["global_description"] = "A different mutable result."
+    pilot_results = {
+        "schema_version": 1,
+        "run_id": "fixture-run",
+        "results": [
+            {
+                "phase": "pilot",
+                "video_id": "pilot-video",
+                "condition_id": "neutral_map",
+                "status": "succeeded",
+                "validated_output": frozen_map,
+            }
+        ],
+    }
+    pilot_results_path = source_run / "pilot-results.json"
+    pilot_results_path.write_text(json.dumps(pilot_results), encoding="utf-8")
+    pilot_freeze_path = source_run / "pilot-freeze.json"
+    pilot_freeze_path.write_text(
+        json.dumps(
+            freeze_json_artifact(
+                pilot_results_path, bindings={"run_id": "fixture-run"}
+            )
+        ),
+        encoding="utf-8",
+    )
+    (source_run / "results" / "neutral_map.jsonl").write_text(
+        json.dumps(
+            {
+                "phase": "pilot",
+                "video_id": "pilot-video",
+                "condition_id": "neutral_map",
+                "status": "succeeded",
+                "validated_output": mutable_map,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    audit_dir = tmp_path / "audit"
+    audit_dir.mkdir()
+    audit_path = audit_dir / "audit.json"
+    audit_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": "fixture-run",
+                "panel_sha256": "a" * 64,
+                "phase": "pilot",
+                "decision": "revise_contract",
+                "prediction_artifact_sha256": hashlib.sha256(
+                    pilot_results_path.read_bytes()
+                ).hexdigest(),
+                "prediction_freeze_sha256": hashlib.sha256(
+                    pilot_freeze_path.read_bytes()
+                ).hexdigest(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    audit_freeze_path = audit_dir / "freeze.json"
+    audit_freeze_path.write_text(
+        json.dumps(
+            freeze_json_artifact(
+                audit_path,
+                bindings={
+                    "run_id": "fixture-run",
+                    "panel_sha256": "a" * 64,
+                    "phase": "pilot",
+                    "decision": "revise_contract",
+                },
+            )
+        ),
+        encoding="utf-8",
+    )
+    media_root = tmp_path / "canonical"
+    media = media_root / "fixture" / "pilot-video.webm"
+    media.parent.mkdir(parents=True)
+    media.write_bytes(b"native-video")
+    row = SimpleNamespace(
+        video_id="pilot-video",
+        duration_seconds=4.0,
+        media_relative_path="fixture/pilot-video.webm",
+        media_sha256=hashlib.sha256(media.read_bytes()).hexdigest(),
+        size_bytes=media.stat().st_size,
+    )
+    monkeypatch.setattr(verifier_module, "CANONICAL_DATA_ROOT", media_root)
+    monkeypatch.setattr(
+        verifier_module,
+        "load_prepared",
+        lambda _path: SimpleNamespace(
+            pilot_row=row, run_id="fixture-run", panel_sha256="a" * 64
+        ),
+    )
+
+    prepared = prepare_verifier(
+        source_run, audit_freeze_path, "pilot-video", tmp_path / "verifier"
+    )
+
+    assert prepared.draft_map.sha256 == validate_neutral_map(frozen_map, 4.0).sha256
+    assert prepared.draft_map.sha256 != validate_neutral_map(mutable_map, 4.0).sha256
+
+
 class FakeResponse:
     status = 200
 
@@ -191,12 +305,44 @@ def prepared_fixture(tmp_path: Path) -> PreparedBoundaryVerifier:
     draft = validate_neutral_map(neutral_map(), 4.0)
     source_run = root / "source-run"
     source_run.mkdir()
-    (source_run / "pilot-results.json").write_text("{}", encoding="utf-8")
-    (source_run / "pilot-freeze.json").write_text("{}", encoding="utf-8")
+    pilot_results_path = source_run / "pilot-results.json"
+    pilot_results_path.write_text(
+        json.dumps({"schema_version": 1, "run_id": "fixture-run"}),
+        encoding="utf-8",
+    )
+    pilot_freeze_path = source_run / "pilot-freeze.json"
+    pilot_freeze_path.write_text(
+        json.dumps(
+            freeze_json_artifact(
+                pilot_results_path, bindings={"run_id": "fixture-run"}
+            )
+        ),
+        encoding="utf-8",
+    )
     audit = root / "source-audit"
     audit.mkdir()
-    (audit / "audit.json").write_text("{}", encoding="utf-8")
-    (audit / "freeze.json").write_text("{}", encoding="utf-8")
+    audit_path = audit / "audit.json"
+    audit_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": "fixture-run",
+                "prediction_artifact_sha256": hashlib.sha256(
+                    pilot_results_path.read_bytes()
+                ).hexdigest(),
+                "prediction_freeze_sha256": hashlib.sha256(
+                    pilot_freeze_path.read_bytes()
+                ).hexdigest(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    (audit / "freeze.json").write_text(
+        json.dumps(
+            freeze_json_artifact(audit_path, bindings={"run_id": "fixture-run"})
+        ),
+        encoding="utf-8",
+    )
     manifest = {
         "video_id": "pilot-video",
         "duration_seconds": 4.0,
@@ -263,21 +409,33 @@ def test_one_call_runner_preserves_raw_freezes_and_refuses_retry(tmp_path: Path)
 
 
 @pytest.mark.parametrize(
-    ("provider", "cost", "failure_code"),
+    ("model", "provider", "cost", "failure_code"),
     [
-        (None, 0.05, "provider_failure"),
-        ("Google AI Studio", 30.0, "cost_cap_exceeded"),
+        ("google/gemini-3.1-pro-preview", None, 0.05, "provider_failure"),
+        (None, "Google AI Studio", 0.05, "provider_failure"),
+        (
+            "google/gemini-3.1-pro-preview",
+            "Google AI Studio",
+            None,
+            "provider_evidence",
+        ),
+        (
+            "google/gemini-3.1-pro-preview",
+            "Google AI Studio",
+            30.0,
+            "cost_cap_exceeded",
+        ),
     ],
 )
 def test_terminal_provider_evidence_and_cap_failures_cannot_freeze(
     tmp_path: Path,
+    model: str | None,
     provider: str | None,
-    cost: float,
+    cost: float | None,
     failure_code: str,
 ) -> None:
     prepared = prepared_fixture(tmp_path)
     response_payload: dict[str, Any] = {
-        "model": "google/gemini-3.1-pro-preview",
         "choices": [
             {
                 "finish_reason": "stop",
@@ -288,11 +446,14 @@ def test_terminal_provider_evidence_and_cap_failures_cannot_freeze(
             "prompt_tokens": 100,
             "completion_tokens": 200,
             "total_tokens": 300,
-            "cost": cost,
         },
     }
+    if model is not None:
+        response_payload["model"] = model
     if provider is not None:
         response_payload["provider"] = provider
+    if cost is not None:
+        response_payload["usage"]["cost"] = cost
     opener = FakeOpener(FakeResponse(response_payload))
     transport = OpenRouterTransport("fixture-key", opener=opener, policy=VERIFIER_POLICY)
 
@@ -342,7 +503,38 @@ def test_terminal_schema_failure_is_preserved_without_retry(tmp_path: Path) -> N
         run_verifier(prepared, transport)
 
 
-def test_freeze_detects_request_or_raw_response_tampering(tmp_path: Path) -> None:
+def test_preflight_rejects_audit_prediction_freeze_mismatch(tmp_path: Path) -> None:
+    prepared = prepared_fixture(tmp_path)
+    audit_path = prepared.path / "source-audit" / "audit.json"
+    audit = json.loads(audit_path.read_text())
+    audit["prediction_freeze_sha256"] = "0" * 64
+    audit_path.write_text(json.dumps(audit), encoding="utf-8")
+    audit_freeze_path = prepared.path / "source-audit" / "freeze.json"
+    audit_freeze_path.write_text(
+        json.dumps(
+            freeze_json_artifact(audit_path, bindings={"run_id": "fixture-run"})
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="prediction-freeze relationship"):
+        preflight_verifier(prepared)
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "manifest.json",
+        "request.json",
+        "attempts.jsonl",
+        "raw-response.json",
+        "clip.webm",
+        "source-run/pilot-results.json",
+    ],
+)
+def test_freeze_detects_complete_chain_tampering(
+    tmp_path: Path, target: str
+) -> None:
     prepared = prepared_fixture(tmp_path)
     opener = FakeOpener(
         FakeResponse(
@@ -370,11 +562,10 @@ def test_freeze_detects_request_or_raw_response_tampering(tmp_path: Path) -> Non
     transport = OpenRouterTransport("fixture-key", opener=opener, policy=VERIFIER_POLICY)
     run_verifier(prepared, transport)
     freeze_verifier(prepared)
-    request = json.loads((prepared.path / "request.json").read_text())
-    request["temperature"] = 0.5
-    (prepared.path / "request.json").write_text(json.dumps(request), encoding="utf-8")
+    path = prepared.path / target
+    path.write_bytes(path.read_bytes() + b" ")
 
-    with pytest.raises(ValueError, match="artifact chain"):
+    with pytest.raises(ValueError, match="artifact|freeze"):
         freeze_verifier(prepared)
-    with pytest.raises(ValueError, match="artifact chain"):
+    with pytest.raises(ValueError, match="artifact|freeze"):
         status_verifier(prepared)

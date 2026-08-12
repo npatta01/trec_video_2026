@@ -342,6 +342,7 @@ def prepare_verifier(
         "source_sha256": row.media_sha256,
         "source_size_bytes": row.size_bytes,
         "source_run": str(source_run.resolve()),
+        "source_pilot_artifact_sha256": _sha256_file(pilot_results_path),
         "source_pilot_freeze_sha256": _sha256_file(pilot_freeze_path),
         "source_audit_freeze": str(audit_freeze_path.resolve()),
         "source_audit_freeze_sha256": _sha256_file(audit_freeze_path),
@@ -385,6 +386,10 @@ def load_verifier(path: Path) -> PreparedBoundaryVerifier:
     ):
         raise ValueError("verifier source media identity changed")
     source_run = Path(_text(manifest.get("source_run"), "source_run"))
+    if _sha256_file(source_run / "pilot-results.json") != manifest.get(
+        "source_pilot_artifact_sha256"
+    ):
+        raise ValueError("source pilot artifact identity changed")
     if _sha256_file(source_run / "pilot-freeze.json") != manifest.get("source_pilot_freeze_sha256"):
         raise ValueError("source pilot freeze identity changed")
     audit_freeze = Path(_text(manifest.get("source_audit_freeze"), "source_audit_freeze"))
@@ -412,6 +417,7 @@ def load_verifier(path: Path) -> PreparedBoundaryVerifier:
 
 def preflight_verifier(prepared: PreparedBoundaryVerifier | Path) -> dict[str, object]:
     prepared = load_verifier(prepared) if isinstance(prepared, (str, Path)) else prepared
+    _verify_upstream_chain(prepared)
     projected = float(prepared.manifest["projected_call_cost_usd"])
     if projected >= ABSOLUTE_CAP_USD:
         raise BoundaryVerifierError("projected verifier cost reaches the USD 25 cap")
@@ -656,6 +662,7 @@ def _artifact_chain(prepared: PreparedBoundaryVerifier) -> dict[str, str]:
 def _verify_verifier_freeze(
     prepared: PreparedBoundaryVerifier, freeze: Mapping[str, object]
 ) -> None:
+    _verify_upstream_chain(prepared)
     verify_json_artifact(prepared.path / "result.json", dict(freeze))
     chain = freeze.get("artifact_chain")
     if not isinstance(chain, Mapping):
@@ -664,6 +671,31 @@ def _verify_verifier_freeze(
         raise ValueError("verifier freeze artifact chain binding changed")
     if dict(chain) != _artifact_chain(prepared):
         raise ValueError("verifier frozen artifact chain changed")
+
+
+def _verify_upstream_chain(prepared: PreparedBoundaryVerifier) -> None:
+    """Re-prove source prediction and audit freeze relationships."""
+
+    manifest = prepared.manifest
+    source_run = Path(_text(manifest.get("source_run"), "source_run"))
+    pilot_results_path = source_run / "pilot-results.json"
+    pilot_freeze_path = source_run / "pilot-freeze.json"
+    pilot_freeze = _read_json(pilot_freeze_path)
+    verify_json_artifact(pilot_results_path, dict(pilot_freeze))
+    audit_freeze_path = Path(
+        _text(manifest.get("source_audit_freeze"), "source_audit_freeze")
+    )
+    audit_path = audit_freeze_path.parent / "audit.json"
+    audit_freeze = _read_json(audit_freeze_path)
+    audit_payload = _read_json(audit_path)
+    verify_json_artifact(audit_path, dict(audit_freeze))
+    if (
+        audit_payload.get("prediction_artifact_sha256")
+        != _sha256_file(pilot_results_path)
+        or audit_payload.get("prediction_freeze_sha256")
+        != _sha256_file(pilot_freeze_path)
+    ):
+        raise ValueError("pilot audit prediction-freeze relationship changed")
 
 
 def _delivery_from_manifest(root: Path, manifest: Mapping[str, object]) -> DeliveryMedia:
