@@ -235,6 +235,60 @@ def test_first_row_cost_gate_binds_all_result_hashes_and_screen_freezes(
     assert status(prepared)["terminal_conditions"] == 22
 
 
+@pytest.mark.parametrize("mutation", ["deletion", "mutation", "symlink", "plural_mismatch"])
+def test_status_rejects_tampered_preserved_raw_response(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    prepared = prepared_fixture(tmp_path)
+    run_pilot(prepared, RecordingTransport())
+    result_path = prepared.path / "results" / "neutral_map.jsonl"
+    result = json.loads(result_path.read_text(encoding="utf-8").strip())
+    raw_path = prepared.path / result["raw_response_paths"][0]
+
+    if mutation == "deletion":
+        raw_path.unlink()
+    elif mutation == "mutation":
+        raw_record = json.loads(raw_path.read_text(encoding="utf-8"))
+        raw_record["raw_response"] = "tampered response"
+        raw_path.write_text(json.dumps(raw_record), encoding="utf-8")
+    elif mutation == "symlink":
+        replacement = tmp_path / "replacement.json"
+        replacement.write_bytes(raw_path.read_bytes())
+        raw_path.unlink()
+        raw_path.symlink_to(replacement)
+    else:
+        result["raw_response_sha256"].append(result["raw_response_sha256"][0])
+        unsigned = dict(result)
+        del unsigned["result_sha256"]
+        result["result_sha256"] = canonical_sha256(unsigned)
+        result_path.write_text(json.dumps(result) + "\n", encoding="utf-8")
+
+    with pytest.raises((RequestBindingError, ValueError), match="raw response|hash|path"):
+        status(prepared)
+
+
+def test_freeze_records_and_verifies_each_raw_response_file(
+    tmp_path: Path,
+) -> None:
+    prepared = prepared_fixture(tmp_path)
+    run_pilot(prepared, RecordingTransport())
+
+    freeze_pilot(prepared)
+
+    artifact = json.loads(
+        (prepared.path / "pilot-results.json").read_text(encoding="utf-8")
+    )
+    result = artifact["results"][0]
+    raw_path = prepared.path / result["raw_response_paths"][0]
+    expected = {
+        "path": result["raw_response_paths"][0],
+        "sha256": hashlib.sha256(raw_path.read_bytes()).hexdigest(),
+        "size_bytes": raw_path.stat().st_size,
+    }
+    assert artifact["raw_response_files"] == [expected]
+
+
 def test_fixture_end_to_end_freezes_pilot_screen_and_audits(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

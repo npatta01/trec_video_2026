@@ -51,6 +51,7 @@ from trec_video_2026.vqa_frontier_response_store import (
     RawResponseConflictError,
     parse_prompt_json_response,
     preserve_raw_response,
+    verify_raw_response,
 )
 from trec_video_2026.vqa_experiments.temporal_bottleneck import (
     freeze_json_artifact,
@@ -559,6 +560,10 @@ def status(prepared: PreparedPhase0Run | Path) -> Mapping[str, object]:
     """Return only safe counts, state names, hashes, and costs."""
 
     prepared = _coerce_prepared(prepared)
+    for freeze_name in ("pilot-freeze.json", "screen-freeze.json"):
+        freeze_path = prepared.path / freeze_name
+        if freeze_path.is_file() and not freeze_path.is_symlink():
+            _verify_freeze_file(prepared, freeze_path)
     counts = {
         condition: {
             "pilot_terminal": sum(
@@ -1689,6 +1694,71 @@ def _phase_results(
     ]
 
 
+def _raw_response_file_records(
+    prepared: PreparedPhase0Run,
+    results: Sequence[Mapping[str, object]],
+) -> list[dict[str, object]]:
+    records: list[dict[str, object]] = []
+    for result in results:
+        raw_paths = result.get("raw_response_paths")
+        raw_hashes = result.get("raw_response_sha256")
+        if (
+            not isinstance(raw_paths, Sequence)
+            or isinstance(raw_paths, (str, bytes, bytearray))
+            or not isinstance(raw_hashes, Sequence)
+            or isinstance(raw_hashes, (str, bytes, bytearray))
+            or len(raw_paths) != len(raw_hashes)
+        ):
+            raise RequestBindingError("raw response paths and hashes do not match")
+        condition_id = result.get("condition_id")
+        video_id = result.get("video_id")
+        if not isinstance(condition_id, str) or not isinstance(video_id, str):
+            raise RequestBindingError("raw response identity is invalid")
+        for raw_path_value, response_sha256 in zip(raw_paths, raw_hashes):
+            if not isinstance(raw_path_value, str) or not isinstance(response_sha256, str):
+                raise RequestBindingError("raw response path or hash is invalid")
+            raw_path = _safe_raw_response_path(prepared, raw_path_value)
+            try:
+                verify_raw_response(
+                    raw_path,
+                    run_id=prepared.run_id,
+                    condition_id=condition_id,
+                    video_id=video_id,
+                    response_sha256=response_sha256,
+                )
+                file_sha256, size_bytes = _raw_response_file_identity(raw_path)
+            except (OSError, ValueError) as error:
+                raise RequestBindingError(
+                    "preserved raw response integrity changed"
+                ) from error
+            records.append(
+                {
+                    "path": raw_path_value,
+                    "sha256": file_sha256,
+                    "size_bytes": size_bytes,
+                }
+            )
+    return records
+
+
+def _safe_raw_response_path(prepared: PreparedPhase0Run, raw_path: str) -> Path:
+    candidate = Path(raw_path)
+    if (
+        candidate.is_absolute()
+        or not raw_path
+        or raw_path != candidate.as_posix()
+        or any(part in {"", ".", ".."} for part in candidate.parts)
+    ):
+        raise RequestBindingError("raw response path is unsafe")
+    return prepared.path / candidate
+
+
+def _raw_response_file_identity(path: Path) -> tuple[str, int]:
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("raw response path is missing or symlinked")
+    return _sha256_file(path), path.stat().st_size
+
+
 def _freeze_phase(
     prepared: PreparedPhase0Run,
     phase: str,
@@ -1712,6 +1782,7 @@ def _freeze_phase(
         "request_hashes": request_hashes,
         "result_hashes_sha256": canonical_sha256(result_hashes),
         "request_hashes_sha256": canonical_sha256(request_hashes),
+        "raw_response_files": _raw_response_file_records(prepared, results),
         "observed_cost_usd": round(
             sum(_number(result.get("estimated_cost_usd", 0.0)) for result in results),
             6,
@@ -1720,7 +1791,11 @@ def _freeze_phase(
     }
     if artifact_path.exists() or artifact_path.is_symlink():
         existing = _read_json(artifact_path)
-        if existing != artifact:
+        legacy_artifact = dict(artifact)
+        legacy_artifact.pop("raw_response_files")
+        if existing == legacy_artifact:
+            artifact = existing
+        elif existing != artifact:
             raise FileExistsError(f"refusing to overwrite existing {artifact_name}")
     else:
         _write_json_once(artifact_path, artifact)
@@ -1771,6 +1846,7 @@ def _bound_results(
         ):
             if not _result_hash_valid(result) or not _result_binding_valid(result):
                 raise RequestBindingError("terminal result identity changed")
+            _raw_response_file_records(prepared, [result])
             key = (result.get("phase"), result.get("video_id"), condition_id)
             if key in logical:
                 raise RequestBindingError("multiple terminal records bind one request")
@@ -2011,6 +2087,13 @@ def _verify_freeze_file(prepared: PreparedPhase0Run, path: Path) -> None:
         or artifact.get("request_hashes_sha256") != canonical_sha256(request_hashes)
     ):
         raise PilotGateError("frozen results artifact binding changed")
+    expected_raw_response_files = _raw_response_file_records(prepared, expected_results)
+    recorded_raw_response_files = artifact.get("raw_response_files")
+    if (
+        "raw_response_files" in artifact
+        and recorded_raw_response_files != expected_raw_response_files
+    ):
+        raise PilotGateError("frozen raw response file binding changed")
     expected_bindings = {
         "run_id": prepared.run_id,
         "phase": phase,
