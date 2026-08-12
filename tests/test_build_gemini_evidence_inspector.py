@@ -121,3 +121,38 @@ def test_load_cases_rejects_missing_required_artifact(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="Missing required artifact"):
         MODULE.load_cases(root, "/private/canary")
+
+
+def test_render_html_contains_comparison_and_seek_controls(tmp_path: Path) -> None:
+    assert MODULE is not None, "inspector generator is not implemented"
+    cases = MODULE.load_cases(make_run(tmp_path), "/private/canary")
+
+    rendered = MODULE.render_html(cases)
+
+    assert rendered.count('class="case-choice"') == 7
+    assert 'id="native-video"' in rendered
+    assert 'id="answer-grid"' in rendered
+    assert 'id="timeline-list"' in rendered
+    assert 'id="frame-grid"' in rendered
+    assert "seekVideo" in rendered
+    assert "@media (max-width: 760px)" in rendered
+    assert "Direct native AV" in rendered
+    assert "Timeline + selected frames" in rendered
+
+
+def test_render_html_escapes_artifact_text_inside_page_data(tmp_path: Path) -> None:
+    assert MODULE is not None, "inspector generator is not implemented"
+    root = make_run(tmp_path)
+    complete_path = root / "rows" / VIDEO_IDS[0] / "complete.json"
+    complete = json.loads(complete_path.read_text())
+    complete["question"] = "Could </script><script>alert(1)</script> run?"
+    complete_path.write_text(json.dumps(complete))
+    cases = MODULE.load_cases(root, "/private/canary")
+
+    rendered = MODULE.render_html(cases)
+
+    assert "</script><script>alert(1)</script>" not in rendered
+    assert (
+        "Could \\u003c/script\\u003e\\u003cscript\\u003ealert(1)"
+        "\\u003c/script\\u003e run?"
+    ) in rendered

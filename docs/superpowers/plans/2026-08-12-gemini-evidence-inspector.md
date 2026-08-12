@@ -27,11 +27,11 @@
 - Consumes: private run root containing `postfreeze-metrics.json` and seven `rows/*` bundles.
 - Produces: `load_cases(run_root: Path, media_prefix: str) -> list[dict]` with video, question, reference, assessment, answers, timeline, selected spans, and frame URLs.
 
-- [ ] Write failing tests requiring exactly seven rows, all verdicts, safe relative media URLs, and rejection of missing artifacts.
-- [ ] Run `uv run pytest tests/test_build_gemini_evidence_inspector.py -q` and verify failure because the generator does not exist.
-- [ ] Implement the minimal validated projection, reusing the frozen manual assessments from `score_direct_gemini_evidence_canary.py`.
-- [ ] Run the focused tests and Ruff; require clean output.
-- [ ] Commit the validated projection.
+- [x] Write failing tests requiring exactly seven rows, all verdicts, safe relative media URLs, and rejection of missing artifacts.
+- [x] Run `uv run pytest tests/test_build_gemini_evidence_inspector.py -q` and verify failure because the generator does not exist.
+- [x] Implement the minimal validated projection, reusing the frozen manual assessments from `score_direct_gemini_evidence_canary.py`.
+- [x] Run the focused tests and Ruff; require clean output.
+- [x] Commit the validated projection.
 
 ### Task 2: Static inspector and private delivery
 
@@ -46,10 +46,10 @@
 - Consumes: `load_cases(...)` output.
 - Produces: `render_html(cases: list[dict]) -> str` and one executable CLI accepting `--run-root`, `--media-prefix`, and `--output`.
 
-- [ ] Add failing tests for seven video controls, answer/verdict cards, video seeking hooks, timeline buttons, frame buttons, responsive CSS, and escaped artifact text.
-- [ ] Run the focused test and verify expected failures.
-- [ ] Implement the minimal single-page HTML/CSS/JavaScript renderer and CLI.
-- [ ] Render the private page and create only the narrow symlink to the existing seven-row bundle.
-- [ ] Add one portal-index link without altering unrelated entries.
-- [ ] Verify focused tests, Ruff, `git diff --check`, seven case IDs in generated HTML, HTTP 200 for page/video/frame URLs, and `tailscale serve status` showing the existing tailnet HTTPS mapping.
+- [x] Add failing tests for seven video controls, answer/verdict cards, video seeking hooks, timeline buttons, frame buttons, responsive CSS, and escaped artifact text.
+- [x] Run the focused test and verify expected failures.
+- [x] Implement the minimal single-page HTML/CSS/JavaScript renderer and CLI.
+- [x] Render the private page and create only the narrow symlink to the existing seven-row bundle.
+- [x] Add one portal-index link without altering unrelated entries.
+- [x] Verify focused tests, Ruff, `git diff --check`, seven case IDs in generated HTML, HTTP 200 for page/video/frame URLs, and `tailscale serve status` showing the existing tailnet HTTPS mapping.
 - [ ] Commit and push only tracked generator/test/plan changes; keep generated page, portal index, symlink, and private media untracked.
