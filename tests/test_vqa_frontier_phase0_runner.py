@@ -486,6 +486,7 @@ def test_request_hashes_bind_delivery_schema_and_guided_map_only(tmp_path: Path)
     by_condition = {request["condition_id"]: request for request in requests if request["phase"] == "screen"}
     assert by_condition["neutral_map"]["delivery_sha256"]
     assert by_condition["neutral_map"]["schema_sha256"] != by_condition["direct_answer"]["schema_sha256"]
+    assert by_condition["neutral_map"]["max_output_tokens"] == 16384
     assert by_condition["direct_answer"]["max_output_tokens"] == 4096
     assert by_condition["map_guided_answer"]["max_output_tokens"] == 4096
     assert by_condition["direct_answer"]["neutral_map_sha256"] is None

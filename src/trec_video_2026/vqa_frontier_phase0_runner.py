@@ -78,7 +78,7 @@ ABSOLUTE_CAP_USD = 25.0
 OPENROUTER_PROVIDER = "openrouter"
 DELIVERY_PROVIDER = "gemini"
 MAP_POLICY = OpenRouterRequestPolicy(
-    max_output_tokens=8192,
+    max_output_tokens=16384,
     temperature=0.0,
     allow_fallbacks=False,
     use_structured_outputs=True,
@@ -97,7 +97,7 @@ _RETRYABLE = frozenset({"transport", "rate_limit", "empty", "truncated"})
 _CONDITIONS = tuple(CONDITIONS)
 _PHASES = ("pilot", "screen")
 _DEFAULT_INPUT_TOKENS = 1_000_000
-_MAP_OUTPUT_TOKENS = 8192
+_MAP_OUTPUT_TOKENS = 16384
 _ANSWER_OUTPUT_TOKENS = 4096
 _RESPONSE_FORMAT_POLICY = "native-json-schema-v1"
 

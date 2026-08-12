@@ -199,7 +199,8 @@ def test_neutral_prompt_requires_observed_interactions_precise_boundaries_and_ca
 def test_neutral_prompt_requests_a_data_instance_not_a_schema() -> None:
     prompt = build_neutral_map_prompt(18.25)
 
-    assert "frontier-neutral-map-v3" in prompt
+    assert "frontier-neutral-map-v4" in prompt
+    assert "schema_version must be the integer 1" in prompt
     assert_data_instance_prompt(
         prompt,
         root_fields={
@@ -527,7 +528,7 @@ def test_grounded_answer_prompt_shares_instructions_and_binds_map_mode() -> None
         "What changes?", 20.0, neutral_payload()
     )
 
-    assert "frontier-grounded-answer-v2" in direct
+    assert "frontier-grounded-answer-v3" in direct
     assert "Question: What changes?" in direct
     assert "Source duration seconds: 20.0" in direct
     assert "Neutral map: not supplied" in direct
@@ -543,6 +544,8 @@ def test_grounded_answer_prompt_shares_instructions_and_binds_map_mode() -> None
 def test_grounded_answer_prompt_requests_a_data_instance_not_a_schema() -> None:
     prompt = build_grounded_answer_prompt("What changes?", 20.0, None)
 
+    assert "frontier-grounded-answer-v3" in prompt
+    assert "schema_version must be the integer 1" in prompt
     assert_data_instance_prompt(
         prompt,
         root_fields={

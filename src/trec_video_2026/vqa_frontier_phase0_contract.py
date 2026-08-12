@@ -14,8 +14,8 @@ from trec_video_2026.vqa_submission import canonical_sha256
 
 
 SCHEMA_VERSION = 1
-NEUTRAL_MAP_PROMPT_VERSION = "frontier-neutral-map-v3"
-ANSWER_PROMPT_VERSION = "frontier-grounded-answer-v2"
+NEUTRAL_MAP_PROMPT_VERSION = "frontier-neutral-map-v4"
+ANSWER_PROMPT_VERSION = "frontier-grounded-answer-v3"
 
 NEUTRAL_MAP_ROOT_FIELDS = frozenset(
     {
@@ -870,7 +870,7 @@ def build_neutral_map_prompt(duration_seconds: float) -> str:
         "Allowed root data keys (exactly): schema_version, "
         "perceived_duration_seconds, global_description, entities, events, "
         "global_uncertainties\n"
-        "Field semantics: schema_version identifies the contract; "
+        "Field semantics: schema_version must be the integer 1; "
         "perceived_duration_seconds records observed duration; global_description "
         "summarizes the complete AV; entities contain stable entity IDs, "
         "descriptions, aliases, and confidence; events contain chronological "
@@ -904,7 +904,7 @@ def build_grounded_answer_prompt(
         f"Source duration seconds: {duration}\n"
         "Allowed root data keys (exactly): schema_version, top1_answer, claims, "
         "could_be_wrong_because\n"
-        "Field semantics: schema_version identifies the contract; top1_answer is "
+        "Field semantics: schema_version must be the integer 1; top1_answer is "
         "the concise answer; claims are atomic evidence-backed claims; "
         "could_be_wrong_because records credible uncertainty. Each claim includes "
         "a claim ID, text, native timestamp spans, supporting modalities, and map "
