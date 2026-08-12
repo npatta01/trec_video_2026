@@ -10,6 +10,7 @@ import pytest
 import trec_video_2026.vqa_submission_openrouter as openrouter
 from trec_video_2026.vqa_submission_gemini import (
     ProviderError,
+    ProviderResponseEvidenceError,
     ProviderProtocolError,
     ProviderAuthenticationError,
     TokenUsage,
@@ -241,6 +242,80 @@ def test_frontier_policy_pins_route_and_disables_fallback(
         "request_id": "gen-frontier-test",
         "reported_cost_usd": 0.0125,
     }
+
+
+def test_prompt_json_policy_omits_native_response_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opener = FakeOpener([_success_response()])
+    transport = openrouter.OpenRouterTransport(
+        "test-secret",
+        opener=opener,
+        policy=openrouter.OpenRouterRequestPolicy(
+            allow_fallbacks=False,
+            use_structured_outputs=False,
+        ),
+    )
+
+    transport.generate(
+        model=MODEL_ID,
+        parts=("Return strict JSON.",),
+        schema={"type": "object", "additionalProperties": False},
+    )
+
+    body = json.loads(opener.requests[0].data)
+    assert "response_format" not in body
+    assert body["provider"]["allow_fallbacks"] is False
+
+
+def test_prompt_json_policy_preserves_non_json_text_for_local_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opener = FakeOpener([_success_response("```json\n{\"answer\":\"ok\"}\n```")])
+    transport = openrouter.OpenRouterTransport(
+        "test-secret",
+        opener=opener,
+        policy=openrouter.OpenRouterRequestPolicy(use_structured_outputs=False),
+    )
+
+    result = transport.generate(model=MODEL_ID, parts=("JSON",), schema={})
+
+    assert result.raw_response == "```json\n{\"answer\":\"ok\"}\n```"
+    assert result.payload == result.raw_response
+    assert result.usage.total_tokens == 28
+
+
+def test_null_optional_prompt_token_details_are_treated_as_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = _success_response()
+    payload = json.loads(response._payload)
+    payload["usage"]["prompt_tokens_details"] = None
+    opener = FakeOpener([FakeResponse(payload)])
+    transport = _transport(monkeypatch, opener)
+
+    result = transport.generate(model=MODEL_ID, parts=("JSON",), schema={})
+
+    assert result.usage.cached_input_tokens == 0
+
+
+def test_paid_response_content_is_preserved_when_usage_is_invalid() -> None:
+    response = _success_response('{"answer":"preserve me"}')
+    payload = json.loads(response._payload)
+    payload["usage"] = "invalid"
+    transport = openrouter.OpenRouterTransport(
+        "test-secret",
+        opener=FakeOpener([FakeResponse(payload)]),
+        policy=openrouter.OpenRouterRequestPolicy(use_structured_outputs=False),
+    )
+
+    with pytest.raises(ProviderResponseEvidenceError) as caught:
+        transport.generate(model=MODEL_ID, parts=("JSON",), schema={})
+
+    evidence = caught.value.generation_result
+    assert evidence.raw_response == '{"answer":"preserve me"}'
+    assert evidence.response_sha256
+    assert evidence.usage == TokenUsage(input_tokens=0, output_tokens=0)
 
 
 def test_deterministic_seed_is_signed_31_bit_and_tracks_visible_request(

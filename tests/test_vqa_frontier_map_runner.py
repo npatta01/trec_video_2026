@@ -23,15 +23,20 @@ from trec_video_2026.vqa_frontier_map_runner import (
     prepare_fixture_run,
     project_cost,
     freeze_provider_outputs,
+    freeze_preflight_outputs,
     prepare_run,
     run_phase,
     status,
 )
-from trec_video_2026.vqa_frontier_map import build_event_map_prompt
+from trec_video_2026.vqa_frontier_map import (
+    PROVIDER_EVENT_MAP_SCHEMA,
+    build_event_map_prompt,
+)
 from trec_video_2026.vqa_submission import canonical_sha256
 import trec_video_2026.vqa_frontier_map_runner as runner_module
 from trec_video_2026.vqa_submission_gemini import (
     GenerationResult,
+    ProviderResponseEvidenceError,
     TokenUsage,
     UploadedFileRecord,
 )
@@ -97,8 +102,15 @@ class StrictUploadTransport:
         self.output_tokens = output_tokens
         self.uploaded: dict[str, Path] = {}
         self.upload_paths: list[Path] = []
+        self.upload_mime_types: list[str] = []
         self.generated_parts: list[tuple[object, ...]] = []
         self.call_count = 0
+
+    @property
+    def response_format_policy(self) -> str:
+        if self.provider_name == "reka":
+            return "native-json-schema-v1"
+        return "prompt-json-local-validation-v3-exact-fence"
 
     def upload(self, path: Path, *, mime_type: str) -> UploadedFileRecord:
         assert path.is_file(), "runner must upload an actual source file"
@@ -106,7 +118,12 @@ class StrictUploadTransport:
         file_id = f"registered-{len(self.uploaded) + 1}"
         self.uploaded[file_id] = path
         self.upload_paths.append(path)
-        return UploadedFileRecord(file_id=file_id, mime_type=mime_type)
+        self.upload_mime_types.append(mime_type)
+        return UploadedFileRecord(
+            file_id=file_id,
+            mime_type=mime_type,
+            sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+        )
 
     def delete(self, file_id: str) -> None:
         return None
@@ -323,6 +340,72 @@ def test_fixture_run_makes_one_call_per_provider_row_and_freezes(
     }
 
 
+def test_request_and_result_bind_exact_delivery_identity(tmp_path: Path) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
+    transport = StrictUploadTransport()
+
+    summary = run_phase(
+        prepared, phase="preflight", provider="gemini", transport=transport
+    )
+
+    assert summary.passed == 1
+    request = _read_jsonl(prepared.path / "requests.jsonl")[0]
+    result = _read_jsonl(prepared.path / "results" / "gemini.jsonl")[0]
+    fields = (
+        "delivery_policy_version",
+        "delivery_sha256",
+        "delivery_size_bytes",
+        "delivery_mime_type",
+        "delivery_derived",
+    )
+    assert {field: result[field] for field in fields} == {
+        field: request[field] for field in fields
+    }
+    assert request["delivery_mime_type"] == "video/mp4"
+    assert request["delivery_derived"] is False
+    assert transport.upload_mime_types == ["video/mp4"]
+    old_identity = {
+        key: value
+        for key, value in request.items()
+        if key not in {*fields, "request_sha256"}
+    }
+    assert canonical_sha256(old_identity) != request["request_sha256"]
+
+
+def test_gemini_generation_uses_supported_provider_schema(tmp_path: Path) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
+    transport = FixtureTransport()
+
+    run_phase(prepared, phase="preflight", provider="gemini", transport=transport)
+
+    assert transport.requests[0]["schema_sha256"] == canonical_sha256(
+        PROVIDER_EVENT_MAP_SCHEMA
+    )
+    request = _read_jsonl(prepared.path / "requests.jsonl")[0]
+    assert request["provider_schema_sha256"] == canonical_sha256(
+        PROVIDER_EVENT_MAP_SCHEMA
+    )
+
+
+def test_upload_byte_change_stops_before_generation(tmp_path: Path) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
+
+    class MutatingUpload(StrictUploadTransport):
+        def upload(self, path: Path, *, mime_type: str) -> UploadedFileRecord:
+            path.write_bytes(path.read_bytes() + b"changed-before-upload")
+            return super().upload(path, mime_type=mime_type)
+
+    transport = MutatingUpload()
+    summary = run_phase(
+        prepared, phase="preflight", provider="gemini", transport=transport
+    )
+
+    assert summary.failed == 1
+    assert transport.call_count == 0
+    result = _read_jsonl(prepared.path / "results" / "gemini.jsonl")[0]
+    assert result["failure_code"] == "delivery_media_failure"
+
+
 def test_invalid_json_is_terminal_without_content_retry(tmp_path: Path) -> None:
     prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
     transport = FixtureTransport(raw_response="not-json")
@@ -349,6 +432,353 @@ def test_invalid_json_is_terminal_without_content_retry(tmp_path: Path) -> None:
         )
     )
     assert raw_record["raw_response"] == "not-json"
+
+
+def test_preflight_freeze_binds_failed_result_raw_response(tmp_path: Path) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
+    run_phase(
+        prepared,
+        phase="preflight",
+        provider="gemini",
+        transport=FixtureTransport(raw_response="not-json"),
+    )
+
+    freeze = freeze_preflight_outputs(prepared, provider="gemini")
+    artifact = json.loads(
+        (prepared.path / "preflight-gemini-results.json").read_text(encoding="utf-8")
+    )
+
+    assert freeze["status"] == "frozen"
+    assert artifact["failed_count"] == 1
+    assert artifact["raw_files"] == [
+        {
+            "relative_path": "raw/gemini/preflight-001.json",
+            "sha256": hashlib.sha256(
+                (prepared.path / "raw/gemini/preflight-001.json").read_bytes()
+            ).hexdigest(),
+            "size_bytes": (
+                prepared.path / "raw/gemini/preflight-001.json"
+            ).stat().st_size,
+        }
+    ]
+
+
+def test_provider_protocol_failure_preserves_and_freezes_paid_response(
+    tmp_path: Path,
+) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
+
+    class InvalidUsageTransport(StrictUploadTransport):
+        def generate(
+            self,
+            *,
+            model: str,
+            parts: Sequence[object],
+            schema: Mapping[str, object],
+        ) -> GenerationResult:
+            self.call_count += 1
+            raise ProviderResponseEvidenceError(
+                "provider usage was invalid",
+                generation_result=GenerationResult(
+                    payload={},
+                    raw_response='{"answer":"paid response"}',
+                    usage=TokenUsage(input_tokens=0, output_tokens=0),
+                    provider_metadata={"request_id": "paid-response-1"},
+                ),
+            )
+
+    summary = run_phase(
+        prepared,
+        phase="preflight",
+        provider="gemini",
+        transport=InvalidUsageTransport(),
+    )
+    freeze = freeze_preflight_outputs(prepared, provider="gemini")
+    result = _read_jsonl(prepared.path / "results/gemini.jsonl")[0]
+    raw_path = prepared.path / "raw/gemini/preflight-001.json"
+
+    assert summary.failed == 1
+    assert result["failure_code"] == "provider_protocol_failure"
+    assert result["response_sha256"] == hashlib.sha256(
+        b'{"answer":"paid response"}'
+    ).hexdigest()
+    assert raw_path.is_file()
+    assert freeze["bindings"]["raw_files_sha256"] != canonical_sha256([])
+    assert summary.estimated_cost_usd > 0
+    assert result["estimated_cost_usd"] == summary.estimated_cost_usd
+    attempt = _read_jsonl(prepared.path / "attempts.jsonl")[-1]
+    assert attempt["estimated_cost_usd"] == summary.estimated_cost_usd
+
+
+def test_real_openrouter_malformed_2xx_is_preserved_and_frozen(
+    tmp_path: Path,
+) -> None:
+    from trec_video_2026.vqa_submission_openrouter import (
+        OpenRouterRequestPolicy,
+        OpenRouterTransport,
+    )
+
+    class MalformedResponse:
+        status = 200
+
+        def read(self, size: int = -1) -> bytes:
+            body = b"malformed paid response envelope"
+            return body if size < 0 else body[:size]
+
+        def close(self) -> None:
+            return None
+
+    class MalformedOpener:
+        def open(self, request: object, *, timeout: float) -> MalformedResponse:
+            assert request is not None
+            assert timeout > 0
+            return MalformedResponse()
+
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
+    transport = OpenRouterTransport(
+        "test-secret",
+        opener=MalformedOpener(),
+        policy=OpenRouterRequestPolicy(use_structured_outputs=False),
+    )
+
+    summary = run_phase(
+        prepared, phase="preflight", provider="gemini", transport=transport
+    )
+    freeze = freeze_preflight_outputs(prepared, provider="gemini")
+    result = _read_jsonl(prepared.path / "results/gemini.jsonl")[0]
+    raw_path = prepared.path / "raw/gemini/preflight-001.json"
+    raw = json.loads(raw_path.read_text(encoding="utf-8"))
+
+    assert summary.failed == 1
+    assert summary.estimated_cost_usd > 0
+    assert raw["raw_response"] == "malformed paid response envelope"
+    assert result["response_sha256"] == hashlib.sha256(
+        b"malformed paid response envelope"
+    ).hexdigest()
+    assert freeze["bindings"]["raw_files_sha256"] != canonical_sha256([])
+
+
+def test_raw_response_install_race_accepts_identical_payload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
+    target = prepared.path / "raw/gemini/preflight-001.json"
+    original_link = runner_module.os.link
+
+    def racing_link(source: object, destination: object) -> None:
+        if Path(destination) == target:
+            target.write_bytes(Path(source).read_bytes())
+        original_link(source, destination)
+
+    monkeypatch.setattr(runner_module.os, "link", racing_link)
+
+    runner_module._write_raw_response(
+        prepared, "gemini", "preflight-001", "paid response"
+    )
+
+    assert json.loads(target.read_text(encoding="utf-8"))["raw_response"] == (
+        "paid response"
+    )
+
+
+def test_raw_response_install_race_preserves_conflicting_paid_payload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
+    target = prepared.path / "raw/gemini/preflight-001.json"
+    original_link = runner_module.os.link
+
+    def racing_link(source: object, destination: object) -> None:
+        if Path(destination) == target:
+            target.write_text('{"stale":true}\n', encoding="utf-8")
+        original_link(source, destination)
+
+    monkeypatch.setattr(runner_module.os, "link", racing_link)
+
+    with pytest.raises(AmbiguousStartedAttemptError, match="preserved"):
+        runner_module._write_raw_response(
+            prepared, "gemini", "preflight-001", "current paid response"
+        )
+
+    conflicts = list((prepared.path / "raw-conflicts/gemini").glob("*.json"))
+    assert len(conflicts) == 1
+    assert json.loads(conflicts[0].read_text(encoding="utf-8"))["raw_response"] == (
+        "current paid response"
+    )
+
+
+def test_existing_raw_conflict_preserves_current_paid_payload(tmp_path: Path) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
+    target = prepared.path / "raw/gemini/preflight-001.json"
+    target.write_text('{"stale":true}\n', encoding="utf-8")
+
+    with pytest.raises(AmbiguousStartedAttemptError, match="preserved"):
+        runner_module._write_raw_response(
+            prepared, "gemini", "preflight-001", "current paid response"
+        )
+
+    conflicts = list((prepared.path / "raw-conflicts/gemini").glob("*.json"))
+    assert len(conflicts) == 1
+    assert json.loads(conflicts[0].read_text(encoding="utf-8"))["raw_response"] == (
+        "current paid response"
+    )
+
+
+def test_raw_conflict_directory_symlink_is_not_followed(tmp_path: Path) -> None:
+    prepared = prepare_fixture_run(tmp_path / "run", evaluation_rows=0, preflight_rows=1)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (prepared.path / "raw-conflicts").symlink_to(outside, target_is_directory=True)
+    target = prepared.path / "raw/gemini/preflight-001.json"
+    target.write_text('{"stale":true}\n', encoding="utf-8")
+
+    with pytest.raises(AmbiguousStartedAttemptError, match="preserved"):
+        runner_module._write_raw_response(
+            prepared, "gemini", "preflight-001", "current paid response"
+        )
+
+    assert list(outside.iterdir()) == []
+    fallbacks = list(prepared.path.glob(".raw-conflict-*.json"))
+    assert len(fallbacks) == 1
+    assert json.loads(fallbacks[0].read_text(encoding="utf-8"))["raw_response"] == (
+        "current paid response"
+    )
+
+
+def test_exact_json_markdown_envelope_is_unwrapped_without_content_repair() -> None:
+    payload = runner_module._parse_raw_response(
+        "```json\n{\"schema_version\":1}\n```"
+    )
+
+    assert payload == {"schema_version": 1}
+
+    with pytest.raises(json.JSONDecodeError):
+        runner_module._parse_raw_response(
+            "Here is the result:\n```json\n{\"schema_version\":1}\n```"
+        )
+
+
+def test_preflight_can_stop_after_first_terminal_failure(tmp_path: Path) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=2)
+    transport = FixtureTransport(raw_response="not-json")
+
+    summary = run_phase(
+        prepared,
+        phase="preflight",
+        provider="gemini",
+        transport=transport,
+        stop_on_failure=True,
+    )
+
+    assert summary.expected == 2
+    assert summary.failed == 1
+    assert transport.call_count == 1
+    assert len(_read_jsonl(prepared.path / "results" / "gemini.jsonl")) == 1
+
+
+def test_preflight_and_freeze_can_target_one_frozen_video_id(tmp_path: Path) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=2)
+    transport = FixtureTransport()
+
+    summary = run_phase(
+        prepared,
+        phase="preflight",
+        provider="gemini",
+        transport=transport,
+        video_ids=("preflight-002",),
+    )
+    freeze = freeze_preflight_outputs(
+        prepared, provider="gemini", video_ids=("preflight-002",)
+    )
+
+    assert summary.expected == 1
+    assert transport.call_count == 1
+    result = _read_jsonl(prepared.path / "results" / "gemini.jsonl")[0]
+    assert result["video_id"] == "preflight-002"
+    assert freeze["bindings"]["result_count"] == 1
+
+
+def test_targeted_preflight_freeze_excludes_other_completed_rows(
+    tmp_path: Path,
+) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=2)
+    run_phase(
+        prepared,
+        phase="preflight",
+        provider="gemini",
+        transport=FixtureTransport(),
+    )
+
+    freeze = freeze_preflight_outputs(
+        prepared, provider="gemini", video_ids=("preflight-002",)
+    )
+    artifact = json.loads(
+        (prepared.path / "preflight-gemini-results.json").read_text(encoding="utf-8")
+    )
+
+    assert freeze["bindings"]["result_count"] == 1
+    assert artifact["result_count"] == 1
+
+
+def test_preflight_freeze_refuses_to_overwrite_existing_artifacts(
+    tmp_path: Path,
+) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
+    run_phase(
+        prepared, phase="preflight", provider="gemini", transport=FixtureTransport()
+    )
+    freeze_preflight_outputs(prepared, provider="gemini")
+
+    with pytest.raises(FileExistsError, match="preflight freeze"):
+        freeze_preflight_outputs(prepared, provider="gemini")
+
+
+def test_preflight_freeze_rejects_tampered_raw_response(tmp_path: Path) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
+    run_phase(
+        prepared, phase="preflight", provider="gemini", transport=FixtureTransport()
+    )
+    raw_path = prepared.path / "raw/gemini/preflight-001.json"
+    record = json.loads(raw_path.read_text(encoding="utf-8"))
+    record["raw_response"] = "tampered paid response"
+    raw_path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="raw response"):
+        freeze_preflight_outputs(prepared, provider="gemini")
+
+
+def test_stale_raw_response_blocks_dispatch_before_paid_call(tmp_path: Path) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
+    raw_path = prepared.path / "raw/gemini/preflight-001.json"
+    raw_path.write_text('{"stale":true}\n', encoding="utf-8")
+    transport = StrictUploadTransport()
+
+    with pytest.raises(AmbiguousStartedAttemptError, match="raw response"):
+        run_phase(
+            prepared,
+            phase="preflight",
+            provider="gemini",
+            transport=transport,
+        )
+
+    assert transport.call_count == 0
+    assert raw_path.read_text(encoding="utf-8") == '{"stale":true}\n'
+
+
+def test_frontier_runner_rejects_transport_response_policy_mismatch(
+    tmp_path: Path,
+) -> None:
+    from trec_video_2026.vqa_submission_openrouter import OpenRouterTransport
+
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
+
+    with pytest.raises(ValueError, match="response policy"):
+        run_phase(
+            prepared,
+            phase="preflight",
+            provider="gemini",
+            transport=OpenRouterTransport("test-secret"),
+        )
 
 
 def test_prepared_run_is_immutable_and_writes_safe_manifest(tmp_path: Path) -> None:
@@ -457,12 +887,12 @@ def test_completed_result_reuse_requires_full_binding_match(tmp_path: Path) -> N
     result_path.write_text(json.dumps(row, sort_keys=True) + "\n", encoding="utf-8")
 
     third_transport = FixtureTransport(route="fixture-route")
-    third = run_phase(
-        prepared, phase="preflight", provider="gemini", transport=third_transport
-    )
+    with pytest.raises(AmbiguousStartedAttemptError, match="raw response"):
+        run_phase(
+            prepared, phase="preflight", provider="gemini", transport=third_transport
+        )
 
-    assert third.passed == 1
-    assert third_transport.call_count == 1
+    assert third_transport.call_count == 0
 
 
 def test_provider_ledgers_are_separate_and_wrong_transport_provider_is_rejected(
@@ -616,6 +1046,28 @@ def test_status_and_freeze_require_complete_provider_outputs(tmp_path: Path) -> 
     assert freeze["bindings"]["schema_sha256"] == prepared.schema_sha256
     assert freeze["bindings"]["provider_result_count"] == 2
     assert status(prepared)["frozen"] is True
+
+
+def test_gemini_only_preflight_can_be_frozen_without_reka(tmp_path: Path) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=1, preflight_rows=2)
+    run_phase(
+        prepared, phase="preflight", provider="gemini", transport=FixtureTransport()
+    )
+
+    freeze = freeze_preflight_outputs(prepared, provider="gemini")
+
+    assert freeze["status"] == "frozen"
+    assert freeze["bindings"]["provider"] == "gemini"
+    assert freeze["bindings"]["result_count"] == 2
+    assert (prepared.path / "preflight-gemini-results.json").is_file()
+    assert (prepared.path / "preflight-gemini-freeze.json").is_file()
+
+
+def test_preflight_freeze_refuses_incomplete_provider_rows(tmp_path: Path) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=2)
+
+    with pytest.raises(ValueError, match="complete"):
+        freeze_preflight_outputs(prepared, provider="gemini")
 
 
 def test_real_transport_uploads_actual_source_before_generate_and_artifacts_stay_safe(

@@ -8,6 +8,7 @@ import pytest
 from trec_video_2026.vqa_frontier_map import (
     EVENT_MAP_PROMPT_VERSION,
     EVENT_MAP_SCHEMA,
+    PROVIDER_EVENT_MAP_SCHEMA,
     EventRecord,
     FrontierMap,
     SupportSpan,
@@ -182,6 +183,23 @@ def test_schema_closes_objects_caps_arrays_and_bounds_numbers() -> None:
             assert node["minimum"] >= 0
 
     walk(EVENT_MAP_SCHEMA)
+
+
+def test_provider_schema_uses_only_gemini_supported_constraints() -> None:
+    unsupported = {"const", "minLength", "maxLength"}
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            assert not unsupported.intersection(node)
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(PROVIDER_EVENT_MAP_SCHEMA)
+    version = PROVIDER_EVENT_MAP_SCHEMA["properties"]["schema_version"]
+    assert version["enum"] == [1]
 
 
 def test_build_event_map_prompt_is_versioned_question_aware_and_provider_neutral() -> None:

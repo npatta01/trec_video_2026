@@ -195,6 +195,8 @@ Expand named experiments by theme
 
 - [Frozen-30 protocol v2: global frame
   budget](research-visual-evidence.md#frozen-30-protocol-v2)
+- [Gemini native-AV event-map
+  canary](research-visual-evidence.md#gemini-native-av-event-map-canary)
 - [Directed temporal
   sampling](research-visual-evidence.md#directed-temporal-sampling)
 - [r4 required-moment Stage 1 representation

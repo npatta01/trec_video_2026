@@ -62,3 +62,38 @@ Do not reprovision dstack to recover this run. Inference is complete and the
 remote development pod was stopped. If the local inspection bundle is absent,
 classify that as an audit gap and use the tracked manifests rather than
 silently rerunning or changing the experiment.
+
+## Frontier Gemini canary artifact reference
+
+The completed 2026-08-11 two-video native-AV Gemini event-map canary is
+documented in
+[`docs/experiments/2026-08-11-frontier-video-map-diagnostic.qmd`](docs/experiments/2026-08-11-frontier-video-map-diagnostic.qmd).
+Its sanitized evidence-of-record is under
+[`docs/experiments/artifacts/frontier-video-map-20260811/`](docs/experiments/artifacts/frontier-video-map-20260811/).
+
+The complete private artifacts are already in the canonical shared dataset and
+are accessible from every correctly linked checkout. Do not copy them between
+worktrees:
+
+- first frozen Gemini response and provenance:
+  `/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/frontier-video-map-20260811/run-webm-v5-observable/`;
+- second frozen Gemini response and provenance:
+  `/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/frontier-video-map-20260811/run-webm-v6-second/`;
+- combined two-row audit with overview sheets, 15 timestamped event frames,
+  maps, and private post-freeze metrics:
+  `/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/frontier-video-map-20260811/canary-audit-v1/`.
+
+The first provider result is terminally recorded as `invalid_json`, but its raw
+paid response is preserved and passes the strict event-map validator after
+removing one exact outer Markdown JSON fence. Do not silently relabel or rerun
+it. The second result passed end to end with the deterministic envelope parser.
+Both original MKV sources were losslessly stream-copied to WebM; delivery and
+source packet hashes prove that the audio/video elementary streams were
+unchanged.
+
+The private audit packet validates but is not reviewer-frozen: its empty verdict
+files are placeholders, and the report's qualitative inspection must not be
+misrepresented as a completed blinded audit. The two-row metrics are diagnostic,
+single-answer NDCG is degenerate, and no independent audio check was performed.
+Reka did not run because the supplied authenticated credential returned HTTP
+403. Do not retry it without a new credential or confirmed account permission.

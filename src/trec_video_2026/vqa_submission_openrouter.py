@@ -22,6 +22,7 @@ from trec_video_2026.vqa_submission_gemini import (
     ProviderAuthenticationError,
     ProviderError,
     ProviderProtocolError,
+    ProviderResponseEvidenceError,
     TokenUsage,
     UploadedFileRecord,
 )
@@ -46,6 +47,7 @@ class OpenRouterRequestPolicy:
     temperature: float | None = None
     provider_order: tuple[str, ...] = ()
     allow_fallbacks: bool | None = None
+    use_structured_outputs: bool = True
 
     def __post_init__(self) -> None:
         if (
@@ -70,6 +72,8 @@ class OpenRouterRequestPolicy:
             self.allow_fallbacks, bool
         ):
             raise TypeError("allow_fallbacks must be a boolean or None")
+        if not isinstance(self.use_structured_outputs, bool):
+            raise TypeError("use_structured_outputs must be a boolean")
 
 _MODEL_MAP = {MODEL_ID: OPENROUTER_MODEL_ID}
 _ALLOWED_MIME_TYPES = frozenset(
@@ -99,6 +103,14 @@ class _Opener(Protocol):
     def open(self, request: urllib.request.Request, *, timeout: float) -> Any: ...
 
 
+class OpenRouterRequestError(ProviderError):
+    """A bounded HTTP failure with no provider body retained."""
+
+    def __init__(self, status_code: int) -> None:
+        super().__init__("OpenRouter request failed", failure_code="provider_request")
+        self.status_code = status_code
+
+
 def _json_bytes(value: object) -> bytes:
     try:
         return json.dumps(
@@ -112,6 +124,42 @@ def _json_bytes(value: object) -> bytes:
         raise ProviderProtocolError(
             "OpenRouter request contains unsupported JSON values"
         ) from None
+
+
+def _preserved_response_text(response: object) -> str:
+    """Prefer assistant content, otherwise preserve the bounded response envelope."""
+
+    if isinstance(response, Mapping):
+        choices = response.get("choices")
+        if isinstance(choices, list) and len(choices) == 1:
+            choice = choices[0]
+            message = choice.get("message") if isinstance(choice, Mapping) else None
+            content = message.get("content") if isinstance(message, Mapping) else None
+            if isinstance(content, str) and content:
+                return content
+            if isinstance(content, list) and content:
+                text_blocks = [
+                    item.get("text")
+                    for item in content
+                    if isinstance(item, Mapping)
+                    and item.get("type") == "text"
+                    and isinstance(item.get("text"), str)
+                ]
+                if len(text_blocks) == len(content):
+                    return "".join(text_blocks)
+    return json.dumps(
+        response,
+        ensure_ascii=False,
+        allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def _preserved_body_text(body: bytes) -> str:
+    """Preserve the bounded HTTP body even when its JSON envelope is malformed."""
+
+    return body.decode("utf-8", errors="replace")
 
 
 def _model_slug(model: object) -> str:
@@ -179,6 +227,12 @@ class OpenRouterTransport:
     def __repr__(self) -> str:
         return "OpenRouterTransport(provider='openrouter')"
 
+    @property
+    def response_format_policy(self) -> str:
+        if self._policy.use_structured_outputs:
+            return "native-json-schema-v1"
+        return "prompt-json-local-validation-v3-exact-fence"
+
     def upload(self, path: Path, *, mime_type: str) -> UploadedFileRecord:
         if not isinstance(path, Path):
             path = Path(path)
@@ -214,7 +268,11 @@ class OpenRouterTransport:
             f"data:{mime_type};base64,{base64.b64encode(data).decode('ascii')}"
         )
         self._uploads[file_id] = (data_uri, mime_type)
-        return UploadedFileRecord(file_id=file_id, mime_type=mime_type)
+        return UploadedFileRecord(
+            file_id=file_id,
+            mime_type=mime_type,
+            sha256=digest.hexdigest(),
+        )
 
     def delete(self, file_id: str) -> None:
         if isinstance(file_id, str):
@@ -242,7 +300,7 @@ class OpenRouterTransport:
                 raise ProviderAuthenticationError(
                     "OpenRouter authentication failed"
                 ) from None
-            raise ProviderError("OpenRouter request failed") from None
+            raise OpenRouterRequestError(error.code) from None
         except (OSError, TimeoutError, Exception):
             raise ProviderError("OpenRouter request failed") from None
         if not isinstance(body, bytes):
@@ -254,7 +312,7 @@ class OpenRouterTransport:
         if status in {401, 403}:
             raise ProviderAuthenticationError("OpenRouter authentication failed")
         if status < 200 or status >= 300:
-            raise ProviderError("OpenRouter request failed")
+            raise OpenRouterRequestError(status)
         payload = _response_json(body)
         if isinstance(payload, Mapping) and "error" in payload:
             raise ProviderError("OpenRouter provider returned an error")
@@ -376,15 +434,16 @@ class OpenRouterTransport:
                 "data_collection": "deny",
                 "require_parameters": True,
             },
-            "response_format": {
+        }
+        if self._policy.use_structured_outputs:
+            payload["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {
                     "name": "vqa_response",
                     "strict": True,
                     "schema": dict(schema),
                 },
-            },
-        }
+            }
         if self._policy.temperature is not None:
             payload["temperature"] = self._policy.temperature
         if self._policy.provider_order:
@@ -403,7 +462,36 @@ class OpenRouterTransport:
             headers=self._headers(),
             method="POST",
         )
-        response = self._request_json(request)
+        status, body = self._open(request)
+        if status in {401, 403}:
+            raise ProviderAuthenticationError("OpenRouter authentication failed")
+        if status < 200 or status >= 300:
+            raise OpenRouterRequestError(status)
+        try:
+            response = _response_json(body)
+            if isinstance(response, Mapping) and "error" in response:
+                raise ProviderError("OpenRouter provider returned an error")
+            return self._generation_result_from_response(response)
+        except ProviderProtocolError as error:
+            raw_response = (
+                _preserved_response_text(response)
+                if "response" in locals()
+                else _preserved_body_text(body)
+            )
+            evidence = GenerationResult(
+                payload={},
+                raw_response=raw_response,
+                usage=TokenUsage(input_tokens=0, output_tokens=0),
+                provider_metadata=self._safe_provider_metadata(
+                    response if "response" in locals() else None
+                ),
+            )
+            raise ProviderResponseEvidenceError(
+                str(error),
+                generation_result=evidence,
+            ) from error
+
+    def _generation_result_from_response(self, response: object) -> GenerationResult:
         if not isinstance(response, Mapping):
             raise ProviderProtocolError("OpenRouter response envelope was invalid")
         choices = response.get("choices")
@@ -417,19 +505,35 @@ class OpenRouterTransport:
         if choice.get("finish_reason") != "stop":
             raise ProviderProtocolError("OpenRouter response was not a successful message")
         message = choice.get("message")
-        if (
-            not isinstance(message, Mapping)
-            or message.get("role") != "assistant"
-            or not isinstance(message.get("content"), str)
-            or not message["content"].strip()
-        ):
+        if not isinstance(message, Mapping) or message.get("role") != "assistant":
             raise ProviderProtocolError("OpenRouter response message was invalid")
-        raw_response = message["content"]
+        content_value = message.get("content")
+        if isinstance(content_value, str):
+            raw_response = content_value
+        elif isinstance(content_value, list) and content_value:
+            text_blocks = [
+                item.get("text")
+                for item in content_value
+                if isinstance(item, Mapping)
+                and item.get("type") == "text"
+                and isinstance(item.get("text"), str)
+            ]
+            if len(text_blocks) != len(content_value):
+                raise ProviderProtocolError("OpenRouter response message was invalid")
+            raw_response = "".join(text_blocks)
+        else:
+            raise ProviderProtocolError("OpenRouter response message was invalid")
+        if not raw_response.strip():
+            raise ProviderProtocolError("OpenRouter response message was invalid")
         try:
             parsed = json.loads(raw_response)
         except (TypeError, json.JSONDecodeError):
-            raise ProviderProtocolError("OpenRouter message was not valid JSON") from None
-        if not isinstance(parsed, Mapping):
+            if self._policy.use_structured_outputs:
+                raise ProviderProtocolError(
+                    "OpenRouter message was not valid JSON"
+                ) from None
+            parsed = raw_response
+        if self._policy.use_structured_outputs and not isinstance(parsed, Mapping):
             raise ProviderProtocolError("OpenRouter message must be a JSON object")
         usage_payload = response.get("usage")
         if not isinstance(usage_payload, Mapping):
@@ -439,12 +543,12 @@ class OpenRouterTransport:
             usage_payload.get("completion_tokens"), required=True
         )
         total_tokens = _token_count(usage_payload.get("total_tokens"), required=False)
-        details = usage_payload.get("prompt_tokens_details", {})
+        details = usage_payload.get("prompt_tokens_details") or {}
         if not isinstance(details, Mapping):
             raise ProviderProtocolError("OpenRouter token usage was invalid")
         cached_tokens = _token_count(details.get("cached_tokens", 0), required=True)
         return GenerationResult(
-            payload=dict(parsed),
+            payload=dict(parsed) if isinstance(parsed, Mapping) else parsed,
             raw_response=raw_response,
             usage=TokenUsage(
                 input_tokens=input_tokens or 0,
@@ -454,6 +558,31 @@ class OpenRouterTransport:
             ),
             provider_metadata=self._provider_metadata(response),
         )
+
+    @staticmethod
+    def _safe_provider_metadata(response: object) -> dict[str, object]:
+        if not isinstance(response, Mapping):
+            return {}
+        metadata: dict[str, object] = {}
+        for key in ("provider", "model"):
+            value = response.get(key)
+            if isinstance(value, str) and value.strip():
+                metadata[key] = value
+        request_id = response.get("request_id")
+        if request_id is None:
+            request_id = response.get("id")
+        if isinstance(request_id, str) and request_id.strip():
+            metadata["request_id"] = request_id
+        usage = response.get("usage")
+        cost = usage.get("cost") if isinstance(usage, Mapping) else None
+        if (
+            not isinstance(cost, bool)
+            and isinstance(cost, (int, float))
+            and math.isfinite(float(cost))
+            and cost >= 0
+        ):
+            metadata["reported_cost_usd"] = float(cost)
+        return metadata
 
     def preflight(self, *, model_id: str) -> dict[str, object]:
         model_slug = _model_slug(model_id)

@@ -242,6 +242,10 @@ class RekaTransport:
     def __repr__(self) -> str:
         return "RekaTransport(provider='reka', model='reka-core')"
 
+    @property
+    def response_format_policy(self) -> str:
+        return "native-json-schema-v1"
+
     def upload(self, path: Path, *, mime_type: str) -> UploadedFileRecord:
         if not isinstance(path, Path):
             path = Path(path)
@@ -275,7 +279,11 @@ class RekaTransport:
             f"data:{mime_type};base64,{base64.b64encode(data).decode('ascii')}"
         )
         self._uploads[file_id] = (data_uri, mime_type)
-        return UploadedFileRecord(file_id=file_id, mime_type=mime_type)
+        return UploadedFileRecord(
+            file_id=file_id,
+            mime_type=mime_type,
+            sha256=hashlib.sha256(data).hexdigest(),
+        )
 
     def delete(self, file_id: str) -> None:
         if isinstance(file_id, str):

@@ -175,6 +175,7 @@ link opens the visible theme record with the tested condition and limits.
 ### Visual and temporal evidence
 
 - [Frozen-30 protocol v2: global frame budget](research-visual-evidence.{{< meta report-ext >}}#frozen-30-protocol-v2)
+- [Gemini native-AV event-map canary](research-visual-evidence.{{< meta report-ext >}}#gemini-native-av-event-map-canary)
 - [Directed temporal sampling](research-visual-evidence.{{< meta report-ext >}}#directed-temporal-sampling)
 - [r4 required-moment Stage 1 representation audit](research-visual-evidence.{{< meta report-ext >}}#temporal-required-moment-oracle)
 - [Historical primary annotation-agreement stop](research-visual-evidence.{{< meta report-ext >}}#historical-annotation-agreement-stop)

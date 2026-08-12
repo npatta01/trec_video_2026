@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import math
 import os
 import re
+import secrets
 import tempfile
 from collections.abc import Mapping, Sequence
 from contextlib import contextmanager
@@ -19,6 +21,7 @@ from trec_video_2026.vqa_benchmark import probe_media, source_fingerprint
 from trec_video_2026.vqa_frontier_map import (
     EVENT_MAP_PROMPT_VERSION,
     EVENT_MAP_SCHEMA,
+    PROVIDER_EVENT_MAP_SCHEMA,
     build_event_map_prompt,
     validate_event_map,
 )
@@ -28,6 +31,13 @@ from trec_video_2026.vqa_frontier_map_panel import (
     PanelRow,
     RUN_ID as PANEL_RUN_ID,
 )
+from trec_video_2026.vqa_frontier_map_media import (
+    DELIVERY_POLICY_VERSION,
+    DeliveryMediaError,
+    expected_delivery_identity,
+    prepare_delivery_media,
+    verify_delivery_media,
+)
 from trec_video_2026.vqa_frontier_map_reka import REKA_MODEL_ID
 from trec_video_2026.vqa_submission import MODEL_ID, canonical_sha256
 from trec_video_2026.vqa_submission_gemini import (
@@ -35,6 +45,7 @@ from trec_video_2026.vqa_submission_gemini import (
     ProviderAuthenticationError,
     ProviderError,
     ProviderProtocolError,
+    ProviderResponseEvidenceError,
     TokenUsage,
     UploadedFileRecord,
 )
@@ -52,7 +63,7 @@ PRICE_SNAPSHOT = {
 }
 PRICE_SNAPSHOT_DATE = "2026-08-11"
 SCHEMA_VERSION = 1
-RUNNER_ID = "frontier-map-runner-v1"
+RUNNER_ID = "frontier-map-runner-v6-exact-json-envelope"
 CONSERVATIVE_INPUT_TOKEN_CEILING = 1_000_000
 CONSERVATIVE_GEMINI_OUTPUT_TOKEN_CEILING = 32_768
 CONSERVATIVE_REKA_OUTPUT_TOKEN_CEILING = 16_384
@@ -114,6 +125,7 @@ class _TerminalProviderResponseError(ValueError):
 
 class FrontierTransport(Protocol):
     provider_name: str
+    response_format_policy: str
 
     def upload(self, path: Path, *, mime_type: str) -> UploadedFileRecord: ...
 
@@ -175,6 +187,12 @@ class FixtureTransport:
         self.reported_cost_usd = reported_cost_usd
         self.call_count = 0
         self.requests: list[dict[str, object]] = []
+
+    @property
+    def response_format_policy(self) -> str:
+        if self.provider_name == "reka":
+            return "native-json-schema-v1"
+        return "prompt-json-local-validation-v3-exact-fence"
 
     def upload(self, path: Path, *, mime_type: str) -> UploadedFileRecord:
         return UploadedFileRecord(file_id=f"fixture-{path.name}", mime_type=mime_type)
@@ -322,13 +340,15 @@ def run_phase(
     phase: str,
     provider: str,
     transport: FrontierTransport,
+    stop_on_failure: bool = False,
+    video_ids: Sequence[str] | None = None,
 ) -> FrontierRunSummary:
     """Run one provider/phase, resuming only fully matching completed rows."""
 
     prepared = _coerce_prepared(prepared)
     _validate_phase_provider(phase, provider)
-    _validate_transport_provider(provider, transport)
-    rows = _rows_for_phase(prepared, phase)
+    _validate_transport_provider(prepared, provider, transport)
+    rows = _selected_rows(prepared, phase=phase, video_ids=video_ids)
     if phase == "panel":
         _enforce_panel_gates(prepared)
 
@@ -344,6 +364,9 @@ def run_phase(
             row=row,
             transport=transport,
         )
+        delivery_identity = _delivery_identity_for_request(
+            prepared, row=row, provider=provider
+        )
         request = _request_record(
             prepared,
             row=row,
@@ -351,6 +374,7 @@ def run_phase(
             provider=provider,
             route=route,
             prompt_sha256=canonical_sha256(prompt),
+            delivery_identity=delivery_identity,
         )
         with _run_dispatch_budget_claim(prepared, request):
             with _request_claim(prepared, request):
@@ -369,6 +393,8 @@ def run_phase(
         input_tokens += summary.input_tokens
         output_tokens += summary.output_tokens
         estimated_cost += summary.estimated_cost_usd
+        if stop_on_failure and summary.failed:
+            break
 
     _write_terminal_status(prepared)
     return FrontierRunSummary(
@@ -425,6 +451,7 @@ def _run_claimed_request(
             output_tokens=output_tokens,
             estimated_cost_usd=estimated_cost,
         )
+    _assert_raw_response_available(prepared, provider=provider, video_id=row.video_id)
     next_cost = _transport_estimate(transport, provider, row)
     if _cumulative_cost(prepared) + next_cost >= PRICE_SNAPSHOT["absolute_cap_usd"]:
         raise CostGateError("absolute cumulative cost cap would be exceeded")
@@ -438,14 +465,29 @@ def _run_claimed_request(
     generated: GenerationResult | None = None
     try:
         source_path = _source_path(prepared, row)
-        uploaded = transport.upload(
-            source_path,
-            mime_type=_mime_type(row.media_relative_path),
+        delivery = prepare_delivery_media(
+            run_path=prepared.path,
+            source_path=source_path,
+            video_id=row.video_id,
+            provider=provider,
         )
+        verify_delivery_media(delivery)
+        if any(
+            request.get(key) != value
+            for key, value in delivery.request_identity().items()
+        ):
+            raise DeliveryMediaError("delivery request identity changed")
+        uploaded = transport.upload(
+            delivery.path,
+            mime_type=delivery.mime_type,
+        )
+        verify_delivery_media(delivery)
+        if uploaded.sha256 is not None and uploaded.sha256 != delivery.sha256:
+            raise DeliveryMediaError("uploaded delivery identity changed")
         generated = transport.generate(
             model=str(request["model_id"]),
             parts=_provider_parts(uploaded, prompt),
-            schema=EVENT_MAP_SCHEMA,
+            schema=_inference_schema(provider),
         )
         observed_model = _observed_model(
             str(request["model_id"]), generated.provider_metadata
@@ -476,6 +518,32 @@ def _run_claimed_request(
             request=request,
             attempt_index=attempt_index,
             failure_code="source_identity_mismatch",
+            generated=generated,
+            fallback_cost=0.0,
+        )
+        input_tokens += summary_input
+        output_tokens += summary_output
+        estimated_cost += summary_cost
+        return FrontierRunSummary(
+            provider=provider,
+            phase=phase,
+            expected=1,
+            passed=passed,
+            failed=failed,
+            skipped=skipped,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            estimated_cost_usd=round(estimated_cost, 6),
+        )
+    except DeliveryMediaError:
+        failed += 1
+        summary_cost, summary_input, summary_output = _record_terminal_failure(
+            prepared=prepared,
+            provider=provider,
+            row=row,
+            request=request,
+            attempt_index=attempt_index,
+            failure_code="delivery_media_failure",
             generated=generated,
             fallback_cost=0.0,
         )
@@ -551,7 +619,9 @@ def _run_claimed_request(
         ProviderProtocolError,
         ValueError,
         OSError,
-    ):
+    ) as error:
+        if isinstance(error, ProviderResponseEvidenceError):
+            generated = error.generation_result
         failed += 1
         summary_cost, summary_input, summary_output = _record_terminal_failure(
             prepared=prepared,
@@ -559,7 +629,7 @@ def _run_claimed_request(
             row=row,
             request=request,
             attempt_index=attempt_index,
-            failure_code="provider_or_schema_failure",
+            failure_code=_provider_failure_code(error),
             generated=generated,
             fallback_cost=next_cost,
         )
@@ -766,6 +836,103 @@ def freeze_provider_outputs(prepared: PreparedFrontierRun | Path) -> dict[str, o
     return freeze
 
 
+def freeze_preflight_outputs(
+    prepared: PreparedFrontierRun | Path,
+    *,
+    provider: str,
+    video_ids: Sequence[str] | None = None,
+) -> dict[str, object]:
+    """Freeze one provider's complete terminal preflight evidence."""
+
+    prepared = _coerce_prepared(prepared)
+    if provider not in _PROVIDERS:
+        raise ValueError("unsupported provider")
+    artifact_path = prepared.path / f"preflight-{provider}-results.json"
+    freeze_path = prepared.path / f"preflight-{provider}-freeze.json"
+    if any(path.exists() or path.is_symlink() for path in (artifact_path, freeze_path)):
+        raise FileExistsError("refusing to overwrite existing preflight freeze artifacts")
+    rows = _selected_rows(prepared, phase="preflight", video_ids=video_ids)
+    expected_ids = {row.video_id for row in rows}
+    results = [
+        result
+        for result in _provider_results(prepared, provider)
+        if result.get("phase") == "preflight"
+        and result.get("video_id") in expected_ids
+        and _terminal_result_still_bound_to_prepared(prepared, result)
+    ]
+    observed_ids = [result.get("video_id") for result in results]
+    if (
+        len(results) != len(rows)
+        or len(set(observed_ids)) != len(observed_ids)
+        or set(observed_ids) != expected_ids
+    ):
+        raise ValueError("provider preflight outputs are not complete")
+    raw_files: list[dict[str, object]] = []
+    for result in results:
+        if result.get("response_sha256") is None:
+            continue
+        video_id = str(result["video_id"])
+        raw_path = prepared.path / "raw" / provider / f"{video_id}.json"
+        if raw_path.is_symlink() or not raw_path.is_file():
+            raise ValueError("billable preflight raw response is missing")
+        _verify_raw_response_record(
+            raw_path,
+            run_id=prepared.run_id,
+            provider=provider,
+            video_id=video_id,
+            response_sha256=result["response_sha256"],
+        )
+        identity = source_fingerprint(raw_path)
+        raw_files.append(
+            {
+                "relative_path": f"raw/{provider}/{video_id}.json",
+                "sha256": identity.sha256,
+                "size_bytes": identity.size_bytes,
+            }
+        )
+    artifact = {
+        "schema_version": SCHEMA_VERSION,
+        "runner_id": RUNNER_ID,
+        "run_id": prepared.run_id,
+        "provider": provider,
+        "panel_sha256": prepared.panel_sha256,
+        "prompt_sha256": prepared.prompt_sha256,
+        "schema_sha256": prepared.schema_sha256,
+        "delivery_policy_version": DELIVERY_POLICY_VERSION,
+        "result_count": len(results),
+        "succeeded_count": sum(
+            result.get("status") == "succeeded" for result in results
+        ),
+        "failed_count": sum(result.get("status") == "failed" for result in results),
+        "results_sha256": canonical_sha256(results),
+        "raw_files": raw_files,
+        "raw_files_sha256": canonical_sha256(raw_files),
+        "provider_schema_sha256": prepared.provider_configs[provider].get(
+            "provider_schema_sha256"
+        ),
+        "response_format_policy": prepared.provider_configs[provider].get(
+            "response_format_policy"
+        ),
+    }
+    _write_json_atomically(artifact_path, artifact)
+    bindings = {
+        "provider": provider,
+        "panel_sha256": prepared.panel_sha256,
+        "prompt_sha256": prepared.prompt_sha256,
+        "schema_sha256": prepared.schema_sha256,
+        "delivery_policy_version": DELIVERY_POLICY_VERSION,
+        "result_count": len(results),
+        "results_sha256": artifact["results_sha256"],
+        "raw_files_sha256": artifact["raw_files_sha256"],
+        "provider_schema_sha256": artifact["provider_schema_sha256"],
+        "response_format_policy": artifact["response_format_policy"],
+    }
+    freeze = freeze_json_artifact(artifact_path, bindings=bindings)
+    _write_json_atomically(freeze_path, freeze)
+    _write_terminal_status(prepared)
+    return freeze
+
+
 def _write_prepared_run(
     path: Path,
     panel_payload: Mapping[str, object],
@@ -789,11 +956,17 @@ def _write_prepared_run(
             "transport": "openrouter",
             "model_id": MODEL_ID,
             "route_policy": "pin-successful-preflight-route",
+            "delivery_policy_version": DELIVERY_POLICY_VERSION,
+            "provider_schema_sha256": canonical_sha256(PROVIDER_EVENT_MAP_SCHEMA),
+            "response_format_policy": "prompt-json-local-validation-v3-exact-fence",
         },
         "reka": {
             "transport": "reka",
             "model_id": REKA_MODEL_ID,
             "route_policy": "direct",
+            "delivery_policy_version": DELIVERY_POLICY_VERSION,
+            "provider_schema_sha256": canonical_sha256(EVENT_MAP_SCHEMA),
+            "response_format_policy": "native-json-schema-v1",
         },
     }
     prepared = PreparedFrontierRun(
@@ -927,6 +1100,7 @@ def _request_record(
     provider: str,
     route: str,
     prompt_sha256: str,
+    delivery_identity: Mapping[str, object],
 ) -> dict[str, object]:
     config = prepared.provider_configs[provider]
     identity = {
@@ -947,10 +1121,13 @@ def _request_record(
         "panel_sha256": prepared.panel_sha256,
         "prompt_sha256": prompt_sha256,
         "schema_sha256": prepared.schema_sha256,
+        "provider_schema_sha256": config["provider_schema_sha256"],
+        "response_format_policy": config["response_format_policy"],
         "model_id": config["model_id"],
         "route": route,
         "requested_route": route,
         "price_snapshot_date": PRICE_SNAPSHOT_DATE,
+        **dict(delivery_identity),
     }
     return {**identity, "request_sha256": canonical_sha256(identity)}
 
@@ -1082,6 +1259,13 @@ def _attempt_record(
         "requested_route": request["requested_route"],
         "prompt_sha256": request["prompt_sha256"],
         "schema_sha256": request["schema_sha256"],
+        "provider_schema_sha256": request["provider_schema_sha256"],
+        "response_format_policy": request["response_format_policy"],
+        "delivery_policy_version": request["delivery_policy_version"],
+        "delivery_sha256": request["delivery_sha256"],
+        "delivery_size_bytes": request["delivery_size_bytes"],
+        "delivery_mime_type": request["delivery_mime_type"],
+        "delivery_derived": request["delivery_derived"],
         "status": status,
         "attempt_index": attempt_index,
         "input_tokens": input_tokens,
@@ -1104,6 +1288,13 @@ def _provider_parts(uploaded: UploadedFileRecord, prompt: str) -> tuple[object, 
 def _parse_raw_response(raw_response: bytes | str) -> object:
     if isinstance(raw_response, bytes):
         raw_response = raw_response.decode("utf-8")
+    stripped = raw_response.strip()
+    prefix = "```json\n"
+    suffix = "\n```"
+    if stripped.startswith(prefix) and stripped.endswith(suffix):
+        candidate = stripped[len(prefix) : -len(suffix)]
+        if "```" not in candidate:
+            raw_response = candidate
     return json.loads(raw_response)
 
 
@@ -1126,9 +1317,163 @@ def _write_raw_response(
         "raw_response_sha256": canonical_sha256(raw_text),
         "raw_response": raw_text,
     }
-    _write_json_atomically(
-        prepared.path / "raw" / provider / f"{video_id}.json", payload
+    path = prepared.path / "raw" / provider / f"{video_id}.json"
+    if path.exists() or path.is_symlink():
+        if _raw_payload_matches(path, payload):
+            return
+        _preserve_conflicting_raw_response(
+            prepared, provider=provider, video_id=video_id, payload=payload
+        )
+        raise AmbiguousStartedAttemptError(
+            "raw response path conflicts with the paid response; current response preserved"
+        )
+    try:
+        _write_json_atomically(path, payload)
+    except FileExistsError:
+        if _raw_payload_matches(path, payload):
+            return
+        _preserve_conflicting_raw_response(
+            prepared, provider=provider, video_id=video_id, payload=payload
+        )
+        raise AmbiguousStartedAttemptError(
+            "raw response path conflicts with the paid response; current response preserved"
+        ) from None
+    if _read_json(path) != payload:
+        raise AmbiguousStartedAttemptError(
+            "raw response path conflicts with the paid response"
+        )
+
+
+def _raw_payload_matches(path: Path, payload: Mapping[str, object]) -> bool:
+    if path.is_symlink() or not path.is_file():
+        return False
+    try:
+        return _read_json(path) == payload
+    except (OSError, ValueError, json.JSONDecodeError):
+        return False
+
+
+def _preserve_conflicting_raw_response(
+    prepared: PreparedFrontierRun,
+    *,
+    provider: str,
+    video_id: str,
+    payload: Mapping[str, object],
+) -> Path:
+    raw_response = payload.get("raw_response")
+    if not isinstance(raw_response, str):
+        raise TypeError("raw response payload is invalid")
+    response_sha256 = hashlib.sha256(raw_response.encode("utf-8")).hexdigest()
+    rendered = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    directory_fd: int | None = None
+    root_fd: int | None = None
+    provider_fd: int | None = None
+    directory_path = prepared.path
+    try:
+        run_fd = os.open(
+            prepared.path,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+        )
+    except OSError as error:
+        raise AmbiguousStartedAttemptError(
+            "conflicting paid response could not be preserved"
+        ) from error
+    try:
+        try:
+            root_fd = _open_or_create_nofollow_directory(run_fd, "raw-conflicts")
+            provider_fd = _open_or_create_nofollow_directory(root_fd, provider)
+            directory_fd = provider_fd
+            directory_path = prepared.path / "raw-conflicts" / provider
+            prefix = f"{video_id}-{response_sha256}-"
+        except OSError:
+            # An unsafe conflict directory (including a symlink) is never
+            # followed. Preserve the response directly under the already-open
+            # run directory instead.
+            directory_fd = run_fd
+            prefix = f".raw-conflict-{provider}-{video_id}-{response_sha256}-"
+        preserved: Path | None = None
+        for _ in range(32):
+            name = f"{prefix}{secrets.token_hex(8)}.json"
+            try:
+                fd = os.open(
+                    name,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                    0o600,
+                    dir_fd=directory_fd,
+                )
+            except FileExistsError:
+                continue
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(rendered)
+                handle.flush()
+                os.fsync(handle.fileno())
+            preserved = directory_path / name
+            break
+        if preserved is None:
+            raise AmbiguousStartedAttemptError(
+                "conflicting paid response could not be preserved"
+            )
+    finally:
+        if provider_fd is not None:
+            os.close(provider_fd)
+        if root_fd is not None:
+            os.close(root_fd)
+        os.close(run_fd)
+    if not _raw_payload_matches(preserved, payload):
+        raise AmbiguousStartedAttemptError(
+            "conflicting paid response could not be preserved"
+        )
+    return preserved
+
+
+def _open_or_create_nofollow_directory(parent_fd: int, name: str) -> int:
+    try:
+        os.mkdir(name, 0o700, dir_fd=parent_fd)
+    except FileExistsError:
+        pass
+    return os.open(
+        name,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+        dir_fd=parent_fd,
     )
+
+
+def _assert_raw_response_available(
+    prepared: PreparedFrontierRun,
+    *,
+    provider: str,
+    video_id: str,
+) -> None:
+    _validate_video_id(video_id)
+    path = prepared.path / "raw" / provider / f"{video_id}.json"
+    if path.exists() or path.is_symlink():
+        raise AmbiguousStartedAttemptError(
+            "raw response exists without a matching terminal result"
+        )
+
+
+def _verify_raw_response_record(
+    path: Path,
+    *,
+    run_id: str,
+    provider: str,
+    video_id: str,
+    response_sha256: object,
+) -> None:
+    record = _read_json(path)
+    raw_response = record.get("raw_response")
+    if not isinstance(raw_response, str):
+        raise ValueError("billable preflight raw response is invalid")
+    expected = {
+        "run_id": run_id,
+        "provider": provider,
+        "video_id": video_id,
+        "raw_response_sha256": canonical_sha256(raw_response),
+    }
+    if any(record.get(key) != value for key, value in expected.items()):
+        raise ValueError("billable preflight raw response identity changed")
+    if hashlib.sha256(raw_response.encode("utf-8")).hexdigest() != response_sha256:
+        raise ValueError("billable preflight response hash changed")
 
 
 def _source_path(prepared: PreparedFrontierRun, row: PanelRow) -> Path:
@@ -1173,23 +1518,37 @@ def _source_path(prepared: PreparedFrontierRun, row: PanelRow) -> Path:
     return source_path
 
 
+def _delivery_identity_for_request(
+    prepared: PreparedFrontierRun,
+    *,
+    row: PanelRow,
+    provider: str,
+) -> dict[str, object]:
+    """Prepare delivery identity, retaining a terminal path for bad sources."""
+
+    try:
+        source_path = _source_path(prepared, row)
+        return prepare_delivery_media(
+            run_path=prepared.path,
+            source_path=source_path,
+            video_id=row.video_id,
+            provider=provider,
+        ).request_identity()
+    except (_SourceIdentityError, DeliveryMediaError):
+        return expected_delivery_identity(
+            source_sha256=row.media_sha256,
+            source_size_bytes=row.size_bytes,
+            source_suffix=Path(row.media_relative_path).suffix,
+            provider=provider,
+        )
+
+
 def _canonical_data_root() -> Path:
     return CANONICAL_DATA_ROOT.resolve(strict=True)
 
 
 def _probe_media(path: Path) -> object:
     return probe_media(path)
-
-
-def _mime_type(media_relative_path: str) -> str:
-    suffix = Path(media_relative_path).suffix.lower()
-    return {
-        ".avi": "video/x-msvideo",
-        ".mkv": "video/x-matroska",
-        ".mov": "video/quicktime",
-        ".mp4": "video/mp4",
-        ".webm": "video/webm",
-    }.get(suffix, "video/mp4")
 
 
 def _ensure_fixture_media(prepared: PreparedFrontierRun) -> None:
@@ -1211,6 +1570,12 @@ def _failure_cost(
 ) -> tuple[float, int, int]:
     if isinstance(generated, GenerationResult):
         usage = generated.usage
+        if (
+            usage.input_tokens == 0
+            and usage.output_tokens == 0
+            and generated.provider_metadata.get("reported_cost_usd") is None
+        ):
+            return fallback_cost, 0, 0
         return (
             _estimated_cost_usd(
                 provider=provider,
@@ -1223,6 +1588,17 @@ def _failure_cost(
             usage.output_tokens,
         )
     return fallback_cost, 0, 0
+
+
+def _provider_failure_code(error: BaseException) -> str:
+    if isinstance(error, ProviderAuthenticationError):
+        return "provider_authentication_failure"
+    status_code = getattr(error, "status_code", None)
+    if isinstance(status_code, int) and 400 <= status_code <= 599:
+        return f"provider_http_{status_code}"
+    if isinstance(error, ProviderProtocolError):
+        return "provider_protocol_failure"
+    return "provider_or_schema_failure"
 
 
 def _estimated_cost_usd(
@@ -1343,6 +1719,14 @@ def _observed_model_identity_is_approved(
     )
 
 
+def _inference_schema(provider: str) -> Mapping[str, object]:
+    if provider == "gemini":
+        return PROVIDER_EVENT_MAP_SCHEMA
+    if provider == "reka":
+        return EVENT_MAP_SCHEMA
+    raise ValueError("unsupported provider")
+
+
 def _successful_result_for_row(
     prepared: PreparedFrontierRun,
     *,
@@ -1438,6 +1822,13 @@ def _matches_terminal_result_binding(
         "provider",
         "phase",
         "video_id",
+        "delivery_policy_version",
+        "delivery_sha256",
+        "delivery_size_bytes",
+        "delivery_mime_type",
+        "delivery_derived",
+        "provider_schema_sha256",
+        "response_format_policy",
     )
     return all(result.get(field) == request.get(field) for field in required) and (
         result.get("status") in _TERMINAL_ATTEMPT_STATUSES
@@ -1463,6 +1854,13 @@ def _matches_attempt_binding(
         "provider",
         "phase",
         "video_id",
+        "delivery_policy_version",
+        "delivery_sha256",
+        "delivery_size_bytes",
+        "delivery_mime_type",
+        "delivery_derived",
+        "provider_schema_sha256",
+        "response_format_policy",
     )
     return all(attempt.get(field) == request.get(field) for field in required) and (
         attempt.get("run_id") == prepared.run_id
@@ -1514,6 +1912,19 @@ def _terminal_result_still_bound_to_prepared(
         and result.get("source_size_bytes") == row.size_bytes
         and result.get("model_id")
         == prepared.provider_configs[str(provider)]["model_id"]
+        and result.get("delivery_policy_version") == DELIVERY_POLICY_VERSION
+        and (
+            prepared.provider_configs[str(provider)].get("provider_schema_sha256")
+            is None
+            or result.get("provider_schema_sha256")
+            == prepared.provider_configs[str(provider)]["provider_schema_sha256"]
+        )
+        and (
+            prepared.provider_configs[str(provider)].get("response_format_policy")
+            is None
+            or result.get("response_format_policy")
+            == prepared.provider_configs[str(provider)]["response_format_policy"]
+        )
     )
 
 
@@ -1572,7 +1983,15 @@ def _request_claim(
 ) -> Iterator[None]:
     lock_dir = prepared.path / "locks"
     lock_dir.mkdir(parents=True, exist_ok=True)
-    lock_path = lock_dir / f"{request['request_sha256']}.lock"
+    request_scope = canonical_sha256(
+        {
+            "run_id": prepared.run_id,
+            "provider": request["provider"],
+            "phase": request["phase"],
+            "video_id": request["video_id"],
+        }
+    )
+    lock_path = lock_dir / f"request-row-{request_scope}.lock"
     try:
         fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     except FileExistsError as error:
@@ -1724,6 +2143,9 @@ def _require_complete_panel_outputs(prepared: PreparedFrontierRun) -> None:
                 prompt_sha256=canonical_sha256(
                     build_event_map_prompt(row.question, row.duration_seconds)
                 ),
+                delivery_identity=_delivery_identity_for_request(
+                    prepared, row=row, provider=provider
+                ),
             )
             if not _matches_terminal_result_binding(prepared, result, expected_request):
                 raise ValueError("provider outputs are not complete")
@@ -1751,6 +2173,27 @@ def _cumulative_cost(prepared: PreparedFrontierRun) -> float:
 def _rows_for_phase(prepared: PreparedFrontierRun, phase: str) -> tuple[PanelRow, ...]:
     row_phase = "evaluation" if phase == "panel" else phase
     return tuple(row for row in prepared.examples if row.phase == row_phase)
+
+
+def _selected_rows(
+    prepared: PreparedFrontierRun,
+    *,
+    phase: str,
+    video_ids: Sequence[str] | None,
+) -> tuple[PanelRow, ...]:
+    rows = _rows_for_phase(prepared, phase)
+    if video_ids is None:
+        return rows
+    requested = tuple(video_ids)
+    if not requested or len(set(requested)) != len(requested):
+        raise ValueError("video_ids must be nonempty and unique")
+    if any(not isinstance(video_id, str) or not video_id for video_id in requested):
+        raise ValueError("video_ids must contain nonempty strings")
+    by_id = {row.video_id: row for row in rows}
+    missing = set(requested) - set(by_id)
+    if missing:
+        raise ValueError("video_ids are not present in the requested phase")
+    return tuple(by_id[video_id] for video_id in requested)
 
 
 def _validate_video_id(video_id: str) -> None:
@@ -1803,14 +2246,23 @@ def _validate_phase_provider(phase: str, provider: str) -> None:
         raise ValueError("provider must be gemini or reka")
 
 
-def _validate_transport_provider(provider: str, transport: FrontierTransport) -> None:
+def _validate_transport_provider(
+    prepared: PreparedFrontierRun,
+    provider: str,
+    transport: FrontierTransport,
+) -> None:
     transport_provider = getattr(transport, "provider_name", "")
     if provider == "gemini":
         if transport_provider not in {"openrouter", "fixture"}:
             raise ValueError("transport provider does not match gemini/openrouter")
-        return
-    if transport_provider not in {"reka", "fixture"}:
+    elif transport_provider not in {"reka", "fixture"}:
         raise ValueError("transport provider does not match reka")
+    expected_policy = prepared.provider_configs[provider].get(
+        "response_format_policy"
+    )
+    actual_policy = getattr(transport, "response_format_policy", None)
+    if actual_policy != expected_policy:
+        raise ValueError("transport response policy does not match prepared run")
 
 
 def _provider_results(
@@ -2004,6 +2456,7 @@ __all__ = [
     "LockContentionError",
     "PreparedFrontierRun",
     "freeze_provider_outputs",
+    "freeze_preflight_outputs",
     "load_prepared",
     "prepare_fixture_run",
     "prepare_run",

@@ -204,6 +204,29 @@ EVENT_MAP_SCHEMA: dict[str, object] = {
 }
 
 
+def _provider_schema(value: object) -> object:
+    """Project the local contract to Gemini's documented JSON Schema subset."""
+
+    if isinstance(value, Mapping):
+        projected: dict[str, object] = {}
+        for key, nested in value.items():
+            if key in {"minLength", "maxLength"}:
+                continue
+            if key == "const":
+                projected["enum"] = [_provider_schema(nested)]
+                continue
+            projected[str(key)] = _provider_schema(nested)
+        return projected
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return [_provider_schema(item) for item in value]
+    return copy.deepcopy(value)
+
+
+PROVIDER_EVENT_MAP_SCHEMA = _provider_schema(EVENT_MAP_SCHEMA)
+if not isinstance(PROVIDER_EVENT_MAP_SCHEMA, dict):  # pragma: no cover - invariant
+    raise TypeError("provider event map schema must be an object")
+
+
 @dataclass(frozen=True, slots=True)
 class EventRecord:
     event_id: str
@@ -671,6 +694,7 @@ def summarize_map_gate(verdict_rows: Sequence[Mapping[str, object]]) -> dict[str
 __all__ = [
     "EVENT_MAP_PROMPT_VERSION",
     "EVENT_MAP_SCHEMA",
+    "PROVIDER_EVENT_MAP_SCHEMA",
     "EventRecord",
     "FrontierMap",
     "MAX_EVENTS",

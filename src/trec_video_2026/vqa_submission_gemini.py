@@ -408,6 +408,7 @@ class UploadedFileRecord:
     file_id: str
     mime_type: str
     uri: str | None = None
+    sha256: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.file_id, str) or not self.file_id.strip():
@@ -418,6 +419,11 @@ class UploadedFileRecord:
             not isinstance(self.uri, str) or not self.uri.strip()
         ):
             raise ValueError("uri must be a non-empty string when supplied")
+        if self.sha256 is not None and (
+            not isinstance(self.sha256, str)
+            or re.fullmatch(r"[0-9a-f]{64}", self.sha256) is None
+        ):
+            raise ValueError("sha256 must be a lowercase SHA-256 digest when supplied")
 
 
 @dataclass(frozen=True, slots=True)
@@ -467,6 +473,21 @@ class GenerationResult:
     @property
     def response_sha256(self) -> str:
         return hashlib.sha256(self.raw_bytes).hexdigest()
+
+
+class ProviderResponseEvidenceError(ProviderProtocolError):
+    """A protocol failure that still carries a bounded paid response body."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        generation_result: GenerationResult,
+    ) -> None:
+        super().__init__(message)
+        if not isinstance(generation_result, GenerationResult):
+            raise TypeError("generation_result must be a GenerationResult")
+        self.generation_result = generation_result
 
 
 TimelineOutput = ValidatedTimeline
@@ -1248,6 +1269,7 @@ __all__ = [
     "ProviderAuthenticationError",
     "ProviderError",
     "ProviderProtocolError",
+    "ProviderResponseEvidenceError",
     "TimelineOutput",
     "TimelineResult",
     "TokenUsage",

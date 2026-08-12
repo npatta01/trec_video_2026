@@ -14,6 +14,7 @@ from trec_video_2026.vqa_frontier_map_runner import (
     FixtureTransport,
     FrontierRunSummary,
     freeze_provider_outputs,
+    freeze_preflight_outputs,
     prepare_run,
     project_cost,
     run_phase,
@@ -97,6 +98,7 @@ def _transport(prepared: Path, provider: str) -> Any:
             policy=OpenRouterRequestPolicy(
                 provider_order=_pinned_route(prepared),
                 allow_fallbacks=False,
+                use_structured_outputs=False,
             )
         )
     if provider == "reka":
@@ -104,7 +106,13 @@ def _transport(prepared: Path, provider: str) -> Any:
     raise ValueError("unsupported_provider")
 
 
-def _run_one(prepared: Path, *, phase: str, provider: str) -> FrontierRunSummary:
+def _run_one(
+    prepared: Path,
+    *,
+    phase: str,
+    provider: str,
+    video_ids: tuple[str, ...] | None = None,
+) -> FrontierRunSummary:
     if provider == "fixture":
         raise ValueError("fixture aggregate must be handled separately")
     return run_phase(
@@ -112,6 +120,8 @@ def _run_one(prepared: Path, *, phase: str, provider: str) -> FrontierRunSummary
         phase=phase,
         provider=provider,
         transport=_transport(prepared, provider),
+        stop_on_failure=phase == "preflight",
+        video_ids=video_ids,
     )
 
 
@@ -139,7 +149,10 @@ def _safe_phase(args: argparse.Namespace, *, phase: str) -> dict[str, Any]:
     if args.provider == "fixture":
         summaries = _run_fixture(prepared, phase=phase)
         return {"status": "ok", "summary": _aggregate_summaries(summaries)}
-    summary = _run_one(prepared, phase=phase, provider=args.provider)
+    video_ids = tuple(args.video_id) if args.video_id else None
+    summary = _run_one(
+        prepared, phase=phase, provider=args.provider, video_ids=video_ids
+    )
     return {"status": "ok", "summary": _summary_payload(summary)}
 
 
@@ -182,6 +195,23 @@ def _safe_freeze(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _safe_freeze_preflight(args: argparse.Namespace) -> dict[str, Any]:
+    freeze = freeze_preflight_outputs(
+        Path(args.prepared),
+        provider=str(args.provider),
+        video_ids=tuple(args.video_id) if args.video_id else None,
+    )
+    bindings = freeze.get("bindings", {})
+    return {
+        "status": freeze["status"],
+        "artifact_sha256": freeze["artifact_sha256"],
+        "provider": bindings.get("provider") if isinstance(bindings, dict) else None,
+        "result_count": bindings.get("result_count")
+        if isinstance(bindings, dict)
+        else None,
+    }
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subcommands = parser.add_subparsers(dest="command", required=True)
@@ -194,6 +224,7 @@ def _parser() -> argparse.ArgumentParser:
         command = subcommands.add_parser(name)
         command.add_argument("--prepared", required=True)
         command.add_argument("--provider", choices=("gemini", "reka", "fixture"), required=True)
+        command.add_argument("--video-id", action="append")
 
     project = subcommands.add_parser("project-cost")
     project.add_argument("--prepared", required=True)
@@ -203,6 +234,12 @@ def _parser() -> argparse.ArgumentParser:
 
     freeze = subcommands.add_parser("freeze")
     freeze.add_argument("--prepared", required=True)
+    freeze_preflight = subcommands.add_parser("freeze-preflight")
+    freeze_preflight.add_argument("--prepared", required=True)
+    freeze_preflight.add_argument(
+        "--provider", choices=("gemini", "reka"), required=True
+    )
+    freeze_preflight.add_argument("--video-id", action="append")
     return parser
 
 
@@ -221,6 +258,8 @@ def main(argv: list[str] | None = None) -> int:
             payload = _safe_status(args)
         elif args.command == "freeze":
             payload = _safe_freeze(args)
+        elif args.command == "freeze-preflight":
+            payload = _safe_freeze_preflight(args)
         else:
             raise ValueError("unsupported_command")
     except PermissionError:
