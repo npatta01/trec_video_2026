@@ -24,3 +24,18 @@ Technical rulings:
 Verification: `PYTHONPATH=src uv run pytest -q tests/test_vqa_frontier_phase0_audit.py tests/test_build_vqa_frontier_phase0_audit.py tests/test_vqa_frontier_phase0_runner.py tests/test_run_vqa_frontier_phase0_script.py tests/test_build_vqa_frontier_map_audit.py` — 114 passed in 27.45s. Ruff and `git diff --check` passed.
 
 Concerns: none within this fix-round scope. No provider, network, credentials, labels, references, ASR, or audio-model calls were used.
+
+## Fix round 2/5 — complete packet authorization and native-source revalidation
+
+Status: complete; commit subject `fix: require complete phase zero audit packets`.
+
+RED/GREEN evidence:
+
+- A standalone `audit.json` plus `freeze.json` first authorized successfully; after the fix it is rejected because authorization requires and validates a complete nonsymlink Phase 0 packet.
+- Same-size native-source byte replacement first passed validation; after the fix validation and freeze recompute and compare the source SHA-256 and size.
+- Native source-file and parent-directory symlink mutations are rejected by validation, and all byte/symlink mutations are rejected through `authorize_screen`.
+- The full frozen-packet authorization E2E remains successful, with an immutable complete packet retained for every later authorization recheck.
+
+Verification: `PYTHONPATH=src uv run pytest -q tests/test_vqa_frontier_phase0_audit.py tests/test_build_vqa_frontier_phase0_audit.py tests/test_vqa_frontier_phase0_runner.py tests/test_run_vqa_frontier_phase0_script.py tests/test_build_vqa_frontier_map_audit.py` — 121 passed in 33.51s. Ruff and `git diff --check` passed.
+
+Concerns: none within this fix-round scope. No provider, network, credentials, labels, references, ASR, or audio-model calls were used.

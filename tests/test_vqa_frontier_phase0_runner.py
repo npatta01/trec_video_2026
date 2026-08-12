@@ -64,6 +64,13 @@ from trec_video_2026.vqa_submission_gemini import (
 SENTINEL_QUESTION = "sentinel private question"
 
 
+@pytest.fixture(autouse=True)
+def _use_private_test_audit_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+
+
 def test_screen_row_dispatches_exactly_three_calls_with_one_neutral_map(
     tmp_path: Path,
 ) -> None:
@@ -97,6 +104,41 @@ def test_screen_cannot_run_without_usable_pilot_audit(tmp_path: Path) -> None:
             ordinal=1,
             transport_factory=lambda _condition: RecordingTransport(),
         )
+
+
+def test_authorize_screen_rejects_standalone_audit_freeze(tmp_path: Path) -> None:
+    prepared = prepared_fixture(tmp_path)
+    run_pilot(prepared, RecordingTransport())
+    freeze_pilot(prepared)
+    audit_dir = tmp_path / "standalone-audit"
+    audit_dir.mkdir()
+    audit_path = audit_dir / "audit.json"
+    audit_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": prepared.run_id,
+                "panel_sha256": prepared.panel_sha256,
+                "phase": "pilot",
+                "decision": "usable_for_screen",
+            }
+        ),
+        encoding="utf-8",
+    )
+    freeze = freeze_json_artifact(
+        audit_path,
+        bindings={
+            "run_id": prepared.run_id,
+            "panel_sha256": prepared.panel_sha256,
+            "phase": "pilot",
+            "decision": "usable_for_screen",
+        },
+    )
+    freeze_path = audit_dir / "freeze.json"
+    freeze_path.write_text(json.dumps(freeze), encoding="utf-8")
+
+    with pytest.raises(PilotGateError, match="complete.*audit packet"):
+        authorize_screen(prepared, freeze_path)
 
 
 def test_cost_gate_stops_before_twenty_five_dollars(tmp_path: Path) -> None:
@@ -247,7 +289,41 @@ def test_authorize_screen_rejects_deleted_bound_audit_jpeg(
     frame = pilot_audit.root / private["rows"][0]["event_keyframes"][0]["path"]
     frame.unlink()
 
-    with pytest.raises(PilotGateError, match="audit evidence media"):
+    with pytest.raises(PilotGateError, match="audit packet verification"):
+        authorize_screen(prepared, pilot_audit.root / "freeze.json")
+
+
+@pytest.mark.parametrize("mutation", ["bytes", "source_symlink", "parent_symlink"])
+def test_authorize_screen_rejects_changed_or_symlinked_native_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    panel = write_phase0_fixture_panel(tmp_path)
+    prepared = prepare_run(panel, tmp_path / "run")
+    install_fixture_media(prepared, tmp_path)
+    run_pilot(prepared, FixtureTransport())
+    freeze_pilot(prepared)
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    pilot_audit = build_complete_fixture_audit(prepared, phase="pilot")
+    freeze_pilot_audit(pilot_audit.root)
+    private = json.loads(pilot_audit.private_manifest.read_text(encoding="utf-8"))
+    source = Path(private["rows"][0]["native_media_path"])
+    if mutation == "bytes":
+        changed = bytearray(source.read_bytes())
+        changed[-1] ^= 1
+        source.write_bytes(changed)
+    elif mutation == "source_symlink":
+        moved = tmp_path / "moved-source.webm"
+        source.rename(moved)
+        source.symlink_to(moved)
+    else:
+        parent = source.parent
+        moved = tmp_path / "moved-fixture-media"
+        parent.rename(moved)
+        parent.symlink_to(moved, target_is_directory=True)
+
+    with pytest.raises(PilotGateError, match="audit packet verification"):
         authorize_screen(prepared, pilot_audit.root / "freeze.json")
 
 
@@ -665,7 +741,7 @@ def test_panel_parser_rejects_tampered_frozen_manifest(
 
 def test_freeze_revalidates_retained_pilot_audit_hashes(tmp_path: Path) -> None:
     prepared = prepared_fixture(tmp_path, pilot_authorized=True)
-    audit_path = prepared.path / "pilot-audit-freeze.json"
+    audit_path = prepared.path / "pilot-audit" / "freeze.json"
     audit = json.loads(audit_path.read_text(encoding="utf-8"))
     audit["artifact_sha256"] = "0" * 64
     audit_path.write_text(json.dumps(audit), encoding="utf-8")
@@ -1004,28 +1080,9 @@ def prepared_fixture(
         )
         run_pilot(prepared, pilot_transport)
         freeze_pilot(prepared)
-        audit_dir = tmp_path / "pilot-audit"
-        audit_dir.mkdir()
-        audit = {
-            "schema_version": 1,
-            "run_id": prepared.run_id,
-            "panel_sha256": prepared.panel_sha256,
-            "phase": "pilot",
-            "decision": "usable_for_screen",
-        }
-        audit_path = audit_dir / "audit.json"
-        audit_path.write_text(json.dumps(audit), encoding="utf-8")
-        freeze = freeze_json_artifact(
-            audit_path,
-            bindings={
-                "run_id": prepared.run_id,
-                "panel_sha256": prepared.panel_sha256,
-                "phase": "pilot",
-                "decision": "usable_for_screen",
-            },
-        )
-        (audit_dir / "freeze.json").write_text(json.dumps(freeze), encoding="utf-8")
-        authorize_screen(prepared, audit_dir / "freeze.json")
+        packet = build_complete_fixture_audit(prepared, phase="pilot")
+        freeze_pilot_audit(packet.root)
+        authorize_screen(prepared, packet.root / "freeze.json")
     return prepared
 
 

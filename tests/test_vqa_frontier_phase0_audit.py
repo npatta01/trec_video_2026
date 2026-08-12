@@ -32,7 +32,6 @@ from trec_video_2026.vqa_frontier_phase0_runner import (
     run_screen_row,
 )
 from trec_video_2026.vqa_submission import canonical_sha256
-from trec_video_2026.vqa_experiments.temporal_bottleneck import freeze_json_artifact
 
 
 SENTINEL_QUESTION = "sentinel private question"
@@ -147,7 +146,7 @@ def _answer_payload(*, guided: bool) -> dict[str, Any]:
 
 class LocalTransport:
     provider_name = "openrouter"
-    response_format_policy = "prompt-json-local-validation-v3-exact-fence"
+    response_format_policy = "native-json-schema-v1"
 
     def __init__(self) -> None:
         from trec_video_2026.vqa_frontier_phase0_runner import ANSWER_POLICY, MAP_POLICY
@@ -279,34 +278,16 @@ def _write_prepared(tmp_path: Path, *, phase: str) -> Path:
     if phase == "pilot":
         return prepared.path
 
-    pilot_audit = tmp_path / "pilot-audit"
-    pilot_audit.mkdir()
-    pilot_artifact = pilot_audit / "audit.json"
-    pilot_artifact.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "run_id": prepared.run_id,
-                "panel_sha256": prepared.panel_sha256,
-                "phase": "pilot",
-                "decision": "usable_for_screen",
-            }
-        ),
-        encoding="utf-8",
+    pilot_audit = build_audit_packet(
+        prepared.path,
+        phase="pilot",
+        output=tmp_path / "pilot-audit",
     )
-    pilot_freeze = freeze_json_artifact(
-        pilot_artifact,
-        bindings={
-            "run_id": prepared.run_id,
-            "panel_sha256": prepared.panel_sha256,
-            "phase": "pilot",
-            "decision": "usable_for_screen",
-        },
-    )
-    (pilot_audit / "freeze.json").write_text(json.dumps(pilot_freeze), encoding="utf-8")
+    _write_verdicts(pilot_audit)
+    freeze_pilot_audit(pilot_audit.root)
     from trec_video_2026.vqa_frontier_phase0_runner import authorize_screen
 
-    authorize_screen(prepared, pilot_audit / "freeze.json")
+    authorize_screen(prepared, pilot_audit.freeze_json)
     run_screen_row(
         prepared,
         ordinal=1,
@@ -529,6 +510,7 @@ def test_validate_frozen_audit_rejects_changed_evidence_jpeg(
         prepared, phase="pilot", output=tmp_path / "audit"
     )
     _write_verdicts(packet)
+    _write_verdicts(packet)
     freeze_pilot_audit(packet.root)
     private = json.loads(packet.private_manifest.read_text(encoding="utf-8"))
     frame = packet.root / private["rows"][0]["overview_frames"][0]["path"]
@@ -561,6 +543,57 @@ def test_validate_frozen_audit_rejects_symlinked_evidence_jpeg(
     frame.symlink_to(replacement)
 
     with pytest.raises(ValueError, match="symlink|unsafe"):
+        validate_audit_packet(packet.root)
+
+
+def test_validate_audit_rehashes_native_source_media(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="pilot")
+    packet = build_audit_packet(
+        prepared, phase="pilot", output=tmp_path / "audit"
+    )
+    private = json.loads(packet.private_manifest.read_text(encoding="utf-8"))
+    source = Path(private["rows"][0]["native_media_path"])
+    changed = bytearray(source.read_bytes())
+    changed[-1] ^= 1
+    source.write_bytes(changed)
+
+    with pytest.raises(ValueError, match="source media.*SHA-256"):
+        validate_audit_packet(packet.root)
+    with pytest.raises(ValueError, match="source media.*SHA-256"):
+        freeze_pilot_audit(packet.root)
+
+
+@pytest.mark.parametrize("mutation", ["source", "parent"])
+def test_validate_audit_rejects_native_source_symlink_ancestry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="pilot")
+    packet = build_audit_packet(
+        prepared, phase="pilot", output=tmp_path / "audit"
+    )
+    private = json.loads(packet.private_manifest.read_text(encoding="utf-8"))
+    source = Path(private["rows"][0]["native_media_path"])
+    if mutation == "source":
+        moved = tmp_path / "moved-source.webm"
+        source.rename(moved)
+        source.symlink_to(moved)
+    else:
+        parent = source.parent
+        moved = tmp_path / "moved-fixture-media"
+        parent.rename(moved)
+        parent.symlink_to(moved, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
         validate_audit_packet(packet.root)
 
 

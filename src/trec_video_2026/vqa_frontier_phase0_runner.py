@@ -12,6 +12,7 @@ import json
 import math
 import os
 import re
+import shutil
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -311,20 +312,12 @@ def authorize_screen(
     decision = _audit_decision(audit)
     if decision != "usable_for_screen":
         raise PilotGateError("pilot audit authorization is not usable_for_screen")
-    retained_audit = prepared.path / "pilot-audit-freeze.json"
     source_freeze = Path(pilot_audit_freeze)
-    if retained_audit.exists() or retained_audit.is_symlink():
-        if retained_audit.read_bytes() != source_freeze.read_bytes():
-            raise FileExistsError("refusing to overwrite retained pilot audit freeze")
-    else:
-        _write_bytes_once(retained_audit, source_freeze.read_bytes())
-    retained_artifact = prepared.path / "pilot-audit.json"
-    source_artifact = Path(pilot_audit_freeze).parent / "audit.json"
-    if retained_artifact.exists() or retained_artifact.is_symlink():
-        if retained_artifact.read_bytes() != source_artifact.read_bytes():
-            raise FileExistsError("refusing to overwrite retained pilot audit artifact")
-    else:
-        _write_bytes_once(retained_artifact, source_artifact.read_bytes())
+    retained_root = prepared.path / "pilot-audit"
+    _retain_audit_packet_once(source_freeze.parent, retained_root)
+    retained_freeze = retained_root / "freeze.json"
+    retained_payload = _read_json(retained_freeze)
+    _verify_audit_freeze(prepared, retained_freeze, retained_payload)
     pilot_artifact = _read_json(prepared.path / "pilot-results.json")
     payload = {
         "schema_version": SCHEMA_VERSION,
@@ -1977,7 +1970,7 @@ def _verify_pilot_authorization(prepared: PreparedPhase0Run) -> None:
         or payload.get("pilot_results_sha256") != pilot_artifact.get("results_sha256")
     ):
         raise PilotGateError("pilot results authorization binding changed")
-    audit_path = prepared.path / "pilot-audit-freeze.json"
+    audit_path = prepared.path / "pilot-audit" / "freeze.json"
     if not audit_path.is_file():
         raise PilotGateError("pilot audit freeze artifact is not retained")
     audit = _read_json(audit_path)
@@ -2037,13 +2030,16 @@ def _verify_audit_freeze(
     freeze: Mapping[str, object],
 ) -> None:
     packet_manifest = path.parent / "packet-manifest.json"
-    if packet_manifest.is_file() and not packet_manifest.is_symlink():
-        from trec_video_2026.vqa_frontier_phase0_audit import validate_audit_packet
+    if packet_manifest.is_symlink() or not packet_manifest.is_file():
+        raise PilotGateError(
+            "pilot authorization requires a complete Phase 0 audit packet"
+        )
+    from trec_video_2026.vqa_frontier_phase0_audit import validate_audit_packet
 
-        try:
-            validate_audit_packet(path.parent)
-        except (TypeError, ValueError) as error:
-            raise PilotGateError("pilot audit evidence media verification failed") from error
+    try:
+        validate_audit_packet(path.parent)
+    except (TypeError, ValueError) as error:
+        raise PilotGateError("pilot audit packet verification failed") from error
     if (
         freeze.get("schema_version") != SCHEMA_VERSION
         or freeze.get("status") != "frozen"
@@ -2068,11 +2064,7 @@ def _verify_audit_freeze(
         raise PilotGateError("pilot audit freeze core binding is invalid")
     if not isinstance(_audit_decision(freeze), str):
         raise PilotGateError("pilot audit freeze decision is invalid")
-    artifact = (
-        path.with_name("pilot-audit.json")
-        if path.name == "pilot-audit-freeze.json"
-        else path.parent / "audit.json"
-    )
+    artifact = path.parent / "audit.json"
     if not artifact.is_file() or artifact.is_symlink():
         raise PilotGateError("pilot audit artifact bound by freeze is missing")
     try:
@@ -2088,6 +2080,38 @@ def _verify_audit_freeze(
         or audit_payload.get("decision") != "usable_for_screen"
     ):
         raise PilotGateError("pilot audit artifact core binding is invalid")
+
+
+def _retain_audit_packet_once(source: Path, destination: Path) -> None:
+    source_snapshot = _audit_packet_snapshot(source)
+    if destination.exists() or destination.is_symlink():
+        if destination.is_symlink() or not destination.is_dir():
+            raise FileExistsError("retained pilot audit packet path is unsafe")
+        if _audit_packet_snapshot(destination) != source_snapshot:
+            raise FileExistsError("refusing to overwrite retained pilot audit packet")
+        return
+    shutil.copytree(source, destination, copy_function=shutil.copyfile)
+    if _audit_packet_snapshot(destination) != source_snapshot:
+        raise PilotGateError("retained pilot audit packet copy changed")
+
+
+def _audit_packet_snapshot(root: Path) -> dict[str, str]:
+    if root.is_symlink() or not root.is_dir():
+        raise PilotGateError("pilot authorization requires a nonsymlink audit packet")
+    snapshot: dict[str, str] = {}
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink():
+            raise PilotGateError(
+                "pilot authorization requires a nonsymlink audit packet"
+            )
+        if path.is_dir():
+            continue
+        if not path.is_file():
+            raise PilotGateError(
+                "pilot authorization requires a regular-file audit packet"
+            )
+        snapshot[path.relative_to(root).as_posix()] = _sha256_file(path)
+    return snapshot
 
 
 def _audit_decision(freeze: Mapping[str, object]) -> object:

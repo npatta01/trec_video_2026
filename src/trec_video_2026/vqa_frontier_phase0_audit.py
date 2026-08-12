@@ -13,6 +13,7 @@ import json
 import math
 import os
 import re
+import stat
 import subprocess
 import tempfile
 from collections.abc import Mapping, Sequence
@@ -972,11 +973,17 @@ def _validate_evidence_media(
         source_sha256 = _required_sha256(
             private_row.get("source_media_sha256"), "source media SHA-256"
         )
+        source_size = _required_nonnegative_int(
+            private_row.get("source_media_size_bytes"), "source media size"
+        )
         if any(
             row.get("source_media_sha256") != source_sha256
             for row in (packet_by_id[video_id], aware_by_id[video_id])
         ):
             raise ValueError("audit evidence source media binding changed")
+        if aware_by_id[video_id].get("source_media_size_bytes") != source_size:
+            raise ValueError("audit evidence source media size binding changed")
+        _verify_native_source(private_row, source_sha256, source_size)
         duration = _finite_nonnegative(
             private_row.get("source_duration_seconds"), "source duration"
         )
@@ -1076,6 +1083,28 @@ def _validate_evidence_media(
         "evidence_media_file_count": len(inventory),
         "evidence_media_files_sha256": canonical_sha256(inventory),
     }
+
+
+def _verify_native_source(
+    private_row: Mapping[str, Any], expected_sha256: str, expected_size: int
+) -> None:
+    value = _required_text(private_row.get("native_media_path"), "native media path")
+    path = Path(value)
+    root = _canonical_root()
+    if not path.is_absolute() or not path.is_relative_to(root):
+        raise ValueError("native source media path escapes canonical private root")
+    _reject_symlink_components(root, path)
+    try:
+        resolved = path.resolve(strict=True)
+        metadata = resolved.stat(follow_symlinks=False)
+    except OSError as error:
+        raise ValueError("native source media is missing or unsafe") from error
+    if not resolved.is_relative_to(root) or not stat.S_ISREG(metadata.st_mode):
+        raise ValueError("native source media is not a permitted regular file")
+    if metadata.st_size != expected_size:
+        raise ValueError("native source media size changed")
+    if _sha256_file(resolved) != expected_sha256:
+        raise ValueError("native source media SHA-256 changed")
 
 
 def _expected_event_frames(
@@ -1710,6 +1739,12 @@ def _required_sha256(value: object, field: str) -> str:
     if not SHA256.fullmatch(text):
         raise ValueError(f"{field} must be a lowercase SHA-256 digest")
     return text
+
+
+def _required_nonnegative_int(value: object, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"{field} must be a non-negative integer")
+    return value
 
 
 def _finite_nonnegative(value: object, field: str) -> float:
