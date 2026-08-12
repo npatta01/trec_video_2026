@@ -15,6 +15,7 @@ import re
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Protocol
 
@@ -122,6 +123,13 @@ class AmbiguousStartedAttemptError(Phase0RunnerError):
 
 class RequestBindingError(Phase0RunnerError):
     """Raised when an existing artifact no longer matches its request."""
+
+
+class RequestClaimDisposition(str, Enum):
+    """Outcome of the permanent claim acquisition race."""
+
+    OWNED = "owned"
+    ALREADY_COMPLETED = "already_completed"
 
 
 class FrontierTransport(Protocol):
@@ -294,7 +302,7 @@ def authorize_screen(
     pilot_freeze = prepared.path / "pilot-freeze.json"
     if not pilot_freeze.is_file():
         raise PilotGateError("pilot audit authorization requires frozen pilot results")
-    _verify_freeze_file(pilot_freeze)
+    _verify_freeze_file(prepared, pilot_freeze)
     pilot_results = _require_complete_phase(prepared, "pilot")
     if pilot_results[0].get("status") != "succeeded":
         raise PilotGateError("pilot audit authorization requires a successful pilot map")
@@ -317,12 +325,17 @@ def authorize_screen(
             raise FileExistsError("refusing to overwrite retained pilot audit artifact")
     else:
         _write_bytes_once(retained_artifact, source_artifact.read_bytes())
+    pilot_artifact = _read_json(prepared.path / "pilot-results.json")
     payload = {
         "schema_version": SCHEMA_VERSION,
         "status": "authorized",
         "run_id": prepared.run_id,
         "panel_sha256": prepared.panel_sha256,
         "pilot_freeze_sha256": _sha256_file(pilot_freeze),
+        "pilot_results_artifact_sha256": _sha256_file(prepared.path / "pilot-results.json"),
+        "pilot_result_hashes": pilot_artifact["result_hashes"],
+        "pilot_request_hashes": pilot_artifact["request_hashes"],
+        "pilot_results_sha256": pilot_artifact["results_sha256"],
         "pilot_audit_freeze_sha256": _sha256_file(Path(pilot_audit_freeze)),
         "pilot_audit_artifact_sha256": audit["artifact_sha256"],
         "pilot_audit_bindings_sha256": audit["bindings_sha256"],
@@ -502,7 +515,11 @@ def authorize_remaining(prepared: PreparedPhase0Run | Path) -> Mapping[str, obje
             condition: first_row[condition]["result_sha256"]
             for condition in _CONDITIONS
         },
-        "projected_total_usd": projection["projected_total_usd"],
+        "first_row_request_hashes": {
+            condition: first_row[condition]["request_sha256"]
+            for condition in _CONDITIONS
+        },
+        "projected_total_usd": first_row_projection["projected_total_usd"],
         "absolute_cap_usd": ABSOLUTE_CAP_USD,
         "projected_total_usd_lt_cap": True,
         "projection_snapshot": first_row_projection,
@@ -538,7 +555,7 @@ def freeze_screen(prepared: PreparedPhase0Run | Path) -> Mapping[str, object]:
     pilot_freeze = prepared.path / "pilot-freeze.json"
     if not pilot_freeze.is_file():
         raise PilotGateError("screen freeze requires frozen pilot results")
-    _verify_freeze_file(pilot_freeze)
+    _verify_freeze_file(prepared, pilot_freeze)
     _verify_pilot_authorization(prepared)
     _verify_cost_gate(prepared, _read_json(prepared.path / "cost-gate.json"))
     results = _require_complete_phase(prepared, "screen")
@@ -657,7 +674,18 @@ def _dispatch_condition(
     next_cost = _transport_estimate(transport, condition_id, row)
     if _known_cumulative_cost(prepared) + next_cost >= ABSOLUTE_CAP_USD:
         raise CostGateError("next provider call would reach USD 25")
-    _claim_request(prepared, request)
+    claim_disposition, completed = _claim_request(prepared, request)
+    if claim_disposition is RequestClaimDisposition.ALREADY_COMPLETED:
+        if completed is None:
+            raise RequestBindingError("completed request claim has no result")
+        if completed.get("status") != "succeeded":
+            return completed
+        skipped = dict(completed)
+        skipped["status"] = "skipped"
+        skipped["input_tokens"] = 0
+        skipped["output_tokens"] = 0
+        skipped["estimated_cost_usd"] = 0.0
+        return skipped
     total_cost = 0.0
     total_cost_known = True
     total_input = 0
@@ -683,10 +711,17 @@ def _dispatch_condition(
                 failure_code="cost_gate",
             )
             _append_result(prepared, condition_id, result)
+            _record_cost_state(prepared)
             return result
         _append_jsonl(
             prepared.path / "attempts.jsonl",
-            _attempt_record(request, status="started", attempt_index=attempt_index),
+            _attempt_record(
+                request,
+                status="started",
+                attempt_index=attempt_index,
+                cost_known=False,
+                cost_reason="not_observed",
+            ),
         )
         outcome = _execute_attempt(
             prepared,
@@ -767,6 +802,7 @@ def _dispatch_condition(
             ),
         )
         total_failure = failure_code
+        _record_cost_state(prepared)
         if attempt_index == 1 and attempt_known and failure_code in _RETRYABLE:
             continue
         result = _result_record(
@@ -1014,8 +1050,8 @@ def _attempt_record(
     output_tokens: int = 0,
     estimated_cost_usd: float = 0.0,
     cost_usd: float | None = None,
-    cost_known: bool = True,
-    cost_reason: str = "not_dispatched",
+    cost_known: bool = False,
+    cost_reason: str = "not_observed",
 ) -> dict[str, object]:
     record = {
         "schema_version": SCHEMA_VERSION,
@@ -1227,7 +1263,7 @@ def _ensure_request_record(
 def _claim_request(
     prepared: PreparedPhase0Run,
     request: Mapping[str, object],
-) -> None:
+) -> tuple[RequestClaimDisposition, Mapping[str, object] | None]:
     path = prepared.path / "request-claims" / f"{request['request_sha256']}.json"
     payload = {
         "schema_version": SCHEMA_VERSION,
@@ -1244,33 +1280,44 @@ def _claim_request(
         _write_json_once(path, payload)
     except FileExistsError as error:
         existing = _read_json(path)
-        if (
-            existing == payload
-            and _result_for_request_is_valid(prepared, request)
-        ):
-            return
+        if existing == payload:
+            completed = _completed_result_for_request(prepared, request)
+            if completed is not None:
+                return RequestClaimDisposition.ALREADY_COMPLETED, completed
         raise AmbiguousStartedAttemptError(
             "permanent request claim without a valid terminal result requires operator review"
         ) from error
+    return RequestClaimDisposition.OWNED, None
+
+
+def _completed_result_for_request(
+    prepared: PreparedPhase0Run,
+    request: Mapping[str, object],
+) -> Mapping[str, object] | None:
+    matches: list[Mapping[str, object]] = []
+    for condition in _CONDITIONS:
+        for result in _read_jsonl(prepared.path / "results" / f"{condition}.jsonl"):
+            if (
+                result.get("run_id") == prepared.run_id
+                and result.get("request_sha256") == request.get("request_sha256")
+                and result.get("status") in _TERMINAL
+                and result.get("request_binding_sha256")
+                == request.get("request_binding_sha256")
+                and result.get("request_binding") == request.get("request_binding")
+            ):
+                if not _result_hash_valid(result) or not _result_binding_valid(result):
+                    raise RequestBindingError("terminal result identity changed")
+                matches.append(result)
+    if len(matches) > 1:
+        raise RequestBindingError("multiple terminal records bind one request")
+    return matches[0] if matches else None
 
 
 def _result_for_request_is_valid(
     prepared: PreparedPhase0Run,
     request: Mapping[str, object],
 ) -> bool:
-    for condition in _CONDITIONS:
-        for result in _read_jsonl(prepared.path / "results" / f"{condition}.jsonl"):
-            if (
-                result.get("run_id") == prepared.run_id
-                and result.get("request_sha256") == request["request_sha256"]
-                and result.get("status") in _TERMINAL
-                and _result_hash_valid(result)
-                and result.get("request_binding_sha256")
-                == request.get("request_binding_sha256")
-                and result.get("request_binding") == request.get("request_binding")
-            ):
-                return True
-    return False
+    return _completed_result_for_request(prepared, request) is not None
 
 
 def _fail_on_ambiguous_started_attempts(prepared: PreparedPhase0Run) -> None:
@@ -1528,14 +1575,24 @@ def _failure_code(error: BaseException, generated: GenerationResult | None) -> s
     status_code = getattr(error, "status_code", None)
     if status_code == 429:
         return "rate_limit"
-    if generated is not None and not generated.raw_response:
-        return "empty"
     if isinstance(status_code, int) and 500 <= status_code <= 599:
         return "transport"
     if isinstance(status_code, int) and 400 <= status_code <= 499:
         return "http_client_error"
     if isinstance(error, ProviderResponseEvidenceError):
+        metadata = generated.provider_metadata if generated is not None else {}
+        if metadata.get("content_empty") is True:
+            return "empty"
+        if metadata.get("finish_reason") in {
+            "length",
+            "max_tokens",
+            "max_output_tokens",
+            "truncated",
+        }:
+            return "truncated"
         return "truncated" if _has_truncation_evidence(generated) else "provider_protocol"
+    if generated is not None and not generated.raw_response:
+        return "empty"
     if isinstance(error, json.JSONDecodeError):
         return "invalid_json"
     if isinstance(error, ProviderError):
@@ -1565,6 +1622,14 @@ def _failure_code(error: BaseException, generated: GenerationResult | None) -> s
 def _has_truncation_evidence(generated: GenerationResult | None) -> bool:
     if generated is None:
         return False
+    finish_reason = generated.provider_metadata.get("finish_reason")
+    if isinstance(finish_reason, str) and finish_reason.casefold() in {
+        "length",
+        "max_tokens",
+        "max_output_tokens",
+        "truncated",
+    }:
+        return True
     try:
         payload = json.loads(generated.raw_response)
     except (TypeError, json.JSONDecodeError):
@@ -1593,6 +1658,16 @@ def _require_complete_phase(
     prepared: PreparedPhase0Run,
     phase: str,
 ) -> list[Mapping[str, object]]:
+    found = _phase_results(prepared, phase)
+    if _ambiguous_attempts(prepared, _read_jsonl(prepared.path / "attempts.jsonl")):
+        raise AmbiguousStartedAttemptError("started attempt lacks a terminal record")
+    return found
+
+
+def _phase_results(
+    prepared: PreparedPhase0Run,
+    phase: str,
+) -> list[Mapping[str, object]]:
     if phase == "pilot":
         expected = {("pilot", prepared.pilot_row.video_id, "neutral_map")}
     elif phase == "screen":
@@ -1608,12 +1683,15 @@ def _require_complete_phase(
         for result in _bound_results(prepared, condition):
             key = (result.get("phase"), result.get("video_id"), condition)
             if key in expected:
+                if key in found:
+                    raise RequestBindingError("multiple terminal records bind one request")
                 found[key] = result
     if set(found) != expected:
         raise Phase0RunnerError(f"{phase} results are incomplete")
-    if _ambiguous_attempts(prepared, _read_jsonl(prepared.path / "attempts.jsonl")):
-        raise AmbiguousStartedAttemptError("started attempt lacks a terminal record")
-    return [found[key] for key in sorted(found, key=lambda item: (str(item[0]), str(item[1]), str(item[2])))]
+    return [
+        found[key]
+        for key in sorted(found, key=lambda item: (str(item[0]), str(item[1]), str(item[2])))
+    ]
 
 
 def _freeze_phase(
@@ -1626,6 +1704,7 @@ def _freeze_phase(
     artifact_path = prepared.path / artifact_name
     freeze_path = prepared.path / freeze_name
     result_hashes = [str(result["result_sha256"]) for result in results]
+    request_hashes = [str(result["request_sha256"]) for result in results]
     artifact = {
         "schema_version": SCHEMA_VERSION,
         "runner_id": RUNNER_ID,
@@ -1635,6 +1714,9 @@ def _freeze_phase(
         "result_count": len(results),
         "results_sha256": canonical_sha256(list(results)),
         "result_hashes": result_hashes,
+        "request_hashes": request_hashes,
+        "result_hashes_sha256": canonical_sha256(result_hashes),
+        "request_hashes_sha256": canonical_sha256(request_hashes),
         "observed_cost_usd": round(
             sum(_number(result.get("estimated_cost_usd", 0.0)) for result in results),
             6,
@@ -1655,6 +1737,8 @@ def _freeze_phase(
             "panel_sha256": prepared.panel_sha256,
             "result_count": len(results),
             "results_sha256": artifact["results_sha256"],
+            "result_hashes_sha256": canonical_sha256(result_hashes),
+            "request_hashes_sha256": canonical_sha256(request_hashes),
         },
     )
     if freeze_path.exists() or freeze_path.is_symlink():
@@ -1844,7 +1928,19 @@ def _verify_cost_gate(prepared: PreparedPhase0Run, gate: Mapping[str, object]) -
         raise CostGateError("cost gate binding is not authorized")
     first = _first_row_results(prepared)
     hashes = gate.get("first_row_result_hashes")
-    if not isinstance(hashes, Mapping) or any(hashes.get(condition) != first.get(condition, {}).get("result_sha256") for condition in _CONDITIONS):
+    request_hashes = gate.get("first_row_request_hashes")
+    if (
+        not isinstance(hashes, Mapping)
+        or not isinstance(request_hashes, Mapping)
+        or set(hashes) != set(_CONDITIONS)
+        or set(request_hashes) != set(_CONDITIONS)
+        or any(
+            hashes.get(condition) != first.get(condition, {}).get("result_sha256")
+            or request_hashes.get(condition)
+            != first.get(condition, {}).get("request_sha256")
+            for condition in _CONDITIONS
+        )
+    ):
         raise CostGateError("cost gate first-row result binding changed")
     snapshot = gate.get("projection_snapshot")
     snapshot_sha = gate.get("projection_snapshot_sha256")
@@ -1857,6 +1953,8 @@ def _verify_cost_gate(prepared: PreparedPhase0Run, gate: Mapping[str, object]) -
     recomputed = project_remaining_cost(prepared, _screen_limit=1)
     if recomputed != snapshot:
         raise CostGateError("cost gate first-row projection binding changed")
+    if gate.get("projected_total_usd") != snapshot.get("projected_total_usd"):
+        raise CostGateError("cost gate projection total changed")
 
 
 def _verify_pilot_authorization(prepared: PreparedPhase0Run) -> None:
@@ -1864,8 +1962,19 @@ def _verify_pilot_authorization(prepared: PreparedPhase0Run) -> None:
     payload = _read_json(path)
     if payload.get("status") != "authorized" or payload.get("run_id") != prepared.run_id or payload.get("panel_sha256") != prepared.panel_sha256 or payload.get("pilot_audit_decision") != "usable_for_screen":
         raise PilotGateError("pilot audit authorization binding changed")
-    if payload.get("pilot_freeze_sha256") != _sha256_file(prepared.path / "pilot-freeze.json"):
+    pilot_freeze = prepared.path / "pilot-freeze.json"
+    _verify_freeze_file(prepared, pilot_freeze)
+    if payload.get("pilot_freeze_sha256") != _sha256_file(pilot_freeze):
         raise PilotGateError("pilot audit authorization is stale")
+    pilot_artifact = _read_json(prepared.path / "pilot-results.json")
+    if (
+        payload.get("pilot_results_artifact_sha256")
+        != _sha256_file(prepared.path / "pilot-results.json")
+        or payload.get("pilot_result_hashes") != pilot_artifact.get("result_hashes")
+        or payload.get("pilot_request_hashes") != pilot_artifact.get("request_hashes")
+        or payload.get("pilot_results_sha256") != pilot_artifact.get("results_sha256")
+    ):
+        raise PilotGateError("pilot results authorization binding changed")
     audit_path = prepared.path / "pilot-audit-freeze.json"
     if not audit_path.is_file():
         raise PilotGateError("pilot audit freeze artifact is not retained")
@@ -1879,10 +1988,45 @@ def _verify_pilot_authorization(prepared: PreparedPhase0Run) -> None:
         raise PilotGateError("pilot audit authorization audit binding changed")
 
 
-def _verify_freeze_file(path: Path) -> None:
+def _verify_freeze_file(prepared: PreparedPhase0Run, path: Path) -> None:
     freeze = _read_json(path)
-    artifact_name = "pilot-results.json" if path.name == "pilot-freeze.json" else "screen-results.json"
-    verify_json_artifact(path.parent / artifact_name, freeze)
+    phase = "pilot" if path.name == "pilot-freeze.json" else "screen"
+    artifact_name = "pilot-results.json" if phase == "pilot" else "screen-results.json"
+    artifact_path = path.parent / artifact_name
+    try:
+        verify_json_artifact(artifact_path, freeze)
+    except (TypeError, ValueError) as error:
+        raise PilotGateError("frozen results artifact verification failed") from error
+    artifact = _read_json(artifact_path)
+    expected_results = _phase_results(prepared, phase)
+    result_hashes = [str(result["result_sha256"]) for result in expected_results]
+    request_hashes = [str(result["request_sha256"]) for result in expected_results]
+    if (
+        artifact.get("schema_version") != SCHEMA_VERSION
+        or artifact.get("runner_id") != RUNNER_ID
+        or artifact.get("run_id") != prepared.run_id
+        or artifact.get("panel_sha256") != prepared.panel_sha256
+        or artifact.get("phase") != phase
+        or artifact.get("results") != expected_results
+        or artifact.get("result_count") != len(expected_results)
+        or artifact.get("results_sha256") != canonical_sha256(expected_results)
+        or artifact.get("result_hashes") != result_hashes
+        or artifact.get("request_hashes") != request_hashes
+        or artifact.get("result_hashes_sha256") != canonical_sha256(result_hashes)
+        or artifact.get("request_hashes_sha256") != canonical_sha256(request_hashes)
+    ):
+        raise PilotGateError("frozen results artifact binding changed")
+    expected_bindings = {
+        "run_id": prepared.run_id,
+        "phase": phase,
+        "panel_sha256": prepared.panel_sha256,
+        "result_count": len(expected_results),
+        "results_sha256": canonical_sha256(expected_results),
+        "result_hashes_sha256": canonical_sha256(result_hashes),
+        "request_hashes_sha256": canonical_sha256(request_hashes),
+    }
+    if freeze.get("bindings") != expected_bindings:
+        raise PilotGateError("frozen results freeze bindings changed")
 
 
 def _verify_audit_freeze(
@@ -1902,14 +2046,14 @@ def _verify_audit_freeze(
     bindings = freeze.get("bindings")
     if not isinstance(bindings, Mapping):
         raise PilotGateError("pilot audit freeze bindings are missing")
-    required = {"run_id", "panel_sha256", "phase"}
-    decision_keys = {"decision", "neutral_map_decision"}
-    if not required <= set(bindings) or len(set(bindings) & decision_keys) != 1:
+    required = {"run_id", "panel_sha256", "phase", "decision"}
+    if set(bindings) != required:
         raise PilotGateError("pilot audit freeze core bindings are incomplete")
     if (
         bindings.get("run_id") != prepared.run_id
         or bindings.get("panel_sha256") != prepared.panel_sha256
         or bindings.get("phase") != "pilot"
+        or bindings.get("decision") != "usable_for_screen"
     ):
         raise PilotGateError("pilot audit freeze core binding is invalid")
     if not isinstance(_audit_decision(freeze), str):
@@ -1925,6 +2069,15 @@ def _verify_audit_freeze(
         verify_json_artifact(artifact, dict(freeze))
     except (TypeError, ValueError) as error:
         raise PilotGateError("pilot audit artifact freeze verification failed") from error
+    audit_payload = _read_json(artifact)
+    if (
+        audit_payload.get("schema_version") != SCHEMA_VERSION
+        or audit_payload.get("run_id") != prepared.run_id
+        or audit_payload.get("panel_sha256") != prepared.panel_sha256
+        or audit_payload.get("phase") != "pilot"
+        or audit_payload.get("decision") != "usable_for_screen"
+    ):
+        raise PilotGateError("pilot audit artifact core binding is invalid")
 
 
 def _audit_decision(freeze: Mapping[str, object]) -> object:
@@ -2015,6 +2168,7 @@ def _policy_payload(policy: OpenRouterRequestPolicy) -> dict[str, object]:
     return {
         "max_output_tokens": policy.max_output_tokens,
         "temperature": policy.temperature,
+        "provider_order": list(policy.provider_order),
         "allow_fallbacks": policy.allow_fallbacks,
         "use_structured_outputs": policy.use_structured_outputs,
     }
@@ -2060,14 +2214,16 @@ def _parse_panel(payload: Mapping[str, object]) -> Phase0Panel:
     if not isinstance(raw_rows, list):
         raise ValueError("panel must contain examples")
     rows = tuple(_parse_row(raw, index) for index, raw in enumerate(raw_rows))
-    pilot = tuple(row for row in rows if row.phase == "pilot")
-    screen = tuple(row for row in rows if row.phase == "screen")
-    if len(pilot) != 1 or len(screen) != 7:
-        raise ValueError("panel must contain one pilot and seven screen rows")
-    if [row.ordinal for row in rows] != sorted(row.ordinal for row in rows):
-        raise ValueError("panel ordinals must be in exact ordered-manifest order")
+    if len(rows) != 8 or rows[0].phase != "pilot" or any(
+        row.phase != "screen" for row in rows[1:]
+    ):
+        raise ValueError("panel rows must be pilot first followed by seven screen rows")
+    if any(row.ordinal <= 0 for row in rows):
+        raise ValueError("panel ordinals must be positive")
     if len({row.ordinal for row in rows}) != len(rows):
         raise ValueError("panel ordinals must be unique")
+    pilot = (rows[0],)
+    screen = rows[1:]
     if len({row.video_id for row in rows}) != len(rows):
         raise ValueError("panel video IDs must be unique")
     if tuple(row.category for row in screen) != CATEGORIES:
@@ -2365,6 +2521,7 @@ __all__ = [
     "Phase0RunnerError",
     "PreparedPhase0Run",
     "RequestBindingError",
+    "RequestClaimDisposition",
     "authorize_remaining",
     "authorize_screen",
     "freeze_pilot",

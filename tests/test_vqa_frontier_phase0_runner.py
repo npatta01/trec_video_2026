@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
@@ -31,6 +32,7 @@ from trec_video_2026.vqa_frontier_phase0_runner import (
     run_screen_row,
     status,
 )
+from trec_video_2026.vqa_submission_openrouter import OpenRouterTransport
 from trec_video_2026.vqa_frontier_phase0_panel import (
     CATEGORIES,
     CONDITIONS,
@@ -275,6 +277,26 @@ def test_concurrent_claim_allows_one_dispatch_and_blocks_the_other(
     assert second.call_count == 0
 
 
+def test_loser_reuses_completion_when_claim_acquisition_follows_winner(
+    tmp_path: Path,
+) -> None:
+    prepared = prepared_fixture(tmp_path)
+    loser = BlockingEstimateTransport()
+    winner = RecordingTransport()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        loser_future = pool.submit(run_pilot, prepared, loser)
+        assert loser.estimate_started.wait(timeout=5)
+        winner_summary = run_pilot(prepared, winner)
+        loser.release.set()
+        loser_summary = loser_future.result(timeout=5)
+
+    assert winner_summary.passed == 1
+    assert loser_summary.skipped == 1
+    assert winner.call_count == 1
+    assert loser.call_count == 0
+
+
 def test_crash_window_claim_without_result_blocks_resume(tmp_path: Path) -> None:
     prepared = prepared_fixture(tmp_path)
     transport = RecordingTransport()
@@ -474,6 +496,144 @@ def test_cost_gate_rejects_forged_projection_snapshot(tmp_path: Path) -> None:
         )
 
 
+def test_cost_gate_rejects_top_level_projection_total_tamper(tmp_path: Path) -> None:
+    prepared = prepared_fixture(tmp_path, pilot_authorized=True)
+    run_screen_row(
+        prepared,
+        ordinal=1,
+        transport_factory=lambda _condition: RecordingTransport(),
+    )
+    authorize_remaining(prepared)
+    gate_path = prepared.path / "cost-gate.json"
+    gate = json.loads(gate_path.read_text(encoding="utf-8"))
+    gate["projected_total_usd"] = 0.0
+    gate_path.write_text(json.dumps(gate), encoding="utf-8")
+
+    with pytest.raises(CostGateError, match="projection total"):
+        run_screen_row(
+            prepared,
+            ordinal=2,
+            transport_factory=lambda _condition: RecordingTransport(),
+        )
+
+
+@pytest.mark.parametrize("mutation", ["foreign_run", "foreign_panel", "result_hash"])
+def test_pilot_freeze_rejects_forged_results_artifact_bindings(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    prepared = prepared_fixture(tmp_path, pilot_authorized=True)
+    artifact_path = prepared.path / "pilot-results.json"
+    freeze_path = prepared.path / "pilot-freeze.json"
+    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+    freeze = json.loads(freeze_path.read_text(encoding="utf-8"))
+    if mutation == "foreign_run":
+        artifact["run_id"] = "foreign-run"
+        freeze["bindings"]["run_id"] = "foreign-run"
+    elif mutation == "foreign_panel":
+        artifact["panel_sha256"] = "f" * 64
+        freeze["bindings"]["panel_sha256"] = "f" * 64
+    else:
+        artifact["result_hashes"] = ["0" * 64]
+        artifact["results_sha256"] = canonical_sha256(artifact["results"])
+        freeze["bindings"]["results_sha256"] = artifact["results_sha256"]
+    artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+    freeze["artifact_sha256"] = hashlib.sha256(
+        artifact_path.read_bytes()
+    ).hexdigest()
+    freeze["bindings_sha256"] = canonical_sha256(freeze["bindings"])
+    freeze_path.write_text(json.dumps(freeze), encoding="utf-8")
+
+    with pytest.raises((PilotGateError, RequestBindingError), match="binding|identity|result"):
+        run_screen_row(
+            prepared,
+            ordinal=1,
+            transport_factory=lambda _condition: RecordingTransport(),
+        )
+
+
+def test_task2_panel_ordinals_are_provenance_not_screen_positions(
+    tmp_path: Path,
+) -> None:
+    ordinals = [36, 3, 8, 13, 18, 23, 28, 33]
+    prepared = prepared_fixture(tmp_path, panel_ordinals=ordinals)
+
+    assert [row.ordinal for row in prepared.screen_rows] == ordinals[1:]
+    assert run_pilot(prepared, RecordingTransport()).passed == 1
+
+
+@pytest.mark.parametrize("mutation", ["zero", "duplicate"])
+def test_panel_rejects_nonpositive_or_duplicate_provenance_ordinals(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    panel = valid_panel_payload()
+    panel["examples"][0]["ordinal"] = 0
+    if mutation == "duplicate":
+        panel["examples"][0]["ordinal"] = panel["examples"][1]["ordinal"]
+    panel_path = tmp_path / "panel.json"
+    panel_path.write_text(json.dumps(panel), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="ordinal"):
+        prepare_run(panel_path, tmp_path / "run")
+
+
+def test_actual_openrouter_length_evidence_retries_and_protocol_evidence_stops(
+    tmp_path: Path,
+) -> None:
+    prepared = prepared_fixture(tmp_path)
+    opener = AdapterOpener(
+        [
+            {
+                "choices": [
+                    {
+                        "finish_reason": "length",
+                        "message": {"role": "assistant", "content": "partial"},
+                    }
+                ],
+                "usage": {"prompt_tokens": 20, "completion_tokens": 3, "cost": 0.01},
+            },
+            {
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": json.dumps(_neutral_payload())},
+                    }
+                ],
+                "usage": {"prompt_tokens": 20, "completion_tokens": 3, "cost": 0.01},
+            },
+        ]
+    )
+    transport = OpenRouterTransport("fixture-key", opener=opener, policy=MAP_POLICY)
+
+    assert run_pilot(prepared, transport).passed == 1
+    assert len(opener.requests) == 2
+
+    protocol_prepared = prepared_fixture(tmp_path / "protocol")
+    protocol_opener = AdapterOpener(
+        [
+            {
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "not-json"},
+                    },
+                    {
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "extra"},
+                    },
+                ],
+                "usage": {"prompt_tokens": 20, "completion_tokens": 3, "cost": 0.01},
+            }
+        ]
+    )
+    protocol_transport = OpenRouterTransport(
+        "fixture-key", opener=protocol_opener, policy=MAP_POLICY
+    )
+    assert run_pilot(protocol_prepared, protocol_transport).failed == 1
+    assert len(protocol_opener.requests) == 1
+
+
 def test_result_binding_projection_cannot_be_bypassed_by_rehashing_result(
     tmp_path: Path,
 ) -> None:
@@ -558,19 +718,27 @@ def prepared_fixture(
     *,
     pilot_authorized: bool = False,
     cumulative_cost: float = 0.0,
+    panel_ordinals: Sequence[int] | None = None,
 ):
+    tmp_path.mkdir(parents=True, exist_ok=True)
     source = tmp_path / "source.webm"
     _write_fixture_media(source)
     media_bytes = source.read_bytes()
     media_sha256 = hashlib.sha256(media_bytes).hexdigest()
+    ordinal_values = list(panel_ordinals or range(1, 9))
+    assert len(ordinal_values) == 8
     rows: list[dict[str, Any]] = []
-    rows.append(_panel_row(1, "pilot", "pilot-video", media_sha256, len(media_bytes)))
-    for ordinal in range(1, 8):
+    rows.append(
+        _panel_row(
+            ordinal_values[0], "pilot", "pilot-video", media_sha256, len(media_bytes)
+        )
+    )
+    for index, ordinal in enumerate(ordinal_values[1:], start=1):
         rows.append(
             _panel_row(
-                ordinal + 1,
+                ordinal,
                 "screen",
-                f"screen-video-{ordinal}",
+                f"screen-video-{index}",
                 media_sha256,
                 len(media_bytes),
                 question=SENTINEL_QUESTION,
@@ -976,6 +1144,40 @@ class BlockingTransport(RecordingTransport):
         self.started.set()
         assert self.release.wait(timeout=5)
         return super().generate(model=model, parts=parts, schema=schema)
+
+
+class BlockingEstimateTransport(RecordingTransport):
+    def __init__(self) -> None:
+        super().__init__()
+        self.estimate_started = threading.Event()
+        self.release = threading.Event()
+
+    def estimate_cost_usd(self, provider: str, row: object) -> float:
+        self.estimate_started.set()
+        assert self.release.wait(timeout=5)
+        return super().estimate_cost_usd(provider, row)
+
+
+class AdapterOpener:
+    def __init__(self, payloads: list[Mapping[str, object]]) -> None:
+        self.payloads = list(payloads)
+        self.requests: list[object] = []
+
+    def open(self, request: object, *, timeout: float) -> AdapterResponse:
+        self.requests.append(request)
+        assert timeout > 0
+        if not self.payloads:
+            raise AssertionError("unexpected fixture HTTP request")
+        return AdapterResponse(self.payloads.pop(0))
+
+
+class AdapterResponse:
+    def __init__(self, payload: Mapping[str, object]) -> None:
+        self.status = 200
+        self._body = json.dumps(payload).encode("utf-8")
+
+    def read(self, size: int = -1) -> bytes:
+        return self._body if size < 0 else self._body[:size]
 
 
 class UnknownCostTransport(RecordingTransport):

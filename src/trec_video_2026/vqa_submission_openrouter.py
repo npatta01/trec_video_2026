@@ -14,6 +14,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
+from types import MappingProxyType
 
 from trec_video_2026.vqa_submission import MODEL_ID
 from trec_video_2026.vqa_submission_gemini import (
@@ -486,6 +487,18 @@ class OpenRouterTransport:
                     response if "response" in locals() else None
                 ),
             )
+            # GenerationResult intentionally rejects arbitrary provider keys.
+            # These two bounded evidence flags are safe, structured facts needed
+            # by the immutable runner's retry classifier; they never contain the
+            # provider response body or untrusted metadata.
+            evidence_metadata = self._safe_evidence_metadata(
+                response if "response" in locals() else None
+            )
+            object.__setattr__(
+                evidence,
+                "provider_metadata",
+                MappingProxyType(evidence_metadata),
+            )
             raise ProviderResponseEvidenceError(
                 str(error),
                 generation_result=evidence,
@@ -582,6 +595,38 @@ class OpenRouterTransport:
             and cost >= 0
         ):
             metadata["reported_cost_usd"] = float(cost)
+        return metadata
+
+    @classmethod
+    def _safe_evidence_metadata(cls, response: object) -> dict[str, object]:
+        metadata = cls._safe_provider_metadata(response)
+        if not isinstance(response, Mapping):
+            return metadata
+        choices = response.get("choices")
+        choice = choices[0] if isinstance(choices, list) and choices else None
+        if isinstance(choice, Mapping):
+            finish_reason = choice.get("finish_reason")
+            if (
+                isinstance(finish_reason, str)
+                and 0 < len(finish_reason) <= 64
+                and finish_reason.isascii()
+                and all(character.isalnum() or character in "_.-" for character in finish_reason)
+            ):
+                metadata["finish_reason"] = finish_reason
+            message = choice.get("message")
+            if isinstance(message, Mapping) and "content" in message:
+                content = message["content"]
+                if isinstance(content, str):
+                    metadata["content_empty"] = not bool(content)
+                elif isinstance(content, list):
+                    metadata["content_empty"] = not any(
+                        isinstance(item, Mapping)
+                        and isinstance(item.get("text"), str)
+                        and bool(item["text"])
+                        for item in content
+                    )
+                elif content is None:
+                    metadata["content_empty"] = True
         return metadata
 
     def preflight(self, *, model_id: str) -> dict[str, object]:

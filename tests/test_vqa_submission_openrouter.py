@@ -318,6 +318,50 @@ def test_paid_response_content_is_preserved_when_usage_is_invalid() -> None:
     assert evidence.usage == TokenUsage(input_tokens=0, output_tokens=0)
 
 
+@pytest.mark.parametrize(
+    ("finish_reason", "content", "expected_empty"),
+    [("length", '{"partial":true}', False), ("stop", "", True)],
+)
+def test_evidence_preserves_bounded_finish_and_content_flags(
+    finish_reason: str,
+    content: str,
+    expected_empty: bool,
+) -> None:
+    response = FakeResponse(
+        {
+            "id": "safe-evidence-id",
+            "choices": [
+                {
+                    "finish_reason": finish_reason,
+                    "message": {"role": "assistant", "content": content},
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 3,
+                "completion_tokens": 1,
+                "cost": 0.01,
+                "secret": "must-not-escape",
+            },
+            "response_body_secret": "must-not-escape",
+        }
+    )
+    transport = openrouter.OpenRouterTransport(
+        "test-secret",
+        opener=FakeOpener([response]),
+        policy=openrouter.OpenRouterRequestPolicy(use_structured_outputs=False),
+    )
+
+    with pytest.raises(ProviderResponseEvidenceError) as caught:
+        transport.generate(model=MODEL_ID, parts=("JSON",), schema={})
+
+    evidence = caught.value.generation_result
+    assert evidence.provider_metadata["finish_reason"] == finish_reason
+    assert evidence.provider_metadata["content_empty"] is expected_empty
+    assert "choices" not in evidence.provider_metadata
+    assert "response_body_secret" not in evidence.provider_metadata
+    assert "secret" not in evidence.provider_metadata
+
+
 def test_deterministic_seed_is_signed_31_bit_and_tracks_visible_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
