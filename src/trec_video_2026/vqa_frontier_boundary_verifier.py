@@ -578,6 +578,7 @@ def run_verifier(
 
 def freeze_verifier(prepared: PreparedBoundaryVerifier | Path) -> dict[str, object]:
     prepared = load_verifier(prepared) if isinstance(prepared, (str, Path)) else prepared
+    _verify_upstream_chain(prepared)
     freeze_path = prepared.path / "freeze.json"
     if freeze_path.exists():
         freeze = _read_json(freeze_path)
@@ -614,6 +615,7 @@ def freeze_verifier(prepared: PreparedBoundaryVerifier | Path) -> dict[str, obje
 
 def status_verifier(prepared: PreparedBoundaryVerifier | Path) -> dict[str, object]:
     prepared = load_verifier(prepared) if isinstance(prepared, (str, Path)) else prepared
+    _verify_upstream_chain(prepared)
     result_path = prepared.path / "result.json"
     result = _read_json(result_path) if result_path.is_file() else None
     frozen = False

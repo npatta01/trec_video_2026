@@ -521,6 +521,52 @@ def test_preflight_rejects_audit_prediction_freeze_mismatch(tmp_path: Path) -> N
         preflight_verifier(prepared)
 
 
+def test_first_freeze_revalidates_upstream_before_writing(tmp_path: Path) -> None:
+    prepared = prepared_fixture(tmp_path)
+    opener = FakeOpener(
+        FakeResponse(
+            {
+                "model": "google/gemini-3.1-pro-preview",
+                "provider": "Google AI Studio",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "role": "assistant",
+                            "content": json.dumps(verifier_output()),
+                        },
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 100,
+                    "completion_tokens": 200,
+                    "total_tokens": 300,
+                    "cost": 0.05,
+                },
+            }
+        )
+    )
+    run_verifier(
+        prepared,
+        OpenRouterTransport("fixture-key", opener=opener, policy=VERIFIER_POLICY),
+    )
+    upstream = prepared.path / "source-run" / "pilot-results.json"
+    upstream.write_bytes(upstream.read_bytes() + b" ")
+
+    with pytest.raises(ValueError, match="artifact_sha256"):
+        freeze_verifier(prepared)
+    assert not (prepared.path / "freeze.json").exists()
+
+
+def test_unfrozen_status_revalidates_upstream_chain(tmp_path: Path) -> None:
+    prepared = prepared_fixture(tmp_path)
+    upstream = prepared.path / "source-run" / "pilot-results.json"
+    upstream.write_bytes(upstream.read_bytes() + b" ")
+
+    with pytest.raises(ValueError, match="artifact_sha256"):
+        status_verifier(prepared)
+
+
 @pytest.mark.parametrize(
     "target",
     [
