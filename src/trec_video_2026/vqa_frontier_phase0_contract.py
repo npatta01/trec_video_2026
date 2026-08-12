@@ -14,8 +14,8 @@ from trec_video_2026.vqa_submission import canonical_sha256
 
 
 SCHEMA_VERSION = 1
-NEUTRAL_MAP_PROMPT_VERSION = "frontier-neutral-map-v1"
-ANSWER_PROMPT_VERSION = "frontier-grounded-answer-v1"
+NEUTRAL_MAP_PROMPT_VERSION = "frontier-neutral-map-v2"
+ANSWER_PROMPT_VERSION = "frontier-grounded-answer-v2"
 
 NEUTRAL_MAP_ROOT_FIELDS = frozenset(
     {
@@ -844,17 +844,28 @@ def build_neutral_map_prompt(duration_seconds: float) -> str:
     duration = _require_number(duration_seconds, "duration_seconds")
     if duration <= 0:
         raise ValueError("duration_seconds must be greater than zero")
-    schema_text = json.dumps(NEUTRAL_MAP_SCHEMA, ensure_ascii=False, sort_keys=True)
     return (
         f"{NEUTRAL_MAP_PROMPT_VERSION}\n"
-        "Observe the complete native video and audio and return strict JSON.\n"
+        "Return a JSON object instance only; this is the data instance. Do not return "
+        "Markdown, a schema, or metadata.\n"
         "This is a question-blind chronological observation pass: do not use, infer, "
         "or answer any question. Record entities, event boundaries, state changes, "
         "visual observations, speech, sound, visible text, and uncertainty only.\n"
         f"Source duration seconds: {duration}\n"
-        "Do not include answer, annotation, label, relevance, or reference fields.\n"
-        "The JSON must satisfy this complete local schema exactly:\n"
-        f"{schema_text}\n"
+        "Allowed root data keys (exactly): schema_version, "
+        "perceived_duration_seconds, global_description, entities, events, "
+        "global_uncertainties\n"
+        "Field semantics: schema_version identifies the contract; "
+        "perceived_duration_seconds records observed duration; global_description "
+        "summarizes the complete AV; entities contain stable entity IDs, "
+        "descriptions, aliases, and confidence; events contain chronological "
+        "timing, keyframes, state changes, actions, relations, AV observations, "
+        "visible text, confidence, and uncertainties; global_uncertainties records "
+        "uncertainty spanning the video.\n"
+        "Do not return schema/meta keys such as properties, required, "
+        "additionalProperties, or root type. The provider schema is separately "
+        "enforced; fill the allowed root data keys with the complete observation.\n"
+        "Observe the complete AV and fill this data instance."
     )
 
 
@@ -869,14 +880,20 @@ def build_grounded_answer_prompt(
     duration = _require_number(duration_seconds, "duration_seconds")
     if duration <= 0:
         raise ValueError("duration_seconds must be greater than zero")
-    schema_text = json.dumps(GROUNDED_ANSWER_SCHEMA, ensure_ascii=False, sort_keys=True)
     common = (
         f"{ANSWER_PROMPT_VERSION}\n"
-        "Answer the question from the complete native video and audio. Return one "
-        "strict JSON grounded answer with atomic claims. Both direct and map-guided "
-        "answers use this same schema and instruction body.\n"
+        "Return a JSON object instance only; this is the data instance. Do not return "
+        "Markdown, a schema, or metadata. Both direct and map-guided answers use this "
+        "same contract and instruction body.\n"
         f"Question: {prompt_question}\n"
         f"Source duration seconds: {duration}\n"
+        "Allowed root data keys (exactly): schema_version, top1_answer, claims, "
+        "could_be_wrong_because\n"
+        "Field semantics: schema_version identifies the contract; top1_answer is "
+        "the concise answer; claims are atomic evidence-backed claims; "
+        "could_be_wrong_because records credible uncertainty. Each claim includes "
+        "a claim ID, text, native timestamp spans, supporting modalities, and map "
+        "event IDs (empty for direct answers).\n"
         "Every claim must include one or more native timestamp spans and supporting "
         "modalities. Keep unsupported details out of top1_answer; express credible "
         "uncertainty in could_be_wrong_because.\n"
@@ -911,9 +928,10 @@ def build_grounded_answer_prompt(
     return (
         common
         + mode
-        + "The JSON must satisfy this complete local schema exactly:\n"
-        + schema_text
-        + "\n"
+        + "Do not return schema/meta keys such as properties, required, "
+        + "additionalProperties, or root type. The provider schema is separately "
+        + "enforced; fill the allowed root data keys with the grounded answer.\n"
+        + "Answer the question from the complete AV and fill this data instance."
     )
 
 

@@ -99,6 +99,43 @@ def answer_payload(*, map_event_ids: list[str]) -> dict[str, object]:
     }
 
 
+def assert_data_instance_prompt(
+    prompt: str,
+    *,
+    root_fields: set[str] | frozenset[str],
+    task_instruction: str,
+) -> None:
+    lowered = prompt.lower()
+
+    assert "data instance" in lowered
+    assert "json object instance only" in lowered
+    assert "do not return markdown" in lowered
+    assert "schema/meta keys" in lowered
+    assert "provider schema is separately enforced" in lowered
+    for forbidden_key in (
+        "properties",
+        "required",
+        "additionalproperties",
+        "root type",
+    ):
+        assert forbidden_key in lowered
+
+    allowed_prefix = "Allowed root data keys (exactly): "
+    allowed_line = next(
+        line for line in prompt.splitlines() if line.startswith(allowed_prefix)
+    )
+    declared_root_fields = {
+        field.strip() for field in allowed_line[len(allowed_prefix) :].split(",")
+    }
+    assert declared_root_fields == set(root_fields)
+
+    assert '"properties": {' not in prompt
+    assert '"required": [' not in prompt
+    assert '"additionalProperties": false' not in prompt
+    assert '"type": "object"' not in prompt
+    assert prompt.rstrip().endswith(task_instruction)
+
+
 def test_neutral_prompt_has_no_question_channel() -> None:
     prompt = build_neutral_map_prompt(18.25)
 
@@ -109,7 +146,24 @@ def test_neutral_prompt_has_no_question_channel() -> None:
     assert "sentinel private question" not in prompt.lower()
     assert "Question:" not in prompt
     assert "question-blind" in prompt.lower()
-    assert '"additionalProperties": false' in prompt
+
+
+def test_neutral_prompt_requests_a_data_instance_not_a_schema() -> None:
+    prompt = build_neutral_map_prompt(18.25)
+
+    assert "frontier-neutral-map-v2" in prompt
+    assert_data_instance_prompt(
+        prompt,
+        root_fields={
+            "schema_version",
+            "perceived_duration_seconds",
+            "global_description",
+            "entities",
+            "events",
+            "global_uncertainties",
+        },
+        task_instruction="Observe the complete AV and fill this data instance.",
+    )
 
 
 def test_neutral_map_accepts_empty_observation_arrays_and_freezes_records() -> None:
@@ -346,8 +400,7 @@ def test_grounded_answer_prompt_shares_instructions_and_binds_map_mode() -> None
         "What changes?", 20.0, neutral_payload()
     )
 
-    assert "frontier-grounded-answer-v1" in direct
-    assert '"additionalProperties": false' in direct
+    assert "frontier-grounded-answer-v2" in direct
     assert "Question: What changes?" in direct
     assert "Source duration seconds: 20.0" in direct
     assert "Neutral map: not supplied" in direct
@@ -358,6 +411,23 @@ def test_grounded_answer_prompt_shares_instructions_and_binds_map_mode() -> None
     assert "declared event IDs" in guided
     assert "native timestamp spans" in guided
     assert "unsupported details" in guided.lower()
+
+
+def test_grounded_answer_prompt_requests_a_data_instance_not_a_schema() -> None:
+    prompt = build_grounded_answer_prompt("What changes?", 20.0, None)
+
+    assert_data_instance_prompt(
+        prompt,
+        root_fields={
+            "schema_version",
+            "top1_answer",
+            "claims",
+            "could_be_wrong_because",
+        },
+        task_instruction=(
+            "Answer the question from the complete AV and fill this data instance."
+        ),
+    )
 
 
 def test_grounded_answer_prompt_rejects_invalid_raw_neutral_map() -> None:
