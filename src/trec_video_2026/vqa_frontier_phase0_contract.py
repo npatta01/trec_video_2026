@@ -14,7 +14,7 @@ from trec_video_2026.vqa_submission import canonical_sha256
 
 
 SCHEMA_VERSION = 1
-NEUTRAL_MAP_PROMPT_VERSION = "frontier-neutral-map-v2"
+NEUTRAL_MAP_PROMPT_VERSION = "frontier-neutral-map-v3"
 ANSWER_PROMPT_VERSION = "frontier-grounded-answer-v2"
 
 NEUTRAL_MAP_ROOT_FIELDS = frozenset(
@@ -857,6 +857,15 @@ def build_neutral_map_prompt(duration_seconds: float) -> str:
         "This is a question-blind chronological observation pass: do not use, infer, "
         "or answer any question. Record entities, event boundaries, state changes, "
         "visual observations, speech, sound, visible text, and uncertainty only.\n"
+        "Record interactions and relations only when directly observed. An object in "
+        "the background or near a person is not held, owned, or used merely because "
+        "of proximity; require visible contact or motion evidence and otherwise record "
+        "the uncertainty.\n"
+        "Place each event start at its first observable onset and its end at the last "
+        "observable evidence before the next state. Do not round a boundary earlier "
+        "or later than the visible or audible transition.\n"
+        "Calibrate confidence to the evidence: use confidence below 1 and add explicit "
+        "uncertainties whenever identity, interaction, ordering, or timing is ambiguous.\n"
         f"Source duration seconds: {duration}\n"
         "Allowed root data keys (exactly): schema_version, "
         "perceived_duration_seconds, global_description, entities, events, "

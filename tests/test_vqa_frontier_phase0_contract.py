@@ -178,6 +178,19 @@ def test_neutral_prompt_has_no_question_channel() -> None:
     assert list(inspect.signature(build_neutral_map_prompt).parameters) == [
         "duration_seconds"
     ]
+
+
+def test_neutral_prompt_requires_observed_interactions_precise_boundaries_and_calibration() -> None:
+    prompt = build_neutral_map_prompt(18.25).lower()
+
+    assert "background" in prompt
+    assert "proximity" in prompt
+    assert "directly observed" in prompt
+    assert "first observable onset" in prompt
+    assert "last observable evidence" in prompt
+    assert "do not round" in prompt
+    assert "confidence below 1" in prompt
+    assert "uncertainties" in prompt
     assert "sentinel private question" not in prompt.lower()
     assert "Question:" not in prompt
     assert "question-blind" in prompt.lower()
@@ -186,7 +199,7 @@ def test_neutral_prompt_has_no_question_channel() -> None:
 def test_neutral_prompt_requests_a_data_instance_not_a_schema() -> None:
     prompt = build_neutral_map_prompt(18.25)
 
-    assert "frontier-neutral-map-v2" in prompt
+    assert "frontier-neutral-map-v3" in prompt
     assert_data_instance_prompt(
         prompt,
         root_fields={
