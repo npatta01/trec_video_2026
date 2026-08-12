@@ -273,6 +273,73 @@ def test_grounded_answer_rejects_unknown_nested_fields_and_bad_spans() -> None:
         validate_grounded_answer(payload, 20.0, allowed_map_event_ids=None)
 
 
+def test_grounded_answer_rejects_empty_supporting_modalities() -> None:
+    payload = answer_payload(map_event_ids=[])
+    claims = payload["claims"]
+    assert isinstance(claims, list)
+    claims[0]["supporting_modalities"] = []
+
+    with pytest.raises(ValueError, match="supporting_modalities must contain at least 1"):
+        validate_grounded_answer(payload, 20.0, allowed_map_event_ids=None)
+
+
+def test_neutral_map_enforces_declared_string_max_length() -> None:
+    payload = neutral_payload()
+    entities = payload["entities"]
+    assert isinstance(entities, list)
+    entities[0]["description"] = "x" * 4097
+
+    with pytest.raises(ValueError, match="maximum length"):
+        validate_neutral_map(payload, 20.0)
+
+
+def test_grounded_answer_enforces_declared_string_max_length() -> None:
+    payload = answer_payload(map_event_ids=[])
+    claims = payload["claims"]
+    assert isinstance(claims, list)
+    claims[0]["text"] = "x" * 4097
+
+    with pytest.raises(ValueError, match="maximum length"):
+        validate_grounded_answer(payload, 20.0, allowed_map_event_ids=None)
+
+
+def test_neutral_map_enforces_entity_array_cap() -> None:
+    payload = neutral_payload()
+    entities = payload["entities"]
+    assert isinstance(entities, list)
+    entities.extend(
+        {
+            "entity_id": f"X{index}",
+            "description": "an extra entity",
+            "aliases": [],
+            "confidence": 0.5,
+        }
+        for index in range(127)
+    )
+
+    with pytest.raises(ValueError, match="entities cannot contain more than 128"):
+        validate_neutral_map(payload, 20.0)
+
+
+def test_grounded_answer_enforces_claim_array_cap() -> None:
+    payload = answer_payload(map_event_ids=[])
+    claims = payload["claims"]
+    assert isinstance(claims, list)
+    claims.extend(
+        {
+            "claim_id": f"C{index}",
+            "text": "The person opens the box.",
+            "supporting_spans": [{"start_seconds": 5.0, "end_seconds": 9.5}],
+            "supporting_modalities": ["video"],
+            "map_event_ids": [],
+        }
+        for index in range(2, 34)
+    )
+
+    with pytest.raises(ValueError, match="claims cannot contain more than 32"):
+        validate_grounded_answer(payload, 20.0, allowed_map_event_ids=None)
+
+
 def test_grounded_answer_prompt_shares_instructions_and_binds_map_mode() -> None:
     direct = build_grounded_answer_prompt("What changes?", 20.0, None)
     guided = build_grounded_answer_prompt(
@@ -291,6 +358,14 @@ def test_grounded_answer_prompt_shares_instructions_and_binds_map_mode() -> None
     assert "declared event IDs" in guided
     assert "native timestamp spans" in guided
     assert "unsupported details" in guided.lower()
+
+
+def test_grounded_answer_prompt_rejects_invalid_raw_neutral_map() -> None:
+    payload = neutral_payload()
+    payload["question"] = "sentinel private question"
+
+    with pytest.raises(ValueError, match="forbidden field"):
+        build_grounded_answer_prompt("What changes?", 20.0, payload)
 
 
 def test_contract_fixtures_are_not_mutated_by_validation() -> None:

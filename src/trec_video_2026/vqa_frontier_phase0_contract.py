@@ -87,6 +87,7 @@ _MAX_ALIASES = 8
 _MAX_ENTITIES = 128
 _MAX_EVENTS = 128
 _MAX_KEYFRAMES = 32
+_MAX_STRING_LENGTH = 4096
 _MAX_TEXT_ITEMS = 128
 _MAX_UNCERTAINTIES = 32
 _MAX_CLAIMS = 32
@@ -95,7 +96,7 @@ _MAX_ID_LENGTH = 128
 _CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 
 
-def _string_schema(*, max_length: int = 4096) -> dict[str, object]:
+def _string_schema(*, max_length: int = _MAX_STRING_LENGTH) -> dict[str, object]:
     return {"type": "string", "minLength": 1, "maxLength": max_length}
 
 
@@ -446,10 +447,15 @@ def _require_exact_fields(
         raise ValueError(f"{field} violates the contract: {'; '.join(details)}")
 
 
-def _require_text(value: Any, field: str) -> str:
+def _require_text(
+    value: Any, field: str, *, max_length: int = _MAX_STRING_LENGTH
+) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{field} must be a non-empty string")
-    return value.strip()
+    text = value.strip()
+    if len(text) > max_length:
+        raise ValueError(f"{field} exceeds maximum length {max_length}")
+    return text
 
 
 def _require_number(
@@ -471,13 +477,17 @@ def _require_text_tuple(
     value: Any,
     field: str,
     *,
+    min_items: int = 0,
     max_items: int,
+    max_length: int = _MAX_STRING_LENGTH,
     unique: bool = False,
 ) -> tuple[str, ...]:
     values = tuple(
-        _require_text(item, f"{field}[{index}]")
+        _require_text(item, f"{field}[{index}]", max_length=max_length)
         for index, item in enumerate(_require_sequence(value, field))
     )
+    if len(values) < min_items:
+        raise ValueError(f"{field} must contain at least {min_items} item(s)")
     if len(values) > max_items:
         raise ValueError(f"{field} cannot contain more than {max_items} item(s)")
     if unique and len(set(values)) != len(values):
@@ -521,7 +531,9 @@ def _parse_neutral_entity(value: Any, field: str) -> NeutralEntity:
     mapping = _require_mapping(value, field)
     _require_exact_fields(mapping, NEUTRAL_ENTITY_FIELDS, field)
     return NeutralEntity(
-        entity_id=_require_text(mapping["entity_id"], f"{field}.entity_id"),
+        entity_id=_require_text(
+            mapping["entity_id"], f"{field}.entity_id", max_length=_MAX_ID_LENGTH
+        ),
         description=_require_text(mapping["description"], f"{field}.description"),
         aliases=_require_text_tuple(
             mapping["aliases"], f"{field}.aliases", max_items=_MAX_ALIASES
@@ -552,7 +564,9 @@ def _parse_neutral_event(
     if any(keyframe < start_seconds or keyframe > end_seconds for keyframe in keyframes):
         raise ValueError(f"{field}.keyframe_seconds must fall within event bounds")
     return NeutralEvent(
-        event_id=_require_text(mapping["event_id"], f"{field}.event_id"),
+        event_id=_require_text(
+            mapping["event_id"], f"{field}.event_id", max_length=_MAX_ID_LENGTH
+        ),
         start_seconds=start_seconds,
         end_seconds=end_seconds,
         keyframe_seconds=keyframes,
@@ -561,6 +575,7 @@ def _parse_neutral_event(
             mapping["entity_ids"],
             f"{field}.entity_ids",
             max_items=_MAX_ENTITIES,
+            max_length=_MAX_ID_LENGTH,
             unique=True,
         ),
         actions=_require_text_tuple(
@@ -642,9 +657,14 @@ def validate_neutral_map(
         raise ValueError(
             "perceived_duration_seconds must be within 0.5 seconds of source duration"
         )
+    entity_values = _require_sequence(mapping["entities"], "entities")
+    if len(entity_values) > _MAX_ENTITIES:
+        raise ValueError(
+            f"entities cannot contain more than {_MAX_ENTITIES} item(s)"
+        )
     entities = tuple(
         _parse_neutral_entity(item, f"entities[{index}]")
-        for index, item in enumerate(_require_sequence(mapping["entities"], "entities"))
+        for index, item in enumerate(entity_values)
     )
     entity_ids = [entity.entity_id for entity in entities]
     if len(set(entity_ids)) != len(entity_ids):
@@ -705,6 +725,7 @@ def _parse_answer_claim(
     modalities = _require_text_tuple(
         mapping["supporting_modalities"],
         f"{field}.supporting_modalities",
+        min_items=1,
         max_items=len(ANSWER_MODALITIES),
         unique=True,
     )
@@ -732,10 +753,13 @@ def _parse_answer_claim(
         mapping["map_event_ids"],
         f"{field}.map_event_ids",
         max_items=_MAX_EVENTS,
+        max_length=_MAX_ID_LENGTH,
         unique=True,
     )
     return AnswerClaim(
-        claim_id=_require_text(mapping["claim_id"], f"{field}.claim_id"),
+        claim_id=_require_text(
+            mapping["claim_id"], f"{field}.claim_id", max_length=_MAX_ID_LENGTH
+        ),
         text=_require_text(mapping["text"], f"{field}.text"),
         supporting_spans=spans,
         supporting_modalities=modalities,
@@ -759,9 +783,12 @@ def validate_grounded_answer(
     schema_version = mapping["schema_version"]
     if type(schema_version) is not int or schema_version != SCHEMA_VERSION:
         raise ValueError(f"schema_version must be {SCHEMA_VERSION}")
+    claim_values = _require_sequence(mapping["claims"], "claims")
+    if len(claim_values) > _MAX_CLAIMS:
+        raise ValueError(f"claims cannot contain more than {_MAX_CLAIMS} item(s)")
     claims = tuple(
         _parse_answer_claim(item, f"claims[{index}]", duration_seconds=duration)
-        for index, item in enumerate(_require_sequence(mapping["claims"], "claims"))
+        for index, item in enumerate(claim_values)
     )
     if not claims:
         raise ValueError("claims must not be empty")
@@ -860,17 +887,26 @@ def build_grounded_answer_prompt(
             "claim must use an empty map_event_ids array.\n"
         )
     else:
-        frozen_map = (
-            neutral_map.to_dict()
-            if isinstance(neutral_map, NeutralVideoMap)
-            else _plain_json(neutral_map)
-        )
+        if isinstance(neutral_map, NeutralVideoMap):
+            perceived_duration = _require_number(
+                neutral_map.perceived_duration_seconds,
+                "neutral_map.perceived_duration_seconds",
+            )
+            if abs(perceived_duration - duration) > 0.5:
+                raise ValueError(
+                    "perceived_duration_seconds must be within 0.5 seconds "
+                    "of source duration"
+                )
+            frozen_map = neutral_map
+        else:
+            frozen_map = validate_neutral_map(neutral_map, duration)
+        frozen_payload = frozen_map.to_dict()
         mode = (
             "Neutral map: supplied below as canonical JSON. This is the map-guided "
             "condition; every material claim must cite one or more declared event "
             "IDs from the map in map_event_ids.\n"
-            f"Neutral map SHA-256: {canonical_sha256(frozen_map)}\n"
-            f"Neutral map JSON: {_canonical_json(frozen_map)}\n"
+            f"Neutral map SHA-256: {canonical_sha256(frozen_payload)}\n"
+            f"Neutral map JSON: {_canonical_json(frozen_payload)}\n"
         )
     return (
         common
