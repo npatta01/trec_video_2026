@@ -141,6 +141,7 @@ def build_audit_packet(
         raise ValueError("phase must be pilot or screen")
     root = _prepare_output_root(Path(output))
     prepared_obj = load_prepared(Path(prepared))
+    prediction_root = prepared_obj.path.resolve(strict=True)
     rows, prediction = _frozen_phase(prepared_obj, phase)
     packet = AuditPacket(root)
     blind_rows: list[dict[str, Any]] = []
@@ -187,7 +188,7 @@ def build_audit_packet(
             for condition, result in row_results.items()
         }
         raw_response_metadata = _capture_raw_response_metadata(
-            prepared_obj.path, row_results
+            prediction_root, row_results
         )
         common = {
             "schema_version": SCHEMA_VERSION,
@@ -295,7 +296,7 @@ def build_audit_packet(
             "run_id": prepared_obj.run_id,
             "panel_sha256": prepared_obj.panel_sha256,
             "phase": phase,
-            "prediction_root": str(prepared_obj.path),
+            "prediction_root": str(prediction_root),
             "prediction_freeze_sha256": _sha256_file(
                 prepared_obj.path / f"{phase}-freeze.json"
             ),

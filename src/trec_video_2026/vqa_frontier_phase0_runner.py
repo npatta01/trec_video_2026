@@ -1750,7 +1750,11 @@ def _safe_raw_response_path(prepared: PreparedPhase0Run, raw_path: str) -> Path:
         or any(part in {"", ".", ".."} for part in candidate.parts)
     ):
         raise RequestBindingError("raw response path is unsafe")
-    return prepared.path / candidate
+    try:
+        prepared_root = prepared.path.resolve(strict=True)
+    except OSError as error:
+        raise RequestBindingError("prepared run path is missing or unsafe") from error
+    return prepared_root / candidate
 
 
 def _raw_response_file_identity(path: Path) -> tuple[str, int]:

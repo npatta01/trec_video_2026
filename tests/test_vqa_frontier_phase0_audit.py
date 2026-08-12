@@ -446,6 +446,23 @@ def test_private_manifest_binds_plural_raw_response_paths_hashes_and_sizes(
     assert bindings[0]["size_bytes"] == raw_path.stat().st_size
 
 
+def test_build_normalizes_relative_prediction_root_to_canonical_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="pilot")
+    monkeypatch.chdir(tmp_path)
+
+    packet = build_audit_packet(
+        Path(prepared.name), phase="pilot", output=Path("relative-audit")
+    )
+
+    private = json.loads(packet.private_manifest.read_text(encoding="utf-8"))
+    assert private["prediction_root"] == str(prepared.resolve(strict=True))
+
+
 def test_validate_frozen_audit_rejects_tampered_reviewer_row(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -289,6 +289,23 @@ def test_freeze_records_and_verifies_each_raw_response_file(
     assert artifact["raw_response_files"] == [expected]
 
 
+def test_status_validates_raw_response_through_symlinked_parent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    canonical_parent = tmp_path / "canonical"
+    prepared = prepared_fixture(canonical_parent)
+    run_pilot(prepared, RecordingTransport())
+    freeze_pilot(prepared)
+    linked_parent = tmp_path / "linked"
+    linked_parent.symlink_to(canonical_parent, target_is_directory=True)
+    monkeypatch.chdir(tmp_path)
+
+    result = status(Path("linked/run"))
+
+    assert result["counts"]["neutral_map"]["pilot_terminal"] == 1
+
+
 def test_fixture_end_to_end_freezes_pilot_screen_and_audits(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
