@@ -13,6 +13,13 @@ from typing import Any, Sequence
 
 import pytest
 
+from trec_video_2026 import vqa_frontier_phase0_audit as audit_module
+from trec_video_2026.vqa_frontier_phase0_audit import (
+    build_audit_packet,
+    freeze_pilot_audit,
+    freeze_screen_audit,
+    validate_audit_packet,
+)
 from trec_video_2026.vqa_frontier_phase0_runner import (
     ANSWER_POLICY,
     AmbiguousStartedAttemptError,
@@ -184,6 +191,154 @@ def test_first_row_cost_gate_binds_all_result_hashes_and_screen_freezes(
     freeze = freeze_screen(prepared)
     assert freeze["status"] == "frozen"
     assert status(prepared)["terminal_conditions"] == 22
+
+
+def test_fixture_end_to_end_freezes_pilot_screen_and_audits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    panel = write_phase0_fixture_panel(tmp_path)
+    prepared = prepare_run(panel, tmp_path / "run")
+    install_fixture_media(prepared, tmp_path)
+    run_pilot(prepared, FixtureTransport())
+    freeze_pilot(prepared)
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    pilot_audit = build_complete_fixture_audit(prepared, phase="pilot")
+    pilot_freeze = freeze_pilot_audit(pilot_audit.root)
+    assert pilot_freeze["status"] == "frozen"
+    assert validate_audit_packet(pilot_audit.root)["frozen"] is True
+    authorize_screen(prepared, pilot_audit.root / "freeze.json")
+    for ordinal in range(1, 8):
+        run_screen_row(
+            prepared,
+            ordinal=ordinal,
+            transport_factory=lambda _condition: FixtureTransport(),
+        )
+        if ordinal == 1:
+            authorize_remaining(prepared)
+    freeze_screen(prepared)
+    screen_audit = build_complete_fixture_audit(prepared, phase="screen")
+    screen_freeze = freeze_screen_audit(screen_audit.root)
+    assert screen_freeze["status"] == "frozen"
+    assert validate_audit_packet(screen_audit.root)["frozen"] is True
+
+    current = status(prepared)
+    assert current["terminal_conditions"] == 22
+    assert current["counts"] == {
+        "neutral_map": {"pilot_terminal": 1, "screen_terminal": 7},
+        "direct_answer": {"pilot_terminal": 0, "screen_terminal": 7},
+        "map_guided_answer": {"pilot_terminal": 0, "screen_terminal": 7},
+    }
+
+
+def write_phase0_fixture_panel(tmp_path: Path) -> Path:
+    source = tmp_path / "source.webm"
+    _write_fixture_media(source)
+    media_bytes = source.read_bytes()
+    media_sha256 = hashlib.sha256(media_bytes).hexdigest()
+    rows = [
+        _panel_row(1, "pilot", "pilot-video", media_sha256, len(media_bytes)),
+        *[
+            _panel_row(
+                index + 2,
+                "screen",
+                f"screen-video-{index + 1}",
+                media_sha256,
+                len(media_bytes),
+                question=SENTINEL_QUESTION,
+            )
+            for index in range(7)
+        ],
+    ]
+    panel = tmp_path / "panel.json"
+    panel.write_text(json.dumps(valid_panel_payload(rows)), encoding="utf-8")
+    return panel
+
+
+def install_fixture_media(prepared: Any, tmp_path: Path) -> None:
+    source = tmp_path / "source.webm"
+    fixture_root = prepared.path / "fixture-media"
+    fixture_root.mkdir()
+    for row in (prepared.pilot_row, *prepared.screen_rows):
+        shutil.copyfile(source, fixture_root / f"{row.video_id}.webm")
+
+
+def build_complete_fixture_audit(prepared: Any, *, phase: str) -> Any:
+    packet = build_audit_packet(
+        prepared.path,
+        phase=phase,
+        output=prepared.path.parent / f"{phase}-audit",
+    )
+    blind = json.loads(packet.blind_manifest.read_text(encoding="utf-8"))
+    aware = json.loads(packet.aware_manifest.read_text(encoding="utf-8"))
+    aware_by_video = {row["video_id"]: row for row in aware["rows"]}
+    map_verdicts: list[dict[str, Any]] = []
+    answer_verdicts: list[dict[str, Any]] = []
+    for row in blind["rows"]:
+        video_id = row["video_id"]
+        event_ids = [event["event_id"] for event in row["map"]["events"]]
+        map_verdicts.append(
+            {
+                "video_id": video_id,
+                "event_checks": [
+                    {
+                        "event_id": event_id,
+                        "status": "confirmed",
+                        "boundary_status": "confirmed",
+                        "notes": "fixture event checked",
+                    }
+                    for event_id in event_ids
+                ],
+                "coverage": "complete",
+                "entity_identity": "confirmed",
+                "ordering": "confirmed",
+                "visible_text": "unverifiable",
+                "speech_and_sound": "unverifiable",
+                "answer_critical_evidence": (
+                    "not_assessed" if phase == "pilot" else "present"
+                ),
+                "overall_decision": "usable_for_screen",
+                "notes": "fixture map audit",
+            }
+        )
+        if phase == "screen":
+            answers = aware_by_video[video_id]["frozen_answers"]
+            for condition_id in ("direct_answer", "map_guided_answer"):
+                answer = answers[condition_id]
+                answer_verdicts.append(
+                    {
+                        "video_id": video_id,
+                        "condition_id": condition_id,
+                        "question": aware_by_video[video_id]["question"],
+                        "frozen_answer": answer["top1_answer"],
+                        "claim_checks": [
+                            {
+                                "claim_id": claim["claim_id"],
+                                "native_span_support": "supported",
+                                "guided_map_event_citation": (
+                                    "valid"
+                                    if condition_id == "map_guided_answer"
+                                    else "not_applicable"
+                                ),
+                                "notes": "fixture claim checked",
+                            }
+                            for claim in answer["claims"]
+                        ],
+                        "unsupported_detail": False,
+                        "failure_causes": [],
+                        "supported_top1": True,
+                        "notes": "fixture answer audit",
+                    }
+                )
+    packet.map_verdicts.write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in map_verdicts),
+        encoding="utf-8",
+    )
+    packet.answer_verdicts.write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in answer_verdicts),
+        encoding="utf-8",
+    )
+    return packet
 
 
 def test_failed_validation_preserves_raw_body_without_repair_or_retry(
@@ -1070,6 +1225,10 @@ class RecordingTransport:
             usage=TokenUsage(input_tokens=100, output_tokens=50),
             provider_metadata=metadata,
         )
+
+
+class FixtureTransport(RecordingTransport):
+    """Credential-free transport for the complete offline workflow fixture."""
 
 
 class FailOnceTransport:
