@@ -1,0 +1,807 @@
+{
+  "schema_version": 1,
+  "model_id": "gemini-3.1-pro-preview",
+  "fixture_mode": false,
+  "require_audio": true,
+  "pass_ids": [
+    "direct-av",
+    "direct-av-alternate",
+    "global-transcript",
+    "global-local-timeline",
+    "question-specialist",
+    "local-only",
+    "audio-first",
+    "scene-boundary",
+    "detail-temporal-route",
+    "conservative-synthesis"
+  ],
+  "protocol_version": "task5-resumable-v2",
+  "protocol_sha256": "1ae7f1afdace9677655f51264d303464fd31713aef601e1fc38f9ff4804fb360",
+  "evidence_policy_version": "global8-local24-pts-hash-v1",
+  "evidence_policy_sha256": "9a9ae256c72a82149cc47d2b10c5bd851547ac9582632592518eeab1a4140a5a",
+  "panel_manifest_sha256": "092aec23cfdcc370bbed8e776f7cc7c84752481da6ba0996983883955d3841e8",
+  "panel_ids_sha256": "95a623c0add252541b9c81ff4910e949dc81db17482add2c467b761237b22b0f",
+  "run_id": "vqa-submission-gate60-20260810-a1",
+  "selection_seed": "vqa-submission-60-v1",
+  "selection_policy": "representative and diagnostic pools sorted by SHA256(seed|population|video_id)",
+  "selection_strata": [
+    "temporal",
+    "counting",
+    "audio_text",
+    "ocr_detail",
+    "causal",
+    "other"
+  ],
+  "representative_quotas": {
+    "audio_text": 5,
+    "causal": 6,
+    "counting": 7,
+    "other": 13,
+    "temporal": 9
+  },
+  "diagnostic_quotas": {
+    "prompt_schema": 2,
+    "evidence_ambiguity": 3,
+    "transition_localization": 5,
+    "audio": 4,
+    "fps_resolution": 3,
+    "reasoning_model": 3
+  },
+  "diagnostic_precedence": [
+    "prompt_schema",
+    "evidence_ambiguity",
+    "transition_localization",
+    "audio",
+    "fps_resolution",
+    "reasoning_model"
+  ],
+  "diagnostic_basis_sha256": {
+    "event_map_results": "1010b48418f2d5053971ba2699be320c1f08f20e615c94102bf02a2df3c51bbb",
+    "failure_panel": "d2c5515b8c7398f326931e2f993f3fd6eac8e70d9ef01d1a1bd4afcf3f6792e8",
+    "issue7_report": "30c988aafb9a781183178c3adfa09772ff63d72cc2db13379305e22c1055b173"
+  },
+  "ordered_ids_sha256": "b80552054419c80661cf612a26a09958794046546d46836a52033affe0894ee3",
+  "source_metadata_sha256": "6997db8d81da331f341952047efe05780c6c331813dd46e8f88c91e316c3ed99",
+  "examples": [
+    {
+      "video_id": "IRTTtnSRTyY",
+      "question": "How would you describe the sound being made in this video?",
+      "query_id": 164,
+      "media": "vqa/2025/training/videos_original/IRTTtnSRTyY.mkv",
+      "source": {
+        "sha256": "be3704b4a4fb1adf4b97af94b9bf6cac45a1c5d849a2171b40e8b780ec08dd84",
+        "size_bytes": 4265292
+      },
+      "selection_stratum": "audio_text",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "Jc_vZjKwtvg",
+      "question": "What song is being played in this video?",
+      "query_id": 218,
+      "media": "vqa/2025/training/videos_original/Jc_vZjKwtvg.mkv",
+      "source": {
+        "sha256": "3db454600e31552c13a6921e8b1b2102a6cbf673fa471d7f30d89da51fe7c34b",
+        "size_bytes": 1401354
+      },
+      "selection_stratum": "audio_text",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "O6VNkADtKV4",
+      "question": "what is this league of ring fights called",
+      "query_id": 379,
+      "media": "vqa/2025/training/videos_original/O6VNkADtKV4.mkv",
+      "source": {
+        "sha256": "afd5679ad0ef7f507d2ad701eb54df35cd94abb7c0df36a5573bbd9bac4ad5a9",
+        "size_bytes": 734364
+      },
+      "selection_stratum": "audio_text",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "Nvg0mgGelUU",
+      "question": "What does the sign say on the refrigerator door?",
+      "query_id": 371,
+      "media": "vqa/2025/training/videos_original/Nvg0mgGelUU.mkv",
+      "source": {
+        "sha256": "3f6c9af0844f3537ac3a55b03e048f3f5963c87e75df163b6aa7503018762cdb",
+        "size_bytes": 819536
+      },
+      "selection_stratum": "audio_text",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "MdMKHhFFqJQ",
+      "question": "What kind of instrument is heard during this video?",
+      "query_id": 332,
+      "media": "vqa/2025/training/videos_original/MdMKHhFFqJQ.mkv",
+      "source": {
+        "sha256": "7088cbf046ef81c04edfa9640c86e32816b7c89acb3011431a0d0c66c3ff2301",
+        "size_bytes": 1681485
+      },
+      "selection_stratum": "audio_text",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "MRBm4oGh6Xk",
+      "question": "why did the cyclist crash with the car?",
+      "query_id": 321,
+      "media": "vqa/2025/training/videos_original/MRBm4oGh6Xk.mkv",
+      "source": {
+        "sha256": "c51845fd700398c3889de0202bdfc064baa6c75b34653814daeae97c85e0f670",
+        "size_bytes": 2835304
+      },
+      "selection_stratum": "causal",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "RIbj7xukchQ",
+      "question": "why is the sediment rising under the phish",
+      "query_id": 459,
+      "media": "vqa/2025/training/videos_original/RIbj7xukchQ.mkv",
+      "source": {
+        "sha256": "96a56d1905bc3e78a0d3901b0f34bbf08a902ceda55aefd4009da9a0b45ac6e2",
+        "size_bytes": 1877424
+      },
+      "selection_stratum": "causal",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "EM5PHPF5TyY",
+      "question": "Why is the woman getting the waist of her skirt tightened?",
+      "query_id": 51,
+      "media": "vqa/2025/training/videos_original/EM5PHPF5TyY.mkv",
+      "source": {
+        "sha256": "873ed5aecb02fb3e2193ca24c1fc2d217f246309124769bf9d0ab4c73ec35d91",
+        "size_bytes": 2652608
+      },
+      "selection_stratum": "causal",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "ByuygPDH1Vk",
+      "question": "Why was the duck playing dead?",
+      "query_id": 17,
+      "media": "vqa/2025/training/videos_original/ByuygPDH1Vk.mkv",
+      "source": {
+        "sha256": "25015f5e3198950a3a0ea52657c1ee9eb08a63dd32b634010db6e190031da8a6",
+        "size_bytes": 2816852
+      },
+      "selection_stratum": "causal",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "FAJK7_Yr1UM",
+      "question": "Why do the motorcyclists touch hands?",
+      "query_id": 70,
+      "media": "vqa/2025/training/videos_original/FAJK7_Yr1UM.mkv",
+      "source": {
+        "sha256": "e03a443f9240b7bcaf2e9092a12940e461046985a5f4cfb2815b2f316f96c2f8",
+        "size_bytes": 3077694
+      },
+      "selection_stratum": "causal",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "L0vYawoAo_Q",
+      "question": "Why are objects falling on three animated characters?",
+      "query_id": 272,
+      "media": "vqa/2025/training/videos_original/L0vYawoAo_Q.mkv",
+      "source": {
+        "sha256": "37676d7ed563964bfda86763449d321b760d813bb95d4224ec2461a604b65c8b",
+        "size_bytes": 4617598
+      },
+      "selection_stratum": "causal",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "IgvTAaTs1h0",
+      "question": "how many shots is the model appearing in this video",
+      "query_id": 176,
+      "media": "vqa/2025/training/videos_original/IgvTAaTs1h0.mkv",
+      "source": {
+        "sha256": "e1f537552a3aa069bea1ccbeaccbc0f5728f1ec2bdfba68bdef89686aad2c141",
+        "size_bytes": 2536692
+      },
+      "selection_stratum": "counting",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "MY7bx0IsNbo",
+      "question": "how many electrical outlets behind the table?",
+      "query_id": 328,
+      "media": "vqa/2025/training/videos_original/MY7bx0IsNbo.mkv",
+      "source": {
+        "sha256": "00c2f4bbdab31300906c4c83c5c0abf20ac70b0a85a4d41859d64df6dc31b714",
+        "size_bytes": 2818972
+      },
+      "selection_stratum": "counting",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "KV5nvA79vVA",
+      "question": "how many hats in the video?",
+      "query_id": 254,
+      "media": "vqa/2025/training/videos_original/KV5nvA79vVA.mkv",
+      "source": {
+        "sha256": "5e784129efd4db1e910a899b9df38aaa7b5fad7725dcc0f9e1eb24dca8aa2acb",
+        "size_bytes": 4521047
+      },
+      "selection_stratum": "counting",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "JYgbRMKoZwU",
+      "question": "how many times the piano player is touching the microphone?",
+      "query_id": 213,
+      "media": "vqa/2025/training/videos_original/JYgbRMKoZwU.mkv",
+      "source": {
+        "sha256": "e6bb80e6ce934215efae27dbaf603600dc4d219674833a3dfccb886702718f22",
+        "size_bytes": 3260568
+      },
+      "selection_stratum": "counting",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "MW8YVwrY6_0",
+      "question": "how many beds are shown?",
+      "query_id": 325,
+      "media": "vqa/2025/training/videos_original/MW8YVwrY6_0.mkv",
+      "source": {
+        "sha256": "d6752611a4b2f3d6ff300c72e7840d64a419bc6b1f86ea051a549078b0c2ba70",
+        "size_bytes": 3226533
+      },
+      "selection_stratum": "counting",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "Q6HqOkL4MCA",
+      "question": "how many glasses of drink did the guy drink?",
+      "query_id": 435,
+      "media": "vqa/2025/training/videos_original/Q6HqOkL4MCA.mkv",
+      "source": {
+        "sha256": "ba12dd300c44344e9a97fdb60a6ebb5fa03765ae605f1289cb3aebd9312a270d",
+        "size_bytes": 11761837
+      },
+      "selection_stratum": "counting",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "KanVJWDHduE",
+      "question": "How many fish are in the video?",
+      "query_id": 258,
+      "media": "vqa/2025/training/videos_original/KanVJWDHduE.mkv",
+      "source": {
+        "sha256": "89005da2177ab2b1c3311ba99dabfe671886920d1f38a333efe2fbef020c7416",
+        "size_bytes": 3085883
+      },
+      "selection_stratum": "counting",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "KmXaY8-ZyIA",
+      "question": "What does this video teach?",
+      "query_id": 267,
+      "media": "vqa/2025/training/videos_original/KmXaY8-ZyIA.mkv",
+      "source": {
+        "sha256": "35f66680febbf1583a672439bbbd9d8e24969b8db1805d346eddc22ae81e9ce0",
+        "size_bytes": 2383234
+      },
+      "selection_stratum": "other",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "EYZnLuU5XCE",
+      "question": "a series of pictures of young people in casual poses is shown. Is there a common thread to the pictures?",
+      "query_id": 56,
+      "media": "vqa/2025/training/videos_original/EYZnLuU5XCE.mkv",
+      "source": {
+        "sha256": "4fdea10d36d04e5a30804db32e697fcaa6c1871068668f24dc61e93fe9fa4e20",
+        "size_bytes": 618301
+      },
+      "selection_stratum": "other",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "QgzFuzktegE",
+      "question": "According to the video how long did it take for this man to learn how to play the flute to his current level of proficiency?",
+      "query_id": 447,
+      "media": "vqa/2025/training/videos_original/QgzFuzktegE.mkv",
+      "source": {
+        "sha256": "12c2a40c790a6ce1a71e669b2c7152d539ca8fa093dfac0ee64457fefef0d13d",
+        "size_bytes": 2254109
+      },
+      "selection_stratum": "other",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "PZWAlJSL7Kc",
+      "question": "what is the white compound applied to the wood?",
+      "query_id": 420,
+      "media": "vqa/2025/training/videos_original/PZWAlJSL7Kc.mkv",
+      "source": {
+        "sha256": "da85da5a4589112744c3d5bb07ddb259d343c02388000a1165a8108162b6fa7b",
+        "size_bytes": 3544028
+      },
+      "selection_stratum": "other",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "C7ADL93Zg4Q",
+      "question": "What does a young woman do in a video game to pac man?",
+      "query_id": 19,
+      "media": "vqa/2025/training/videos_original/C7ADL93Zg4Q.mkv",
+      "source": {
+        "sha256": "09f0db814a71977cd5c038f40a7402e6cf7ea74a6a226897505743401a32504b",
+        "size_bytes": 2922203
+      },
+      "selection_stratum": "other",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "JUH1x0s8tyA",
+      "question": "what fruit is in the video?",
+      "query_id": 211,
+      "media": "vqa/2025/training/videos_original/JUH1x0s8tyA.mkv",
+      "source": {
+        "sha256": "a812bdae9af736ca468000a19d6f4d94585ac48effa6fdc3e54e6a6f436ea598",
+        "size_bytes": 1920384
+      },
+      "selection_stratum": "other",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "NUmb2P3Bzu8",
+      "question": "How can you tell that the speaker is getting emotional about the topic?",
+      "query_id": 362,
+      "media": "vqa/2025/training/videos_original/NUmb2P3Bzu8.mkv",
+      "source": {
+        "sha256": "6a243baa2876d272f83cd8f10423aa6efac7f92f145ce410c0aea67d95dc02e1",
+        "size_bytes": 4474549
+      },
+      "selection_stratum": "other",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "GxcEldb2Prw",
+      "question": "What clue is there that the man is frustrated?",
+      "query_id": 117,
+      "media": "vqa/2025/training/videos_original/GxcEldb2Prw.mkv",
+      "source": {
+        "sha256": "1b4695a9a0d70ad272671c77351101eecb24f1cf1a1aeefa89761cd84196f527",
+        "size_bytes": 2749823
+      },
+      "selection_stratum": "other",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "LQ8zkNuUREU",
+      "question": "What is being shown in this video with a needle and thread on fabric?",
+      "query_id": 287,
+      "media": "vqa/2025/training/videos_original/LQ8zkNuUREU.mkv",
+      "source": {
+        "sha256": "4ff90eafd02e9331859d828b55283773e14ef33c915dc7214dd1626346f18728",
+        "size_bytes": 5185332
+      },
+      "selection_stratum": "other",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "GDXiE0xXhSw",
+      "question": "What is this?\n",
+      "query_id": 93,
+      "media": "vqa/2025/training/videos_original/GDXiE0xXhSw.mkv",
+      "source": {
+        "sha256": "4abfab25fb143471f328b77f7cc1cbde433c822addb1027358461f2e49e65eb4",
+        "size_bytes": 1043016
+      },
+      "selection_stratum": "other",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "CFhqtT9V8yk",
+      "question": "What is going on in the video?",
+      "query_id": 21,
+      "media": "vqa/2025/training/videos_original/CFhqtT9V8yk.mkv",
+      "source": {
+        "sha256": "12088cdf1985ce68a8ee54e5c862f71851367d04f7c31c3c6638a6db963edc66",
+        "size_bytes": 3876823
+      },
+      "selection_stratum": "other",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "JeqfVPHF0OY",
+      "question": "What does the video demonstrate?",
+      "query_id": 222,
+      "media": "vqa/2025/training/videos_original/JeqfVPHF0OY.mkv",
+      "source": {
+        "sha256": "e1ad7a8bf26f43e40e44aa54dc78f757098e6a51561b0274b024e15de86d0cda",
+        "size_bytes": 2034519
+      },
+      "selection_stratum": "other",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "ICkVMgn44jc",
+      "question": "What benefits does the woman get from swimming in icy water?",
+      "query_id": 159,
+      "media": "vqa/2025/training/videos_original/ICkVMgn44jc.mkv",
+      "source": {
+        "sha256": "a952c32527889ac214a85c0883f9dc39cb089d4823c78a5354d22077ab55bb70",
+        "size_bytes": 34978104
+      },
+      "selection_stratum": "other",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "E0f7GRttANw",
+      "question": "What happens when spiderman pulls on the sword?",
+      "query_id": 45,
+      "media": "vqa/2025/training/videos_original/E0f7GRttANw.mkv",
+      "source": {
+        "sha256": "fc9c03f52353f15d593c379c451cdc09a44def362c9c4b7c0a975982a36a2802",
+        "size_bytes": 1837332
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "EWLcSgJT6ZU",
+      "question": "what happens when the big fish catches the little fish?",
+      "query_id": 55,
+      "media": "vqa/2025/training/videos_original/EWLcSgJT6ZU.mkv",
+      "source": {
+        "sha256": "163237103cbd1962204a5b02a03ee82252842c5c8af4e4b75b70f2928975718a",
+        "size_bytes": 31251079
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "IScHYoAPr5s",
+      "question": "What happens during the throw-in after someone scores in this basketball game?",
+      "query_id": 166,
+      "media": "vqa/2025/training/videos_original/IScHYoAPr5s.mkv",
+      "source": {
+        "sha256": "eaf5cd5fe8aa11c0177df8113c122f607c10e57f83deb05ade5aa484f5a50675",
+        "size_bytes": 2336591
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "JkfvwpRl488",
+      "question": "What is the display text reply to the first question in this video?",
+      "query_id": 230,
+      "media": "vqa/2025/training/videos_original/JkfvwpRl488.mkv",
+      "source": {
+        "sha256": "fa593c3bd5f1325ef721945ea9dc499d377f711fdf0c63cdeae4cb45541eda46",
+        "size_bytes": 745084
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "Q6aMqZwNJlg",
+      "question": "which animal ends up with the prey?",
+      "query_id": 437,
+      "media": "vqa/2025/training/videos_original/Q6aMqZwNJlg.mkv",
+      "source": {
+        "sha256": "ae945c1ce862417c53322e60ff13ac295a1caf066ce26d6190aca87d3be386ec",
+        "size_bytes": 2908567
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "CH8Dp7EgW4I",
+      "question": "What does the smaller boy do after another boy shoves him?",
+      "query_id": 22,
+      "media": "vqa/2025/training/videos_original/CH8Dp7EgW4I.mkv",
+      "source": {
+        "sha256": "ba8330df03ba679ee19f04dd15b6eca479bc84f807b892e121d3da39f20541a4",
+        "size_bytes": 5546508
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "IWSPAfCKtV8",
+      "question": "What is the sound at the end of the video?",
+      "query_id": 170,
+      "media": "vqa/2025/training/videos_original/IWSPAfCKtV8.mkv",
+      "source": {
+        "sha256": "226903981dd87d519b747af26b774f38648ef30d5f7645dfdc54d0e2426c0732",
+        "size_bytes": 1358096
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "G3GstfkuDIg",
+      "question": "What happens when a boy visits a hotel for the first time?",
+      "query_id": 85,
+      "media": "vqa/2025/training/videos_original/G3GstfkuDIg.mkv",
+      "source": {
+        "sha256": "8d61519c24f4a940e966210d45bc56b8375d23464bddd45c25f7a1a564cdb870",
+        "size_bytes": 2716257
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "D7iryXC-ThU",
+      "question": "What happens by the end of the video?",
+      "query_id": 34,
+      "media": "vqa/2025/training/videos_original/D7iryXC-ThU.mkv",
+      "source": {
+        "sha256": "1ad58bd3db48d3214caef99e342adab2fffd07ae726e7f4258a49c08fb3acafe",
+        "size_bytes": 3102202
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "representative"
+    },
+    {
+      "video_id": "NzCvq05qJlo",
+      "question": "What happens after the guy in red shorts is flipped?",
+      "query_id": 374,
+      "media": "vqa/2025/training/videos_original/NzCvq05qJlo.mkv",
+      "source": {
+        "sha256": "d82308f1e1f58390428423aae15e4e4c20dbe2e3ca87dbdee9ca32ab22c4f748",
+        "size_bytes": 2019683
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "prompt_schema"
+    },
+    {
+      "video_id": "J1CS47pBX_M",
+      "question": "What is the first thing that is said in this video?",
+      "query_id": 186,
+      "media": "vqa/2025/training/videos_original/J1CS47pBX_M.mkv",
+      "source": {
+        "sha256": "9defd87f629b2263e178e5ca6578b6a9d845a34dd54d7f377617ac65770b3c8a",
+        "size_bytes": 1447443
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "prompt_schema"
+    },
+    {
+      "video_id": "LSz_xBDBPNc",
+      "question": "What did the man tell his assistant to do once he got the piece of calcium to glow red hot?",
+      "query_id": 289,
+      "media": "vqa/2025/training/videos_original/LSz_xBDBPNc.mkv",
+      "source": {
+        "sha256": "52fe98f56fb8c79ff8bd4ca58f0fe415e7940429f482169fd24a2d866aec846b",
+        "size_bytes": 1031579
+      },
+      "selection_stratum": "other",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "evidence_ambiguity"
+    },
+    {
+      "video_id": "HD2_qedLUTE",
+      "question": "What are the first two sentences spoken in this video?",
+      "query_id": 125,
+      "media": "vqa/2025/training/videos_original/HD2_qedLUTE.mkv",
+      "source": {
+        "sha256": "cf26be502cd0244516ef16ef9efa95ebe42968dbe707a4feeaa922ce7e1276b7",
+        "size_bytes": 1916550
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "evidence_ambiguity"
+    },
+    {
+      "video_id": "NrB4LPosWBk",
+      "question": "What is the last word in this video?",
+      "query_id": 369,
+      "media": "vqa/2025/training/videos_original/NrB4LPosWBk.mkv",
+      "source": {
+        "sha256": "9694260ed57a1ff20d9122eaa24e1bd196445d4ff117a8cdcaf405d9053c6911",
+        "size_bytes": 8138562
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "evidence_ambiguity"
+    },
+    {
+      "video_id": "CjcyaXLB3Ow",
+      "question": "Why did the boy jump up off the sofa and stomp out the room yelling?",
+      "query_id": 27,
+      "media": "vqa/2025/training/videos_original/CjcyaXLB3Ow.mkv",
+      "source": {
+        "sha256": "dc99d47ddbde7efcf6f166f17eb4dd4905befcdbff10a12f0dc9fcb2d2f50da3",
+        "size_bytes": 2531544
+      },
+      "selection_stratum": "causal",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "transition_localization"
+    },
+    {
+      "video_id": "Gp4LVTn3YbY",
+      "question": "What happens after the woman puts the wafer in her mouth?",
+      "query_id": 109,
+      "media": "vqa/2025/training/videos_original/Gp4LVTn3YbY.mkv",
+      "source": {
+        "sha256": "cc573c6c0b8294be18a913d5c66898fa88a88860ddd98925f2910c216b666998",
+        "size_bytes": 906852
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "transition_localization"
+    },
+    {
+      "video_id": "KgOvCPOX-Ms",
+      "question": "What happens to the two people by the end of the video.",
+      "query_id": 261,
+      "media": "vqa/2025/training/videos_original/KgOvCPOX-Ms.mkv",
+      "source": {
+        "sha256": "11f4570f431236b79d81a00091537a73ed884aaeff4c8a6dd9fbbc5d48776437",
+        "size_bytes": 3130268
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "transition_localization"
+    },
+    {
+      "video_id": "PcDuz7j9LL8",
+      "question": "What does the man do after using a machine to dispense a cleaning solution and scrub his driveway?",
+      "query_id": 422,
+      "media": "vqa/2025/training/videos_original/PcDuz7j9LL8.mkv",
+      "source": {
+        "sha256": "36cee6c5fc919c0137d3da60101b208b866c58ee328c79b86a393ebbeddac81a",
+        "size_bytes": 4907362
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "transition_localization"
+    },
+    {
+      "video_id": "C4j3Pp79KSg",
+      "question": "What does a woman riding in a wheelchair do when she reaches the corner?",
+      "query_id": 18,
+      "media": "vqa/2025/training/videos_original/C4j3Pp79KSg.mkv",
+      "source": {
+        "sha256": "bbfeaa257f9ca5d5994d34dc215426110d1890f23805051f0ec4894c8397a48d",
+        "size_bytes": 4056186
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "transition_localization"
+    },
+    {
+      "video_id": "NkXPPJoZ-h8",
+      "question": "Based on the video, what sound is heard?",
+      "query_id": 368,
+      "media": "vqa/2025/training/videos_original/NkXPPJoZ-h8.mkv",
+      "source": {
+        "sha256": "b1ea3c3568ae242e807a5b51370320fc4f8255af91f450273f5562827f0fdf26",
+        "size_bytes": 1331333
+      },
+      "selection_stratum": "audio_text",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "audio"
+    },
+    {
+      "video_id": "NW3Mhr76ClM",
+      "question": "What is the only thing W2S says in this video?",
+      "query_id": 364,
+      "media": "vqa/2025/training/videos_original/NW3Mhr76ClM.mkv",
+      "source": {
+        "sha256": "c60fc538732bd629ab2f30ddf0d6646cec356146d31b75bc0afb8822c0e13cc5",
+        "size_bytes": 4110750
+      },
+      "selection_stratum": "audio_text",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "audio"
+    },
+    {
+      "video_id": "Ie-KCtcZ7uc",
+      "question": "What is the first question asked of these young men driving away in a Bentley Bentayga?",
+      "query_id": 174,
+      "media": "vqa/2025/training/videos_original/Ie-KCtcZ7uc.mkv",
+      "source": {
+        "sha256": "e4efb44bef974c377fbc2c7537531b2869ccb8b00aa9dc0ec55c6df46dc55d29",
+        "size_bytes": 26704809
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "audio"
+    },
+    {
+      "video_id": "LKiaCf1QZFw",
+      "question": "What does this woman say at the end of the video?",
+      "query_id": 284,
+      "media": "vqa/2025/training/videos_original/LKiaCf1QZFw.mkv",
+      "source": {
+        "sha256": "6decf5b088d4d57f7b43b47fa97c82cc749bb79e3dc496be4f36782007332429",
+        "size_bytes": 2156342
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "audio"
+    },
+    {
+      "video_id": "Hw0bRvn1ZIo",
+      "question": "After \"Jiu Jitsu\" what text is displayed to describe this instructive video?",
+      "query_id": 149,
+      "media": "vqa/2025/training/videos_original/Hw0bRvn1ZIo.mkv",
+      "source": {
+        "sha256": "b71922cd5e29684142f6078290589b0c72dcc7900c8a9fd625de76f2962fae53",
+        "size_bytes": 1806071
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "fps_resolution"
+    },
+    {
+      "video_id": "JOClNGH6yL8",
+      "question": "What color is the woman's top?",
+      "query_id": 202,
+      "media": "vqa/2025/training/videos_original/JOClNGH6yL8.mkv",
+      "source": {
+        "sha256": "c0bf9c487170fb3a46750c3fd6a19992716067d1e6cff85812f34ccf53b49c00",
+        "size_bytes": 2136395
+      },
+      "selection_stratum": "ocr_detail",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "fps_resolution"
+    },
+    {
+      "video_id": "Jc2BdtyAF48",
+      "question": "What does the displayed text say?",
+      "query_id": 217,
+      "media": "vqa/2025/training/videos_original/Jc2BdtyAF48.mkv",
+      "source": {
+        "sha256": "73b63483a8c081632b9ad572a688c0773920854e72f6e9cec0aa002a54b0d093",
+        "size_bytes": 623318
+      },
+      "selection_stratum": "audio_text",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "fps_resolution"
+    },
+    {
+      "video_id": "B24dV_uori4",
+      "question": "What causes shampoo to lather best when washing hair?",
+      "query_id": 0,
+      "media": "vqa/2025/training/videos_original/B24dV_uori4.mkv",
+      "source": {
+        "sha256": "4258cd1561b15251b7f50a2a4d3102072e250ed67a7e348edae3dd3f3a8f9158",
+        "size_bytes": 5412494
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "reasoning_model"
+    },
+    {
+      "video_id": "D4Y3c5srV_k",
+      "question": "What happens to one of the guys while two guys are playing basketball?",
+      "query_id": 33,
+      "media": "vqa/2025/training/videos_original/D4Y3c5srV_k.mkv",
+      "source": {
+        "sha256": "67ac44669e4c04d7b319682d981015c2ab7cf7258867686f3cc306bbc917a023",
+        "size_bytes": 2175534
+      },
+      "selection_stratum": "temporal",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "reasoning_model"
+    },
+    {
+      "video_id": "BADi9YBwUNc",
+      "question": "Why do the men keep riding their motorcycles through water?",
+      "query_id": 1,
+      "media": "vqa/2025/training/videos_original/BADi9YBwUNc.mkv",
+      "source": {
+        "sha256": "e65dad6761a9de6e1645722d9bddd8970f5b3d33dc49ad934a8394013bafda0d",
+        "size_bytes": 7114512
+      },
+      "selection_stratum": "causal",
+      "analysis_population": "diagnostic",
+      "diagnostic_category": "reasoning_model"
+    }
+  ]
+}

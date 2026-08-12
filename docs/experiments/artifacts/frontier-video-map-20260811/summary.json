@@ -1,0 +1,37 @@
+{
+  "completion": {
+    "paid_response_bodies": 2,
+    "runner_succeeded_at_call_time": 1,
+    "schema_valid_after_exact_envelope_parsing": 2
+  },
+  "decision": {
+    "disposition": "diagnostic_signal_not_promoted_under_tested_contract",
+    "next_action": "tighten_clause_level_answer_evidence_binding_then_test_unused_categories",
+    "run_frozen_35_unchanged": false
+  },
+  "evidence": {
+    "events": 7,
+    "model_selected_keyframe_timestamps": 15,
+    "private_audit_packet_manifest_sha256": "1499a8122dc2dfd64ac1bc1081754a0dcaaeee610fc555da8b58d98b154a6240",
+    "private_postfreeze_metrics_sha256": "dc2d6cfe460a5b8e67cc1fc81f24f5e4dbe0dadc83f8695e13c1d9a01e9bd22b"
+  },
+  "integrity": {
+    "labels_joined_after_response_freeze": true,
+    "lossless_webm_stream_copy_verified": true,
+    "no_independent_audio_check": true,
+    "no_semantic_response_repair": true,
+    "one_content_inference_per_video": true,
+    "reka_calls": 0
+  },
+  "model": "google/gemini-3.1-pro-preview",
+  "panel": {
+    "categories": [
+      "sound",
+      "temporal"
+    ],
+    "rows": 2,
+    "selection": "frozen_preflight"
+  },
+  "schema_version": 1,
+  "validity": "diagnostic"
+}

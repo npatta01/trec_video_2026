@@ -100,6 +100,62 @@ promoted under the tested condition**: the failed rows had
 answer-relevant evidence, which shifts the next test toward multi-scene
 context and downstream answer use rather than another one-shot selector.
 
+### Gemini native-AV event-map canary
+
+- **Reason for testing:** determine whether one frontier
+  native-video/audio pass can understand the question, map key events
+  and state transitions, localize supporting spans, and produce one
+  grounded top-1 answer.
+- **Tested condition and panel:** two frozen VQA-2025 training examples,
+  one sound and one temporal, with one Gemini content inference per
+  video and no Whisper, independent audio check, or candidate-diversity
+  pass.
+- **Observed result:** both paid response bodies contained
+  strict-schema-valid maps after deterministic exact-fence parsing:
+  seven events and 15 selected timestamps for \$0.063730. The temporal
+  map localized the core sequence but the answer added one detail
+  unsupported by the inspected frames. The sound answer was too generic
+  relative to the post-freeze reference. Two-row mean METEOR was 0.2532,
+  BERTScore-F1 0.8949, STS 0.4392, and semantic composite 0.5291;
+  single-answer NDCG was explicitly degenerate.
+- **Current condition-bound status:** **Diagnostic signal; Not promoted
+  under the tested condition.** Gemini native-AV mapping is
+  operationally viable, but the current answer-to-evidence contract is
+  not ready for the frozen 35-row panel.
+- **What this rules out now:** interpreting the earlier MKV/schema
+  failures as proof that Gemini or event maps do not work, and scaling
+  the unchanged contract merely because calls are inexpensive.
+- **What it does not rule out:** a one-pass contract with clause-level
+  event/span support, audio-specific attributes, later multi-stage
+  evidence acquisition, or a matched direct-answer-only control.
+- **Possible defect, audit gap, or uncertainty:** **Confirmed
+  defect**—the preflight freeze omitted raw-file hashes for
+  failed-but-billable responses; this is now fixed. **Uncertainty**—two
+  selected rows, provider audio use is not independently attested, and
+  the private audit packet is valid but not reviewer-frozen.
+- **Reconsider when:** a tightened contract on unused videos across the
+  remaining categories produces schema-valid maps with supported answer
+  claims and preserves label-critical specificity.
+
+<details>
+
+<summary>
+
+Method, result, validity risks, and evidence
+</summary>
+
+Original MKV streams were losslessly copied to WebM and verified through
+codec, packet-hash, duration, file-hash, and uploaded-byte bindings.
+Native provider schema translation was unreliable, so the working route
+uses prompt-JSON, strict local validation, and no semantic repair. Sol,
+Fable, and Gemini Pro independently reviewed the same sanitized packet
+and agreed that the primary failure is answer–evidence decoupling rather
+than failed map localization. Fable noted that a merely shorter answer
+would not solve both observed errors: one answer embellished while the
+other lost specificity. See the [dated evidence
+record](../experiments/2026-08-11-frontier-video-map-diagnostic.qmd).
+</details>
+
 <a name="frozen-30-protocol-v2"></a>
 
 ### Frozen-30 protocol v2: global frame budget

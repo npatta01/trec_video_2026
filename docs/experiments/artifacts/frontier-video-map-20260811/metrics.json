@@ -1,0 +1,38 @@
+{
+  "boundary": "two_selected_postfreeze_rows_not_a_distributional_benchmark",
+  "metrics": {
+    "bertscore_f1": 0.8949045240879059,
+    "meteor": 0.25317513368983957,
+    "normalized_exact_match": 0.0,
+    "semantic_composite": 0.5291058109259151,
+    "sts": 0.43923777499999994,
+    "token_f1": 0.17391304347826086
+  },
+  "ndcg": {
+    "degenerate": true,
+    "informative": false,
+    "value": 1.0
+  },
+  "row_count": 2,
+  "schema_version": 1,
+  "scorer": {
+    "bert_model_snapshot": "722cf37b1afa9454edce342e7895e588b6ff1d59",
+    "bert_score_module": "0.3.12",
+    "normalization": "NIST 2025 strip/lower/collapse whitespace",
+    "semantic_composite": "mean(meteor, bertscore_f1, sts)"
+  },
+  "strata": {
+    "sound": {
+      "bertscore_f1": 0.8856843709945679,
+      "meteor": 0.0,
+      "semantic_composite": 0.3357348403315226,
+      "sts": 0.12152015
+    },
+    "temporal": {
+      "bertscore_f1": 0.9041246771812439,
+      "meteor": 0.5063502673796791,
+      "semantic_composite": 0.7224767815203076,
+      "sts": 0.7569554
+    }
+  }
+}

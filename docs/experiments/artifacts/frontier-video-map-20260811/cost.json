@@ -1,0 +1,14 @@
+{
+  "calls": 2,
+  "input_tokens": 5471,
+  "observed_cost_usd": 0.06373,
+  "output_tokens": 4399,
+  "per_call": {
+    "maximum_usd": 0.035418,
+    "mean_usd": 0.031865,
+    "minimum_usd": 0.028312
+  },
+  "pricing_boundary": "provider_reported_observed_cost",
+  "schema_version": 1,
+  "total_tokens": 9870
+}

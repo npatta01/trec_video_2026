@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "model_id": "gemini-3.1-pro-preview",
+  "fixture_mode": false,
+  "require_audio": true,
+  "pass_ids": [
+    "direct-av",
+    "direct-av-alternate",
+    "global-transcript",
+    "global-local-timeline",
+    "question-specialist",
+    "local-only",
+    "audio-first",
+    "scene-boundary",
+    "detail-temporal-route",
+    "conservative-synthesis"
+  ],
+  "protocol_version": "task5-resumable-v2",
+  "protocol_sha256": "1ae7f1afdace9677655f51264d303464fd31713aef601e1fc38f9ff4804fb360",
+  "evidence_policy_version": "global8-local24-pts-hash-v1",
+  "evidence_policy_sha256": "9a9ae256c72a82149cc47d2b10c5bd851547ac9582632592518eeab1a4140a5a",
+  "panel_manifest_sha256": "092aec23cfdcc370bbed8e776f7cc7c84752481da6ba0996983883955d3841e8",
+  "panel_ids_sha256": "95a623c0add252541b9c81ff4910e949dc81db17482add2c467b761237b22b0f",
+  "run_id": "vqa-submission-canary-20260810-a1",
+  "selection_seed": "vqa-submission-6-v1",
+  "selection_policy": "question-only strata; SHA256(seed|stratum|video_id)",
+  "selection_strata": [
+    "temporal",
+    "counting",
+    "audio_text",
+    "ocr_detail",
+    "causal",
+    "other"
+  ],
+  "ordered_ids_sha256": "348e745743628d3d3dfbec44c041ff25d11c9956ccf061f79d5ddf79416c7739",
+  "source_metadata_sha256": "d2cc691df132ac68c16054d70df618cef64e8b6dcf5d9f0261d0154e5011d080",
+  "examples": [
+    {
+      "video_id": "BkdaXjkp_h0",
+      "question": "What happens at the end of the video?",
+      "query_id": 10,
+      "media": "vqa/2025/training/videos_original/BkdaXjkp_h0.mkv",
+      "source": {
+        "sha256": "832a7f63f0aabc10162b4df9a3601c1b9daa27c0b887ea62ae1a4dda551a2a32",
+        "size_bytes": 8885445
+      },
+      "selection_stratum": "temporal"
+    },
+    {
+      "video_id": "Mr5ajtVsATc",
+      "question": "How many scoops of food are taken out of the pot?",
+      "query_id": 340,
+      "media": "vqa/2025/training/videos_original/Mr5ajtVsATc.mkv",
+      "source": {
+        "sha256": "3be3aa8062175f9386a00a321907fb2bcf3556a82213a11ceaf36d94da2be1d4",
+        "size_bytes": 2609660
+      },
+      "selection_stratum": "counting"
+    },
+    {
+      "video_id": "Ph5M5xWoPRE",
+      "question": "What could the crying boy be seen saying or mouthing during the chorus performance?",
+      "query_id": 424,
+      "media": "vqa/2025/training/videos_original/Ph5M5xWoPRE.mkv",
+      "source": {
+        "sha256": "310ad96ce02d419713ab478cb97d728620f37fa46ab3212445cfbcce3c99c005",
+        "size_bytes": 2811146
+      },
+      "selection_stratum": "audio_text"
+    },
+    {
+      "video_id": "Msbpqv5aOxk",
+      "question": "What is written on the back of the man's hand?",
+      "query_id": 341,
+      "media": "vqa/2025/training/videos_original/Msbpqv5aOxk.mkv",
+      "source": {
+        "sha256": "5ae7afd6e084d3f6959c001245d6ff42fc5131254196199f83f22526c0577339",
+        "size_bytes": 2294076
+      },
+      "selection_stratum": "ocr_detail"
+    },
+    {
+      "video_id": "OYGEa7yHiXQ",
+      "question": "Why us this a good way to build the wall?",
+      "query_id": 394,
+      "media": "vqa/2025/training/videos_original/OYGEa7yHiXQ.mkv",
+      "source": {
+        "sha256": "9fb3d995c669b19bffdb1fc9fc96f8e1942ab4796789969c352c35197bd1aeec",
+        "size_bytes": 1179856
+      },
+      "selection_stratum": "causal"
+    },
+    {
+      "video_id": "EMI_anpHII4",
+      "question": "What does the hand make?",
+      "query_id": 52,
+      "media": "vqa/2025/training/videos_original/EMI_anpHII4.mkv",
+      "source": {
+        "sha256": "f79b3cee9ffdeb20666f901b5c08522607ad8328ba3eaabafd6b2ab93912ca00",
+        "size_bytes": 3485357
+      },
+      "selection_stratum": "other"
+    }
+  ]
+}
