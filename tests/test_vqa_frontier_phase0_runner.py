@@ -293,6 +293,32 @@ def test_loser_reuses_completion_when_claim_acquisition_follows_winner(
 
     assert winner_summary.passed == 1
     assert loser_summary.skipped == 1
+    assert loser_summary.observed_cost_usd == 0.0
+    assert loser_summary.estimated_cost_usd == 0.0
+    assert loser_summary.input_tokens == 0
+    assert loser_summary.output_tokens == 0
+    assert winner.call_count == 1
+    assert loser.call_count == 0
+
+
+def test_completed_claim_loser_does_not_mutate_winner_result(tmp_path: Path) -> None:
+    prepared = prepared_fixture(tmp_path)
+    loser = BlockingEstimateTransport()
+    winner = RecordingTransport()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        loser_future = pool.submit(run_pilot, prepared, loser)
+        assert loser.estimate_started.wait(timeout=5)
+        assert run_pilot(prepared, winner).passed == 1
+        winner_bytes = (
+            prepared.path / "results" / "neutral_map.jsonl"
+        ).read_bytes()
+        loser.release.set()
+        assert loser_future.result(timeout=5).skipped == 1
+
+    assert (
+        prepared.path / "results" / "neutral_map.jsonl"
+    ).read_bytes() == winner_bytes
     assert winner.call_count == 1
     assert loser.call_count == 0
 
@@ -632,6 +658,38 @@ def test_actual_openrouter_length_evidence_retries_and_protocol_evidence_stops(
     )
     assert run_pilot(protocol_prepared, protocol_transport).failed == 1
     assert len(protocol_opener.requests) == 1
+
+
+def test_actual_openrouter_malformed_content_is_protocol_terminal(
+    tmp_path: Path,
+) -> None:
+    prepared = prepared_fixture(tmp_path)
+    opener = AdapterOpener(
+        [
+            {
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "role": "assistant",
+                            "content": [{"type": "text"}],
+                        },
+                    }
+                ],
+                "usage": {"prompt_tokens": 20, "completion_tokens": 3, "cost": 0.01},
+            }
+        ]
+    )
+    transport = OpenRouterTransport("fixture-key", opener=opener, policy=MAP_POLICY)
+
+    summary = run_pilot(prepared, transport)
+
+    assert summary.failed == 1
+    assert len(opener.requests) == 1
+    result = json.loads(
+        (prepared.path / "results" / "neutral_map.jsonl").read_text(encoding="utf-8")
+    )
+    assert result["failure_code"] == "provider_protocol"
 
 
 def test_result_binding_projection_cannot_be_bypassed_by_rehashing_result(

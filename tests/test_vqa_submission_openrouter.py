@@ -320,12 +320,20 @@ def test_paid_response_content_is_preserved_when_usage_is_invalid() -> None:
 
 @pytest.mark.parametrize(
     ("finish_reason", "content", "expected_empty"),
-    [("length", '{"partial":true}', False), ("stop", "", True)],
+    [
+        ("length", '{"partial":true}', False),
+        ("stop", "", True),
+        ("stop", "   ", True),
+        ("stop", [], True),
+        ("stop", [{"type": "text", "text": "  "}], True),
+        ("stop", [{"type": "text"}], False),
+        ("stop", None, None),
+    ],
 )
 def test_evidence_preserves_bounded_finish_and_content_flags(
     finish_reason: str,
-    content: str,
-    expected_empty: bool,
+    content: object,
+    expected_empty: bool | None,
 ) -> None:
     response = FakeResponse(
         {
@@ -356,7 +364,10 @@ def test_evidence_preserves_bounded_finish_and_content_flags(
 
     evidence = caught.value.generation_result
     assert evidence.provider_metadata["finish_reason"] == finish_reason
-    assert evidence.provider_metadata["content_empty"] is expected_empty
+    if expected_empty is None:
+        assert evidence.provider_metadata.get("content_empty") is not True
+    else:
+        assert evidence.provider_metadata["content_empty"] is expected_empty
     assert "choices" not in evidence.provider_metadata
     assert "response_body_secret" not in evidence.provider_metadata
     assert "secret" not in evidence.provider_metadata

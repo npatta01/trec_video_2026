@@ -617,16 +617,20 @@ class OpenRouterTransport:
             if isinstance(message, Mapping) and "content" in message:
                 content = message["content"]
                 if isinstance(content, str):
-                    metadata["content_empty"] = not bool(content)
+                    metadata["content_empty"] = not bool(content.strip())
                 elif isinstance(content, list):
-                    metadata["content_empty"] = not any(
+                    valid_text_blocks = all(
                         isinstance(item, Mapping)
+                        and item.get("type") == "text"
                         and isinstance(item.get("text"), str)
-                        and bool(item["text"])
                         for item in content
                     )
-                elif content is None:
-                    metadata["content_empty"] = True
+                    if valid_text_blocks:
+                        metadata["content_empty"] = not bool(
+                            "".join(item["text"] for item in content).strip()
+                        )
+                    else:
+                        metadata["content_empty"] = False
         return metadata
 
     def preflight(self, *, model_id: str) -> dict[str, object]:

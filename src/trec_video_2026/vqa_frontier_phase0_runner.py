@@ -668,6 +668,7 @@ def _dispatch_condition(
         skipped["status"] = "skipped"
         skipped["input_tokens"] = 0
         skipped["output_tokens"] = 0
+        skipped["cost_usd"] = 0.0
         skipped["estimated_cost_usd"] = 0.0
         return skipped
     _validate_transport(transport, condition_id)
@@ -684,6 +685,7 @@ def _dispatch_condition(
         skipped["status"] = "skipped"
         skipped["input_tokens"] = 0
         skipped["output_tokens"] = 0
+        skipped["cost_usd"] = 0.0
         skipped["estimated_cost_usd"] = 0.0
         return skipped
     total_cost = 0.0
