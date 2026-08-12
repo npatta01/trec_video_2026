@@ -11,6 +11,20 @@ import pytest
 from test_vqa_frontier_phase0_panel import qwen_fixture, source_panel_fixture
 
 
+PILOT_BINDING_KEYS = {
+    "delivery_policy_version",
+    "panel_sha256",
+    "prompt_sha256",
+    "provider",
+    "provider_schema_sha256",
+    "raw_files_sha256",
+    "response_format_policy",
+    "result_count",
+    "results_sha256",
+    "schema_sha256",
+}
+
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/build_vqa_frontier_phase0_panel.py"
 
@@ -68,20 +82,33 @@ def _write_fixture_inputs(tmp_path: Path) -> dict[str, Path]:
     )
     aggregate = {
         "schema_version": 1,
+        "runner_id": "trec-video-frontier-map-runner-v1",
         "run_id": "frontier-video-map-20260811",
         "provider": "gemini",
+        "prompt_sha256": "1" * 64,
+        "schema_sha256": "2" * 64,
+        "delivery_policy_version": "frontier-map-delivery-v2-webm-copy",
         "result_count": 1,
         "succeeded_count": 1,
         "failed_count": 0,
         "panel_sha256": _canonical_sha256(source),
         "results_sha256": _canonical_sha256([pilot_result]),
+        "raw_files_sha256": "3" * 64,
+        "provider_schema_sha256": "4" * 64,
+        "response_format_policy": "prompt-json-local-validation-v3-exact-fence",
     }
     _write_json(result_path, aggregate)
     bindings = {
+        "delivery_policy_version": aggregate["delivery_policy_version"],
         "provider": "gemini",
         "panel_sha256": aggregate["panel_sha256"],
+        "prompt_sha256": aggregate["prompt_sha256"],
+        "provider_schema_sha256": aggregate["provider_schema_sha256"],
+        "raw_files_sha256": aggregate["raw_files_sha256"],
+        "response_format_policy": aggregate["response_format_policy"],
         "result_count": 1,
         "results_sha256": aggregate["results_sha256"],
+        "schema_sha256": aggregate["schema_sha256"],
     }
     freeze_path = result_path.parent / "preflight-gemini-freeze.json"
     freeze = {
@@ -101,9 +128,10 @@ def _write_fixture_inputs(tmp_path: Path) -> dict[str, Path]:
 
 
 def test_cli_builds_atomic_private_manifest_and_safe_summary(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cli = _load_cli()
+    monkeypatch.setattr(cli, "CANONICAL_DATA_ROOT", tmp_path)
     paths = _write_fixture_inputs(tmp_path)
     output = tmp_path / "panel.json"
 
@@ -163,8 +191,11 @@ def test_cli_builds_atomic_private_manifest_and_safe_summary(
         )
 
 
-def test_cli_rejects_tampered_successful_pilot_result(tmp_path: Path) -> None:
+def test_cli_rejects_tampered_successful_pilot_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     cli = _load_cli()
+    monkeypatch.setattr(cli, "CANONICAL_DATA_ROOT", tmp_path)
     paths = _write_fixture_inputs(tmp_path)
     aggregate = json.loads(paths["results"].read_text(encoding="utf-8"))
     aggregate["succeeded_count"] = 0
@@ -188,9 +219,10 @@ def test_cli_rejects_tampered_successful_pilot_result(tmp_path: Path) -> None:
 
 
 def test_cli_derives_pilot_from_sibling_result_not_an_id_argument(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cli = _load_cli()
+    monkeypatch.setattr(cli, "CANONICAL_DATA_ROOT", tmp_path)
     paths = _write_fixture_inputs(tmp_path)
     sibling = paths["results"].parent / "results" / "gemini.jsonl"
     row = json.loads(sibling.read_text(encoding="utf-8"))
@@ -210,5 +242,114 @@ def test_cli_derives_pilot_from_sibling_result_not_an_id_argument(
                 str(paths["qwen"]),
                 "--output",
                 str(tmp_path / "panel.json"),
+            ]
+        )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "match"),
+    [
+        ("schema_version", "schema_version"),
+        ("status", "status"),
+        ("binding_key", "exactly"),
+        ("binding_value", "binding"),
+        ("bindings_sha256", "bindings_sha256"),
+        ("artifact_sha256", "artifact_sha256"),
+    ],
+)
+def test_cli_rejects_mutated_pilot_freeze(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+    match: str,
+) -> None:
+    cli = _load_cli()
+    monkeypatch.setattr(cli, "CANONICAL_DATA_ROOT", tmp_path)
+    paths = _write_fixture_inputs(tmp_path)
+    freeze = json.loads(paths["freeze"].read_text(encoding="utf-8"))
+    if mutation == "schema_version":
+        freeze["schema_version"] = True
+    elif mutation == "status":
+        freeze["status"] = "unfrozen"
+    elif mutation == "binding_key":
+        freeze["bindings"]["unexpected"] = "stale"
+        freeze["bindings_sha256"] = _canonical_sha256(freeze["bindings"])
+    elif mutation == "binding_value":
+        freeze["bindings"]["delivery_policy_version"] = "stale-policy"
+        freeze["bindings_sha256"] = _canonical_sha256(freeze["bindings"])
+    elif mutation == "bindings_sha256":
+        freeze["bindings_sha256"] = "f" * 64
+    else:
+        freeze["artifact_sha256"] = "f" * 64
+    paths["freeze"].write_text(json.dumps(freeze), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=match):
+        cli.main(
+            [
+                "--source-panel",
+                str(paths["source"]),
+                "--successful-pilot-results",
+                str(paths["results"]),
+                "--successful-pilot-freeze",
+                str(paths["freeze"]),
+                "--qwen-predictions",
+                str(paths["qwen"]),
+                "--output",
+                str(tmp_path / "panel.json"),
+            ]
+        )
+
+
+def test_cli_rejects_output_outside_canonical_private_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cli = _load_cli()
+    root = tmp_path / "private-data"
+    root.mkdir()
+    monkeypatch.setattr(cli, "CANONICAL_DATA_ROOT", root)
+    paths = _write_fixture_inputs(tmp_path)
+
+    with pytest.raises(ValueError, match="canonical private data root"):
+        cli.main(
+            [
+                "--source-panel",
+                str(paths["source"]),
+                "--successful-pilot-results",
+                str(paths["results"]),
+                "--successful-pilot-freeze",
+                str(paths["freeze"]),
+                "--qwen-predictions",
+                str(paths["qwen"]),
+                "--output",
+                str(tmp_path / "outside" / "panel.json"),
+            ]
+        )
+
+
+def test_cli_rejects_symlink_escape_from_canonical_private_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cli = _load_cli()
+    root = tmp_path / "private-data"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (root / "escape").symlink_to(outside, target_is_directory=True)
+    monkeypatch.setattr(cli, "CANONICAL_DATA_ROOT", root)
+    paths = _write_fixture_inputs(tmp_path)
+
+    with pytest.raises(ValueError, match="canonical private data root"):
+        cli.main(
+            [
+                "--source-panel",
+                str(paths["source"]),
+                "--successful-pilot-results",
+                str(paths["results"]),
+                "--successful-pilot-freeze",
+                str(paths["freeze"]),
+                "--qwen-predictions",
+                str(paths["qwen"]),
+                "--output",
+                str(root / "escape" / "panel.json"),
             ]
         )

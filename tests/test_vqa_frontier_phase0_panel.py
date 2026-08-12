@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import random
 from copy import deepcopy
 from typing import Any
 
@@ -14,6 +15,13 @@ from trec_video_2026.vqa_frontier_phase0_panel import (
     build_phase0_panel,
     validate_phase0_panel,
 )
+
+
+QWEN_MODEL_ID = "Qwen/Qwen3.5-4B"
+QWEN_MODEL_REVISION = "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
+QWEN_RUN_ID = "q35-12f-wa-20260803-c2"
+QWEN_CONDITION_ID = "qwen35-4b-12f-frames-only"
+QWEN_ROW_COUNT = 475
 
 
 def _digest(value: str) -> str:
@@ -79,16 +87,32 @@ def source_panel_fixture(
 
 
 def qwen_fixture(source: dict[str, Any]) -> list[dict[str, Any]]:
-    return [
+    rows = [
         {
             "video_id": row["video_id"],
-            "condition_id": "qwen35-4b-12f-frames-only",
+            "model_id": QWEN_MODEL_ID,
+            "model_revision": QWEN_MODEL_REVISION,
+            "run_id": QWEN_RUN_ID,
+            "condition_id": QWEN_CONDITION_ID,
             "status": "passed",
             "answer": "private baseline answer",
         }
         for row in source["examples"]
         if row["phase"] == "evaluation"
     ]
+    for index in range(QWEN_ROW_COUNT - len(rows)):
+        rows.append(
+            {
+                "video_id": f"qwen-filler-{index:03d}",
+                "model_id": QWEN_MODEL_ID,
+                "model_revision": QWEN_MODEL_REVISION,
+                "run_id": QWEN_RUN_ID,
+                "condition_id": QWEN_CONDITION_ID,
+                "status": "passed",
+                "answer": "private filler answer",
+            }
+        )
+    return rows
 
 
 def test_build_panel_selects_one_median_duration_row_per_category() -> None:
@@ -105,8 +129,31 @@ def test_build_panel_rejects_missing_qwen_baseline() -> None:
     source = source_panel_fixture()
     qwen = [row for row in qwen_fixture(source) if row["video_id"] != "causal-3"]
 
-    with pytest.raises(ValueError, match="matched Qwen baseline"):
+    with pytest.raises(ValueError, match="exactly 475"):
         build_phase0_panel(source, "spent-pilot", qwen)
+
+
+def test_build_panel_rejects_fabricated_or_wrong_provenance_qwen_rows() -> None:
+    source = source_panel_fixture()
+    qwen = qwen_fixture(source)
+
+    fabricated = deepcopy(qwen)
+    fabricated[-1]["video_id"] = "causal-3"
+    with pytest.raises(ValueError, match="duplicate video_id"):
+        build_phase0_panel(source, "spent-pilot", fabricated)
+
+    wrong_provenance = deepcopy(qwen)
+    wrong_provenance[0]["model_revision"] = "wrong-revision"
+    with pytest.raises(ValueError, match="model_revision"):
+        build_phase0_panel(source, "spent-pilot", wrong_provenance)
+
+
+def test_build_panel_rejects_truncated_qwen_predictions() -> None:
+    source = source_panel_fixture()
+    truncated = qwen_fixture(source)[:-1]
+
+    with pytest.raises(ValueError, match="exactly 475"):
+        build_phase0_panel(source, "spent-pilot", truncated)
 
 
 def test_panel_freezes_pilot_and_screen_condition_bindings() -> None:
@@ -155,3 +202,43 @@ def test_validate_panel_rejects_changed_source_or_qwen_binding() -> None:
     ]["status"] = "failed"
     with pytest.raises(ValueError, match="matched Qwen baseline"):
         validate_phase0_panel(panel, source_panel=source, qwen_rows=changed_qwen)
+
+
+def test_selection_uses_literal_ids_after_source_shuffle_and_ordinal_tie() -> None:
+    source = source_panel_fixture(durations=(5.0, 10.0, 15.0, 15.0, 25.0))
+    by_category = {
+        category: [row for row in source["examples"] if row["category"] == category]
+        for category in CATEGORIES
+    }
+    shuffled: list[dict[str, Any]] = []
+    for category in reversed(CATEGORIES):
+        category_rows = by_category[category]
+        shuffled.extend(
+            [
+                category_rows[3],
+                category_rows[0],
+                category_rows[4],
+                category_rows[1],
+                category_rows[2],
+            ]
+        )
+    shuffled.extend(row for row in source["examples"] if row["phase"] == "preflight")
+    source["examples"] = shuffled
+    random.Random(42).shuffle(source["examples"])
+
+    panel = build_phase0_panel(source, "spent-pilot", qwen_fixture(source))
+    selected = [
+        (row["category"], row["video_id"])
+        for row in panel["examples"]
+        if row["phase"] == "screen"
+    ]
+
+    assert selected == [
+        ("temporal", "temporal-3"),
+        ("counting", "counting-3"),
+        ("causal", "causal-3"),
+        ("speech", "speech-3"),
+        ("sound", "sound-3"),
+        ("ocr_detail", "ocr_detail-3"),
+        ("other_global", "other_global-3"),
+    ]

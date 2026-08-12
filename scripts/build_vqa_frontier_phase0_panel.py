@@ -15,6 +15,23 @@ from trec_video_2026.vqa_frontier_phase0_panel import (
 )
 
 
+CANONICAL_DATA_ROOT = (Path(__file__).resolve().parents[1] / "data").resolve()
+PILOT_FREEZE_BINDING_KEYS = frozenset(
+    {
+        "delivery_policy_version",
+        "panel_sha256",
+        "prompt_sha256",
+        "provider",
+        "provider_schema_sha256",
+        "raw_files_sha256",
+        "response_format_policy",
+        "result_count",
+        "results_sha256",
+        "schema_sha256",
+    }
+)
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-panel", type=Path, required=True)
@@ -66,6 +83,18 @@ def _read_jsonl(path: Path) -> list[dict[str, object]]:
     return rows
 
 
+def _private_output_path(path: Path) -> Path:
+    root = CANONICAL_DATA_ROOT.resolve(strict=True)
+    if not root.is_dir():
+        raise ValueError("canonical private data root is not a directory")
+    if path.is_symlink():
+        raise ValueError(f"refusing symlinked output: {path}")
+    resolved = path.resolve(strict=False)
+    if not resolved.is_relative_to(root):
+        raise ValueError("output must resolve beneath the canonical private data root")
+    return resolved
+
+
 def _verify_successful_pilot(
     source_panel: Mapping[str, object],
     results_path: Path,
@@ -105,16 +134,29 @@ def _verify_successful_pilot(
         raise ValueError("successful pilot aggregate does not match sibling results")
 
     if freeze.get("status") != "frozen":
-        raise ValueError("successful pilot freeze is not frozen")
+        raise ValueError("successful pilot freeze status is not frozen")
+    if (
+        type(freeze.get("schema_version")) is not int
+        or freeze.get("schema_version") != 1
+    ):
+        raise ValueError("successful pilot freeze schema_version does not match")
     if freeze.get("artifact_sha256") != _file_sha256(results_path):
-        raise ValueError("successful pilot freeze does not match aggregate artifact")
+        raise ValueError(
+            "successful pilot freeze artifact_sha256 does not match aggregate artifact"
+        )
     bindings = freeze.get("bindings")
     if not isinstance(bindings, Mapping):
         raise ValueError("successful pilot freeze is missing bindings")
+    if set(bindings) != PILOT_FREEZE_BINDING_KEYS:
+        raise ValueError(
+            "successful pilot freeze bindings must contain exactly the preserved keys"
+        )
     if freeze.get("bindings_sha256") != _canonical_sha256(bindings):
-        raise ValueError("successful pilot freeze bindings hash does not match")
-    for field in ("provider", "panel_sha256", "result_count", "results_sha256"):
-        if bindings.get(field) != aggregate.get(field):
+        raise ValueError(
+            "successful pilot freeze bindings_sha256 does not match bindings"
+        )
+    for field in PILOT_FREEZE_BINDING_KEYS:
+        if field not in aggregate or bindings.get(field) != aggregate.get(field):
             raise ValueError(
                 f"successful pilot freeze binding does not match aggregate: {field}"
             )
@@ -194,10 +236,9 @@ def _safe_summary(payload: Mapping[str, object], output: Path) -> dict[str, obje
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    if args.output.is_symlink():
-        raise ValueError(f"refusing symlinked output: {args.output}")
-    if args.output.exists():
-        raise FileExistsError(f"Output already exists: {args.output}")
+    output_path = _private_output_path(args.output)
+    if output_path.exists():
+        raise FileExistsError(f"Output already exists: {output_path}")
     source_panel = _read_json(args.source_panel)
     qwen_rows = _read_json(args.qwen_predictions)
     if not isinstance(source_panel, Mapping):
@@ -220,9 +261,9 @@ def main(argv: list[str] | None = None) -> int:
     validated = validate_phase0_panel(
         payload, source_panel=source_panel, qwen_rows=qwen_rows
     )
-    write_json_atomically(args.output, validated.to_payload())
+    write_json_atomically(output_path, validated.to_payload())
     print(
-        json.dumps(_safe_summary(validated.to_payload(), args.output), sort_keys=True)
+        json.dumps(_safe_summary(validated.to_payload(), output_path), sort_keys=True)
     )
     return 0
 

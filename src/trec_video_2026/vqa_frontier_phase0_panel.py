@@ -22,6 +22,10 @@ SOURCE_RUN_ID = "frontier-video-map-20260811"
 SOURCE_SELECTION_POLICY = "question-only-category-purity-duration-topology-v1"
 SOURCE_REFERENCE_POLICY = "not-read-not-serialized"
 QWEN_CONDITION_ID = "qwen35-4b-12f-frames-only"
+QWEN_MODEL_ID = "Qwen/Qwen3.5-4B"
+QWEN_MODEL_REVISION = "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
+QWEN_RUN_ID = "q35-12f-wa-20260803-c2"
+QWEN_EXPECTED_ROW_COUNT = 475
 CONDITIONS = ("neutral_map", "direct_answer", "map_guided_answer")
 CATEGORIES = (
     "temporal",
@@ -275,6 +279,10 @@ def _source_rows(source_panel: Mapping[str, object]) -> tuple[dict[str, object],
 def _qwen_index(
     qwen_rows: Sequence[Mapping[str, object]],
 ) -> dict[str, Mapping[str, object]]:
+    if len(qwen_rows) != QWEN_EXPECTED_ROW_COUNT:
+        raise ValueError(
+            f"Qwen predictions must contain exactly {QWEN_EXPECTED_ROW_COUNT} rows"
+        )
     index: dict[str, Mapping[str, object]] = {}
     for index_number, row in enumerate(qwen_rows):
         if not isinstance(row, Mapping):
@@ -284,6 +292,15 @@ def _qwen_index(
         )
         if video_id in index:
             raise ValueError(f"Qwen baseline contains duplicate video_id: {video_id}")
+        expected_provenance = {
+            "model_id": QWEN_MODEL_ID,
+            "model_revision": QWEN_MODEL_REVISION,
+            "run_id": QWEN_RUN_ID,
+            "condition_id": QWEN_CONDITION_ID,
+        }
+        for field, expected in expected_provenance.items():
+            if row.get(field) != expected:
+                raise ValueError(f"Qwen row {video_id} has wrong {field} provenance")
         index[video_id] = row
     return index
 
@@ -648,6 +665,10 @@ __all__ = [
     "CONDITIONS",
     "PHASE0_RUN_ID",
     "QWEN_CONDITION_ID",
+    "QWEN_EXPECTED_ROW_COUNT",
+    "QWEN_MODEL_ID",
+    "QWEN_MODEL_REVISION",
+    "QWEN_RUN_ID",
     "REFERENCE_POLICY",
     "SELECTION_POLICY",
     "SOURCE_REFERENCE_POLICY",
