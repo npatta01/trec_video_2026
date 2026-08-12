@@ -125,9 +125,12 @@ Do not copy, stage, or publish that directory. In particular:
   additive failed-terminal freeze, diagnostic audit, and diagnostic freeze;
 - `verifier-v5-pre-review/` and `verifier-v5-pre-freeze-fix/` are preserved
   offline preparations and did not issue paid calls.
+- `direct-gemini-timeline-v1/` preserves the direct Google API follow-up. It
+  recovered complete event coverage but its answer stage missed the labeled
+  temporal granularity.
 
-The tested same-model draft-plus-verifier mechanism has terminal decision
-`stop_two_stage`: it repeated the known temporal failure and did not authorize
-the seven-video answer screen. Do not rerun or scale that unchanged mechanism.
-The next decision test is an independent verifier or explicit temporal-
-grounding mechanism on the frozen known-bad and known-good maps.
+The tested OpenRouter same-model draft-plus-verifier mechanism has terminal
+decision `stop_two_stage`; do not rerun or scale it. Do not generalize that
+result to Gemini native-video capability: the direct Google follow-up recovered
+the complete sequence. The next test is a small category-balanced direct-API
+annotation sample with answering evaluated separately over frozen timelines.

@@ -3394,11 +3394,12 @@ Method, result, validity risks, and evidence
 <li><strong>Reason for testing:</strong> determine whether reusable question-blind native-AV scene annotations can be quality-gated before question-driven retrieval and answering.</li>
 <li><strong>Tested condition and panel:</strong> one 14.528-second labeled-training video. A frozen Gemini 3.1 Pro native-AV draft with known boundary/coverage errors was passed, with the complete native AV but without the question or labels, to one separate Gemini 3.1 Pro verifier call. There was no retry.</li>
 <li><strong>Observed result:</strong> the verifier cost <code>$0.056864</code>, failed the strict contract on empty uncertainty strings, and—more importantly—left the known temporal failure intact. It ended a sustained state several seconds early, displaced the following transition into that interval, omitted a later interaction, and retained confidence <code>1.0</code>, despite contradictory dense native frames. The event semantics remain only in the private evidence bundle.</li>
-<li><strong>Current condition-bound status:</strong> <strong>Diagnostic; valid negative result</strong> and <strong>Not promoted under the tested condition</strong>. Gate outcome: <code>stop_two_stage</code>.</li>
+<li><strong>Current condition-bound status:</strong> <strong>Diagnostic; valid negative result</strong> and <strong>Not promoted under the tested OpenRouter condition</strong>. Gate outcome: <code>stop_two_stage</code>.</li>
 <li><strong>What this rules out now:</strong> scaling this same-model self-verifier, treating a second pass as an independent temporal gate, or proceeding to the planned seven-video answer screen under the unchanged mechanism.</li>
-<li><strong>What it does not rule out:</strong> reusable question-blind scene maps, a different annotator, an independent verifier, explicit frame/timestamp grounding, or later question-driven retrieval and native-AV answering.</li>
+<li><strong>Direct-API follow-up:</strong> two byte-identical direct Google calls with explicit 4-fps sampling, high resolution, and high thinking recovered the complete sequence and late interaction. The remaining top-1 failure was temporal answer granularity over correct evidence.</li>
+<li><strong>What it does not rule out:</strong> reusable question-blind scene maps or Gemini native video. It isolates the earlier failure to the tested route/verifier.</li>
 <li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—one selected video tests a known failure mechanism but cannot estimate its prevalence.</li>
-<li><strong>Reconsider when:</strong> an independent verifier repairs this known-bad map, preserves a known-good map, and passes the same dense native-media audit.</li>
+<li><strong>Reconsider when:</strong> a small category-balanced direct-API annotation sample passes dense audit and a separate answerer uses those frozen maps correctly.</li>
 </ul>
 <details>
 <summary>

@@ -2191,7 +2191,7 @@ vertical-align: -.125em;
 
 
 <p>Date: 2026-08-12</p>
-<p>Evidence validity: <strong>Diagnostic; valid negative result for the tested same-model verifier</strong></p>
+<p>Evidence validity: <strong>Diagnostic; negative only for the tested OpenRouter same-model verifier, with delivery and schema-projection confounds</strong></p>
 <p>Decision disposition: <strong>Not promoted under the tested condition</strong></p>
 <section id="completed-evidence-record" class="level2">
 <h2 class="anchored" data-anchor-id="completed-evidence-record">Completed evidence record</h2>
@@ -2245,7 +2245,13 @@ vertical-align: -.125em;
 </tr>
 </tbody>
 </table>
-<p>The verifier reproduced the same early endpoint and overlapping transition contradicted by dense native frames. It retained confidence <code>1.0</code>, reported no uncertainty, and did not add the omitted late interaction. This is a negative mechanism result, not merely a JSON-format failure.</p>
+<p>The verifier reproduced the same early endpoint and overlapping transition contradicted by dense native frames. It retained confidence <code>1.0</code>, reported no uncertainty, and did not add the omitted late interaction. This is a negative result for this exact OpenRouter-delivered, draft-anchored verifier—not evidence that Gemini native video is incapable. The provider schema also allowed empty strings that the stricter local contract rejected.</p>
+</section>
+<section id="direct-google-api-follow-up" class="level2">
+<h2 class="anchored" data-anchor-id="direct-google-api-follow-up">Direct Google API follow-up</h2>
+<p>Two identical question-blind Gemini 3.1 Pro Preview calls were then run through Google’s direct Developer API on the same preserved WebM. Both used explicit 4-fps video sampling, high media resolution, high thinking, temperature <code>0</code>, plain text, no draft, and no output schema. Their responses were byte-identical and each request used 15,801 prompt/media tokens, compared with 4,246 total input tokens for the OpenRouter verifier.</p>
+<p>The direct timeline recovered the complete event sequence, including the late interaction and final embrace. It placed the major transition near 10 seconds, although one endpoint remained about 0.75–1.0 seconds early. This overturns any Gemini-capability interpretation of the earlier failure and points instead to delivery/sampling, draft anchoring, and prompt/schema complexity.</p>
+<p>A subsequent question-plus-native-AV answer call still returned the immediate micro-event rather than the labeled broader outcome. A cheap text-only repair over the correct frozen timeline did the same. The remaining canary failure is therefore question interpretation/answer granularity, not missing video evidence.</p>
 </section>
 <section id="cost-and-completion-boundary" class="level2">
 <h2 class="anchored" data-anchor-id="cost-and-completion-boundary">Cost and completion boundary</h2>
@@ -2255,7 +2261,7 @@ vertical-align: -.125em;
 <section id="what-this-rules-out-now" class="level2">
 <h2 class="anchored" data-anchor-id="what-this-rules-out-now">What this rules out now</h2>
 <ul>
-<li>Do not scale the tested same-model draft-plus-verifier architecture to all labeled videos.</li>
+<li>Do not scale the tested OpenRouter same-model draft-plus-verifier condition.</li>
 <li>Do not treat a second Gemini pass as an independent temporal-quality gate.</li>
 <li>Do not use self-reported confidence or round timestamps as acceptance evidence.</li>
 <li>Do not run the v4 verifier, fresh category videos, or the seven-video answer screen under this unchanged mechanism.</li>
@@ -2263,18 +2269,11 @@ vertical-align: -.125em;
 </section>
 <section id="what-it-does-not-rule-out" class="level2">
 <h2 class="anchored" data-anchor-id="what-it-does-not-rule-out">What it does not rule out</h2>
-<p>The result does not show that reusable question-blind scene maps are a bad architecture. It does not rule out a different frontier annotator, a genuinely independent verifier, explicit frame/timestamp boundary evidence, overlapping window coverage for longer clips, or later question-driven evidence retrieval and native-AV answering. It also does not estimate failure prevalence from one video.</p>
+<p>The result does not show that reusable question-blind scene maps or Gemini native video are bad choices. Direct Gemini annotation passed the coverage test on this clip, but one video cannot estimate prevalence and its boundaries were still coarse.</p>
 </section>
 <section id="next-decision-test" class="level2">
 <h2 class="anchored" data-anchor-id="next-decision-test">Next decision test</h2>
-<p>Keep the reusable annotation architecture, but change the quality-control mechanism. The smallest next test is the same known-bad draft plus one independent verifier or explicit temporal-grounding model. Advance only if it:</p>
-<ol type="1">
-<li>cites direct onset/offset evidence;</li>
-<li>restores the known missing interval and late interaction;</li>
-<li>preserves a known-good map without destructive edits; and</li>
-<li>passes the same dense native-media audit.</li>
-</ol>
-<p>Only after that mechanism passes should it run on two or three category- diverse videos and then feed a separate top-1 answerer. Candidate ranking and top-10 serialization remain downstream concerns.</p>
+<p>Keep the reusable annotation architecture and use Google’s direct native-AV route. The next test is a small category-balanced set, with question-blind timeline quality and top-1 answer quality measured separately. Reuse each frozen timeline to test question decomposition and a separate text answerer without paying to reprocess video. Candidate ranking and top-10 serialization remain downstream concerns.</p>
 </section>
 <section id="artifact-retention-and-reproducibility" class="level2">
 <h2 class="anchored" data-anchor-id="artifact-retention-and-reproducibility">Artifact retention and reproducibility</h2>
@@ -2282,6 +2281,7 @@ vertical-align: -.125em;
 <p><code>/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/vqa-frontier-phase0-20260812/</code></p>
 <p>The additive <code>pilot-audit-v5-v2/</code> bundle revalidates the frozen draft while binding the preserved raw response and both per-row reviewer manifests. Its audit and freeze SHA-256 values are <code>5757c2ad3a80dfc00f1e9fff14dea65403dc2718042edd66ed3d7d41e2c5f5c6</code> and <code>f0740a98c1110c098af58ce18842586c1903ff1576f18fc7d30c28e62a344c26</code>.</p>
 <p>The final <code>verifier-v5/</code> directory preserves the manifest, frozen draft, request, two-record attempt ledger, raw response, failed terminal result, additive terminal freeze, diagnostic audit, and diagnostic freeze. The terminal freeze SHA-256 is <code>0df48028449fbcdb9ceffbd72e1ca23b2b6d06c6791d15cd15b726dadea8836b</code>; the diagnostic audit SHA-256 is <code>72d3c6be270ea24c811a5b8db076f8e48bed157d9514b008cc91fbd805a7c49e</code>. These hardening steps were offline revalidation only. No provider rerun or GPU provisioning is needed to inspect the result.</p>
+<p>The <code>direct-gemini-timeline-v1/</code> directory preserves the direct-API timeline and answer calls, metadata, cleanup records, human audit, and checksums. Its audit SHA-256 is <code>fd0b88b7acd5cb61cdba867da5b2974033f22940c6a706410b3049fc7fe7750c</code>.</p>
 </section>
 
 </main>

@@ -3,8 +3,8 @@
 
 Date: 2026-08-12
 
-Evidence validity: **Diagnostic; valid negative result for the tested
-same-model verifier**
+Evidence validity: **Diagnostic; negative only for the tested OpenRouter
+same-model verifier, with delivery and schema-projection confounds**
 
 Decision disposition: **Not promoted under the tested condition**
 
@@ -72,8 +72,33 @@ That inspection failed the scientific gate:
 The verifier reproduced the same early endpoint and overlapping
 transition contradicted by dense native frames. It retained confidence
 `1.0`, reported no uncertainty, and did not add the omitted late
-interaction. This is a negative mechanism result, not merely a
-JSON-format failure.
+interaction. This is a negative result for this exact
+OpenRouter-delivered, draft-anchored verifier—not evidence that Gemini
+native video is incapable. The provider schema also allowed empty
+strings that the stricter local contract rejected.
+
+## Direct Google API follow-up
+
+Two identical question-blind Gemini 3.1 Pro Preview calls were then run
+through Google’s direct Developer API on the same preserved WebM. Both
+used explicit 4-fps video sampling, high media resolution, high
+thinking, temperature `0`, plain text, no draft, and no output schema.
+Their responses were byte-identical and each request used 15,801
+prompt/media tokens, compared with 4,246 total input tokens for the
+OpenRouter verifier.
+
+The direct timeline recovered the complete event sequence, including the
+late interaction and final embrace. It placed the major transition near
+10 seconds, although one endpoint remained about 0.75–1.0 seconds early.
+This overturns any Gemini-capability interpretation of the earlier
+failure and points instead to delivery/sampling, draft anchoring, and
+prompt/schema complexity.
+
+A subsequent question-plus-native-AV answer call still returned the
+immediate micro-event rather than the labeled broader outcome. A cheap
+text-only repair over the correct frozen timeline did the same. The
+remaining canary failure is therefore question interpretation/answer
+granularity, not missing video evidence.
 
 ## Cost and completion boundary
 
@@ -90,8 +115,8 @@ failure.
 
 ## What this rules out now
 
-- Do not scale the tested same-model draft-plus-verifier architecture to
-  all labeled videos.
+- Do not scale the tested OpenRouter same-model draft-plus-verifier
+  condition.
 - Do not treat a second Gemini pass as an independent temporal-quality
   gate.
 - Do not use self-reported confidence or round timestamps as acceptance
@@ -101,28 +126,19 @@ failure.
 
 ## What it does not rule out
 
-The result does not show that reusable question-blind scene maps are a
-bad architecture. It does not rule out a different frontier annotator, a
-genuinely independent verifier, explicit frame/timestamp boundary
-evidence, overlapping window coverage for longer clips, or later
-question-driven evidence retrieval and native-AV answering. It also does
-not estimate failure prevalence from one video.
+The result does not show that reusable question-blind scene maps or
+Gemini native video are bad choices. Direct Gemini annotation passed the
+coverage test on this clip, but one video cannot estimate prevalence and
+its boundaries were still coarse.
 
 ## Next decision test
 
-Keep the reusable annotation architecture, but change the
-quality-control mechanism. The smallest next test is the same known-bad
-draft plus one independent verifier or explicit temporal-grounding
-model. Advance only if it:
-
-1.  cites direct onset/offset evidence;
-2.  restores the known missing interval and late interaction;
-3.  preserves a known-good map without destructive edits; and
-4.  passes the same dense native-media audit.
-
-Only after that mechanism passes should it run on two or three category-
-diverse videos and then feed a separate top-1 answerer. Candidate
-ranking and top-10 serialization remain downstream concerns.
+Keep the reusable annotation architecture and use Google’s direct
+native-AV route. The next test is a small category-balanced set, with
+question-blind timeline quality and top-1 answer quality measured
+separately. Reuse each frozen timeline to test question decomposition
+and a separate text answerer without paying to reprocess video.
+Candidate ranking and top-10 serialization remain downstream concerns.
 
 ## Artifact retention and reproducibility
 
@@ -145,3 +161,8 @@ diagnostic audit SHA-256 is
 `72d3c6be270ea24c811a5b8db076f8e48bed157d9514b008cc91fbd805a7c49e`.
 These hardening steps were offline revalidation only. No provider rerun
 or GPU provisioning is needed to inspect the result.
+
+The `direct-gemini-timeline-v1/` directory preserves the direct-API
+timeline and answer calls, metadata, cleanup records, human audit, and
+checksums. Its audit SHA-256 is
+`fd0b88b7acd5cb61cdba867da5b2974033f22940c6a706410b3049fc7fe7750c`.

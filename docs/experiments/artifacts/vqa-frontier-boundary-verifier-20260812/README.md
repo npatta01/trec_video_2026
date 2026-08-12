@@ -20,6 +20,8 @@ Important private subdirectories:
   additive failed-terminal freeze, diagnostic audit, and diagnostic freeze;
 - `verifier-v5-pre-review/` and `verifier-v5-pre-freeze-fix/`: offline-only
   prepared artifacts superseded before any paid request.
+- `direct-gemini-timeline-v1/`: direct Google API follow-up with two stable
+  question-blind timelines and separate answer-stage diagnostics.
 
 The decisive private records are:
 
@@ -39,5 +41,10 @@ The decisive private records are:
 The v2 audit and terminal freeze were produced entirely offline from the
 already-preserved artifacts. No Gemini rerun, dstack pod, or label access is
 needed to inspect this result.
+
+The later direct-API follow-up recovered complete video coverage, showing that
+the earlier result must not be generalized to Gemini native-video capability.
+Its top-1 answer still failed the labeled temporal granularity expected on this
+row.
 The raw files remain private and untracked; merging this branch exposes this
 sanitized index and the report from the shared checkout.

@@ -202,17 +202,21 @@ and [closed issue #4 · Issue/PR history · GitHub](https://github.com/npatta01/
   and retained confidence `1.0`, despite contradictory dense native frames.
   The event semantics remain only in the private evidence bundle.
 - **Current condition-bound status:** **Diagnostic; valid negative result** and
-  **Not promoted under the tested condition**. Gate outcome: `stop_two_stage`.
+  **Not promoted under the tested OpenRouter condition**. Gate outcome:
+  `stop_two_stage`.
 - **What this rules out now:** scaling this same-model self-verifier, treating
   a second pass as an independent temporal gate, or proceeding to the planned
   seven-video answer screen under the unchanged mechanism.
-- **What it does not rule out:** reusable question-blind scene maps, a
-  different annotator, an independent verifier, explicit frame/timestamp
-  grounding, or later question-driven retrieval and native-AV answering.
+- **Direct-API follow-up:** two byte-identical direct Google calls with explicit
+  4-fps sampling, high resolution, and high thinking recovered the complete
+  sequence and late interaction. The remaining top-1 failure was temporal
+  answer granularity over correct evidence.
+- **What it does not rule out:** reusable question-blind scene maps or Gemini
+  native video. It isolates the earlier failure to the tested route/verifier.
 - **Possible defect, audit gap, or uncertainty:** **Uncertainty**—one selected
   video tests a known failure mechanism but cannot estimate its prevalence.
-- **Reconsider when:** an independent verifier repairs this known-bad map,
-  preserves a known-good map, and passes the same dense native-media audit.
+- **Reconsider when:** a small category-balanced direct-API annotation sample
+  passes dense audit and a separate answerer uses those frozen maps correctly.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>
