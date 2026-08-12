@@ -280,7 +280,9 @@ def prepare_verifier(
     verify_json_artifact(pilot_results_path, dict(pilot_freeze))
     audit_freeze_path = Path(pilot_audit_freeze)
     audit_freeze = _read_json(audit_freeze_path)
-    verify_json_artifact(audit_freeze_path.parent / "audit.json", dict(audit_freeze))
+    audit_path = audit_freeze_path.parent / "audit.json"
+    audit_payload = _read_json(audit_path)
+    verify_json_artifact(audit_path, dict(audit_freeze))
     audit_bindings = audit_freeze.get("bindings")
     if (
         not isinstance(audit_bindings, Mapping)
@@ -290,10 +292,21 @@ def prepare_verifier(
         or audit_bindings.get("run_id") != prepared.run_id
     ):
         raise ValueError("verifier requires the matching revise_contract pilot audit")
-    results = _read_jsonl(source_run / "results" / "neutral_map.jsonl")
+    if (
+        audit_payload.get("prediction_artifact_sha256")
+        != _sha256_file(pilot_results_path)
+        or audit_payload.get("prediction_freeze_sha256")
+        != _sha256_file(pilot_freeze_path)
+    ):
+        raise ValueError("pilot audit does not bind the supplied prediction freeze")
+    pilot_results = _read_json(pilot_results_path)
+    results_value = pilot_results.get("results")
+    if not isinstance(results_value, list):
+        raise ValueError("frozen pilot aggregate has no result list")
     matches = [
         result
-        for result in results
+        for result in results_value
+        if isinstance(result, Mapping)
         if result.get("phase") == "pilot"
         and result.get("video_id") == video_id
         and result.get("condition_id") == "neutral_map"
@@ -332,6 +345,7 @@ def prepare_verifier(
         "source_pilot_freeze_sha256": _sha256_file(pilot_freeze_path),
         "source_audit_freeze": str(audit_freeze_path.resolve()),
         "source_audit_freeze_sha256": _sha256_file(audit_freeze_path),
+        "source_audit_artifact_sha256": _sha256_file(audit_path),
         "draft_map_sha256": draft.sha256,
         "prompt_version": PROMPT_VERSION,
         "prompt_sha256": canonical_sha256(prompt),
@@ -376,6 +390,10 @@ def load_verifier(path: Path) -> PreparedBoundaryVerifier:
     audit_freeze = Path(_text(manifest.get("source_audit_freeze"), "source_audit_freeze"))
     if _sha256_file(audit_freeze) != manifest.get("source_audit_freeze_sha256"):
         raise ValueError("source audit freeze identity changed")
+    if _sha256_file(audit_freeze.parent / "audit.json") != manifest.get(
+        "source_audit_artifact_sha256"
+    ):
+        raise ValueError("source audit artifact identity changed")
     delivery = _delivery_from_manifest(root, manifest)
     verify_delivery_media(delivery)
     prompt = build_verifier_prompt(draft, float(manifest["duration_seconds"]))
@@ -473,11 +491,14 @@ def run_verifier(
             _write_raw(prepared.path / "raw-response.json", prepared, generated)
         if failure_code is None and generated is not None:
             observed_model = generated.provider_metadata.get("model")
-            if observed_model is not None and observed_model not in {
+            observed_provider = generated.provider_metadata.get("provider")
+            if observed_model not in {
                 MODEL_ID,
                 "google/gemini-3.1-pro-preview",
             }:
                 raise BoundaryVerifierError("observed verifier model changed")
+            if not isinstance(observed_provider, str) or not observed_provider.strip():
+                raise BoundaryVerifierError("verifier provider evidence is missing")
             parsed = parse_prompt_json_response(generated.raw_response)
             output = validate_verifier_output(
                 parsed,
@@ -506,6 +527,10 @@ def run_verifier(
             cost = float(reported)
             cost_known = math.isfinite(cost) and cost >= 0
         raw_sha = hashlib.sha256(generated.raw_response.encode("utf-8")).hexdigest()
+    if failure_code is None and not cost_known:
+        failure_code = "provider_evidence"
+    if failure_code is None and cost is not None and cost >= ABSOLUTE_CAP_USD:
+        failure_code = "cost_cap_exceeded"
     status = "succeeded" if output is not None and failure_code is None else "failed"
     result: dict[str, object] = {
         "schema_version": 1,
@@ -521,6 +546,12 @@ def run_verifier(
         "output_tokens": output_tokens,
         "cost_known": cost_known,
         "cost_usd": cost,
+        "provider": None
+        if generated is None
+        else generated.provider_metadata.get("provider"),
+        "observed_model": None
+        if generated is None
+        else generated.provider_metadata.get("model"),
         "validated_output": output,
     }
     _write_json_once(prepared.path / "result.json", result)
@@ -544,10 +575,19 @@ def freeze_verifier(prepared: PreparedBoundaryVerifier | Path) -> dict[str, obje
     freeze_path = prepared.path / "freeze.json"
     if freeze_path.exists():
         freeze = _read_json(freeze_path)
-        verify_json_artifact(prepared.path / "result.json", dict(freeze))
+        _verify_verifier_freeze(prepared, freeze)
         return dict(freeze)
     result = _read_json(prepared.path / "result.json")
-    if result.get("status") != "succeeded" or result.get("cost_known") is not True:
+    if (
+        result.get("status") != "succeeded"
+        or result.get("cost_known") is not True
+        or not isinstance(result.get("cost_usd"), (int, float))
+        or isinstance(result.get("cost_usd"), bool)
+        or float(result["cost_usd"]) >= ABSOLUTE_CAP_USD
+        or not isinstance(result.get("provider"), str)
+        or result.get("observed_model")
+        not in {MODEL_ID, "google/gemini-3.1-pro-preview"}
+    ):
         raise BoundaryVerifierError("only a successful cost-known verifier result can freeze")
     bindings = {
         "runner_id": RUNNER_ID,
@@ -558,7 +598,11 @@ def freeze_verifier(prepared: PreparedBoundaryVerifier | Path) -> dict[str, obje
         "draft_map_sha256": prepared.draft_map.sha256,
     }
     freeze = freeze_json_artifact(prepared.path / "result.json", bindings=bindings)
+    artifact_chain = _artifact_chain(prepared)
+    freeze["artifact_chain"] = artifact_chain
+    freeze["artifact_chain_sha256"] = canonical_sha256(artifact_chain)
     _write_json_once(freeze_path, freeze)
+    _verify_verifier_freeze(prepared, freeze)
     return freeze
 
 
@@ -566,6 +610,11 @@ def status_verifier(prepared: PreparedBoundaryVerifier | Path) -> dict[str, obje
     prepared = load_verifier(prepared) if isinstance(prepared, (str, Path)) else prepared
     result_path = prepared.path / "result.json"
     result = _read_json(result_path) if result_path.is_file() else None
+    frozen = False
+    freeze_path = prepared.path / "freeze.json"
+    if freeze_path.is_file():
+        _verify_verifier_freeze(prepared, _read_json(freeze_path))
+        frozen = True
     return {
         "schema_version": 1,
         "status": "prepared" if result is None else result["status"],
@@ -574,8 +623,47 @@ def status_verifier(prepared: PreparedBoundaryVerifier | Path) -> dict[str, obje
         "terminal_attempts": 0 if result is None else 1,
         "cost_known": False if result is None else result["cost_known"],
         "cost_usd": None if result is None else result["cost_usd"],
-        "frozen": (prepared.path / "freeze.json").is_file(),
+        "frozen": frozen,
     }
+
+
+def _artifact_chain(prepared: PreparedBoundaryVerifier) -> dict[str, str]:
+    """Hash every local and upstream artifact needed to reproduce the call."""
+
+    manifest = prepared.manifest
+    source_run = Path(_text(manifest.get("source_run"), "source_run"))
+    audit_freeze = Path(
+        _text(manifest.get("source_audit_freeze"), "source_audit_freeze")
+    )
+    paths = {
+        "manifest": prepared.path / "manifest.json",
+        "draft_map": prepared.path / "draft-map.json",
+        "request": prepared.path / "request.json",
+        "attempts": prepared.path / "attempts.jsonl",
+        "raw_response": prepared.path / "raw-response.json",
+        "result": prepared.path / "result.json",
+        "delivery_media": prepared.delivery.path,
+        "delivery_provenance": prepared.delivery.provenance_path,
+        "source_media": prepared.source_path,
+        "source_pilot_results": source_run / "pilot-results.json",
+        "source_pilot_freeze": source_run / "pilot-freeze.json",
+        "source_audit": audit_freeze.parent / "audit.json",
+        "source_audit_freeze": audit_freeze,
+    }
+    return {name: _sha256_file(path) for name, path in sorted(paths.items())}
+
+
+def _verify_verifier_freeze(
+    prepared: PreparedBoundaryVerifier, freeze: Mapping[str, object]
+) -> None:
+    verify_json_artifact(prepared.path / "result.json", dict(freeze))
+    chain = freeze.get("artifact_chain")
+    if not isinstance(chain, Mapping):
+        raise ValueError("verifier freeze artifact chain is missing")
+    if freeze.get("artifact_chain_sha256") != canonical_sha256(chain):
+        raise ValueError("verifier freeze artifact chain binding changed")
+    if dict(chain) != _artifact_chain(prepared):
+        raise ValueError("verifier frozen artifact chain changed")
 
 
 def _delivery_from_manifest(root: Path, manifest: Mapping[str, object]) -> DeliveryMedia:

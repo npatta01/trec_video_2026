@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from trec_video_2026.vqa_frontier_boundary_verifier import (
+    BoundaryVerifierError,
     PROVIDER_VERIFIER_SCHEMA,
     VERIFIER_POLICY,
     PreparedBoundaryVerifier,
@@ -188,12 +189,24 @@ def prepared_fixture(tmp_path: Path) -> PreparedBoundaryVerifier:
     provenance = root / "delivery.json"
     provenance.write_text("{}", encoding="utf-8")
     draft = validate_neutral_map(neutral_map(), 4.0)
+    source_run = root / "source-run"
+    source_run.mkdir()
+    (source_run / "pilot-results.json").write_text("{}", encoding="utf-8")
+    (source_run / "pilot-freeze.json").write_text("{}", encoding="utf-8")
+    audit = root / "source-audit"
+    audit.mkdir()
+    (audit / "audit.json").write_text("{}", encoding="utf-8")
+    (audit / "freeze.json").write_text("{}", encoding="utf-8")
     manifest = {
         "video_id": "pilot-video",
         "duration_seconds": 4.0,
         "source_sha256": digest,
+        "source_run": str(source_run),
+        "source_audit_freeze": str(audit / "freeze.json"),
         "projected_call_cost_usd": 0.5,
     }
+    (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (root / "draft-map.json").write_text(json.dumps(draft.to_dict()), encoding="utf-8")
     delivery = DeliveryMedia(
         path=media,
         provenance_path=provenance,
@@ -213,6 +226,7 @@ def test_one_call_runner_preserves_raw_freezes_and_refuses_retry(tmp_path: Path)
     response = FakeResponse(
         {
             "model": "google/gemini-3.1-pro-preview",
+            "provider": "Google AI Studio",
             "choices": [
                 {
                     "finish_reason": "stop",
@@ -246,3 +260,121 @@ def test_one_call_runner_preserves_raw_freezes_and_refuses_retry(tmp_path: Path)
     assert status_verifier(prepared)["terminal_attempts"] == 1
     with pytest.raises(FileExistsError):
         run_verifier(prepared, transport)
+
+
+@pytest.mark.parametrize(
+    ("provider", "cost", "failure_code"),
+    [
+        (None, 0.05, "provider_failure"),
+        ("Google AI Studio", 30.0, "cost_cap_exceeded"),
+    ],
+)
+def test_terminal_provider_evidence_and_cap_failures_cannot_freeze(
+    tmp_path: Path,
+    provider: str | None,
+    cost: float,
+    failure_code: str,
+) -> None:
+    prepared = prepared_fixture(tmp_path)
+    response_payload: dict[str, Any] = {
+        "model": "google/gemini-3.1-pro-preview",
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"role": "assistant", "content": json.dumps(verifier_output())},
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 200,
+            "total_tokens": 300,
+            "cost": cost,
+        },
+    }
+    if provider is not None:
+        response_payload["provider"] = provider
+    opener = FakeOpener(FakeResponse(response_payload))
+    transport = OpenRouterTransport("fixture-key", opener=opener, policy=VERIFIER_POLICY)
+
+    result = run_verifier(prepared, transport)
+
+    assert result["status"] == "failed"
+    assert result["failure_code"] == failure_code
+    assert len(opener.requests) == 1
+    with pytest.raises(BoundaryVerifierError):
+        freeze_verifier(prepared)
+
+
+def test_terminal_schema_failure_is_preserved_without_retry(tmp_path: Path) -> None:
+    prepared = prepared_fixture(tmp_path)
+    opener = FakeOpener(
+        FakeResponse(
+            {
+                "model": "google/gemini-3.1-pro-preview",
+                "provider": "Google AI Studio",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "role": "assistant",
+                            "content": json.dumps({"schema_version": 1}),
+                        },
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 10,
+                    "total_tokens": 20,
+                    "cost": 0.01,
+                },
+            }
+        )
+    )
+    transport = OpenRouterTransport("fixture-key", opener=opener, policy=VERIFIER_POLICY)
+
+    result = run_verifier(prepared, transport)
+
+    assert result["status"] == "failed"
+    assert result["failure_code"] == "schema_validation"
+    assert (prepared.path / "raw-response.json").is_file()
+    assert len(opener.requests) == 1
+    with pytest.raises(FileExistsError):
+        run_verifier(prepared, transport)
+
+
+def test_freeze_detects_request_or_raw_response_tampering(tmp_path: Path) -> None:
+    prepared = prepared_fixture(tmp_path)
+    opener = FakeOpener(
+        FakeResponse(
+            {
+                "model": "google/gemini-3.1-pro-preview",
+                "provider": "Google AI Studio",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "role": "assistant",
+                            "content": json.dumps(verifier_output()),
+                        },
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 100,
+                    "completion_tokens": 200,
+                    "total_tokens": 300,
+                    "cost": 0.05,
+                },
+            }
+        )
+    )
+    transport = OpenRouterTransport("fixture-key", opener=opener, policy=VERIFIER_POLICY)
+    run_verifier(prepared, transport)
+    freeze_verifier(prepared)
+    request = json.loads((prepared.path / "request.json").read_text())
+    request["temperature"] = 0.5
+    (prepared.path / "request.json").write_text(json.dumps(request), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="artifact chain"):
+        freeze_verifier(prepared)
+    with pytest.raises(ValueError, match="artifact chain"):
+        status_verifier(prepared)
