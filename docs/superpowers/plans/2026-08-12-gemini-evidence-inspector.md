@@ -52,4 +52,4 @@
 - [x] Render the private page and create only the narrow symlink to the existing seven-row bundle.
 - [x] Add one portal-index link without altering unrelated entries.
 - [x] Verify focused tests, Ruff, `git diff --check`, seven case IDs in generated HTML, HTTP 200 for page/video/frame URLs, and `tailscale serve status` showing the existing tailnet HTTPS mapping.
-- [ ] Commit and push only tracked generator/test/plan changes; keep generated page, portal index, symlink, and private media untracked.
+- [x] Commit and push only tracked generator/test/plan changes; keep generated page, portal index, symlink, and private media untracked.
