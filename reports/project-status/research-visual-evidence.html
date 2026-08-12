@@ -3334,6 +3334,7 @@ break-inside: avoid;
 <section id="what-has-been-tried" class="level2">
 <h2 class="anchored" data-anchor-id="what-has-been-tried">What has been tried</h2>
 <p>The <a href="../experiments/2026-08-10-vqa-plaintext-full-panel.qmd">2026-08-10 full-panel AV timeline and scene-selection diagnostic</a> is the canonical dated record for the complete 475-video event-map pass. It completed 474/475 maps and 462/475 selector answers, but was <strong>Not promoted under the tested condition</strong>: the failed rows had answer-relevant evidence, which shifts the next test toward multi-scene context and downstream answer use rather than another one-shot selector.</p>
+<p>The related <a href="../vqa-frontier-boundary-verifier-20260812.html">2026-08-12 question-blind boundary-verifier diagnostic</a> found that a second Gemini pass repeated a known scene-boundary error on one video. Routing owns that claim; for temporal evidence, it means same-model self-agreement is not a valid acceptance gate for scene maps.</p>
 <section id="gemini-native-av-event-map-canary" class="level3">
 <h3 class="anchored" data-anchor-id="gemini-native-av-event-map-canary">Gemini native-AV event-map canary</h3>
 <ul>

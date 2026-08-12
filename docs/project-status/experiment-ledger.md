@@ -168,7 +168,7 @@ aria-label="Scrollable research theme status matrix" tabindex="0">
 | [Speech](research-speech-transcripts.md#current-working-answer) | Adds spoken words with explicit provenance | [Whisper ablation](research-speech-transcripts.md#automatic-transcript-ablation) | **Use selectively:** accepted Whisper | **Blocked:** human tier; **Possible:** alternate ASR | [Selective Whisper route](research-speech-transcripts.md#distribution-level-selective-whisper) |
 | [Native audio](research-native-audio.md#current-working-answer) | Preserves prosody and non-speech sound | [Audio on/off](research-native-audio.md#minicpm-audio-on-off) | **Do not default:** global audio on | **Possible:** routed sound/prosody | [Specialist panel](research-native-audio.md#matched-native-audio-specialist-panel) |
 | [Models](research-models.md#current-working-answer) | Separates compatibility, quality, and adaptation | [Candidate screens](research-models.md#failure-panel) | **Use:** Qwen3.5-4B; **Fast:** MiniCPM-o | **Possible:** repaired/specialist model or adaptation | [Bottleneck-first decision](research-models.md#bottleneck-first-adaptation-decision) |
-| [Routing](research-routing.md#current-working-answer) | Chooses evidence and separates retrieval from answering | [Route seeds](research-routing.md#taxonomy-audit) | **Use:** baseline fallback; router unvalidated | **Possible:** fusion and answer election | [Three-way measurement](research-routing.md#required-evidence-labels-and-three-way-measurement) |
+| [Routing](research-routing.md#current-working-answer) | Chooses evidence and separates retrieval from answering | [Route seeds](research-routing.md#taxonomy-audit) | **Use:** baseline fallback; router unvalidated | **Do not promote:** same-model map self-verifier | [Independent boundary verifier](research-routing.md#independent-scene-boundary-verifier) |
 
 </div>
 
@@ -329,10 +329,13 @@ reference, not a prescribed research sequence.
     path](research-models.md#repaired-complete-neutral-qwen3-omni-run),
     or [measure the bottleneck before
     adapting](research-models.md#bottleneck-first-adaptation-decision).
-6.  **Routing, fusion, and answer election:** [measure retrieval,
-    oracle-evidence answering, and end-to-end answering
-    separately](research-routing.md#required-evidence-labels-and-three-way-measurement),
-    then test election only if evidence paths are stable.
+6.  **Routing, fusion, and answer election:** first test an [independent
+    scene-boundary
+    verifier](research-routing.md#independent-scene-boundary-verifier),
+    then [measure retrieval, oracle-evidence answering, and end-to-end
+    answering
+    separately](research-routing.md#required-evidence-labels-and-three-way-measurement);
+    test election only if evidence paths are stable.
 
 <span id="how-to-interpret-results" class="legacy-fragment-alias"
 aria-hidden="true"></span>

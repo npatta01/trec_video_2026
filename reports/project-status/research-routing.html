@@ -3310,13 +3310,13 @@ break-inside: avoid;
 </section>
 <section id="current-working-answer" class="level2">
 <h2 class="anchored" data-anchor-id="current-working-answer">Current working answer</h2>
-<p>Use the visual baseline unless a declared, quality-gated specialist condition applies. Existing taxonomy tags are <strong>Diagnostic signal</strong> for experiment design, not a validated deployment policy. A future router must abstain to the baseline when uncertain and pass route-level non-regression before it becomes a default decision rule.</p>
+<p>Use the visual baseline unless a declared, quality-gated specialist condition applies. Existing taxonomy tags are <strong>Diagnostic signal</strong> for experiment design, not a validated deployment policy. A future router must abstain to the baseline when uncertain and pass route-level non-regression before it becomes a default decision rule. A same-model Gemini draft-plus-verifier pass is now a tested negative: its second pass repeated a known temporal error, so map acceptance must use independent evidence rather than self-agreement.</p>
 <div class="theme-decision-strip" aria-label="Routing decisions">
 <ul>
 <li><strong>Use now:</strong> visual baseline fallback and selective accepted Whisper for declared lexical speech.</li>
-<li><strong>Do not default:</strong> taxonomy tags as if they were a validated router, or an ensemble before evidence paths are measured.</li>
+<li><strong>Do not default:</strong> taxonomy tags as if they were a validated router, an ensemble before evidence paths are measured, or same-model map self-verification.</li>
 <li><strong>Still possible:</strong> abstaining multi-label routing, grounded fusion, and evidence-aware answer election.</li>
-<li><strong>Next test:</strong> measure selector recall, oracle-evidence answering, and end-to-end answering separately.</li>
+<li><strong>Next test:</strong> test an independent boundary verifier on the frozen known-bad map, then measure selector recall, oracle-evidence answering, and end-to-end answering separately.</li>
 </ul>
 </div>
 </section>
@@ -3388,6 +3388,26 @@ Method, result, validity risks, and evidence
 <strong>Retrieval failure</strong> means the needed frame, transcript span, sound, or crop was not selected. <strong>Fusion/reasoning failure</strong> means the needed evidence was available but the model still combined it incorrectly or chose the wrong answer. The literature map recommends selector recall, oracle-evidence answer quality, and end-to-end answer quality precisely to tell these apart. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/queries/literature_review.sql">research-thread source · Evidence of record · Evidence report · GitHub</a> and <a href="https://github.com/npatta01/trec_video_2026/issues/4">closed issue #4 · Issue/PR history · GitHub</a>.
 </details>
 </section>
+<section id="frontier-boundary-verifier" class="level3">
+<h3 class="anchored" data-anchor-id="frontier-boundary-verifier">Question-blind scene-map boundary verifier</h3>
+<ul>
+<li><strong>Reason for testing:</strong> determine whether reusable question-blind native-AV scene annotations can be quality-gated before question-driven retrieval and answering.</li>
+<li><strong>Tested condition and panel:</strong> one 14.528-second labeled-training video. A frozen Gemini 3.1 Pro native-AV draft with known boundary/coverage errors was passed, with the complete native AV but without the question or labels, to one separate Gemini 3.1 Pro verifier call. There was no retry.</li>
+<li><strong>Observed result:</strong> the verifier cost <code>$0.056864</code>, failed the strict contract on empty uncertainty strings, and—more importantly—left the known temporal failure intact. It ended a sustained state several seconds early, displaced the following transition into that interval, omitted a later interaction, and retained confidence <code>1.0</code>, despite contradictory dense native frames. The event semantics remain only in the private evidence bundle.</li>
+<li><strong>Current condition-bound status:</strong> <strong>Diagnostic; valid negative result</strong> and <strong>Not promoted under the tested condition</strong>. Gate outcome: <code>stop_two_stage</code>.</li>
+<li><strong>What this rules out now:</strong> scaling this same-model self-verifier, treating a second pass as an independent temporal gate, or proceeding to the planned seven-video answer screen under the unchanged mechanism.</li>
+<li><strong>What it does not rule out:</strong> reusable question-blind scene maps, a different annotator, an independent verifier, explicit frame/timestamp grounding, or later question-driven retrieval and native-AV answering.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—one selected video tests a known failure mechanism but cannot estimate its prevalence.</li>
+<li><strong>Reconsider when:</strong> an independent verifier repairs this known-bad map, preserves a known-good map, and passes the same dense native-media audit.</li>
+</ul>
+<details>
+<summary>
+Method, result, validity risks, and evidence
+</summary>
+<p>The v5 draft audit froze <code>revise_contract</code> before the verifier call. Sol, Claude Fable, and Gemini 3.1 Pro High independently recommended the one-call verifier gate. The reviewed runner bound the exact prediction and audit freezes, content-addressed media identity, provider/model/cost evidence, and a one-attempt artifact chain. The final focused/regression suite passed 142 tests. The response’s corrected map was locally valid, allowing inspection without relabeling the terminal <code>schema_validation</code> result.</p>
+<p>The complete raw evidence is private; see the <a href="../vqa-frontier-boundary-verifier-20260812.html">rendered dated diagnostic</a>. Its tracked sanitized index is <code>docs/experiments/artifacts/vqa-frontier-boundary-verifier-20260812/</code>.</p>
+</details>
+</section>
 <section id="answer-election" class="level3">
 <h3 class="anchored" data-anchor-id="answer-election">Evidence-aware answer election</h3>
 <ul>
@@ -3454,6 +3474,16 @@ An election mechanism cannot repair missing evidence, and exact-string voting ca
 </section>
 <section id="cheapest-valid-next-experiments" class="level2">
 <h2 class="anchored" data-anchor-id="cheapest-valid-next-experiments">Cheapest valid next experiments</h2>
+<section id="independent-scene-boundary-verifier" class="level3">
+<h3 class="anchored" data-anchor-id="independent-scene-boundary-verifier">Independent scene-boundary verifier</h3>
+<ul>
+<li><strong>Hypothesis:</strong> an independent verifier or explicit temporal-grounding model can catch an annotator’s omitted states and displaced onsets/offsets without anchoring on the draft narrative.</li>
+<li><strong>Smallest valid panel or work item:</strong> the frozen known-bad v5 map and known- good v4 map for the same video; only after both pass, add two or three category-diverse videos.</li>
+<li><strong>Matched controls and integrity safeguards:</strong> keep native AV, draft hashes, question blindness, boundary rubric, and dense audit fixed; require the verifier to cite direct timestamp evidence and freeze every raw response before audit.</li>
+<li><strong>Decision or promotion rule:</strong> advance only if it repairs the known v5 errors, preserves v4’s supported events, adds no material false correction, and expresses uncertainty for coarse boundaries.</li>
+<li><strong>Boundary on what a positive result would establish:</strong> viability of that verifier mechanism on a selected diagnostic, not general annotation quality or answer accuracy.</li>
+</ul>
+</section>
 <section id="versioned-label-blind-router" class="level3">
 <h3 class="anchored" data-anchor-id="versioned-label-blind-router">Versioned label-blind router</h3>
 <ul>

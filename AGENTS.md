@@ -97,3 +97,35 @@ misrepresented as a completed blinded audit. The two-row metrics are diagnostic,
 single-answer NDCG is degenerate, and no independent audio check was performed.
 Reka did not run because the supplied authenticated credential returned HTTP
 403. Do not retry it without a new credential or confirmed account permission.
+
+## Frontier scene-map boundary-verifier artifact reference
+
+The completed 2026-08-12 question-blind Gemini scene-map and boundary-verifier
+diagnostic is documented in
+[`docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd`](docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd).
+Its sanitized tracked index is under
+[`docs/experiments/artifacts/vqa-frontier-boundary-verifier-20260812/`](docs/experiments/artifacts/vqa-frontier-boundary-verifier-20260812/).
+
+After this branch is merged to `main`, those tracked records are available from
+the shared checkout at:
+
+- report: `/home/npatta01/data/competitions/trec_video_2026/docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd`;
+- sanitized index: `/home/npatta01/data/competitions/trec_video_2026/docs/experiments/artifacts/vqa-frontier-boundary-verifier-20260812/`.
+
+The complete private evidence is already in the canonical shared dataset at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/vqa-frontier-phase0-20260812/`.
+Do not copy, stage, or publish that directory. In particular:
+
+- `run-v5/` preserves the final one-pass question-blind annotation draft;
+- `pilot-audit-v5/` and `pilot-audit-v5-manual-review/` preserve the frozen
+  `revise_contract` decision and dense 4-fps review sheets;
+- `verifier-v5/` preserves the sole paid verifier call, raw response, result,
+  diagnostic audit, and diagnostic freeze;
+- `verifier-v5-pre-review/` and `verifier-v5-pre-freeze-fix/` are preserved
+  offline preparations and did not issue paid calls.
+
+The tested same-model draft-plus-verifier mechanism has terminal decision
+`stop_two_stage`: it repeated the known temporal failure and did not authorize
+the seven-video answer screen. Do not rerun or scale that unchanged mechanism.
+The next decision test is an independent verifier or explicit temporal-
+grounding mechanism on the frozen known-bad and known-good maps.

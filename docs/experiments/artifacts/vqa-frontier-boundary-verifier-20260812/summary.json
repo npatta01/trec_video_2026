@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "experiment_id": "vqa-frontier-boundary-verifier-20260812",
+  "date": "2026-08-12",
+  "primary_theme": "routing-fusion-answer-selection",
+  "evidence_validity": "diagnostic-valid-negative",
+  "decision_disposition": "not_promoted_under_tested_condition",
+  "panel": {
+    "videos": 1,
+    "video_id_disclosed": false,
+    "source_duration_seconds": 14.528,
+    "labels_or_references_used": false,
+    "question_used_by_annotator_or_verifier": false
+  },
+  "conditions": {
+    "draft_annotator": "Gemini 3.1 Pro native AV, question blind, one pass",
+    "verifier": "Gemini 3.1 Pro native AV plus frozen draft map, question blind, one pass"
+  },
+  "predeclared_gate": {
+    "must_restore_omitted_extended_state": true,
+    "must_correct_displaced_6_to_10_second_boundary": true,
+    "must_not_introduce_material_false_correction": true
+  },
+  "observed": {
+    "verifier_calls": 1,
+    "retries": 0,
+    "provider_model": "google/gemini-3.1-pro-preview",
+    "verifier_cost_usd": 0.056864,
+    "final_v5_pilot_plus_verifier_cost_usd": 0.102772,
+    "all_observed_phase0_attempt_cost_usd": 0.972344,
+    "strict_contract_status": "failed_schema_validation",
+    "strict_contract_gap": "empty uncertainty strings",
+    "corrected_map_locally_valid": true,
+    "restored_omitted_extended_state": false,
+    "corrected_displaced_boundary": false,
+    "captured_late_interaction": false,
+    "reduced_overconfidence": false,
+    "gate_outcome": "stop_two_stage"
+  },
+  "private_evidence": {
+    "root": "/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/vqa-frontier-phase0-20260812/",
+    "final_draft_run": "run-v5/",
+    "draft_audit": "pilot-audit-v5/",
+    "dense_manual_review": "pilot-audit-v5-manual-review/",
+    "verifier_run": "verifier-v5/",
+    "diagnostic_audit_sha256": "72d3c6be270ea24c811a5b8db076f8e48bed157d9514b008cc91fbd805a7c49e"
+  },
+  "next_decision": "Do not scale same-model draft-plus-verifier. Test an independent verifier or an explicit temporal-grounding mechanism on a few videos before any answer screen."
+}

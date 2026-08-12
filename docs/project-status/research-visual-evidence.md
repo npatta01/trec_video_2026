@@ -100,6 +100,12 @@ promoted under the tested condition**: the failed rows had
 answer-relevant evidence, which shifts the next test toward multi-scene
 context and downstream answer use rather than another one-shot selector.
 
+The related [2026-08-12 question-blind boundary-verifier
+diagnostic](../experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd)
+found that a second Gemini pass repeated a known scene-boundary error on
+one video. Routing owns that claim; for temporal evidence, it means
+same-model self-agreement is not a valid acceptance gate for scene maps.
+
 ### Gemini native-AV event-map canary
 
 - **Reason for testing:** determine whether one frontier
