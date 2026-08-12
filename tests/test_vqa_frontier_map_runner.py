@@ -565,10 +565,21 @@ def test_raw_response_install_race_accepts_identical_payload(
     target = prepared.path / "raw/gemini/preflight-001.json"
     original_link = runner_module.os.link
 
-    def racing_link(source: object, destination: object) -> None:
-        if Path(destination) == target:
-            target.write_bytes(Path(source).read_bytes())
-        original_link(source, destination)
+    def racing_link(
+        source: object, destination: object, *args: object, **kwargs: object
+    ) -> None:
+        if Path(destination).name == target.name:
+            if "src_dir_fd" in kwargs:
+                source_fd = os.open(
+                    str(source), os.O_RDONLY, dir_fd=int(kwargs["src_dir_fd"])
+                )
+                try:
+                    target.write_bytes(os.read(source_fd, 1_000_000))
+                finally:
+                    os.close(source_fd)
+            else:
+                target.write_bytes(Path(source).read_bytes())
+        original_link(source, destination, *args, **kwargs)
 
     monkeypatch.setattr(runner_module.os, "link", racing_link)
 
@@ -589,10 +600,12 @@ def test_raw_response_install_race_preserves_conflicting_paid_payload(
     target = prepared.path / "raw/gemini/preflight-001.json"
     original_link = runner_module.os.link
 
-    def racing_link(source: object, destination: object) -> None:
-        if Path(destination) == target:
+    def racing_link(
+        source: object, destination: object, *args: object, **kwargs: object
+    ) -> None:
+        if Path(destination).name == target.name:
             target.write_text('{"stale":true}\n', encoding="utf-8")
-        original_link(source, destination)
+        original_link(source, destination, *args, **kwargs)
 
     monkeypatch.setattr(runner_module.os, "link", racing_link)
 
@@ -644,6 +657,97 @@ def test_raw_conflict_directory_symlink_is_not_followed(tmp_path: Path) -> None:
     assert json.loads(fallbacks[0].read_text(encoding="utf-8"))["raw_response"] == (
         "current paid response"
     )
+
+
+def test_legacy_install_uses_descriptor_relative_no_follow_links(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prepared = prepare_fixture_run(tmp_path, evaluation_rows=0, preflight_rows=1)
+    original_link = runner_module.os.link
+    calls: list[tuple[object, object, dict[str, object]]] = []
+
+    def recording_link(
+        source: object, destination: object, *args: object, **kwargs: object
+    ) -> object:
+        calls.append((source, destination, kwargs))
+        return original_link(source, destination, *args, **kwargs)
+
+    monkeypatch.setattr(runner_module.os, "link", recording_link)
+    runner_module._write_raw_response(
+        prepared, "gemini", "preflight-001", "first paid response"
+    )
+    target = prepared.path / "raw/gemini/preflight-001.json"
+    target.write_text('{"stale":true}\n', encoding="utf-8")
+    with pytest.raises(AmbiguousStartedAttemptError, match="preserved"):
+        runner_module._write_raw_response(
+            prepared, "gemini", "preflight-001", "second paid response"
+        )
+
+    assert calls
+    assert all(not Path(source).is_absolute() for source, _, _ in calls)
+    assert all(not Path(destination).is_absolute() for _, destination, _ in calls)
+    assert all(
+        call_kwargs.get("src_dir_fd") is not None
+        and call_kwargs.get("dst_dir_fd") is not None
+        and call_kwargs.get("follow_symlinks") is False
+        for _, _, call_kwargs in calls
+    )
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_legacy_and_shared_verifiers_reject_symlinked_parent(
+    tmp_path: Path, legacy: bool
+) -> None:
+    actual = tmp_path / "actual"
+    actual.mkdir()
+    raw_response = "original"
+    if legacy:
+        prepared = prepare_fixture_run(actual, evaluation_rows=0, preflight_rows=1)
+        runner_module._write_raw_response(
+            prepared, "gemini", "preflight-001", raw_response
+        )
+        path = actual / "raw" / "gemini" / "preflight-001.json"
+
+        def verify(candidate: Path) -> None:
+            runner_module._verify_raw_response_record(
+                candidate,
+                run_id=prepared.run_id,
+                provider="gemini",
+                video_id="preflight-001",
+                response_sha256=hashlib.sha256(
+                    raw_response.encode("utf-8")
+                ).hexdigest(),
+            )
+    else:
+        from trec_video_2026.vqa_frontier_response_store import (
+            preserve_raw_response,
+            verify_raw_response,
+        )
+
+        preserve_raw_response(
+            actual,
+            run_id="r",
+            condition_id="neutral_map",
+            video_id="v",
+            raw_response=raw_response,
+        )
+        path = actual / "raw" / "neutral_map" / "v.json"
+
+        def verify(candidate: Path) -> None:
+            verify_raw_response(
+                candidate,
+                run_id="r",
+                condition_id="neutral_map",
+                video_id="v",
+                response_sha256=hashlib.sha256(
+                    raw_response.encode("utf-8")
+                ).hexdigest(),
+            )
+    alias = tmp_path / ("legacy-alias" if legacy else "shared-alias")
+    alias.symlink_to(actual, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        verify(alias / path.relative_to(actual))
 
 
 def test_exact_json_markdown_envelope_is_unwrapped_without_content_repair() -> None:

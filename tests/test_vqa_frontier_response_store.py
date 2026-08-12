@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -203,3 +205,144 @@ def test_verify_raw_response_rejects_wrong_transport_hash(tmp_path: Path) -> Non
             video_id="v",
             response_sha256=hashlib.sha256(b"different").hexdigest(),
         )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing_schema_version",
+        "wrong_schema_version",
+        "boolean_schema_version",
+        "extra_field",
+    ],
+)
+def test_verify_raw_response_requires_exact_typed_record_shape(
+    tmp_path: Path, mutation: str
+) -> None:
+    raw_response = "original"
+    preserve_raw_response(
+        tmp_path,
+        run_id="r",
+        condition_id="neutral_map",
+        video_id="v",
+        raw_response=raw_response,
+    )
+    target = tmp_path / "raw" / "neutral_map" / "v.json"
+    record = json.loads(target.read_text(encoding="utf-8"))
+    if mutation == "missing_schema_version":
+        del record["schema_version"]
+    elif mutation == "wrong_schema_version":
+        record["schema_version"] = 2
+    elif mutation == "boolean_schema_version":
+        record["schema_version"] = True
+    else:
+        record["extra_field"] = "unexpected"
+    target.write_text(json.dumps(record), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="record shape"):
+        verify_raw_response(
+            target,
+            run_id="r",
+            condition_id="neutral_map",
+            video_id="v",
+            response_sha256=hashlib.sha256(raw_response.encode("utf-8")).hexdigest(),
+        )
+
+
+def test_verify_raw_response_rejects_symlinked_parent_directory(
+    tmp_path: Path,
+) -> None:
+    actual = tmp_path / "actual"
+    actual.mkdir()
+    raw_response = "original"
+    preserve_raw_response(
+        actual,
+        run_id="r",
+        condition_id="neutral_map",
+        video_id="v",
+        raw_response=raw_response,
+    )
+    alias = tmp_path / "alias"
+    alias.symlink_to(actual, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        verify_raw_response(
+            alias / "raw" / "neutral_map" / "v.json",
+            run_id="r",
+            condition_id="neutral_map",
+            video_id="v",
+            response_sha256=hashlib.sha256(raw_response.encode("utf-8")).hexdigest(),
+        )
+
+
+def test_invalid_utf8_response_does_not_create_a_record(tmp_path: Path) -> None:
+    with pytest.raises(UnicodeDecodeError):
+        preserve_raw_response(
+            tmp_path,
+            run_id="r",
+            condition_id="neutral_map",
+            video_id="v",
+            raw_response=b"invalid\xff",
+        )
+
+    assert not (tmp_path / "raw").exists()
+
+
+def test_invalid_utf8_response_does_not_overwrite_a_record(tmp_path: Path) -> None:
+    preserve_raw_response(
+        tmp_path,
+        run_id="r",
+        condition_id="neutral_map",
+        video_id="v",
+        raw_response="original",
+    )
+    target = tmp_path / "raw" / "neutral_map" / "v.json"
+    before = target.read_bytes()
+
+    with pytest.raises(UnicodeDecodeError):
+        preserve_raw_response(
+            tmp_path,
+            run_id="r",
+            condition_id="neutral_map",
+            video_id="v",
+            raw_response=b"invalid\xff",
+        )
+
+    assert target.read_bytes() == before
+
+
+def test_shared_install_race_is_idempotent_with_descriptor_relative_links(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    barrier = threading.Barrier(2, timeout=5)
+    original_link = __import__(
+        "trec_video_2026.vqa_frontier_response_store", fromlist=["os"]
+    ).os.link
+
+    def synchronized_link(
+        source: object, destination: object, *args: object, **kwargs: object
+    ) -> None:
+        assert kwargs["src_dir_fd"] is not None
+        assert kwargs["dst_dir_fd"] is not None
+        barrier.wait()
+        original_link(source, destination, *args, **kwargs)
+
+    response_store_module = __import__(
+        "trec_video_2026.vqa_frontier_response_store", fromlist=["os"]
+    )
+    monkeypatch.setattr(response_store_module.os, "link", synchronized_link)
+
+    def install() -> object:
+        return preserve_raw_response(
+            tmp_path,
+            run_id="r",
+            condition_id="neutral_map",
+            video_id="v",
+            raw_response="same",
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: install(), range(2)))
+
+    assert results[0] == results[1]
+    assert len(list((tmp_path / "raw" / "neutral_map").glob("*.json"))) == 1

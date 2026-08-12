@@ -58,7 +58,6 @@ def preserve_raw_response(
         record_identity_key="condition_id",
         conflict_layout="nested",
         fallback_on_conflict_symlink=False,
-        legacy_path=None,
     )
 
 
@@ -101,7 +100,6 @@ def _preserve_legacy_raw_response(
         record_identity_key="provider",
         conflict_layout="legacy",
         fallback_on_conflict_symlink=True,
-        legacy_path=root,
     )
 
 
@@ -133,7 +131,6 @@ def _preserve_raw_response(
     record_identity_key: Literal["condition_id", "provider"],
     conflict_layout: Literal["nested", "legacy"],
     fallback_on_conflict_symlink: bool,
-    legacy_path: Path | None,
 ) -> Mapping[str, object]:
     _validate_path_segment(condition_id, "condition_id")
     _validate_path_segment(video_id, "video_id")
@@ -170,7 +167,6 @@ def _preserve_raw_response(
                 rendered=rendered,
                 layout=conflict_layout,
                 fallback_on_symlink=fallback_on_conflict_symlink,
-                root_path=legacy_path,
             )
             raise RawResponseConflictError(
                 f"raw response path conflicts with the paid response; current response preserved at {preserved}"
@@ -181,11 +177,6 @@ def _preserve_raw_response(
                 condition_fd,
                 target_name,
                 rendered,
-                directory_path=(
-                    legacy_path / "raw" / condition_id
-                    if legacy_path is not None
-                    else None
-                ),
             )
         except FileExistsError:
             existing = _read_json_at(condition_fd, target_name)
@@ -199,7 +190,6 @@ def _preserve_raw_response(
                 rendered=rendered,
                 layout=conflict_layout,
                 fallback_on_symlink=fallback_on_conflict_symlink,
-                root_path=legacy_path,
             )
             raise RawResponseConflictError(
                 f"raw response path conflicts with the paid response; current response preserved at {preserved}"
@@ -215,7 +205,6 @@ def _preserve_raw_response(
                 rendered=rendered,
                 layout=conflict_layout,
                 fallback_on_symlink=fallback_on_conflict_symlink,
-                root_path=legacy_path,
             )
             raise RawResponseConflictError(
                 f"raw response path conflicts with the paid response; current response preserved at {preserved}"
@@ -238,12 +227,28 @@ def _verify_raw_response(
     response_sha256: str,
     record_identity_key: Literal["condition_id", "provider"],
 ) -> None:
-    if path.is_symlink():
-        raise ValueError("billable raw response path must not be a symlink")
     try:
         record = _read_json_path(path)
-    except (OSError, ValueError, json.JSONDecodeError) as error:
+    except OSError as error:
+        raise ValueError(
+            "billable raw response path contains an unsafe or symlinked component"
+        ) from error
+    except (ValueError, json.JSONDecodeError) as error:
         raise ValueError("billable preflight raw response is invalid") from error
+    expected_keys = {
+        "schema_version",
+        "run_id",
+        record_identity_key,
+        "video_id",
+        "raw_response_sha256",
+        "raw_response",
+    }
+    if (
+        set(record) != expected_keys
+        or type(record.get("schema_version")) is not int
+        or record.get("schema_version") != SCHEMA_VERSION
+    ):
+        raise ValueError("billable preflight raw response record shape changed")
     raw_response = record.get("raw_response")
     if not isinstance(raw_response, str):
         raise ValueError("billable preflight raw response is invalid")
@@ -261,7 +266,7 @@ def _verify_raw_response(
 
 def _raw_text(raw_response: bytes | str) -> str:
     if isinstance(raw_response, bytes):
-        return raw_response.decode("utf-8", errors="replace")
+        return raw_response.decode("utf-8")
     return raw_response
 
 
@@ -297,8 +302,6 @@ def _install_json_exclusive(
     directory_fd: int,
     name: str,
     rendered: str,
-    *,
-    directory_path: Path | None = None,
 ) -> None:
     temporary_name = f".raw-response-{secrets.token_hex(8)}.tmp"
     fd = os.open(
@@ -312,16 +315,13 @@ def _install_json_exclusive(
             handle.write(rendered)
             handle.flush()
             os.fsync(handle.fileno())
-        if directory_path is None:
-            os.link(
-                temporary_name,
-                name,
-                src_dir_fd=directory_fd,
-                dst_dir_fd=directory_fd,
-                follow_symlinks=False,
-            )
-        else:
-            os.link(directory_path / temporary_name, directory_path / name)
+        os.link(
+            temporary_name,
+            name,
+            src_dir_fd=directory_fd,
+            dst_dir_fd=directory_fd,
+            follow_symlinks=False,
+        )
     finally:
         try:
             os.unlink(temporary_name, dir_fd=directory_fd)
@@ -338,7 +338,6 @@ def _preserve_conflict(
     rendered: str,
     layout: Literal["nested", "legacy"],
     fallback_on_symlink: bool,
-    root_path: Path | None,
 ) -> Path:
     response = payload.get("raw_response")
     if not isinstance(response, str):
@@ -349,7 +348,6 @@ def _preserve_conflict(
     conflict_video_fd: int | None = None
     directory_fd = root_fd
     directory_path = Path(".")
-    filesystem_directory_path: Path | None = None
     try:
         try:
             conflict_root_fd = _open_or_create_nofollow_directory(
@@ -367,14 +365,11 @@ def _preserve_conflict(
             else:
                 directory_fd = conflict_condition_fd
                 directory_path = Path("raw-conflicts") / condition_id
-            if root_path is not None:
-                filesystem_directory_path = root_path / directory_path
         except OSError as error:
             if not fallback_on_symlink:
                 raise _unsafe_path_error("raw conflict path", error) from error
             directory_fd = root_fd
             directory_path = Path(".")
-            filesystem_directory_path = root_path
 
         if layout == "nested":
             prefix = f"{response_sha256}-"
@@ -389,7 +384,6 @@ def _preserve_conflict(
                     directory_fd,
                     name,
                     rendered,
-                    directory_path=filesystem_directory_path,
                 )
             except FileExistsError:
                 continue
@@ -440,9 +434,38 @@ def _read_json_at(directory_fd: int, name: str) -> Mapping[str, object] | None:
 
 
 def _read_json_path(path: Path) -> Mapping[str, object]:
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-    with os.fdopen(fd, "r", encoding="utf-8") as handle:
-        payload = json.load(handle)
+    if path.is_absolute():
+        directory_fd = os.open(
+            path.anchor,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+        )
+        parts = path.parts[1:]
+    else:
+        directory_fd = os.open(
+            ".",
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+        )
+        parts = path.parts
+    try:
+        if not parts:
+            raise ValueError("JSON artifact path must name a file")
+        for part in parts[:-1]:
+            next_fd = os.open(
+                part,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                dir_fd=directory_fd,
+            )
+            os.close(directory_fd)
+            directory_fd = next_fd
+        fd = os.open(
+            parts[-1],
+            os.O_RDONLY | os.O_NOFOLLOW,
+            dir_fd=directory_fd,
+        )
+        with os.fdopen(fd, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    finally:
+        os.close(directory_fd)
     if not isinstance(payload, Mapping):
         raise ValueError("JSON artifact must be an object")
     return payload
