@@ -69,6 +69,23 @@ The helper is repeatable and refuses to replace a conflicting path. If it
 reports a conflict, stop; never delete, copy, move, stage, or commit dataset
 contents to repair it.
 
+## Private Gemini environment: safe setup
+
+The tracked `private-env/` directory is a discoverable placeholder; its
+contents other than `.gitignore` and `.gitkeep` are ignored. Link the private
+Gemini environment into the current worktree with:
+
+```bash
+scripts/link-private-env.sh
+```
+
+Use `scripts/link-private-env.sh --all` to link every registered worktree.
+The helper uses the private source
+`/home/npatta01/.config/trec_video_2026/gemini.env` by default (or the same
+relative path under `XDG_CONFIG_HOME`), requires a current-user-owned `0600`
+regular file, and refuses conflicting paths. It never reads or prints the
+credential value. Do not stage or commit `private-env/gemini.env`.
+
 ## Privacy boundary
 
 `data/` may contain licensed NIST material, source-video media, annotations,
@@ -84,6 +101,7 @@ and do not change sharing permissions without confirming the applicable terms.
 | `src/trec_video_2026/` | Python CLI implementations and experiment workflows. |
 | `scripts/` | Safe operational helpers, including shared-data linking. |
 | `tests/` | Automated checks for tracked code and contracts. |
+| `private-env/` | Ignored per-worktree links to private credentials. |
 | `docs/project-status/` | Current newcomer-oriented status and decision pages. |
 | `docs/experiments/` | Sanitized, dated experiment findings. |
 | `plans/` | Historical GitHub-issue execution plans and their outcomes. |
