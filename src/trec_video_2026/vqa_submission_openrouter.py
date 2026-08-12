@@ -223,7 +223,7 @@ class OpenRouterTransport:
         self._api_key = api_key
         self._opener = opener
         self._policy = policy or OpenRouterRequestPolicy()
-        self._uploads: dict[str, tuple[str, str]] = {}
+        self._uploads: dict[str, tuple[str, str, str]] = {}
 
     def __repr__(self) -> str:
         return "OpenRouterTransport(provider='openrouter')"
@@ -268,7 +268,7 @@ class OpenRouterTransport:
         data_uri = (
             f"data:{mime_type};base64,{base64.b64encode(data).decode('ascii')}"
         )
-        self._uploads[file_id] = (data_uri, mime_type)
+        self._uploads[file_id] = (data_uri, mime_type, digest.hexdigest())
         return UploadedFileRecord(
             file_id=file_id,
             mime_type=mime_type,
@@ -345,7 +345,7 @@ class OpenRouterTransport:
         stored = self._uploads.get(file_id)
         if stored is None:
             raise ProviderProtocolError("OpenRouter file identifier is unknown")
-        data_uri, stored_mime_type = stored
+        data_uri, stored_mime_type, stored_sha256 = stored
         if mime_type != stored_mime_type:
             raise ProviderProtocolError("OpenRouter file MIME type did not match")
         seen_file_ids.add(file_id)
@@ -372,8 +372,8 @@ class OpenRouterTransport:
             raise ProviderProtocolError("OpenRouter media MIME type is not allowed")
         identity = {
             "type": "file",
-            "file_id": file_id,
             "mime_type": mime_type,
+            "sha256": stored_sha256,
         }
         return rendered, identity
 
@@ -452,6 +452,7 @@ class OpenRouterTransport:
         if self._policy.allow_fallbacks is not None:
             payload["provider"]["allow_fallbacks"] = self._policy.allow_fallbacks
         seed_input = dict(payload)
+        seed_input["messages"] = [{"role": "user", "content": identities}]
         seed = int(hashlib.sha256(_json_bytes(seed_input)).hexdigest()[:16], 16) & 0x7FFF_FFFF
         payload["seed"] = seed
         request_bytes = _json_bytes(payload)

@@ -397,6 +397,87 @@ def test_deterministic_seed_is_signed_31_bit_and_tracks_visible_request(
     assert seeds[0] != seeds[2]
 
 
+def test_seed_uses_stable_media_identity_not_live_upload_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema = {"type": "object", "additionalProperties": False}
+    media_sha256 = "a" * 64
+
+    def generate(
+        upload_ids: tuple[str, str],
+        *,
+        second_media_sha256: str = media_sha256,
+        prompt: str = "Describe the clip.",
+    ) -> tuple[int, dict[str, object]]:
+        opener = FakeOpener([_success_response()])
+        transport = _transport(monkeypatch, opener)
+
+        def fake_part_content(
+            part: object, _seen_file_ids: set[str]
+        ) -> tuple[dict[str, object], dict[str, object]]:
+            if isinstance(part, str):
+                return {"type": "text", "text": part}, {
+                    "type": "text",
+                    "text": part,
+                }
+            assert isinstance(part, dict)
+            file_id = part["file_id"]
+            sha256 = part["sha256"]
+            rendered = {
+                "type": "video_url",
+                "video_url": {"url": f"https://uploads.invalid/{file_id}"},
+            }
+            identity = {
+                "type": "file",
+                "mime_type": "video/mp4",
+                "sha256": sha256,
+            }
+            return rendered, identity
+
+        monkeypatch.setattr(transport, "_part_content", fake_part_content)
+        parts = (
+            {
+                "file_id": upload_ids[0],
+                "mime_type": "video/mp4",
+                "sha256": media_sha256,
+            },
+            {
+                "file_id": upload_ids[1],
+                "mime_type": "video/mp4",
+                "sha256": second_media_sha256,
+            },
+            prompt,
+        )
+        transport.generate(model=MODEL_ID, parts=parts, schema=schema)
+        body = json.loads(opener.requests[0].data)
+        return body["seed"], body
+
+    first_seed, first_body = generate(("provider-upload-a", "provider-upload-b"))
+    second_seed, second_body = generate(("provider-upload-x", "provider-upload-y"))
+    changed_media_seed, _ = generate(
+        ("provider-upload-a", "provider-upload-b"),
+        second_media_sha256="b" * 64,
+    )
+    changed_prompt_seed, _ = generate(
+        ("provider-upload-a", "provider-upload-b"),
+        prompt="Describe the changed clip.",
+    )
+
+    assert first_seed == second_seed
+    assert changed_media_seed != first_seed
+    assert changed_prompt_seed != first_seed
+    assert [
+        item["video_url"]["url"]
+        for item in second_body["messages"][0]["content"][:2]
+    ] == [
+        "https://uploads.invalid/provider-upload-x",
+        "https://uploads.invalid/provider-upload-y",
+    ]
+    assert first_body["messages"][0]["content"][0]["video_url"]["url"] == (
+        "https://uploads.invalid/provider-upload-a"
+    )
+
+
 def test_response_read_is_bounded_and_oversized_body_is_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
