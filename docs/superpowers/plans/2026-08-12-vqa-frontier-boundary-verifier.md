@@ -156,4 +156,3 @@ Use the existing 4-fps contact sheets plus corrected event keyframes. Confirm wh
 Run: `git diff --check && uv run pytest tests/test_vqa_frontier_boundary_verifier.py tests/test_run_vqa_frontier_boundary_verifier.py -q`
 
 Record cost, hashes, audit result, and the next authorized action in the canonical progress file. Do not add private media or raw provider responses to Git.
-
