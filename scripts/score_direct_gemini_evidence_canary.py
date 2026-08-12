@@ -27,6 +27,58 @@ from score_vqa_semantic_panel import (  # noqa: E402
 
 CONDITIONS = ("direct_answer", "timeline_answer", "frame_answer")
 
+MANUAL_ASSESSMENTS = {
+    "FBD7bvFnshE": {
+        "timeline": ("good", "Captures the visible career-milestone text and the woman on screen."),
+        "direct_answer": ("ambiguous", "A plausible specific topic, but the reference expects a generic description of a woman talking."),
+        "timeline_answer": ("ambiguous", "Well supported by the on-screen milestones, but mismatched with the generic reference."),
+        "frame_answer": ("okay", "Broadly describes the montage, though it is less concrete than the visible text."),
+        "overall": "Reference/task interpretation is questionable; do not count this as a clean model failure.",
+    },
+    "FKsBrmJ2xSg": {
+        "timeline": ("good", "Correctly records all three dives and their intervening splashes."),
+        "direct_answer": ("wrong", "Selects a later handstand instead of the repeated diving outcome."),
+        "timeline_answer": ("wrong", "Returns the immediate splash and misses that the man repeats the action."),
+        "frame_answer": ("wrong", "The selected frames contain the repeated dives, but the answer still chooses the splash."),
+        "overall": "Clear question-interpretation and temporal-scope failure despite sufficient evidence.",
+    },
+    "IRTTtnSRTyY": {
+        "timeline": ("good", "Correctly identifies repeated pop-it presses and popping sounds across the clip."),
+        "direct_answer": ("good", "Concise semantic match to the reference sound."),
+        "timeline_answer": ("good", "Correct concise description of the sound."),
+        "frame_answer": ("good", "Correct and grounded, although more verbose than necessary."),
+        "overall": "Solved by every path; direct native AV is the cleanest answer.",
+    },
+    "IVqpg_1aWXU": {
+        "timeline": ("okay", "Locates the toy airplane scenes but does not transcribe the small text on the plane."),
+        "direct_answer": ("good", "Correctly reads SIGMA AIRLINES."),
+        "timeline_answer": ("wrong", "Honestly reports that the timeline lacks the text, but does not answer the labeled question."),
+        "frame_answer": ("good", "The selected higher-detail frames restore the correct OCR answer."),
+        "overall": "A clear case where native visual detail or selected frames add evidence missing from the timeline.",
+    },
+    "JTolYjiErBw": {
+        "timeline": ("good", "Faithfully records digging, picking, and placing the items in a bowl."),
+        "direct_answer": ("good", "Matches the reference intent to eat them, though it omits cooking."),
+        "timeline_answer": ("wrong", "Answers where the mushrooms are placed, not why they are picked."),
+        "frame_answer": ("wrong", "Also substitutes the immediate action for the requested motivation."),
+        "overall": "Direct AV succeeds; derived paths confuse an observed action with causal intent.",
+    },
+    "LSz_xBDBPNc": {
+        "timeline": ("okay", "Captures the visual sequence but records only that someone speaks, without the instruction."),
+        "direct_answer": ("good", "Drop it is semantically equivalent to the reference, put it down."),
+        "timeline_answer": ("wrong", "Invents an instruction to hit it with a hammer."),
+        "frame_answer": ("okay", "Gets the core instruction right but is unnecessarily long and adds downstream events."),
+        "overall": "Native audio resolves the question; the text timeline loses the decisive speech evidence.",
+    },
+    "Mj3kccs07fg": {
+        "timeline": ("good", "Records the two named foods the woman handles, but does not settle how every visible food grouping should be counted."),
+        "direct_answer": ("ambiguous", "Says three; selected frames visibly suggest three groupings, while the reference says two."),
+        "timeline_answer": ("ambiguous", "Matches the reference value of two, but may inherit the timeline's narrower counting interpretation."),
+        "frame_answer": ("ambiguous", "Says three consistently with the visible groupings but conflicts with the reference."),
+        "overall": "Needs human adjudication of what counts as a distinct dish; not a clean correctness example.",
+    },
+}
+
 
 def token_f1(prediction: str, reference: str) -> float:
     """Return bag-of-token F1 after NIST text normalization."""
@@ -162,11 +214,27 @@ def render_inspection(run_root: Path, artifact: dict[str, Any]) -> str:
             f"{summary['bertscore_f1']:.3f} | {summary['sts']:.3f} | "
             f"{summary['semantic_composite']:.3f} |"
         )
+    lines.extend(
+        [
+            "",
+            "## Human verdict summary",
+            "",
+            "`good` means supported and semantically correct; `okay` means useful but incomplete or overlong; `wrong` means it misses the requested answer; `ambiguous` means the reference or counting interpretation needs adjudication.",
+            "",
+            "| Artifact | Good | Okay | Wrong | Ambiguous |",
+            "|---|---:|---:|---:|---:|",
+            "| Question-blind timeline | 5 | 2 | 0 | 0 |",
+            "| Direct native-AV answer | 4 | 0 | 1 | 2 |",
+            "| Timeline-only answer | 1 | 0 | 4 | 2 |",
+            "| Timeline + selected-frame answer | 2 | 2 | 2 | 1 |",
+        ]
+    )
 
     for complete_path in sorted((run_root / "rows").glob("*/complete.json")):
         row_root = complete_path.parent
         complete = json.loads(complete_path.read_text())
         video_id = complete["video_id"]
+        assessment = MANUAL_ASSESSMENTS[video_id]
         direct = metrics[(video_id, "direct_answer")]
         events = json.loads((row_root / "timeline" / "events.json").read_text())
         frames = json.loads(
@@ -185,18 +253,30 @@ def render_inspection(run_root: Path, artifact: dict[str, Any]) -> str:
                 "",
                 f"**Reference (revealed after freeze):** {direct['reference']}",
                 "",
-                "| Path | Answer | Composite |",
-                "|---|---|---:|",
+                f"**Overall assessment:** {assessment['overall']}",
+                "",
+                "| Path | Verdict | Answer | Why | Composite |",
+                "|---|---|---|---|---:|",
             ]
         )
         for condition in CONDITIONS:
             scored = metrics[(video_id, condition)]
             answer = scored["prediction"].replace("|", "\\|")
+            verdict, reason = assessment[condition]
             lines.append(
-                f"| {condition} | {answer} | "
+                f"| {condition} | **{verdict}** | {answer} | {reason} | "
                 f"{scored['metrics']['semantic_composite']:.3f} |"
             )
-        lines.extend(["", "**Question-blind timeline**", ""])
+        timeline_verdict, timeline_reason = assessment["timeline"]
+        lines.extend(
+            [
+                "",
+                f"**Question-blind timeline verdict: {timeline_verdict}.** {timeline_reason}",
+                "",
+                "**Question-blind timeline**",
+                "",
+            ]
+        )
         for event in events:
             lines.append(
                 f"- {event['start_seconds']:.3f}–{event['end_seconds']:.3f}: "
