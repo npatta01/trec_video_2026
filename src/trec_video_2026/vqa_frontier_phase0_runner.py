@@ -2036,6 +2036,14 @@ def _verify_audit_freeze(
     path: Path,
     freeze: Mapping[str, object],
 ) -> None:
+    packet_manifest = path.parent / "packet-manifest.json"
+    if packet_manifest.is_file() and not packet_manifest.is_symlink():
+        from trec_video_2026.vqa_frontier_phase0_audit import validate_audit_packet
+
+        try:
+            validate_audit_packet(path.parent)
+        except (TypeError, ValueError) as error:
+            raise PilotGateError("pilot audit evidence media verification failed") from error
     if (
         freeze.get("schema_version") != SCHEMA_VERSION
         or freeze.get("status") != "frozen"

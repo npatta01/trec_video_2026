@@ -47,6 +47,7 @@ CANONICAL_DATA_ROOT = Path(
     "/home/npatta01/data/competitions/trec_video_2026/data"
 )
 OVERVIEW_FRAME_COUNT = 6
+PTS_TOLERANCE_SECONDS = 0.5
 ANSWER_CONDITIONS = ("direct_answer", "map_guided_answer")
 OBSERVATION_STATES = frozenset({"confirmed", "contradicted", "unverifiable"})
 COVERAGE_STATES = frozenset({"complete", "partial", "insufficient"})
@@ -330,6 +331,9 @@ def validate_audit_packet(root: Path) -> Mapping[str, object]:
         raise ValueError("packet phase is invalid")
     _validate_manifest_rows(packet, packet_manifest, blind_manifest, aware_manifest)
     _reject_reference_fields(private_manifest)
+    media_summary = _validate_evidence_media(
+        packet, packet_manifest, private_manifest, aware_manifest
+    )
     map_verdicts = _read_jsonl(packet.map_verdicts, "map verdicts")
     answer_verdicts = _read_jsonl(packet.answer_verdicts, "answer verdicts")
     expected_ids = _expected_video_ids(packet_manifest)
@@ -355,6 +359,7 @@ def validate_audit_packet(root: Path) -> Mapping[str, object]:
             "row_count": len(expected_ids),
             "map_verdict_count": len(map_verdicts),
             "answer_verdict_count": len(answer_verdicts),
+            **media_summary,
             "frozen": True,
             "decision": freeze["bindings"]["decision"],
         }
@@ -364,6 +369,7 @@ def validate_audit_packet(root: Path) -> Mapping[str, object]:
         "row_count": len(expected_ids),
         "map_verdict_count": len(map_verdicts),
         "answer_verdict_count": len(answer_verdicts),
+        **media_summary,
         "frozen": False,
     }
 
@@ -549,8 +555,8 @@ def _resolve_source(prepared: Path, row: Any) -> dict[str, Any]:
     for candidate in candidates:
         if not candidate.exists():
             continue
-        if candidate.is_symlink():
-            raise ValueError("source media path cannot be a symlink")
+        trusted_root = prepared if candidate != candidates[-1] else data_root
+        _reject_source_symlink_ancestry(candidate, trusted_root=trusted_root)
         resolved = candidate.resolve(strict=True)
         if candidate == candidates[-1] and not resolved.is_relative_to(data_root):
             raise ValueError("source media path escapes canonical private data root")
@@ -577,6 +583,18 @@ def _resolve_source(prepared: Path, row: Any) -> dict[str, Any]:
     }
 
 
+def _reject_source_symlink_ancestry(path: Path, *, trusted_root: Path) -> None:
+    current = path
+    while True:
+        if current.is_symlink():
+            raise ValueError("source media path has symlink ancestry")
+        if current == trusted_root:
+            return
+        if current == current.parent:
+            raise ValueError("source media path is outside its trusted root")
+        current = current.parent
+
+
 def _materialize_media(
     source: Mapping[str, Any],
     *,
@@ -599,20 +617,21 @@ def _materialize_media(
         overview_timestamps = bin_midpoint_timestamps(
             float(duration), count=OVERVIEW_FRAME_COUNT
         )
-        with tempfile.TemporaryDirectory(prefix=".overview-", dir=row_dir) as temp:
-            temp_root = Path(temp)
-            for index, desired in enumerate(overview_timestamps, start=1):
-                frame_path = temp_root / f"frame-{index:04d}.jpg"
-                entry = _extract_frame(
-                    Path(str(source["path"])),
-                    desired,
-                    frame_path,
-                    duration=float(duration),
-                    source_sha256=str(source["sha256"]),
-                    ffmpeg_version=ffmpeg_version,
-                )
-                overview_frames.append(entry)
-            _contact_sheet(temp_root, overview_path_obj)
+        overview_frame_dir = row_dir / "overview-frames"
+        overview_frame_dir.mkdir(parents=True, exist_ok=True)
+        for index, desired in enumerate(overview_timestamps, start=1):
+            frame_path = overview_frame_dir / f"{index:04d}.jpg"
+            entry = _extract_frame(
+                Path(str(source["path"])),
+                desired,
+                frame_path,
+                duration=float(duration),
+                source_sha256=str(source["sha256"]),
+                ffmpeg_version=ffmpeg_version,
+            )
+            entry["path"] = frame_path.relative_to(row_dir.parent.parent).as_posix()
+            overview_frames.append(entry)
+        _contact_sheet(overview_frame_dir, overview_path_obj)
         overview_path = overview_path_obj.relative_to(row_dir.parent.parent).as_posix()
         overview_sha256 = _sha256_file(overview_path_obj)
 
@@ -641,6 +660,9 @@ def _materialize_media(
                     ffmpeg_version=ffmpeg_version,
                 )
                 entry.update({"event_id": event_id, "index": index})
+                entry["path"] = frame_path.relative_to(
+                    row_dir.parent.parent
+                ).as_posix()
                 event_keyframes.append(entry)
 
         for condition, answer in answer_payloads.items():
@@ -686,6 +708,9 @@ def _materialize_media(
                                 "point": ("start", "mid", "end")[point_index - 1],
                             }
                         )
+                        entry["path"] = frame_path.relative_to(
+                            row_dir.parent.parent
+                        ).as_posix()
                         answer_citations[condition].append(entry)
     return {
         "ffmpeg_version": ffmpeg_version,
@@ -718,6 +743,7 @@ def _extract_frame(
             "-loglevel",
             "info",
             "-nostdin",
+            "-copyts",
             "-ss",
             f"{seek:.6f}",
             "-i",
@@ -735,16 +761,22 @@ def _extract_frame(
         ]
         return subprocess.run(command, check=True, capture_output=True, text=True)
 
+    seek_pts = clamped
+    fallback_used = False
     try:
-        completed = run_at(clamped)
+        completed = run_at(seek_pts)
     except subprocess.CalledProcessError:
         output.unlink(missing_ok=True)
         fallback = max(0.0, duration - max(0.3, duration * 0.1))
-        completed = run_at(min(clamped, fallback))
+        seek_pts = min(clamped, fallback)
+        fallback_used = True
+        completed = run_at(seek_pts)
     match = re.search(r"pts_time:([-+0-9.eE]+)", completed.stderr)
     actual = float(match.group(1)) if match else None
     if actual is None or not math.isfinite(actual):
         raise ValueError("ffmpeg did not report a decoded PTS")
+    if abs(actual - clamped) > PTS_TOLERANCE_SECONDS:
+        raise ValueError("decoded source PTS is too far from the requested frame")
     if not output.is_file() or output.is_symlink():
         raise ValueError("ffmpeg did not produce a regular JPEG frame")
     return {
@@ -752,6 +784,8 @@ def _extract_frame(
         "desired_pts": round(float(desired), 6),
         "actual_pts": round(actual, 6),
         "clamped_pts": round(clamped, 6),
+        "seek_pts": round(seek_pts, 6),
+        "fallback_used": fallback_used,
         "frame_sha256": _sha256_file(output),
         "source_media_sha256": source_sha256,
         "ffmpeg_version": ffmpeg_version,
@@ -771,7 +805,7 @@ def _contact_sheet(frame_dir: Path, output: Path) -> None:
             "-framerate",
             "1",
             "-i",
-            str(frame_dir / "frame-%04d.jpg"),
+            str(frame_dir / "%04d.jpg"),
             "-vf",
             "scale=320:-2,tile=3x2:padding=4:margin=4:color=black",
             "-frames:v",
@@ -801,6 +835,12 @@ def _audit_artifact(
     private_rows = private_manifest.get("rows")
     if not isinstance(private_rows, list):
         raise ValueError("private manifest rows are missing")
+    media_summary = _validate_evidence_media(
+        packet,
+        packet_manifest,
+        private_manifest,
+        _read_json(packet.aware_manifest),
+    )
     audit: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "audit_id": AUDIT_ID,
@@ -843,6 +883,7 @@ def _audit_artifact(
                 _read_jsonl(packet.answer_verdicts, "answer verdicts")
             ),
         },
+        **media_summary,
     }
     if screen_freeze is not None:
         audit["screen_prediction_freeze_sha256"] = screen_freeze
@@ -886,7 +927,314 @@ def _verify_audit_freeze(packet: AuditPacket) -> Mapping[str, Any]:
     }
     if dict(manifest_hashes) != expected_manifests or dict(verdict_hashes) != expected_verdicts:
         raise ValueError("audit manifest or verdict binding changed")
+    media_summary = _validate_evidence_media(
+        packet,
+        _read_json(packet.packet_manifest),
+        _read_json(packet.private_manifest),
+        _read_json(packet.aware_manifest),
+    )
+    if any(artifact.get(key) != value for key, value in media_summary.items()):
+        raise ValueError("audit evidence media binding changed")
     return freeze
+
+
+def _validate_evidence_media(
+    packet: AuditPacket,
+    packet_manifest: Mapping[str, Any],
+    private_manifest: Mapping[str, Any],
+    aware_manifest: Mapping[str, Any],
+) -> dict[str, int | str]:
+    packet_rows = packet_manifest.get("rows")
+    private_rows = private_manifest.get("rows")
+    aware_rows = aware_manifest.get("rows")
+    if (
+        not isinstance(packet_rows, list)
+        or not isinstance(private_rows, list)
+        or not isinstance(aware_rows, list)
+    ):
+        raise ValueError("audit evidence media rows are missing")
+    if not len(packet_rows) == len(private_rows) == len(aware_rows):
+        raise ValueError("audit evidence media row counts differ")
+    packet_by_id = _unique_by(packet_rows, "video_id", "packet media rows")
+    private_by_id = _unique_by(private_rows, "video_id", "private media rows")
+    aware_by_id = _unique_by(aware_rows, "video_id", "aware media rows")
+    if not set(packet_by_id) == set(private_by_id) == set(aware_by_id):
+        raise ValueError("audit evidence media video identities differ")
+
+    bound_files: dict[str, str] = {}
+    for video_id in sorted(private_by_id):
+        private_row = private_by_id[video_id]
+        media = private_row.get("media")
+        if not isinstance(media, Mapping):
+            raise ValueError("audit evidence media record is missing")
+        if packet_by_id[video_id].get("media_sha256") != canonical_sha256(media):
+            raise ValueError("audit evidence media manifest binding changed")
+        source_sha256 = _required_sha256(
+            private_row.get("source_media_sha256"), "source media SHA-256"
+        )
+        if any(
+            row.get("source_media_sha256") != source_sha256
+            for row in (packet_by_id[video_id], aware_by_id[video_id])
+        ):
+            raise ValueError("audit evidence source media binding changed")
+        duration = _finite_nonnegative(
+            private_row.get("source_duration_seconds"), "source duration"
+        )
+        ffmpeg_version = _required_text(
+            media.get("ffmpeg_version"), "ffmpeg version"
+        )
+        if private_row.get("ffmpeg_version") != ffmpeg_version:
+            raise ValueError("audit evidence ffmpeg version binding changed")
+        overview_frames = media.get("overview_frames")
+        event_keyframes = media.get("event_keyframes")
+        citations = media.get("answer_citations")
+        if not isinstance(overview_frames, list) or len(overview_frames) != 6:
+            raise ValueError("audit evidence media requires six overview frames")
+        if not isinstance(event_keyframes, list) or not isinstance(citations, Mapping):
+            raise ValueError("audit evidence media frame records are missing")
+        expected_event_frames = _expected_event_frames(aware_by_id[video_id])
+        actual_event_frames = _frame_identities(
+            event_keyframes,
+            fields=("event_id", "index"),
+            label="event keyframe records",
+        )
+        if actual_event_frames != set(expected_event_frames):
+            raise ValueError("audit evidence media event keyframe records differ")
+
+        _bind_evidence_file(
+            packet,
+            bound_files,
+            media.get("overview_path"),
+            media.get("overview_sha256"),
+            label=f"{video_id} overview",
+            video_id=video_id,
+        )
+        overview_timestamps = bin_midpoint_timestamps(
+            duration, count=OVERVIEW_FRAME_COUNT
+        )
+        for index, (frame, expected_pts) in enumerate(
+            zip(overview_frames, overview_timestamps, strict=True), 1
+        ):
+            _bind_frame_record(
+                packet,
+                bound_files,
+                frame,
+                label=f"{video_id} overview frame {index}",
+                video_id=video_id,
+                duration=duration,
+                expected_pts=expected_pts,
+                source_sha256=source_sha256,
+                ffmpeg_version=ffmpeg_version,
+            )
+        for index, frame in enumerate(event_keyframes, 1):
+            identity = _frame_identity(frame, ("event_id", "index"))
+            _bind_frame_record(
+                packet,
+                bound_files,
+                frame,
+                label=f"{video_id} event keyframe {index}",
+                video_id=video_id,
+                duration=duration,
+                expected_pts=expected_event_frames[identity],
+                source_sha256=source_sha256,
+                ffmpeg_version=ffmpeg_version,
+            )
+        for condition in ANSWER_CONDITIONS:
+            records = citations.get(condition)
+            if not isinstance(records, list):
+                raise ValueError("audit evidence media citation records are missing")
+            expected_citations = _expected_answer_citation_frames(
+                aware_by_id[video_id], condition
+            )
+            actual_citations = _frame_identities(
+                records,
+                fields=("claim_id", "span_index", "point"),
+                label="answer citation records",
+            )
+            if actual_citations != set(expected_citations):
+                raise ValueError("audit evidence media answer citation records differ")
+            for index, frame in enumerate(records, 1):
+                identity = _frame_identity(
+                    frame, ("claim_id", "span_index", "point")
+                )
+                _bind_frame_record(
+                    packet,
+                    bound_files,
+                    frame,
+                    label=f"{video_id} {condition} citation {index}",
+                    video_id=video_id,
+                    duration=duration,
+                    expected_pts=expected_citations[identity],
+                    source_sha256=source_sha256,
+                    ffmpeg_version=ffmpeg_version,
+                )
+
+    inventory = [
+        {"path": path, "sha256": bound_files[path]} for path in sorted(bound_files)
+    ]
+    return {
+        "evidence_media_file_count": len(inventory),
+        "evidence_media_files_sha256": canonical_sha256(inventory),
+    }
+
+
+def _expected_event_frames(
+    row: Mapping[str, Any],
+) -> dict[tuple[object, ...], float]:
+    map_payload = row.get("map")
+    events = map_payload.get("events") if isinstance(map_payload, Mapping) else None
+    if not isinstance(events, list):
+        raise ValueError("audit evidence media map events are missing")
+    expected: dict[tuple[object, ...], float] = {}
+    for event in events:
+        if not isinstance(event, Mapping):
+            raise ValueError("audit evidence media map event is invalid")
+        event_id = _required_text(event.get("event_id"), "event_id")
+        timestamps = event.get("keyframe_seconds")
+        if not isinstance(timestamps, list) or not timestamps:
+            raise ValueError("audit evidence media event keyframes are missing")
+        for index, timestamp in enumerate(timestamps, 1):
+            identity = (event_id, index)
+            if identity in expected:
+                raise ValueError("audit evidence media event keyframes are duplicated")
+            expected[identity] = _finite_nonnegative(timestamp, "event keyframe PTS")
+    return expected
+
+
+def _expected_answer_citation_frames(
+    row: Mapping[str, Any], condition: str
+) -> dict[tuple[object, ...], float]:
+    answers = row.get("frozen_answers")
+    answer = answers.get(condition) if isinstance(answers, Mapping) else None
+    if answer is None:
+        return {}
+    claims = answer.get("claims") if isinstance(answer, Mapping) else None
+    if not isinstance(claims, list):
+        raise ValueError("audit evidence media answer claims are missing")
+    expected: dict[tuple[object, ...], float] = {}
+    for claim in claims:
+        if not isinstance(claim, Mapping):
+            raise ValueError("audit evidence media answer claim is invalid")
+        claim_id = _required_text(claim.get("claim_id"), "claim_id")
+        spans = claim.get("supporting_spans")
+        if not isinstance(spans, list) or not spans:
+            raise ValueError("audit evidence media answer spans are missing")
+        for span_index, span in enumerate(spans, 1):
+            if not isinstance(span, Mapping):
+                raise ValueError("audit evidence media answer span is invalid")
+            start = _finite_nonnegative(span.get("start_seconds"), "span start")
+            end = _finite_nonnegative(span.get("end_seconds"), "span end")
+            if end < start:
+                raise ValueError("audit evidence media answer span is reversed")
+            for point, timestamp in zip(
+                ("start", "mid", "end"),
+                (start, (start + end) / 2.0, end),
+                strict=True,
+            ):
+                identity = (claim_id, span_index, point)
+                if identity in expected:
+                    raise ValueError(
+                        "audit evidence media answer citations are duplicated"
+                    )
+                expected[identity] = timestamp
+    return expected
+
+
+def _frame_identities(
+    frames: list[object], *, fields: tuple[str, ...], label: str
+) -> set[tuple[object, ...]]:
+    identities: set[tuple[object, ...]] = set()
+    for frame in frames:
+        if not isinstance(frame, Mapping):
+            raise ValueError(f"audit evidence media {label} are invalid")
+        identity = _frame_identity(frame, fields)
+        if identity in identities:
+            raise ValueError(f"audit evidence media {label} are duplicated")
+        identities.add(identity)
+    return identities
+
+
+def _frame_identity(
+    frame: object, fields: tuple[str, ...]
+) -> tuple[object, ...]:
+    if not isinstance(frame, Mapping):
+        raise ValueError("audit evidence media frame record is invalid")
+    return tuple(frame.get(field) for field in fields)
+
+
+def _bind_frame_record(
+    packet: AuditPacket,
+    bound_files: dict[str, str],
+    frame: object,
+    *,
+    label: str,
+    video_id: str,
+    duration: float,
+    expected_pts: float,
+    source_sha256: str,
+    ffmpeg_version: str,
+) -> None:
+    if not isinstance(frame, Mapping):
+        raise ValueError(f"audit evidence media record is invalid: {label}")
+    _bind_evidence_file(
+        packet,
+        bound_files,
+        frame.get("path"),
+        frame.get("frame_sha256"),
+        label=label,
+        video_id=video_id,
+    )
+    desired = _finite_nonnegative(frame.get("desired_pts"), f"{label} timestamp")
+    actual = _finite_nonnegative(frame.get("actual_pts"), f"{label} timestamp")
+    clamped = _finite_nonnegative(frame.get("clamped_pts"), f"{label} timestamp")
+    seek = _finite_nonnegative(frame.get("seek_pts"), f"{label} timestamp")
+    fallback_used = frame.get("fallback_used")
+    if not isinstance(fallback_used, bool):
+        raise ValueError(f"{label} timestamp fallback flag is invalid")
+    expected_clamped = min(max(expected_pts, 0.0), max(0.0, duration - 0.001))
+    if not math.isclose(desired, expected_pts, abs_tol=1e-6):
+        raise ValueError(f"{label} desired timestamp changed")
+    if not math.isclose(clamped, expected_clamped, abs_tol=1e-6):
+        raise ValueError(f"{label} clamped timestamp changed")
+    if fallback_used:
+        if seek >= clamped:
+            raise ValueError(f"{label} fallback timestamp is invalid")
+    elif not math.isclose(seek, clamped, abs_tol=1e-6):
+        raise ValueError(f"{label} seek timestamp changed")
+    if abs(actual - clamped) > PTS_TOLERANCE_SECONDS:
+        raise ValueError(f"{label} decoded timestamp is outside tolerance")
+    if frame.get("source_media_sha256") != source_sha256:
+        raise ValueError(f"{label} source media SHA-256 changed")
+    if frame.get("ffmpeg_version") != ffmpeg_version:
+        raise ValueError(f"{label} ffmpeg version changed")
+
+
+def _bind_evidence_file(
+    packet: AuditPacket,
+    bound_files: dict[str, str],
+    path_value: object,
+    sha_value: object,
+    *,
+    label: str,
+    video_id: str,
+) -> None:
+    relative = _required_text(path_value, f"{label} path")
+    expected_parent = Path("rows") / video_id
+    try:
+        Path(relative).relative_to(expected_parent)
+    except ValueError as error:
+        raise ValueError(
+            f"audit evidence media path is outside rows/{video_id}: {label}"
+        ) from error
+    expected_sha256 = _required_sha256(sha_value, f"{label} SHA-256")
+    path = _safe_packet_path(packet.root, relative, f"{label} path")
+    if path.is_symlink() or not path.is_file():
+        raise ValueError(f"audit evidence media file is missing or unsafe: {label}")
+    if _sha256_file(path) != expected_sha256:
+        raise ValueError(f"audit evidence media SHA-256 changed: {label}")
+    if relative in bound_files:
+        raise ValueError(f"audit evidence media path is duplicated: {label}")
+    bound_files[relative] = expected_sha256
 
 
 def _validate_manifest_rows(
@@ -978,6 +1326,30 @@ def _validate_map_verdicts(
             raise ValueError("answer-critical evidence state is invalid")
         if verdict["overall_decision"] not in MAP_DECISIONS:
             raise ValueError("map overall decision is invalid")
+        if (
+            phase == "pilot"
+            and verdict["overall_decision"] == "usable_for_screen"
+            and verdict["coverage"] != "complete"
+        ):
+            raise ValueError("pilot usable_for_screen requires complete coverage")
+        if phase == "pilot" and verdict["overall_decision"] == "usable_for_screen":
+            contradicted = any(
+                event["status"] == "contradicted"
+                or event["boundary_status"] == "contradicted"
+                for event in event_checks
+            ) or any(
+                verdict[field] == "contradicted"
+                for field in (
+                    "entity_identity",
+                    "ordering",
+                    "visible_text",
+                    "speech_and_sound",
+                )
+            )
+            if contradicted:
+                raise ValueError(
+                    "pilot usable_for_screen cannot contain a contradiction"
+                )
         _reject_reference_fields(verdict)
 
 
@@ -1160,10 +1532,11 @@ def _safe_packet_path(root: Path, value: object, field: str) -> Path:
     candidate = Path(relative)
     if candidate.is_absolute() or ".." in candidate.parts:
         raise ValueError(f"{field} escapes audit root")
-    resolved = (root / candidate).resolve(strict=False)
+    lexical = root / candidate
+    _reject_symlink_components(root, lexical)
+    resolved = lexical.resolve(strict=False)
     if not resolved.is_relative_to(root):
         raise ValueError(f"{field} escapes audit root")
-    _reject_symlink_components(root, resolved)
     return resolved
 
 

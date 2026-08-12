@@ -179,7 +179,7 @@ class LocalTransport:
 
         self.call_count += 1
         prompt = str(parts[1])
-        if "frontier-neutral-map-v1" in prompt:
+        if "frontier-neutral-map-v" in prompt:
             payload = _map_payload()
         else:
             payload = _answer_payload(guided="Neutral map: supplied" in prompt)
@@ -442,6 +442,49 @@ def test_real_media_manifest_binds_pts_hashes_and_ffmpeg(tmp_path: Path, monkeyp
     assert len(row["event_keyframes"]) == 2
 
 
+def test_build_preserves_six_bound_overview_source_frames(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="pilot")
+
+    packet = build_audit_packet(
+        prepared, phase="pilot", output=tmp_path / "audit"
+    )
+
+    private = json.loads(packet.private_manifest.read_text(encoding="utf-8"))
+    frames = private["rows"][0]["overview_frames"]
+    assert [frame["path"] for frame in frames] == [
+        f"rows/pilot-video/overview-frames/{index:04d}.jpg"
+        for index in range(1, 7)
+    ]
+    assert all((packet.root / frame["path"]).is_file() for frame in frames)
+
+
+def test_nonzero_event_frame_records_source_timeline_pts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="pilot")
+
+    packet = build_audit_packet(
+        prepared, phase="pilot", output=tmp_path / "audit"
+    )
+
+    private = json.loads(packet.private_manifest.read_text(encoding="utf-8"))
+    frame = next(
+        item
+        for item in private["rows"][0]["event_keyframes"]
+        if item["event_id"] == "E2"
+    )
+    assert frame["desired_pts"] == 1.5
+    assert frame["actual_pts"] == pytest.approx(1.5, abs=0.01)
+
+
 def test_screen_audit_requires_every_map_event_and_answer_claim(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import trec_video_2026.vqa_frontier_phase0_audit as audit_module
 
@@ -472,6 +515,191 @@ def test_freeze_binds_result_media_manifests_and_verdicts_immutably(tmp_path: Pa
     assert validate_audit_packet(packet.root)["frozen"] is True
 
 
+@pytest.mark.parametrize("mutation", ["delete", "replace"])
+def test_validate_frozen_audit_rejects_changed_evidence_jpeg(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="pilot")
+    packet = build_audit_packet(
+        prepared, phase="pilot", output=tmp_path / "audit"
+    )
+    _write_verdicts(packet)
+    freeze_pilot_audit(packet.root)
+    private = json.loads(packet.private_manifest.read_text(encoding="utf-8"))
+    frame = packet.root / private["rows"][0]["overview_frames"][0]["path"]
+    if mutation == "delete":
+        frame.unlink()
+    else:
+        frame.write_bytes(b"replacement-jpeg")
+
+    with pytest.raises(ValueError, match="evidence media"):
+        validate_audit_packet(packet.root)
+
+
+def test_validate_frozen_audit_rejects_symlinked_evidence_jpeg(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="pilot")
+    packet = build_audit_packet(
+        prepared, phase="pilot", output=tmp_path / "audit"
+    )
+    _write_verdicts(packet)
+    freeze_pilot_audit(packet.root)
+    private = json.loads(packet.private_manifest.read_text(encoding="utf-8"))
+    frame = packet.root / private["rows"][0]["overview_frames"][0]["path"]
+    replacement = packet.root / "replacement.jpg"
+    shutil.copyfile(frame, replacement)
+    frame.unlink()
+    frame.symlink_to(replacement)
+
+    with pytest.raises(ValueError, match="symlink|unsafe"):
+        validate_audit_packet(packet.root)
+
+
+def test_validate_rejects_missing_event_keyframe_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="pilot")
+    packet = build_audit_packet(
+        prepared, phase="pilot", output=tmp_path / "audit"
+    )
+    private = json.loads(packet.private_manifest.read_text(encoding="utf-8"))
+    media = private["rows"][0]["media"]
+    media["event_keyframes"] = media["event_keyframes"][:-1]
+    packet_manifest = json.loads(
+        packet.packet_manifest.read_text(encoding="utf-8")
+    )
+    packet_manifest["rows"][0]["media_sha256"] = canonical_sha256(media)
+    packet.private_manifest.write_text(json.dumps(private), encoding="utf-8")
+    packet.packet_manifest.write_text(
+        json.dumps(packet_manifest), encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="event keyframe records"):
+        validate_audit_packet(packet.root)
+
+
+def test_validate_rejects_missing_answer_citation_frame_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="screen")
+    packet = build_audit_packet(
+        prepared, phase="screen", output=tmp_path / "audit"
+    )
+    private = json.loads(packet.private_manifest.read_text(encoding="utf-8"))
+    media = private["rows"][0]["media"]
+    media["answer_citations"]["direct_answer"] = media[
+        "answer_citations"
+    ]["direct_answer"][:-1]
+    packet_manifest = json.loads(
+        packet.packet_manifest.read_text(encoding="utf-8")
+    )
+    packet_manifest["rows"][0]["media_sha256"] = canonical_sha256(media)
+    packet.private_manifest.write_text(json.dumps(private), encoding="utf-8")
+    packet.packet_manifest.write_text(
+        json.dumps(packet_manifest), encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="answer citation records"):
+        validate_audit_packet(packet.root)
+
+
+def test_validate_rejects_evidence_pts_far_from_requested_frame(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="pilot")
+    packet = build_audit_packet(
+        prepared, phase="pilot", output=tmp_path / "audit"
+    )
+    private = json.loads(packet.private_manifest.read_text(encoding="utf-8"))
+    media = private["rows"][0]["media"]
+    media["event_keyframes"][0]["actual_pts"] = 1.9
+    packet_manifest = json.loads(
+        packet.packet_manifest.read_text(encoding="utf-8")
+    )
+    packet_manifest["rows"][0]["media_sha256"] = canonical_sha256(media)
+    packet.private_manifest.write_text(json.dumps(private), encoding="utf-8")
+    packet.packet_manifest.write_text(
+        json.dumps(packet_manifest), encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="timestamp"):
+        validate_audit_packet(packet.root)
+
+
+def test_pilot_usable_decision_requires_complete_coverage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="pilot")
+    packet = build_audit_packet(
+        prepared, phase="pilot", output=tmp_path / "audit"
+    )
+    _write_verdicts(packet)
+    verdict = json.loads(packet.map_verdicts.read_text(encoding="utf-8"))
+    verdict["coverage"] = "partial"
+    packet.map_verdicts.write_text(json.dumps(verdict) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="usable_for_screen.*coverage"):
+        freeze_pilot_audit(packet.root)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "event_status",
+        "boundary_status",
+        "entity_identity",
+        "ordering",
+        "visible_text",
+        "speech_and_sound",
+    ],
+)
+def test_pilot_usable_decision_rejects_any_contradicted_observation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="pilot")
+    packet = build_audit_packet(
+        prepared, phase="pilot", output=tmp_path / "audit"
+    )
+    _write_verdicts(packet)
+    verdict = json.loads(packet.map_verdicts.read_text(encoding="utf-8"))
+    if field == "event_status":
+        verdict["event_checks"][0]["status"] = "contradicted"
+    elif field == "boundary_status":
+        verdict["event_checks"][0]["boundary_status"] = "contradicted"
+    else:
+        verdict[field] = "contradicted"
+    packet.map_verdicts.write_text(json.dumps(verdict) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="usable_for_screen.*contradiction"):
+        freeze_pilot_audit(packet.root)
+
+
 def test_output_symlink_escape_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import trec_video_2026.vqa_frontier_phase0_audit as audit_module
 
@@ -483,3 +711,21 @@ def test_output_symlink_escape_is_rejected(tmp_path: Path, monkeypatch: pytest.M
     link.symlink_to(outside, target_is_directory=True)
     with pytest.raises(ValueError, match="canonical private data root|symlink"):
         build_audit_packet(tmp_path / "missing-prepared", phase="pilot", output=link / "audit")
+
+
+def test_build_rejects_symlinked_fixture_media_ancestor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import trec_video_2026.vqa_frontier_phase0_audit as audit_module
+
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    prepared = _write_prepared(tmp_path, phase="pilot")
+    fixture_root = prepared / "fixture-media"
+    moved_fixture_root = tmp_path / "moved-fixture-media"
+    fixture_root.rename(moved_fixture_root)
+    fixture_root.symlink_to(moved_fixture_root, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        build_audit_packet(
+            prepared, phase="pilot", output=tmp_path / "audit"
+        )

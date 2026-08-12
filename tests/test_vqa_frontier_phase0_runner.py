@@ -231,6 +231,26 @@ def test_fixture_end_to_end_freezes_pilot_screen_and_audits(
     }
 
 
+def test_authorize_screen_rejects_deleted_bound_audit_jpeg(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    panel = write_phase0_fixture_panel(tmp_path)
+    prepared = prepare_run(panel, tmp_path / "run")
+    install_fixture_media(prepared, tmp_path)
+    run_pilot(prepared, FixtureTransport())
+    freeze_pilot(prepared)
+    monkeypatch.setattr(audit_module, "CANONICAL_DATA_ROOT", tmp_path)
+    pilot_audit = build_complete_fixture_audit(prepared, phase="pilot")
+    freeze_pilot_audit(pilot_audit.root)
+    private = json.loads(pilot_audit.private_manifest.read_text(encoding="utf-8"))
+    frame = pilot_audit.root / private["rows"][0]["event_keyframes"][0]["path"]
+    frame.unlink()
+
+    with pytest.raises(PilotGateError, match="audit evidence media"):
+        authorize_screen(prepared, pilot_audit.root / "freeze.json")
+
+
 def write_phase0_fixture_panel(tmp_path: Path) -> Path:
     source = tmp_path / "source.webm"
     _write_fixture_media(source)
@@ -1199,7 +1219,7 @@ class RecordingTransport:
         schema: object,
     ) -> GenerationResult:
         prompt = str(parts[1])
-        if "frontier-neutral-map-v1" in prompt:
+        if "frontier-neutral-map-v" in prompt:
             condition_id = "neutral_map"
             payload = _neutral_payload()
         elif "Neutral map: supplied" in prompt:
