@@ -576,9 +576,10 @@ def test_raw_response_install_race_accepts_identical_payload(
         prepared, "gemini", "preflight-001", "paid response"
     )
 
-    assert json.loads(target.read_text(encoding="utf-8"))["raw_response"] == (
-        "paid response"
-    )
+    record = json.loads(target.read_text(encoding="utf-8"))
+    assert record["raw_response"] == "paid response"
+    assert record["provider"] == "gemini"
+    assert "condition_id" not in record
 
 
 def test_raw_response_install_race_preserves_conflicting_paid_payload(

@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 import math
 import os
 import re
-import secrets
 import tempfile
 from collections.abc import Mapping, Sequence
 from contextlib import contextmanager
@@ -39,6 +37,12 @@ from trec_video_2026.vqa_frontier_map_media import (
     verify_delivery_media,
 )
 from trec_video_2026.vqa_frontier_map_reka import REKA_MODEL_ID
+from trec_video_2026.vqa_frontier_response_store import (
+    RawResponseConflictError,
+    _preserve_legacy_raw_response,
+    _verify_legacy_raw_response,
+    parse_prompt_json_response,
+)
 from trec_video_2026.vqa_submission import MODEL_ID, canonical_sha256
 from trec_video_2026.vqa_submission_gemini import (
     GenerationResult,
@@ -1286,16 +1290,7 @@ def _provider_parts(uploaded: UploadedFileRecord, prompt: str) -> tuple[object, 
 
 
 def _parse_raw_response(raw_response: bytes | str) -> object:
-    if isinstance(raw_response, bytes):
-        raw_response = raw_response.decode("utf-8")
-    stripped = raw_response.strip()
-    prefix = "```json\n"
-    suffix = "\n```"
-    if stripped.startswith(prefix) and stripped.endswith(suffix):
-        candidate = stripped[len(prefix) : -len(suffix)]
-        if "```" not in candidate:
-            raw_response = candidate
-    return json.loads(raw_response)
+    return parse_prompt_json_response(raw_response)
 
 
 def _write_raw_response(
@@ -1305,137 +1300,18 @@ def _write_raw_response(
     raw_response: bytes | str,
 ) -> None:
     _validate_video_id(video_id)
-    if isinstance(raw_response, bytes):
-        raw_text = raw_response.decode("utf-8", errors="replace")
-    else:
-        raw_text = raw_response
-    payload = {
-        "schema_version": SCHEMA_VERSION,
-        "run_id": prepared.run_id,
-        "provider": provider,
-        "video_id": video_id,
-        "raw_response_sha256": canonical_sha256(raw_text),
-        "raw_response": raw_text,
-    }
-    path = prepared.path / "raw" / provider / f"{video_id}.json"
-    if path.exists() or path.is_symlink():
-        if _raw_payload_matches(path, payload):
-            return
-        _preserve_conflicting_raw_response(
-            prepared, provider=provider, video_id=video_id, payload=payload
-        )
-        raise AmbiguousStartedAttemptError(
-            "raw response path conflicts with the paid response; current response preserved"
-        )
     try:
-        _write_json_atomically(path, payload)
-    except FileExistsError:
-        if _raw_payload_matches(path, payload):
-            return
-        _preserve_conflicting_raw_response(
-            prepared, provider=provider, video_id=video_id, payload=payload
-        )
-        raise AmbiguousStartedAttemptError(
-            "raw response path conflicts with the paid response; current response preserved"
-        ) from None
-    if _read_json(path) != payload:
-        raise AmbiguousStartedAttemptError(
-            "raw response path conflicts with the paid response"
-        )
-
-
-def _raw_payload_matches(path: Path, payload: Mapping[str, object]) -> bool:
-    if path.is_symlink() or not path.is_file():
-        return False
-    try:
-        return _read_json(path) == payload
-    except (OSError, ValueError, json.JSONDecodeError):
-        return False
-
-
-def _preserve_conflicting_raw_response(
-    prepared: PreparedFrontierRun,
-    *,
-    provider: str,
-    video_id: str,
-    payload: Mapping[str, object],
-) -> Path:
-    raw_response = payload.get("raw_response")
-    if not isinstance(raw_response, str):
-        raise TypeError("raw response payload is invalid")
-    response_sha256 = hashlib.sha256(raw_response.encode("utf-8")).hexdigest()
-    rendered = json.dumps(payload, indent=2, sort_keys=True) + "\n"
-    directory_fd: int | None = None
-    root_fd: int | None = None
-    provider_fd: int | None = None
-    directory_path = prepared.path
-    try:
-        run_fd = os.open(
+        _preserve_legacy_raw_response(
             prepared.path,
-            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+            run_id=prepared.run_id,
+            condition_id=provider,
+            video_id=video_id,
+            raw_response=raw_response,
         )
-    except OSError as error:
+    except RawResponseConflictError as error:
         raise AmbiguousStartedAttemptError(
-            "conflicting paid response could not be preserved"
+            "raw response path conflicts with the paid response; current response preserved"
         ) from error
-    try:
-        try:
-            root_fd = _open_or_create_nofollow_directory(run_fd, "raw-conflicts")
-            provider_fd = _open_or_create_nofollow_directory(root_fd, provider)
-            directory_fd = provider_fd
-            directory_path = prepared.path / "raw-conflicts" / provider
-            prefix = f"{video_id}-{response_sha256}-"
-        except OSError:
-            # An unsafe conflict directory (including a symlink) is never
-            # followed. Preserve the response directly under the already-open
-            # run directory instead.
-            directory_fd = run_fd
-            prefix = f".raw-conflict-{provider}-{video_id}-{response_sha256}-"
-        preserved: Path | None = None
-        for _ in range(32):
-            name = f"{prefix}{secrets.token_hex(8)}.json"
-            try:
-                fd = os.open(
-                    name,
-                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                    0o600,
-                    dir_fd=directory_fd,
-                )
-            except FileExistsError:
-                continue
-            with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                handle.write(rendered)
-                handle.flush()
-                os.fsync(handle.fileno())
-            preserved = directory_path / name
-            break
-        if preserved is None:
-            raise AmbiguousStartedAttemptError(
-                "conflicting paid response could not be preserved"
-            )
-    finally:
-        if provider_fd is not None:
-            os.close(provider_fd)
-        if root_fd is not None:
-            os.close(root_fd)
-        os.close(run_fd)
-    if not _raw_payload_matches(preserved, payload):
-        raise AmbiguousStartedAttemptError(
-            "conflicting paid response could not be preserved"
-        )
-    return preserved
-
-
-def _open_or_create_nofollow_directory(parent_fd: int, name: str) -> int:
-    try:
-        os.mkdir(name, 0o700, dir_fd=parent_fd)
-    except FileExistsError:
-        pass
-    return os.open(
-        name,
-        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
-        dir_fd=parent_fd,
-    )
 
 
 def _assert_raw_response_available(
@@ -1460,20 +1336,13 @@ def _verify_raw_response_record(
     video_id: str,
     response_sha256: object,
 ) -> None:
-    record = _read_json(path)
-    raw_response = record.get("raw_response")
-    if not isinstance(raw_response, str):
-        raise ValueError("billable preflight raw response is invalid")
-    expected = {
-        "run_id": run_id,
-        "provider": provider,
-        "video_id": video_id,
-        "raw_response_sha256": canonical_sha256(raw_response),
-    }
-    if any(record.get(key) != value for key, value in expected.items()):
-        raise ValueError("billable preflight raw response identity changed")
-    if hashlib.sha256(raw_response.encode("utf-8")).hexdigest() != response_sha256:
-        raise ValueError("billable preflight response hash changed")
+    _verify_legacy_raw_response(
+        path,
+        run_id=run_id,
+        condition_id=provider,
+        video_id=video_id,
+        response_sha256=response_sha256,
+    )
 
 
 def _source_path(prepared: PreparedFrontierRun, row: PanelRow) -> Path:
