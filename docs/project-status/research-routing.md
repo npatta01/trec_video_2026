@@ -268,9 +268,11 @@ Sol, Claude Fable, and Gemini 3.1 Pro High independently recommended the
 one-call verifier gate. The reviewed runner bound the exact prediction
 and audit freezes, content-addressed media identity, provider/model/cost
 evidence, and a one-attempt artifact chain. The final focused/regression
-suite passed 142 tests. The response’s corrected map was locally valid,
-allowing inspection without relabeling the terminal `schema_validation`
-result.
+suite passed 142 tests before the final hardening; the current Phase
+0/verifier suite passes 135 tests and additively freezes both the failed
+terminal result and a raw-response/row-manifest-bound audit. The
+response’s corrected map was locally valid, allowing inspection without
+relabeling the terminal `schema_validation` result.
 
 The complete raw evidence is private; see the [dated
 diagnostic](../experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd)

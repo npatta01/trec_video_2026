@@ -117,10 +117,12 @@ The complete private evidence is already in the canonical shared dataset at
 Do not copy, stage, or publish that directory. In particular:
 
 - `run-v5/` preserves the final one-pass question-blind annotation draft;
-- `pilot-audit-v5/` and `pilot-audit-v5-manual-review/` preserve the frozen
-  `revise_contract` decision and dense 4-fps review sheets;
+- `pilot-audit-v5/`, additive hardened `pilot-audit-v5-v2/`, and
+  `pilot-audit-v5-manual-review/` preserve the frozen `revise_contract`
+  decision, raw-response and reviewer-row bindings, and dense 4-fps review
+  sheets;
 - `verifier-v5/` preserves the sole paid verifier call, raw response, result,
-  diagnostic audit, and diagnostic freeze;
+  additive failed-terminal freeze, diagnostic audit, and diagnostic freeze;
 - `verifier-v5-pre-review/` and `verifier-v5-pre-freeze-fix/` are preserved
   offline preparations and did not issue paid calls.
 

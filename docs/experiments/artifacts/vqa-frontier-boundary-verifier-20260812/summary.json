@@ -41,8 +41,12 @@
     "root": "/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/vqa-frontier-phase0-20260812/",
     "final_draft_run": "run-v5/",
     "draft_audit": "pilot-audit-v5/",
+    "hardened_draft_audit": "pilot-audit-v5-v2/",
     "dense_manual_review": "pilot-audit-v5-manual-review/",
     "verifier_run": "verifier-v5/",
+    "hardened_draft_audit_sha256": "5757c2ad3a80dfc00f1e9fff14dea65403dc2718042edd66ed3d7d41e2c5f5c6",
+    "hardened_draft_audit_freeze_sha256": "f0740a98c1110c098af58ce18842586c1903ff1576f18fc7d30c28e62a344c26",
+    "verifier_terminal_freeze_sha256": "0df48028449fbcdb9ceffbd72e1ca23b2b6d06c6791d15cd15b726dadea8836b",
     "diagnostic_audit_sha256": "72d3c6be270ea24c811a5b8db076f8e48bed157d9514b008cc91fbd805a7c49e"
   },
   "next_decision": "Do not scale same-model draft-plus-verifier. Test an independent verifier or an explicit temporal-grounding mechanism on a few videos before any answer screen."
