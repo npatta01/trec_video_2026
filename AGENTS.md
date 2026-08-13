@@ -158,3 +158,26 @@ exact speech. Preserve both roots; do not rerun them. Start with C's
 `inspection.md` or the tailnet-only Gemini evidence inspector. The next test is
 question-driven temporal/speech verification over frozen global synthesis,
 not another global prompt rewrite and not a 475-row scale-up.
+
+## Gemini native-AV 475-row artifact reference
+
+The completed 2026-08-13 Gemini 3.1 Pro native-AV Batch benchmark is documented
+in the full-panel section of
+[`docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd`](docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd).
+Its sanitized index is under
+[`docs/experiments/artifacts/vqa-gemini-native-av-full-panel-20260813/`](docs/experiments/artifacts/vqa-gemini-native-av-full-panel-20260813/).
+
+The complete private evidence is already in the canonical shared dataset at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-batch-475-v1/`.
+Do not copy, stage, publish, or rerun it. Start with `predictions-freeze.json`,
+`postfreeze-score.json`, `maps.question-blind.json`, and
+`failure-audit-v1/manual-review.json`. One initial direct-answer provider error
+was retried exactly once and passed; both terminal snapshots are preserved.
+The final panel has 475/475 direct answers and 475/475 question-blind maps.
+
+Gemini's semantic composite is `0.5046` versus `0.4962` for the matched
+Qwen+Whisper baseline; the paired `+0.0083` interval crosses zero, and counting
+regresses. The hard-row audit shows both answer-stage failures despite useful
+maps and map omissions on fine counting/detail. The next experiment is a small
+frozen question-driven retrieval and targeted-verification test—not another
+global prompt rewrite or full-panel Gemini run.

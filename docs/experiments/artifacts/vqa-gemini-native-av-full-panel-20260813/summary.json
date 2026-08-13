@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "experiment_id": "direct-gemini-batch-475-v1",
+  "date": "2026-08-13",
+  "panel": {
+    "annotation_files": 481,
+    "usable_labeled_videos": 475,
+    "excluded_missing_media": 6,
+    "completed_direct_answer": 475,
+    "completed_question_blind_map": 475
+  },
+  "condition": {
+    "model": "gemini-3.1-pro-preview",
+    "provider": "Google direct Batch API",
+    "video_fps": 4.0,
+    "native_audio_video": true,
+    "media_resolution": "high",
+    "thinking": "high",
+    "temperature": 0,
+    "seed": 42
+  },
+  "retry": {
+    "initial_provider_internal_errors": 1,
+    "bounded_retries": 1,
+    "retry_successes": 1,
+    "final_missing_answers": 0
+  },
+  "metrics": {
+    "gemini_3_1_pro_native_av_4fps": {
+      "meteor": 0.29476410227357974,
+      "bertscore_f1": 0.8956302179788288,
+      "sts": 0.32328149163402103,
+      "semantic_composite": 0.5045586039621432,
+      "mean_answer_token_count": 10.437894736842106
+    },
+    "qwen35_4b_12f_whisper_large_v3": {
+      "meteor": 0.23105284740543686,
+      "bertscore_f1": 0.9109639574352064,
+      "sts": 0.3467184564425263,
+      "semantic_composite": 0.49624508709438986,
+      "mean_answer_token_count": 4.473684210526316
+    },
+    "paired_gemini_minus_qwen": {
+      "semantic_composite_delta": 0.008313516867753366,
+      "bootstrap_95_lower": -0.008043427777654067,
+      "bootstrap_95_upper": 0.026005866269215454,
+      "statistically_decisive": false
+    },
+    "ndcg": {
+      "value": 1.0,
+      "degenerate": true,
+      "decision_use": false
+    }
+  },
+  "gemini_semantic_composite_by_question_stratum": {
+    "audio_or_text_14": 0.5749078731699928,
+    "causal_40": 0.47453189170649746,
+    "counting_67": 0.37702267913242615,
+    "other_224": 0.5348130618155583,
+    "temporal_130": 0.5198208126216971
+  },
+  "question_blind_map_record_coverage": {
+    "overview": 471,
+    "scene": 472,
+    "speech": 278,
+    "text": 412,
+    "sound": 393,
+    "pattern": 173,
+    "state": 397,
+    "uncertainty": 18,
+    "audio_or_text_rows": 14,
+    "audio_or_text_rows_with_speech_record": 7
+  },
+  "hard_row_mechanism_audit": {
+    "reviewed": 30,
+    "selection": "deliberately hard; not prevalence-estimating",
+    "correct_or_supported": 6,
+    "partial": 5,
+    "incorrect": 15,
+    "ambiguous_or_reference_issue": 4,
+    "incorrect_or_partial": 20,
+    "map_contains_answer_evidence": 12,
+    "map_missing_or_misread_required_evidence": 8,
+    "perception_or_map_omission": 8,
+    "wrong_temporal_or_stream_selection": 2,
+    "reasoning_over_available_evidence": 6,
+    "answer_specificity_or_normalization": 4
+  },
+  "usage_and_estimated_batch_list_price_usd": {
+    "direct_answer": {
+      "prompt_tokens": 8649135,
+      "candidate_tokens": 6223,
+      "thinking_tokens": 214755,
+      "estimated_usd": 9.975
+    },
+    "question_blind_map": {
+      "prompt_tokens": 8762428,
+      "candidate_tokens": 304864,
+      "thinking_tokens": 1019559,
+      "estimated_usd": 16.709
+    },
+    "combined_estimated_usd": 26.684,
+    "pricing_assumption": "Batch price calculation using $1 per million input tokens and $6 per million candidate plus thinking tokens; provider invoice was not exposed in artifacts."
+  },
+  "private_artifact_sha256": {
+    "predictions_freeze_json": "b55a20708a88531334543d432d9134cb48e0ed4f53ef5173423a0ac4920e6eab",
+    "direct_predictions_json": "394d2cbf801b29d258cb5ef907cf6f840935bb455b2a762f676160efb5814a3e",
+    "question_blind_maps_json": "1931434d9ebb88c4ae43d18ec62d6c41f668d745a52ab9dd7f4e969506db9a6b",
+    "postfreeze_score_json": "9b9309fca503e8f1cb972f920bc25fb6d12bcebcfbfd86a1a78d46c2de3077c3",
+    "manual_review_json": "bcadac3d2056a883c227ee6c0675459783ff05182808aca26e040e6155be019d",
+    "luna_independent_review_md": "bdb1df1a3ec2541390997f250942ae11eb6875b5c7768a18eafea9201f1245a8",
+    "retry_provenance_v2_json": "e309d52904d54e400a420a386117934823794ffe2e8c4725df8bfb7e076e0c99",
+    "initial_error_snapshot_json": "47c173efef72fcc1a04d9499f673b631c6a0fb20fd6fe0f344ac72936520258d",
+    "successful_retry_snapshot_json": "526055e54b4d6d545d617854f0c9945f9b616efbf0545781cdd5921eb91aefb5"
+  }
+}

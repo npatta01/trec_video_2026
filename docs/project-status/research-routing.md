@@ -52,20 +52,27 @@ independent evidence rather than self-agreement. On a later seven-row
 direct-API screen, native AV answering outscored timeline-only and
 timeline- plus-frame answering. The question-blind timeline remains
 useful navigation, but it should not replace the original modalities at
-the answer stage.
+the answer stage. On the completed 475-row panel, direct Gemini native
+AV tied rather than decisively beat Qwen plus Whisper, and counting
+regressed. A hard-row audit found both answer failures over maps that
+already held the evidence and broad-map omissions of fine details. The
+next system should therefore combine global question-blind context with
+question-driven retrieval, specialist verification, and evidence-bound
+concise answering.
 
 <div class="theme-decision-strip" aria-label="Routing decisions">
 
-- **Use now:** visual baseline fallback and selective accepted Whisper
-  for declared lexical speech.
+- **Use now:** visual baseline fallback, selective accepted Whisper for
+  declared lexical speech, and direct Gemini native AV as a frontier
+  diagnostic baseline.
 - **Do not default:** taxonomy tags as if they were a validated router,
   an ensemble before evidence paths are measured, or same-model map
   self-verification.
 - **Still possible:** abstaining multi-label routing, grounded fusion,
   and evidence-aware answer election.
-- **Next test:** use the frozen seven-row evidence to repair the clear
-  temporal-scope interpretation failure; adjudicate the two questionable
-  references before expanding the panel.
+- **Next test:** first run a deterministic question-stratified 60-row
+  blinded audit; if its gates pass, test frozen map-to-claim/span
+  grounding before any targeted AV route.
 
 </div>
 
@@ -268,16 +275,26 @@ GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
   splash and it missed exact speech. All seven syntheses passed
   deterministic timestamp grounding; neither answer path passed its
   promotion gate.
+- **Full-panel follow-up:** direct Gemini native AV completed 475/475
+  after one bounded provider-error retry and scored `0.5046`, versus
+  `0.4962` for matched Qwen plus Whisper. The paired `+0.0083` composite
+  interval crosses zero. Gemini improved descriptive temporal, causal,
+  audio/text, and other strata but regressed counting (`0.3770` versus
+  `0.4250`). A deliberately hard 30-row mechanism audit found 20
+  incorrect/partial answers; 12 already had the answer evidence in the
+  independent map, while 8 maps omitted or misread it. This is
+  diagnostic mechanism evidence, not a prevalence estimate.
 - **What it does not rule out:** reusable question-blind scene maps or
   Gemini native video. It isolates the earlier failure to the tested
   route/verifier.
-- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—one
-  selected video tests a known failure mechanism but cannot estimate its
-  prevalence.
-- **Reconsider when:** question-driven temporal/speech verification over
-  the frozen global synthesis repairs the clear failures without
-  regressing the supported answers, then passes a larger adjudicated
-  category-balanced sample.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the
+  full-panel metric comparison is complete, but the hard-row mechanism
+  sample is selected and several labels are ambiguous; its category
+  counts are not prevalence.
+- **Reconsider when:** a representative 60-row audit confirms enough
+  clean evidence-present and map-omission failures, then map-grounded
+  answering repairs its predeclared share without regressing supported
+  controls.
 
 <details>
 
@@ -299,8 +316,8 @@ relabeling the terminal `schema_validation` result.
 
 The complete raw evidence is private; see the [dated
 diagnostic](../experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd)
-and [sanitized artifact
-index](../experiments/artifacts/vqa-frontier-boundary-verifier-20260812/README.md).
+and the [full-panel sanitized
+index](../experiments/artifacts/vqa-gemini-native-av-full-panel-20260813/README.md).
 
 </details>
 

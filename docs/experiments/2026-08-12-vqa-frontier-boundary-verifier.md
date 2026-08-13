@@ -192,6 +192,104 @@ preserved separately. Direct Google billing cost was not exposed in the
 response artifacts, so this record does not invent an exact dollar
 figure.
 
+## Full 475-row native-AV and question-blind-map result
+
+The direct-Google path was then run as a completed development-panel
+benchmark, not as a submission run. All 475 labeled-training videos with
+available canonical media received two independent Gemini 3.1 Pro
+Preview Batch requests:
+
+- question plus complete native audio/video to one top-1 answer;
+- complete native audio/video without the question to one reusable
+  event, scene, speech, text, sound, pattern, and state map.
+
+Both conditions used explicit 4-fps sampling, high media resolution,
+high thinking, temperature `0`, and seed `42`. One direct-answer request
+returned a provider-internal error. Its sole bounded retry succeeded,
+leaving **475/475 answers and 475/475 maps**. The retry answer correctly
+identified its labeled source location. The original error and
+successful retry snapshots are both preserved. The immutable aggregate
+freeze correctly selected the retry but its row-local `prior_errors`
+field was empty because retry directories sorted before the original
+shard. An additive retry-provenance record binds both snapshots; the
+collector and regression test are corrected for future freezes, and the
+immutable prediction freeze was not overwritten.
+
+Provider responses were terminal and immutable before panel scoring. One
+row’s annotation was displayed after every provider response was
+terminal but before the local aggregate freeze was written; it could not
+influence any provider prediction. The freeze and post-freeze scorer
+bind all 475 canonical IDs and record the six annotation rows excluded
+because media is unavailable.
+
+| Answer path | METEOR | BERTScore-F1 | STS | Semantic composite |
+|----|---:|---:|---:|---:|
+| Qwen 3.5 4B + 12 frames + Whisper | 0.231 | **0.911** | **0.347** | 0.496 |
+| Gemini 3.1 Pro native AV, 4 FPS | **0.295** | 0.896 | 0.323 | **0.505** |
+
+Gemini’s paired composite gain is `+0.0083`; the exploratory 95% paired
+bootstrap interval is `[-0.0080, +0.0260]`. This is **not a decisive
+improvement** over the existing baseline. NDCG remains exactly `1.0` and
+unusable because each condition produced one answer.
+
+Gemini improves the descriptive composite for causal (`0.475` versus
+`0.449`), temporal (`0.520` versus `0.493`), audio/text (`0.575` versus
+`0.556`), and other questions (`0.535` versus `0.524`). It regresses
+counting materially (`0.377` versus `0.425`, 67 rows). Gemini answers
+also average 10.44 tokens versus 4.47 for Qwen. Several of the largest
+metric regressions are supported answers with extra wording, including
+exact numeric answers, so raw generative similarity scores cannot be
+treated as row-level correctness labels.
+
+### Hard-row mechanism audit
+
+Thirty deliberately hard rows were selected from the largest paired
+regressions and distractor-similarity alarms. This is a mechanism audit,
+not a prevalence sample. Review found 6 supported answers, 5 partial
+answers, 15 incorrect answers, and 4 ambiguous or reference-conflicted
+rows.
+
+Among the 20 incorrect or partial answers, Gemini’s independent
+question-blind map already contained the needed evidence in 12; 8 maps
+omitted or misread the required detail. The primary mechanisms were:
+
+| Mechanism | Rows in the 20-row hard-failure subset |
+|----|---:|
+| Perception or broad-map omission | 8 |
+| Wrong temporal interval or simultaneous stream | 2 |
+| Reasoning failure despite available map evidence | 6 |
+| Incomplete specificity or answer normalization | 4 |
+
+The maps exposed concrete separations. Some contained the exact later
+event, spoken statement, or five-item sequence while the answer chose an
+earlier event, invented a rationale, or returned four. A split-screen
+answer followed the cooking stream even though the requested person’s
+later shouting was in the map. Conversely, broad maps omitted doorway
+fixtures, background-person counts, flags in an opening shot, and
+edit/shot boundaries. Those tasks need question-driven dense inspection
+rather than another global description pass.
+
+Map record coverage also confirms that absence cannot be treated as
+negative evidence: 471/475 maps contain an overview, 472 scenes, 278
+speech, 412 text, 393 sound, 173 pattern, and 397 state records. Only
+7/14 audio/text-stratum rows contain an explicit speech record. The map
+is therefore navigation and cached evidence—not a lossless substitute
+for native modalities.
+
+This result changes the architecture conclusion. Native full-video
+Gemini is a useful frontier component, but it is not a winning top-1
+solution by itself. The reusable question-blind map is useful even when
+the direct answer is wrong: it should provide global context and
+retrieval candidates, while the question controls targeted verification.
+The answer stage must bind its claims to the selected evidence and emit
+the shortest semantically complete answer.
+
+Estimated Batch list-price cost from recorded usage is `$9.975` for
+direct answers and `$16.709` for maps, `$26.684` combined. This
+calculation uses `$1` per million input tokens and `$6` per million
+candidate-plus-thinking tokens; the provider invoice was not exposed, so
+it is an estimate rather than observed billing.
+
 ## Cost and completion boundary
 
 The final v5 pilot plus verifier cost `$0.102772`. Including all
@@ -224,15 +322,40 @@ its boundaries were still coarse.
 
 ## Next decision test
 
-Keep Google’s direct native-AV answer as the frontier baseline and
-retain the question-blind timeline plus whole-video synthesis as
-reusable context. The next test should operate only on frozen evidence:
-use the question to identify claims that need exact temporal or speech
-verification, retrieve/inspect those spans, and then answer from both
-the global synthesis and targeted native AV. Treat the counting and
-global rows as adjudication cases. Do not scale B, C, timeline-only, or
-timeline-plus-frame answering to 475 rows. Candidate ranking and top-10
-serialization remain downstream concerns.
+Keep Google’s direct native-AV answer as a frontier baseline and retain
+the question-blind map as an optional retrieval index. Do not run
+another 475-video global prompt treatment. First draw a deterministic,
+question-stratified 60-row sample independent of metric outcome. Blindly
+adjudicate randomized Gemini/Qwen answers, then inspect map sufficiency.
+This estimates whether the hard-audit mechanisms are common enough to
+justify architecture work and separates reference defects from model
+defects.
+
+Proceed to map-grounded answering only if at least 8/60 clean rows are
+wrong/partial despite sufficient map evidence; proceed to targeted
+retrieval only if at least 6/60 have genuine map omissions. If more than
+6/60 references are materially ambiguous, repair evaluation before
+optimizing architecture. The adjudication can use an independent
+frontier text judge with a small blinded human spot-check instead of
+requiring full manual review.
+
+If the first gate passes, test one narrow seam on frozen evidence:
+question plus map to requested scope and atomic claim/span bindings,
+then either a supported answer or `needs_verification`, followed by
+deterministic concise serialization. Compare it against a plain
+question-plus-map answer on the 12 audited map-sufficient failures plus
+six supported controls. Require at least 7/12 repairs, a four-case net
+advantage, at most one control regression, and no new unsupported
+claims. Only `needs_verification` should trigger one targeted AV check
+in a later screen.
+
+An independent Sol review rejected a generic generative consistency
+pass: the same-model verifier already repeated a known error, so another
+self-opinion can rationalize rather than correct. Limit final checks to
+deterministic schema, requested-unit, cited-span, and contradiction
+checks. Candidate ranking and top-10 serialization remain downstream
+concerns. Because Gemini is a preview model, any future provider A/B
+must pin the exact revision or rerun a matched direct control.
 
 ## Artifact retention and reproducibility
 
@@ -284,3 +407,22 @@ metric, and complete checksum-manifest SHA-256 values are
 `a05c3f65d09bb5921d0367d240eb8df4951e13598d45f147523490bcae00b427`,
 `7171d82745dce7ed89b5c2a3a5231b1e71f365afc2c50315c30046834127b7bf`, and
 `c19fd2435e11f5f8e66a46065555d5bb39d95ff120d4d1836cdb575c923f29e7`.
+
+The completed 475-row private evidence is under:
+
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-batch-475-v1/`
+
+It preserves the protocol, upload and delivery provenance, seven
+batch-job records, every terminal provider snapshot, immutable
+two-condition prediction freeze, direct predictions, question-blind
+maps, post-freeze metrics, and the 30-row hard-mechanism audit. The
+prediction-freeze, score, map, and manual-audit SHA-256 values are
+respectively
+`b55a20708a88531334543d432d9134cb48e0ed4f53ef5173423a0ac4920e6eab`,
+`9b9309fca503e8f1cb972f920bc25fb6d12bcebcfbfd86a1a78d46c2de3077c3`,
+`1931434d9ebb88c4ae43d18ec62d6c41f668d745a52ab9dd7f4e969506db9a6b`, and
+`bcadac3d2056a883c227ee6c0675459783ff05182808aca26e040e6155be019d`. The
+additive retry-provenance SHA-256 is
+`e309d52904d54e400a420a386117934823794ffe2e8c4725df8bfb7e076e0c99`. The
+sanitized tracked index is
+`docs/experiments/artifacts/vqa-gemini-native-av-full-panel-20260813/`.
