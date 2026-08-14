@@ -199,31 +199,31 @@ existing canonical JSON hashing, Ruff, Quarto.
       evidence: AtomicEvidence, plan: AtomicGraphPlan
     ) -> EvidenceGraph`
 
-- [ ] **Step 1: Write the failing adapter test**
+- [x] **Step 1: Write the failing adapter test**
 
   Parse the existing literal atomic fixture and assert its two records become
   two graph nodes with unchanged intervals and provenance source IDs `R1` and
   `R2`.
 
-- [ ] **Step 2: Run the adapter test and observe RED**
+- [x] **Step 2: Run the adapter test and observe RED**
 
-- [ ] **Step 3: Implement the minimal adapter**
+- [x] **Step 3: Implement the minimal adapter**
 
   The adapter maps records only. It emits no identity relation and no complete
   coverage claim. Event plans map records to event nodes; entity and part plans
   map to the corresponding node types.
 
-- [ ] **Step 4: Run the adapter test and observe GREEN**
+- [x] **Step 4: Run the adapter test and observe GREEN**
 
-- [ ] **Step 5: Write failing safety tests**
+- [x] **Step 5: Write failing safety tests**
 
   Assert the adapter rejects duration mismatch, invalid target-kind/count-unit
   combinations, and any attempt to declare complete coverage from atomic
   output alone.
 
-- [ ] **Step 6: Run RED, implement validation, then GREEN**
+- [x] **Step 6: Run RED, implement validation, then GREEN**
 
-- [ ] **Step 7: Run both new test files plus existing issue #34 tests**
+- [x] **Step 7: Run both new test files plus existing issue #34 tests**
 
   ```bash
   uv run --extra gemini pytest \
