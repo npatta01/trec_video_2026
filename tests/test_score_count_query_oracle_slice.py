@@ -117,6 +117,35 @@ def test_scorer_applies_predeclared_architecture_gate() -> None:
         "rate": 1.0,
     }
     assert score["architecture_gate"]["passed"] is True
+
+
+def test_scorer_preserves_proof_freeze_schema_version() -> None:
+    selection, proofs = scoring_fixture()
+    proofs["schema_version"] = 2
+    for row in proofs["rows"]:
+        row["proof"]["schema_version"] = 2
+        row["proof"]["complete_sha256"] = canonical_sha256(
+            {
+                key: value
+                for key, value in row["proof"].items()
+                if key != "complete_sha256"
+            }
+        )
+        row["complete_sha256"] = canonical_sha256(
+            {key: value for key, value in row.items() if key != "complete_sha256"}
+        )
+    proofs["complete_sha256"] = canonical_sha256(
+        {key: value for key, value in proofs.items() if key != "complete_sha256"}
+    )
+
+    score = MODULE.score_oracle_slice(
+        selection=selection,
+        proofs=proofs,
+        expected_selection_sha256=selection["complete_sha256"],
+        expected_proofs_sha256=proofs["complete_sha256"],
+    )
+
+    assert score["schema_version"] == 2
     assert "video_id" not in str(score)
     assert "reference_answer" not in str(score)
 

@@ -112,7 +112,7 @@ def execute_oracle_slice(
         frozen_row["complete_sha256"] = canonical_sha256(frozen_row)
         frozen_rows.append(frozen_row)
     freeze: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "authoring_requests_complete_sha256": requests_hash,
         "authored_inputs_complete_sha256": authored_hash,
         "rows": frozen_rows,

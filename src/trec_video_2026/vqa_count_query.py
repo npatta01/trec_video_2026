@@ -12,6 +12,7 @@ from trec_video_2026.vqa_counting_evidence import validate_label_blind
 from trec_video_2026.vqa_submission import canonical_sha256
 
 SCHEMA_VERSION = 1
+PROOF_SCHEMA_VERSION = 2
 
 TARGET_KINDS = frozenset({"entity", "part", "event"})
 COUNT_UNITS = frozenset(
@@ -240,6 +241,8 @@ class InterpretationTrace:
     upper_bound: int | None
     exact_count: int | None
     selected_node_ids: tuple[str, ...]
+    selected_identity_relation_keys: tuple[str, ...]
+    selected_coverage_claim_ids: tuple[str, ...]
     satisfied_obligations: tuple[str, ...]
     failed_obligations: tuple[str, ...]
     abstention_reasons: tuple[str, ...]
@@ -390,6 +393,8 @@ def parse_count_query(payload: Mapping[str, object]) -> CountQuery:
         )
         if len(obligations) != len(set(obligations)):
             raise ValueError("evidence obligations must be unique")
+        if "target_coverage" not in obligations:
+            raise ValueError("target_coverage obligation is required")
         interpretation = QueryInterpretation(
             interpretation_id=interpretation_id,
             target_kind=_enum(
@@ -469,10 +474,34 @@ def _validate_query_combination(interpretation: QueryInterpretation) -> None:
         raise ValueError(
             "incompatible count query: owner_predicate requires part target"
         )
+    required_identity_policy = {
+        "physical_entity": "physical",
+        "appearance": "appearance_episode",
+    }.get(interpretation.count_unit)
+    if (
+        required_identity_policy is not None
+        and interpretation.identity_policy != required_identity_policy
+    ):
+        raise ValueError(
+            "incompatible identity policy: "
+            f"{interpretation.count_unit} requires {required_identity_policy}"
+        )
+    if (
+        interpretation.count_unit == "event_onset"
+        and interpretation.scope.boundary_policy != "starts_within"
+    ):
+        raise ValueError(
+            "incompatible boundary policy: event_onset requires starts_within"
+        )
 
 
 def _parse_provenance(
-    raw: object, *, field: str, duration_seconds: float
+    raw: object,
+    *,
+    field: str,
+    duration_seconds: float,
+    observation_start_seconds: float,
+    observation_end_seconds: float,
 ) -> Provenance:
     payload = _mapping(raw, field=field)
     _exact_fields(payload, allowed=_PROVENANCE_FIELDS, field=field)
@@ -484,6 +513,13 @@ def _parse_provenance(
     )
     if any(value < 0 or value > duration_seconds for value in timestamps):
         raise ValueError(f"{field}.timestamps_seconds must be within video duration")
+    if not timestamps or any(
+        value < observation_start_seconds or value > observation_end_seconds
+        for value in timestamps
+    ):
+        raise ValueError(
+            f"{field}.timestamps_seconds must ground the observation interval"
+        )
     return Provenance(
         source_kind=_string(payload.get("source_kind"), field=f"{field}.source_kind"),
         source_id=_string(payload.get("source_id"), field=f"{field}.source_id"),
@@ -580,6 +616,8 @@ def parse_evidence_graph(payload: Mapping[str, object]) -> EvidenceGraph:
                     item.get("provenance"),
                     field=f"entities[{index}].provenance",
                     duration_seconds=duration,
+                    observation_start_seconds=start,
+                    observation_end_seconds=end,
                 ),
             )
         )
@@ -625,6 +663,8 @@ def parse_evidence_graph(payload: Mapping[str, object]) -> EvidenceGraph:
                     item.get("provenance"),
                     field=f"parts[{index}].provenance",
                     duration_seconds=duration,
+                    observation_start_seconds=start,
+                    observation_end_seconds=end,
                 ),
             )
         )
@@ -680,6 +720,8 @@ def parse_evidence_graph(payload: Mapping[str, object]) -> EvidenceGraph:
                     item.get("provenance"),
                     field=f"events[{index}].provenance",
                     duration_seconds=duration,
+                    observation_start_seconds=start,
+                    observation_end_seconds=end,
                 ),
             )
         )
@@ -864,12 +906,35 @@ def _matches_visibility(observed: str, required: str) -> bool:
     return levels[observed] <= levels[required]
 
 
+def _event_scope_certainty(node: EventObservation, scope: TimeScope) -> str:
+    if not _matches_scope(
+        start_seconds=node.start_seconds,
+        end_seconds=node.end_seconds,
+        scope=scope,
+    ):
+        return "excluded"
+    if scope.boundary_policy == "starts_within":
+        if node.onset_state == "left_censored":
+            return "excluded"
+        if node.onset_state == "unknown":
+            return "possible"
+    elif scope.boundary_policy == "completes_within":
+        if node.completion_state == "right_censored":
+            return "excluded"
+        if node.completion_state == "unknown":
+            return "possible"
+    return "definite"
+
+
 def _satisfied_obligations(
-    interpretation: QueryInterpretation, graph: EvidenceGraph
-) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    interpretation: QueryInterpretation,
+    graph: EvidenceGraph,
+    obligations: Sequence[str],
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
     satisfied: list[str] = []
     failed: list[str] = []
-    for obligation in interpretation.evidence_obligations:
+    selected_claim_ids: set[str] = set()
+    for obligation in obligations:
         matching = [
             claim
             for claim in graph.coverage
@@ -880,30 +945,86 @@ def _satisfied_obligations(
             and claim.end_seconds >= interpretation.scope.end_seconds
             and claim.coverage_state == "complete"
         ]
-        (satisfied if matching else failed).append(obligation)
-    return tuple(satisfied), tuple(failed)
+        if matching:
+            satisfied.append(obligation)
+            selected_claim_ids.update(claim.claim_id for claim in matching)
+        else:
+            failed.append(obligation)
+    return tuple(satisfied), tuple(failed), tuple(sorted(selected_claim_ids))
+
+
+def _selected_identity_relation_keys(
+    nodes: Sequence[EntityObservation | PartObservation],
+    graph: EvidenceGraph,
+    *,
+    identity_policy: str,
+    identity_universe: Sequence[EntityObservation | PartObservation],
+) -> tuple[str, ...]:
+    relevant = {node.node_id for node in identity_universe}
+    shot_by_node_id = {node.node_id: node.shot_id for node in identity_universe}
+    applicable: list[IdentityRelation] = []
+    adjacency: dict[str, set[str]] = {node_id: set() for node_id in relevant}
+    for relation in graph.identity_relations:
+        if (
+            relation.left_node_id not in relevant
+            or relation.right_node_id not in relevant
+            or (
+                identity_policy != "physical"
+                and shot_by_node_id[relation.left_node_id]
+                != shot_by_node_id[relation.right_node_id]
+            )
+        ):
+            continue
+        applicable.append(relation)
+        if relation.relation_state != "confirmed_different":
+            adjacency[relation.left_node_id].add(relation.right_node_id)
+            adjacency[relation.right_node_id].add(relation.left_node_id)
+    reachable = {node.node_id for node in nodes}
+    frontier = list(reachable)
+    while frontier:
+        node_id = frontier.pop()
+        for neighbor in adjacency[node_id] - reachable:
+            reachable.add(neighbor)
+            frontier.append(neighbor)
+    keys: list[str] = []
+    for relation in applicable:
+        if (
+            relation.left_node_id not in reachable
+            or relation.right_node_id not in reachable
+        ):
+            continue
+        left, right = sorted((relation.left_node_id, relation.right_node_id))
+        keys.append(f"{left}|{right}|{relation.relation_state}")
+    return tuple(sorted(keys))
 
 
 def _max_concurrent(
     nodes: Sequence[EntityObservation | PartObservation | EventObservation],
     scope: TimeScope,
+    *,
+    class_ids: Mapping[str, str] | None = None,
 ) -> tuple[int, tuple[str, ...]]:
     events: list[tuple[float, int, str]] = []
     for node in nodes:
+        class_id = class_ids[node.node_id] if class_ids is not None else node.node_id
         start = max(node.start_seconds, scope.start_seconds)
         end = min(node.end_seconds, scope.end_seconds)
         if start >= end:
             continue
-        events.append((start, 1, node.node_id))
-        events.append((end, -1, node.node_id))
-    active: set[str] = set()
+        events.append((start, 1, class_id))
+        events.append((end, -1, class_id))
+    active_counts: dict[str, int] = {}
     peak: tuple[str, ...] = ()
-    for _, delta, node_id in sorted(events, key=lambda item: (item[0], item[1])):
+    for _, delta, class_id in sorted(events, key=lambda item: (item[0], item[1])):
         if delta < 0:
-            active.discard(node_id)
+            remaining = active_counts[class_id] - 1
+            if remaining:
+                active_counts[class_id] = remaining
+            else:
+                del active_counts[class_id]
         else:
-            active.add(node_id)
-            candidate = tuple(sorted(active))
+            active_counts[class_id] = active_counts.get(class_id, 0) + 1
+            candidate = tuple(sorted(active_counts))
             if len(candidate) > len(peak):
                 peak = candidate
     return len(peak), peak
@@ -930,56 +1051,174 @@ class _UnionFind:
     def class_count(self) -> int:
         return len({self.find(node_id) for node_id in self._parent})
 
+    def class_ids(self) -> dict[str, str]:
+        return {node_id: self.find(node_id) for node_id in self._parent}
+
+
+def _confirmed_identity_classes(
+    nodes: Sequence[EntityObservation | PartObservation],
+    graph: EvidenceGraph,
+    *,
+    identity_policy: str,
+    identity_universe: Sequence[EntityObservation | PartObservation] | None = None,
+) -> dict[str, str]:
+    universe = tuple(identity_universe if identity_universe is not None else nodes)
+    classes = _UnionFind(tuple(node.node_id for node in universe))
+    relevant = {node.node_id for node in universe}
+    shot_by_node_id = {node.node_id: node.shot_id for node in universe}
+    for relation in graph.identity_relations:
+        if (
+            relation.relation_state != "confirmed_same"
+            or relation.left_node_id not in relevant
+            or relation.right_node_id not in relevant
+            or (
+                identity_policy != "physical"
+                and shot_by_node_id[relation.left_node_id]
+                != shot_by_node_id[relation.right_node_id]
+            )
+        ):
+            continue
+        classes.union(relation.left_node_id, relation.right_node_id)
+    class_ids = classes.class_ids()
+    return {node.node_id: class_ids[node.node_id] for node in nodes}
+
 
 def _distinct_bounds(
     nodes: Sequence[EntityObservation | PartObservation],
     graph: EvidenceGraph,
     *,
+    identity_policy: str,
     unresolved_policy: str,
+    identity_universe: Sequence[EntityObservation | PartObservation] | None = None,
 ) -> tuple[int, int, bool]:
-    node_ids = tuple(node.node_id for node in nodes)
-    relevant = set(node_ids)
-    upper_classes = _UnionFind(node_ids)
-    lower_classes = _UnionFind(node_ids)
+    universe = tuple(identity_universe if identity_universe is not None else nodes)
+    universe_ids = tuple(node.node_id for node in universe)
+    selected_ids = {node.node_id for node in nodes}
+    relevant = set(universe_ids)
+    shot_by_node_id = {node.node_id: node.shot_id for node in universe}
+    upper_classes = _UnionFind(universe_ids)
+    possible_classes = _UnionFind(universe_ids)
     saw_unresolved = False
+    relevant_relations: list[IdentityRelation] = []
     for relation in graph.identity_relations:
         if (
             relation.left_node_id not in relevant
             or relation.right_node_id not in relevant
+            or (
+                identity_policy != "physical"
+                and shot_by_node_id[relation.left_node_id]
+                != shot_by_node_id[relation.right_node_id]
+            )
         ):
             continue
+        relevant_relations.append(relation)
         if relation.relation_state == "confirmed_same":
             upper_classes.union(relation.left_node_id, relation.right_node_id)
-            lower_classes.union(relation.left_node_id, relation.right_node_id)
+            possible_classes.union(relation.left_node_id, relation.right_node_id)
         elif relation.relation_state == "unresolved":
             saw_unresolved = True
             if unresolved_policy == "abstain":
-                lower_classes.union(relation.left_node_id, relation.right_node_id)
-    upper = upper_classes.class_count()
-    lower = lower_classes.class_count() if unresolved_policy == "abstain" else upper
+                possible_classes.union(relation.left_node_id, relation.right_node_id)
+    upper_roots = upper_classes.class_ids()
+    selected_upper_roots = {upper_roots[node_id] for node_id in selected_ids}
+    upper = len(selected_upper_roots)
+    if unresolved_policy == "abstain":
+        possible_roots = possible_classes.class_ids()
+        selected_possible_roots = {possible_roots[node_id] for node_id in selected_ids}
+        conflicted_roots = {
+            possible_roots[relation.left_node_id]
+            for relation in relevant_relations
+            if relation.relation_state == "confirmed_different"
+            and upper_roots[relation.left_node_id] in selected_upper_roots
+            and upper_roots[relation.right_node_id] in selected_upper_roots
+            and possible_roots[relation.left_node_id]
+            == possible_roots[relation.right_node_id]
+        }
+        lower = len(selected_possible_roots) + len(conflicted_roots)
+    else:
+        lower = upper
     return lower, upper, saw_unresolved and lower != upper
+
+
+def _max_concurrent_identity_bounds(
+    nodes: Sequence[EntityObservation | PartObservation],
+    graph: EvidenceGraph,
+    *,
+    scope: TimeScope,
+    identity_policy: str,
+    unresolved_policy: str,
+    identity_universe: Sequence[EntityObservation | PartObservation],
+) -> tuple[int, int, tuple[str, ...], bool]:
+    endpoints = sorted(
+        {
+            scope.start_seconds,
+            scope.end_seconds,
+            *(
+                max(node.start_seconds, scope.start_seconds)
+                for node in nodes
+                if node.end_seconds > scope.start_seconds
+                and node.start_seconds < scope.end_seconds
+            ),
+            *(
+                min(node.end_seconds, scope.end_seconds)
+                for node in nodes
+                if node.end_seconds > scope.start_seconds
+                and node.start_seconds < scope.end_seconds
+            ),
+        }
+    )
+    lower_peak = 0
+    upper_peak = 0
+    selected: tuple[str, ...] = ()
+    for start, end in pairwise(endpoints):
+        if start >= end:
+            continue
+        active = tuple(
+            node
+            for node in nodes
+            if node.start_seconds < end and node.end_seconds > start
+        )
+        lower, upper, _ = _distinct_bounds(
+            active,
+            graph,
+            identity_policy=identity_policy,
+            unresolved_policy=unresolved_policy,
+            identity_universe=identity_universe,
+        )
+        lower_peak = max(lower_peak, lower)
+        if upper > upper_peak:
+            upper_peak = upper
+            class_ids = _confirmed_identity_classes(
+                active,
+                graph,
+                identity_policy=identity_policy,
+                identity_universe=identity_universe,
+            )
+            selected = tuple(sorted(set(class_ids.values())))
+    return lower_peak, upper_peak, selected, lower_peak != upper_peak
 
 
 def _execute_interpretation(
     interpretation: QueryInterpretation, graph: EvidenceGraph
 ) -> InterpretationTrace:
-    satisfied, failed = _satisfied_obligations(interpretation, graph)
     event_nodes: tuple[EventObservation, ...] = ()
+    possible_event_nodes: tuple[EventObservation, ...] = ()
     if interpretation.target_kind == "entity":
         nodes: Sequence[EntityObservation | PartObservation] = graph.entities
     elif interpretation.target_kind == "part":
         nodes = graph.parts
     else:
         nodes = ()
-        event_nodes = tuple(
-            node
+        matching_events = tuple(
+            (node, _event_scope_certainty(node, interpretation.scope))
             for node in graph.events
             if node.predicate == interpretation.target_predicate
-            and _matches_scope(
-                start_seconds=node.start_seconds,
-                end_seconds=node.end_seconds,
-                scope=interpretation.scope,
-            )
+        )
+        event_nodes = tuple(
+            node for node, certainty in matching_events if certainty == "definite"
+        )
+        possible_event_nodes = tuple(
+            node for node, certainty in matching_events if certainty != "excluded"
         )
     qualifying = tuple(
         node
@@ -1002,6 +1241,53 @@ def _execute_interpretation(
             if isinstance(node, PartObservation)
             and predicates_by_id[node.owner_node_id] == interpretation.owner_predicate
         )
+    identity_universe = tuple(
+        node
+        for node in nodes
+        if node.predicate == interpretation.target_predicate
+        and (
+            interpretation.target_kind != "part"
+            or interpretation.owner_predicate is None
+            or (
+                isinstance(node, PartObservation)
+                and predicates_by_id[node.owner_node_id]
+                == interpretation.owner_predicate
+            )
+        )
+    )
+    counted_scope_nodes: Sequence[
+        EntityObservation | PartObservation | EventObservation
+    ] = possible_event_nodes if interpretation.target_kind == "event" else qualifying
+    obligations = list(interpretation.evidence_obligations)
+    derived_obligations: list[str] = []
+    if (
+        interpretation.identity_policy == "physical"
+        and len({node.shot_id for node in counted_scope_nodes}) > 1
+    ):
+        derived_obligations.append("cross_shot_identity")
+    if interpretation.target_kind == "part":
+        derived_obligations.append("part_visibility")
+    if interpretation.target_kind == "event" and (
+        interpretation.count_unit == "event_onset"
+        or interpretation.scope.boundary_policy != "overlaps"
+    ):
+        derived_obligations.append("event_boundary_state")
+    for obligation in derived_obligations:
+        if obligation not in obligations:
+            obligations.append(obligation)
+    satisfied, failed, selected_coverage_claim_ids = _satisfied_obligations(
+        interpretation, graph, obligations
+    )
+    selected_identity_relation_keys = (
+        _selected_identity_relation_keys(
+            qualifying,
+            graph,
+            identity_policy=interpretation.identity_policy,
+            identity_universe=identity_universe,
+        )
+        if interpretation.target_kind != "event"
+        else ()
+    )
     selected = tuple(sorted(node.node_id for node in qualifying))
     unresolved_identity = False
     unresolved_boundary = False
@@ -1009,30 +1295,53 @@ def _execute_interpretation(
         concurrent_nodes: Sequence[
             EntityObservation | PartObservation | EventObservation
         ] = event_nodes if interpretation.target_kind == "event" else qualifying
-        lower, selected = _max_concurrent(concurrent_nodes, interpretation.scope)
-        upper = lower
+        if interpretation.target_kind == "event":
+            lower, selected = _max_concurrent(concurrent_nodes, interpretation.scope)
+            upper, _ = _max_concurrent(possible_event_nodes, interpretation.scope)
+            unresolved_boundary = lower != upper
+        else:
+            lower, upper, selected, unresolved_identity = (
+                _max_concurrent_identity_bounds(
+                    qualifying,
+                    graph,
+                    scope=interpretation.scope,
+                    identity_policy=interpretation.identity_policy,
+                    unresolved_policy=interpretation.cross_shot_unknown,
+                    identity_universe=identity_universe,
+                )
+            )
     elif interpretation.aggregation == "cardinality":
         counted_nodes: Sequence[
             EntityObservation | PartObservation | EventObservation
         ] = event_nodes if interpretation.target_kind == "event" else qualifying
         selected = tuple(sorted(node.node_id for node in counted_nodes))
-        lower = len(counted_nodes)
-        upper = lower
+        if interpretation.target_kind == "event":
+            lower = len(counted_nodes)
+            upper = len(possible_event_nodes)
+            unresolved_boundary = lower != upper
+        else:
+            lower, upper, unresolved_identity = _distinct_bounds(
+                qualifying,
+                graph,
+                identity_policy=interpretation.identity_policy,
+                unresolved_policy=interpretation.cross_shot_unknown,
+                identity_universe=identity_universe,
+            )
     elif interpretation.aggregation == "distinct":
         lower, upper, unresolved_identity = _distinct_bounds(
             qualifying,
             graph,
+            identity_policy=interpretation.identity_policy,
             unresolved_policy=interpretation.cross_shot_unknown,
+            identity_universe=identity_universe,
         )
     elif interpretation.aggregation == "transition_count":
         if interpretation.target_kind != "event":
             raise ValueError("transition_count requires an event target")
-        observed = tuple(node for node in event_nodes if node.onset_state == "observed")
-        unknown = tuple(node for node in event_nodes if node.onset_state == "unknown")
-        selected = tuple(sorted(node.node_id for node in observed))
-        lower = len(observed)
-        upper = lower + len(unknown)
-        unresolved_boundary = bool(unknown)
+        selected = tuple(sorted(node.node_id for node in event_nodes))
+        lower = len(event_nodes)
+        upper = len(possible_event_nodes)
+        unresolved_boundary = lower != upper
     else:
         raise NotImplementedError(
             f"aggregation is not implemented: {interpretation.aggregation}"
@@ -1054,6 +1363,8 @@ def _execute_interpretation(
         upper_bound=None if failed else upper,
         exact_count=lower if exact else None,
         selected_node_ids=selected,
+        selected_identity_relation_keys=selected_identity_relation_keys,
+        selected_coverage_claim_ids=selected_coverage_claim_ids,
         satisfied_obligations=satisfied,
         failed_obligations=failed,
         abstention_reasons=reasons,
@@ -1112,4 +1423,4 @@ def count_video(query: CountQuery, graph: EvidenceGraph) -> ProofState:
 def proof_to_dict(proof: ProofState) -> dict[str, object]:
     payload = _json_compatible(asdict(proof))
     assert isinstance(payload, dict)
-    return _with_hash({"schema_version": SCHEMA_VERSION, **payload})
+    return _with_hash({"schema_version": PROOF_SCHEMA_VERSION, **payload})

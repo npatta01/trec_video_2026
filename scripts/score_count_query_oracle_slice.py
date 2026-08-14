@@ -49,8 +49,12 @@ def _rows_by_id(
     return rows
 
 
-def _validate_proof(proof: Mapping[str, object], *, video_id: str) -> None:
+def _validate_proof(
+    proof: Mapping[str, object], *, video_id: str, expected_schema_version: int
+) -> None:
     _verify_hash(proof, name=f"proof {video_id}")
+    if proof.get("schema_version") != expected_schema_version:
+        raise ValueError(f"proof schema version changed for {video_id}")
     if proof.get("query_id") != video_id or proof.get("graph_id") != video_id:
         raise ValueError(f"proof identity binding changed for {video_id}")
     outcome = proof.get("outcome")
@@ -86,6 +90,9 @@ def score_oracle_slice(
         selection, name="selection", expected=expected_selection_sha256
     )
     proofs_hash = _verify_hash(proofs, name="proofs", expected=expected_proofs_sha256)
+    proof_schema_version = proofs.get("schema_version")
+    if proof_schema_version not in {1, 2}:
+        raise ValueError("proof freeze schema version must be 1 or 2")
     selected = _rows_by_id(selection, name="selection", verify_rows=False)
     frozen = _rows_by_id(proofs, name="proofs", verify_rows=True)
     if set(selected) != set(frozen):
@@ -106,7 +113,11 @@ def score_oracle_slice(
         proof = proof_row.get("proof")
         if not isinstance(proof, Mapping):
             raise TypeError(f"proof payload missing for {video_id}")
-        _validate_proof(proof, video_id=video_id)
+        _validate_proof(
+            proof,
+            video_id=video_id,
+            expected_schema_version=proof_schema_version,
+        )
         exact = proof.get("outcome") == "exact"
         is_correct = exact and proof.get("exact_count") == selection_row.get(
             "reference_count"
@@ -129,7 +140,7 @@ def score_oracle_slice(
         incorrect_non_abstained == 0 and exact_answered >= 9 and controls_preserved == 4
     )
     result: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": proof_schema_version,
         "selection_complete_sha256": selection_hash,
         "proofs_complete_sha256": proofs_hash,
         "row_count": 12,

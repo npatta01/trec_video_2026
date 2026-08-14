@@ -129,6 +129,8 @@ def test_runner_executes_and_binds_complete_label_blind_chain() -> None:
 
     assert freeze["authoring_requests_complete_sha256"] == requests["complete_sha256"]
     assert freeze["authored_inputs_complete_sha256"] == authored["complete_sha256"]
+    assert freeze["schema_version"] == 2
+    assert freeze["rows"][0]["proof"]["schema_version"] == 2
     assert freeze["rows"][0]["proof"]["exact_count"] == 1
     assert len(freeze["rows"][0]["complete_sha256"]) == 64
     assert len(freeze["complete_sha256"]) == 64
