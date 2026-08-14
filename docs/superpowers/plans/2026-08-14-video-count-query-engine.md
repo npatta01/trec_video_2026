@@ -248,37 +248,38 @@ existing canonical JSON hashing, Ruff, Quarto.
   - private `panel.freeze.json`
   - private label-blind `requests.label-blind.json`
   - frozen design-set IDs from the six-row canary
+  - question-only `semantic-strata.label-blind.json`
 - Produces under one private output root:
   - `selection.freeze.json`: private 8-failure/4-control selection with bindings
   - `authoring.requests.json`: recursively label-blind 12-row authoring packet
   - `authoring.scaffolds.json`: empty query/graph slots with media bindings
 
-- [ ] **Step 1: Write the failing selection test**
+- [x] **Step 1: Write the failing selection test**
 
   Use a controlled 26-failure/12-control fixture. Assert selection excludes all
   design-set IDs, chooses exactly eight failures and four controls, balances
   declared question-semantic strata where available, hash-ranks ties, and is
   invariant to input ordering.
 
-- [ ] **Step 2: Run the selection test and observe RED**
+- [x] **Step 2: Run the selection test and observe RED**
 
-- [ ] **Step 3: Implement deterministic selection and self-hashed freezes**
+- [x] **Step 3: Implement deterministic selection and self-hashed freezes**
 
   Bind the panel and request-manifest complete hashes. Require all selected IDs
   to exist exactly once in both inputs. Use write-once atomic files.
 
-- [ ] **Step 4: Run the selection test and observe GREEN**
+- [x] **Step 4: Run the selection test and observe GREEN**
 
-- [ ] **Step 5: Write the failing leakage test**
+- [x] **Step 5: Write the failing leakage test**
 
   Recursively scan both authoring outputs. Assert they contain no panel role,
   reference, prior answer, prediction, correctness, metric, or selection
   rationale. Assert the private selection freeze contains those fields only
   outside the authoring packet.
 
-- [ ] **Step 6: Run RED, implement the projection, then GREEN**
+- [x] **Step 6: Run RED, implement the projection, then GREEN**
 
-- [ ] **Step 7: Run the preparation CLI against the canonical frozen panel**
+- [x] **Step 7: Run the preparation CLI against the canonical frozen panel**
 
   Write only under:
 
