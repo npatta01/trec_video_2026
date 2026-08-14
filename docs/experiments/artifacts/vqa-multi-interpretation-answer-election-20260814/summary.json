@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "experiment_id": "multi-interpretation-answer-election-issue35-v1",
+  "evidence_validity": "Diagnostic",
+  "decision_disposition": "Not promoted under the tested condition",
+  "panel": {
+    "rows": 12,
+    "premise_variance": 4,
+    "insufficiency_safeguard": 4,
+    "stability_control": 4,
+    "fresh_rows": true,
+    "excluded_issue35_v2_v3_and_seven_row_canary": true
+  },
+  "completion": {
+    "paid_calls": 24,
+    "single_calls": 12,
+    "multi_calls": 12,
+    "retries": 0,
+    "passed_contract": 24,
+    "contract_errors": 0,
+    "provider_errors": 0,
+    "candidate_sets_audited": 12,
+    "candidates_audited": 36,
+    "changed_emitted_answers": 6,
+    "changed_routes": 1,
+    "total_tokens": 42075,
+    "single_tokens": 15709,
+    "multi_tokens": 26366
+  },
+  "gate": {
+    "passed": false,
+    "premise_correct_multi": 4,
+    "minimum_premise_correct_multi": 3,
+    "premise_improvements_over_single": 1,
+    "minimum_premise_improvements_over_single": 2,
+    "safeguard_verifications_both_arms": 3,
+    "required_safeguard_verifications_each_arm": 4,
+    "multi_controls_preserved": 3,
+    "required_multi_controls_preserved": 4,
+    "unsupported_emitted_answers": 0,
+    "maximum_unsupported_emitted_answers": 0
+  },
+  "candidate_diagnostics": {
+    "oracle_any_candidate_correct": 12,
+    "oracle_denominator": 12,
+    "oracle_disposition": "Diagnostic only; not used in promotion gate",
+    "correct_by_interpretation_type": {
+      "literal_premise": 10,
+      "unique_event_paraphrase": 10,
+      "conservative_verification": 9
+    },
+    "election_reasons": {
+      "supported_candidate_agreement": 5,
+      "sole_supported_answer": 3,
+      "no_supported_answer": 3,
+      "supported_answer_conflict": 1
+    }
+  },
+  "conditions": {
+    "direct": {
+      "meteor": 0.3161238278772499,
+      "bertscore_f1": 0.9001506815354029,
+      "sts": null,
+      "semantic_composite": null
+    },
+    "single": {
+      "meteor": 0.09827486543588239,
+      "bertscore_f1": 0.86090716222922,
+      "sts": null,
+      "semantic_composite": null
+    },
+    "multi": {
+      "meteor": 0.19526865327018747,
+      "bertscore_f1": 0.8745570381482443,
+      "sts": null,
+      "semantic_composite": null
+    }
+  },
+  "role_metrics": {
+    "premise_variance": {
+      "direct": {"meteor": 0.03583091436865022, "bertscore_f1": 0.8787484616041183},
+      "single": {"meteor": 0.07442416340721426, "bertscore_f1": 0.8696634322404861},
+      "multi": {"meteor": 0.11403545301850387, "bertscore_f1": 0.8746209442615509}
+    },
+    "insufficiency_safeguard": {
+      "direct": {"meteor": 0.0, "bertscore_f1": 0.8465357422828674},
+      "single": {"meteor": 0.0, "bertscore_f1": 0.8180013597011566},
+      "multi": {"meteor": 0.0, "bertscore_f1": 0.8143446743488312}
+    },
+    "stability_control": {
+      "direct": {"meteor": 0.9125405692630995, "bertscore_f1": 0.975167840719223},
+      "single": {"meteor": 0.2204004329004329, "bertscore_f1": 0.8950566947460175},
+      "multi": {"meteor": 0.4717705067920585, "bertscore_f1": 0.9347054958343506}
+    }
+  },
+  "mechanism_findings": [
+    "The multi arm answered all four premise-variance rows correctly, but the single arm already answered three; diversity produced only one premise improvement.",
+    "All 12 rows had at least one correct candidate, while deterministic election produced 10 correct top-1 routes, showing election rather than candidate coverage was the remaining bottleneck on this panel.",
+    "On the evidence-insufficient robot row, literal and conservative candidates correctly requested verification, but the sole-answer rule selected a cited alternate action that missed the reference-level requested fact.",
+    "On the displayed-text control, one correct literal candidate and one wrong later-text candidate conflicted, forcing unnecessary verification and a control regression.",
+    "Five rows produced agreement, but the three declared interpretation types converged on identical answers rather than providing meaningful semantic diversity.",
+    "No emitted answer was unsupported by its cited frozen evidence; the failures were answer selection and task/reference alignment, not citation fabrication."
+  ],
+  "integrity": {
+    "protocol_source_sha256": "b0720d4188111f437f8eb11ee3cbe13d0992aa781442386b5b5b3af800d465a7",
+    "selection_freeze_sha256": "140f6a31fe70be9fdf5705c7d90ecdfe7760f572c3a7fe7d5fc0cae072248518",
+    "preinference_gate_freeze_sha256": "ec36fdf71075bb5674cdc9a8b2149f7c0f9fa0d0d92b22120e4f0222d335843b",
+    "selection_integrity_sha256": "55ef8dad7398a898c75a94051584c3261e4653c363510f5207e48a4d27bdff28",
+    "single_protocol_sha256": "9232d5d49c24ee150275f02627a73d20304f8cc9d2a2607004102b3032d86fce",
+    "single_predictions_freeze_sha256": "858d45aa98dbcdfb1f94b6ebabb688db368cce0273562824ba8c49932a54dcf6",
+    "single_evidence_freeze_sha256": "1f39a84548c5c3eb71c91ae7093e755821822c8ea61f01a4032df89057225702",
+    "multi_protocol_sha256": "711905a3fa6eef30de8c355b53c62bc3d343987c12e9bde7ef9abdbeab633de3",
+    "multi_predictions_freeze_sha256": "57ab08c50b8c872770969793b7efa2c9a29780e79a9ac140e89058736a526464",
+    "multi_evidence_freeze_sha256": "855fbcac605ea1bca49f0a24c20aed9182872e5b379b9e0d04df2ba3c4c17fbe",
+    "experiment_integrity_sha256": "c3ddeedb0bea446bc9d65c7de6b5e6fe6c8a2f78600a373cf7f0d2de042d6280",
+    "manual_audit_sha256": "a6dc6140a1db7b2a022c80c3e0e6fc78c7914cec7e1acfc06b2052f47f4c7d5e",
+    "manual_audit_freeze_sha256": "1b753a20dc6ae3e6e35b45c2dbbdf53822760c0b39f0f3c1af1fb18aba3e0ae1",
+    "original_postfreeze_score_sha256": "18b47a25c4e867196cabadd486e98f45fb742d3b320e7f889f13d1aee70f7491",
+    "corrected_postfreeze_score_sha256": "4b413a28cbb077118a37aaa084595ab5e231f4ad2ed7e2ca8ec268dd721816c7",
+    "bert_model_view_sha256": "d22f23ad3ceb52cfcc5b5ab93b103083566ac9b0382ee3c98cf6cd8c12b9c942",
+    "bert_upstream_snapshot_sha256": "11937d0889e64b82673818e3cc511a953777505fc8a71341cb7763c7503a5d60"
+  },
+  "metric_note": "The historical UMBC-compatible STS service is unavailable and no comparable local replacement was frozen, so STS and semantic composite remain null.",
+  "private_root": "/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/multi-interpretation-answer-election-issue35-v1/"
+}

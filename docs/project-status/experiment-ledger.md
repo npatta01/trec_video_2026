@@ -170,7 +170,7 @@ aria-label="Scrollable research theme status matrix" tabindex="0">
 | [Speech](research-speech-transcripts.md#current-working-answer) | Adds spoken words with explicit provenance | [Whisper ablation](research-speech-transcripts.md#automatic-transcript-ablation) | **Use selectively:** accepted Whisper | **Blocked:** human tier; **Possible:** alternate ASR | [Selective Whisper route](research-speech-transcripts.md#distribution-level-selective-whisper) |
 | [Native audio](research-native-audio.md#current-working-answer) | Preserves prosody and non-speech sound | [Audio on/off](research-native-audio.md#minicpm-audio-on-off) | **Do not default:** global audio on | **Possible:** routed sound/prosody | [Specialist panel](research-native-audio.md#matched-native-audio-specialist-panel) |
 | [Models](research-models.md#current-working-answer) | Separates compatibility, quality, and adaptation | [Candidate screens](research-models.md#failure-panel) | **Use:** Qwen3.5-4B; **Fast:** MiniCPM-o | **Possible:** repaired/specialist model or adaptation | [Bottleneck-first decision](research-models.md#bottleneck-first-adaptation-decision) |
-| [Routing](research-routing.md#current-working-answer) | Chooses evidence and separates retrieval from answering | [Full-panel Gemini, hard-row audit, and grounded-answering test](research-routing.md#frontier-boundary-verifier) | **Use:** direct Gemini native AV as frontier baseline; map as optional retrieval index | **Do not promote:** direct Gemini as a winner, self-verifier, or generic derived answer path | [Question-driven temporal or speech verification over frozen context](research-routing.md#frontier-boundary-verifier) |
+| [Routing](research-routing.md#current-working-answer) | Chooses evidence and separates retrieval from answering | [Full-panel Gemini and grounded-answering tests](research-routing.md#frontier-boundary-verifier); [multi-interpretation election](research-routing.md#answer-election) | **Use:** direct Gemini native AV as frontier baseline; map as optional retrieval index | **Do not promote:** self-verifier, generic derived answer path, or tested election rule | [Question-driven temporal or speech verification over frozen context](research-routing.md#frontier-boundary-verifier) |
 
 </div>
 
@@ -332,14 +332,15 @@ reference, not a prescribed research sequence.
     or [measure the bottleneck before
     adapting](research-models.md#bottleneck-first-adaptation-decision).
 6.  **Routing, fusion, and answer election:** the 475-row panel,
-    hard-row audit, 24-row generic grounded-answering test, and 11-row
-    premise-tolerant follow-up now supersede the earlier
-    60-row-audit-first queue item. Do not spend this panel on another
-    global answer-policy rewrite. If pursued, test one explicit
+    hard-row audit, 24-row generic grounded-answering test, 11-row
+    premise-tolerant follow-up, and fresh 12-row multi-interpretation
+    election now supersede the earlier 60-row-audit-first queue item. Do
+    not spend these panels on another global answer-policy rewrite or
+    repeat the failed ensemble. If pursued, test one explicit
     question-driven temporal or speech verification operation over
     frozen global context and evaluate answering separately. Do not
-    introduce multiple answer candidates, a shared router framework, or
-    a counting specialist in that test.
+    introduce a shared router framework or counting specialist in that
+    test.
 
 <span id="how-to-interpret-results" class="legacy-fragment-alias"
 aria-hidden="true"></span>

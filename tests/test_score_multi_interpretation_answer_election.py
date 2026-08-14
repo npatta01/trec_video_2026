@@ -131,3 +131,20 @@ def test_audit_freeze_rejects_postfreeze_tampering(tmp_path: Path):
     _write(audit_path, payload)
     with pytest.raises(ValueError, match="audit freeze"):
         multi_score.verify_audit_freeze(root, audit_path)
+
+
+def test_metric_runtime_binds_model_view_and_upstream_snapshot(tmp_path: Path):
+    view = tmp_path / "view"
+    upstream = tmp_path / "upstream"
+    (view / "config.json").parent.mkdir(parents=True)
+    (view / "config.json").write_text("view")
+    (upstream / "config.json").parent.mkdir(parents=True)
+    (upstream / "config.json").write_text("upstream")
+    runtime = multi_score.metric_runtime(
+        view,
+        upstream_snapshot=upstream,
+        versions={"bert_score_module": "fixture"},
+    )
+    assert runtime["bert_model_view_sha256"] == multi_score.sha256_path(view)
+    assert runtime["bert_upstream_snapshot_sha256"] == multi_score.sha256_path(upstream)
+    assert runtime["versions"] == {"bert_score_module": "fixture"}

@@ -255,6 +255,14 @@ and [closed issue #4 · Issue/PR history · GitHub](https://github.com/npatta01/
   BERTScore-F1 fell `-0.0154`; control deltas were `-0.2902` and `-0.0585`.
   Legacy UMBC STS and composite are explicitly unavailable rather than replaced
   or zero-filled.
+- **Multi-interpretation election follow-up:** a fresh frozen 12-row panel
+  compared one unique-event answer against three typed candidates plus a fixed
+  label-blind election. All 24 calls passed and all 36 candidates were audited.
+  Multi answered 4/4 premise-variance rows, but improved only one over single;
+  both arms verified 3/4 safeguards, multi preserved 3/4 controls, and no
+  emitted citation was unsupported. Oracle candidate coverage was 12/12, while
+  elected multi correctness was 10/12: selection, not candidate availability,
+  was the bottleneck under this rule.
 - **Evidence validity and disposition:** valid-but-negative selected mechanism
   evidence with a corrected 10-row answer-sufficient target subset and partial
   automatic metrics. **Not promoted under the tested condition.**
@@ -305,29 +313,36 @@ Its tracked sanitized indexes include
 
 ### Evidence-aware answer election {#answer-election}
 
-- **Reason for testing:** explore whether multiple plausible generations or
-  evidence views need a separate selection step.
-- **Tested condition and panel:** literature-backed proposal only; the
-  repository has no matched local answer-election or ensemble evaluation.
-- **Observed result:** prior systems motivate probability pooling, reranking,
-  and evidence-aware election, but no local result establishes a benefit here.
-- **Current condition-bound status:** **Open hypothesis**.
-- **What this rules out now:** presenting voting, reranking, or ensembles as a
-  current project recommendation.
-- **What it does not rule out:** a targeted election experiment once candidate
-  evidence paths and answer formats are frozen.
-- **Possible defect, audit gap, or uncertainty:** **Audit gap**—no matched local
-  answer-election experiment establishes benefit or cost.
-- **Reconsider when:** a controlled comparison uses the same generated
-  candidates, evidence citations, costs, and a baseline single-answer path.
+- **Reason for testing:** determine whether multiple evidence-citing
+  interpretations expose and safely elect answers missed by one unique-event
+  interpretation.
+- **Tested condition and panel:** 12 fresh frozen map-only rows: four premise
+  variants, four insufficiency safeguards, and four supported controls. One
+  Gemini call produced three typed candidates; exact normalized agreement and
+  a sole-supported-answer rule elected top-1 without labels or another model.
+- **Observed result:** oracle candidate coverage was `12/12`, but elected multi
+  output was correct on `10/12` and failed the gate: only one premise
+  improvement over single, `3/4` safeguards, and `3/4` controls. All 24 calls
+  passed; zero emitted answers lacked citation support.
+- **Current condition-bound status:** **Do not promote this election rule**.
+- **What this rules out now:** scaling exact-agreement/sole-answer election or
+  treating oracle-best candidate coverage as deployed top-1 performance.
+- **What it does not rule out:** a separately frozen selector with an explicit
+  task-support check, evaluated on another fresh panel.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the small
+  selected panel diagnoses mechanisms but does not estimate general prevalence;
+  the declared interpretation types also converged semantically on five rows.
+- **Reconsider when:** a fresh controlled selector can reject cited but
+  wrong-for-request alternate actions and resolve competing displayed spans
+  without using references or regressing controls.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>
 
-An election mechanism cannot repair missing evidence, and exact-string voting
-can split equivalent open answers. The [literature map · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/queries/literature_review.sql)
-recommends semantic deduplication and evidence-aware ranking only as a testable
-future direction.
+An election mechanism cannot repair missing evidence, and candidate availability
+does not guarantee a safe winner. The completed diagnostic is documented in the
+[dated report](../experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd) and
+[sanitized evidence index](../experiments/artifacts/vqa-multi-interpretation-answer-election-20260814/README.md).
 </details>
 
 ## Known failures and cases
@@ -351,6 +366,10 @@ future direction.
   routes, and preserved 1/3 controls. More deliberation under the same strict
   locator policy is not the next test. See the
   [sanitized follow-up index](../experiments/artifacts/vqa-premise-tolerant-grounded-answering-20260814/README.md).
+- The fresh multi-interpretation follow-up found at least one correct candidate
+  on all 12 rows but safely elected only 10. Candidate generation has headroom;
+  the tested exact-agreement/sole-answer selector is not promoted. See the
+  [sanitized election index](../experiments/artifacts/vqa-multi-interpretation-answer-election-20260814/README.md).
 
 ### What it does not rule out
 
@@ -359,8 +378,8 @@ future direction.
   audio/transcript selection, reasoning, or answer normalization.
 - A literature-supported technique is not a local result until it runs under
   the project’s integrity and scoring boundaries.
-- A future ensemble may help after evidence paths stabilize; it should not be
-  used to mask an unmeasured retrieval problem.
+- A different election could help only after a fresh, frozen task-support rule
+  is declared; oracle-best candidates must not replace emitted top-1 results.
 
 <span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span>
 
@@ -443,21 +462,22 @@ future direction.
 - **Boundary on what a positive result would establish:** a diagnosis for the
   labeled slice, not a universal causal explanation.
 
-### Grounded answer election or targeted ensemble
+### Explicit temporal or speech verification over frozen context
 
-- **Hypothesis:** once matched evidence paths are frozen, selecting among a
-  small set of evidence-citing candidates improves answer quality without
-  hiding uncertainty.
-- **Smallest valid panel or work item:** a small frozen panel with a fixed
-  candidate generator, cited evidence, and single-answer baseline.
-- **Matched controls and integrity safeguards:** keep evidence/model/prompt
-  paths fixed; retain candidate text, evidence citation, election score, cost,
-  and abstention; compare against the unchanged single-answer path after
-  predictions freeze.
-- **Decision or promotion rule:** advance only with a paired improvement and
-  no predeclared regression in controls, cost, or unsupported-evidence rate.
-- **Boundary on what a positive result would establish:** the tested election
-  method for that candidate set, not a general endorsement of ensembles.
+- **Hypothesis:** an explicit question-driven check of the requested temporal
+  successor or speech span can distinguish missing reference-level support from
+  a merely paraphrased locator before final answering.
+- **Smallest valid panel or work item:** a fresh category-balanced set of
+  temporal and speech failures plus supported controls over frozen global maps.
+- **Matched controls and integrity safeguards:** freeze the verification
+  operation, requested relation/unit, source context, citations, abstention,
+  and one top-1 output before labels; do not reuse the spent ensemble panel.
+- **Decision or promotion rule:** advance only with correct verification or
+  answer on every insufficiency row, declared target rescues, and no control or
+  unsupported-answer regression.
+- **Boundary on what a positive result would establish:** the explicit
+  verification mechanism on that fresh panel, not a shared router or generic
+  answer ensemble.
 
 ## Method, result, validity risks, and evidence
 

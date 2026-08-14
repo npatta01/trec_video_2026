@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import UTC, datetime
+import importlib.metadata
 from pathlib import Path
 import statistics
 import sys
@@ -28,6 +29,7 @@ from select_multi_interpretation_answer_election import (  # noqa: E402
 from score_vqa_semantic_panel import (  # noqa: E402
     _default_bertscore,
     _default_meteor,
+    sha256_path,
 )
 
 
@@ -41,6 +43,44 @@ ASSESSMENTS = {
 }
 MeteorFunction = Callable[[str, str], float]
 BertScoreFunction = Callable[[list[str], list[str], Path], Sequence[float]]
+
+
+def metric_runtime(
+    bert_model: Path,
+    *,
+    upstream_snapshot: Path | None = None,
+    versions: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Bind the exact local model view, upstream snapshot, and metric packages."""
+
+    if versions is None:
+        import bert_score
+        import nltk
+        import torch
+        import transformers
+
+        versions = {
+            "bert_score_module": str(getattr(bert_score, "__version__", "unknown")),
+            "bert_score_distribution": importlib.metadata.version("bert-score"),
+            "nltk": str(nltk.__version__),
+            "torch": str(torch.__version__),
+            "transformers": str(transformers.__version__),
+        }
+    result = {
+        "bert_model_view": str(bert_model.resolve()),
+        "bert_model_view_sha256": sha256_path(bert_model),
+        "versions": dict(versions),
+        "bertscore_num_layers": 17,
+        "bertscore_rescale_with_baseline": False,
+    }
+    if upstream_snapshot is not None:
+        result.update(
+            {
+                "bert_upstream_snapshot": str(upstream_snapshot.resolve()),
+                "bert_upstream_snapshot_sha256": sha256_path(upstream_snapshot),
+            }
+        )
+    return result
 
 
 def _index(rows: Any, *, source: str) -> dict[str, dict[str, Any]]:
@@ -291,6 +331,8 @@ def score(
     *,
     meteor_fn: MeteorFunction = _default_meteor,
     bertscore_fn: BertScoreFunction = _default_bertscore,
+    supersedes: Path | None = None,
+    upstream_bert_snapshot: Path | None = None,
 ) -> dict[str, Any]:
     rows = load_frozen_rows(root, annotations)
     verify_audit_freeze(root, audit_path)
@@ -326,6 +368,11 @@ def score(
         "evidence_validity": "Diagnostic",
         "decision_disposition": "promoted_for_larger_validation" if gate_result["passed"] else "not_promoted_under_tested_condition",
         "sts": {"status": "unavailable_for_new_predictions", "reason": "historical UMBC-compatible service is unavailable; no substitute is comparable"},
+        "metric_runtime": metric_runtime(
+            bert_cache,
+            upstream_snapshot=upstream_bert_snapshot,
+            versions=None if bertscore_fn is _default_bertscore else {"metric_functions": "injected"},
+        ),
         "conditions": conditions,
         "aggregates": {condition: aggregate_metrics(values) for condition, values in conditions.items()},
         "gate": gate_result,
@@ -336,6 +383,12 @@ def score(
             "scorer_sha256": _sha256(Path(__file__).resolve()),
         },
     }
+    if supersedes is not None:
+        payload["correction"] = {
+            "supersedes_path": str(supersedes.resolve()),
+            "supersedes_sha256": _sha256(supersedes),
+            "reason": "add exact metric runtime and BERT model provenance; numerical procedure and frozen inputs unchanged",
+        }
     _write_once(output, payload)
     return payload
 
@@ -356,6 +409,8 @@ def build_parser() -> argparse.ArgumentParser:
     score_parser.add_argument("--audit", type=Path, required=True)
     score_parser.add_argument("--output", type=Path, required=True)
     score_parser.add_argument("--bert-cache", type=Path, required=True)
+    score_parser.add_argument("--upstream-bert-snapshot", type=Path)
+    score_parser.add_argument("--supersedes", type=Path)
     return parser
 
 
@@ -366,7 +421,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif args.command == "freeze-audit":
         freeze_audit(args.root, args.audit)
     else:
-        score(args.root, args.annotations, args.audit, args.output, args.bert_cache)
+        score(
+            args.root,
+            args.annotations,
+            args.audit,
+            args.output,
+            args.bert_cache,
+            supersedes=args.supersedes,
+            upstream_bert_snapshot=args.upstream_bert_snapshot,
+        )
     return 0
 
 

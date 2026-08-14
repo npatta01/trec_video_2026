@@ -450,6 +450,76 @@ additive gate-integrity sidecar that cannot retroactively establish the gate's
 contents at the original prediction-freeze instant. Decision disposition:
 **Not promoted under the tested condition**.
 
+### Multi-interpretation answer election
+
+A fresh 12-row follow-up tested the user's explicit hypothesis that generating
+multiple answers might expose a better supported interpretation. It excluded
+every issue #35 v2/v3 row and the earlier seven-row canary, then froze four
+premise-variance failures, four evidence-insufficiency safeguards, and four
+supported controls. Each row received one no-retry single unique-event call and
+one no-retry call producing exactly three typed candidates: literal premise,
+unique-event paraphrase, and conservative verification. A fixed local rule,
+with no labels, metrics, prior answers, or model call, elected one top-1 answer
+or `NEEDS VERIFICATION`.
+
+All 24 responses passed the structural contract. Both arms were prediction-
+and evidence-frozen before references were loaded, and all 12 candidate sets
+(36 candidates) plus all six changed emitted answers were manually inspected.
+The predeclared gate failed:
+
+| Gate component | Required | Observed |
+|---|---:|---:|
+| Correct multi answers on premise-variance rows | at least 3/4 | **4/4** |
+| Premise improvements over single | at least 2 | **1** |
+| Safeguards verified by both arms | 4/4 | **3/4** |
+| Controls preserved by multi | 4/4 | **3/4** |
+| Unsupported emitted answers | 0 | **0** |
+| Candidate sets manually inspected | all | **12/12** |
+
+The result answers why multiple candidates did not solve this cleanly. Every
+row had at least one correct candidate (`12/12` oracle coverage), but the fixed
+election produced only `10/12` correct routes. On the awkward “spinner” premise
+row, the multi arm correctly elected the unique-event interpretation where the
+single arm abstained. On an evidence-insufficient robot row, however, literal
+and conservative candidates correctly requested verification while the
+sole-answer rule selected a cited alternate action that missed the labeled
+requested fact. On a displayed-text control, a correct literal candidate and a
+wrong later-text candidate conflicted, forcing unnecessary verification. Five
+candidate sets reached answer agreement, but their three declared
+interpretation types converged to the same wording rather than adding semantic
+diversity.
+
+Automatic metrics are descriptive, especially because correct verification is
+not a reference answer. Across all 12 rows, direct/single/multi
+METEOR were `0.3161/0.0983/0.1953` and BERTScore-F1 were
+`0.9002/0.8609/0.8746`. On premise-variance rows, multi improved METEOR over
+single (`0.1140` versus `0.0744`) with similar BERTScore-F1 (`0.8746` versus
+`0.8697`), but the safety and control gates independently failed. STS and the
+semantic composite remain `null`: the historical UMBC-compatible service is
+unavailable, and substituting another model would not preserve comparability.
+
+This is a useful negative result, not evidence that candidate generation never
+helps. Candidate diversity exposed recoverable answers, but exact normalized
+agreement plus the sole-supported-answer rule was not a safe selector. Do not
+scale this election or replace its emitted top-1 result with oracle-best
+candidate scoring. The next answer-use experiment remains explicit
+question-driven temporal or speech verification over frozen global context,
+not another global prompt rewrite, answer ensemble, counting specialist, or
+shared router framework.
+
+The sanitized evidence index is
+`docs/experiments/artifacts/vqa-multi-interpretation-answer-election-20260814/`.
+Complete private protocols, requests, raw responses, metadata, candidate
+traces, freezes, audit, and scores are retained at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/multi-interpretation-answer-election-issue35-v1/`.
+The original score is preserved; additive `postfreeze-score-v2.json` binds the
+exact BERT model view, upstream snapshot, and metric package versions without
+changing any numerical result.
+
+Evidence validity: **Diagnostic**—valid negative fresh-panel mechanism evidence
+for this candidate generator and deterministic election rule, not a prevalence
+estimate. Decision disposition: **Not promoted under the tested condition**.
+
 ## Cost and completion boundary
 
 The final v5 pilot plus verifier cost `$0.102772`. Including all preserved
@@ -490,10 +560,14 @@ Post-freeze review confirmed only 10/12 as answer-sufficient; the treatment
 repaired 5/12 under the frozen gate (5/10 descriptively after correction),
 regressed two controls, and routed seven evidence-present rows to verification
 unnecessarily. Do not scale or broadly reprompt that condition.
-The next small mechanism test, if pursued, should perform an explicit
-question-driven temporal or speech verification operation over frozen global
-context and evaluate answering separately. It should not introduce multiple
-answer candidates, a shared router framework, or a counting specialist.
+The fresh 12-row multi-interpretation follow-up then found a correct candidate
+on all 12 rows but failed to elect them safely: only one premise row improved
+over the single arm, one safeguard answered when verification was required, and
+one control regressed to verification. The next small mechanism test, if
+pursued, should perform an explicit question-driven temporal or speech
+verification operation over frozen global context and evaluate answering
+separately. It should not repeat this answer ensemble, introduce a shared
+router framework, or add a counting specialist.
 
 An independent Sol review rejected a generic generative consistency pass: the
 same-model verifier already repeated a known error, so another self-opinion can
@@ -589,3 +663,16 @@ and
 The invalid v1 preflight remains separately preserved. The tracked sanitized
 index is
 `docs/experiments/artifacts/vqa-grounded-map-answering-20260814/`.
+
+The completed multi-interpretation answer-election evidence is under:
+
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/multi-interpretation-answer-election-issue35-v1/`
+
+Its combined integrity, manual-audit freeze, and corrected post-freeze score
+SHA-256 values are respectively
+`c3ddeedb0bea446bc9d65c7de6b5e6fe6c8a2f78600a373cf7f0d2de042d6280`,
+`1b753a20dc6ae3e6e35b45c2dbbdf53822760c0b39f0f3c1af1fb18aba3e0ae1`,
+and
+`4b413a28cbb077118a37aaa084595ab5e231f4ad2ed7e2ca8ec268dd721816c7`.
+The sanitized tracked index is
+`docs/experiments/artifacts/vqa-multi-interpretation-answer-election-20260814/`.

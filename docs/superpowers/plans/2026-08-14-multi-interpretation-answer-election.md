@@ -20,6 +20,22 @@ acquisition; no counting specialist #34; no shared router #36; Gemini 3.1 Pro
 Preview, temperature 0, seed 42, high thinking; 24 total calls; preserve every
 failure and negative result.
 
+**Current status (completed 2026-08-14):** The fresh 4/4/4 panel, both arm
+protocols, all 24 no-retry calls, prediction/evidence freezes, 12-row manual
+audit, automatic metrics, and gate are complete. All calls passed their
+contracts. The gate is negative: multi answered 4/4 premise rows but improved
+only 1 over single; both arms verified 3/4 safeguards; multi preserved 3/4
+controls; unsupported emitted answers were 0. Oracle candidate coverage was
+12/12 but elected multi correctness was 10/12, so candidate generation showed
+headroom while this election rule was not safe enough to promote. Combined
+integrity SHA-256 is `c3ddeedb0bea446bc9d65c7de6b5e6fe6c8a2f78600a373cf7f0d2de042d6280`;
+the additive metric-provenance score SHA-256 is
+`4b413a28cbb077118a37aaa084595ab5e231f4ad2ed7e2ca8ec268dd721816c7`.
+Next action is final render/checksum/privacy verification, independent review,
+then push/update PR #37 and issue #35. The reconciled research route is
+explicit temporal or speech verification over fresh frozen context, not a
+repeat of this ensemble.
+
 ---
 
 ## Task 1: Implement deterministic fresh-panel selection
