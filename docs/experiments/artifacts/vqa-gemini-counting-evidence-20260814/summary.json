@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "experiment_date": "2026-08-14",
+  "evidence_validity": "Diagnostic",
+  "decision_disposition": "Not promoted under the tested condition",
+  "decision_code": "stop_atomic_counting_v1",
+  "scope": {
+    "issue": 34,
+    "excluded_issues": [35, 36],
+    "provider_condition": "OpenRouter-delivered gemini-3.1-pro-preview native video with provider fallback disabled",
+    "transport_deviation": "Direct Google standard and Batch generation were permission-denied after zero-cost schema-development attempts; the valid inference therefore used OpenRouter and does not isolate direct-Google serving."
+  },
+  "corrected_census": {
+    "lexical_candidates": 66,
+    "correct": 38,
+    "confirmed_wrong": 26,
+    "ambiguous": 1,
+    "not_count": 1,
+    "corrections": {
+      "previously_unknown_now_correct": 1,
+      "previously_unknown_now_wrong": 1
+    }
+  },
+  "frozen_panel": {
+    "rows": 39,
+    "scored_failures": 26,
+    "diagnostic_ambiguities": 1,
+    "correct_controls": 12,
+    "labels_unavailable_during_extraction_and_inference": true
+  },
+  "canary": {
+    "rows": 6,
+    "failure_rows": 5,
+    "control_rows": 1,
+    "schema_valid_rows": 6,
+    "rescued_failures": 1,
+    "rescue_rate": 0.2,
+    "required_rescues": 3,
+    "preserved_controls": 1,
+    "control_preservation_rate": 1.0,
+    "required_preserved_controls": 1,
+    "observed_cost_usd": 0.253924,
+    "projected_full_panel_cost_usd": 4.3874215,
+    "authorized_ceiling_usd": 3.0,
+    "scale_up_submitted": false
+  },
+  "metrics": {
+    "scope": "six-row canary only",
+    "baseline": {
+      "meteor": 0.08352565843062722,
+      "bertscore_f1": 0.8565550049146017,
+      "sts": 0.0,
+      "semantic_composite": 0.3133602211150763
+    },
+    "atomic_treatment": {
+      "meteor": 0.0903954802259887,
+      "bertscore_f1": 0.8866815865039825,
+      "sts": 0.0,
+      "semantic_composite": 0.3256923555766571
+    },
+    "delta_treatment_minus_baseline": {
+      "meteor": 0.006869821795361483,
+      "bertscore_f1": 0.030126581589380863,
+      "sts": 0.0,
+      "semantic_composite": 0.012332134461580824
+    },
+    "interpretation": "The small semantic-score increase is not a rescue signal: short numeric outputs score closer while four of five failed rows remain wrong.",
+    "sts_caveat": "Five frozen UMBC cache hits and one published unequal-numeric-term rule application; the live UMBC endpoint timed out.",
+    "replay_matches_all_frozen_metric_values": true,
+    "metric_environment": {
+      "python": "3.12.13",
+      "nltk_distribution": "3.9.2",
+      "bert_score_distribution": "0.3.13",
+      "bert_score_module": "0.3.12",
+      "torch_distribution": "2.13.0+cpu",
+      "transformers_distribution": "5.15.0",
+      "device": "cpu"
+    },
+    "provenance_status": "additive_postfreeze_offline_replay",
+    "provenance_limitation": "The original frozen metric artifact did not embed runtime versions. A separately hashed offline replay reproduced every frozen metric value and binds the lock, scorer, model snapshot, and tokenizer resources; it is not represented as metadata captured during the original scoring invocation."
+  },
+  "failure_inspection": {
+    "rescued_mechanism": "background_entity_recovered",
+    "unresolved_mechanisms": {
+      "count_unit_misbinding": 1,
+      "residual_instance_omission_and_part_definition": 1,
+      "edited_shot_boundary_collapse": 1,
+      "scope_boundary_overcount": 1
+    },
+    "conclusion": "Atomic timestamped records improve inspectability and recover one omitted background entity, but do not reliably bind the requested count unit or recover collapsed edit/part evidence."
+  },
+  "private_artifact_sha256": {
+    "census.json": "83e8422c07aab0e6ad25b2b6966692932994e82c11a0485458e8a00b3512699c",
+    "panel.freeze.json": "6e8d12d537ae489003ded787c37e8393992cdb035ffd4f1d1bf1f641154bf1c1",
+    "requests.label-blind.json": "714d6fea817d82afd4f2784ce50f5d7f11bd2c75b6c1ffb22f5c08f178bd5e39",
+    "run-openrouter-v1/openrouter-preflight.json": "3a6d3a9ea9a9f5e86f5b6b0622ba1cf7bc16930a1cb0756f0c017b457c0deb53",
+    "run-openrouter-v1/canary-predictions-freeze.json": "30e1c8466be4184c10a984daa3e4a9193f1e5e9a32e48038380875f53c01934f",
+    "run-openrouter-v1/canary-decision.json": "970b57561c8d0a51f024e38de0f1591b21adfb0e5f85c1a80cd4052361bbcf61",
+    "run-openrouter-v1/canary-metrics.json": "99e58d2542a799a45d2edbde7dea3e241995ade0985c93800a5fb62bdd156d73",
+    "run-openrouter-v1/canary-metrics-replay-v2.json": "d23c6ac473fe016759962b933b4a520c28b1d2866ba7c3cc7569f11d930342fc",
+    "run-openrouter-v1/metric-environment-provenance.json": "2bc97498f54d9a3b7995ff4c86d7238c2082d2e9be6fe026c6ce84d9b953caa3",
+    "run-openrouter-v1/failure-audit/audit.json": "bfb8cd3fc4835b5b8038e2b2a4527de9e12e022d2b28f1a54532a14171f19fe6"
+  }
+}

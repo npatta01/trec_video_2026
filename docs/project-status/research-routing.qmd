@@ -240,6 +240,15 @@ and [closed issue #4 · Issue/PR history · GitHub](https://github.com/npatta01/
   mechanism audit found 20 incorrect/partial answers; 12 already had the answer
   evidence in the independent map, while 8 maps omitted or misread it. This is
   diagnostic mechanism evidence, not a prevalence estimate.
+- **Counting-evidence follow-up:** a corrected 66-row lexical census found 38
+  correct, 26 confirmed wrong, one ambiguous, and one not-count row. A
+  label-blind six-row canary used question-driven atomic timestamped instances
+  and a deterministic cardinality reducer. It rescued 1/5 failures and
+  preserved 1/1 control at `$0.253924`, below its 3/5 promotion gate. Four
+  remaining failures were count-unit misbinding, part omission/definition,
+  edited-shot boundary collapse, and scope-boundary overcount. The tested
+  OpenRouter-delivered atomic enumerator is not promoted, and the projected
+  39-row cost also exceeded the `$3` ceiling.
 - **What it does not rule out:** reusable question-blind scene maps or Gemini
   native video. It isolates the earlier failure to the tested route/verifier.
 - **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the full-panel
@@ -247,7 +256,9 @@ and [closed issue #4 · Issue/PR history · GitHub](https://github.com/npatta01/
   and several labels are ambiguous; its category counts are not prevalence.
 - **Reconsider when:** a representative 60-row audit confirms enough clean
   evidence-present and map-omission failures, then map-grounded answering repairs
-  its predeclared share without regressing supported controls.
+  its predeclared share without regressing supported controls. For counting,
+  require a new deterministic unit/boundary convention rather than rerunning
+  the unchanged generic atomic enumerator.
 
 <details>
 <summary>Method, result, validity risks, and evidence</summary>
@@ -267,13 +278,17 @@ locally valid, allowing inspection without relabeling the terminal
 The complete raw evidence is private; see the
 [dated diagnostic](../experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd)
 and the [full-panel sanitized index](../experiments/artifacts/vqa-gemini-native-av-full-panel-20260813/README.md).
+The counting follow-up has a separate
+[sanitized index](../experiments/artifacts/vqa-gemini-counting-evidence-20260814/README.md).
 :::
 
 ::: {.content-visible when-format="html"}
 The complete raw evidence is private; see the
 [rendered dated diagnostic](../vqa-frontier-boundary-verifier-20260812.html).
 Its tracked sanitized index is
-`docs/experiments/artifacts/vqa-frontier-boundary-verifier-20260812/`.
+`docs/experiments/artifacts/vqa-frontier-boundary-verifier-20260812/`; the
+counting follow-up is indexed at
+`docs/experiments/artifacts/vqa-gemini-counting-evidence-20260814/`.
 :::
 </details>
 
@@ -362,6 +377,14 @@ future direction.
   evidence paths themselves are controlled and frozen.
 
 ## Cheapest valid next experiments
+
+The 2026-08-14 counting canary rules out scaling its unchanged generic atomic
+enumerator: only 1/5 failures were rescued. A later counting-specific variant
+must declare the requested count unit, temporal boundary, and inclusion rule
+before evidence extraction and then test that new mechanism against the frozen
+panel and controls. The cheapest next seam is zero-cost re-reduction of existing
+atomic records with frozen max-concurrency and onset-in-scope operators; only
+the predeclared flips and stable controls would warrant a new paid micro-canary.
 
 ### Independent scene-boundary verifier
 

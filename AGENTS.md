@@ -181,3 +181,22 @@ regresses. The hard-row audit shows both answer-stage failures despite useful
 maps and map omissions on fine counting/detail. The next experiment is a small
 frozen question-driven retrieval and targeted-verification test—not another
 global prompt rewrite or full-panel Gemini run.
+
+## Question-driven atomic counting evidence artifact reference
+
+The completed 2026-08-14 issue #34 atomic counting canary is documented in the
+counting section of
+[`docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd`](docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd).
+Its sanitized index is under
+[`docs/experiments/artifacts/vqa-gemini-counting-evidence-20260814/`](docs/experiments/artifacts/vqa-gemini-counting-evidence-20260814/).
+
+The complete private evidence is already in the canonical shared dataset at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-counting-evidence-v1/`.
+Start with `inspection.md`. The corrected census is 38 correct, 26 confirmed
+wrong, one ambiguous, and one not-count row; the frozen panel has those 26
+failures, the ambiguity, and 12 controls. The valid OpenRouter-delivered canary
+rescued 1/5 failures and preserved 1/1 control at `$0.253924`; it failed the
+3/5 gate, and projected scale also exceeded the `$3` ceiling. Do not rerun or
+scale the unchanged generic atomic enumerator. The zero-cost next seam is a
+frozen CountSpec plus typed deterministic reducers over already-purchased
+records; any new paid micro-canary requires separate authorization.

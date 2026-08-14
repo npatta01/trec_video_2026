@@ -273,6 +273,101 @@ per million input tokens and `$6` per million candidate-plus-thinking tokens;
 the provider invoice was not exposed, so it is an estimate rather than observed
 billing.
 
+## Question-driven atomic counting evidence canary
+
+Issue 34 tested the smallest question-driven recovery path for missing or
+collapsed counting evidence. This was not an answer-diversity treatment. The
+model received the question, native video, and frozen question-blind map only
+as navigation. It had to choose a count unit and emit one timestamped atomic
+record per counted instance, without returning a final count; a strict local
+reducer used record cardinality. References, prior answers, correctness, and
+metrics were unavailable during extraction and inference.
+
+### Corrected census and frozen panel
+
+A fresh lexical census reproduced 66 candidate rows and corrected two
+offsetting defects in the earlier parser output: one formerly unknown row is a
+correct two-item answer, while another is a confirmed `34`-versus-`40` failure
+that the old number vocabulary could not parse. The corrected split is 38
+correct, 26 confirmed wrong, one ambiguous bed-structure row, and one question
+that mentions arrows but does not ask for a count. The frozen challenge panel
+therefore contains all 26 scored failures, the ambiguity as a diagnostic-only
+row, and 12 deterministic hash-ranked correct controls. Rescue rate uses the
+26 confirmed failures as its denominator, not the ambiguity.
+
+The cheapest representative canary froze five failures spanning simultaneous
+entities, parts, edited shots, repeated actions, and background people, plus
+the parser-corrected two-item control. Its promotion gate required valid schemas
+on 6/6 rows, at least 3/5 rescues, 1/1 control preservation, and projected total
+cost within `$3`.
+
+### Provider boundary
+
+Direct Google standard generation first exposed two client/schema defects that
+were fixed and regression-tested, then returned `403 PERMISSION_DENIED`.
+Google Batch accepted and completed the six-row job, but every item returned the
+same permission error. These attempts produced no model output, recorded zero
+usage, and cost zero. The valid canary therefore used OpenRouter's advertised
+`gemini-3.1-pro-preview` with native video, high reasoning, temperature `0`,
+structured output, and provider fallback disabled. This same-model fallback is
+a transport deviation from the direct-Google full-panel baseline; the result
+does not isolate direct-Google serving.
+
+### Result and failure inspection
+
+All 6/6 OpenRouter responses passed the strict atomic schema. The reducer
+rescued **1/5 failures (20%)** and preserved **1/1 control (100%)**, below the
+predeclared 3/5 rescue gate. Observed cost was `$0.253924`; extrapolation from
+the canary predicts `$4.3874` for all 39 frozen rows, above the authorized `$3`
+ceiling. No scale-up was submitted.
+
+| Condition, six canary rows | METEOR | BERTScore-F1 | STS | Semantic composite |
+|---|---:|---:|---:|---:|
+| Frozen Gemini native-AV answer | 0.084 | 0.857 | 0.000 | 0.313 |
+| Atomic-record cardinality | **0.090** | **0.887** | 0.000 | **0.326** |
+
+The treatment-minus-baseline composite delta is `+0.0123`, but this is not a
+rescue signal: short numeric outputs score closer while four of five failed
+rows remain wrong. Five STS comparisons were frozen UMBC cache hits. The live
+endpoint timed out on the remaining `35`-versus-`forty` comparison, which was
+assigned zero under the published unequal-numeric-term rule; all six STS values
+are zero. NDCG is omitted because one answer per condition makes it degenerate.
+An additive offline CPU replay with the locked metric environment reproduced
+every frozen metric value. Its separately hashed provenance binds Python,
+NLTK, BERTScore, Torch CPU, Transformers, the model snapshot, scorer, and NLTK
+tokenizer resources; this corrects a provenance omission without rewriting the
+original write-once metrics artifact.
+
+The sole genuine rescue found a second background woman that both the original
+answer and broad map omitted. Dense 2-fps inspection classified the four
+unresolved failures as count-unit misbinding, residual part omission/definition,
+edited-shot boundary collapse, and scope-boundary overcount. Atomic records
+make the disagreement inspectable, but the unchanged one-call mechanism does
+not reliably bind the question's counting convention or recover collapsed cut
+and part evidence. Disposition: **`stop_atomic_counting_v1`**. Preserve this as
+a valid negative; do not scale or rerun the unchanged treatment.
+
+- **Evidence validity:** Diagnostic.
+- **Decision disposition:** Not promoted under the tested condition.
+- **Decision code:** `stop_atomic_counting_v1`.
+
+A post-result three-lane architecture review agreed that the atomic records
+should remain as provenance, but the model must no longer select unit, scope,
+inclusion convention, or arithmetic. The proposed next seam is
+`question → frozen CountSpec → route-specific evidence → verification → typed
+deterministic reducer`. The first test is zero-cost: add max-concurrency and
+onset-in-scope reducers, then re-reduce the already-purchased simultaneity and
+clip-boundary records under predeclared rules. Both predicted flips and no
+regression on the background rescue or correct control would justify requesting
+a new held-out micro-canary. This advice does not authorize another paid run.
+
+The sanitized evidence index is
+`docs/experiments/artifacts/vqa-gemini-counting-evidence-20260814/`. Complete
+private provenance, raw responses, label-blind requests, contact sheets, and
+hashes remain at
+`data/vqa/benchmarks/direct-gemini-counting-evidence-v1/` in the canonical
+shared dataset.
+
 ## Cost and completion boundary
 
 The final v5 pilot plus verifier cost `$0.102772`. Including all preserved
@@ -300,6 +395,14 @@ on this clip, but one video cannot estimate prevalence and its boundaries were
 still coarse.
 
 ## Next decision test
+
+For counting specifically, do not scale the tested generic atomic enumerator.
+First freeze CountSpecs and mechanisms for the existing 26 failures and 12
+controls. Then test max-concurrency and onset-in-scope reducers at zero provider
+cost on the already-purchased records. Any later paid counting test must make
+the requested unit, temporal boundary, and inclusion convention deterministic
+while retaining atomic timestamped evidence; that is a new mechanism and was
+not tested here.
 
 Keep Google's direct native-AV answer as a frontier baseline and retain the
 question-blind map as an optional retrieval index. Do not run another 475-video

@@ -2168,7 +2168,7 @@ vertical-align: -.125em;
 
 <div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
 <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="2026-08-12-vqa-frontier-boundary-verifier.md"><i class="bi bi-file-code"></i>Github (GFM)</a></li></ul></div></div>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="vqa-frontier-boundary-verifier-20260812.html"><i class="bi bi-file-code"></i>Github (GFM)</a></li></ul></div></div>
 <main class="content" id="quarto-document-content">
 
 <header id="title-block-header" class="quarto-title-block default">
@@ -2295,6 +2295,188 @@ vertical-align: -.125em;
 <p>The timeline-only path recovered the reference count, but lost fine OCR and speech evidence. Adding selected frames restored the airplane text but did not repair temporal scope, causal intent, or the counting disagreement. This supports an all-modality answer stage: the reusable timeline is valuable for coverage and navigation, but should guide—not replace—native AV, audio, and high-resolution visual evidence.</p>
 <p>Two initial text-only selector outputs were not preserved after a timestamp- parser failure; the replacement calls and explicit audit-gap records are retained, and no native-video call was repeated. One speech selector response hit its output ceiling; both the truncated response and one text-only retry are preserved. The completed bundle contains all seven timelines, selected spans, timestamped frames, contact sheets, three answers, metrics, and provider metadata.</p>
 </section>
+<section id="scope-control-and-whole-video-synthesis-treatment" class="level2">
+<h2 class="anchored" data-anchor-id="scope-control-and-whole-video-synthesis-treatment">Scope control and whole-video synthesis treatment</h2>
+<p>The same frozen seven rows were then used for a matched B/C diagnostic. B retained native AV and changed only the answer instruction: identify temporal scope and semantic target before giving one answer. C retained native AV, added the complete frozen question-blind timeline, and created one structured question-blind whole-video synthesis before answering. The synthesis represented overview, phases, repeated patterns and instances, state changes, salient audio/text, grounded inferences, and uncertainty. Labels and references were withheld from every provider call, and C predictions were frozen before scoring.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Answer path</th>
+<th style="text-align: right;">METEOR</th>
+<th style="text-align: right;">BERTScore-F1</th>
+<th style="text-align: right;">STS</th>
+<th style="text-align: right;">Semantic composite</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>A · direct native AV</td>
+<td style="text-align: right;"><strong>0.335</strong></td>
+<td style="text-align: right;">0.889</td>
+<td style="text-align: right;">0.303</td>
+<td style="text-align: right;"><strong>0.509</strong></td>
+</tr>
+<tr class="even">
+<td>B · scope prompt + native AV</td>
+<td style="text-align: right;">0.204</td>
+<td style="text-align: right;"><strong>0.901</strong></td>
+<td style="text-align: right;">0.319</td>
+<td style="text-align: right;">0.475</td>
+</tr>
+<tr class="odd">
+<td>C · synthesis + map + native AV</td>
+<td style="text-align: right;">0.210</td>
+<td style="text-align: right;">0.897</td>
+<td style="text-align: right;"><strong>0.365</strong></td>
+<td style="text-align: right;">0.491</td>
+</tr>
+</tbody>
+</table>
+<p>B failed its gate: it did not repair the repeated-action answer and regressed the previously supported causal and speech rows. C recovered the causal answer and produced the best STS aggregate, but still did not beat A or pass its gate. Its diving synthesis explicitly captured three separate dives and three splash outcomes with grounded instances; the final answer nevertheless selected “water splashes” instead of the labeled repeated-action interpretation. C also missed the later speech instruction and incorrectly asserted that no such instruction occurred. It preserved the supported sound and OCR answers.</p>
+<p>All seven C syntheses passed the deterministic timestamp/range audit for every observation-bearing field. Whole-video synthesis can therefore recover global event structure while final question semantics remain wrong, and it does not guarantee exact-speech recovery. Retain synthesis as reusable context; do not promote either B or C as the answer path under the tested condition.</p>
+<p>C completed 14 successful provider calls with 232,882 prompt/media tokens, 7,732 output tokens, 12,928 thinking tokens, and 253,542 total tokens. One earlier C attempt ended in a provider-side <code>503</code> before a response; its upload was deleted and the successful bounded retry is preserved separately. Direct Google billing cost was not exposed in the response artifacts, so this record does not invent an exact dollar figure.</p>
+</section>
+<section id="full-475-row-native-av-and-question-blind-map-result" class="level2">
+<h2 class="anchored" data-anchor-id="full-475-row-native-av-and-question-blind-map-result">Full 475-row native-AV and question-blind-map result</h2>
+<p>The direct-Google path was then run as a completed development-panel benchmark, not as a submission run. All 475 labeled-training videos with available canonical media received two independent Gemini 3.1 Pro Preview Batch requests:</p>
+<ul>
+<li>question plus complete native audio/video to one top-1 answer;</li>
+<li>complete native audio/video without the question to one reusable event, scene, speech, text, sound, pattern, and state map.</li>
+</ul>
+<p>Both conditions used explicit 4-fps sampling, high media resolution, high thinking, temperature <code>0</code>, and seed <code>42</code>. One direct-answer request returned a provider-internal error. Its sole bounded retry succeeded, leaving <strong>475/475 answers and 475/475 maps</strong>. The retry answer correctly identified its labeled source location. The original error and successful retry snapshots are both preserved. The immutable aggregate freeze correctly selected the retry but its row-local <code>prior_errors</code> field was empty because retry directories sorted before the original shard. An additive retry-provenance record binds both snapshots; the collector and regression test are corrected for future freezes, and the immutable prediction freeze was not overwritten.</p>
+<p>Provider responses were terminal and immutable before panel scoring. One row’s annotation was displayed after every provider response was terminal but before the local aggregate freeze was written; it could not influence any provider prediction. The freeze and post-freeze scorer bind all 475 canonical IDs and record the six annotation rows excluded because media is unavailable.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 15%">
+<col style="width: 21%">
+<col style="width: 21%">
+<col style="width: 21%">
+<col style="width: 21%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Answer path</th>
+<th style="text-align: right;">METEOR</th>
+<th style="text-align: right;">BERTScore-F1</th>
+<th style="text-align: right;">STS</th>
+<th style="text-align: right;">Semantic composite</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Qwen 3.5 4B + 12 frames + Whisper</td>
+<td style="text-align: right;">0.231</td>
+<td style="text-align: right;"><strong>0.911</strong></td>
+<td style="text-align: right;"><strong>0.347</strong></td>
+<td style="text-align: right;">0.496</td>
+</tr>
+<tr class="even">
+<td>Gemini 3.1 Pro native AV, 4 FPS</td>
+<td style="text-align: right;"><strong>0.295</strong></td>
+<td style="text-align: right;">0.896</td>
+<td style="text-align: right;">0.323</td>
+<td style="text-align: right;"><strong>0.505</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Gemini’s paired composite gain is <code>+0.0083</code>; the exploratory 95% paired bootstrap interval is <code>[-0.0080, +0.0260]</code>. This is <strong>not a decisive improvement</strong> over the existing baseline. NDCG remains exactly <code>1.0</code> and unusable because each condition produced one answer.</p>
+<p>Gemini improves the descriptive composite for causal (<code>0.475</code> versus <code>0.449</code>), temporal (<code>0.520</code> versus <code>0.493</code>), audio/text (<code>0.575</code> versus <code>0.556</code>), and other questions (<code>0.535</code> versus <code>0.524</code>). It regresses counting materially (<code>0.377</code> versus <code>0.425</code>, 67 rows). Gemini answers also average 10.44 tokens versus 4.47 for Qwen. Several of the largest metric regressions are supported answers with extra wording, including exact numeric answers, so raw generative similarity scores cannot be treated as row-level correctness labels.</p>
+<section id="hard-row-mechanism-audit" class="level3">
+<h3 class="anchored" data-anchor-id="hard-row-mechanism-audit">Hard-row mechanism audit</h3>
+<p>Thirty deliberately hard rows were selected from the largest paired regressions and distractor-similarity alarms. This is a mechanism audit, not a prevalence sample. Review found 6 supported answers, 5 partial answers, 15 incorrect answers, and 4 ambiguous or reference-conflicted rows.</p>
+<p>Among the 20 incorrect or partial answers, Gemini’s independent question-blind map already contained the needed evidence in 12; 8 maps omitted or misread the required detail. The primary mechanisms were:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Mechanism</th>
+<th style="text-align: right;">Rows in the 20-row hard-failure subset</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Perception or broad-map omission</td>
+<td style="text-align: right;">8</td>
+</tr>
+<tr class="even">
+<td>Wrong temporal interval or simultaneous stream</td>
+<td style="text-align: right;">2</td>
+</tr>
+<tr class="odd">
+<td>Reasoning failure despite available map evidence</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr class="even">
+<td>Incomplete specificity or answer normalization</td>
+<td style="text-align: right;">4</td>
+</tr>
+</tbody>
+</table>
+<p>The maps exposed concrete separations. Some contained the exact later event, spoken statement, or five-item sequence while the answer chose an earlier event, invented a rationale, or returned four. A split-screen answer followed the cooking stream even though the requested person’s later shouting was in the map. Conversely, broad maps omitted doorway fixtures, background-person counts, flags in an opening shot, and edit/shot boundaries. Those tasks need question-driven dense inspection rather than another global description pass.</p>
+<p>Map record coverage also confirms that absence cannot be treated as negative evidence: 471/475 maps contain an overview, 472 scenes, 278 speech, 412 text, 393 sound, 173 pattern, and 397 state records. Only 7/14 audio/text-stratum rows contain an explicit speech record. The map is therefore navigation and cached evidence—not a lossless substitute for native modalities.</p>
+<p>This result changes the architecture conclusion. Native full-video Gemini is a useful frontier component, but it is not a winning top-1 solution by itself. The reusable question-blind map is useful even when the direct answer is wrong: it should provide global context and retrieval candidates, while the question controls targeted verification. The answer stage must bind its claims to the selected evidence and emit the shortest semantically complete answer.</p>
+<p>Estimated Batch list-price cost from recorded usage is <code>$9.975</code> for direct answers and <code>$16.709</code> for maps, <code>$26.684</code> combined. This calculation uses <code>$1</code> per million input tokens and <code>$6</code> per million candidate-plus-thinking tokens; the provider invoice was not exposed, so it is an estimate rather than observed billing.</p>
+</section>
+</section>
+<section id="question-driven-atomic-counting-evidence-canary" class="level2">
+<h2 class="anchored" data-anchor-id="question-driven-atomic-counting-evidence-canary">Question-driven atomic counting evidence canary</h2>
+<p>Issue 34 tested the smallest question-driven recovery path for missing or collapsed counting evidence. This was not an answer-diversity treatment. The model received the question, native video, and frozen question-blind map only as navigation. It had to choose a count unit and emit one timestamped atomic record per counted instance, without returning a final count; a strict local reducer used record cardinality. References, prior answers, correctness, and metrics were unavailable during extraction and inference.</p>
+<section id="corrected-census-and-frozen-panel" class="level3">
+<h3 class="anchored" data-anchor-id="corrected-census-and-frozen-panel">Corrected census and frozen panel</h3>
+<p>A fresh lexical census reproduced 66 candidate rows and corrected two offsetting defects in the earlier parser output: one formerly unknown row is a correct two-item answer, while another is a confirmed <code>34</code>-versus-<code>40</code> failure that the old number vocabulary could not parse. The corrected split is 38 correct, 26 confirmed wrong, one ambiguous bed-structure row, and one question that mentions arrows but does not ask for a count. The frozen challenge panel therefore contains all 26 scored failures, the ambiguity as a diagnostic-only row, and 12 deterministic hash-ranked correct controls. Rescue rate uses the 26 confirmed failures as its denominator, not the ambiguity.</p>
+<p>The cheapest representative canary froze five failures spanning simultaneous entities, parts, edited shots, repeated actions, and background people, plus the parser-corrected two-item control. Its promotion gate required valid schemas on 6/6 rows, at least 3/5 rescues, 1/1 control preservation, and projected total cost within <code>$3</code>.</p>
+</section>
+<section id="provider-boundary" class="level3">
+<h3 class="anchored" data-anchor-id="provider-boundary">Provider boundary</h3>
+<p>Direct Google standard generation first exposed two client/schema defects that were fixed and regression-tested, then returned <code>403 PERMISSION_DENIED</code>. Google Batch accepted and completed the six-row job, but every item returned the same permission error. These attempts produced no model output, recorded zero usage, and cost zero. The valid canary therefore used OpenRouter’s advertised <code>gemini-3.1-pro-preview</code> with native video, high reasoning, temperature <code>0</code>, structured output, and provider fallback disabled. This same-model fallback is a transport deviation from the direct-Google full-panel baseline; the result does not isolate direct-Google serving.</p>
+</section>
+<section id="result-and-failure-inspection" class="level3">
+<h3 class="anchored" data-anchor-id="result-and-failure-inspection">Result and failure inspection</h3>
+<p>All 6/6 OpenRouter responses passed the strict atomic schema. The reducer rescued <strong>1/5 failures (20%)</strong> and preserved <strong>1/1 control (100%)</strong>, below the predeclared 3/5 rescue gate. Observed cost was <code>$0.253924</code>; extrapolation from the canary predicts <code>$4.3874</code> for all 39 frozen rows, above the authorized <code>$3</code> ceiling. No scale-up was submitted.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 15%">
+<col style="width: 21%">
+<col style="width: 21%">
+<col style="width: 21%">
+<col style="width: 21%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Condition, six canary rows</th>
+<th style="text-align: right;">METEOR</th>
+<th style="text-align: right;">BERTScore-F1</th>
+<th style="text-align: right;">STS</th>
+<th style="text-align: right;">Semantic composite</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Frozen Gemini native-AV answer</td>
+<td style="text-align: right;">0.084</td>
+<td style="text-align: right;">0.857</td>
+<td style="text-align: right;">0.000</td>
+<td style="text-align: right;">0.313</td>
+</tr>
+<tr class="even">
+<td>Atomic-record cardinality</td>
+<td style="text-align: right;"><strong>0.090</strong></td>
+<td style="text-align: right;"><strong>0.887</strong></td>
+<td style="text-align: right;">0.000</td>
+<td style="text-align: right;"><strong>0.326</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The treatment-minus-baseline composite delta is <code>+0.0123</code>, but this is not a rescue signal: short numeric outputs score closer while four of five failed rows remain wrong. Five STS comparisons were frozen UMBC cache hits. The live endpoint timed out on the remaining <code>35</code>-versus-<code>forty</code> comparison, which was assigned zero under the published unequal-numeric-term rule; all six STS values are zero. NDCG is omitted because one answer per condition makes it degenerate. An additive offline CPU replay with the locked metric environment reproduced every frozen metric value. Its separately hashed provenance binds Python, NLTK, BERTScore, Torch CPU, Transformers, the model snapshot, scorer, and NLTK tokenizer resources; this corrects a provenance omission without rewriting the original write-once metrics artifact.</p>
+<p>The sole genuine rescue found a second background woman that both the original answer and broad map omitted. Dense 2-fps inspection classified the four unresolved failures as count-unit misbinding, residual part omission/definition, edited-shot boundary collapse, and scope-boundary overcount. Atomic records make the disagreement inspectable, but the unchanged one-call mechanism does not reliably bind the question’s counting convention or recover collapsed cut and part evidence. Disposition: <strong><code>stop_atomic_counting_v1</code></strong>. Preserve this as a valid negative; do not scale or rerun the unchanged treatment.</p>
+<ul>
+<li><strong>Evidence validity:</strong> Diagnostic.</li>
+<li><strong>Decision disposition:</strong> Not promoted under the tested condition.</li>
+<li><strong>Decision code:</strong> <code>stop_atomic_counting_v1</code>.</li>
+</ul>
+<p>A post-result three-lane architecture review agreed that the atomic records should remain as provenance, but the model must no longer select unit, scope, inclusion convention, or arithmetic. The proposed next seam is <code>question → frozen CountSpec → route-specific evidence → verification → typed deterministic reducer</code>. The first test is zero-cost: add max-concurrency and onset-in-scope reducers, then re-reduce the already-purchased simultaneity and clip-boundary records under predeclared rules. Both predicted flips and no regression on the background rescue or correct control would justify requesting a new held-out micro-canary. This advice does not authorize another paid run.</p>
+<p>The sanitized evidence index is <code>docs/experiments/artifacts/vqa-gemini-counting-evidence-20260814/</code>. Complete private provenance, raw responses, label-blind requests, contact sheets, and hashes remain at <code>data/vqa/benchmarks/direct-gemini-counting-evidence-v1/</code> in the canonical shared dataset.</p>
+</section>
+</section>
 <section id="cost-and-completion-boundary" class="level2">
 <h2 class="anchored" data-anchor-id="cost-and-completion-boundary">Cost and completion boundary</h2>
 <p>The final v5 pilot plus verifier cost <code>$0.102772</code>. Including all preserved prompt/schema development attempts and the stopped partial v4 screen, observed Phase 0 provider cost was approximately <code>$0.972344</code>, well below the <code>$25</code> cap.</p>
@@ -2315,7 +2497,11 @@ vertical-align: -.125em;
 </section>
 <section id="next-decision-test" class="level2">
 <h2 class="anchored" data-anchor-id="next-decision-test">Next decision test</h2>
-<p>Keep Google’s direct native-AV answer as the frontier baseline and retain the question-blind timeline as reusable navigation evidence. The next test should operate only on the frozen seven-row bundle: improve question decomposition and evidence instructions for the clear temporal-scope failure, while treating the counting and global rows as adjudication cases. Do not scale the current timeline-only or timeline-plus-frame answer paths to 475 rows. Candidate ranking and top-10 serialization remain downstream concerns.</p>
+<p>For counting specifically, do not scale the tested generic atomic enumerator. First freeze CountSpecs and mechanisms for the existing 26 failures and 12 controls. Then test max-concurrency and onset-in-scope reducers at zero provider cost on the already-purchased records. Any later paid counting test must make the requested unit, temporal boundary, and inclusion convention deterministic while retaining atomic timestamped evidence; that is a new mechanism and was not tested here.</p>
+<p>Keep Google’s direct native-AV answer as a frontier baseline and retain the question-blind map as an optional retrieval index. Do not run another 475-video global prompt treatment. First draw a deterministic, question-stratified 60-row sample independent of metric outcome. Blindly adjudicate randomized Gemini/Qwen answers, then inspect map sufficiency. This estimates whether the hard-audit mechanisms are common enough to justify architecture work and separates reference defects from model defects.</p>
+<p>Proceed to map-grounded answering only if at least 8/60 clean rows are wrong/partial despite sufficient map evidence; proceed to targeted retrieval only if at least 6/60 have genuine map omissions. If more than 6/60 references are materially ambiguous, repair evaluation before optimizing architecture. The adjudication can use an independent frontier text judge with a small blinded human spot-check instead of requiring full manual review.</p>
+<p>If the first gate passes, test one narrow seam on frozen evidence: question plus map to requested scope and atomic claim/span bindings, then either a supported answer or <code>needs_verification</code>, followed by deterministic concise serialization. Compare it against a plain question-plus-map answer on the 12 audited map-sufficient failures plus six supported controls. Require at least 7/12 repairs, a four-case net advantage, at most one control regression, and no new unsupported claims. Only <code>needs_verification</code> should trigger one targeted AV check in a later screen.</p>
+<p>An independent Sol review rejected a generic generative consistency pass: the same-model verifier already repeated a known error, so another self-opinion can rationalize rather than correct. Limit final checks to deterministic schema, requested-unit, cited-span, and contradiction checks. Candidate ranking and top-10 serialization remain downstream concerns. Because Gemini is a preview model, any future provider A/B must pin the exact revision or rerun a matched direct control.</p>
 </section>
 <section id="artifact-retention-and-reproducibility" class="level2">
 <h2 class="anchored" data-anchor-id="artifact-retention-and-reproducibility">Artifact retention and reproducibility</h2>
@@ -2327,6 +2513,15 @@ vertical-align: -.125em;
 <p>The completed seven-category private bundle is under:</p>
 <p><code>/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-evidence-canary-v1/</code></p>
 <p>Its <code>inspection.md</code> links every native AV delivery, full question-blind timeline, selected span, timestamped frame/contact sheet, reference, and three frozen answers. The prediction-freeze and post-freeze metric SHA-256 values are <code>1803910ed7ecad623201ded3d0fdfd34b3a15a66bfa02f9aa120be59cb5b5719</code> and <code>483e184478707fa05176ecd272c719c8f01a84b6e774f8c40c13fcca198cdbc8</code>.</p>
+<p>The matched B scope control and C whole-video synthesis treatment are under:</p>
+<ul>
+<li><code>/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-scope-control-v1/</code>;</li>
+<li><code>/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-whole-video-synthesis-v1/</code>.</li>
+</ul>
+<p>The C root’s <code>inspection.md</code> explains the result and links the private tailnet-only interactive inspector. Its prediction-freeze, post-freeze metric, and complete checksum-manifest SHA-256 values are <code>a05c3f65d09bb5921d0367d240eb8df4951e13598d45f147523490bcae00b427</code>, <code>7171d82745dce7ed89b5c2a3a5231b1e71f365afc2c50315c30046834127b7bf</code>, and <code>c19fd2435e11f5f8e66a46065555d5bb39d95ff120d4d1836cdb575c923f29e7</code>.</p>
+<p>The completed 475-row private evidence is under:</p>
+<p><code>/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-batch-475-v1/</code></p>
+<p>It preserves the protocol, upload and delivery provenance, seven batch-job records, every terminal provider snapshot, immutable two-condition prediction freeze, direct predictions, question-blind maps, post-freeze metrics, and the 30-row hard-mechanism audit. The prediction-freeze, score, map, and manual-audit SHA-256 values are respectively <code>b55a20708a88531334543d432d9134cb48e0ed4f53ef5173423a0ac4920e6eab</code>, <code>9b9309fca503e8f1cb972f920bc25fb6d12bcebcfbfd86a1a78d46c2de3077c3</code>, <code>1931434d9ebb88c4ae43d18ec62d6c41f668d745a52ab9dd7f4e969506db9a6b</code>, and <code>bcadac3d2056a883c227ee6c0675459783ff05182808aca26e040e6155be019d</code>. The additive retry-provenance SHA-256 is <code>e309d52904d54e400a420a386117934823794ffe2e8c4725df8bfb7e076e0c99</code>. The sanitized tracked index is <code>docs/experiments/artifacts/vqa-gemini-native-av-full-panel-20260813/</code>.</p>
 </section>
 
 </main>

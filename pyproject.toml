@@ -13,6 +13,11 @@ dependencies = [
 
 [project.optional-dependencies]
 gemini = ["google-genai==2.12.1"]
+metrics = [
+    "bert-score==0.3.13",
+    "nltk==3.9.2",
+    "torch==2.13.0",
+]
 
 [project.scripts]
 vqa-download = "trec_video_2026.vqa_download:main"
@@ -32,3 +37,11 @@ dev = [
 
 [tool.ruff]
 extend-exclude = ["external/nist-vqa"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
