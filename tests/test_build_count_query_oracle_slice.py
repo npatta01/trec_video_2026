@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 from copy import deepcopy
 from pathlib import Path
@@ -153,6 +154,15 @@ def test_authoring_outputs_are_recursively_label_blind() -> None:
 
     validate_label_blind(artifacts["authoring_requests"])
     validate_label_blind(artifacts["authoring_scaffolds"])
+    expected_order = sorted(
+        (row["video_id"] for row in artifacts["selection"]["rows"]),
+        key=lambda video_id: hashlib.sha256(
+            f"count-query-authoring-order-v1\0{video_id}".encode()
+        ).hexdigest(),
+    )
+    assert [
+        row["video_id"] for row in artifacts["authoring_requests"]["rows"]
+    ] == expected_order
     assert all(
         set(row) == {"video_id", "query", "graph"}
         for row in artifacts["authoring_scaffolds"]["rows"]

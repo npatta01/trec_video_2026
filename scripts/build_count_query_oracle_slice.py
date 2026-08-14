@@ -131,8 +131,6 @@ def build_oracle_slice(
     )
 
     selection_rows = []
-    authoring_rows = []
-    scaffold_rows = []
     for video_id in selected_ids:
         panel_row = panel_rows[video_id]
         request_row = request_rows[video_id]
@@ -144,6 +142,17 @@ def build_oracle_slice(
                 "request_sha256": request_hash,
             }
         )
+    authoring_rows = []
+    scaffold_rows = []
+    authoring_ids = sorted(
+        selected_ids,
+        key=lambda video_id: hashlib.sha256(
+            f"count-query-authoring-order-v1\0{video_id}".encode()
+        ).hexdigest(),
+    )
+    for video_id in authoring_ids:
+        request_row = request_rows[video_id]
+        request_hash = canonical_sha256(request_row)
         authoring_rows.append({**request_row, "request_sha256": request_hash})
         scaffold_rows.append({"video_id": video_id, "query": None, "graph": None})
 
