@@ -254,10 +254,10 @@ def classify_gate(
 
   Review code, protocol isolation, private/tracked artifact hashes, every manual row verdict, report claims, and scope boundaries. Rerun affected checks after fixes.
 
-- [ ] **Step 3: Commit and push the complete follow-up**
+- [x] **Step 3: Commit and push the complete follow-up**
 
   Stage only the focused code, tests, config, spec/plan, sanitized artifacts, QMD, and generated reports. Never stage `data` or private artifacts. Push to the existing issue #35 branch.
 
-- [ ] **Step 4: Update draft PR #37 and issue #35**
+- [x] **Step 4: Update draft PR #37 and issue #35**
 
   Post completion, corrected panel interpretation, automatic metrics, exact gate outcome, known-limit result, durable links, verification, and next action. Keep the issue open unless the durable handoff fully resolves its scope.
