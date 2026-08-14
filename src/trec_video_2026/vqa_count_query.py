@@ -1250,18 +1250,7 @@ def _execute_interpretation(
             and predicates_by_id[node.owner_node_id] == interpretation.owner_predicate
         )
     identity_universe = tuple(
-        node
-        for node in nodes
-        if node.predicate == interpretation.target_predicate
-        and (
-            interpretation.target_kind != "part"
-            or interpretation.owner_predicate is None
-            or (
-                isinstance(node, PartObservation)
-                and predicates_by_id[node.owner_node_id]
-                == interpretation.owner_predicate
-            )
-        )
+        node for node in nodes if node.predicate == interpretation.target_predicate
     )
     counted_scope_nodes: Sequence[
         EntityObservation | PartObservation | EventObservation

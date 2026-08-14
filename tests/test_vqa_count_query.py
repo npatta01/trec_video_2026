@@ -617,6 +617,85 @@ def test_identity_closure_uses_out_of_scope_bridge_observation(
     )
 
 
+def test_part_identity_closure_uses_bridge_with_different_owner_predicate() -> None:
+    query_payload = valid_query_payload()
+    query_payload["interpretations"][0].update(
+        target_kind="part",
+        target_predicate="finger",
+        owner_predicate="hand",
+        count_unit="part",
+        aggregation="distinct",
+        identity_policy="physical",
+        cross_shot_unknown="separate",
+        scope={
+            "start_seconds": 0.0,
+            "end_seconds": 5.0,
+            "boundary_policy": "overlaps",
+        },
+        evidence_obligations=["target_coverage", "part_visibility"],
+    )
+    graph_payload = valid_graph_payload()
+    graph_payload["entities"][0]["predicate"] = "hand"
+    graph_payload["parts"] = [
+        {
+            "node_id": node_id,
+            "predicate": "finger",
+            "owner_node_id": owner_node_id,
+            "start_seconds": start,
+            "end_seconds": end,
+            "shot_id": shot_id,
+            "visibility": "visible",
+            "provenance": {
+                "source_kind": "manual_observation",
+                "source_id": f"source-{node_id}",
+                "timestamps_seconds": [start, end],
+            },
+        }
+        for node_id, owner_node_id, start, end, shot_id in (
+            ("finger-a", "entity-1", 1.0, 4.0, "shot-1"),
+            ("finger-b", "entity-2", 6.0, 7.0, "shot-2"),
+            ("finger-c", "entity-1", 1.0, 4.0, "shot-1"),
+        )
+    ]
+    graph_payload["identity_relations"] = [
+        {
+            "left_node_id": "finger-a",
+            "right_node_id": "finger-b",
+            "relation_state": "confirmed_same",
+        },
+        {
+            "left_node_id": "finger-b",
+            "right_node_id": "finger-c",
+            "relation_state": "confirmed_same",
+        },
+    ]
+    graph_payload["coverage"] = [
+        {
+            "claim_id": f"coverage-{obligation}",
+            "obligation": obligation,
+            "target_kind": "part",
+            "target_predicate": "finger",
+            "start_seconds": 0.0,
+            "end_seconds": 5.0,
+            "spatial_scope": "full_frame",
+            "temporal_resolution_seconds": 0.5,
+            "coverage_state": "complete",
+        }
+        for obligation in ("target_coverage", "part_visibility")
+    ]
+
+    proof = count_video(
+        parse_count_query(query_payload), parse_evidence_graph(graph_payload)
+    )
+
+    assert proof.outcome == "exact"
+    assert proof.exact_count == 1
+    assert proof.traces[0].selected_identity_relation_keys == (
+        "finger-a|finger-b|confirmed_same",
+        "finger-b|finger-c|confirmed_same",
+    )
+
+
 def test_graph_rejects_multiple_states_for_one_identity_pair() -> None:
     graph_payload = valid_graph_payload()
     graph_payload["identity_relations"].append(
