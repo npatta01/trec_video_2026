@@ -364,30 +364,30 @@ existing canonical JSON hashing, Ruff, Quarto.
 - Produces frozen queries, evidence graphs, proof states, and a later
   reference-joined private score.
 
-- [ ] **Step 1: Complete all 12 `CountQuery` values from question text only**
+- [x] **Step 1: Complete all 12 `CountQuery` values from question text only**
 
   Use no reference, prior answer, correctness, or panel-role file. Record every
   ambiguity as multiple interpretations instead of silently choosing.
 
-- [ ] **Step 2: Complete all 12 evidence graphs from video only**
+- [x] **Step 2: Complete all 12 evidence graphs from video only**
 
   Use timestamped observations, shots, relations, and conservative coverage
   claims. Mark incomplete searches partial. Do not infer absence from a missing
   navigation-map entry.
 
-- [ ] **Step 3: Validate and freeze authored inputs before scoring**
+- [x] **Step 3: Validate and freeze authored inputs before scoring**
 
   Run the label-blind validator, schema validators, media-hash checks, and the
   execution runner. Record the freeze hash and confirm the scorer has not yet
   loaded references.
 
-- [ ] **Step 4: Run the post-freeze scorer**
+- [x] **Step 4: Run the post-freeze scorer**
 
   Report exact singleton rate, incorrect non-abstained count, abstention
   reasons, rescue rate, control preservation, and the predeclared architecture
   gate.
 
-- [ ] **Step 5: Inspect every miss or abstention**
+- [x] **Step 5: Inspect every miss or abstention**
 
   Classify only after freeze as representation failure, evidence failure,
   unresolved benchmark convention, or correct conservative abstention. Do not
@@ -414,17 +414,17 @@ existing canonical JSON hashing, Ruff, Quarto.
   disposition, and private hashes.
 - Complete private evidence stays in the canonical benchmark root.
 
-- [ ] **Step 1: Record the result under the existing routing theme**
+- [x] **Step 1: Record the result under the existing routing theme**
 
   Preserve the earlier atomic canary result. Add the query-engine outcome as a
   distinct additive result with canonical evidence-validity and decision axes.
 
-- [ ] **Step 2: Render QMD-derived Markdown and HTML**
+- [x] **Step 2: Render QMD-derived Markdown and HTML**
 
   Do not hand-edit generated outputs. Check links, private-data leakage,
   authored anchors, and `git diff --check`.
 
-- [ ] **Step 3: Run final verification**
+- [x] **Step 3: Run final verification**
 
   Run all new tests, the relevant issue #34/submission regressions, Ruff check
   and format check, artifact hash verification, chain mutation tests, and a

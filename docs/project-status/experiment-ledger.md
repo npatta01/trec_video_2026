@@ -144,8 +144,8 @@ answer; direct Gemini native AV is a frontier baseline, not a decisive
 winner.
 
 **Strongest evidence:** [completed Gemini full-panel, hard-row mechanism
-audit, and atomic counting
-canary](research-routing.md#frontier-boundary-verifier).
+audit, atomic counting canary, and typed count-query oracle
+slice](research-routing.md#frontier-boundary-verifier).
 
 **Open question:** is each failure missing evidence, unused evidence, or
 wrong answer selection—and can a router abstain without regressions?
@@ -171,7 +171,7 @@ aria-label="Scrollable research theme status matrix" tabindex="0">
 | [Speech](research-speech-transcripts.md#current-working-answer) | Adds spoken words with explicit provenance | [Whisper ablation](research-speech-transcripts.md#automatic-transcript-ablation) | **Use selectively:** accepted Whisper | **Blocked:** human tier; **Possible:** alternate ASR | [Selective Whisper route](research-speech-transcripts.md#distribution-level-selective-whisper) |
 | [Native audio](research-native-audio.md#current-working-answer) | Preserves prosody and non-speech sound | [Audio on/off](research-native-audio.md#minicpm-audio-on-off) | **Do not default:** global audio on | **Possible:** routed sound/prosody | [Specialist panel](research-native-audio.md#matched-native-audio-specialist-panel) |
 | [Models](research-models.md#current-working-answer) | Separates compatibility, quality, and adaptation | [Candidate screens](research-models.md#failure-panel) | **Use:** Qwen3.5-4B; **Fast:** MiniCPM-o | **Possible:** repaired/specialist model or adaptation | [Bottleneck-first decision](research-models.md#bottleneck-first-adaptation-decision) |
-| [Routing](research-routing.md#current-working-answer) | Chooses evidence and separates retrieval from answering | [Full-panel Gemini, hard-row audit, and atomic counting canary](research-routing.md#frontier-boundary-verifier) | **Use:** direct Gemini native AV as frontier baseline; map as optional retrieval index | **Do not promote:** direct Gemini as a winner, self-verifier, fixed derived answer path, or unchanged generic atomic counting enumerator | [Representative 60-row audit; counting needs a declared unit/boundary convention](research-routing.md#frontier-boundary-verifier) |
+| [Routing](research-routing.md#current-working-answer) | Chooses evidence and separates retrieval from answering | [Full-panel Gemini, hard-row audit, atomic canary, and typed count-query slice](research-routing.md#frontier-boundary-verifier) | **Use:** direct Gemini native AV as frontier baseline; map as optional retrieval index | **Do not promote:** direct Gemini as a winner, self-verifier, fixed derived answer path, unchanged atomic enumeration, or manually certified typed counting | [Representative 60-row audit; counting first needs mechanically verified coverage](research-routing.md#frontier-boundary-verifier) |
 
 </div>
 

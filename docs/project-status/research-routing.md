@@ -294,6 +294,13 @@ GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
   and scope-boundary overcount. The tested OpenRouter-delivered atomic
   enumerator is not promoted, and the projected 39-row cost also
   exceeded the `$3` ceiling.
+- **Typed counting follow-up:** a zero-provider-cost held-out slice
+  separated question semantics, timestamped evidence, and deterministic
+  arithmetic. All 12/12 questions were expressible without row-specific
+  operators, but four of ten exact proofs were wrong because spatial
+  coverage and fine-grained event segmentation were overclaimed. It
+  rescued 3/8 failures and preserved 3/4 controls; the typed engine is
+  not promoted under this manual-evidence condition.
 - **What it does not rule out:** reusable question-blind scene maps or
   Gemini native video. It isolates the earlier failure to the tested
   route/verifier.
@@ -304,8 +311,9 @@ GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
 - **Reconsider when:** a representative 60-row audit confirms enough
   clean evidence-present and map-omission failures, then map-grounded
   answering repairs its predeclared share without regressing supported
-  controls. For counting, require a new deterministic unit/boundary
-  convention rather than rerunning the unchanged generic atomic
+  controls. For counting, require a mechanically checkable coverage
+  certificate tied to reviewed timestamps, regions, and sampling density
+  rather than another reducer or rerun of the unchanged generic atomic
   enumerator.
 
 <details>
@@ -331,7 +339,9 @@ diagnostic](../experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd)
 and the [full-panel sanitized
 index](../experiments/artifacts/vqa-gemini-native-av-full-panel-20260813/README.md).
 The counting follow-up has a separate [sanitized
-index](../experiments/artifacts/vqa-gemini-counting-evidence-20260814/README.md).
+index](../experiments/artifacts/vqa-gemini-counting-evidence-20260814/README.md),
+and the typed-engine follow-up is indexed
+[separately](../experiments/artifacts/vqa-count-query-engine-20260814/README.md).
 
 </details>
 

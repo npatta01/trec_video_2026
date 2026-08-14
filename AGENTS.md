@@ -199,4 +199,23 @@ rescued 1/5 failures and preserved 1/1 control at `$0.253924`; it failed the
 3/5 gate, and projected scale also exceeded the `$3` ceiling. Do not rerun or
 scale the unchanged generic atomic enumerator. The zero-cost next seam is a
 frozen CountSpec plus typed deterministic reducers over already-purchased
-records; any new paid micro-canary requires separate authorization.
+records; that seam has now been tested below. Any new paid micro-canary requires
+separate authorization.
+
+## Typed video count-query engine artifact reference
+
+The completed 2026-08-14 zero-provider-cost typed count-query oracle slice is
+documented in the counting section of
+[`docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd`](docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd).
+Its sanitized index is under
+[`docs/experiments/artifacts/vqa-count-query-engine-20260814/`](docs/experiments/artifacts/vqa-count-query-engine-20260814/).
+
+The complete private evidence is at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-count-query-engine-v1/`.
+Start with `inspection.md`. The frozen engine expressed 12/12 held-out
+questions and returned 10 exact proofs plus two bounded abstentions, but four
+exact answers were wrong. It rescued 3/8 failures and preserved 3/4 controls,
+so the gate failed. Do not modify or rescore the frozen authored inputs and do
+not add row-specific reducers. If counting work continues, the next zero-cost
+seam is a mechanically checkable coverage certificate bound to reviewed
+timestamps, regions, and sampling density. No paid microcanary is authorized.

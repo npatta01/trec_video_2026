@@ -368,6 +368,60 @@ hashes remain at
 `data/vqa/benchmarks/direct-gemini-counting-evidence-v1/` in the canonical
 shared dataset.
 
+## Typed count-query engine oracle slice
+
+The zero-cost follow-up separated question semantics, temporal evidence, and
+arithmetic. A strict `CountQuery` declares entity, part, appearance, concurrency,
+or event-onset semantics; an `EvidenceGraph` contains timestamped observations,
+identity hypotheses, and explicit coverage claims; a pure executor returns an
+exact singleton only when coverage, identity, temporal boundaries, and all
+question interpretations agree. No provider calls were made and no row-specific
+operator was added.
+
+The held-out panel contained eight frozen confirmed failures and four correct
+controls, balanced across four question-semantic strata and excluding all six
+atomic-canary design rows. Selection could inspect frozen roles, but authoring
+received only independently hash-ordered question, video, duration, and
+question-blind-map records. The first generated authoring packet was preserved
+but not used after an audit found that its row order indirectly encoded
+failures before controls. An additive v2 packet removed that ordering channel.
+Queries, graphs, and proofs were frozen before the separate scorer loaded
+references.
+
+All **12/12 questions were expressible** with the frozen schema and algebra.
+The executor produced **10/12 exact singleton proofs** and two bounded
+abstentions. However, four exact answers were wrong: the system rescued **3/8
+failures (37.5%)** and preserved **3/4 controls (75%)**. The predeclared gate
+required no incorrect non-abstained answer, at least 9/12 exact proofs, and 4/4
+controls preserved, so it failed despite meeting the exact-proof denominator.
+
+Post-freeze inspection found two overconfident spatial/ontology coverage claims
+and two collapsed fine-grained appearance or action transitions. The two
+abstentions were conservative: one could not resolve the step boundary before
+water entry, and one could not infer physical lion identity across unrelated
+clips even though the appearance interpretation counted three. The fixed
+algebra behaved as designed; the falsifier was that a human-authored graph
+marked `complete` was not reliably complete at the necessary spatial or
+temporal granularity.
+
+- **Evidence validity:** Diagnostic.
+- **Decision disposition:** Not promoted under the tested condition.
+- **Decision code:** `stop_count_query_engine_v1`.
+
+This rules out adding more row-specific reducers or requesting paid inference
+on top of the current evidence-authoring protocol. It does not rule out the
+typed algebra as an internal representation. If counting work continues, the
+next zero-cost seam is a mechanically checkable coverage certificate bound to
+the actual reviewed timestamps, regions, and sampling density; it must prevent
+an exact proof when that certificate is insufficient.
+
+The sanitized evidence index is
+`docs/experiments/artifacts/vqa-count-query-engine-20260814/`. Complete private
+queries, graphs, proofs, inspection media, reference-joined scoring, and hashes
+remain at
+`data/vqa/benchmarks/direct-gemini-count-query-engine-v1/` in the canonical
+shared dataset.
+
 ## Cost and completion boundary
 
 The final v5 pilot plus verifier cost `$0.102772`. Including all preserved

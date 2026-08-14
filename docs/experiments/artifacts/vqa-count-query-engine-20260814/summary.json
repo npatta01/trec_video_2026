@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "experiment_date": "2026-08-14",
+  "evidence_validity": "Diagnostic",
+  "decision_disposition": "Not promoted under the tested condition",
+  "decision_code": "stop_count_query_engine_v1",
+  "scope": {
+    "issue": 34,
+    "excluded_issues": [35, 36],
+    "condition": "zero-provider-cost manual question/video authoring over a frozen typed query and evidence-graph algebra",
+    "provider_calls": 0,
+    "observed_cost_usd": 0.0
+  },
+  "panel": {
+    "rows": 12,
+    "confirmed_failures": 8,
+    "correct_controls": 4,
+    "design_rows_excluded": 6,
+    "question_semantic_strata": 4,
+    "labels_unavailable_until_after_authored_input_and_proof_freezes": true
+  },
+  "integrity": {
+    "initial_preparation_gap": "The first authoring packet was not used because its row order indirectly encoded failures before controls.",
+    "corrective_action": "An additive v2 packet independently hash-ordered authoring rows before evidence review; the original packet remains preserved.",
+    "external_expected_hashes_required_by_scorer": true,
+    "post_unblinding_query_or_graph_changes": 0
+  },
+  "result": {
+    "expressible_questions": 12,
+    "row_specific_operators_added": 0,
+    "exact_singletons": 10,
+    "abstentions": 2,
+    "incorrect_non_abstained": 4,
+    "rescued_failures": 3,
+    "failure_rescue_rate": 0.375,
+    "preserved_controls": 3,
+    "control_preservation_rate": 0.75,
+    "architecture_gate_passed": false
+  },
+  "failure_inspection": {
+    "overconfident_spatial_or_ontology_coverage": 2,
+    "collapsed_temporal_event_or_appearance_segmentation": 2,
+    "correct_conservative_boundary_abstention": 1,
+    "unresolved_cross_clip_identity_or_benchmark_convention": 1,
+    "conclusion": "The typed algebra was expressive, but complete coverage claims were not reliably justified at the spatial and temporal granularity required for exact counting."
+  },
+  "next_boundary": {
+    "recommendation": "Do not add row-specific reducers or request paid inference. If continued, first require a mechanically checkable coverage certificate bound to reviewed timestamps, regions, and sampling density.",
+    "paid_microcanary_authorized": false
+  },
+  "private_artifact_complete_sha256": {
+    "selection.freeze.json": "f5fb85cab8cbf6c2cc5dad86dd61cd21d2ba0b8434e2d6a360317bab74143011",
+    "authoring.requests.json": "230cc34960b33b8532a068c5c5cd846f97d20250f6982b4b00d1b0f86e8fa003",
+    "authored.inputs.json": "7caa2a7d629d6da2230e10229f51dec0cb1d495893fd86e0c3bb4d508d1c77de",
+    "proofs.freeze.json": "d45f369e09e91869ca26033019b300393103984637853f901108da97f2c635ce",
+    "score.json": "da7446a131a83bcf010db24ab52260926bd609210c9d7f7f8a2a5d95349d0710"
+  },
+  "private_artifact_file_sha256": {
+    "preparation-v2/selection.freeze.json": "68c9c3416dd96fffcc38385125dd0803986805a91b87f04fcb8793c5ecc922ac",
+    "preparation-v2/authoring.requests.json": "24b6ca5284e0fc7f3715890e6e0177357d45cc5be18890f9e1788cc179c2f69f",
+    "authored.inputs.json": "d9ca70ec4ab7824517b08d4c7d2c036e707f19df0510d5e2deb97833be38ac14",
+    "proofs.freeze.json": "54e6266cdeb435a147eed319e749c2627ca2adb900d8e62e627231c36d7b74f3",
+    "score.json": "8b83d9d221dd133ffadfaea037134156153b4ea7116e92a450675a91e2b64753",
+    "inspection.md": "5890f5b00ba3c44a4aa79b5c6103f27f9db56fdb406aa08d68401d33a0e4e61a"
+  }
+}
