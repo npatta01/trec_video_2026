@@ -255,14 +255,17 @@ and [closed issue #4 · Issue/PR history · GitHub](https://github.com/npatta01/
   BERTScore-F1 fell `-0.0154`; control deltas were `-0.2902` and `-0.0585`.
   Legacy UMBC STS and composite are explicitly unavailable rather than replaced
   or zero-filled.
-- **Multi-interpretation election follow-up:** a fresh frozen 12-row panel
+- **Multi-interpretation election follow-up:** a 12-row panel disjoint from the
+  prior spent panels
   compared one unique-event answer against three typed candidates plus a fixed
   label-blind election. All 24 calls passed and all 36 candidates were audited.
   Multi answered 4/4 premise-variance rows, but improved only one over single;
   both arms verified 3/4 safeguards, multi preserved 3/4 controls, and no
   emitted citation was unsupported. Oracle candidate coverage was 12/12, while
   elected multi correctness was 10/12: selection, not candidate availability,
-  was the bottleneck under this rule.
+  was the bottleneck under this rule. Because label-aware panel selection
+  preceded the committed treatment implementation, treat this only as
+  diagnostic selected-panel evidence, not a clean fresh-panel estimate.
 - **Evidence validity and disposition:** valid-but-negative selected mechanism
   evidence with a corrected 10-row answer-sufficient target subset and partial
   automatic metrics. **Not promoted under the tested condition.**
@@ -316,7 +319,8 @@ Its tracked sanitized indexes include
 - **Reason for testing:** determine whether multiple evidence-citing
   interpretations expose and safely elect answers missed by one unique-event
   interpretation.
-- **Tested condition and panel:** 12 fresh frozen map-only rows: four premise
+- **Tested condition and panel:** 12 frozen map-only rows disjoint from the
+  prior issue #35 panels and canary: four premise
   variants, four insufficiency safeguards, and four supported controls. One
   Gemini call produced three typed candidates; exact normalized agreement and
   a sole-supported-answer rule elected top-1 without labels or another model.
@@ -331,7 +335,10 @@ Its tracked sanitized indexes include
   task-support check, evaluated on another fresh panel.
 - **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the small
   selected panel diagnoses mechanisms but does not estimate general prevalence;
-  the declared interpretation types also converged semantically on five rows.
+  label-aware selection preceded committed treatment implementation, and the
+  declared interpretation types also converged semantically on five rows. A
+  post-freeze attestation proves v3 was a subset of the originally bound v2
+  exclusion but cannot repair treatment-code isolation.
 - **Reconsider when:** a fresh controlled selector can reject cited but
   wrong-for-request alternate actions and resolve competing displayed spans
   without using references or regressing controls.

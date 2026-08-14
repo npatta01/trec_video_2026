@@ -2538,6 +2538,63 @@ vertical-align: -.125em;
 <p>Independent review found that the original prediction/evidence freezes did not bind the separate role/threshold gate. The observed gate exactly matched the committed selection, so the counts above are unchanged. An additive <code>gate-integrity.json</code> now binds that unchanged gate and selection to both original freezes without rewriting them. The hardened runner rejects role or threshold drift and binds the gate directly in future prediction freezes.</p>
 <p>Evidence validity: <strong>Diagnostic</strong>—valid negative selected/spent mechanism evidence, with a post-freeze sensitivity correction for one source role and an additive gate-integrity sidecar that cannot retroactively establish the gate’s contents at the original prediction-freeze instant. Decision disposition: <strong>Not promoted under the tested condition</strong>.</p>
 </section>
+<section id="multi-interpretation-answer-election" class="level3">
+<h3 class="anchored" data-anchor-id="multi-interpretation-answer-election">Multi-interpretation answer election</h3>
+<p>A fresh 12-row follow-up tested the user’s explicit hypothesis that generating multiple answers might expose a better supported interpretation. It excluded every issue #35 v2/v3 row and the earlier seven-row canary, then froze four premise-variance failures, four evidence-insufficiency safeguards, and four supported controls. Each row received one no-retry single unique-event call and one no-retry call producing exactly three typed candidates: literal premise, unique-event paraphrase, and conservative verification. A fixed local rule, with no labels, metrics, prior answers, or model call, elected one top-1 answer or <code>NEEDS VERIFICATION</code>.</p>
+<p>The rows are disjoint from every issue #35 v2/v3 row and the earlier canary, but this is not a clean panel-isolation claim. The original selection manifest named and bound v2 and the canary, not v3; a post-freeze additive exclusion audit binds the exact v3 protocol and proves all 11 v3 rows were already a subset of the frozen 24-row v2 exclusion. More importantly, label-aware panel selection was committed before the treatment runner/election implementation. The selected examples could therefore have influenced treatment-code design. This audit gap downgrades the result to diagnostic mechanism evidence and bars any fresh-panel performance claim; it does not change the negative gate.</p>
+<p>All 24 responses passed the structural contract. Both arms were prediction- and evidence-frozen before references were loaded, and all 12 candidate sets (36 candidates) plus all six changed emitted answers were manually inspected. The predeclared gate failed:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 27%">
+<col style="width: 36%">
+<col style="width: 36%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Gate component</th>
+<th style="text-align: right;">Required</th>
+<th style="text-align: right;">Observed</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Correct multi answers on premise-variance rows</td>
+<td style="text-align: right;">at least 3/4</td>
+<td style="text-align: right;"><strong>4/4</strong></td>
+</tr>
+<tr class="even">
+<td>Premise improvements over single</td>
+<td style="text-align: right;">at least 2</td>
+<td style="text-align: right;"><strong>1</strong></td>
+</tr>
+<tr class="odd">
+<td>Safeguards verified by both arms</td>
+<td style="text-align: right;">4/4</td>
+<td style="text-align: right;"><strong>3/4</strong></td>
+</tr>
+<tr class="even">
+<td>Controls preserved by multi</td>
+<td style="text-align: right;">4/4</td>
+<td style="text-align: right;"><strong>3/4</strong></td>
+</tr>
+<tr class="odd">
+<td>Unsupported emitted answers</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;"><strong>0</strong></td>
+</tr>
+<tr class="even">
+<td>Candidate sets manually inspected</td>
+<td style="text-align: right;">all</td>
+<td style="text-align: right;"><strong>12/12</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The result answers why multiple candidates did not solve this cleanly. Every row had at least one correct candidate (<code>12/12</code> oracle coverage), but the fixed election produced only <code>10/12</code> correct routes. On the awkward “spinner” premise row, the multi arm correctly elected the unique-event interpretation where the single arm abstained. On an evidence-insufficient robot row, however, literal and conservative candidates correctly requested verification while the sole-answer rule selected a cited alternate action that missed the labeled requested fact. On a displayed-text control, a correct literal candidate and a wrong later-text candidate conflicted, forcing unnecessary verification. Five candidate sets reached answer agreement, but their three declared interpretation types converged to the same wording rather than adding semantic diversity.</p>
+<p>Automatic metrics are descriptive answer-only means; verification and failure sentinels are excluded rather than scored as text. Direct/single/multi have metric denominators <code>12/7/8</code>, respectively. Their METEOR values are <code>0.3161/0.1685/0.2929</code> and BERTScore-F1 values are <code>0.9002/0.8882/0.9001</code>. On premise-variance rows, multi METEOR is <code>0.1140</code> over four answered rows versus single <code>0.0992</code> over three, with BERTScore-F1 <code>0.8746</code> versus <code>0.8865</code>; the different denominators preclude a simple paired quality claim. The safety and control gates independently failed. STS and the semantic composite remain <code>null</code>: the historical UMBC-compatible service is unavailable, and substituting another model would not preserve comparability.</p>
+<p>This is a useful negative result, not evidence that candidate generation never helps. Candidate diversity exposed recoverable answers, but exact normalized agreement plus the sole-supported-answer rule was not a safe selector. Do not scale this election or replace its emitted top-1 result with oracle-best candidate scoring. The next answer-use experiment remains explicit question-driven temporal or speech verification over frozen global context, not another global prompt rewrite, answer ensemble, counting specialist, or shared router framework.</p>
+<p>The sanitized evidence index is <code>docs/experiments/artifacts/vqa-multi-interpretation-answer-election-20260814/</code>. Complete private protocols, requests, raw responses, metadata, candidate traces, freezes, audit, and scores are retained at <code>/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/multi-interpretation-answer-election-issue35-v1/</code>. The original score and additive metric-provenance v2 are preserved; the additive v3 score binds the explicit v3 exclusion and corrects verification-sentinel handling. V4 and final v5 rebind the same numerical calculation to the finalized formatted/refactored scorer bytes; v5 also binds the exact BERT model view, upstream snapshot, and metric package versions.</p>
+<p>Evidence validity: <strong>Diagnostic</strong>—valid negative selected-panel mechanism evidence for this candidate generator and deterministic election rule, with the disclosed treatment-code-after-selection audit gap; not a clean fresh-panel or prevalence estimate. Decision disposition: <strong>Not promoted under the tested condition</strong>.</p>
+</section>
 </section>
 <section id="cost-and-completion-boundary" class="level2">
 <h2 class="anchored" data-anchor-id="cost-and-completion-boundary">Cost and completion boundary</h2>
@@ -2560,7 +2617,7 @@ vertical-align: -.125em;
 <section id="next-decision-test" class="level2">
 <h2 class="anchored" data-anchor-id="next-decision-test">Next decision test</h2>
 <p>Keep Google’s direct native-AV answer as a frontier baseline and retain the question-blind map as an optional retrieval index. Do not run another 475-video global prompt treatment. The earlier representative-audit-then-generic- grounding sequence is superseded by the completed 475-row panel, hard-row audit, and issue #35 mechanism test.</p>
-<p>The narrow grounded-answering seam has now been tested on 12 failures marked map-sufficient by the source audit plus 12 matched supported controls. Post-freeze review confirmed only 10/12 as answer-sufficient; the treatment repaired 5/12 under the frozen gate (5/10 descriptively after correction), regressed two controls, and routed seven evidence-present rows to verification unnecessarily. Do not scale or broadly reprompt that condition. The next small mechanism test, if pursued, should perform an explicit question-driven temporal or speech verification operation over frozen global context and evaluate answering separately. It should not introduce multiple answer candidates, a shared router framework, or a counting specialist.</p>
+<p>The narrow grounded-answering seam has now been tested on 12 failures marked map-sufficient by the source audit plus 12 matched supported controls. Post-freeze review confirmed only 10/12 as answer-sufficient; the treatment repaired 5/12 under the frozen gate (5/10 descriptively after correction), regressed two controls, and routed seven evidence-present rows to verification unnecessarily. Do not scale or broadly reprompt that condition. The fresh 12-row multi-interpretation follow-up then found a correct candidate on all 12 rows but failed to elect them safely: only one premise row improved over the single arm, one safeguard answered when verification was required, and one control regressed to verification. The next small mechanism test, if pursued, should perform an explicit question-driven temporal or speech verification operation over frozen global context and evaluate answering separately. It should not repeat this answer ensemble, introduce a shared router framework, or add a counting specialist.</p>
 <p>An independent Sol review rejected a generic generative consistency pass: the same-model verifier already repeated a known error, so another self-opinion can rationalize rather than correct. Limit final checks to deterministic schema, requested-unit, cited-span, and contradiction checks. Candidate ranking and top-10 serialization remain downstream concerns. Because Gemini is a preview model, any future provider A/B must pin the exact revision or rerun a matched direct control.</p>
 </section>
 <section id="artifact-retention-and-reproducibility" class="level2">
@@ -2585,6 +2642,9 @@ vertical-align: -.125em;
 <p>The completed issue #35 grounded-answering evidence is under:</p>
 <p><code>/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/grounded-map-answering-issue35-v2/</code></p>
 <p>Its protocol, gate-freeze, prediction-freeze, changed-row audit, and post-freeze metric SHA-256 values are respectively <code>5619dbb852c1fdca1482749c6d4b3024455507e6bb3eab58e5a6747e0bff18c1</code>, <code>fd72e7bab8b7e356c2d28886488c8e968a7e536f906c9f8cb1ede7a122f624b2</code>, <code>897e022164233c64f1aaeb66e1c73e0d33c1dec96d7c9fd3b907a88dd599f117</code>, <code>986ac9c081fd51c19a163151a37c0a189ecb25c880fe6a60be317154ce3de95e</code>, and <code>37b5a9494ff59c6673f96d6282b30849f3a8ed595f3a31af0f70d132dce0d3b9</code>. The invalid v1 preflight remains separately preserved. The tracked sanitized index is <code>docs/experiments/artifacts/vqa-grounded-map-answering-20260814/</code>.</p>
+<p>The completed multi-interpretation answer-election evidence is under:</p>
+<p><code>/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/multi-interpretation-answer-election-issue35-v1/</code></p>
+<p>Its combined integrity, manual-audit freeze, and final corrected post-freeze score SHA-256 values are respectively <code>c3ddeedb0bea446bc9d65c7de6b5e6fe6c8a2f78600a373cf7f0d2de042d6280</code>, <code>1b753a20dc6ae3e6e35b45c2dbbdf53822760c0b39f0f3c1af1fb18aba3e0ae1</code>, and <code>66baeaf72ef32fad88531bab9cc97f4cca99de8c929d414d1ca8d79f968d7a38</code>. The post-freeze exclusion-attestation SHA-256 is <code>29a252f51e97f45117cf80857f5c0694249a6f01f9135391d6fe031284967939</code>. The sanitized tracked index is <code>docs/experiments/artifacts/vqa-multi-interpretation-answer-election-20260814/</code>.</p>
 </section>
 
 </main>

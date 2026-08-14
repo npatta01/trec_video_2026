@@ -97,13 +97,66 @@ def _index(rows: Any, *, source: str) -> dict[str, dict[str, Any]]:
     return result
 
 
+def _protocol_ids(path: Path) -> set[str]:
+    payload = _load_json(path)
+    return set(_index(payload.get("rows"), source=str(path)))
+
+
+def build_exclusion_audit(
+    root: Path, v2_protocol: Path, v3_protocol: Path
+) -> dict[str, Any]:
+    """Prove the explicitly required v3 exclusion was covered by frozen v2."""
+
+    selection = _load_json(root / "selection-freeze.json")
+    selected = set(_index(selection.get("rows"), source="selection freeze"))
+    v2_ids = _protocol_ids(v2_protocol)
+    v3_ids = _protocol_ids(v3_protocol)
+    if not v3_ids <= v2_ids:
+        raise ValueError(
+            "v3 exclusion is not a subset of the preflight-frozen v2 exclusion"
+        )
+    overlap_v2 = sorted(selected & v2_ids)
+    overlap_v3 = sorted(selected & v3_ids)
+    if overlap_v2 or overlap_v3:
+        raise ValueError("frozen selection overlaps a spent issue #35 panel")
+    return {
+        "schema_version": 1,
+        "status": "postfreeze_exclusion_attestation",
+        "limitation": "v3 was not named in the original selection manifest; its exact rows are proven post-freeze to be a subset of the preflight-bound v2 exclusion",
+        "selection_freeze_sha256": _sha256(root / "selection-freeze.json"),
+        "v2_protocol_sha256": _sha256(v2_protocol),
+        "v3_protocol_sha256": _sha256(v3_protocol),
+        "selected_row_count": len(selected),
+        "v2_row_count": len(v2_ids),
+        "v3_row_count": len(v3_ids),
+        "v3_is_subset_of_v2": True,
+        "selected_overlap_v2": overlap_v2,
+        "selected_overlap_v3": overlap_v3,
+    }
+
+
+def freeze_exclusion_audit(root: Path, v2_protocol: Path, v3_protocol: Path) -> None:
+    _write_once(
+        root / "selection-exclusion-audit.json",
+        build_exclusion_audit(root, v2_protocol, v3_protocol),
+    )
+
+
+def verify_exclusion_audit(root: Path, v2_protocol: Path, v3_protocol: Path) -> None:
+    observed = _load_json(root / "selection-exclusion-audit.json")
+    if observed != build_exclusion_audit(root, v2_protocol, v3_protocol):
+        raise ValueError("selection exclusion audit mismatch")
+
+
 def load_frozen_rows(root: Path, annotations: Path) -> list[dict[str, Any]]:
     """Verify both arms before exposing selected labels to the scorer."""
 
     try:
         verify_combined(root)
     except (OSError, ValueError) as error:
-        raise ValueError("experiment integrity must verify before labels are loaded") from error
+        raise ValueError(
+            "experiment integrity must verify before labels are loaded"
+        ) from error
     source = _load_json(root / "protocol.source.json")
     selection = _load_json(root / "selection-freeze.json")
     selected = _index(selection.get("rows"), source="selection freeze")
@@ -122,7 +175,9 @@ def load_frozen_rows(root: Path, annotations: Path) -> list[dict[str, Any]]:
             if _sha256(terminal_path) != frozen_row.get("terminal_sha256"):
                 raise ValueError(f"{arm} terminal hash mismatch: {video_id}")
             terminal = _load_json(terminal_path)
-            if terminal.get("video_id") != video_id or terminal.get("status") != frozen_row.get("status"):
+            if terminal.get("video_id") != video_id or terminal.get(
+                "status"
+            ) != frozen_row.get("status"):
                 raise ValueError(f"{arm} terminal identity mismatch: {video_id}")
             item = dict(terminal)
             parsed_path = root / arm / "rows" / video_id / "parsed.json"
@@ -149,7 +204,9 @@ def load_frozen_rows(root: Path, annotations: Path) -> list[dict[str, Any]]:
                 "evidence": protocol_row["evidence"],
                 "reference": reference,
                 "direct_prediction": selected[video_id]["direct_prediction"],
-                "direct_semantic_composite": selected[video_id]["direct_semantic_composite"],
+                "direct_semantic_composite": selected[video_id][
+                    "direct_semantic_composite"
+                ],
                 "single": arm_rows["single"][video_id],
                 "multi": arm_rows["multi"][video_id],
             }
@@ -201,7 +258,9 @@ def classify_gate(
             or len(candidate_correctness) != 3
             or any(not isinstance(value, bool) for value in candidate_correctness)
         ):
-            raise ValueError(f"manual audit requires three candidate judgments: {video_id}")
+            raise ValueError(
+                f"manual audit requires three candidate judgments: {video_id}"
+            )
         oracle += any(candidate_correctness)
         assessments = {}
         for arm in ARMS:
@@ -216,7 +275,9 @@ def classify_gate(
                 "provider_failure": {"provider_failure"},
             }
             if assessment not in allowed_by_route[route]:
-                raise ValueError(f"{arm} assessment contradicts frozen route: {video_id}")
+                raise ValueError(
+                    f"{arm} assessment contradicts frozen route: {video_id}"
+                )
             support = verdict.get(f"citation_support_{arm}")
             if not isinstance(support, bool):
                 raise ValueError(f"{arm} citation support must be boolean: {video_id}")
@@ -225,9 +286,14 @@ def classify_gate(
             assessments[arm] = assessment
         if role == "premise_variance":
             premise_correct += assessments["multi"] == "correct_answer"
-            premise_improvements += assessments["multi"] == "correct_answer" and assessments["single"] != "correct_answer"
+            premise_improvements += (
+                assessments["multi"] == "correct_answer"
+                and assessments["single"] != "correct_answer"
+            )
         elif role == "insufficiency_safeguard":
-            safeguard_both += assessments["single"] == assessments["multi"] == "correct_verification"
+            safeguard_both += (
+                assessments["single"] == assessments["multi"] == "correct_verification"
+            )
         else:
             controls += assessments["multi"] == "correct_answer"
     if role_counts != {role: 4 for role in ROLES}:
@@ -256,12 +322,28 @@ def classify_gate(
 def aggregate_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     result = {}
     groups = {"all": list(rows)}
-    groups.update({role: [row for row in rows if row["role"] == role] for role in ROLES})
+    groups.update(
+        {role: [row for row in rows if row["role"] == role] for role in ROLES}
+    )
     for name, group in groups.items():
+        scored = [
+            row
+            for row in group
+            if isinstance(row.get("meteor"), (int, float))
+            and isinstance(row.get("bertscore_f1"), (int, float))
+        ]
         result[name] = {
             "row_count": len(group),
-            "meteor": statistics.fmean(float(row["meteor"]) for row in group),
-            "bertscore_f1": statistics.fmean(float(row["bertscore_f1"]) for row in group),
+            "metric_row_count": len(scored),
+            "not_scored_row_count": len(group) - len(scored),
+            "meteor": statistics.fmean(float(row["meteor"]) for row in scored)
+            if scored
+            else None,
+            "bertscore_f1": statistics.fmean(
+                float(row["bertscore_f1"]) for row in scored
+            )
+            if scored
+            else None,
             "sts": None,
             "semantic_composite": None,
         }
@@ -301,7 +383,9 @@ def freeze_audit(root: Path, audit_path: Path) -> None:
             "status": "frozen",
             "frozen_at": datetime.now(UTC).isoformat(),
             "manual_audit_sha256": _sha256(audit_path),
-            "experiment_integrity_sha256": _sha256(root / "experiment-integrity.json") if (root / "experiment-integrity.json").is_file() else None,
+            "experiment_integrity_sha256": _sha256(root / "experiment-integrity.json")
+            if (root / "experiment-integrity.json").is_file()
+            else None,
         },
     )
 
@@ -311,7 +395,9 @@ def verify_audit_freeze(root: Path, audit_path: Path) -> None:
     if freeze.get("manual_audit_sha256") != _sha256(audit_path):
         raise ValueError("manual audit freeze mismatch")
     integrity = root / "experiment-integrity.json"
-    if integrity.is_file() and freeze.get("experiment_integrity_sha256") != _sha256(integrity):
+    if integrity.is_file() and freeze.get("experiment_integrity_sha256") != _sha256(
+        integrity
+    ):
         raise ValueError("manual audit freeze experiment mismatch")
 
 
@@ -322,6 +408,18 @@ def _prediction(row: Mapping[str, Any], condition: str) -> str:
     return str(arm["answer"]) if arm.get("status") == "passed" else "NO ANSWER"
 
 
+def metric_indices(rows: Sequence[Mapping[str, Any]], condition: str) -> list[int]:
+    """Return rows whose emitted output is an answer suitable for semantic scoring."""
+
+    if condition == "direct":
+        return list(range(len(rows)))
+    if condition not in ARMS:
+        raise ValueError(f"unknown metric condition: {condition}")
+    return [
+        index for index, row in enumerate(rows) if _route(row[condition]) == "answer"
+    ]
+
+
 def score(
     root: Path,
     annotations: Path,
@@ -329,12 +427,15 @@ def score(
     output: Path,
     bert_cache: Path,
     *,
+    v2_protocol: Path,
+    v3_protocol: Path,
     meteor_fn: MeteorFunction = _default_meteor,
     bertscore_fn: BertScoreFunction = _default_bertscore,
     supersedes: Path | None = None,
     upstream_bert_snapshot: Path | None = None,
 ) -> dict[str, Any]:
     rows = load_frozen_rows(root, annotations)
+    verify_exclusion_audit(root, v2_protocol, v3_protocol)
     verify_audit_freeze(root, audit_path)
     audit = _load_json(audit_path)
     gate_freeze = _load_json(root / "preinference-gate-freeze.json")
@@ -343,19 +444,35 @@ def score(
     for condition in ("direct", "single", "multi"):
         predictions = [_prediction(row, condition) for row in rows]
         references = [row["reference"] for row in rows]
-        bert_values = list(bertscore_fn(predictions, references, bert_cache))
-        if len(bert_values) != EXPECTED_ROWS:
+        scored_indices = metric_indices(rows, condition)
+        metric_predictions = [predictions[index] for index in scored_indices]
+        metric_references = [references[index] for index in scored_indices]
+        bert_values = (
+            list(bertscore_fn(metric_predictions, metric_references, bert_cache))
+            if scored_indices
+            else []
+        )
+        if len(bert_values) != len(scored_indices):
             raise ValueError("BERTScore returned the wrong row count")
+        bert_by_index = dict(zip(scored_indices, bert_values, strict=True))
         condition_rows = []
-        for row, prediction, reference, bert in zip(rows, predictions, references, bert_values, strict=True):
+        for index, (row, prediction, reference) in enumerate(
+            zip(rows, predictions, references, strict=True)
+        ):
+            scored = index in bert_by_index
             condition_rows.append(
                 {
                     "video_id": row["video_id"],
                     "role": row["role"],
                     "prediction": prediction,
                     "reference": reference,
-                    "meteor": float(meteor_fn(prediction, reference)),
-                    "bertscore_f1": float(bert),
+                    "metric_status": "scored_answer"
+                    if scored
+                    else f"not_scored_{_route(row[condition])}",
+                    "meteor": float(meteor_fn(prediction, reference))
+                    if scored
+                    else None,
+                    "bertscore_f1": float(bert_by_index[index]) if scored else None,
                     "sts": None,
                     "semantic_composite": None,
                 }
@@ -366,20 +483,35 @@ def score(
         "experiment_id": "multi-interpretation-answer-election-issue35-v1",
         "created_at": datetime.now(UTC).isoformat(),
         "evidence_validity": "Diagnostic",
-        "decision_disposition": "promoted_for_larger_validation" if gate_result["passed"] else "not_promoted_under_tested_condition",
-        "sts": {"status": "unavailable_for_new_predictions", "reason": "historical UMBC-compatible service is unavailable; no substitute is comparable"},
+        "decision_disposition": "promoted_for_larger_validation"
+        if gate_result["passed"]
+        else "not_promoted_under_tested_condition",
+        "sts": {
+            "status": "unavailable_for_new_predictions",
+            "reason": "historical UMBC-compatible service is unavailable; no substitute is comparable",
+        },
         "metric_runtime": metric_runtime(
             bert_cache,
             upstream_snapshot=upstream_bert_snapshot,
-            versions=None if bertscore_fn is _default_bertscore else {"metric_functions": "injected"},
+            versions=None
+            if bertscore_fn is _default_bertscore
+            else {"metric_functions": "injected"},
         ),
         "conditions": conditions,
-        "aggregates": {condition: aggregate_metrics(values) for condition, values in conditions.items()},
+        "aggregates": {
+            condition: aggregate_metrics(values)
+            for condition, values in conditions.items()
+        },
         "gate": gate_result,
         "integrity": {
             "experiment_integrity_sha256": _sha256(root / "experiment-integrity.json"),
             "manual_audit_freeze_sha256": _sha256(root / "manual-audit-freeze.json"),
             "manual_audit_sha256": _sha256(audit_path),
+            "selection_exclusion_audit_sha256": _sha256(
+                root / "selection-exclusion-audit.json"
+            ),
+            "v2_exclusion_protocol_sha256": _sha256(v2_protocol),
+            "v3_exclusion_protocol_sha256": _sha256(v3_protocol),
             "scorer_sha256": _sha256(Path(__file__).resolve()),
         },
     }
@@ -387,7 +519,7 @@ def score(
         payload["correction"] = {
             "supersedes_path": str(supersedes.resolve()),
             "supersedes_sha256": _sha256(supersedes),
-            "reason": "add exact metric runtime and BERT model provenance; numerical procedure and frozen inputs unchanged",
+            "reason": "bind the explicit v3 exclusion and exclude verification/failure sentinels from descriptive semantic-answer aggregates",
         }
     _write_once(output, payload)
     return payload
@@ -403,12 +535,18 @@ def build_parser() -> argparse.ArgumentParser:
     freeze_parser = subparsers.add_parser("freeze-audit")
     freeze_parser.add_argument("--root", type=Path, required=True)
     freeze_parser.add_argument("--audit", type=Path, required=True)
+    exclusions_parser = subparsers.add_parser("freeze-exclusions")
+    exclusions_parser.add_argument("--root", type=Path, required=True)
+    exclusions_parser.add_argument("--v2-protocol", type=Path, required=True)
+    exclusions_parser.add_argument("--v3-protocol", type=Path, required=True)
     score_parser = subparsers.add_parser("score")
     score_parser.add_argument("--root", type=Path, required=True)
     score_parser.add_argument("--annotations", type=Path, required=True)
     score_parser.add_argument("--audit", type=Path, required=True)
     score_parser.add_argument("--output", type=Path, required=True)
     score_parser.add_argument("--bert-cache", type=Path, required=True)
+    score_parser.add_argument("--v2-protocol", type=Path, required=True)
+    score_parser.add_argument("--v3-protocol", type=Path, required=True)
     score_parser.add_argument("--upstream-bert-snapshot", type=Path)
     score_parser.add_argument("--supersedes", type=Path)
     return parser
@@ -420,6 +558,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         build_audit_template(args.root, args.annotations, args.output)
     elif args.command == "freeze-audit":
         freeze_audit(args.root, args.audit)
+    elif args.command == "freeze-exclusions":
+        freeze_exclusion_audit(args.root, args.v2_protocol, args.v3_protocol)
     else:
         score(
             args.root,
@@ -427,6 +567,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.audit,
             args.output,
             args.bert_cache,
+            v2_protocol=args.v2_protocol,
+            v3_protocol=args.v3_protocol,
             supersedes=args.supersedes,
             upstream_bert_snapshot=args.upstream_bert_snapshot,
         )

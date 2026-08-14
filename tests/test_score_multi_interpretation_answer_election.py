@@ -13,9 +13,11 @@ multi_score = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(multi_score)
 
 
-ROLES = ["premise_variance"] * 4 + ["insufficiency_safeguard"] * 4 + [
-    "stability_control"
-] * 4
+ROLES = (
+    ["premise_variance"] * 4
+    + ["insufficiency_safeguard"] * 4
+    + ["stability_control"] * 4
+)
 
 
 def _rows():
@@ -26,8 +28,16 @@ def _rows():
             {
                 "video_id": f"v{index:02d}",
                 "role": role,
-                "single": {"status": "passed", "needs_verification": verification, "answer": "NEEDS VERIFICATION" if verification else "single"},
-                "multi": {"status": "passed", "needs_verification": verification, "answer": "NEEDS VERIFICATION" if verification else "multi"},
+                "single": {
+                    "status": "passed",
+                    "needs_verification": verification,
+                    "answer": "NEEDS VERIFICATION" if verification else "single",
+                },
+                "multi": {
+                    "status": "passed",
+                    "needs_verification": verification,
+                    "answer": "NEEDS VERIFICATION" if verification else "multi",
+                },
             }
         )
     return rows
@@ -36,14 +46,19 @@ def _rows():
 def _audit():
     rows = []
     for index, role in enumerate(ROLES):
-        assessment = "correct_answer" if role != "insufficiency_safeguard" else "correct_verification"
+        assessment = (
+            "correct_answer"
+            if role != "insufficiency_safeguard"
+            else "correct_verification"
+        )
         rows.append(
             {
                 "video_id": f"v{index:02d}",
                 "role": role,
                 "single_assessment": assessment,
                 "multi_assessment": assessment,
-                "candidate_correctness": [assessment == "correct_answer"] * 2 + [assessment == "correct_verification"],
+                "candidate_correctness": [assessment == "correct_answer"] * 2
+                + [assessment == "correct_verification"],
                 "citation_support_single": True,
                 "citation_support_multi": True,
                 "note": "inspected frozen evidence and all candidates",
@@ -102,9 +117,33 @@ def test_role_aggregates_are_separate_from_all_rows():
     aggregates = multi_score.aggregate_metrics(scored)
     assert set(aggregates) == {"all", *set(ROLES)}
     assert aggregates["premise_variance"]["row_count"] == 4
+    assert aggregates["premise_variance"]["metric_row_count"] == 4
     assert aggregates["all"]["row_count"] == 12
     assert aggregates["all"]["sts"] is None
     assert aggregates["all"]["semantic_composite"] is None
+
+
+def test_verification_sentinels_are_excluded_from_semantic_aggregates():
+    scored = [
+        {"role": "premise_variance", "meteor": 0.5, "bertscore_f1": 0.8},
+        {"role": "premise_variance", "meteor": None, "bertscore_f1": None},
+    ]
+    aggregates = multi_score.aggregate_metrics(scored)
+    assert aggregates["all"] == {
+        "row_count": 2,
+        "metric_row_count": 1,
+        "not_scored_row_count": 1,
+        "meteor": 0.5,
+        "bertscore_f1": 0.8,
+        "sts": None,
+        "semantic_composite": None,
+    }
+
+
+def test_metric_indices_include_answers_but_exclude_verification_routes():
+    rows = _rows()
+    assert multi_score.metric_indices(rows, "direct") == list(range(12))
+    assert multi_score.metric_indices(rows, "single") == [0, 1, 2, 3, 8, 9, 10, 11]
 
 
 def _write(path: Path, payload: object) -> None:
@@ -148,3 +187,29 @@ def test_metric_runtime_binds_model_view_and_upstream_snapshot(tmp_path: Path):
     assert runtime["bert_model_view_sha256"] == multi_score.sha256_path(view)
     assert runtime["bert_upstream_snapshot_sha256"] == multi_score.sha256_path(upstream)
     assert runtime["versions"] == {"bert_score_module": "fixture"}
+
+
+def test_exclusion_audit_binds_v3_and_proves_it_is_covered_by_frozen_v2(tmp_path: Path):
+    root = tmp_path / "run"
+    _write(root / "selection-integrity.json", {"selection_freeze_sha256": "unused"})
+    _write(root / "selection-freeze.json", {"rows": [{"video_id": "fresh"}]})
+    v2 = tmp_path / "v2.json"
+    v3 = tmp_path / "v3.json"
+    _write(v2, {"rows": [{"video_id": "spent-a"}, {"video_id": "spent-b"}]})
+    _write(v3, {"rows": [{"video_id": "spent-b"}]})
+    payload = multi_score.build_exclusion_audit(root, v2, v3)
+    assert payload["v3_is_subset_of_v2"] is True
+    assert payload["selected_overlap_v2"] == []
+    assert payload["selected_overlap_v3"] == []
+    assert payload["v3_protocol_sha256"] == multi_score._sha256(v3)
+
+
+def test_exclusion_audit_rejects_v3_not_covered_by_preflight_v2(tmp_path: Path):
+    root = tmp_path / "run"
+    _write(root / "selection-freeze.json", {"rows": [{"video_id": "fresh"}]})
+    v2 = tmp_path / "v2.json"
+    v3 = tmp_path / "v3.json"
+    _write(v2, {"rows": [{"video_id": "spent-a"}]})
+    _write(v3, {"rows": [{"video_id": "spent-b"}]})
+    with pytest.raises(ValueError, match="not a subset"):
+        multi_score.build_exclusion_audit(root, v2, v3)

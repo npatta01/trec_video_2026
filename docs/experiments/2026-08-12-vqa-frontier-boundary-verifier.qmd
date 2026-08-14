@@ -462,6 +462,16 @@ unique-event paraphrase, and conservative verification. A fixed local rule,
 with no labels, metrics, prior answers, or model call, elected one top-1 answer
 or `NEEDS VERIFICATION`.
 
+The rows are disjoint from every issue #35 v2/v3 row and the earlier canary,
+but this is not a clean panel-isolation claim. The original selection manifest
+named and bound v2 and the canary, not v3; a post-freeze additive exclusion
+audit binds the exact v3 protocol and proves all 11 v3 rows were already a
+subset of the frozen 24-row v2 exclusion. More importantly, label-aware panel
+selection was committed before the treatment runner/election implementation.
+The selected examples could therefore have influenced treatment-code design.
+This audit gap downgrades the result to diagnostic mechanism evidence and bars
+any fresh-panel performance claim; it does not change the negative gate.
+
 All 24 responses passed the structural contract. Both arms were prediction-
 and evidence-frozen before references were loaded, and all 12 candidate sets
 (36 candidates) plus all six changed emitted answers were manually inspected.
@@ -489,12 +499,14 @@ candidate sets reached answer agreement, but their three declared
 interpretation types converged to the same wording rather than adding semantic
 diversity.
 
-Automatic metrics are descriptive, especially because correct verification is
-not a reference answer. Across all 12 rows, direct/single/multi
-METEOR were `0.3161/0.0983/0.1953` and BERTScore-F1 were
-`0.9002/0.8609/0.8746`. On premise-variance rows, multi improved METEOR over
-single (`0.1140` versus `0.0744`) with similar BERTScore-F1 (`0.8746` versus
-`0.8697`), but the safety and control gates independently failed. STS and the
+Automatic metrics are descriptive answer-only means; verification and failure
+sentinels are excluded rather than scored as text. Direct/single/multi have
+metric denominators `12/7/8`, respectively. Their METEOR values are
+`0.3161/0.1685/0.2929` and BERTScore-F1 values are
+`0.9002/0.8882/0.9001`. On premise-variance rows, multi METEOR is `0.1140`
+over four answered rows versus single `0.0992` over three, with BERTScore-F1
+`0.8746` versus `0.8865`; the different denominators preclude a simple paired
+quality claim. The safety and control gates independently failed. STS and the
 semantic composite remain `null`: the historical UMBC-compatible service is
 unavailable, and substituting another model would not preserve comparability.
 
@@ -512,13 +524,17 @@ The sanitized evidence index is
 Complete private protocols, requests, raw responses, metadata, candidate
 traces, freezes, audit, and scores are retained at
 `/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/multi-interpretation-answer-election-issue35-v1/`.
-The original score is preserved; additive `postfreeze-score-v2.json` binds the
-exact BERT model view, upstream snapshot, and metric package versions without
-changing any numerical result.
+The original score and additive metric-provenance v2 are preserved;
+the additive v3 score binds the explicit v3 exclusion and corrects
+verification-sentinel handling. V4 and final v5 rebind the same numerical
+calculation to the finalized formatted/refactored scorer bytes; v5 also binds
+the exact BERT model view, upstream snapshot, and metric package versions.
 
-Evidence validity: **Diagnostic**—valid negative fresh-panel mechanism evidence
-for this candidate generator and deterministic election rule, not a prevalence
-estimate. Decision disposition: **Not promoted under the tested condition**.
+Evidence validity: **Diagnostic**—valid negative selected-panel mechanism
+evidence for this candidate generator and deterministic election rule, with the
+disclosed treatment-code-after-selection audit gap; not a clean fresh-panel or
+prevalence estimate. Decision disposition: **Not promoted under the tested
+condition**.
 
 ## Cost and completion boundary
 
@@ -668,11 +684,13 @@ The completed multi-interpretation answer-election evidence is under:
 
 `/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/multi-interpretation-answer-election-issue35-v1/`
 
-Its combined integrity, manual-audit freeze, and corrected post-freeze score
+Its combined integrity, manual-audit freeze, and final corrected post-freeze score
 SHA-256 values are respectively
 `c3ddeedb0bea446bc9d65c7de6b5e6fe6c8a2f78600a373cf7f0d2de042d6280`,
 `1b753a20dc6ae3e6e35b45c2dbbdf53822760c0b39f0f3c1af1fb18aba3e0ae1`,
 and
-`4b413a28cbb077118a37aaa084595ab5e231f4ad2ed7e2ca8ec268dd721816c7`.
+`66baeaf72ef32fad88531bab9cc97f4cca99de8c929d414d1ca8d79f968d7a38`.
+The post-freeze exclusion-attestation SHA-256 is
+`29a252f51e97f45117cf80857f5c0694249a6f01f9135391d6fe031284967939`.
 The sanitized tracked index is
 `docs/experiments/artifacts/vqa-multi-interpretation-answer-election-20260814/`.

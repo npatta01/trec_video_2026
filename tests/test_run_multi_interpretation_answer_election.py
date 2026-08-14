@@ -45,9 +45,7 @@ def _payload(candidates):
 def test_election_uses_two_candidate_agreement_and_shortest_answer():
     first = _claim("He smokes.")
     second = _claim("he smokes", kind="unique_event_paraphrase")
-    result = multi_run.elect_candidates(
-        _payload([first, second, _verify()]), {"E01"}
-    )
+    result = multi_run.elect_candidates(_payload([first, second, _verify()]), {"E01"})
     assert result["needs_verification"] is False
     assert result["answer"] == "he smokes"
     assert result["election_reason"] == "supported_candidate_agreement"
@@ -87,9 +85,15 @@ def test_election_routes_conflicting_answers_to_verification():
 @pytest.mark.parametrize(
     "mutate, reason",
     [
-        (lambda row: row["answer_claims"][0]["evidence_ids"].append("E99"), "unknown evidence ID"),
+        (
+            lambda row: row["answer_claims"][0]["evidence_ids"].append("E99"),
+            "unknown evidence ID",
+        ),
         (lambda row: row.update(answer="Different answer."), "exactly match"),
-        (lambda row: row.update(premise_status="answer_blocking"), "requires verification"),
+        (
+            lambda row: row.update(premise_status="answer_blocking"),
+            "requires verification",
+        ),
     ],
 )
 def test_election_rejects_invalid_candidate_but_preserves_trace(mutate, reason):
@@ -130,17 +134,30 @@ def _prepared_root(tmp_path: Path) -> Path:
         {
             "video_id": "v00",
             "question": "What happens next?",
-            "evidence": [{"evidence_id": "E01", "map_line_number": 1, "text": "SCENE | He smokes."}],
+            "evidence": [
+                {
+                    "evidence_id": "E01",
+                    "map_line_number": 1,
+                    "text": "SCENE | He smokes.",
+                }
+            ],
         }
     ]
     _write(root / "protocol.source.json", {"experiment_id": "fixture", "rows": rows})
     _write(root / "selection-freeze.json", {"status": "frozen", "row_count": 1})
     _write(root / "preinference-gate-freeze.json", {"status": "frozen", "gate": {}})
-    _write(root / "selection-integrity.json", {
-        "protocol_source_sha256": multi_run._sha256(root / "protocol.source.json"),
-        "selection_freeze_sha256": multi_run._sha256(root / "selection-freeze.json"),
-        "preinference_gate_freeze_sha256": multi_run._sha256(root / "preinference-gate-freeze.json"),
-    })
+    _write(
+        root / "selection-integrity.json",
+        {
+            "protocol_source_sha256": multi_run._sha256(root / "protocol.source.json"),
+            "selection_freeze_sha256": multi_run._sha256(
+                root / "selection-freeze.json"
+            ),
+            "preinference_gate_freeze_sha256": multi_run._sha256(
+                root / "preinference-gate-freeze.json"
+            ),
+        },
+    )
     multi_run.prepare_arms(root)
     return root
 
@@ -175,7 +192,9 @@ def test_fake_provider_end_to_end_is_one_attempt_resumable_and_frozen(tmp_path: 
     multi_run.freeze_arm(root, "multi", expected_rows=1)
     multi_run.freeze_combined(root)
     multi_run.verify_combined(root)
-    terminal = json.loads((root / "multi" / "rows" / "v00" / "terminal.json").read_text())
+    terminal = json.loads(
+        (root / "multi" / "rows" / "v00" / "terminal.json").read_text()
+    )
     assert terminal["answer"] == "he smokes"
     raw = root / "multi" / "rows" / "v00" / "raw-response.txt"
     raw.write_text(raw.read_text() + "tamper")
@@ -186,7 +205,9 @@ def test_fake_provider_end_to_end_is_one_attempt_resumable_and_frozen(tmp_path: 
 def test_malformed_json_preserves_paid_raw_and_terminal(tmp_path: Path):
     root = _prepared_root(tmp_path)
     with pytest.raises(json.JSONDecodeError):
-        multi_run.run_row(root, "multi", "v00", call_fn=lambda _: ("{bad", {"tokens": 3}))
+        multi_run.run_row(
+            root, "multi", "v00", call_fn=lambda _: ("{bad", {"tokens": 3})
+        )
     row = root / "multi" / "rows" / "v00"
     assert (row / "raw-response.txt").read_text() == "{bad"
     assert json.loads((row / "metadata.json").read_text()) == {"tokens": 3}

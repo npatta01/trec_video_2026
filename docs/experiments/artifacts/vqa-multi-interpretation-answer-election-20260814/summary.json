@@ -9,7 +9,9 @@
     "insufficiency_safeguard": 4,
     "stability_control": 4,
     "fresh_rows": true,
-    "excluded_issue35_v2_v3_and_seven_row_canary": true
+    "excluded_issue35_v2_v3_and_seven_row_canary": true,
+    "treatment_code_frozen_before_selection": false,
+    "panel_isolation_note": "The rows are disjoint from the prior panels, but label-aware selection preceded the committed treatment runner/election implementation. This is a disclosed audit gap, so the result is diagnostic only."
   },
   "completion": {
     "paid_calls": 24,
@@ -58,39 +60,42 @@
   },
   "conditions": {
     "direct": {
+      "metric_row_count": 12,
       "meteor": 0.3161238278772499,
       "bertscore_f1": 0.9001506815354029,
       "sts": null,
       "semantic_composite": null
     },
     "single": {
-      "meteor": 0.09827486543588239,
-      "bertscore_f1": 0.86090716222922,
+      "metric_row_count": 7,
+      "meteor": 0.1684711978900841,
+      "bertscore_f1": 0.8882416146142142,
       "sts": null,
       "semantic_composite": null
     },
     "multi": {
-      "meteor": 0.19526865327018747,
-      "bertscore_f1": 0.8745570381482443,
+      "metric_row_count": 8,
+      "meteor": 0.2929029799052812,
+      "bertscore_f1": 0.9000658392906189,
       "sts": null,
       "semantic_composite": null
     }
   },
   "role_metrics": {
     "premise_variance": {
-      "direct": {"meteor": 0.03583091436865022, "bertscore_f1": 0.8787484616041183},
-      "single": {"meteor": 0.07442416340721426, "bertscore_f1": 0.8696634322404861},
-      "multi": {"meteor": 0.11403545301850387, "bertscore_f1": 0.8746209442615509}
+      "direct": {"metric_row_count": 4, "meteor": 0.03583091436865022, "bertscore_f1": 0.8787484616041183},
+      "single": {"metric_row_count": 3, "meteor": 0.09923221787628568, "bertscore_f1": 0.8865388035774231},
+      "multi": {"metric_row_count": 4, "meteor": 0.11403545301850387, "bertscore_f1": 0.8746209442615509}
     },
     "insufficiency_safeguard": {
-      "direct": {"meteor": 0.0, "bertscore_f1": 0.8465357422828674},
-      "single": {"meteor": 0.0, "bertscore_f1": 0.8180013597011566},
-      "multi": {"meteor": 0.0, "bertscore_f1": 0.8143446743488312}
+      "direct": {"metric_row_count": 4, "meteor": 0.0, "bertscore_f1": 0.8465357422828674},
+      "single": {"metric_row_count": 1, "meteor": 0.0, "bertscore_f1": 0.8195993900299072},
+      "multi": {"metric_row_count": 1, "meteor": 0.0, "bertscore_f1": 0.8049727082252502}
     },
     "stability_control": {
-      "direct": {"meteor": 0.9125405692630995, "bertscore_f1": 0.975167840719223},
-      "single": {"meteor": 0.2204004329004329, "bertscore_f1": 0.8950566947460175},
-      "multi": {"meteor": 0.4717705067920585, "bertscore_f1": 0.9347054958343506}
+      "direct": {"metric_row_count": 4, "meteor": 0.9125405692630995, "bertscore_f1": 0.975167840719223},
+      "single": {"metric_row_count": 3, "meteor": 0.2938672438672439, "bertscore_f1": 0.9128251671791077},
+      "multi": {"metric_row_count": 3, "meteor": 0.6290273423894114, "bertscore_f1": 0.9656900763511658}
     }
   },
   "mechanism_findings": [
@@ -116,10 +121,15 @@
     "manual_audit_sha256": "a6dc6140a1db7b2a022c80c3e0e6fc78c7914cec7e1acfc06b2052f47f4c7d5e",
     "manual_audit_freeze_sha256": "1b753a20dc6ae3e6e35b45c2dbbdf53822760c0b39f0f3c1af1fb18aba3e0ae1",
     "original_postfreeze_score_sha256": "18b47a25c4e867196cabadd486e98f45fb742d3b320e7f889f13d1aee70f7491",
-    "corrected_postfreeze_score_sha256": "4b413a28cbb077118a37aaa084595ab5e231f4ad2ed7e2ca8ec268dd721816c7",
+    "metric_provenance_score_v2_sha256": "4b413a28cbb077118a37aaa084595ab5e231f4ad2ed7e2ca8ec268dd721816c7",
+    "sentinel_correction_score_v3_sha256": "dc626fa662d3327b41c2e8f6a749a117ce52096e0be4bcf121a99e98b3dd5ed3",
+    "sentinel_correction_score_v4_sha256": "78a42762b611d2b0795628b60e291d29b2f4005c24ec8869c9c6fc7bfe0bdf32",
+    "final_corrected_postfreeze_score_v5_sha256": "66baeaf72ef32fad88531bab9cc97f4cca99de8c929d414d1ca8d79f968d7a38",
+    "selection_exclusion_audit_sha256": "29a252f51e97f45117cf80857f5c0694249a6f01f9135391d6fe031284967939",
+    "v3_exclusion_protocol_sha256": "daa5ce4ce0fa88566114d62a4f029dcc38e168b22f4c0fc892ce3a14ccfdf93a",
     "bert_model_view_sha256": "d22f23ad3ceb52cfcc5b5ab93b103083566ac9b0382ee3c98cf6cd8c12b9c942",
     "bert_upstream_snapshot_sha256": "11937d0889e64b82673818e3cc511a953777505fc8a71341cb7763c7503a5d60"
   },
-  "metric_note": "The historical UMBC-compatible STS service is unavailable and no comparable local replacement was frozen, so STS and semantic composite remain null.",
+  "metric_note": "METEOR and BERTScore-F1 are answer-only descriptive means: verification and failure sentinels are excluded and metric_row_count is reported. The historical UMBC-compatible STS service is unavailable and no comparable local replacement was frozen, so STS and semantic composite remain null.",
   "private_root": "/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/multi-interpretation-answer-election-issue35-v1/"
 }

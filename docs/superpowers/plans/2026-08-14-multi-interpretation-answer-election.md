@@ -27,14 +27,26 @@ contracts. The gate is negative: multi answered 4/4 premise rows but improved
 only 1 over single; both arms verified 3/4 safeguards; multi preserved 3/4
 controls; unsupported emitted answers were 0. Oracle candidate coverage was
 12/12 but elected multi correctness was 10/12, so candidate generation showed
-headroom while this election rule was not safe enough to promote. Combined
+headroom while this election rule was not safe enough to promote. The rows are
+disjoint from the spent panels, but label-aware selection preceded the
+committed treatment implementation; this disclosed audit gap limits the result
+to diagnostic selected-panel evidence. An additive attestation binds the exact
+v3 protocol and proves it was a subset of the preflight-bound v2 exclusion.
+Combined
 integrity SHA-256 is `c3ddeedb0bea446bc9d65c7de6b5e6fe6c8a2f78600a373cf7f0d2de042d6280`;
-the additive metric-provenance score SHA-256 is
-`4b413a28cbb077118a37aaa084595ab5e231f4ad2ed7e2ca8ec268dd721816c7`.
+the final sentinel-corrected score SHA-256 is
+`66baeaf72ef32fad88531bab9cc97f4cca99de8c929d414d1ca8d79f968d7a38`.
 Next action is final render/checksum/privacy verification, independent review,
 then push/update PR #37 and issue #35. The reconciled research route is
 explicit temporal or speech verification over fresh frozen context, not a
 repeat of this ensemble.
+
+Formatting note: the scorer and all three new tests are formatted. The selector
+and treatment runner used before the paid calls fail `ruff format --check` and
+remain byte-for-byte unchanged. The arm protocols bind the runner hash; changing
+either source post hoc would also erase the exact executable record used for
+selection/inference. Ruff lint and `py_compile` pass, so this style debt is
+preserved and disclosed rather than rewriting experiment-defining code.
 
 ---
 
