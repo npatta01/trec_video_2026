@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "experiment_id": "multi-interpretation-answer-election-issue35-v1",
+  "source_sha256": {
+    "protocol.json": "ca64baaed8c5eb6e16e5a397fbfb749f79d10b5d92f355ca51e872f752120a87",
+    "maps.question-blind.json": "1931434d9ebb88c4ae43d18ec62d6c41f668d745a52ab9dd7f4e969506db9a6b",
+    "predictions.direct-answer.json": "394d2cbf801b29d258cb5ef907cf6f840935bb455b2a762f676160efb5814a3e",
+    "postfreeze-score.json": "9b9309fca503e8f1cb972f920bc25fb6d12bcebcfbfd86a1a78d46c2de3077c3"
+  },
+  "exclusion_sha256": {
+    "issue35_v2_protocol": "5619dbb852c1fdca1482749c6d4b3024455507e6bb3eab58e5a6747e0bff18c1",
+    "seven_row_canary_manifest": "184649eada27b347f40e63d60294514275c3492d367f6a6fe36649542fffca1c"
+  },
+  "selected_rows": [
+    {
+      "video_id": "LjH-8x3DDqQ",
+      "role": "premise_variance",
+      "evidence_line_numbers": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      "selection_note": "Low direct score; the map uniquely resolves the handshake and explicitly states the subsequent smoking event despite the direct answer choosing walking away."
+    },
+    {
+      "video_id": "LJuzoIUr4d4",
+      "role": "premise_variance",
+      "evidence_line_numbers": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+      "selection_note": "Low direct score; the map uniquely resolves the cap event and explicitly states that the man watches a phone immediately beforehand."
+    },
+    {
+      "video_id": "M6cWJmBBhnI",
+      "role": "premise_variance",
+      "evidence_line_numbers": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
+      "selection_note": "Low direct score; the awkward spinner wording has one compatible driver event and the map explicitly records operating levers as well as steering."
+    },
+    {
+      "video_id": "IGL7j9-JRG4",
+      "role": "premise_variance",
+      "evidence_line_numbers": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+      "selection_note": "Low direct score caused by an entity alias: the map identifies two sausages arranged as the queried heart, compatible with the reference's hot-dog wording."
+    },
+    {
+      "video_id": "QgQRjBsxT-M",
+      "role": "insufficiency_safeguard",
+      "evidence_line_numbers": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+      "selection_note": "The complete frozen map depicts wearing a saree but contains no statement about its geographic origin."
+    },
+    {
+      "video_id": "NFd2lPoV8Wo",
+      "role": "insufficiency_safeguard",
+      "evidence_line_numbers": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
+      "selection_note": "The complete map describes sighing and arm movement but not the reference action of clicking feet; robot identity is also potentially ambiguous."
+    },
+    {
+      "video_id": "NW3Mhr76ClM",
+      "role": "insufficiency_safeguard",
+      "evidence_line_numbers": [1, 2, 4, 5, 6, 7, 9, 10, 11, 13, 14, 16, 17, 18, 19, 20, 21],
+      "selection_note": "The complete map records motion and motor sounds but no speech or chuckle attributable to W2S."
+    },
+    {
+      "video_id": "OzNdzgQi1CA",
+      "role": "insufficiency_safeguard",
+      "evidence_line_numbers": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+      "selection_note": "The complete map says only background music and cannot identify the requested musical composition."
+    },
+    {
+      "video_id": "MM19feoJGmM",
+      "role": "stability_control",
+      "evidence_line_numbers": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+      "selection_note": "High direct score with an exact map-supported temporal answer: a nutcracker follows the knife."
+    },
+    {
+      "video_id": "K_Dm0u_ksbs",
+      "role": "stability_control",
+      "evidence_line_numbers": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+      "selection_note": "High direct score with explicit ordered map evidence that the boy salutes before the man returns it."
+    },
+    {
+      "video_id": "Jc2BdtyAF48",
+      "role": "stability_control",
+      "evidence_line_numbers": [1, 2, 3, 4, 5, 6, 7, 8],
+      "selection_note": "High direct score with the requested displayed text transcribed exactly in the map."
+    },
+    {
+      "video_id": "RjEjcM_Z0oU",
+      "role": "stability_control",
+      "evidence_line_numbers": [1, 2, 3, 4, 5, 6, 7, 8],
+      "selection_note": "High direct score with scene and sound lines explicitly supporting the ringing bell."
+    }
+  ],
+  "gate": {
+    "minimum_premise_correct_multi": 3,
+    "minimum_premise_improvements_over_single": 2,
+    "required_safeguard_verifications_each_arm": 4,
+    "required_multi_controls_preserved": 4,
+    "maximum_unsupported_emitted_answers": 0,
+    "require_all_candidate_sets_audited": true,
+    "oracle_is_diagnostic_only": true
+  }
+}
