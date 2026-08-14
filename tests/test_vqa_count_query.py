@@ -229,6 +229,7 @@ def test_canonical_serialization_is_stable_and_mutation_sensitive() -> None:
 
     query_payload["interpretations"][0]["target_predicate"] = "vehicle"
     graph_payload["entities"][0]["predicate"] = "vehicle"
+    graph_payload["entities"][1]["predicate"] = "vehicle"
 
     mutated_query = query_to_dict(parse_count_query(query_payload))
     mutated_graph = graph_to_dict(parse_evidence_graph(graph_payload))
@@ -627,6 +628,36 @@ def test_graph_rejects_multiple_states_for_one_identity_pair() -> None:
     )
 
     with pytest.raises(ValueError, match="identity relation pairs must be unique"):
+        parse_evidence_graph(graph_payload)
+
+
+@pytest.mark.parametrize("cross_kind", [False, True])
+def test_graph_rejects_identity_relation_across_kind_or_predicate(
+    cross_kind: bool,
+) -> None:
+    graph_payload = valid_graph_payload()
+    if cross_kind:
+        graph_payload["parts"] = [
+            {
+                "node_id": "part-1",
+                "predicate": "person",
+                "owner_node_id": "entity-1",
+                "start_seconds": 1.0,
+                "end_seconds": 2.0,
+                "shot_id": "shot-1",
+                "visibility": "visible",
+                "provenance": {
+                    "source_kind": "manual_observation",
+                    "source_id": "source-part-1",
+                    "timestamps_seconds": [1.0, 2.0],
+                },
+            }
+        ]
+        graph_payload["identity_relations"][0]["right_node_id"] = "part-1"
+    else:
+        graph_payload["entities"][1]["predicate"] = "human"
+
+    with pytest.raises(ValueError, match="same node kind and predicate"):
         parse_evidence_graph(graph_payload)
 
 

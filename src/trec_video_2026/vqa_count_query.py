@@ -727,6 +727,10 @@ def parse_evidence_graph(payload: Mapping[str, object]) -> EvidenceGraph:
         )
 
     entity_or_part_ids = {node.node_id for node in (*entities, *parts)}
+    identity_signature_by_id = {
+        **{node.node_id: ("entity", node.predicate) for node in entities},
+        **{node.node_id: ("part", node.predicate) for node in parts},
+    }
     all_node_ids = entity_or_part_ids | {node.node_id for node in events}
     for part in parts:
         if part.owner_node_id not in entity_or_part_ids:
@@ -758,6 +762,10 @@ def parse_evidence_graph(payload: Mapping[str, object]) -> EvidenceGraph:
             raise ValueError("identity relation must join distinct nodes")
         if left not in entity_or_part_ids or right not in entity_or_part_ids:
             raise ValueError("identity relation references unknown node")
+        if identity_signature_by_id[left] != identity_signature_by_id[right]:
+            raise ValueError(
+                "identity relation endpoints must have the same node kind and predicate"
+            )
         pair_key = tuple(sorted((left, right)))
         if pair_key in seen_pairs:
             raise ValueError("identity relation pairs must be unique")
