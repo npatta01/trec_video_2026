@@ -17,7 +17,13 @@ rescued 3/8 prior failures and preserved 3/4 controls, so it failed the
 predeclared gate. The negative isolates the next problem to mechanically
 verifiable spatial/temporal coverage rather than more row-specific reducers.
 
+Independent review after unblinding found label-independent v1 algebra and
+proof-audit defects outside the tested rows. The immutable v1 result is
+preserved, and an additive hardened proof-schema-v2 replay over the unchanged
+authored inputs produced identical row outcomes, bounds, reasons, and aggregate
+metrics. The private provenance manifest binds both source revisions and both
+artifact chains; this correction does not change the negative disposition.
+
 - **Evidence validity:** Diagnostic.
 - **Decision disposition:** Not promoted under the tested condition.
 - **Decision code:** `stop_count_query_engine_v1`.
-

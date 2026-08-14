@@ -399,10 +399,18 @@ Post-freeze inspection found two overconfident spatial/ontology coverage claims
 and two collapsed fine-grained appearance or action transitions. The two
 abstentions were conservative: one could not resolve the step boundary before
 water entry, and one could not infer physical lion identity across unrelated
-clips even though the appearance interpretation counted three. The fixed
-algebra behaved as designed; the falsifier was that a human-authored graph
-marked `complete` was not reliably complete at the necessary spatial or
-temporal granularity.
+clips even though the appearance interpretation counted three.
+
+Independent review after unblinding also found general v1 algebra defects in
+identity-policy application, censored-event boundaries, mandatory coverage,
+timestamp grounding, and proof tracing. These were fixed without labels or
+row-specific operators and recorded as additive proof schema v2; the original
+v1 proof and score remain immutable. Replaying the same 12 authored inputs
+preserved every row outcome, bound, abstention reason, and aggregate metric.
+The falsifier therefore remains the same: a human-authored graph marked
+`complete` was not reliably complete at the necessary spatial or temporal
+granularity. The corrected engine is better specified, but this diagnostic
+still does not warrant promotion.
 
 - **Evidence validity:** Diagnostic.
 - **Decision disposition:** Not promoted under the tested condition.
@@ -417,8 +425,8 @@ an exact proof when that certificate is insufficient.
 
 The sanitized evidence index is
 `docs/experiments/artifacts/vqa-count-query-engine-20260814/`. Complete private
-queries, graphs, proofs, inspection media, reference-joined scoring, and hashes
-remain at
+queries, graphs, immutable v1 proofs/scores, additive corrected v2 replay,
+source-bound provenance, inspection media, and hashes remain at
 `data/vqa/benchmarks/direct-gemini-count-query-engine-v1/` in the canonical
 shared dataset.
 

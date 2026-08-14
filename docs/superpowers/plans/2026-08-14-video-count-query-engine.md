@@ -430,11 +430,18 @@ existing canonical JSON hashing, Ruff, Quarto.
   and format check, artifact hash verification, chain mutation tests, and a
   recursive secret/private-row scan.
 
-- [ ] **Step 4: Request independent substantive review**
+- [x] **Step 4: Request independent substantive review**
 
   Require review of schema depth, algebra correctness, label isolation,
   provenance authentication, and whether any operator is row-specific. Resolve
   every blocker and rerun verification.
+
+  Review found general v1 edge-case defects in identity closure/policy,
+  censored-event boundaries, mandatory evidence obligations, timestamp
+  grounding, and proof trace provenance. Each received a failing regression
+  test and a label-independent correction. The immutable v1 result remains
+  preserved; an additive proof-schema-v2 replay retained all 12 row decisions
+  and every aggregate metric.
 
 - [ ] **Step 5: Publish a focused stacked draft PR**
 

@@ -215,7 +215,12 @@ The complete private evidence is at
 Start with `inspection.md`. The frozen engine expressed 12/12 held-out
 questions and returned 10 exact proofs plus two bounded abstentions, but four
 exact answers were wrong. It rescued 3/8 failures and preserved 3/4 controls,
-so the gate failed. Do not modify or rescore the frozen authored inputs and do
-not add row-specific reducers. If counting work continues, the next zero-cost
-seam is a mechanically checkable coverage certificate bound to reviewed
-timestamps, regions, and sampling density. No paid microcanary is authorized.
+so the gate failed. Preserve the immutable v1 proof and score. A completed
+label-independent post-unblinding v2 audit hardened general identity,
+boundary, coverage, grounding, and proof-trace semantics; its replay over the
+unchanged authored inputs preserved every row decision and aggregate metric.
+`experiment-provenance-v2.json` binds both source revisions and artifact
+chains. Do not run another replay or add row-specific reducers. If counting
+work continues, the next zero-cost seam is a mechanically checkable coverage
+certificate bound to reviewed timestamps, regions, and sampling density. No
+paid microcanary is authorized.
