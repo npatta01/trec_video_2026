@@ -212,10 +212,10 @@
 
   Confirm no dataset file is staged, no secrets/private rows/raw logs leaked, all 24 changed rows are inspected, and the report matches the frozen artifacts.
 
-- [ ] **Step 3: Commit and push intentionally**
+- [x] **Step 3: Commit and push intentionally**
 
   Commit the implementation, tests, plan, sanitized artifacts, QMD, and generated outputs with a focused issue-35 message; push the branch.
 
-- [ ] **Step 4: Post issue progress/result and open a draft PR**
+- [x] **Step 4: Post issue progress/result and open a draft PR**
 
   Post the completion denominator, metric/gate outcome, condition-bound decision, evidence links, and PR link to issue #35. Do not close the issue unless the result and durable handoff fully satisfy it.
