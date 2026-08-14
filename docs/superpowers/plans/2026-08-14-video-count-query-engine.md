@@ -51,14 +51,14 @@ existing canonical JSON hashing, Ruff, Quarto.
     relation, coverage, and provenance values
 - Consumes: `validate_label_blind` and `canonical_sha256` from existing modules.
 
-- [ ] **Step 1: Write the failing strict-schema test**
+- [x] **Step 1: Write the failing strict-schema test**
 
   Add a literal one-interpretation query and graph fixture. Assert that parsing
   succeeds and that unknown root fields, duplicate node IDs, dangling part
   owners, invalid intervals, overlapping shots, and a nested
   `reference_answer` key each raise a precise `ValueError`.
 
-- [ ] **Step 2: Run the schema test and observe RED**
+- [x] **Step 2: Run the schema test and observe RED**
 
   Run:
 
@@ -69,24 +69,24 @@ existing canonical JSON hashing, Ruff, Quarto.
   Expected: collection fails because `trec_video_2026.vqa_count_query` does not
   exist.
 
-- [ ] **Step 3: Implement the immutable domain values and parsers**
+- [x] **Step 3: Implement the immutable domain values and parsers**
 
   Use frozen dataclasses and explicit enum-value sets. Expose no filesystem or
   network behavior. Require exact fields and finite times. Use payload field
   names `relation_state`, `coverage_state`, and `outcome` so the existing
   label-blind validator continues rejecting generic `status` keys.
 
-- [ ] **Step 4: Run the schema tests and observe GREEN**
+- [x] **Step 4: Run the schema tests and observe GREEN**
 
   Run the Task 1 test file. Expected: all schema tests pass.
 
-- [ ] **Step 5: Add canonical serialization behavior**
+- [x] **Step 5: Add canonical serialization behavior**
 
   Write a failing test that two logically identical inputs produce identical
   `complete_sha256` values and that mutation changes the hash. Add
   `query_to_dict` and `graph_to_dict`, using existing canonical hashing.
 
-- [ ] **Step 6: Run the canonicalization test RED, implement, then run GREEN**
+- [x] **Step 6: Run the canonicalization test RED, implement, then run GREEN**
 
   Expected final result: all Task 1 tests pass and `git diff --check` is clean.
 

@@ -1,0 +1,788 @@
+"""Typed, label-blind video count queries and temporal evidence graphs."""
+
+from __future__ import annotations
+
+import math
+from collections.abc import Mapping, Sequence
+from dataclasses import asdict, dataclass
+from itertools import pairwise
+from typing import Any
+
+from trec_video_2026.vqa_counting_evidence import validate_label_blind
+from trec_video_2026.vqa_submission import canonical_sha256
+
+SCHEMA_VERSION = 1
+
+TARGET_KINDS = frozenset({"entity", "part", "event"})
+COUNT_UNITS = frozenset(
+    {
+        "physical_entity",
+        "appearance",
+        "visible_instance",
+        "part",
+        "event_onset",
+        "active_event",
+    }
+)
+BOUNDARY_POLICIES = frozenset({"starts_within", "overlaps", "completes_within"})
+IDENTITY_POLICIES = frozenset({"physical", "within_shot", "appearance_episode"})
+CROSS_SHOT_POLICIES = frozenset({"abstain", "separate"})
+VISIBILITY_POLICIES = frozenset({"visible", "partially_visible", "amodal"})
+AGGREGATIONS = frozenset(
+    {"cardinality", "distinct", "max_concurrent", "transition_count"}
+)
+EVIDENCE_OBLIGATIONS = frozenset(
+    {
+        "target_coverage",
+        "shot_boundaries",
+        "part_visibility",
+        "event_boundary_state",
+        "cross_shot_identity",
+    }
+)
+VISIBILITY_VALUES = frozenset({"visible", "partially_visible", "amodal"})
+RELATION_STATES = frozenset({"confirmed_same", "confirmed_different", "unresolved"})
+COVERAGE_STATES = frozenset({"complete", "partial"})
+ONSET_STATES = frozenset({"observed", "left_censored", "unknown"})
+COMPLETION_STATES = frozenset({"observed", "right_censored", "unknown"})
+
+_QUERY_ROOT_FIELDS = frozenset(
+    {"schema_version", "query_id", "interpretations", "complete_sha256"}
+)
+_INTERPRETATION_FIELDS = frozenset(
+    {
+        "interpretation_id",
+        "target_kind",
+        "target_predicate",
+        "owner_predicate",
+        "count_unit",
+        "scope",
+        "identity_policy",
+        "cross_shot_unknown",
+        "visibility_policy",
+        "aggregation",
+        "evidence_obligations",
+    }
+)
+_SCOPE_FIELDS = frozenset({"start_seconds", "end_seconds", "boundary_policy"})
+_GRAPH_ROOT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "graph_id",
+        "duration_seconds",
+        "shots",
+        "entities",
+        "parts",
+        "events",
+        "identity_relations",
+        "coverage",
+        "complete_sha256",
+    }
+)
+_SHOT_FIELDS = frozenset({"shot_id", "start_seconds", "end_seconds"})
+_PROVENANCE_FIELDS = frozenset({"source_kind", "source_id", "timestamps_seconds"})
+_ENTITY_FIELDS = frozenset(
+    {
+        "node_id",
+        "predicate",
+        "start_seconds",
+        "end_seconds",
+        "shot_id",
+        "visibility",
+        "provenance",
+    }
+)
+_PART_FIELDS = _ENTITY_FIELDS | {"owner_node_id"}
+_EVENT_FIELDS = frozenset(
+    {
+        "node_id",
+        "predicate",
+        "start_seconds",
+        "end_seconds",
+        "shot_id",
+        "onset_state",
+        "completion_state",
+        "participant_node_ids",
+        "provenance",
+    }
+)
+_RELATION_FIELDS = frozenset({"left_node_id", "right_node_id", "relation_state"})
+_COVERAGE_FIELDS = frozenset(
+    {
+        "claim_id",
+        "obligation",
+        "target_kind",
+        "target_predicate",
+        "start_seconds",
+        "end_seconds",
+        "spatial_scope",
+        "temporal_resolution_seconds",
+        "coverage_state",
+    }
+)
+
+
+@dataclass(frozen=True)
+class TimeScope:
+    start_seconds: float
+    end_seconds: float
+    boundary_policy: str
+
+
+@dataclass(frozen=True)
+class QueryInterpretation:
+    interpretation_id: str
+    target_kind: str
+    target_predicate: str
+    owner_predicate: str | None
+    count_unit: str
+    scope: TimeScope
+    identity_policy: str
+    cross_shot_unknown: str
+    visibility_policy: str
+    aggregation: str
+    evidence_obligations: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CountQuery:
+    query_id: str
+    interpretations: tuple[QueryInterpretation, ...]
+
+
+@dataclass(frozen=True)
+class Provenance:
+    source_kind: str
+    source_id: str
+    timestamps_seconds: tuple[float, ...]
+
+
+@dataclass(frozen=True)
+class Shot:
+    shot_id: str
+    start_seconds: float
+    end_seconds: float
+
+
+@dataclass(frozen=True)
+class EntityObservation:
+    node_id: str
+    predicate: str
+    start_seconds: float
+    end_seconds: float
+    shot_id: str
+    visibility: str
+    provenance: Provenance
+
+
+@dataclass(frozen=True)
+class PartObservation:
+    node_id: str
+    predicate: str
+    owner_node_id: str
+    start_seconds: float
+    end_seconds: float
+    shot_id: str
+    visibility: str
+    provenance: Provenance
+
+
+@dataclass(frozen=True)
+class EventObservation:
+    node_id: str
+    predicate: str
+    start_seconds: float
+    end_seconds: float
+    shot_id: str
+    onset_state: str
+    completion_state: str
+    participant_node_ids: tuple[str, ...]
+    provenance: Provenance
+
+
+@dataclass(frozen=True)
+class IdentityRelation:
+    left_node_id: str
+    right_node_id: str
+    relation_state: str
+
+
+@dataclass(frozen=True)
+class CoverageClaim:
+    claim_id: str
+    obligation: str
+    target_kind: str
+    target_predicate: str
+    start_seconds: float
+    end_seconds: float
+    spatial_scope: str
+    temporal_resolution_seconds: float
+    coverage_state: str
+
+
+@dataclass(frozen=True)
+class EvidenceGraph:
+    graph_id: str
+    duration_seconds: float
+    shots: tuple[Shot, ...]
+    entities: tuple[EntityObservation, ...]
+    parts: tuple[PartObservation, ...]
+    events: tuple[EventObservation, ...]
+    identity_relations: tuple[IdentityRelation, ...]
+    coverage: tuple[CoverageClaim, ...]
+
+
+def _mapping(value: object, *, field: str) -> Mapping[str, object]:
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{field} must be an object")
+    return value
+
+
+def _sequence(value: object, *, field: str) -> Sequence[object]:
+    if not isinstance(value, list | tuple):
+        raise TypeError(f"{field} must be an array")
+    return value
+
+
+def _exact_fields(
+    payload: Mapping[str, object], *, allowed: frozenset[str], field: str
+) -> None:
+    unknown = sorted(set(payload) - allowed)
+    if unknown:
+        raise ValueError(f"unknown {field} fields: {unknown}")
+    missing = sorted(allowed - {"complete_sha256"} - set(payload))
+    if missing:
+        raise ValueError(f"missing {field} fields: {missing}")
+
+
+def _string(value: object, *, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise TypeError(f"{field} must be a non-empty string")
+    return value
+
+
+def _optional_string(value: object, *, field: str) -> str | None:
+    if value is None:
+        return None
+    return _string(value, field=field)
+
+
+def _number(value: object, *, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise TypeError(f"{field} must be a finite number")
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError(f"{field} must be a finite number")
+    return result
+
+
+def _enum(value: object, *, field: str, allowed: frozenset[str]) -> str:
+    result = _string(value, field=field)
+    if result not in allowed:
+        raise ValueError(f"{field} must be one of {sorted(allowed)}")
+    return result
+
+
+def _bounded_interval(
+    payload: Mapping[str, object], *, field: str, duration_seconds: float
+) -> tuple[float, float]:
+    start = _number(payload.get("start_seconds"), field=f"{field}.start_seconds")
+    end = _number(payload.get("end_seconds"), field=f"{field}.end_seconds")
+    if start > end:
+        raise ValueError(f"{field}.start_seconds must not exceed end_seconds")
+    if start < 0 or end > duration_seconds:
+        raise ValueError(f"{field} interval must be within video duration")
+    return start, end
+
+
+def _verify_embedded_hash(payload: Mapping[str, object], *, field: str) -> None:
+    embedded = payload.get("complete_sha256")
+    if embedded is None:
+        return
+    if not isinstance(embedded, str):
+        raise TypeError(f"{field}.complete_sha256 must be a string")
+    actual = canonical_sha256(
+        {key: value for key, value in payload.items() if key != "complete_sha256"}
+    )
+    if actual != embedded:
+        raise ValueError(f"{field} complete_sha256 changed")
+
+
+def parse_count_query(payload: Mapping[str, object]) -> CountQuery:
+    validate_label_blind(payload)
+    _exact_fields(payload, allowed=_QUERY_ROOT_FIELDS, field="root")
+    _verify_embedded_hash(payload, field="query")
+    if payload.get("schema_version") != SCHEMA_VERSION:
+        raise ValueError(f"query schema_version must be {SCHEMA_VERSION}")
+    query_id = _string(payload.get("query_id"), field="query_id")
+    raw_interpretations = _sequence(
+        payload.get("interpretations"), field="interpretations"
+    )
+    if not raw_interpretations:
+        raise ValueError("interpretations must not be empty")
+    interpretations: list[QueryInterpretation] = []
+    seen_ids: set[str] = set()
+    for index, raw in enumerate(raw_interpretations):
+        item = _mapping(raw, field=f"interpretations[{index}]")
+        _exact_fields(
+            item, allowed=_INTERPRETATION_FIELDS, field=f"interpretations[{index}]"
+        )
+        interpretation_id = _string(
+            item.get("interpretation_id"),
+            field=f"interpretations[{index}].interpretation_id",
+        )
+        if interpretation_id in seen_ids:
+            raise ValueError("interpretation IDs must be unique")
+        seen_ids.add(interpretation_id)
+        scope_payload = _mapping(
+            item.get("scope"), field=f"interpretations[{index}].scope"
+        )
+        _exact_fields(
+            scope_payload,
+            allowed=_SCOPE_FIELDS,
+            field=f"interpretations[{index}].scope",
+        )
+        start = _number(
+            scope_payload.get("start_seconds"),
+            field=f"interpretations[{index}].scope.start_seconds",
+        )
+        end = _number(
+            scope_payload.get("end_seconds"),
+            field=f"interpretations[{index}].scope.end_seconds",
+        )
+        if start < 0 or start > end:
+            raise ValueError("query scope start_seconds must not exceed end_seconds")
+        obligations = tuple(
+            _enum(
+                value,
+                field=f"interpretations[{index}].evidence_obligations",
+                allowed=EVIDENCE_OBLIGATIONS,
+            )
+            for value in _sequence(
+                item.get("evidence_obligations"),
+                field=f"interpretations[{index}].evidence_obligations",
+            )
+        )
+        if len(obligations) != len(set(obligations)):
+            raise ValueError("evidence obligations must be unique")
+        interpretations.append(
+            QueryInterpretation(
+                interpretation_id=interpretation_id,
+                target_kind=_enum(
+                    item.get("target_kind"),
+                    field=f"interpretations[{index}].target_kind",
+                    allowed=TARGET_KINDS,
+                ),
+                target_predicate=_string(
+                    item.get("target_predicate"),
+                    field=f"interpretations[{index}].target_predicate",
+                ),
+                owner_predicate=_optional_string(
+                    item.get("owner_predicate"),
+                    field=f"interpretations[{index}].owner_predicate",
+                ),
+                count_unit=_enum(
+                    item.get("count_unit"),
+                    field=f"interpretations[{index}].count_unit",
+                    allowed=COUNT_UNITS,
+                ),
+                scope=TimeScope(
+                    start_seconds=start,
+                    end_seconds=end,
+                    boundary_policy=_enum(
+                        scope_payload.get("boundary_policy"),
+                        field=f"interpretations[{index}].scope.boundary_policy",
+                        allowed=BOUNDARY_POLICIES,
+                    ),
+                ),
+                identity_policy=_enum(
+                    item.get("identity_policy"),
+                    field=f"interpretations[{index}].identity_policy",
+                    allowed=IDENTITY_POLICIES,
+                ),
+                cross_shot_unknown=_enum(
+                    item.get("cross_shot_unknown"),
+                    field=f"interpretations[{index}].cross_shot_unknown",
+                    allowed=CROSS_SHOT_POLICIES,
+                ),
+                visibility_policy=_enum(
+                    item.get("visibility_policy"),
+                    field=f"interpretations[{index}].visibility_policy",
+                    allowed=VISIBILITY_POLICIES,
+                ),
+                aggregation=_enum(
+                    item.get("aggregation"),
+                    field=f"interpretations[{index}].aggregation",
+                    allowed=AGGREGATIONS,
+                ),
+                evidence_obligations=obligations,
+            )
+        )
+    return CountQuery(query_id=query_id, interpretations=tuple(interpretations))
+
+
+def _parse_provenance(
+    raw: object, *, field: str, duration_seconds: float
+) -> Provenance:
+    payload = _mapping(raw, field=field)
+    _exact_fields(payload, allowed=_PROVENANCE_FIELDS, field=field)
+    timestamps = tuple(
+        _number(value, field=f"{field}.timestamps_seconds")
+        for value in _sequence(
+            payload.get("timestamps_seconds"), field=f"{field}.timestamps_seconds"
+        )
+    )
+    if any(value < 0 or value > duration_seconds for value in timestamps):
+        raise ValueError(f"{field}.timestamps_seconds must be within video duration")
+    return Provenance(
+        source_kind=_string(payload.get("source_kind"), field=f"{field}.source_kind"),
+        source_id=_string(payload.get("source_id"), field=f"{field}.source_id"),
+        timestamps_seconds=timestamps,
+    )
+
+
+def _validate_node_shot(
+    *,
+    node_id: str,
+    shot_id: str,
+    start_seconds: float,
+    end_seconds: float,
+    shots: Mapping[str, Shot],
+) -> None:
+    shot = shots.get(shot_id)
+    if shot is None:
+        raise ValueError(f"node {node_id} references unknown shot {shot_id}")
+    if start_seconds < shot.start_seconds or end_seconds > shot.end_seconds:
+        raise ValueError(f"node {node_id} interval must lie within its shot")
+
+
+def parse_evidence_graph(payload: Mapping[str, object]) -> EvidenceGraph:
+    validate_label_blind(payload)
+    _exact_fields(payload, allowed=_GRAPH_ROOT_FIELDS, field="root")
+    _verify_embedded_hash(payload, field="graph")
+    if payload.get("schema_version") != SCHEMA_VERSION:
+        raise ValueError(f"graph schema_version must be {SCHEMA_VERSION}")
+    graph_id = _string(payload.get("graph_id"), field="graph_id")
+    duration = _number(payload.get("duration_seconds"), field="duration_seconds")
+    if duration <= 0:
+        raise ValueError("duration_seconds must be positive")
+
+    shots: list[Shot] = []
+    seen_shot_ids: set[str] = set()
+    for index, raw in enumerate(_sequence(payload.get("shots"), field="shots")):
+        item = _mapping(raw, field=f"shots[{index}]")
+        _exact_fields(item, allowed=_SHOT_FIELDS, field=f"shots[{index}]")
+        shot_id = _string(item.get("shot_id"), field=f"shots[{index}].shot_id")
+        if shot_id in seen_shot_ids:
+            raise ValueError("shot IDs must be unique")
+        seen_shot_ids.add(shot_id)
+        start, end = _bounded_interval(
+            item, field=f"shots[{index}]", duration_seconds=duration
+        )
+        shots.append(Shot(shot_id, start, end))
+    if not shots:
+        raise ValueError("shots must not be empty")
+    for previous, current in pairwise(shots):
+        if previous.start_seconds > current.start_seconds:
+            raise ValueError("shots must be ordered")
+        if previous.end_seconds > current.start_seconds:
+            raise ValueError("shots must not overlap")
+    shots_by_id = {shot.shot_id: shot for shot in shots}
+
+    entities: list[EntityObservation] = []
+    parts: list[PartObservation] = []
+    events: list[EventObservation] = []
+    node_ids: set[str] = set()
+
+    for index, raw in enumerate(_sequence(payload.get("entities"), field="entities")):
+        item = _mapping(raw, field=f"entities[{index}]")
+        _exact_fields(item, allowed=_ENTITY_FIELDS, field=f"entities[{index}]")
+        node_id = _string(item.get("node_id"), field=f"entities[{index}].node_id")
+        if node_id in node_ids:
+            raise ValueError("node IDs must be unique")
+        node_ids.add(node_id)
+        start, end = _bounded_interval(
+            item, field=f"entities[{index}]", duration_seconds=duration
+        )
+        shot_id = _string(item.get("shot_id"), field=f"entities[{index}].shot_id")
+        _validate_node_shot(
+            node_id=node_id,
+            shot_id=shot_id,
+            start_seconds=start,
+            end_seconds=end,
+            shots=shots_by_id,
+        )
+        entities.append(
+            EntityObservation(
+                node_id=node_id,
+                predicate=_string(
+                    item.get("predicate"), field=f"entities[{index}].predicate"
+                ),
+                start_seconds=start,
+                end_seconds=end,
+                shot_id=shot_id,
+                visibility=_enum(
+                    item.get("visibility"),
+                    field=f"entities[{index}].visibility",
+                    allowed=VISIBILITY_VALUES,
+                ),
+                provenance=_parse_provenance(
+                    item.get("provenance"),
+                    field=f"entities[{index}].provenance",
+                    duration_seconds=duration,
+                ),
+            )
+        )
+
+    raw_parts = _sequence(payload.get("parts"), field="parts")
+    for index, raw in enumerate(raw_parts):
+        item = _mapping(raw, field=f"parts[{index}]")
+        _exact_fields(item, allowed=_PART_FIELDS, field=f"parts[{index}]")
+        node_id = _string(item.get("node_id"), field=f"parts[{index}].node_id")
+        if node_id in node_ids:
+            raise ValueError("node IDs must be unique")
+        node_ids.add(node_id)
+        start, end = _bounded_interval(
+            item, field=f"parts[{index}]", duration_seconds=duration
+        )
+        shot_id = _string(item.get("shot_id"), field=f"parts[{index}].shot_id")
+        _validate_node_shot(
+            node_id=node_id,
+            shot_id=shot_id,
+            start_seconds=start,
+            end_seconds=end,
+            shots=shots_by_id,
+        )
+        parts.append(
+            PartObservation(
+                node_id=node_id,
+                predicate=_string(
+                    item.get("predicate"), field=f"parts[{index}].predicate"
+                ),
+                owner_node_id=_string(
+                    item.get("owner_node_id"),
+                    field=f"parts[{index}].owner_node_id",
+                ),
+                start_seconds=start,
+                end_seconds=end,
+                shot_id=shot_id,
+                visibility=_enum(
+                    item.get("visibility"),
+                    field=f"parts[{index}].visibility",
+                    allowed=VISIBILITY_VALUES,
+                ),
+                provenance=_parse_provenance(
+                    item.get("provenance"),
+                    field=f"parts[{index}].provenance",
+                    duration_seconds=duration,
+                ),
+            )
+        )
+
+    for index, raw in enumerate(_sequence(payload.get("events"), field="events")):
+        item = _mapping(raw, field=f"events[{index}]")
+        _exact_fields(item, allowed=_EVENT_FIELDS, field=f"events[{index}]")
+        node_id = _string(item.get("node_id"), field=f"events[{index}].node_id")
+        if node_id in node_ids:
+            raise ValueError("node IDs must be unique")
+        node_ids.add(node_id)
+        start, end = _bounded_interval(
+            item, field=f"events[{index}]", duration_seconds=duration
+        )
+        shot_id = _string(item.get("shot_id"), field=f"events[{index}].shot_id")
+        _validate_node_shot(
+            node_id=node_id,
+            shot_id=shot_id,
+            start_seconds=start,
+            end_seconds=end,
+            shots=shots_by_id,
+        )
+        participants = tuple(
+            _string(value, field=f"events[{index}].participant_node_ids")
+            for value in _sequence(
+                item.get("participant_node_ids"),
+                field=f"events[{index}].participant_node_ids",
+            )
+        )
+        if len(participants) != len(set(participants)):
+            raise ValueError("event participant node IDs must be unique")
+        events.append(
+            EventObservation(
+                node_id=node_id,
+                predicate=_string(
+                    item.get("predicate"), field=f"events[{index}].predicate"
+                ),
+                start_seconds=start,
+                end_seconds=end,
+                shot_id=shot_id,
+                onset_state=_enum(
+                    item.get("onset_state"),
+                    field=f"events[{index}].onset_state",
+                    allowed=ONSET_STATES,
+                ),
+                completion_state=_enum(
+                    item.get("completion_state"),
+                    field=f"events[{index}].completion_state",
+                    allowed=COMPLETION_STATES,
+                ),
+                participant_node_ids=participants,
+                provenance=_parse_provenance(
+                    item.get("provenance"),
+                    field=f"events[{index}].provenance",
+                    duration_seconds=duration,
+                ),
+            )
+        )
+
+    entity_or_part_ids = {node.node_id for node in (*entities, *parts)}
+    all_node_ids = entity_or_part_ids | {node.node_id for node in events}
+    for part in parts:
+        if part.owner_node_id not in entity_or_part_ids:
+            raise ValueError(f"part {part.node_id} references unknown owner node")
+    for event in events:
+        missing = sorted(set(event.participant_node_ids) - entity_or_part_ids)
+        if missing:
+            raise ValueError(f"event {event.node_id} has unknown participant nodes")
+    _reject_part_cycles(parts)
+
+    relations: list[IdentityRelation] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    for index, raw in enumerate(
+        _sequence(payload.get("identity_relations"), field="identity_relations")
+    ):
+        item = _mapping(raw, field=f"identity_relations[{index}]")
+        _exact_fields(
+            item, allowed=_RELATION_FIELDS, field=f"identity_relations[{index}]"
+        )
+        left = _string(
+            item.get("left_node_id"),
+            field=f"identity_relations[{index}].left_node_id",
+        )
+        right = _string(
+            item.get("right_node_id"),
+            field=f"identity_relations[{index}].right_node_id",
+        )
+        if left == right:
+            raise ValueError("identity relation must join distinct nodes")
+        if left not in entity_or_part_ids or right not in entity_or_part_ids:
+            raise ValueError("identity relation references unknown node")
+        pair_key = tuple(sorted((left, right)))
+        if pair_key in seen_pairs:
+            raise ValueError("identity relation pairs must be unique")
+        seen_pairs.add(pair_key)
+        relations.append(
+            IdentityRelation(
+                left_node_id=left,
+                right_node_id=right,
+                relation_state=_enum(
+                    item.get("relation_state"),
+                    field=f"identity_relations[{index}].relation_state",
+                    allowed=RELATION_STATES,
+                ),
+            )
+        )
+
+    coverage: list[CoverageClaim] = []
+    seen_claim_ids: set[str] = set()
+    for index, raw in enumerate(_sequence(payload.get("coverage"), field="coverage")):
+        item = _mapping(raw, field=f"coverage[{index}]")
+        _exact_fields(item, allowed=_COVERAGE_FIELDS, field=f"coverage[{index}]")
+        claim_id = _string(item.get("claim_id"), field=f"coverage[{index}].claim_id")
+        if claim_id in seen_claim_ids:
+            raise ValueError("coverage claim IDs must be unique")
+        seen_claim_ids.add(claim_id)
+        start, end = _bounded_interval(
+            item, field=f"coverage[{index}]", duration_seconds=duration
+        )
+        resolution = _number(
+            item.get("temporal_resolution_seconds"),
+            field=f"coverage[{index}].temporal_resolution_seconds",
+        )
+        if resolution <= 0:
+            raise ValueError("coverage temporal resolution must be positive")
+        coverage.append(
+            CoverageClaim(
+                claim_id=claim_id,
+                obligation=_enum(
+                    item.get("obligation"),
+                    field=f"coverage[{index}].obligation",
+                    allowed=EVIDENCE_OBLIGATIONS,
+                ),
+                target_kind=_enum(
+                    item.get("target_kind"),
+                    field=f"coverage[{index}].target_kind",
+                    allowed=TARGET_KINDS,
+                ),
+                target_predicate=_string(
+                    item.get("target_predicate"),
+                    field=f"coverage[{index}].target_predicate",
+                ),
+                start_seconds=start,
+                end_seconds=end,
+                spatial_scope=_string(
+                    item.get("spatial_scope"),
+                    field=f"coverage[{index}].spatial_scope",
+                ),
+                temporal_resolution_seconds=resolution,
+                coverage_state=_enum(
+                    item.get("coverage_state"),
+                    field=f"coverage[{index}].coverage_state",
+                    allowed=COVERAGE_STATES,
+                ),
+            )
+        )
+
+    if len(all_node_ids) != len(entities) + len(parts) + len(events):
+        raise ValueError("node IDs must be unique")
+    return EvidenceGraph(
+        graph_id=graph_id,
+        duration_seconds=duration,
+        shots=tuple(shots),
+        entities=tuple(entities),
+        parts=tuple(parts),
+        events=tuple(events),
+        identity_relations=tuple(relations),
+        coverage=tuple(coverage),
+    )
+
+
+def _reject_part_cycles(parts: Sequence[PartObservation]) -> None:
+    owner_by_part = {part.node_id: part.owner_node_id for part in parts}
+    for part_id in owner_by_part:
+        seen: set[str] = set()
+        current = part_id
+        while current in owner_by_part:
+            if current in seen:
+                raise ValueError("part ownership must not contain a cycle")
+            seen.add(current)
+            current = owner_by_part[current]
+
+
+def _json_compatible(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _json_compatible(item) for key, item in value.items()}
+    if isinstance(value, tuple | list):
+        return [_json_compatible(item) for item in value]
+    return value
+
+
+def _with_hash(payload: dict[str, object]) -> dict[str, object]:
+    result = dict(payload)
+    result["complete_sha256"] = canonical_sha256(result)
+    return result
+
+
+def query_to_dict(query: CountQuery) -> dict[str, object]:
+    return _with_hash(
+        {
+            "schema_version": SCHEMA_VERSION,
+            "query_id": query.query_id,
+            "interpretations": _json_compatible(asdict(query)["interpretations"]),
+        }
+    )
+
+
+def graph_to_dict(graph: EvidenceGraph) -> dict[str, object]:
+    payload = _json_compatible(asdict(graph))
+    assert isinstance(payload, dict)
+    return _with_hash({"schema_version": SCHEMA_VERSION, **payload})
