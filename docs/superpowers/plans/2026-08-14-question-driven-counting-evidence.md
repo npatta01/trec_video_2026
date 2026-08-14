@@ -19,7 +19,8 @@ existing semantic scorers (NLTK METEOR, BERTScore, UMBC STS), Quarto, GitHub.
 **Current status (2026-08-14):** Implementation and the six-row canary are
 complete. The tested treatment is a valid negative (`1/5` rescues, `1/1`
 control, `$0.253924`) and did not authorize scale. Final review hardening is
-complete; commit, PR, and issue handoff remain.
+complete. Implementation commit `907e3b1` is pushed, draft PR #38 is open,
+and the final result is posted to issue #34.
 
 ## Global constraints
 
@@ -116,5 +117,5 @@ complete; commit, PR, and issue handoff remain.
 - [x] Render/validate generated report surfaces according to project tooling.
 - [x] Run focused and relevant regression tests plus artifact validators.
 - [x] Review the diff for secrets, private data, and scope drift.
-- [ ] Commit, push `codex/issue-34-counting-evidence`, open a focused PR, and
+- [x] Commit, push `codex/issue-34-counting-evidence`, open a focused PR, and
   post concise progress/result comments to issue #34.
