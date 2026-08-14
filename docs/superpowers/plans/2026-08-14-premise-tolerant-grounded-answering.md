@@ -49,21 +49,21 @@ PANEL_IDS = {
 }
 ```
 
-- [ ] **Step 1: Write failing preparation tests**
+- [x] **Step 1: Write failing preparation tests**
 
   Add tests that assert the exact 11 IDs from the approved design, reject an incorrect source-protocol SHA, reject missing/duplicate IDs, reject a selection whose roles do not total `5/2/1/3`, and prove `protocol.json` contains no role, expected-route, threshold, reference, baseline, assessment, or label fields.
 
-- [ ] **Step 2: Run preparation tests and verify RED**
+- [x] **Step 2: Run preparation tests and verify RED**
 
   Run: `uv run pytest -q tests/test_run_premise_tolerant_grounded_answering.py -k prepare`
 
   Expected: collection failure because the runner does not exist.
 
-- [ ] **Step 3: Implement the minimum selection and preparation path**
+- [x] **Step 3: Implement the minimum selection and preparation path**
 
   Define `MODEL`, the exact structured schema, `answer_prompt`, source verification, and write-once preparation. Copy exact question/evidence objects from the v2 protocol; never load v2 audits, metrics, annotations, or predictions. Write the gate freeze from the tracked selection in the same preparation command before a `rows/` directory exists.
 
-- [ ] **Step 4: Run preparation tests and verify GREEN**
+- [x] **Step 4: Run preparation tests and verify GREEN**
 
   Run: `uv run pytest -q tests/test_run_premise_tolerant_grounded_answering.py -k prepare`
 
@@ -94,35 +94,35 @@ def run_row(
     """Issue at most one immutable provider call for a prepared row."""
 ```
 
-- [ ] **Step 1: Write failing contract and artifact tests**
+- [x] **Step 1: Write failing contract and artifact tests**
 
   Cover all three `premise_status` values; reject an answer not exactly repeated by a cited claim, unknown citations, claims on verification rows, missing verification reasons, multiline/overlong answers, and unsupported fields. Test that malformed provider JSON writes raw response and metadata before a `contract_error`. Test one-attempt immutability and source/prompt/schema drift rejection.
 
-- [ ] **Step 2: Run contract tests and verify RED**
+- [x] **Step 2: Run contract tests and verify RED**
 
   Run: `uv run pytest -q tests/test_run_premise_tolerant_grounded_answering.py -k 'validate or run_row'`
 
   Expected: failures for absent validation and execution behavior.
 
-- [ ] **Step 3: Implement the minimal provider boundary and row runner**
+- [x] **Step 3: Implement the minimal provider boundary and row runner**
 
   Persist `request.json`, `raw-response.txt`, `metadata.json`, `parsed.json`, and `terminal.json`. The prompt must explicitly separate locator/premise assessment from requested-answer support, state the allowed/forbidden entailments from the design, and instruct that `harmless_locator_variance` does not itself require verification. Use exactly one call and no retry.
 
-- [ ] **Step 4: Write failing freeze-drift tests**
+- [x] **Step 4: Write failing freeze-drift tests**
 
   Complete all fixture rows with an injected provider, call `freeze`, mutate each of request/raw/metadata/parsed/terminal in parametrized tests, and assert freeze verification rejects every mutation.
 
-- [ ] **Step 5: Run freeze tests and verify RED**
+- [x] **Step 5: Run freeze tests and verify RED**
 
   Run: `uv run pytest -q tests/test_run_premise_tolerant_grounded_answering.py -k freeze`
 
   Expected: failure because prediction/evidence freeze creation or verification is incomplete.
 
-- [ ] **Step 6: Implement prediction and evidence freezes**
+- [x] **Step 6: Implement prediction and evidence freezes**
 
   Write `predictions-freeze.json` over all 11 terminal hashes, then reuse or call the existing issue #35 evidence-freeze helper to bind every persisted row artifact. Refuse incomplete panels and post-freeze calls.
 
-- [ ] **Step 7: Run all runner tests and verify GREEN**
+- [x] **Step 7: Run all runner tests and verify GREEN**
 
   Run: `uv run pytest -q tests/test_run_premise_tolerant_grounded_answering.py tests/test_run_grounded_map_answering.py`
 
@@ -150,35 +150,35 @@ def classify_gate(
     """Apply 4/5 fixes, 2/2 insufficiencies, 3/3 controls, and zero unsupported."""
 ```
 
-- [ ] **Step 1: Write failing frozen-load and label-isolation tests**
+- [x] **Step 1: Write failing frozen-load and label-isolation tests**
 
   Assert that scorer rejects changed row artifacts, protocol/gate/prediction hash drift, question mismatch after trailing-whitespace normalization, and missing v2/direct source hashes. Prove references and prior predictions are loaded only after both freezes verify.
 
-- [ ] **Step 2: Run frozen-load tests and verify RED**
+- [x] **Step 2: Run frozen-load tests and verify RED**
 
   Run: `uv run pytest -q tests/test_score_premise_tolerant_grounded_answering.py -k frozen`
 
   Expected: collection failure because the scorer does not exist.
 
-- [ ] **Step 3: Implement frozen loading and descriptive metrics**
+- [x] **Step 3: Implement frozen loading and descriptive metrics**
 
   Score direct baseline, v2 grounded answer, and v3 premise-tolerant answer on the same 11 rows. Compute METEOR and BERTScore-F1; record STS/composite as `null` with the already verified service-unavailable reason. Preserve operational/contract failures as zero automatic metrics. Report per-role and all-row aggregates without using them as the decision gate.
 
-- [ ] **Step 4: Write failing manual-gate tests**
+- [x] **Step 4: Write failing manual-gate tests**
 
   Use literal rows to prove: `4/5` fix rescues passes that component; `1/2` insufficiency verifications fails; a known-limit outcome never changes pass/fail; any stability regression fails; any unsupported final answer fails; and the audit must cover exactly every normalized v2-to-v3 changed row plus all role rows requiring adjudication.
 
-- [ ] **Step 5: Run gate tests and verify RED**
+- [x] **Step 5: Run gate tests and verify RED**
 
   Run: `uv run pytest -q tests/test_score_premise_tolerant_grounded_answering.py -k gate`
 
   Expected: failures for absent role-aware classification.
 
-- [ ] **Step 6: Implement the role-aware gate**
+- [x] **Step 6: Implement the role-aware gate**
 
   Accept exact audit enums per role: `rescued/not_rescued`, `correct_verification/unsafe_answer`, `observed_answer/observed_verification`, and `preserved/regressed`. Require citation support for every answered row and a nonempty note for every audit row. Apply the exact `4/5`, `2/2`, `3/3`, zero-unsupported, full-inspection gate.
 
-- [ ] **Step 7: Run scorer and neighboring tests and verify GREEN**
+- [x] **Step 7: Run scorer and neighboring tests and verify GREEN**
 
   Run: `uv run pytest -q tests/test_score_premise_tolerant_grounded_answering.py tests/test_score_grounded_map_answering.py tests/test_score_vqa_semantic_panel.py`
 
@@ -192,7 +192,7 @@ def classify_gate(
 **Interfaces:**
 - Produces the complete private protocol, pre-inference gate, 11 immutable terminal rows, prediction/evidence freezes, automatic score, manual audit, and final post-freeze metrics.
 
-- [ ] **Step 1: Prepare and inspect the provider-safe protocol**
+- [x] **Step 1: Prepare and inspect the provider-safe protocol**
 
   Run preparation. Verify exact source hashes, 11 unique IDs, no label-bearing protocol fields, role totals `5/2/1/3` only in the gate freeze, and no row artifacts before the first call.
 

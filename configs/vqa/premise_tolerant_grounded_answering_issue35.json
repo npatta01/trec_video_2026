@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "experiment_id": "grounded-map-answering-issue35-premise-v3",
+  "source_protocol_sha256": "5619dbb852c1fdca1482749c6d4b3024455507e6bb3eab58e5a6747e0bff18c1",
+  "panel": {
+    "fix_false_abstention": [
+      "D_HTq7IiSPo",
+      "KBb0DfsH0eg",
+      "LNb5uNQXkwg",
+      "PWP17NlIgs8",
+      "BDKkVYmWqdM"
+    ],
+    "detectable_insufficiency": [
+      "G2w7PrdwYhM",
+      "LkdfiZcQ7lU"
+    ],
+    "known_limit": [
+      "HcvOhX3n784"
+    ],
+    "stability_control": [
+      "Bvv6lMUTlEw",
+      "GWCGF1WpMPc",
+      "JTXpUxVg144"
+    ]
+  },
+  "gate": {
+    "minimum_false_abstention_rescues": 4,
+    "required_detectable_insufficiency_verifications": 2,
+    "required_stability_controls_preserved": 3,
+    "maximum_unsupported_final_answers": 0,
+    "require_full_manual_audit": true
+  }
+}
