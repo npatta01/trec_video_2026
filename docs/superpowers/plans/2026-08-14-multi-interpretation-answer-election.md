@@ -37,8 +37,10 @@ integrity SHA-256 is `c3ddeedb0bea446bc9d65c7de6b5e6fe6c8a2f78600a373cf7f0d2de04
 the final sentinel-corrected score SHA-256 is
 `66baeaf72ef32fad88531bab9cc97f4cca99de8c929d414d1ca8d79f968d7a38`.
 Final render/checksum/privacy verification and independent review are complete;
-the review found no remaining Critical or Important issues. Next action is to
-push and update PR #37 and issue #35. The reconciled research route is
+the review found no remaining Critical or Important issues. The branch, draft
+PR #37, and issue #35 result comment are updated. No implementation action
+remains in this task; do not merge without repository-owner review. The
+reconciled research route is
 explicit temporal or speech verification over fresh frozen context, not a
 repeat of this ensemble.
 
