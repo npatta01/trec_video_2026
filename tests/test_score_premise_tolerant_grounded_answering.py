@@ -61,7 +61,7 @@ def _valid_answer(answer: str) -> dict[str, Any]:
     }
 
 
-def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, list[dict[str, Any]]]:
+def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path, list[dict[str, Any]]]:
     source = tmp_path / "v2-protocol.json"
     _write(
         source,
@@ -140,7 +140,10 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, list[dict[str, Any]]]:
         )
     direct = tmp_path / "direct.json"
     _write(direct, direct_rows)
-    return root, direct, annotations, v2_rows
+    v2_root = tmp_path / "v2"
+    for name in ("protocol.json", "predictions-freeze.json", "evidence-freeze.json"):
+        _write(v2_root / name, {"name": name})
+    return root, direct, annotations, v2_root, v2_rows
 
 
 def _audit_row(video_id: str, role: str, assessment: str) -> dict[str, Any]:
@@ -173,11 +176,27 @@ def _passing_audit() -> dict[str, Any]:
     return {"rows": rows}
 
 
+def _passing_treatment_rows() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in _passing_audit()["rows"]:
+        assessment = item["assessment"]
+        rows.append(
+            {
+                "video_id": item["video_id"],
+                "role": item["role"],
+                "status": "passed",
+                "needs_verification": assessment
+                in {"not_rescued", "correct_verification", "observed_verification"},
+            }
+        )
+    return rows
+
+
 def test_load_frozen_predictions_rejects_auxiliary_artifact_drift(
     tmp_path: Path,
 ) -> None:
     assert SCORER is not None, "premise-tolerant scorer is not implemented"
-    root, _direct, _annotations, _v2 = _fixture(tmp_path)
+    root, _direct, _annotations, _v2_root, _v2 = _fixture(tmp_path)
     metadata = root / "rows" / IDS[0] / "metadata.json"
     metadata.write_text(metadata.read_text() + " ")
 
@@ -189,7 +208,7 @@ def test_load_frozen_predictions_assigns_roles_from_separate_gate(
     tmp_path: Path,
 ) -> None:
     assert SCORER is not None
-    root, _direct, _annotations, _v2 = _fixture(tmp_path)
+    root, _direct, _annotations, _v2_root, _v2 = _fixture(tmp_path)
 
     rows = SCORER.load_frozen_predictions(root)
 
@@ -198,10 +217,41 @@ def test_load_frozen_predictions_assigns_roles_from_separate_gate(
     assert all("role" not in row["protocol_row"] for row in rows)
 
 
+@pytest.mark.parametrize("mutation", ["roles", "threshold", "integrity"])
+def test_load_frozen_predictions_rejects_postfreeze_gate_drift(
+    tmp_path: Path, mutation: str
+) -> None:
+    assert SCORER is not None
+    root, _direct, _annotations, _v2_root, _v2 = _fixture(tmp_path)
+    if mutation == "integrity":
+        path = root / "gate-integrity.json"
+        payload = json.loads(path.read_text())
+        payload["preinference_gate_freeze_sha256"] = "0" * 64
+    else:
+        path = root / "preinference-gate-freeze.json"
+        payload = json.loads(path.read_text())
+        if mutation == "roles":
+            (
+                payload["panel"]["fix_false_abstention"][0],
+                payload["panel"]["stability_control"][0],
+            ) = (
+                payload["panel"]["stability_control"][0],
+                payload["panel"]["fix_false_abstention"][0],
+            )
+        else:
+            payload["gate"]["minimum_false_abstention_rescues"] = 0
+    _write(path, payload)
+
+    with pytest.raises(ValueError, match="gate (freeze differs|integrity)"):
+        SCORER.load_frozen_predictions(root)
+
+
 def test_classify_gate_passes_exact_threshold_and_excludes_known_limit() -> None:
     assert SCORER is not None
 
-    result = SCORER.classify_gate(_passing_audit(), {"panel": PANEL, "gate": GATE})
+    result = SCORER.classify_gate(
+        _passing_treatment_rows(), _passing_audit(), {"panel": PANEL, "gate": GATE}
+    )
 
     assert result["passed"] is True
     assert result["false_abstention_rescues"] == 4
@@ -211,6 +261,22 @@ def test_classify_gate_passes_exact_threshold_and_excludes_known_limit() -> None
         "video_id": "known-0",
         "assessment": "observed_answer",
     }
+
+
+def test_classify_gate_records_detectable_insufficiency_contract_failure() -> None:
+    assert SCORER is not None
+    audit = _passing_audit()
+    row = next(item for item in audit["rows"] if item["video_id"] == "insuff-0")
+    row["assessment"] = "contract_failure"
+
+    treatment = _passing_treatment_rows()
+    next(row for row in treatment if row["video_id"] == "insuff-0")["status"] = (
+        "contract_error"
+    )
+    result = SCORER.classify_gate(treatment, audit, {"panel": PANEL, "gate": GATE})
+
+    assert result["passed"] is False
+    assert result["detectable_insufficiency_verifications"] == 1
 
 
 @pytest.mark.parametrize(
@@ -229,36 +295,94 @@ def test_classify_gate_fails_each_role_requirement(
     row = next(item for item in audit["rows"] if item["video_id"] == video_id)
     row["assessment"] = assessment
 
-    result = SCORER.classify_gate(audit, {"panel": PANEL, "gate": GATE})
+    treatment = _passing_treatment_rows()
+    changed = next(row for row in treatment if row["video_id"] == video_id)
+    if assessment in {"not_rescued", "regressed"}:
+        changed["needs_verification"] = True
+    elif assessment == "unsafe_answer":
+        changed["needs_verification"] = False
+    result = SCORER.classify_gate(treatment, audit, {"panel": PANEL, "gate": GATE})
 
     assert result["passed"] is False
-    assert result[field] < GATE[
-        {
-            "false_abstention_rescues": "minimum_false_abstention_rescues",
-            "detectable_insufficiency_verifications": (
-                "required_detectable_insufficiency_verifications"
-            ),
-            "stability_controls_preserved": "required_stability_controls_preserved",
-        }[field]
-    ]
+    assert (
+        result[field]
+        < GATE[
+            {
+                "false_abstention_rescues": "minimum_false_abstention_rescues",
+                "detectable_insufficiency_verifications": (
+                    "required_detectable_insufficiency_verifications"
+                ),
+                "stability_controls_preserved": "required_stability_controls_preserved",
+            }[field]
+        ]
+    )
 
 
 def test_classify_gate_fails_unsupported_answer_and_requires_full_audit() -> None:
     assert SCORER is not None
     audit = _passing_audit()
     audit["rows"][0]["citation_support"] = False
-    assert SCORER.classify_gate(audit, {"panel": PANEL, "gate": GATE})[
-        "passed"
-    ] is False
+    assert (
+        SCORER.classify_gate(
+            _passing_treatment_rows(), audit, {"panel": PANEL, "gate": GATE}
+        )["passed"]
+        is False
+    )
     audit = _passing_audit()
     audit["rows"].pop()
     with pytest.raises(ValueError, match="exactly match panel IDs"):
-        SCORER.classify_gate(audit, {"panel": PANEL, "gate": GATE})
+        SCORER.classify_gate(
+            _passing_treatment_rows(), audit, {"panel": PANEL, "gate": GATE}
+        )
+
+
+def test_classify_gate_allows_answered_wrong_and_ignores_nonanswer_citation() -> None:
+    assert SCORER is not None
+    audit = _passing_audit()
+    negative = next(row for row in audit["rows"] if row["video_id"] == "fix-4")
+    negative["citation_support"] = False
+    treatment = _passing_treatment_rows()
+    frozen = next(row for row in treatment if row["video_id"] == "fix-4")
+
+    result = SCORER.classify_gate(treatment, audit, {"panel": PANEL, "gate": GATE})
+    assert result["unsupported_final_answer_rows"] == []
+
+    frozen["needs_verification"] = False
+    negative["citation_support"] = True
+    assert (
+        SCORER.classify_gate(treatment, audit, {"panel": PANEL, "gate": GATE})["passed"]
+        is True
+    )
+
+
+@pytest.mark.parametrize(
+    ("video_id", "assessment", "status", "needs_verification"),
+    [
+        ("fix-0", "rescued", "passed", True),
+        ("insuff-0", "correct_verification", "passed", False),
+        ("control-0", "preserved", "contract_error", None),
+    ],
+)
+def test_classify_gate_rejects_assessment_that_contradicts_frozen_treatment(
+    video_id: str, assessment: str, status: str, needs_verification: bool | None
+) -> None:
+    assert SCORER is not None
+    audit = _passing_audit()
+    next(row for row in audit["rows"] if row["video_id"] == video_id)["assessment"] = (
+        assessment
+    )
+    treatment = _passing_treatment_rows()
+    row = next(item for item in treatment if item["video_id"] == video_id)
+    row["status"] = status
+    row["needs_verification"] = needs_verification
+
+    with pytest.raises(ValueError, match="contradicts frozen treatment"):
+        SCORER.classify_gate(treatment, audit, {"panel": PANEL, "gate": GATE})
 
 
 def test_score_rejects_question_mismatch_after_freeze(tmp_path: Path) -> None:
     assert SCORER is not None
-    root, direct, annotations, v2_rows = _fixture(tmp_path)
+    root, direct, annotations, v2_root, v2_rows = _fixture(tmp_path)
     annotation = annotations / f"{IDS[0]}.json"
     payload = json.loads(annotation.read_text())
     payload["question"] = "A different question?"
@@ -269,8 +393,28 @@ def test_score_rejects_question_mismatch_after_freeze(tmp_path: Path) -> None:
             root=root,
             direct_predictions_path=direct,
             annotation_root=annotations,
-            v2_rows=v2_rows,
+            v2_root=v2_root,
+            v2_load_fn=lambda _root: v2_rows,
             bert_model=tmp_path / "model",
+            meteor_fn=lambda _prediction, _reference: 0.5,
+            bertscore_fn=lambda predictions, _references, _model: [0.6]
+            * len(predictions),
+        )
+
+
+def test_score_requires_bound_v2_artifacts(tmp_path: Path) -> None:
+    assert SCORER is not None
+    root, direct, annotations, v2_root, v2_rows = _fixture(tmp_path)
+    (v2_root / "evidence-freeze.json").unlink()
+
+    with pytest.raises(ValueError, match="missing frozen v2 artifact"):
+        SCORER.score(
+            root=root,
+            direct_predictions_path=direct,
+            annotation_root=annotations,
+            v2_root=v2_root,
+            bert_model=tmp_path / "model",
+            v2_load_fn=lambda _root: v2_rows,
             meteor_fn=lambda _prediction, _reference: 0.5,
             bertscore_fn=lambda predictions, _references, _model: [0.6]
             * len(predictions),
@@ -279,17 +423,17 @@ def test_score_rejects_question_mismatch_after_freeze(tmp_path: Path) -> None:
 
 def test_score_reports_three_conditions_and_null_sts(tmp_path: Path) -> None:
     assert SCORER is not None
-    root, direct, annotations, v2_rows = _fixture(tmp_path)
+    root, direct, annotations, v2_root, v2_rows = _fixture(tmp_path)
 
     result = SCORER.score(
         root=root,
         direct_predictions_path=direct,
         annotation_root=annotations,
-        v2_rows=v2_rows,
+        v2_root=v2_root,
+        v2_load_fn=lambda _root: v2_rows,
         bert_model=tmp_path / "model",
         meteor_fn=lambda _prediction, _reference: 0.5,
-        bertscore_fn=lambda predictions, _references, _model: [0.6]
-        * len(predictions),
+        bertscore_fn=lambda predictions, _references, _model: [0.6] * len(predictions),
     )
 
     assert set(result["conditions"]) == {
@@ -297,11 +441,15 @@ def test_score_reports_three_conditions_and_null_sts(tmp_path: Path) -> None:
         "grounded_v2",
         "premise_v3",
     }
-    assert result["conditions"]["premise_v3"] == {
+    assert {
+        key: result["conditions"]["premise_v3"][key]
+        for key in ("meteor", "bertscore_f1", "sts", "semantic_composite")
+    } == {
         "meteor": 0.5,
         "bertscore_f1": 0.6,
         "sts": None,
         "semantic_composite": None,
     }
+    assert set(result["conditions"]["premise_v3"]["roles"]) == set(PANEL)
     assert result["gate"]["status"] == "pending_manual_audit"
     assert result["metric_notes"]["sts_status"] == "unavailable"

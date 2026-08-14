@@ -196,19 +196,19 @@ def classify_gate(
 
   Run preparation. Verify exact source hashes, 11 unique IDs, no label-bearing protocol fields, role totals `5/2/1/3` only in the gate freeze, and no row artifacts before the first call.
 
-- [ ] **Step 2: Run one operational canary and inspect its contract**
+- [x] **Step 2: Run one operational canary and inspect its contract**
 
   Run one false-abstention row. Verify one candidate, expected model/settings, raw/metadata preservation, exact answer-to-claim binding or valid verification route, and no reference/prior-answer content in the request.
 
-- [ ] **Step 3: Complete the remaining ten rows without retry**
+- [x] **Step 3: Complete the remaining ten rows without retry**
 
   Preserve provider/contract failures as terminal. Do not edit the prompt/schema, acquire evidence, or rerun any row.
 
-- [ ] **Step 4: Freeze before labels and verify every artifact hash**
+- [x] **Step 4: Freeze before labels and verify every artifact hash**
 
   Write prediction/evidence freezes, record their SHA-256 values, and prove a second provider call is rejected.
 
-- [ ] **Step 5: Generate automatic metrics, audit every required row, and finalize the gate**
+- [x] **Step 5: Generate automatic metrics, audit every required row, and finalize the gate**
 
   Score once without manual labels, author the exact private audit after prediction freeze, then score again. Preserve the result regardless of outcome.
 
@@ -226,15 +226,15 @@ def classify_gate(
 **Interfaces:**
 - The dated QMD remains the detailed record; routing remains the primary-theme claim; the new sanitized index contains no questions, references, evidence text, predictions, raw responses, or media.
 
-- [ ] **Step 1: Write the sanitized result bundle**
+- [x] **Step 1: Write the sanitized result bundle**
 
   Record panel roles, completion denominator, source/prompt/schema/freeze/audit/metric hashes, automatic metrics, exact gate counts, known-limit observation, validity boundary, and disposition. Keep full content private.
 
-- [ ] **Step 2: Update QMD sources with observed result and interpretation**
+- [x] **Step 2: Update QMD sources with observed result and interpretation**
 
   State the exact tested condition, distinguish frozen-gate observations from interpretation, correct the pencil-control audit without overwriting v2, and declare the next action conditioned on pass/failure. Preserve a negative result.
 
-- [ ] **Step 3: Regenerate all affected Markdown and HTML**
+- [x] **Step 3: Regenerate all affected Markdown and HTML**
 
   Render the dated experiment and project-status surfaces from QMD using an isolated Quarto cache. Remove only newly generated duplicate output directories, trim generator-added trailing whitespace mechanically when required by `git diff --check`, and never hand-edit generated content.
 
@@ -246,11 +246,11 @@ def classify_gate(
 **Interfaces:**
 - Updates draft PR #37 and issue #35 only after the result and review are durable.
 
-- [ ] **Step 1: Run proportional verification**
+- [x] **Step 1: Run proportional verification**
 
   Run focused/neighboring tests, Ruff, `py_compile`, JSON/checksums, freeze verification, privacy/credential scans, `git diff --check`, QMD regeneration checks, and the full test suite. Distinguish baseline failures from regressions with an exact base-commit reproduction when needed.
 
-- [ ] **Step 2: Obtain independent review and fix Critical/Important findings**
+- [x] **Step 2: Obtain independent review and fix Critical/Important findings**
 
   Review code, protocol isolation, private/tracked artifact hashes, every manual row verdict, report claims, and scope boundaries. Rerun affected checks after fixes.
 

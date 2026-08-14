@@ -183,7 +183,37 @@ def test_validate_answer_accepts_all_premise_statuses(premise_status: str) -> No
     payload = _valid_answer()
     payload["premise_status"] = premise_status
 
+    if premise_status == "answer_blocking":
+        payload.update(
+            {
+                "answer_claims": [],
+                "conflicts_or_missing_qualifiers": ["The requested fact is absent."],
+                "needs_verification": True,
+                "answer": "NEEDS VERIFICATION",
+            }
+        )
+
     assert MODULE.validate_answer(payload, {"E01"})["premise_status"] == premise_status
+
+
+def test_validate_answer_rejects_answer_when_premise_is_answer_blocking() -> None:
+    assert MODULE is not None
+    payload = _valid_answer()
+    payload["premise_status"] = "answer_blocking"
+
+    with pytest.raises(
+        ValueError, match="answer-blocking premise requires verification"
+    ):
+        MODULE.validate_answer(payload, {"E01"})
+
+
+def test_validate_answer_requires_recorded_harmless_locator_variance() -> None:
+    assert MODULE is not None
+    payload = _valid_answer()
+    payload["conflicts_or_missing_qualifiers"] = []
+
+    with pytest.raises(ValueError, match="requires a recorded conflict"):
+        MODULE.validate_answer(payload, {"E01"})
 
 
 def test_validate_answer_requires_final_answer_to_equal_cited_claim() -> None:
@@ -219,9 +249,7 @@ def test_validate_answer_requires_clean_verification_route() -> None:
     )
     assert MODULE.validate_answer(payload, {"E01"}) == payload
 
-    payload["answer_claims"] = [
-        {"claim": "A guess.", "evidence_ids": ["E01"]}
-    ]
+    payload["answer_claims"] = [{"claim": "A guess.", "evidence_ids": ["E01"]}]
     with pytest.raises(ValueError, match="must not contain answer claims"):
         MODULE.validate_answer(payload, {"E01"})
 
@@ -234,9 +262,7 @@ def test_validate_answer_rejects_multiline_and_overlong_answers() -> None:
         MODULE.validate_answer(multiline, {"E01"})
 
     overlong = _valid_answer()
-    overlong["answer"] = overlong["answer_claims"][0]["claim"] = " ".join(
-        ["word"] * 25
-    )
+    overlong["answer"] = overlong["answer_claims"][0]["claim"] = " ".join(["word"] * 25)
     with pytest.raises(ValueError, match="at most 24 words"):
         MODULE.validate_answer(overlong, {"E01"})
 
@@ -308,8 +334,15 @@ def test_freeze_binds_every_row_artifact_and_rejects_postfreeze_calls(
     evidence_freeze = json.loads((output / "evidence-freeze.json").read_text())
     assert prediction_freeze["row_count"] == 11
     assert prediction_freeze["passed_count"] == 11
+    assert prediction_freeze["preinference_gate_freeze_sha256"] == _sha(
+        output / "preinference-gate-freeze.json"
+    )
     assert evidence_freeze["prediction_freeze_sha256"] == _sha(
         output / "predictions-freeze.json"
+    )
+    gate_integrity = json.loads((output / "gate-integrity.json").read_text())
+    assert gate_integrity["evidence_freeze_sha256"] == _sha(
+        output / "evidence-freeze.json"
     )
     MODULE.verify_evidence_freeze(output)
     with pytest.raises(ValueError, match="predictions are already frozen"):
@@ -318,7 +351,13 @@ def test_freeze_binds_every_row_artifact_and_rejects_postfreeze_calls(
 
 @pytest.mark.parametrize(
     "artifact",
-    ["request.json", "raw-response.txt", "metadata.json", "parsed.json", "terminal.json"],
+    [
+        "request.json",
+        "raw-response.txt",
+        "metadata.json",
+        "parsed.json",
+        "terminal.json",
+    ],
 )
 def test_evidence_freeze_rejects_every_row_artifact_drift(
     tmp_path: Path, artifact: str
@@ -339,3 +378,28 @@ def test_evidence_freeze_rejects_every_row_artifact_drift(
 
     with pytest.raises(ValueError, match="frozen row artifact changed"):
         MODULE.verify_evidence_freeze(output)
+
+
+@pytest.mark.parametrize("mutation", ["roles", "threshold"])
+def test_freeze_rejects_gate_drift_from_committed_selection(
+    tmp_path: Path, mutation: str
+) -> None:
+    assert MODULE is not None
+    source, selection, output = _fixture(tmp_path)
+    MODULE.prepare(source, selection, output)
+    gate_path = output / "preinference-gate-freeze.json"
+    gate = json.loads(gate_path.read_text())
+    if mutation == "roles":
+        (
+            gate["panel"]["fix_false_abstention"][0],
+            gate["panel"]["stability_control"][0],
+        ) = (
+            gate["panel"]["stability_control"][0],
+            gate["panel"]["fix_false_abstention"][0],
+        )
+    else:
+        gate["gate"]["minimum_false_abstention_rescues"] = 0
+    _write(gate_path, gate)
+
+    with pytest.raises(ValueError, match="gate freeze differs from selection"):
+        MODULE.freeze(output)

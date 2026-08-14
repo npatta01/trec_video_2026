@@ -332,12 +332,14 @@ reference, not a prescribed research sequence.
     or [measure the bottleneck before
     adapting](research-models.md#bottleneck-first-adaptation-decision).
 6.  **Routing, fusion, and answer election:** the 475-row panel,
-    hard-row audit, and 24-row generic grounded-answering test now
-    supersede the earlier 60-row- audit-first queue item. If pursued,
-    test one explicit question-driven temporal or speech verification
-    operation over frozen global context and evaluate answering
-    separately. Do not introduce multiple answer candidates, a shared
-    router framework, or a counting specialist in that test.
+    hard-row audit, 24-row generic grounded-answering test, and 11-row
+    premise-tolerant follow-up now supersede the earlier
+    60-row-audit-first queue item. Do not spend this panel on another
+    global answer-policy rewrite. If pursued, test one explicit
+    question-driven temporal or speech verification operation over
+    frozen global context and evaluate answering separately. Do not
+    introduce multiple answer candidates, a shared router framework, or
+    a counting specialist in that test.
 
 <span id="how-to-interpret-results" class="legacy-fragment-alias"
 aria-hidden="true"></span>

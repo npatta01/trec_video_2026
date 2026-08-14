@@ -2491,6 +2491,53 @@ vertical-align: -.125em;
 <p>Independent code review found two integrity gaps in the completed v2 tooling. The frozen validator required cited <code>answer_claims</code> but did not structurally require the final <code>answer</code> to equal one of those claims. Manual inspection of all 24 changed rows found no unsupported final answer, so the observed gate is unchanged; future protocol version 2 enforces an exact answer-to-cited-claim match. The original prediction freeze also hashed terminals but not request, raw-response, metadata, or parsed-response files. A post-hoc additive evidence freeze now binds all current row artifacts. It cannot retroactively establish their contents at the original freeze instant; future runs create that sidecar with the prediction freeze. Malformed paid JSON is now preserved before being classified as a contract error.</p>
 <p>Evidence validity: this is a valid-but-negative selected mechanism result; its automatic semantic record is partial because STS/composite are unavailable, and the corrected audit leaves 10 answer-sufficient targets rather than 12. Decision disposition: <strong>Not promoted under the tested condition</strong>. The evidence-citation contract prevented unsupported cited claims, but its abstention behavior was too conservative and did not reliably repair temporal scope, requested purpose, or complete specificity. Do not scale this prompt, do not add multiple candidate answers, and do not treat it as the shared router or counting specialist. Any follow-up should test one explicit question-driven temporal or speech verification operation over frozen context, with answering evaluated separately.</p>
 <p>The sanitized tracked evidence index is <code>docs/experiments/artifacts/vqa-grounded-map-answering-20260814/</code>. Complete private requests, terminal responses, freezes, audit, partial metrics, and STS cache are retained under <code>/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/grounded-map-answering-issue35-v2/</code>.</p>
+<section id="premise-tolerant-follow-up" class="level3">
+<h3 class="anchored" data-anchor-id="premise-tolerant-follow-up">Premise-tolerant follow-up</h3>
+<p>A focused 11-row follow-up tested the main actionable v2 failure: false abstention when the map contains one uniquely relevant event but the question’s locator is imprecise. The frozen panel contained five such cases, two detectable evidence-insufficiency cases, one known map omission, and three supported controls. The only treatment change was an explicit policy separating <code>harmless_locator_variance</code> from <code>answer_blocking</code>. Model, frozen questions and map lines, temperature, seed, high thinking, one-candidate output, and no-retry policy were preserved. The provider never received panel roles, references, prior answers, or scoring labels.</p>
+<p>The gate failed decisively:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Gate component</th>
+<th style="text-align: right;">Required</th>
+<th style="text-align: right;">Observed</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>False-abstention rescues</td>
+<td style="text-align: right;">at least 4/5</td>
+<td style="text-align: right;"><strong>1/5</strong></td>
+</tr>
+<tr class="even">
+<td>Detectable insufficiency verifications</td>
+<td style="text-align: right;">2/2</td>
+<td style="text-align: right;"><strong>1/2</strong></td>
+</tr>
+<tr class="odd">
+<td>Stability controls preserved</td>
+<td style="text-align: right;">3/3</td>
+<td style="text-align: right;"><strong>1/3</strong></td>
+</tr>
+<tr class="even">
+<td>Unsupported accepted answers</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;"><strong>0</strong></td>
+</tr>
+<tr class="odd">
+<td>Rows manually inspected</td>
+<td style="text-align: right;">all</td>
+<td style="text-align: right;"><strong>11/11</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Eight responses passed the structured contract and three were preserved as contract errors without retry. The sole false-abstention rescue correctly ignored “tennis court” versus “platform” and answered that the bicyclist rode across the tennis net. Three other cases treated a uniquely resolvable locator as answer-blocking: claimed-tall versus actually-taller woman, an implicit keyboard-on transition, and inaccurate split-screen cooking wording. The table-versus-counter row resolved that locator as harmless, then abstained because the causal “why” was not explicit. Post-freeze sensitivity therefore does not treat it as a demonstrated false abstention: the descriptive rescue is 1/4 among confirmed false-abstention cases, while the frozen gate remains 1/5. One true insufficiency routed correctly; the other attempted verification but omitted the contract-required reason. Two supported controls regressed through contract failures.</p>
+<p>This rules out more deliberation under the tested strict premise policy as the repair. It does not justify guessing through ambiguous evidence. A future answer-use test would need a deterministic unique-event resolution rule that permits reporting the directly observed successor or contemporaneous activity without inventing a causal motive. That rule must be developed outside this spent panel and tested on fresh frozen rows with controls. Explicit temporal or speech verification remains the separate next recovery experiment; counting and a shared router remain out of scope.</p>
+<p>Automatic metrics are descriptive only because the roles mix desired answers, desired verification sentinels, and a known map omission. On the five frozen false-abstention rows, METEOR/BERTScore-F1 were <code>0.2926/0.9060</code> for direct native answers, <code>0.0000/0.8036</code> for v2, and <code>0.1498/0.8369</code> for the new policy. On the three stability controls they were <code>0.7628/0.9413</code>, <code>0.6964/0.9035</code>, and <code>0.2726/0.2918</code>, respectively. The score artifact also preserves per-role and all-row aggregates; the all-row mean is not a mechanism success measure because it necessarily penalizes intended verification. STS and composite remain <code>null</code> because the frozen historical UMBC service is unavailable and no comparable local implementation was preregistered. The gate already fails independently of those automatic metrics.</p>
+<p>The sanitized index is <code>docs/experiments/artifacts/vqa-premise-tolerant-grounded-answering-20260814/</code>. Complete private evidence is retained at <code>/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/grounded-map-answering-issue35-premise-v3/</code>.</p>
+<p>Independent review found that the original prediction/evidence freezes did not bind the separate role/threshold gate. The observed gate exactly matched the committed selection, so the counts above are unchanged. An additive <code>gate-integrity.json</code> now binds that unchanged gate and selection to both original freezes without rewriting them. The hardened runner rejects role or threshold drift and binds the gate directly in future prediction freezes.</p>
+<p>Evidence validity: <strong>Diagnostic</strong>—valid negative selected/spent mechanism evidence, with a post-freeze sensitivity correction for one source role and an additive gate-integrity sidecar that cannot retroactively establish the gate’s contents at the original prediction-freeze instant. Decision disposition: <strong>Not promoted under the tested condition</strong>.</p>
+</section>
 </section>
 <section id="cost-and-completion-boundary" class="level2">
 <h2 class="anchored" data-anchor-id="cost-and-completion-boundary">Cost and completion boundary</h2>

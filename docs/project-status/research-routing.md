@@ -400,6 +400,12 @@ testable future direction.
   guarantee the VLM will ground the final answer in those words.
 - Specialist policies need abstention, a baseline fallback, and
   route-level non-regression—not just a target-slice improvement.
+- The 11-row premise-tolerant issue \#35 follow-up did not repair
+  generic answer use: it rescued 1/5 false abstentions, completed 1/2
+  evidence-insufficiency routes, and preserved 1/3 controls. More
+  deliberation under the same strict locator policy is not the next
+  test. See the [sanitized follow-up
+  index](../experiments/artifacts/vqa-premise-tolerant-grounded-answering-20260814/README.md).
 
 ### What it does not rule out
 

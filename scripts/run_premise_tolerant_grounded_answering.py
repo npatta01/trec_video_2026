@@ -159,9 +159,13 @@ def validate_answer(
         _nonempty_string(value, field="conflicts_or_missing_qualifiers item")
         for value in conflicts_payload
     ]
+    if premise_status == "harmless_locator_variance" and not conflicts:
+        raise ValueError("harmless locator variance requires a recorded conflict")
     needs_verification = payload["needs_verification"]
     if not isinstance(needs_verification, bool):
         raise ValueError("needs_verification must be boolean")
+    if premise_status == "answer_blocking" and not needs_verification:
+        raise ValueError("answer-blocking premise requires verification")
     answer = _nonempty_string(payload["answer"], field="answer")
     if "\n" in answer or "\r" in answer:
         raise ValueError("answer must be one line")
@@ -171,16 +175,22 @@ def validate_answer(
         if answer != "NEEDS VERIFICATION":
             raise ValueError("verification-routed answer must be NEEDS VERIFICATION")
         if claims:
-            raise ValueError("verification-routed answer must not contain answer claims")
+            raise ValueError(
+                "verification-routed answer must not contain answer claims"
+            )
         if not conflicts:
             raise ValueError("verification-routed answer requires a reason")
     else:
         if not claims:
-            raise ValueError("non-verification answer requires at least one cited claim")
+            raise ValueError(
+                "non-verification answer requires at least one cited claim"
+            )
         if answer == "NEEDS VERIFICATION":
             raise ValueError("non-verification answer cannot use verification sentinel")
         if answer not in {item["claim"] for item in claims}:
-            raise ValueError("non-verification answer must exactly match one cited claim")
+            raise ValueError(
+                "non-verification answer must exactly match one cited claim"
+            )
     return {
         "question_interpretation": interpretation,
         "premise_status": premise_status,
@@ -318,6 +328,57 @@ def _verify_protocol(protocol: Mapping[str, Any]) -> None:
         raise ValueError("frozen response schema changed")
 
 
+def verify_gate_freeze(root: Path, protocol: Mapping[str, Any]) -> dict[str, Any]:
+    """Require the label-bearing gate to exactly match its frozen selection."""
+
+    gate_path = root / "preinference-gate-freeze.json"
+    gate = _load_json(gate_path)
+    selection_source = protocol["source_artifacts"]["selection"]
+    selection_path = Path(selection_source["path"])
+    selection = _load_json(selection_path)
+    expected = {
+        "experiment_id": selection["experiment_id"],
+        "protocol_sha256": _sha256(root / "protocol.json"),
+        "selection_sha256": _sha256(selection_path),
+        "source_protocol_sha256": selection["source_protocol_sha256"],
+        "panel": selection["panel"],
+        "gate": selection["gate"],
+    }
+    if any(gate.get(key) != value for key, value in expected.items()):
+        raise ValueError("gate freeze differs from selection")
+    _validate_panel(gate["panel"])
+    return gate
+
+
+def freeze_gate_integrity(root: Path) -> None:
+    """Additively bind the gate and both evidence freezes without rewriting them."""
+
+    protocol = _load_json(root / "protocol.json")
+    _verify_protocol(protocol)
+    verify_gate_freeze(root, protocol)
+    prediction_path = root / "predictions-freeze.json"
+    evidence_path = root / "evidence-freeze.json"
+    if not prediction_path.is_file() or not evidence_path.is_file():
+        raise ValueError("gate integrity requires prediction and evidence freezes")
+    _write_once(
+        root / "gate-integrity.json",
+        {
+            "schema_version": 1,
+            "experiment_id": protocol["experiment_id"],
+            "frozen_at": datetime.now(UTC).isoformat(),
+            "protocol_sha256": _sha256(root / "protocol.json"),
+            "selection_sha256": _sha256(
+                Path(protocol["source_artifacts"]["selection"]["path"])
+            ),
+            "preinference_gate_freeze_sha256": _sha256(
+                root / "preinference-gate-freeze.json"
+            ),
+            "predictions_freeze_sha256": _sha256(prediction_path),
+            "evidence_freeze_sha256": _sha256(evidence_path),
+        },
+    )
+
+
 def _call_provider(prompt: str) -> tuple[str, dict[str, Any]]:
     from google import genai
     from google.genai import types
@@ -356,8 +417,13 @@ def run_row(
         raise ValueError("predictions are already frozen")
     protocol = _load_json(root / "protocol.json")
     _verify_protocol(protocol)
+    verify_gate_freeze(root, protocol)
     row = next(
-        (candidate for candidate in protocol["rows"] if candidate["video_id"] == video_id),
+        (
+            candidate
+            for candidate in protocol["rows"]
+            if candidate["video_id"] == video_id
+        ),
         None,
     )
     if row is None:
@@ -431,6 +497,7 @@ def freeze(root: Path) -> None:
     protocol_path = root / "protocol.json"
     protocol = _load_json(protocol_path)
     _verify_protocol(protocol)
+    verify_gate_freeze(root, protocol)
     rows: list[dict[str, Any]] = []
     passed_count = 0
     for row in protocol["rows"]:
@@ -465,10 +532,14 @@ def freeze(root: Path) -> None:
             "passed_count": passed_count,
             "failed_count": len(rows) - passed_count,
             "protocol_sha256": _sha256(protocol_path),
+            "preinference_gate_freeze_sha256": _sha256(
+                root / "preinference-gate-freeze.json"
+            ),
             "rows": rows,
         },
     )
     freeze_evidence(root)
+    freeze_gate_integrity(root)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -485,6 +556,8 @@ def build_parser() -> argparse.ArgumentParser:
     freeze_parser.add_argument("--root", type=Path, required=True)
     verify_parser = subparsers.add_parser("verify-evidence-freeze")
     verify_parser.add_argument("--root", type=Path, required=True)
+    gate_parser = subparsers.add_parser("freeze-gate-integrity")
+    gate_parser.add_argument("--root", type=Path, required=True)
     return parser
 
 
@@ -496,8 +569,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_row(args.root, args.video_id)
     elif args.command == "freeze":
         freeze(args.root)
-    else:
+    elif args.command == "verify-evidence-freeze":
         verify_evidence_freeze(args.root)
+    else:
+        freeze_gate_integrity(args.root)
     return 0
 
 
