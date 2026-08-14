@@ -232,6 +232,31 @@ class EvidenceGraph:
     coverage: tuple[CoverageClaim, ...]
 
 
+@dataclass(frozen=True)
+class InterpretationTrace:
+    interpretation_id: str
+    outcome: str
+    lower_bound: int
+    upper_bound: int | None
+    exact_count: int | None
+    selected_node_ids: tuple[str, ...]
+    satisfied_obligations: tuple[str, ...]
+    failed_obligations: tuple[str, ...]
+    abstention_reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ProofState:
+    query_id: str
+    graph_id: str
+    outcome: str
+    lower_bound: int
+    upper_bound: int | None
+    exact_count: int | None
+    traces: tuple[InterpretationTrace, ...]
+    abstention_reasons: tuple[str, ...]
+
+
 def _mapping(value: object, *, field: str) -> Mapping[str, object]:
     if not isinstance(value, Mapping):
         raise TypeError(f"{field} must be an object")
@@ -365,60 +390,85 @@ def parse_count_query(payload: Mapping[str, object]) -> CountQuery:
         )
         if len(obligations) != len(set(obligations)):
             raise ValueError("evidence obligations must be unique")
-        interpretations.append(
-            QueryInterpretation(
-                interpretation_id=interpretation_id,
-                target_kind=_enum(
-                    item.get("target_kind"),
-                    field=f"interpretations[{index}].target_kind",
-                    allowed=TARGET_KINDS,
+        interpretation = QueryInterpretation(
+            interpretation_id=interpretation_id,
+            target_kind=_enum(
+                item.get("target_kind"),
+                field=f"interpretations[{index}].target_kind",
+                allowed=TARGET_KINDS,
+            ),
+            target_predicate=_string(
+                item.get("target_predicate"),
+                field=f"interpretations[{index}].target_predicate",
+            ),
+            owner_predicate=_optional_string(
+                item.get("owner_predicate"),
+                field=f"interpretations[{index}].owner_predicate",
+            ),
+            count_unit=_enum(
+                item.get("count_unit"),
+                field=f"interpretations[{index}].count_unit",
+                allowed=COUNT_UNITS,
+            ),
+            scope=TimeScope(
+                start_seconds=start,
+                end_seconds=end,
+                boundary_policy=_enum(
+                    scope_payload.get("boundary_policy"),
+                    field=f"interpretations[{index}].scope.boundary_policy",
+                    allowed=BOUNDARY_POLICIES,
                 ),
-                target_predicate=_string(
-                    item.get("target_predicate"),
-                    field=f"interpretations[{index}].target_predicate",
-                ),
-                owner_predicate=_optional_string(
-                    item.get("owner_predicate"),
-                    field=f"interpretations[{index}].owner_predicate",
-                ),
-                count_unit=_enum(
-                    item.get("count_unit"),
-                    field=f"interpretations[{index}].count_unit",
-                    allowed=COUNT_UNITS,
-                ),
-                scope=TimeScope(
-                    start_seconds=start,
-                    end_seconds=end,
-                    boundary_policy=_enum(
-                        scope_payload.get("boundary_policy"),
-                        field=f"interpretations[{index}].scope.boundary_policy",
-                        allowed=BOUNDARY_POLICIES,
-                    ),
-                ),
-                identity_policy=_enum(
-                    item.get("identity_policy"),
-                    field=f"interpretations[{index}].identity_policy",
-                    allowed=IDENTITY_POLICIES,
-                ),
-                cross_shot_unknown=_enum(
-                    item.get("cross_shot_unknown"),
-                    field=f"interpretations[{index}].cross_shot_unknown",
-                    allowed=CROSS_SHOT_POLICIES,
-                ),
-                visibility_policy=_enum(
-                    item.get("visibility_policy"),
-                    field=f"interpretations[{index}].visibility_policy",
-                    allowed=VISIBILITY_POLICIES,
-                ),
-                aggregation=_enum(
-                    item.get("aggregation"),
-                    field=f"interpretations[{index}].aggregation",
-                    allowed=AGGREGATIONS,
-                ),
-                evidence_obligations=obligations,
-            )
+            ),
+            identity_policy=_enum(
+                item.get("identity_policy"),
+                field=f"interpretations[{index}].identity_policy",
+                allowed=IDENTITY_POLICIES,
+            ),
+            cross_shot_unknown=_enum(
+                item.get("cross_shot_unknown"),
+                field=f"interpretations[{index}].cross_shot_unknown",
+                allowed=CROSS_SHOT_POLICIES,
+            ),
+            visibility_policy=_enum(
+                item.get("visibility_policy"),
+                field=f"interpretations[{index}].visibility_policy",
+                allowed=VISIBILITY_POLICIES,
+            ),
+            aggregation=_enum(
+                item.get("aggregation"),
+                field=f"interpretations[{index}].aggregation",
+                allowed=AGGREGATIONS,
+            ),
+            evidence_obligations=obligations,
         )
+        _validate_query_combination(interpretation)
+        interpretations.append(interpretation)
     return CountQuery(query_id=query_id, interpretations=tuple(interpretations))
+
+
+def _validate_query_combination(interpretation: QueryInterpretation) -> None:
+    allowed: dict[tuple[str, str], frozenset[str]] = {
+        ("entity", "physical_entity"): frozenset({"distinct"}),
+        ("entity", "appearance"): frozenset({"cardinality"}),
+        ("entity", "visible_instance"): frozenset({"cardinality", "max_concurrent"}),
+        ("part", "part"): frozenset({"cardinality", "distinct", "max_concurrent"}),
+        ("event", "event_onset"): frozenset({"transition_count"}),
+        ("event", "active_event"): frozenset({"cardinality", "max_concurrent"}),
+    }
+    aggregations = allowed.get((interpretation.target_kind, interpretation.count_unit))
+    if aggregations is None or interpretation.aggregation not in aggregations:
+        raise ValueError(
+            "incompatible count query: "
+            f"{interpretation.target_kind}/{interpretation.count_unit}/"
+            f"{interpretation.aggregation}"
+        )
+    if (
+        interpretation.owner_predicate is not None
+        and interpretation.target_kind != "part"
+    ):
+        raise ValueError(
+            "incompatible count query: owner_predicate requires part target"
+        )
 
 
 def _parse_provenance(
@@ -681,6 +731,17 @@ def parse_evidence_graph(payload: Mapping[str, object]) -> EvidenceGraph:
                 ),
             )
         )
+    identity_classes = _UnionFind(tuple(sorted(entity_or_part_ids)))
+    for relation in relations:
+        if relation.relation_state == "confirmed_same":
+            identity_classes.union(relation.left_node_id, relation.right_node_id)
+    if any(
+        relation.relation_state == "confirmed_different"
+        and identity_classes.find(relation.left_node_id)
+        == identity_classes.find(relation.right_node_id)
+        for relation in relations
+    ):
+        raise ValueError("identity relations are contradictory")
 
     coverage: list[CoverageClaim] = []
     seen_claim_ids: set[str] = set()
@@ -784,5 +845,271 @@ def query_to_dict(query: CountQuery) -> dict[str, object]:
 
 def graph_to_dict(graph: EvidenceGraph) -> dict[str, object]:
     payload = _json_compatible(asdict(graph))
+    assert isinstance(payload, dict)
+    return _with_hash({"schema_version": SCHEMA_VERSION, **payload})
+
+
+def _matches_scope(
+    *, start_seconds: float, end_seconds: float, scope: TimeScope
+) -> bool:
+    if scope.boundary_policy == "starts_within":
+        return scope.start_seconds <= start_seconds <= scope.end_seconds
+    if scope.boundary_policy == "completes_within":
+        return scope.start_seconds <= end_seconds <= scope.end_seconds
+    return start_seconds < scope.end_seconds and end_seconds > scope.start_seconds
+
+
+def _matches_visibility(observed: str, required: str) -> bool:
+    levels = {"visible": 0, "partially_visible": 1, "amodal": 2}
+    return levels[observed] <= levels[required]
+
+
+def _satisfied_obligations(
+    interpretation: QueryInterpretation, graph: EvidenceGraph
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    satisfied: list[str] = []
+    failed: list[str] = []
+    for obligation in interpretation.evidence_obligations:
+        matching = [
+            claim
+            for claim in graph.coverage
+            if claim.obligation == obligation
+            and claim.target_kind == interpretation.target_kind
+            and claim.target_predicate == interpretation.target_predicate
+            and claim.start_seconds <= interpretation.scope.start_seconds
+            and claim.end_seconds >= interpretation.scope.end_seconds
+            and claim.coverage_state == "complete"
+        ]
+        (satisfied if matching else failed).append(obligation)
+    return tuple(satisfied), tuple(failed)
+
+
+def _max_concurrent(
+    nodes: Sequence[EntityObservation | PartObservation | EventObservation],
+    scope: TimeScope,
+) -> tuple[int, tuple[str, ...]]:
+    events: list[tuple[float, int, str]] = []
+    for node in nodes:
+        start = max(node.start_seconds, scope.start_seconds)
+        end = min(node.end_seconds, scope.end_seconds)
+        if start >= end:
+            continue
+        events.append((start, 1, node.node_id))
+        events.append((end, -1, node.node_id))
+    active: set[str] = set()
+    peak: tuple[str, ...] = ()
+    for _, delta, node_id in sorted(events, key=lambda item: (item[0], item[1])):
+        if delta < 0:
+            active.discard(node_id)
+        else:
+            active.add(node_id)
+            candidate = tuple(sorted(active))
+            if len(candidate) > len(peak):
+                peak = candidate
+    return len(peak), peak
+
+
+class _UnionFind:
+    def __init__(self, node_ids: Sequence[str]) -> None:
+        self._parent = {node_id: node_id for node_id in node_ids}
+
+    def find(self, node_id: str) -> str:
+        parent = self._parent[node_id]
+        if parent != node_id:
+            self._parent[node_id] = self.find(parent)
+        return self._parent[node_id]
+
+    def union(self, left: str, right: str) -> None:
+        left_root = self.find(left)
+        right_root = self.find(right)
+        if left_root == right_root:
+            return
+        keep, merge = sorted((left_root, right_root))
+        self._parent[merge] = keep
+
+    def class_count(self) -> int:
+        return len({self.find(node_id) for node_id in self._parent})
+
+
+def _distinct_bounds(
+    nodes: Sequence[EntityObservation | PartObservation],
+    graph: EvidenceGraph,
+    *,
+    unresolved_policy: str,
+) -> tuple[int, int, bool]:
+    node_ids = tuple(node.node_id for node in nodes)
+    relevant = set(node_ids)
+    upper_classes = _UnionFind(node_ids)
+    lower_classes = _UnionFind(node_ids)
+    saw_unresolved = False
+    for relation in graph.identity_relations:
+        if (
+            relation.left_node_id not in relevant
+            or relation.right_node_id not in relevant
+        ):
+            continue
+        if relation.relation_state == "confirmed_same":
+            upper_classes.union(relation.left_node_id, relation.right_node_id)
+            lower_classes.union(relation.left_node_id, relation.right_node_id)
+        elif relation.relation_state == "unresolved":
+            saw_unresolved = True
+            if unresolved_policy == "abstain":
+                lower_classes.union(relation.left_node_id, relation.right_node_id)
+    upper = upper_classes.class_count()
+    lower = lower_classes.class_count() if unresolved_policy == "abstain" else upper
+    return lower, upper, saw_unresolved and lower != upper
+
+
+def _execute_interpretation(
+    interpretation: QueryInterpretation, graph: EvidenceGraph
+) -> InterpretationTrace:
+    satisfied, failed = _satisfied_obligations(interpretation, graph)
+    event_nodes: tuple[EventObservation, ...] = ()
+    if interpretation.target_kind == "entity":
+        nodes: Sequence[EntityObservation | PartObservation] = graph.entities
+    elif interpretation.target_kind == "part":
+        nodes = graph.parts
+    else:
+        nodes = ()
+        event_nodes = tuple(
+            node
+            for node in graph.events
+            if node.predicate == interpretation.target_predicate
+            and _matches_scope(
+                start_seconds=node.start_seconds,
+                end_seconds=node.end_seconds,
+                scope=interpretation.scope,
+            )
+        )
+    qualifying = tuple(
+        node
+        for node in nodes
+        if node.predicate == interpretation.target_predicate
+        and _matches_visibility(node.visibility, interpretation.visibility_policy)
+        and _matches_scope(
+            start_seconds=node.start_seconds,
+            end_seconds=node.end_seconds,
+            scope=interpretation.scope,
+        )
+    )
+    if interpretation.target_kind == "part" and interpretation.owner_predicate:
+        predicates_by_id = {
+            node.node_id: node.predicate for node in (*graph.entities, *graph.parts)
+        }
+        qualifying = tuple(
+            node
+            for node in qualifying
+            if isinstance(node, PartObservation)
+            and predicates_by_id[node.owner_node_id] == interpretation.owner_predicate
+        )
+    selected = tuple(sorted(node.node_id for node in qualifying))
+    unresolved_identity = False
+    unresolved_boundary = False
+    if interpretation.aggregation == "max_concurrent":
+        concurrent_nodes: Sequence[
+            EntityObservation | PartObservation | EventObservation
+        ] = event_nodes if interpretation.target_kind == "event" else qualifying
+        lower, selected = _max_concurrent(concurrent_nodes, interpretation.scope)
+        upper = lower
+    elif interpretation.aggregation == "cardinality":
+        counted_nodes: Sequence[
+            EntityObservation | PartObservation | EventObservation
+        ] = event_nodes if interpretation.target_kind == "event" else qualifying
+        selected = tuple(sorted(node.node_id for node in counted_nodes))
+        lower = len(counted_nodes)
+        upper = lower
+    elif interpretation.aggregation == "distinct":
+        lower, upper, unresolved_identity = _distinct_bounds(
+            qualifying,
+            graph,
+            unresolved_policy=interpretation.cross_shot_unknown,
+        )
+    elif interpretation.aggregation == "transition_count":
+        if interpretation.target_kind != "event":
+            raise ValueError("transition_count requires an event target")
+        observed = tuple(node for node in event_nodes if node.onset_state == "observed")
+        unknown = tuple(node for node in event_nodes if node.onset_state == "unknown")
+        selected = tuple(sorted(node.node_id for node in observed))
+        lower = len(observed)
+        upper = lower + len(unknown)
+        unresolved_boundary = bool(unknown)
+    else:
+        raise NotImplementedError(
+            f"aggregation is not implemented: {interpretation.aggregation}"
+        )
+    reasons = tuple(
+        reason
+        for reason, applies in (
+            ("incomplete_coverage", bool(failed)),
+            ("unresolved_identity", unresolved_identity),
+            ("unresolved_boundary_state", unresolved_boundary),
+        )
+        if applies
+    )
+    exact = not reasons and lower == upper
+    return InterpretationTrace(
+        interpretation_id=interpretation.interpretation_id,
+        outcome="exact" if exact else "abstain",
+        lower_bound=lower,
+        upper_bound=None if failed else upper,
+        exact_count=lower if exact else None,
+        selected_node_ids=selected,
+        satisfied_obligations=satisfied,
+        failed_obligations=failed,
+        abstention_reasons=reasons,
+    )
+
+
+def count_video(query: CountQuery, graph: EvidenceGraph) -> ProofState:
+    if any(
+        interpretation.scope.end_seconds > graph.duration_seconds
+        for interpretation in query.interpretations
+    ):
+        raise ValueError("query scope must be within graph duration")
+    traces = tuple(
+        _execute_interpretation(interpretation, graph)
+        for interpretation in query.interpretations
+    )
+    exact_counts = {trace.exact_count for trace in traces if trace.outcome == "exact"}
+    all_exact = all(trace.outcome == "exact" for trace in traces)
+    if all_exact and len(exact_counts) == 1:
+        exact_count = next(iter(exact_counts))
+        assert exact_count is not None
+        return ProofState(
+            query_id=query.query_id,
+            graph_id=graph.graph_id,
+            outcome="exact",
+            lower_bound=exact_count,
+            upper_bound=exact_count,
+            exact_count=exact_count,
+            traces=traces,
+            abstention_reasons=(),
+        )
+    reasons = tuple(
+        sorted(
+            {reason for trace in traces for reason in trace.abstention_reasons}
+            | ({"ambiguous_interpretation"} if len(exact_counts) > 1 else set())
+        )
+    )
+    return ProofState(
+        query_id=query.query_id,
+        graph_id=graph.graph_id,
+        outcome="abstain",
+        lower_bound=min(trace.lower_bound for trace in traces),
+        upper_bound=(
+            None
+            if any(trace.upper_bound is None for trace in traces)
+            else max(
+                trace.upper_bound for trace in traces if trace.upper_bound is not None
+            )
+        ),
+        exact_count=None,
+        traces=traces,
+        abstention_reasons=reasons,
+    )
+
+
+def proof_to_dict(proof: ProofState) -> dict[str, object]:
+    payload = _json_compatible(asdict(proof))
     assert isinstance(payload, dict)
     return _with_hash({"schema_version": SCHEMA_VERSION, **payload})

@@ -106,25 +106,25 @@ existing canonical JSON hashing, Ruff, Quarto.
   - `count_video(query: CountQuery, graph: EvidenceGraph) -> ProofState`
   - `proof_to_dict(proof: ProofState) -> dict[str, object]`
 
-- [ ] **Step 1: Write the failing maximum-concurrency test**
+- [x] **Step 1: Write the failing maximum-concurrency test**
 
   Use four entity intervals split across two edits where at most two overlap.
   Assert a `visible_instance + max_concurrent` query returns outcome `exact`,
   bounds `2..2`, exact count `2`, and the IDs forming the peak overlap.
 
-- [ ] **Step 2: Run the single test and observe RED**
+- [x] **Step 2: Run the single test and observe RED**
 
   Expected: import or missing-symbol failure for `count_video`.
 
-- [ ] **Step 3: Implement filtering, temporal relations, and interval sweep**
+- [x] **Step 3: Implement filtering, temporal relations, and interval sweep**
 
   Implement scope matching for `starts_within`, `overlaps`, and
   `completes_within`; then implement a deterministic endpoint sweep where ends
   at a timestamp are processed before starts at that same timestamp.
 
-- [ ] **Step 4: Run the maximum-concurrency test and observe GREEN**
+- [x] **Step 4: Run the maximum-concurrency test and observe GREEN**
 
-- [ ] **Step 5: Write failing identity-bound tests**
+- [x] **Step 5: Write failing identity-bound tests**
 
   Cover:
 
@@ -134,21 +134,21 @@ existing canonical JSON hashing, Ruff, Quarto.
   - cross-shot policy `separate` permits an exact appearance count;
   - a contradictory identity relation is rejected during graph parsing.
 
-- [ ] **Step 6: Run RED, implement union-find and unresolved bounds, then GREEN**
+- [x] **Step 6: Run RED, implement union-find and unresolved bounds, then GREEN**
 
   The lower bound unions both confirmed-same and unresolved candidate pairs;
   the upper bound unions confirmed-same only. Exact requires equal bounds.
 
-- [ ] **Step 7: Write failing event-boundary tests**
+- [x] **Step 7: Write failing event-boundary tests**
 
   Assert that an event marked `left_censored` is excluded from
   `event_onset + transition_count + starts_within`, included by
   `active_event + cardinality + overlaps`, and forces abstention when onset is
   `unknown` and the result could change.
 
-- [ ] **Step 8: Run RED, implement event projection, then GREEN**
+- [x] **Step 8: Run RED, implement event projection, then GREEN**
 
-- [ ] **Step 9: Write failing coverage and ambiguity tests**
+- [x] **Step 9: Write failing coverage and ambiguity tests**
 
   Assert:
 
@@ -160,16 +160,16 @@ existing canonical JSON hashing, Ruff, Quarto.
   - two exact interpretations that agree return the shared count;
   - exact proof implies a singleton bound and no failed obligations.
 
-- [ ] **Step 10: Run RED, implement proof composition, then GREEN**
+- [x] **Step 10: Run RED, implement proof composition, then GREEN**
 
-- [ ] **Step 11: Add invariant tests and refactor**
+- [x] **Step 11: Add invariant tests and refactor**
 
   Add literal fixtures proving lower never exceeds upper, adding a confirmed
   observation cannot reduce cardinality, adding confirmed-same cannot increase
   distinct count, and max concurrency cannot exceed interval count. Refactor
   only after all tests are green.
 
-- [ ] **Step 12: Run the complete Task 1-2 suite**
+- [x] **Step 12: Run the complete Task 1-2 suite**
 
   Run:
 
