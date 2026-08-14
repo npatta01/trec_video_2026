@@ -307,22 +307,22 @@ existing canonical JSON hashing, Ruff, Quarto.
   reports exact answered count, exact correctness, abstentions by reason,
   failure rescue, control preservation, and gate decision.
 
-- [ ] **Step 1: Write the failing execution-chain test**
+- [x] **Step 1: Write the failing execution-chain test**
 
   Assert the runner rejects label-bearing authored inputs, changed request or
   media hashes, missing rows, duplicate rows, query/graph ID mismatch, and
   conflicting proof-freeze overwrite.
 
-- [ ] **Step 2: Run the execution test and observe RED**
+- [x] **Step 2: Run the execution test and observe RED**
 
-- [ ] **Step 3: Implement pure execution and immutable freeze binding**
+- [x] **Step 3: Implement pure execution and immutable freeze binding**
 
   Call `count_video` for every row, serialize proof traces canonically, and bind
   query, graph, authoring-request, and source-media hashes.
 
-- [ ] **Step 4: Run the execution test and observe GREEN**
+- [x] **Step 4: Run the execution test and observe GREEN**
 
-- [ ] **Step 5: Write the failing post-freeze scoring test**
+- [x] **Step 5: Write the failing post-freeze scoring test**
 
   Use a 12-row literal fixture. Assert the scorer:
 
@@ -333,14 +333,14 @@ existing canonical JSON hashing, Ruff, Quarto.
   - authorizes the architecture only with no incorrect non-abstained answer,
     at least 9/12 exact singleton results, and 4/4 controls exact and correct.
 
-- [ ] **Step 6: Run RED, implement scorer, then GREEN**
+- [x] **Step 6: Run RED, implement scorer, then GREEN**
 
-- [ ] **Step 7: Add mutation tests for the complete chain**
+- [x] **Step 7: Add mutation tests for the complete chain**
 
   Mutate one result, graph, query, request, selection, and freeze hash in turn.
   Assert every mutation is rejected before metrics are calculated.
 
-- [ ] **Step 8: Run the Task 5 suite and observe GREEN**
+- [x] **Step 8: Run the Task 5 suite and observe GREEN**
 
 ---
 
