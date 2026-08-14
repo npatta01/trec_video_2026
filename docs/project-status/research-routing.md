@@ -58,7 +58,12 @@ regressed. A hard-row audit found both answer failures over maps that
 already held the evidence and broad-map omissions of fine details. The
 next system should therefore combine global question-blind context with
 question-driven retrieval, specialist verification, and evidence-bound
-concise answering.
+concise answering. A subsequent 24-row text-only evidence-citing
+treatment did not validate the last step as a generic answer path: it
+repaired 5/12 targets under the frozen gate, regressed two controls, and
+abstained unnecessarily on seven evidence-present rows. Post-freeze
+review confirmed that only 10/12 targets contained the reference-level
+fact.
 
 <div class="theme-decision-strip" aria-label="Routing decisions">
 
@@ -70,9 +75,9 @@ concise answering.
   self-verification.
 - **Still possible:** abstaining multi-label routing, grounded fusion,
   and evidence-aware answer election.
-- **Next test:** first run a deterministic question-stratified 60-row
-  blinded audit; if its gates pass, test frozen map-to-claim/span
-  grounding before any targeted AV route.
+- **Next test:** keep any follow-up narrow: one explicit question-driven
+  temporal or speech verification operation over frozen context, with
+  answering evaluated separately.
 
 </div>
 
@@ -281,20 +286,36 @@ GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
   interval crosses zero. Gemini improved descriptive temporal, causal,
   audio/text, and other strata but regressed counting (`0.3770` versus
   `0.4250`). A deliberately hard 30-row mechanism audit found 20
-  incorrect/partial answers; 12 already had the answer evidence in the
-  independent map, while 8 maps omitted or misread it. This is
+  incorrect/partial answers; it initially marked 12 as map-sufficient
+  and 8 as map omissions or misreads. Later independent review corrected
+  two of those 12 as lacking the reference-level fact. This is
   diagnostic mechanism evidence, not a prevalence estimate.
+- **Grounded-answering follow-up:** a frozen 24-row text-only test used
+  the 12 failures marked map-sufficient by the source audit and 12
+  matched supported controls. All 24 outputs were frozen before labels
+  and all changed rows were inspected. It failed its predeclared gate
+  with 5/12 target rescues (5/10 descriptively among targets confirmed
+  answer-sufficient after correction), two control regressions, seven
+  unnecessary verification routes, and zero unsupported answer
+  citations. Target METEOR improved `+0.0932`, but target BERTScore-F1
+  fell `-0.0154`; control deltas were `-0.2902` and `-0.0585`. Legacy
+  UMBC STS and composite are explicitly unavailable rather than replaced
+  or zero-filled.
+- **Evidence validity and disposition:** valid-but-negative selected
+  mechanism evidence with a corrected 10-row answer-sufficient target
+  subset and partial automatic metrics. **Not promoted under the tested
+  condition.**
 - **What it does not rule out:** reusable question-blind scene maps or
   Gemini native video. It isolates the earlier failure to the tested
   route/verifier.
 - **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the
-  full-panel metric comparison is complete, but the hard-row mechanism
-  sample is selected and several labels are ambiguous; its category
-  counts are not prevalence.
-- **Reconsider when:** a representative 60-row audit confirms enough
-  clean evidence-present and map-omission failures, then map-grounded
-  answering repairs its predeclared share without regressing supported
-  controls.
+  hard-row mechanism sample is selected and two source map-sufficiency
+  labels were corrected after prediction freeze; its category counts are
+  not prevalence. The grounded-answering STS/composite pair remains
+  unavailable because the frozen external service was unreachable.
+- **Reconsider when:** an explicit question-driven temporal or speech
+  verification operation over frozen context repairs its declared
+  failures without regressing matched supported controls.
 
 <details>
 
@@ -315,9 +336,11 @@ response’s corrected map was locally valid, allowing inspection without
 relabeling the terminal `schema_validation` result.
 
 The complete raw evidence is private; see the [dated
-diagnostic](../experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd)
-and the [full-panel sanitized
-index](../experiments/artifacts/vqa-gemini-native-av-full-panel-20260813/README.md).
+diagnostic](../experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd),
+the [full-panel sanitized
+index](../experiments/artifacts/vqa-gemini-native-av-full-panel-20260813/README.md),
+and the [grounded-answering sanitized
+index](../experiments/artifacts/vqa-grounded-map-answering-20260814/README.md).
 
 </details>
 

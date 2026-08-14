@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "experiment_id": "grounded-map-answering-issue35-v2",
+  "date": "2026-08-14",
+  "issue": 35,
+  "decision": {
+    "disposition": "not_promoted",
+    "gate_passed": false,
+    "scope": "text-only answer interpretation and evidence use over frozen question-blind map lines"
+  },
+  "panel": {
+    "rows": 24,
+    "targets": 12,
+    "controls": 12,
+    "selection": "12 targets marked map-sufficient in the source audit plus 12 matched controls; post-freeze re-adjudication found 2 targets lacked reference-level evidence, so the panel is descriptive and not prevalence-estimating",
+    "treatment_predictions_completed": 24,
+    "treatment_provider_retries": 0,
+    "changed_rows": 24,
+    "changed_rows_manually_inspected": 24
+  },
+  "condition": {
+    "model": "gemini-3.1-pro-preview",
+    "provider": "Google Developer API",
+    "native_audio_video": false,
+    "new_evidence_acquisition": false,
+    "answer_candidates": 1,
+    "temperature": 0,
+    "seed": 42,
+    "thinking": "high",
+    "output": "question interpretation, evidence-cited claims, conflicts or missing qualifiers, needs_verification, and one concise top-1 answer"
+  },
+  "usage": {
+    "prompt_tokens": 9347,
+    "candidate_tokens": 3628,
+    "thinking_tokens": 12918,
+    "total_tokens": 25893,
+    "observed_provider_cost_usd": null,
+    "cost_note": "Provider billing cost was not exposed in response artifacts."
+  },
+  "metrics": {
+    "direct_baseline_all": {
+      "meteor": 0.4388854616503784,
+      "bertscore_f1": 0.917592334250609,
+      "sts": null,
+      "semantic_composite": null
+    },
+    "grounded_treatment_all": {
+      "meteor": 0.34038337537779934,
+      "bertscore_f1": 0.880607008934021,
+      "sts": null,
+      "semantic_composite": null
+    },
+    "paired_treatment_minus_baseline": {
+      "all": {
+        "meteor": -0.09850208627257906,
+        "bertscore_f1": -0.03698532531658805,
+        "sts": null,
+        "semantic_composite": null
+      },
+      "targets": {
+        "meteor": 0.09319498566458177,
+        "bertscore_f1": -0.01542593538761139,
+        "sts": null,
+        "semantic_composite": null
+      },
+      "controls": {
+        "meteor": -0.29019915820974,
+        "bertscore_f1": -0.058544715245564816,
+        "sts": null,
+        "semantic_composite": null
+      }
+    },
+    "sts_status": "unavailable",
+    "sts_note": "The frozen UMBC endpoint timed out from the local host and an independent DigitalOcean egress path; HTTPS was closed and the current UMBC domain returned 404 for the service path. No substitute metric or zero value was used."
+  },
+  "promotion_gate": {
+    "minimum_target_rescues": 6,
+    "observed_target_rescues": 5,
+    "maximum_control_regressions": 1,
+    "observed_control_regressions": 2,
+    "unsupported_answer_citation_rows": 0,
+    "unnecessary_verification_routes": 7,
+    "all_changed_rows_inspected": true,
+    "passed": false
+  },
+  "remaining_failure_counts": {
+    "answer_specificity_or_normalization": 1,
+    "insufficient_frozen_evidence": 2,
+    "reasoning_failure": 4,
+    "wrong_span_use": 2
+  },
+  "postfreeze_re_adjudication": {
+    "source_audit_marked_map_sufficient": 12,
+    "confirmed_map_sufficient": 10,
+    "insufficient_frozen_evidence": 2,
+    "rescues_among_confirmed_map_sufficient": 5,
+    "note": "The predeclared gate remains 5/12 because panel membership and predictions were frozen; the two corrected rows cannot isolate answer-stage repair."
+  },
+  "integrity_corrections": {
+    "completed_run_answer_binding": "The frozen v2 validator required cited claims but did not structurally require the final answer to equal a cited claim. Manual inspection found no unsupported final answer; future protocol version 2 enforces an exact answer-to-claim match.",
+    "completed_run_evidence_binding": "The original prediction freeze bound terminal files only. A post-hoc additive evidence freeze now binds all current per-row requests, raw responses, metadata, parsed responses, and terminals; future freezes create this sidecar before labels."
+  },
+  "invalid_preflight_v1": {
+    "status": "preserved_not_retried",
+    "failed_rows": 1,
+    "answer_candidates_returned": 0,
+    "cause": "provider rejected an unsupported JSON-schema keyword before answer generation",
+    "terminal_sha256": "f37cc3b7e571597f42e2febd7fbf022b041b735c76282f88d5d50c73d8bb2a01"
+  },
+  "private_artifact_sha256": {
+    "selection_json": "929abdf1aab45b3c49c1b312e24869344f10fc54ab9ea25d2c307ba2949e6f78",
+    "protocol_json": "5619dbb852c1fdca1482749c6d4b3024455507e6bb3eab58e5a6747e0bff18c1",
+    "preinference_gate_freeze_json": "fd72e7bab8b7e356c2d28886488c8e968a7e536f906c9f8cb1ede7a122f624b2",
+    "predictions_freeze_json": "897e022164233c64f1aaeb66e1c73e0d33c1dec96d7c9fd3b907a88dd599f117",
+    "evidence_freeze_json": "b82255dc2ea5513c69d022fe6c0d9508f40a4095488419e4bc956542b44fe110",
+    "changed_row_audit_original_json": "986ac9c081fd51c19a163151a37c0a189ecb25c880fe6a60be317154ce3de95e",
+    "changed_row_audit_corrected_json": "23656189f5a85e1ac3f8f363c597e670b1b9fc5fa9fb17db42013e49e100bc8a",
+    "postfreeze_metrics_original_json": "37b5a9494ff59c6673f96d6282b30849f3a8ed595f3a31af0f70d132dce0d3b9",
+    "postfreeze_metrics_bound_original_audit_json": "b256faf6e14bb58dc8adaccf6de880c98bdc33e5cda5d6e77f289ecbc730f9a1",
+    "postfreeze_metrics_corrected_audit_json": "ab2c15d7eed24a0b99bc309d7ad77e760b5832f3592ad9a8af29bc86bf934567",
+    "sts_cache_json": "be1b90e3a8f2498c7e5d48f67224f748cc66d5aea15e4df733c9184bb669c959"
+  }
+}

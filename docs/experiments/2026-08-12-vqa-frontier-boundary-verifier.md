@@ -249,9 +249,12 @@ not a prevalence sample. Review found 6 supported answers, 5 partial
 answers, 15 incorrect answers, and 4 ambiguous or reference-conflicted
 rows.
 
-Among the 20 incorrect or partial answers, Gemini’s independent
-question-blind map already contained the needed evidence in 12; 8 maps
-omitted or misread the required detail. The primary mechanisms were:
+Among the 20 incorrect or partial answers, the original audit marked 12
+as having the needed evidence in Gemini’s independent question-blind map
+and 8 as map omissions or misreads. Independent post-freeze review of
+the later grounded-answering experiment corrected two of those 12: their
+maps described the visible mechanics or state but did not contain the
+reference-level purpose or action. The original mechanism counts were:
 
 | Mechanism | Rows in the 20-row hard-failure subset |
 |----|---:|
@@ -290,6 +293,115 @@ calculation uses `$1` per million input tokens and `$6` per million
 candidate-plus-thinking tokens; the provider invoice was not exposed, so
 it is an estimate rather than observed billing.
 
+## Grounded map-answering mechanism test
+
+Issue \#35 then tested answer interpretation and evidence use separately
+from new evidence recovery. The frozen panel contained all 12 incorrect
+or partial hard-audit rows whose source audit marked the question-blind
+map sufficient, plus 12 one-to-one controls matched by scorer stratum
+and screened for answer support. Post-freeze independent review found
+that only 10/12 targets actually contained the reference-level fact; the
+other two cannot isolate answer-stage repair. This is a label-aware
+spent-row mechanism panel with a corrected audit limitation, not a
+prevalence estimate.
+
+Each row received only its frozen question and preselected exact lines
+from the existing question-blind map. The text-only Gemini 3.1 Pro
+Preview treatment had to return a question interpretation,
+evidence-cited claims, conflicts or missing qualifiers,
+`needs_verification`, and one concise top-1 answer. It received no
+native media, new evidence, reference, prior answer, or alternate answer
+candidates. All 24 responses completed without retry and were frozen
+before references or scoring entered the workflow. The treatment changed
+all 24 normalized answers, so every target and control received manual
+inspection.
+
+The predeclared gate required at least 6/12 target rescues, at most one
+control regression, citation support for every answer claim, no
+unnecessary verification route, and inspection of every changed row. It
+failed:
+
+| Gate component                  |      Required |  Observed |
+|---------------------------------|--------------:|----------:|
+| Target rescues                  | at least 6/12 |  **5/12** |
+| Control regressions             |  at most 1/12 |  **2/12** |
+| Unsupported answer citations    |             0 |     **0** |
+| Unnecessary verification routes |             0 |     **7** |
+| Changed rows inspected          |           all | **24/24** |
+
+The constraint repaired several clear failures, including a demolition
+explanation, object identity, one count, stinger-related action
+specificity, and an unsupported ownership inference. It did not reliably
+force use of already-present evidence. Seven rows—including explicit
+later actions, speech, illumination, and countable map events—were sent
+to verification instead of answered. Two previously supported controls
+regressed for the same reason. Among the nine remaining target failures
+and control regressions, the corrected audit labels were four reasoning
+failures, two wrong-span uses, one specificity/normalization failure,
+and two rows with insufficient frozen evidence. The predeclared target
+count remains 12 because membership and predictions were frozen;
+descriptively, the treatment rescued 5/10 targets confirmed
+answer-sufficient after re-adjudication.
+
+The available paired metrics agree that this is not a general
+replacement for the direct answer path. Target METEOR improved, but
+target BERTScore-F1 fell; controls regressed substantially on both
+metrics.
+
+| Scope       | METEOR delta | BERTScore-F1 delta |
+|-------------|-------------:|-------------------:|
+| 12 targets  |      +0.0932 |            -0.0154 |
+| 12 controls |      -0.2902 |            -0.0585 |
+| All 24 rows |      -0.0985 |            -0.0370 |
+
+UMBC STS was unavailable: the frozen HTTP service timed out locally and
+from an independent bounded DigitalOcean egress probe, its HTTPS port
+was closed, and the current UMBC domain returned 404 for that service
+path. The existing 24 baseline STS values are provenance-bound in a
+private resumable cache, but the 24 new treatment pairs were not scored.
+STS and semantic composite are therefore recorded as `null`; no zero or
+substitute metric is presented as the legacy measure. This missing
+metric does not change the predeclared mechanism gate, which failed
+independently.
+
+One initial v1 call is preserved as an invalid preflight-only attempt:
+Google’s client rejected an unsupported JSON-schema keyword before an
+answer candidate was returned. The schema was corrected under a
+regression test and the experiment was prepared additively as v2; v1 was
+not relabeled or retried.
+
+Independent code review found two integrity gaps in the completed v2
+tooling. The frozen validator required cited `answer_claims` but did not
+structurally require the final `answer` to equal one of those claims.
+Manual inspection of all 24 changed rows found no unsupported final
+answer, so the observed gate is unchanged; future protocol version 2
+enforces an exact answer-to-cited-claim match. The original prediction
+freeze also hashed terminals but not request, raw-response, metadata, or
+parsed-response files. A post-hoc additive evidence freeze now binds all
+current row artifacts. It cannot retroactively establish their contents
+at the original freeze instant; future runs create that sidecar with the
+prediction freeze. Malformed paid JSON is now preserved before being
+classified as a contract error.
+
+Evidence validity: this is a valid-but-negative selected mechanism
+result; its automatic semantic record is partial because STS/composite
+are unavailable, and the corrected audit leaves 10 answer-sufficient
+targets rather than 12. Decision disposition: **Not promoted under the
+tested condition**. The evidence-citation contract prevented unsupported
+cited claims, but its abstention behavior was too conservative and did
+not reliably repair temporal scope, requested purpose, or complete
+specificity. Do not scale this prompt, do not add multiple candidate
+answers, and do not treat it as the shared router or counting
+specialist. Any follow-up should test one explicit question-driven
+temporal or speech verification operation over frozen context, with
+answering evaluated separately.
+
+The sanitized tracked evidence index is
+`docs/experiments/artifacts/vqa-grounded-map-answering-20260814/`.
+Complete private requests, terminal responses, freezes, audit, partial
+metrics, and STS cache are retained under
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/grounded-map-answering-issue35-v2/`.
+
 ## Cost and completion boundary
 
 The final v5 pilot plus verifier cost `$0.102772`. Including all
@@ -324,30 +436,22 @@ its boundaries were still coarse.
 
 Keep Google’s direct native-AV answer as a frontier baseline and retain
 the question-blind map as an optional retrieval index. Do not run
-another 475-video global prompt treatment. First draw a deterministic,
-question-stratified 60-row sample independent of metric outcome. Blindly
-adjudicate randomized Gemini/Qwen answers, then inspect map sufficiency.
-This estimates whether the hard-audit mechanisms are common enough to
-justify architecture work and separates reference defects from model
-defects.
+another 475-video global prompt treatment. The earlier
+representative-audit-then-generic- grounding sequence is superseded by
+the completed 475-row panel, hard-row audit, and issue \#35 mechanism
+test.
 
-Proceed to map-grounded answering only if at least 8/60 clean rows are
-wrong/partial despite sufficient map evidence; proceed to targeted
-retrieval only if at least 6/60 have genuine map omissions. If more than
-6/60 references are materially ambiguous, repair evaluation before
-optimizing architecture. The adjudication can use an independent
-frontier text judge with a small blinded human spot-check instead of
-requiring full manual review.
-
-If the first gate passes, test one narrow seam on frozen evidence:
-question plus map to requested scope and atomic claim/span bindings,
-then either a supported answer or `needs_verification`, followed by
-deterministic concise serialization. Compare it against a plain
-question-plus-map answer on the 12 audited map-sufficient failures plus
-six supported controls. Require at least 7/12 repairs, a four-case net
-advantage, at most one control regression, and no new unsupported
-claims. Only `needs_verification` should trigger one targeted AV check
-in a later screen.
+The narrow grounded-answering seam has now been tested on 12 failures
+marked map-sufficient by the source audit plus 12 matched supported
+controls. Post-freeze review confirmed only 10/12 as answer-sufficient;
+the treatment repaired 5/12 under the frozen gate (5/10 descriptively
+after correction), regressed two controls, and routed seven
+evidence-present rows to verification unnecessarily. Do not scale or
+broadly reprompt that condition. The next small mechanism test, if
+pursued, should perform an explicit question-driven temporal or speech
+verification operation over frozen global context and evaluate answering
+separately. It should not introduce multiple answer candidates, a shared
+router framework, or a counting specialist.
 
 An independent Sol review rejected a generic generative consistency
 pass: the same-model verifier already repeated a known error, so another
@@ -426,3 +530,18 @@ additive retry-provenance SHA-256 is
 `e309d52904d54e400a420a386117934823794ffe2e8c4725df8bfb7e076e0c99`. The
 sanitized tracked index is
 `docs/experiments/artifacts/vqa-gemini-native-av-full-panel-20260813/`.
+
+The completed issue \#35 grounded-answering evidence is under:
+
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/grounded-map-answering-issue35-v2/`
+
+Its protocol, gate-freeze, prediction-freeze, changed-row audit, and
+post-freeze metric SHA-256 values are respectively
+`5619dbb852c1fdca1482749c6d4b3024455507e6bb3eab58e5a6747e0bff18c1`,
+`fd72e7bab8b7e356c2d28886488c8e968a7e536f906c9f8cb1ede7a122f624b2`,
+`897e022164233c64f1aaeb66e1c73e0d33c1dec96d7c9fd3b907a88dd599f117`,
+`986ac9c081fd51c19a163151a37c0a189ecb25c880fe6a60be317154ce3de95e`, and
+`37b5a9494ff59c6673f96d6282b30849f3a8ed595f3a31af0f70d132dce0d3b9`. The
+invalid v1 preflight remains separately preserved. The tracked sanitized
+index is
+`docs/experiments/artifacts/vqa-grounded-map-answering-20260814/`.
