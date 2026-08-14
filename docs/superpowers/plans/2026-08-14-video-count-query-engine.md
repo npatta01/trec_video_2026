@@ -443,9 +443,12 @@ existing canonical JSON hashing, Ruff, Quarto.
   preserved; an additive proof-schema-v2 replay retained all 12 row decisions
   and every aggregate metric.
 
-- [ ] **Step 5: Publish a focused stacked draft PR**
+- [x] **Step 5: Publish a focused stacked draft PR**
 
   Push `codex/issue-34-count-query-engine` and open it against
   `codex/issue-34-counting-evidence` so PR #38 remains the focused negative
   result. Link both PRs and post an issue #34 update only after the user-authorized
   implementation is verified.
+
+  Published as draft PR #39 against `codex/issue-34-counting-evidence`; posted
+  the zero-cost negative result and next boundary to issue #34.
