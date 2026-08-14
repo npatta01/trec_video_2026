@@ -1,7 +1,9 @@
 # Video Count Query Engine Design
 
-**Date:** 2026-08-14  
-**Status:** Approved concept; written specification awaiting implementation review  
+**Date:** 2026-08-14
+
+**Status:** Approved for implementation
+
 **Parent result:** issue #34 atomic counting canary, draft PR #38
 
 ## Outcome
@@ -177,7 +179,7 @@ identities but no label-derived assertions.
 
 ### Identity relations
 
-Identity is an explicit relation with status `confirmed_same`,
+Identity is an explicit relation with `relation_state` `confirmed_same`,
 `confirmed_different`, or `unresolved`. The executor computes equivalence
 classes only from `confirmed_same`. An unresolved relation can widen an upper
 bound or force abstention; it cannot be silently merged.
@@ -186,7 +188,8 @@ bound or force abstention; it cannot be silently merged.
 
 `CoverageClaim` states what was searched, where, and at what granularity. It
 contains target kind/predicate, interval, spatial region, temporal resolution,
-and status `complete` or `partial`. Detector confidence is not coverage.
+and `coverage_state` `complete` or `partial`. Detector confidence is not
+coverage.
 
 Absence of a node is evidence of absence only inside a matching complete
 coverage claim.
@@ -214,7 +217,7 @@ sufficient justification.
 
 The result contains:
 
-- `status`: `exact` or `abstain`;
+- `outcome`: `exact` or `abstain`;
 - `lower_bound` and `upper_bound`, where an unknown upper bound is `null`;
 - `exact_count`, present only for `exact`;
 - one trace per interpretation;
