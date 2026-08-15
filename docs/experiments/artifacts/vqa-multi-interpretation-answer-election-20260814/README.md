@@ -25,6 +25,15 @@ only 3/4 evidence-insufficient safeguards to verification (gate: 4/4), and the
 multi arm preserved only 3/4 controls (gate: 4/4). No emitted answer lacked
 support from its cited frozen evidence.
 
+A later zero-call paper walkthrough tested the proposed entity–fact–time/span
+support rule on the two decisive election failures before authorizing another
+24 calls. It resolved 0/2. One row's reference-level action is absent from the
+frozen map, so a label-blind text-only verifier cannot detect the omission. The
+other question is satisfied by two displayed-text spans and needs an untested
+salience/text-type preference to choose the reference span. The proposed paid
+follow-up was therefore stopped before inference. See
+`task-support-paper-walkthrough.json` for the sanitized result.
+
 Every row contained at least one manually correct candidate (oracle coverage
 12/12), compared with 10/12 correct elected multi outputs. This oracle result
 is diagnostic only and was not used in the gate. The gap localizes the failure

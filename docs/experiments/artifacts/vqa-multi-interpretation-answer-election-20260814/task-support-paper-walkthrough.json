@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "audit_id": "task-support-paper-walkthrough-v1",
+  "status": "completed_negative",
+  "method": "Post-freeze, label-aware zero-call paper walkthrough of a proposed entity-attribute-or-action-time-span support contract on the two decisive election failures.",
+  "rows_reviewed": 2,
+  "required_resolutions": 2,
+  "observed_resolutions": 0,
+  "passed": false,
+  "mechanisms": [
+    {
+      "role": "insufficiency_safeguard",
+      "reference_fact_present_in_frozen_map": false,
+      "result": "The unique frozen end-span supports an alternate action but omits the reference-level action. A label-blind support check cannot detect the omission; accepting the entity alias repeats the wrong answer, while rejecting it repeats locator-based false abstention."
+    },
+    {
+      "role": "stability_control",
+      "reference_fact_present_in_frozen_map": true,
+      "result": "Two frozen text spans both satisfy the question because it has no temporal qualifier. The tuple check must verify rather than uniquely select the reference span; selecting it requires an additional, unvalidated salience or text-type rule."
+    }
+  ],
+  "decision_disposition": "Do not launch the proposed 24-call task-support follow-up",
+  "reconsider_when": "A treatment-frozen eligibility audit identifies fresh answer-sufficient targets with a uniquely recoverable requested entity, fact, and span, or a separate evidence-recovery experiment is authorized.",
+  "evidence_validity": "Diagnostic",
+  "private_artifact_sha256": "453e0abf54e0bcec58c8b00ebb0e3db458f6a19d67e730617afb8e156bceda29",
+  "privacy": "No row IDs, questions, references, evidence text, predictions, or raw responses are included."
+}

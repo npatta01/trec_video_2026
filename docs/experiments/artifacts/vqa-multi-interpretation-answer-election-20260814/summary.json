@@ -58,6 +58,19 @@
       "supported_answer_conflict": 1
     }
   },
+  "posthoc_design_validation": {
+    "audit_id": "task-support-paper-walkthrough-v1",
+    "method": "Zero-call entity-attribute-or-action-time-span support walkthrough on the two decisive election failures",
+    "rows_reviewed": 2,
+    "required_resolutions": 2,
+    "observed_resolutions": 0,
+    "passed": false,
+    "decision_disposition": "Do not launch the proposed 24-call task-support follow-up",
+    "mechanism_split": {
+      "insufficient_frozen_evidence_for_reference_fact": 1,
+      "question_underspecification_or_unfrozen_salience_rule": 1
+    }
+  },
   "conditions": {
     "direct": {
       "metric_row_count": 12,
@@ -125,6 +138,7 @@
     "sentinel_correction_score_v3_sha256": "dc626fa662d3327b41c2e8f6a749a117ce52096e0be4bcf121a99e98b3dd5ed3",
     "sentinel_correction_score_v4_sha256": "78a42762b611d2b0795628b60e291d29b2f4005c24ec8869c9c6fc7bfe0bdf32",
     "final_corrected_postfreeze_score_v5_sha256": "66baeaf72ef32fad88531bab9cc97f4cca99de8c929d414d1ca8d79f968d7a38",
+    "private_task_support_paper_walkthrough_sha256": "453e0abf54e0bcec58c8b00ebb0e3db458f6a19d67e730617afb8e156bceda29",
     "selection_exclusion_audit_sha256": "29a252f51e97f45117cf80857f5c0694249a6f01f9135391d6fe031284967939",
     "v3_exclusion_protocol_sha256": "daa5ce4ce0fa88566114d62a4f029dcc38e168b22f4c0fc892ce3a14ccfdf93a",
     "bert_model_view_sha256": "d22f23ad3ceb52cfcc5b5ab93b103083566ac9b0382ee3c98cf6cd8c12b9c942",

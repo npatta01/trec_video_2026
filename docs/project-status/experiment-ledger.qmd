@@ -157,7 +157,7 @@ link opens the visible theme record with the tested condition and limits.
 | [Speech](research-speech-transcripts.{{< meta report-ext >}}#current-working-answer) | Adds spoken words with explicit provenance | [Whisper ablation](research-speech-transcripts.{{< meta report-ext >}}#automatic-transcript-ablation) | **Use selectively:** accepted Whisper | **Blocked:** human tier; **Possible:** alternate ASR | [Selective Whisper route](research-speech-transcripts.{{< meta report-ext >}}#distribution-level-selective-whisper) |
 | [Native audio](research-native-audio.{{< meta report-ext >}}#current-working-answer) | Preserves prosody and non-speech sound | [Audio on/off](research-native-audio.{{< meta report-ext >}}#minicpm-audio-on-off) | **Do not default:** global audio on | **Possible:** routed sound/prosody | [Specialist panel](research-native-audio.{{< meta report-ext >}}#matched-native-audio-specialist-panel) |
 | [Models](research-models.{{< meta report-ext >}}#current-working-answer) | Separates compatibility, quality, and adaptation | [Candidate screens](research-models.{{< meta report-ext >}}#failure-panel) | **Use:** Qwen3.5-4B; **Fast:** MiniCPM-o | **Possible:** repaired/specialist model or adaptation | [Bottleneck-first decision](research-models.{{< meta report-ext >}}#bottleneck-first-adaptation-decision) |
-| [Routing](research-routing.{{< meta report-ext >}}#current-working-answer) | Chooses evidence and separates retrieval from answering | [Full-panel Gemini and grounded-answering tests](research-routing.{{< meta report-ext >}}#frontier-boundary-verifier); [multi-interpretation election](research-routing.{{< meta report-ext >}}#answer-election) | **Use:** direct Gemini native AV as frontier baseline; map as optional retrieval index | **Do not promote:** self-verifier, generic derived answer path, or tested election rule | [Question-driven temporal or speech verification over frozen context](research-routing.{{< meta report-ext >}}#frontier-boundary-verifier) |
+| [Routing](research-routing.{{< meta report-ext >}}#current-working-answer) | Chooses evidence and separates retrieval from answering | [Full-panel Gemini and grounded-answering tests](research-routing.{{< meta report-ext >}}#frontier-boundary-verifier); [multi-interpretation election](research-routing.{{< meta report-ext >}}#answer-election) | **Use:** direct Gemini native AV as frontier baseline; map as optional retrieval index | **Do not promote:** self-verifier, generic derived answer path, or tested election rule | [Sufficiency audit before temporal or speech verification](research-routing.{{< meta report-ext >}}#cheapest-valid-next-experiments) |
 :::
 
 ## Experiment index
@@ -270,10 +270,13 @@ a prescribed research sequence.
    24-row generic grounded-answering test, 11-row premise-tolerant follow-up,
    and fresh 12-row multi-interpretation election now supersede the earlier
    60-row-audit-first queue item. Do not spend these panels on another global
-   answer-policy rewrite or repeat the failed ensemble. If pursued, test one
-   explicit question-driven temporal or speech verification operation over
-   frozen global context and evaluate answering separately. Do not introduce a
-   shared router framework or counting specialist in that test.
+   answer-policy rewrite or repeat the failed ensemble. The `0/2` paper
+   walkthrough blocks an immediate verifier run. First freeze its contract and
+   perform an independent label-aware sufficiency audit on fresh candidates,
+   keeping labels/direct evidence hidden from inference; authorize paid
+   temporal or speech verification only if the requested facts and unique spans
+   are present. Do not introduce a shared router framework or counting
+   specialist in that test.
 
 <span id="how-to-interpret-results" class="legacy-fragment-alias" aria-hidden="true"></span>
 

@@ -40,9 +40,24 @@ Final render/checksum/privacy verification and independent review are complete;
 the review found no remaining Critical or Important issues. The branch, draft
 PR #37, and issue #35 result comment are updated. No implementation action
 remains in this task; do not merge without repository-owner review. The
-reconciled research route is
-explicit temporal or speech verification over fresh frozen context, not a
-repeat of this ensemble.
+reconciled research route freezes the treatment contract first, then uses an
+independent label-aware/direct-evidence sufficiency audit with labels and direct
+evidence hidden from inference before any explicit temporal or speech verifier.
+It is not a repeat of this ensemble.
+
+**2026-08-15 advisory addendum:** The user approved Fable's first bounded
+action: a zero-call entity–fact–time/span paper walkthrough on the two decisive
+election failures. The walkthrough resolved `0/2`, so the proposed 24-call
+verifier was not launched. One case lacks the reference-level action in the
+complete frozen map; the other has two valid displayed-text spans and no
+temporal qualifier. The next routing action is therefore to freeze a treatment
+contract and independently audit fresh candidates for answer sufficiency using
+labels/direct evidence that never enter inference, not to issue paid calls.
+AutoGaze was separately assessed from official sources: it is a question-blind
+visual patch-pruning/efficiency mechanism that may warrant a no-answer
+required-detail-recall canary under the visual-evidence theme, but it does not
+repair issue #35 answer support and is not a Gemini drop-in. No model download,
+inference, credential use, or paid call occurred.
 
 Formatting note: the scorer and all three new tests are formatted. The selector
 and treatment runner used before the paid calls fail `ruff format --check` and

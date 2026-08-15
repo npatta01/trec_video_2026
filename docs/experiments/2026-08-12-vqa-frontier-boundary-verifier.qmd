@@ -365,9 +365,11 @@ evidence-citation contract prevented unsupported cited claims, but its
 abstention behavior was too conservative and did not reliably repair temporal
 scope, requested purpose, or complete specificity. Do not scale this prompt,
 do not add multiple candidate answers, and do not treat it as the shared router
-or counting specialist. Any follow-up should test one explicit
-question-driven temporal or speech verification operation over frozen context,
-with answering evaluated separately.
+or counting specialist. This originally motivated an explicit question-driven
+temporal or speech verification proposal. The later `0/2` zero-call paper
+walkthrough supersedes that immediate next step: first freeze the treatment,
+then independently audit fresh target sufficiency against labels/direct
+evidence while keeping those materials hidden from inference.
 
 The sanitized tracked evidence index is
 `docs/experiments/artifacts/vqa-grounded-map-answering-20260814/`. Complete
@@ -514,21 +516,37 @@ This is a useful negative result, not evidence that candidate generation never
 helps. Candidate diversity exposed recoverable answers, but exact normalized
 agreement plus the sole-supported-answer rule was not a safe selector. Do not
 scale this election or replace its emitted top-1 result with oracle-best
-candidate scoring. The next answer-use experiment remains explicit
-question-driven temporal or speech verification over frozen global context,
-not another global prompt rewrite, answer ensemble, counting specialist, or
-shared router framework.
+candidate scoring.
+
+A later zero-call, label-aware paper walkthrough tested the proposed
+entity–fact–time/span support contract on the two decisive failures before
+authorizing another 24 calls. It resolved `0/2`. On the insufficiency row, the
+reference-level action is absent from the complete frozen map; accepting the
+unique entity alias repeats the cited alternate-action error, while rejecting
+the alias repeats locator-based false abstention. On the displayed-text
+control, two timestamped text spans both satisfy the question because it has no
+temporal qualifier; choosing the reference span requires a separately frozen
+salience or text-type rule, not tuple entailment. Therefore do not launch the
+proposed paid task-support follow-up from these cases. A future answer-use test
+first needs the treatment frozen before an independent, label-aware sufficiency
+audit shows that each target's requested fact and unique span are present;
+labels and direct evidence must remain hidden from inference. This does not authorize
+another global prompt rewrite, answer ensemble, counting specialist, or shared
+router framework.
 
 The sanitized evidence index is
 `docs/experiments/artifacts/vqa-multi-interpretation-answer-election-20260814/`.
 Complete private protocols, requests, raw responses, metadata, candidate
-traces, freezes, audit, and scores are retained at
+traces, freezes, audit, scores, and the exact paper walkthrough are retained at
 `/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/multi-interpretation-answer-election-issue35-v1/`.
 The original score and additive metric-provenance v2 are preserved;
 the additive v3 score binds the explicit v3 exclusion and corrects
 verification-sentinel handling. V4 and final v5 rebind the same numerical
 calculation to the finalized formatted/refactored scorer bytes; v5 also binds
 the exact BERT model view, upstream snapshot, and metric package versions.
+The private paper-walkthrough SHA-256 is
+`453e0abf54e0bcec58c8b00ebb0e3db458f6a19d67e730617afb8e156bceda29`;
+the tracked bundle contains a sanitized two-mechanism summary.
 
 Evidence validity: **Diagnostic**—valid negative selected-panel mechanism
 evidence for this candidate generator and deterministic election rule, with the
@@ -579,11 +597,14 @@ unnecessarily. Do not scale or broadly reprompt that condition.
 The fresh 12-row multi-interpretation follow-up then found a correct candidate
 on all 12 rows but failed to elect them safely: only one premise row improved
 over the single arm, one safeguard answered when verification was required, and
-one control regressed to verification. The next small mechanism test, if
-pursued, should perform an explicit question-driven temporal or speech
-verification operation over frozen global context and evaluate answering
-separately. It should not repeat this answer ensemble, introduce a shared
-router framework, or add a counting specialist.
+one control regressed to verification. The later paper walkthrough resolved
+neither decisive failure: one is a map omission and one is an underspecified
+two-span text question. Do not launch the proposed verifier from these rows.
+First freeze the treatment contract and perform an independent label-aware
+sufficiency audit on fresh candidates, with labels hidden from inference; only
+then consider one explicit temporal or speech
+operation. Do not repeat this answer ensemble, introduce a shared router
+framework, or add a counting specialist.
 
 An independent Sol review rejected a generic generative consistency pass: the
 same-model verifier already repeated a known error, so another self-opinion can

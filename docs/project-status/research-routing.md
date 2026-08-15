@@ -75,9 +75,11 @@ fact.
   self-verification.
 - **Still possible:** abstaining multi-label routing, grounded fusion,
   and evidence-aware answer election.
-- **Next test:** keep any follow-up narrow: one explicit question-driven
-  temporal or speech verification operation over frozen context, with
-  answering evaluated separately.
+- **Next test:** first freeze the treatment, then run an independent
+  zero-call sufficiency audit on fresh candidates using labels/direct
+  evidence that remain hidden from inference; authorize a temporal or
+  speech verifier only when the requested fact and unique span are
+  present.
 
 </div>
 
@@ -313,6 +315,14 @@ GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
   panel selection preceded the committed treatment implementation, treat
   this only as diagnostic selected-panel evidence, not a clean
   fresh-panel estimate.
+- **Zero-call task-support walkthrough:** the proposed
+  entity–fact–time/span contract resolved `0/2` decisive election
+  failures. One row lacks the reference-level action in the frozen map;
+  the other has two valid displayed text spans and no temporal
+  qualifier. Do not launch the proposed 24-call verifier from these
+  cases. First freeze the treatment, then independently prove fresh
+  target sufficiency against labels/direct evidence kept hidden from
+  inference.
 - **Evidence validity and disposition:** valid-but-negative selected
   mechanism evidence with a corrected 10-row answer-sufficient target
   subset and partial automatic metrics. **Not promoted under the tested
@@ -325,9 +335,11 @@ GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
   labels were corrected after prediction freeze; its category counts are
   not prevalence. The grounded-answering STS/composite pair remains
   unavailable because the frozen external service was unreachable.
-- **Reconsider when:** an explicit question-driven temporal or speech
-  verification operation over frozen context repairs its declared
-  failures without regressing matched supported controls.
+- **Reconsider when:** after treatment freeze, an independent
+  label-aware sufficiency audit finds fresh targets whose requested fact
+  and unique span are present, with labels hidden from inference, after
+  which an explicit temporal or speech verifier can be tested without
+  regressing matched supported controls.
 
 <details>
 
@@ -380,7 +392,10 @@ index](../experiments/artifacts/vqa-grounded-map-answering-20260814/README.md).
   election or treating oracle-best candidate coverage as deployed top-1
   performance.
 - **What it does not rule out:** a separately frozen selector with an
-  explicit task-support check, evaluated on another fresh panel.
+  explicit task-support check, but only after a treatment-frozen
+  independent audit proves from labels/direct evidence that the
+  requested fact and unique span are present while those materials
+  remain hidden from inference.
 - **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the
   small selected panel diagnoses mechanisms but does not estimate
   general prevalence; label-aware selection preceded committed treatment
@@ -388,9 +403,11 @@ index](../experiments/artifacts/vqa-grounded-map-answering-20260814/README.md).
   semantically on five rows. A post-freeze attestation proves v3 was a
   subset of the originally bound v2 exclusion but cannot repair
   treatment-code isolation.
-- **Reconsider when:** a fresh controlled selector can reject cited but
-  wrong-for-request alternate actions and resolve competing displayed
-  spans without using references or regressing controls.
+- **Reconsider when:** after treatment freeze, an independent
+  label-aware sufficiency audit finds fresh answer-sufficient targets
+  while labels remain hidden from inference; the post-hoc paper
+  walkthrough resolved neither decisive failure and therefore does not
+  justify paid inference.
 
 <details>
 
@@ -536,25 +553,27 @@ class="legacy-fragment-alias" aria-hidden="true"></span>
 - **Boundary on what a positive result would establish:** a diagnosis
   for the labeled slice, not a universal causal explanation.
 
-### Explicit temporal or speech verification over frozen context
+### Sufficiency audit before temporal or speech verification
 
-- **Hypothesis:** an explicit question-driven check of the requested
-  temporal successor or speech span can distinguish missing
-  reference-level support from a merely paraphrased locator before final
-  answering.
-- **Smallest valid panel or work item:** a fresh category-balanced set
-  of temporal and speech failures plus supported controls over frozen
-  global maps.
-- **Matched controls and integrity safeguards:** freeze the verification
-  operation, requested relation/unit, source context, citations,
-  abstention, and one top-1 output before labels; do not reuse the spent
-  ensemble panel.
-- **Decision or promotion rule:** advance only with correct verification
-  or answer on every insufficiency row, declared target rescues, and no
-  control or unsupported-answer regression.
-- **Boundary on what a positive result would establish:** the explicit
-  verification mechanism on that fresh panel, not a shared router or
-  generic answer ensemble.
+- **Hypothesis:** after the treatment contract is frozen, an independent
+  label-aware audit can identify fresh map rows whose requested entity,
+  fact, and temporal or speech span are uniquely present while keeping
+  labels and direct evidence hidden from inference.
+- **Smallest valid panel or work item:** zero-call audit of a fresh
+  candidate pool, with the proposed verifier contract committed first;
+  retain only uniquely answer-sufficient targets plus separately
+  declared insufficiency and supported controls.
+- **Matched controls and integrity safeguards:** freeze the requested
+  relation/unit/span rules before row selection; use independent
+  labels/direct evidence only for sufficiency adjudication, never model
+  input; exclude all spent issue \#35 panels and disclose the selected
+  diagnostic boundary.
+- **Decision or promotion rule:** authorize inference only if enough
+  fresh targets have a uniquely supported requested fact and matched
+  safeguards and controls can be frozen without post-hoc role changes.
+- **Boundary on what a positive result would establish:** feasibility of
+  a clean verifier experiment, not verifier quality, a shared router, or
+  a generic answer ensemble.
 
 ## Method, result, validity risks, and evidence
 
