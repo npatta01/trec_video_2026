@@ -1639,6 +1639,13 @@ def status_payload(root: Path) -> dict[str, object]:
     }
 
 
+def client_from_env() -> Any:
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY is unavailable")
+    return genai.Client(api_key=api_key)
+
+
 def _parse_args() -> Any:
     import argparse
 
@@ -1664,7 +1671,7 @@ def main() -> None:
     if args.command == "status":
         result = status_payload(args.root)
     else:
-        client = genai.Client()
+        client = client_from_env()
         if args.command == "preflight":
             result = run_preflight(root=args.root, client=client)
         elif args.command == "run-smoke":

@@ -132,6 +132,21 @@ def test_write_once_stage_terminal_refuses_mutation(tmp_path: Path) -> None:
         )
 
 
+def test_client_from_env_uses_established_gemini_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured = {}
+    monkeypatch.setenv("GEMINI_API_KEY", "private-test-key")
+    monkeypatch.setattr(
+        runner.genai,
+        "Client",
+        lambda *, api_key: captured.setdefault("client", SimpleNamespace(key=api_key)),
+    )
+    client = runner.client_from_env()
+    assert client.key == "private-test-key"
+    assert captured["client"] is client
+
+
 class FakeFiles:
     def upload(self, *, file: Path):
         assert file.is_file()

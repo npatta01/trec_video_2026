@@ -214,3 +214,23 @@ def test_bind_media_rejects_hash_mutation_or_missing_row(tmp_path: Path) -> None
         prepare.bind_media(panel=panel, prior_requests=prior)
     with pytest.raises(ValueError, match="missing media binding"):
         prepare.bind_media(panel=panel, prior_requests={"rows": []})
+
+
+def test_bind_media_from_roots_accepts_recorded_mp4_delivery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_root = tmp_path / "source"
+    delivery_root = tmp_path / "deliveries"
+    source_root.mkdir()
+    delivery = delivery_root / "v1/delivery-media/v1.mp4"
+    delivery.parent.mkdir(parents=True)
+    (source_root / "v1.mkv").write_bytes(b"source")
+    delivery.write_bytes(b"delivery")
+    monkeypatch.setattr(prepare, "_probe_duration", lambda _path: 4.0)
+    rows = prepare.bind_media_from_roots(
+        panel=[{"ordinal": 1, "video_id": "v1", "question": "How many?"}],
+        source_root=source_root,
+        delivery_root=delivery_root,
+    )
+    assert rows[0]["delivery_path"] == str(delivery)
+    assert rows[0]["delivery_mime_type"] == "video/mp4"

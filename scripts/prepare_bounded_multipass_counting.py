@@ -232,9 +232,19 @@ def bind_media_from_roots(
     for row in panel:
         video_id = str(row["video_id"])
         source_path = source_root / f"{video_id}.mkv"
-        delivery_path = delivery_root / video_id / "delivery-media" / f"{video_id}.webm"
-        if not source_path.is_file() or not delivery_path.is_file():
+        media_root = delivery_root / video_id / "delivery-media"
+        delivery_candidates = [
+            path
+            for path in (
+                media_root / f"{video_id}.webm",
+                media_root / f"{video_id}.mp4",
+            )
+            if path.is_file()
+        ]
+        if not source_path.is_file() or len(delivery_candidates) != 1:
             raise ValueError(f"missing bound media file for {video_id}")
+        delivery_path = delivery_candidates[0]
+        mime_type = "video/webm" if delivery_path.suffix == ".webm" else "video/mp4"
         prior_rows.append(
             {
                 "video_id": video_id,
@@ -242,7 +252,7 @@ def bind_media_from_roots(
                 "source_sha256": _file_sha256(source_path),
                 "delivery_path": str(delivery_path),
                 "delivery_sha256": _file_sha256(delivery_path),
-                "delivery_mime_type": "video/webm",
+                "delivery_mime_type": mime_type,
                 "duration_seconds": _probe_duration(delivery_path),
             }
         )
