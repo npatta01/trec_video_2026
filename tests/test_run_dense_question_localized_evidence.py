@@ -225,6 +225,36 @@ def test_provider_response_schema_omits_recursive_additional_properties_but_loca
         runner.validate_probe({**_valid_probe(), "extra": True}, 2.0)
 
 
+def test_probe_accepts_nominal_endpoint_with_one_frame_encoding_shortfall() -> None:
+    payload = _valid_probe()
+    payload["evidence_timestamps"] = [4.0]
+    result = runner.validate_probe(
+        payload, 3.994, nominal_duration_seconds=4.0, fps=12.0
+    )
+    assert result["evidence_timestamps"] == [4.0]
+
+
+def test_probe_rejects_timestamp_past_nominal_endpoint() -> None:
+    payload = _valid_probe()
+    payload["evidence_timestamps"] = [4.001]
+    with pytest.raises(ValueError, match="nominal"):
+        runner.validate_probe(payload, 3.994, nominal_duration_seconds=4.0, fps=12.0)
+
+
+def test_probe_rejects_endpoint_overshoot_beyond_measured_shortfall() -> None:
+    payload = _valid_probe()
+    payload["evidence_timestamps"] = [4.0]
+    with pytest.raises(ValueError, match="shortfall"):
+        runner.validate_probe(payload, 3.9, nominal_duration_seconds=4.0, fps=12.0)
+
+
+def test_probe_rejects_encoding_shortfall_over_one_frame() -> None:
+    payload = _valid_probe()
+    payload["evidence_timestamps"] = [4.0]
+    with pytest.raises(ValueError, match="one frame"):
+        runner.validate_probe(payload, 3.8, nominal_duration_seconds=4.0, fps=8.0)
+
+
 def test_prompt_is_question_localized_and_prohibits_label_leakage() -> None:
     prompt = runner.build_prompt(
         "What does the robot do at the end?",

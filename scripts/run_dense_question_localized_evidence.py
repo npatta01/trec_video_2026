@@ -18,6 +18,7 @@ import math
 import os
 from pathlib import Path
 import re
+import shutil
 import time
 from typing import Any, Callable, Mapping, Sequence
 
@@ -354,7 +355,13 @@ def _prompt_template_sha256() -> str:
     ).hexdigest()
 
 
-def validate_probe(payload: Any, clip_duration_seconds: float) -> dict[str, Any]:
+def validate_probe(
+    payload: Any,
+    clip_duration_seconds: float,
+    *,
+    nominal_duration_seconds: float | None = None,
+    fps: float | None = None,
+) -> dict[str, Any]:
     """Validate the strict evidence-recovery response and normalize it."""
 
     if not isinstance(payload, Mapping):
@@ -390,11 +397,34 @@ def validate_probe(payload: Any, clip_duration_seconds: float) -> dict[str, Any]
     duration = _number(clip_duration_seconds, "clip_duration_seconds")
     if duration <= 0:
         raise ValueError("clip_duration_seconds must be positive")
+    nominal = duration if nominal_duration_seconds is None else _number(
+        nominal_duration_seconds, "nominal_duration_seconds"
+    )
+    if nominal <= 0:
+        raise ValueError("nominal_duration_seconds must be positive")
+    if nominal_duration_seconds is not None:
+        if fps is None or _number(fps, "fps") <= 0:
+            raise ValueError("fps is required for nominal endpoint validation")
+        frame = 1.0 / _number(fps, "fps")
+        if duration > nominal:
+            raise ValueError("encoded duration exceeds nominal duration")
+        shortfall = nominal - duration
+        if shortfall > frame:
+            raise ValueError("encoding shortfall exceeds one frame")
+    else:
+        frame = 0.0
+        shortfall = 0.0
     timestamps: list[float] = []
     for index, value in enumerate(timestamp_payload):
         timestamp = _number(value, f"evidence_timestamps[{index}]")
-        if timestamp < 0 or timestamp > duration:
-            raise ValueError(f"evidence timestamp is outside clip duration: {timestamp}")
+        if timestamp < 0 or timestamp > nominal:
+            raise ValueError(f"evidence timestamp is outside nominal duration: {timestamp}")
+        if timestamp > duration and (
+            nominal_duration_seconds is None
+            or timestamp - duration > shortfall
+            or timestamp - duration > frame
+        ):
+            raise ValueError(f"evidence timestamp exceeds encoded duration shortfall: {timestamp}")
         timestamps.append(timestamp)
     if timestamps != sorted(set(timestamps)):
         raise ValueError("evidence_timestamps must be sorted and unique")
@@ -1052,6 +1082,11 @@ def run(root: Path, call: CallFunction | None = None) -> None:
     root = Path(root)
     if not root.is_dir():
         raise ValueError(f"run root does not exist: {root}")
+    if (root / "continuation-authorization.json").exists():
+        validate_continuation_authorization(root)
+        raise ValueError(
+            "continuation root is preparation-only until its fresh amended-validator canary is executed"
+        )
     if (root / "predictions-freeze.json").exists() or (root / "rows").exists():
         raise ValueError("output already has artifacts; refusing to overwrite")
     rows, _provider_by_index, _media_by_index = _validate_inputs(root)
@@ -1146,7 +1181,12 @@ def run(root: Path, call: CallFunction | None = None) -> None:
                 return
             continue
         try:
-            parsed = validate_probe(payload, media["clip_duration_seconds"])
+            parsed = validate_probe(
+                payload,
+                media["clip_duration_seconds"],
+                nominal_duration_seconds=media["clip_end_seconds"] - media["clip_start_seconds"],
+                fps=fps,
+            )
         except ValueError as error:
             _write_once(
                 row_root / "terminal.json",
@@ -1253,7 +1293,12 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
                 required.add("raw-response.txt")
             if status == "passed":
                 required.add("parsed.json")
-                validate_probe(_load_json(row_root / "parsed.json"), item["media"]["clip_duration_seconds"])
+                validate_probe(
+                    _load_json(row_root / "parsed.json"),
+                    item["media"]["clip_duration_seconds"],
+                    nominal_duration_seconds=item["media"]["clip_end_seconds"] - item["media"]["clip_start_seconds"],
+                    fps=fps,
+                )
             entries = {path.name for path in row_root.iterdir()}
             names = {path.name for path in row_root.iterdir() if path.is_file()}
             if entries != names or not required.issubset(names) or not names.issubset(set(ROW_ARTIFACT_NAMES)):
@@ -1262,6 +1307,8 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
                 validate_probe(
                     _load_json(row_root / "parsed.json"),
                     item["media"]["clip_duration_seconds"],
+                    nominal_duration_seconds=item["media"]["clip_end_seconds"] - item["media"]["clip_start_seconds"],
+                    fps=fps,
                 )
             frozen = next((value for value in frozen_rows if isinstance(value, Mapping) and value.get("audit_index") == audit_index and value.get("fps") == fps), None)
             if frozen is None:
@@ -1391,6 +1438,131 @@ def verify_predictions_freeze(root: Path) -> None:
     }
     _write_once(prediction_path, freeze)
     _verify_freeze_contents(root, freeze)
+
+
+def prepare_continuation(source_root: Path, output_root: Path) -> None:
+    """Prepare a zero-call amended-validator replay and continuation candidate.
+
+    The source run is treated as immutable.  Only its first, failed-canary
+    pair is imported; the next pair remains the fresh compatibility canary.
+    """
+    source_root = Path(source_root)
+    output_root = Path(output_root)
+    if output_root.exists():
+        raise ValueError("continuation output already exists")
+    prediction_path = source_root / "predictions-freeze.json"
+    if not prediction_path.is_file():
+        raise ValueError("source prediction freeze is required")
+    source_freeze = _load_json(prediction_path)
+    if source_freeze.get("status") != "incomplete" or source_freeze.get("call_count") != 2:
+        raise ValueError("source must be the immutable two-call canary freeze")
+    provider_payload = _load_json(source_root / "provider-rows.json")
+    media_payload = _load_json(source_root / "media-manifest.json")
+    provider_rows = _provider_projection(_rows_payload(provider_payload, "provider-rows.json"))
+    media_by_index = {
+        row["audit_index"]: _media_row(row, source_root)
+        for row in _rows_payload(media_payload, "media-manifest.json")
+    }
+    rows = [{"provider": row, "media": media_by_index[row["audit_index"]]} for row in provider_rows]
+    tasks = [(item, fps) for item in rows for fps in EXPECTED_FPS]
+    imported = tasks[:2]
+    output_root.mkdir(parents=True)
+    for name in ("provider-rows.json", "media-manifest.json"):
+        shutil.copy2(source_root / name, output_root / name)
+    treatment = _load_json(source_root / "treatment-freeze.json")
+    treatment["runner_sha256"] = _sha256(SCRIPT_PATH)
+    treatment["validator_sha256"] = _validator_sha256()
+    _write_once(output_root / "treatment-freeze.json", treatment)
+    selection = _load_json(source_root / "selection-freeze.json")
+    selection["treatment_freeze_sha256"] = _sha256(output_root / "treatment-freeze.json")
+    _write_once(output_root / "selection-freeze.json", selection)
+    authorization = _load_json(source_root / "provider-authorization.json")
+    authorization["treatment_freeze_sha256"] = _sha256(output_root / "treatment-freeze.json")
+    authorization["selection_freeze_sha256"] = _sha256(output_root / "selection-freeze.json")
+    _write_once(output_root / "provider-authorization.json", authorization)
+    prefix: list[dict[str, Any]] = []
+    for item, fps in imported:
+        audit_index = item["provider"]["audit_index"]
+        role = item["media"]["role"]
+        source_arm = _arm_directory(source_root, audit_index, role, fps)
+        target_arm = _arm_directory(output_root, audit_index, role, fps)
+        target_arm.mkdir(parents=True, exist_ok=False)
+        for name in ("request.json", "raw-response.txt", "metadata.json"):
+            shutil.copy2(source_arm / name, target_arm / name)
+        raw = (source_arm / "raw-response.txt").read_text()
+        parsed = validate_probe(
+            json.loads(raw),
+            item["media"]["clip_duration_seconds"],
+            nominal_duration_seconds=item["media"]["clip_end_seconds"] - item["media"]["clip_start_seconds"],
+            fps=fps,
+        )
+        _write_once(target_arm / "parsed.json", parsed)
+        _write_once(target_arm / "terminal.json", {
+            "audit_index": audit_index, "role": role, "fps": fps,
+            "status": "passed", "raw_response_sha256": _sha256_bytes(raw.encode()),
+        })
+        source_artifacts = {name: _sha256(source_arm / name) for name in sorted(path.name for path in source_arm.iterdir() if path.is_file())}
+        prefix.append({
+            "audit_index": audit_index, "role": role, "fps": fps,
+            "source_artifacts": source_artifacts,
+            "source_response_id": _load_json(source_arm / "metadata.json").get("response_id"),
+            "replayed_artifacts": {name: _sha256(target_arm / name) for name in sorted(path.name for path in target_arm.iterdir() if path.is_file())},
+        })
+    replay = {
+        "schema_version": 1, "status": "frozen", "provider_calls_made": 0,
+        "source_root": str(source_root),
+        "source_predictions_freeze_sha256": _sha256(prediction_path),
+        "imported_prefix": prefix,
+        "canary_pair_status": "passed",
+        "runner_sha256": _sha256(SCRIPT_PATH),
+        "validator_sha256": _validator_sha256(),
+    }
+    _write_once(output_root / "canary-replay-freeze.json", replay)
+    auth = {
+        "schema_version": 1, "status": "authorized", "authorization_type": "continuation",
+        "provider_calls_made": 0, "prior_provider_calls": 2,
+        "remaining_new_call_maximum": 22, "combined_call_maximum": 24,
+        "next_arm_position": 3, "fresh_canary_pair": {"start_position": 3, "arms": 2},
+        "imported_prefix": prefix,
+        "canary_replay_freeze_sha256": _sha256(output_root / "canary-replay-freeze.json"),
+        "source_predictions_freeze_sha256": _sha256(prediction_path),
+        "treatment_freeze_sha256": _sha256(output_root / "treatment-freeze.json"),
+        "selection_freeze_sha256": _sha256(output_root / "selection-freeze.json"),
+        "provider_rows_sha256": _sha256(output_root / "provider-rows.json"),
+        "media_manifest_sha256": _sha256(output_root / "media-manifest.json"),
+        "model": MODEL, "settings": EXPECTED_SETTINGS,
+    }
+    _write_once(output_root / "continuation-authorization.json", auth)
+
+
+def validate_continuation_authorization(root: Path) -> None:
+    """Validate the zero-call continuation boundary and imported prefix."""
+    root = Path(root)
+    auth_path = root / "continuation-authorization.json"
+    replay_path = root / "canary-replay-freeze.json"
+    if not auth_path.is_file() or not replay_path.is_file():
+        raise ValueError("continuation authorization and replay freeze are required")
+    auth = _load_json(auth_path)
+    replay = _load_json(replay_path)
+    if auth.get("authorization_type") != "continuation" or auth.get("status") != "authorized":
+        raise ValueError("invalid continuation authorization")
+    if auth.get("provider_calls_made") != 0 or auth.get("prior_provider_calls") != 2:
+        raise ValueError("continuation call counts are invalid")
+    if auth.get("remaining_new_call_maximum") != 22 or auth.get("combined_call_maximum") != 24:
+        raise ValueError("continuation call cap is invalid")
+    if auth.get("next_arm_position") != 3:
+        raise ValueError("continuation must begin at arm 3")
+    if auth.get("canary_replay_freeze_sha256") != _sha256(replay_path):
+        raise ValueError("continuation replay hash drift")
+    if replay.get("status") != "frozen" or replay.get("canary_pair_status") != "passed":
+        raise ValueError("continuation replay has not passed")
+    prefix = auth.get("imported_prefix")
+    if not isinstance(prefix, list) or len(prefix) != 2 or prefix != replay.get("imported_prefix"):
+        raise ValueError("continuation imported prefix drift")
+    if [item.get("fps") for item in prefix] != list(EXPECTED_FPS):
+        raise ValueError("continuation imported prefix order is invalid")
+    if [item.get("role") for item in prefix] != ["target", "target"]:
+        raise ValueError("continuation imported prefix roles are invalid")
 
 
 def build_parser() -> argparse.ArgumentParser:
