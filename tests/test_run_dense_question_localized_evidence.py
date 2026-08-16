@@ -726,6 +726,29 @@ def _rewrite_replay_bytes_and_auth(root: Path) -> None:
     _write_json(auth_path, auth)
 
 
+def _rewrite_replay_auth_same_length_restore_mtime(root: Path) -> None:
+    """Rewrite equivalent JSON while restoring size and timestamps."""
+
+    replay_path = root / "canary-replay-freeze.json"
+    replay_stat = replay_path.stat()
+    replay_bytes = replay_path.read_bytes()
+    marker = b"  "
+    offset = replay_bytes.find(marker)
+    assert offset >= 0
+    replay_path.write_bytes(replay_bytes[:offset] + b" \t" + replay_bytes[offset + len(marker) :])
+    os.utime(replay_path, ns=(replay_stat.st_atime_ns, replay_stat.st_mtime_ns))
+
+    auth_path = root / "continuation-authorization.json"
+    auth_stat = auth_path.stat()
+    auth_bytes = auth_path.read_bytes()
+    old_hash = _sha(replay_path)
+    prior_hash = json.loads(auth_bytes.decode())["canary_replay_freeze_sha256"]
+    assert len(old_hash) == len(prior_hash)
+    auth_bytes = auth_bytes.replace(prior_hash.encode(), old_hash.encode(), 1)
+    auth_path.write_bytes(auth_bytes)
+    os.utime(auth_path, ns=(auth_stat.st_atime_ns, auth_stat.st_mtime_ns))
+
+
 def _refresh_current_input_bindings(root: Path) -> None:
     provider_rows = json.loads((root / "provider-rows.json").read_text())["rows"]
     selection_path = root / "selection-freeze.json"
@@ -803,7 +826,10 @@ def test_continuation_authorization_bytes_drift_after_freeze_is_rejected(tmp_pat
     auth = json.loads(auth_path.read_text())
     auth["remaining_new_call_maximum"] = 21
     _write_json(auth_path, auth)
-    with pytest.raises(ValueError, match="continuation (call cap is invalid|authorization bytes)"):
+    with pytest.raises(
+        ValueError,
+        match="continuation (call cap is invalid|authorization bytes|snapshot drift)",
+    ):
         runner.verify_predictions_freeze(root)
 
 
@@ -1114,6 +1140,81 @@ def test_continuation_snapshot_catches_imported_or_future_clip_drift_after_first
     assert (triggered / "raw-response.txt").is_file()
     assert not (triggered / "terminal.json").exists()
     assert not runner._arm_directory(root, 2, "target", 12.0).exists()
+
+
+def test_continuation_snapshot_catches_same_length_restored_mtime_replay_auth_drift(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    calls: list[tuple[Any, ...]] = []
+
+    def call(*args: Any) -> tuple[str, dict[str, Any]]:
+        calls.append(args)
+        _rewrite_replay_auth_same_length_restore_mtime(root)
+        return _id_call(f"same-length-drift-{len(calls)}")
+
+    with pytest.raises(ValueError, match="continuation snapshot"):
+        runner.run(root, call=call)
+    assert len(calls) == 1
+    triggered = runner._arm_directory(root, 2, "target", 4.0)
+    assert (triggered / "raw-response.txt").is_file()
+    assert not (triggered / "terminal.json").exists()
+    assert not runner._arm_directory(root, 2, "target", 12.0).exists()
+
+
+def test_continuation_raw_capture_collision_preserves_returned_raw_and_metadata(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    calls: list[tuple[Any, ...]] = []
+    returned_raw = json.dumps(_valid_probe())
+
+    def call(*args: Any) -> tuple[str, dict[str, Any]]:
+        calls.append(args)
+        arm = runner._arm_directory(root, 2, "target", 4.0)
+        (arm / "raw-response.txt").write_text("sentinel raw")
+        _write_json(arm / "metadata.json", {"sentinel": True})
+        return returned_raw, {"provider": "fake", "response_id": "collision-01"}
+
+    with pytest.raises(ValueError, match="capture collision"):
+        runner.run(root, call=call)
+    assert len(calls) == 1
+    capture_root = root / "callback-captures"
+    capture_files = list(capture_root.rglob("*"))
+    assert any(path.name == "raw-response.txt" and path.read_text() == returned_raw for path in capture_files)
+    assert any(path.name == "metadata.json" for path in capture_files)
+    assert any(path.name == "terminal.json" for path in capture_files)
+    assert (runner._arm_directory(root, 2, "target", 4.0) / "raw-response.txt").read_text() == "sentinel raw"
+    assert not runner._arm_directory(root, 2, "target", 12.0).exists()
+
+
+def test_continuation_startup_rejects_stale_callback_capture_artifacts(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    stale = root / "callback-captures" / "position-03-target-4fps"
+    stale.mkdir(parents=True)
+    (stale / "raw-response.txt").write_text("stale")
+    calls: list[tuple[Any, ...]] = []
+    response_ids = iter(f"capture-stale-{index}" for index in range(22))
+    with pytest.raises(ValueError, match="capture"):
+        runner.run(root, call=lambda *args: calls.append(args) or _id_call(next(response_ids)))
+    assert calls == []
+
+
+def test_continuation_requires_committed_sanitized_ledger_before_callback(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    auth_path = root / "continuation-authorization.json"
+    auth = json.loads(auth_path.read_text())
+    auth["ledger_path"] = "docs/superpowers/ledgers/forged-ledger.json"
+    _write_json(auth_path, auth)
+    calls: list[tuple[Any, ...]] = []
+    response_ids = iter(f"ledger-missing-{index}" for index in range(22))
+    with pytest.raises(ValueError, match="committed ledger"):
+        runner.run(root, call=lambda *args: calls.append(args) or _id_call(next(response_ids)))
+    assert calls == []
 
 
 def test_continuation_freeze_requires_call_time_snapshot_after_semantic_replay_rewrite(

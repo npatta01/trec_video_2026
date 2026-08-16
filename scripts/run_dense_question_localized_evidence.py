@@ -20,6 +20,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
 import time
 from typing import Any, Callable, Mapping, Sequence
 
@@ -65,6 +66,18 @@ ROW_ARTIFACT_NAMES = (
     "parsed.json",
     "terminal.json",
 )
+CAPTURE_ROOT_NAME = "callback-captures"
+CAPTURE_ARTIFACT_NAMES = (
+    "reservation.json",
+    "raw-response.txt",
+    "metadata.json",
+    "terminal.json",
+)
+LEDGER_RELATIVE_PATH = Path(
+    "docs/superpowers/ledgers/2026-08-16-dense-question-localized-evidence-task3d-v20.json"
+)
+REPO_ROOT = SCRIPT_PATH.parents[1]
+LEDGER_CANDIDATE_VERSION = "run-v20"
 EXECUTION_SNAPSHOT_NAME = "execution-snapshot.json"
 EXECUTION_SNAPSHOT_FINAL_NAME = "execution-snapshot-final.json"
 TERMINAL_STATUSES = {
@@ -178,6 +191,61 @@ def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def _git_head_bytes(relative_path: Path) -> bytes:
+    try:
+        result = subprocess.run(
+            ["git", "show", f"HEAD:{relative_path.as_posix()}"],
+            cwd=REPO_ROOT,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise ValueError(f"committed ledger or config is unavailable: {relative_path}") from error
+    return result.stdout
+
+
+def _require_committed_file(relative_path: Path) -> tuple[Path, str]:
+    path = REPO_ROOT / relative_path
+    if not path.is_file() or path.is_symlink():
+        raise ValueError(f"committed ledger or config worktree file is invalid: {relative_path}")
+    worktree_bytes = path.read_bytes()
+    committed_bytes = _git_head_bytes(relative_path)
+    if worktree_bytes != committed_bytes:
+        raise ValueError(f"committed ledger or config worktree bytes drift: {relative_path}")
+    return path, _sha256_bytes(committed_bytes)
+
+
+def _ledger_normalized_payload(path: Path) -> Any:
+    payload = _load_json(path)
+    if path.name == "continuation-authorization.json":
+        if not isinstance(payload, Mapping):
+            raise ValueError("continuation authorization is not an object")
+        payload = dict(payload)
+        for field in (
+            "ledger_path",
+            "ledger_git_blob_sha256",
+            "candidate_root_version",
+        ):
+            payload.pop(field, None)
+    elif path.name == "canary-replay-freeze.json":
+        if not isinstance(payload, Mapping):
+            raise ValueError("canary replay freeze is not an object")
+        payload = dict(payload)
+        payload["source_root"] = "<source-root>"
+    return payload
+
+
+def _ledger_binding_sha256(path: Path) -> str:
+    return _sha256_bytes(_canonical(_ledger_normalized_payload(path)))
+
+
+def _snapshot_bound_bytes(path: Path) -> bytes:
+    if path.name in {"continuation-authorization.json", "canary-replay-freeze.json"}:
+        return _json_bytes(_ledger_normalized_payload(path))
+    return path.read_bytes()
+
+
 def _json_bytes(value: Any) -> bytes:
     return (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
 
@@ -206,6 +274,24 @@ def _write_text_once(path: Path, text: str) -> None:
             handle.write(text)
     except FileExistsError as error:
         raise ValueError(f"refusing to overwrite immutable artifact: {path}") from error
+
+
+def _write_bytes_once(path: Path, value: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("xb") as handle:
+            handle.write(value)
+            handle.flush()
+            os.fsync(handle.fileno())
+    except FileExistsError as error:
+        raise ValueError(f"refusing to overwrite immutable artifact: {path}") from error
+
+
+def _write_json_fsync_once(path: Path, payload: Any) -> None:
+    _write_bytes_once(
+        path,
+        (json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode(),
+    )
 
 
 def _string(value: Any, field: str) -> str:
@@ -817,10 +903,113 @@ def _arm_directory(root: Path, audit_index: int, role: str, fps: float) -> Path:
     return root / "rows" / f"{audit_index:02d}-{role}-{_arm_name(fps)}"
 
 
+def _capture_directory(
+    root: Path, position: int, audit_index: int, role: str, fps: float
+) -> Path:
+    if not _SAFE_ID_RE.fullmatch(role):
+        raise ValueError(f"row role is not path-safe: {role}")
+    return root / CAPTURE_ROOT_NAME / f"{position:02d}-{audit_index:02d}-{role}-{_arm_name(fps)}"
+
+
+def _reserve_capture(
+    root: Path, position: int, audit_index: int, role: str, fps: float
+) -> Path:
+    capture = _capture_directory(root, position, audit_index, role, fps)
+    try:
+        capture.mkdir(parents=True, exist_ok=False)
+    except FileExistsError as error:
+        raise ValueError(f"capture reservation collision: {capture.name}") from error
+    _write_json_fsync_once(
+        capture / "reservation.json",
+        {
+            "position": position,
+            "audit_index": audit_index,
+            "role": role,
+            "fps": fps,
+            "status": "reserved",
+        },
+    )
+    return capture
+
+
+def _capture_failure(
+    capture: Path, *, status: str, error: BaseException
+) -> None:
+    _write_json_fsync_once(
+        capture / "metadata.json",
+        {"error_type": type(error).__name__, "error": str(error)},
+    )
+    _write_json_fsync_once(
+        capture / "terminal.json",
+        {"status": status, "error_type": type(error).__name__},
+    )
+
+
+def _capture_success(
+    capture: Path, raw: str, metadata: Mapping[str, Any]
+) -> dict[str, Any]:
+    raw_bytes = raw.encode()
+    capture_metadata = {
+        **dict(metadata),
+        "raw_response_sha256": _sha256_bytes(raw_bytes),
+    }
+    _write_bytes_once(capture / "raw-response.txt", raw_bytes)
+    _write_json_fsync_once(capture / "metadata.json", capture_metadata)
+    return capture_metadata
+
+
+def _promote_capture(
+    capture: Path, row_root: Path, metadata: Mapping[str, Any]
+) -> None:
+    final_paths = (row_root / "raw-response.txt", row_root / "metadata.json")
+    collisions = [path.name for path in final_paths if path.exists() or path.is_symlink()]
+    if collisions:
+        _write_json_fsync_once(
+            capture / "terminal.json",
+            {
+                "status": "capture_collision",
+                "collision_artifacts": collisions,
+                "raw_response_sha256": metadata["raw_response_sha256"],
+            },
+        )
+        raise ValueError(
+            "capture collision: final arm artifacts already exist: "
+            + ", ".join(collisions)
+        )
+    try:
+        os.link(capture / "raw-response.txt", final_paths[0])
+        os.link(capture / "metadata.json", final_paths[1])
+    except FileExistsError as error:
+        _write_json_fsync_once(
+            capture / "terminal.json",
+            {
+                "status": "capture_collision",
+                "collision_artifacts": [path.name for path in final_paths if path.exists()],
+                "raw_response_sha256": metadata["raw_response_sha256"],
+            },
+        )
+        raise ValueError("capture collision during final promotion") from error
+    _write_json_fsync_once(
+        capture / "terminal.json",
+        {
+            "status": "promoted",
+            "raw_response_sha256": metadata["raw_response_sha256"],
+            "metadata_sha256": _sha256(capture / "metadata.json"),
+        },
+    )
+
+
+def _validate_capture_startup(root: Path) -> None:
+    capture_root = root / CAPTURE_ROOT_NAME
+    if capture_root.exists() or capture_root.is_symlink():
+        raise ValueError("stale callback capture artifacts require manual review")
+
+
 def _validate_continuation_startup_layout(root: Path) -> None:
     """Reject any pending output before the first continuation callback."""
 
     rows_root = root / "rows"
+    _validate_capture_startup(root)
     if not rows_root.is_dir() or rows_root.is_symlink():
         raise ValueError("continuation startup rows directory is invalid")
     auth = _load_json(root / "continuation-authorization.json")
@@ -1219,8 +1408,6 @@ def _replayed_artifact_hashes(root: Path, audit_index: int, role: str, fps: floa
 def _continuation_snapshot(
     root: Path,
     rows: Sequence[Mapping[str, Any]] | None = None,
-    *,
-    baseline: tuple[tuple[str, str], ...] | None = None,
 ) -> tuple[tuple[str, str], ...]:
     """Capture immutable continuation inputs, source artifacts, and code hashes."""
 
@@ -1256,8 +1443,11 @@ def _continuation_snapshot(
         rows, _provider_by_index, _media_by_index = _validate_inputs(
             root, verify_clip_bytes=False
         )
+    # Reconstruct the candidate-local clip path from the manifest basename so
+    # a symlinked shared clip bundle and a detached private bundle produce the
+    # same lexical manifest while still hashing the bytes behind either path.
     clip_paths = {
-        Path(str(item["media"]["clip_path"])).resolve()
+        root / "clips" / Path(str(item["media"]["clip_path"])).name
         for item in rows
     }
     paths.update(clip_paths)
@@ -1288,7 +1478,6 @@ def _continuation_snapshot(
         "provider_response_schema_sha256": _provider_schema_sha256(),
     }
     snapshot: list[tuple[str, str]] = [(f"code:{key}", value) for key, value in code_hashes.items()]
-    baseline_by_name = dict(baseline or ())
     root_stat = root.stat()
     source_stat = source_root.stat()
     snapshot.extend(
@@ -1301,15 +1490,14 @@ def _continuation_snapshot(
         if not path.is_file() or path.is_symlink():
             raise ValueError(f"continuation snapshot input is not a regular file: {path}")
         stat = path.stat()
-        resolved = str(path.resolve())
+        # Keep the lexical candidate-relative path in the manifest.  Hashing
+        # follows symlinks, but resolving the name would make a valid private
+        # clip detachment look like a snapshot drift and would bind an
+        # implementation detail of the shared-data layout into the ledger.
+        resolved = str(path)
         identity = f"{stat.st_dev}:{stat.st_ino}:{stat.st_size}:{stat.st_mtime_ns}"
         snapshot.append((f"identity:{resolved}", identity))
-        digest = (
-            baseline_by_name.get(resolved)
-            if baseline_by_name.get(f"identity:{resolved}") == identity
-            else None
-        )
-        snapshot.append((resolved, digest if digest is not None else _sha256(path)))
+        snapshot.append((resolved, _sha256_bytes(_snapshot_bound_bytes(path))))
     return tuple(snapshot)
 
 
@@ -1319,6 +1507,74 @@ def _snapshot_manifest(snapshot: tuple[tuple[str, str], ...]) -> list[dict[str, 
 
 def _snapshot_digest(snapshot: tuple[tuple[str, str], ...]) -> str:
     return _sha256_bytes(_canonical(_snapshot_manifest(snapshot)))
+
+
+def _ledger_snapshot_digest(root: Path) -> str:
+    snapshot = _continuation_snapshot(root)
+    root_prefix = str(root.resolve())
+    normalized: list[tuple[str, str]] = []
+    for name, value in snapshot:
+        if name == "identity:continuation-root":
+            continue
+        normalized_name = name
+        if normalized_name == root_prefix or normalized_name.startswith(root_prefix + "/"):
+            normalized_name = "<candidate-root>" + normalized_name[len(root_prefix) :]
+        if normalized_name.startswith("identity:" + root_prefix):
+            # Candidate inode/mtime identities are necessarily different between
+            # the bootstrap fixture and the eventual fresh candidate.  The
+            # committed ledger binds their bytes below; only the fixed source
+            # identity is stable enough to include in this aggregate digest.
+            continue
+        normalized.append((normalized_name, value))
+    normalized.sort()
+    return _snapshot_digest(tuple(normalized))
+
+
+def _validate_committed_ledger(root: Path) -> dict[str, Any]:
+    ledger_path, _ledger_sha = _require_committed_file(LEDGER_RELATIVE_PATH)
+    _config_path, config_sha = _require_committed_file(
+        CONFIG_PATH.relative_to(REPO_ROOT)
+    )
+    ledger = _load_json(ledger_path)
+    if not isinstance(ledger, Mapping):
+        raise ValueError("committed ledger is not an object")
+    if ledger.get("schema_version") != 1 or ledger.get("candidate_root_version") != LEDGER_CANDIDATE_VERSION:
+        raise ValueError("committed ledger candidate identity is invalid")
+    expected_code = {
+        "runner_sha256": _sha256(SCRIPT_PATH),
+        "config_sha256": config_sha,
+        "prompt_template_sha256": _prompt_template_sha256(),
+        "validator_sha256": _validator_sha256(),
+        "response_schema_sha256": _schema_sha256(),
+        "provider_response_schema_sha256": _provider_schema_sha256(),
+    }
+    for field, expected in expected_code.items():
+        if ledger.get(field) != expected:
+            raise ValueError(f"committed ledger {field} does not match current bytes")
+    replay_path = root / "canary-replay-freeze.json"
+    auth_path = root / "continuation-authorization.json"
+    if ledger.get("replay_binding_sha256") != _ledger_binding_sha256(replay_path):
+        raise ValueError("committed ledger replay binding drift")
+    if ledger.get("authorization_binding_sha256") != _ledger_binding_sha256(auth_path):
+        raise ValueError("committed ledger authorization binding drift")
+    for field, filename in (
+        ("provider_rows_sha256", "provider-rows.json"),
+        ("media_manifest_sha256", "media-manifest.json"),
+        ("selection_freeze_sha256", "selection-freeze.json"),
+    ):
+        if ledger.get(field) != _sha256(root / filename):
+            raise ValueError(f"committed ledger {field} drift")
+    if ledger.get("source_predictions_freeze_sha256") != TRUSTED_V4_PREDICTION_FREEZE_SHA256:
+        raise ValueError("committed ledger source freeze anchor drift")
+    if ledger.get("source_provider_rows_sha256") != TRUSTED_V4_PROVIDER_ROWS_SHA256:
+        raise ValueError("committed ledger source panel anchor drift")
+    if ledger.get("source_media_manifest_sha256") != TRUSTED_V4_MEDIA_MANIFEST_SHA256:
+        raise ValueError("committed ledger source media anchor drift")
+    if ledger.get("source_selection_freeze_sha256") != TRUSTED_V4_SELECTION_FREEZE_SHA256:
+        raise ValueError("committed ledger source selection anchor drift")
+    if ledger.get("initial_snapshot_sha256") != _ledger_snapshot_digest(root):
+        raise ValueError("committed ledger initial snapshot drift")
+    return dict(ledger)
 
 
 def _write_execution_snapshot(
@@ -1390,7 +1646,7 @@ def _validate_execution_snapshot(
     snapshot = _execution_snapshot_expected(root)
     if expected is not None and snapshot != expected:
         raise ValueError("execution snapshot manifest drift detected")
-    current = current or _continuation_snapshot(root, baseline=snapshot)
+    current = current or _continuation_snapshot(root)
     if current != snapshot:
         raise ValueError("continuation snapshot drift detected")
     final_path = root / EXECUTION_SNAPSHOT_FINAL_NAME
@@ -1440,11 +1696,21 @@ def _validate_continuation_snapshot(
 ) -> None:
     """Revalidate semantics and reject any immutable input drift."""
 
-    validate_continuation_authorization(root)
-    current = _continuation_snapshot(root, baseline=expected)
-    _validate_execution_snapshot(root, expected=expected, current=current)
+    current = _continuation_snapshot(root)
     if current != expected:
+        # Give the imported-prefix validator a chance to report a more
+        # specific immutable-artifact violation.  If semantic authorization
+        # still passes, this is a callback-window TOCTOU drift and the stable
+        # snapshot diagnostic is the correct boundary error.
+        try:
+            validate_continuation_authorization(root, check_ledger=False)
+        except ValueError:
+            raise
         raise ValueError("continuation snapshot drift detected")
+    # Run the full semantic authorization checks after the byte snapshot so
+    # callback-window drift is reported at the immediate post-callback fence.
+    validate_continuation_authorization(root)
+    _validate_execution_snapshot(root, expected=expected, current=current)
 
 
 def run(root: Path, call: CallFunction | None = None) -> None:
@@ -1557,10 +1823,17 @@ def run(root: Path, call: CallFunction | None = None) -> None:
             }
         )
         calls += 1
+        capture = (
+            _reserve_capture(root, task_index + 1, audit_index, role, fps)
+            if continuation_snapshot is not None
+            else None
+        )
         try:
             raw, metadata = _provider_result(provider(clip_bytes, media["mime_type"], prompt, fps))
         except BaseException as error:
             if isinstance(error, Exception):
+                if capture is not None:
+                    _capture_failure(capture, status="provider_error", error=error)
                 _write_once(row_root / "metadata.json", {"error_type": type(error).__name__, "error": str(error)})
                 _write_once(
                     row_root / "terminal.json",
@@ -1572,6 +1845,8 @@ def run(root: Path, call: CallFunction | None = None) -> None:
                 if stop_after_failed_canary(task_index):
                     return
                 continue
+            if capture is not None:
+                _capture_failure(capture, status="interrupted", error=error)
             _write_once(row_root / "metadata.json", {"error_type": type(error).__name__, "error": str(error), "interrupted": True})
             _write_once(
                 row_root / "terminal.json",
@@ -1594,9 +1869,13 @@ def run(root: Path, call: CallFunction | None = None) -> None:
                 )
             _write_incomplete_freeze(root, rows, calls, error)
             raise
-        _write_text_once(row_root / "raw-response.txt", raw)
-        metadata = {**metadata, "raw_response_sha256": _sha256_bytes(raw.encode())}
-        _write_once(row_root / "metadata.json", metadata)
+        if capture is not None:
+            metadata = _capture_success(capture, raw, metadata)
+            _promote_capture(capture, row_root, metadata)
+        else:
+            _write_text_once(row_root / "raw-response.txt", raw)
+            metadata = {**metadata, "raw_response_sha256": _sha256_bytes(raw.encode())}
+            _write_once(row_root / "metadata.json", metadata)
         validate_snapshot()
         response_id: str | None = None
         if continuation:
@@ -1723,6 +2002,9 @@ def _freeze_inputs(root: Path) -> dict[str, Any]:
             "fresh_canary_positions": [3, 4],
             "execution_snapshot_sha256": _sha256(root / EXECUTION_SNAPSHOT_NAME),
             "execution_snapshot_final_sha256": _sha256(root / EXECUTION_SNAPSHOT_FINAL_NAME),
+            "ledger_path": LEDGER_RELATIVE_PATH.as_posix(),
+            "ledger_git_blob_sha256": _require_committed_file(LEDGER_RELATIVE_PATH)[1],
+            "candidate_root_version": auth.get("candidate_root_version"),
         })
     return result
 
@@ -1879,8 +2161,8 @@ def verify_predictions_freeze(root: Path) -> None:
 
     root = Path(root)
     if (root / "continuation-authorization.json").is_file():
-        validate_continuation_authorization(root)
         _validate_execution_snapshot(root, require_final=True)
+        validate_continuation_authorization(root)
     rows, _provider_by_index, _media_by_index = _validate_inputs(root)
     ordered_records = _ordered_terminal_records(root, rows)
     planned = len(rows) * len(EXPECTED_FPS)
@@ -2063,7 +2345,7 @@ def prepare_continuation(source_root: Path, output_root: Path) -> None:
         })
     replay = {
         "schema_version": 1, "status": "frozen", "provider_calls_made": 0,
-        "source_root": str(source_root),
+        "source_root": str(source_root.resolve()),
         "source_predictions_freeze_sha256": _sha256(prediction_path),
         "source_provider_rows_sha256": _sha256(source_root / "provider-rows.json"),
         "source_media_manifest_sha256": _sha256(source_root / "media-manifest.json"),
@@ -2097,11 +2379,17 @@ def prepare_continuation(source_root: Path, output_root: Path) -> None:
         "validator_sha256": _validator_sha256(),
         "response_schema_sha256": _schema_sha256(),
         "provider_response_schema_sha256": _provider_schema_sha256(),
+        "candidate_root_version": LEDGER_CANDIDATE_VERSION,
+        "ledger_path": LEDGER_RELATIVE_PATH.as_posix(),
     }
+    _ledger_path, ledger_sha = _require_committed_file(LEDGER_RELATIVE_PATH)
+    auth["ledger_git_blob_sha256"] = ledger_sha
     _write_once(output_root / "continuation-authorization.json", auth)
 
 
-def validate_continuation_authorization(root: Path) -> None:
+def validate_continuation_authorization(
+    root: Path, *, check_ledger: bool = True
+) -> None:
     """Validate the zero-call continuation boundary and imported prefix."""
     root = Path(root)
     auth_path = root / "continuation-authorization.json"
@@ -2110,6 +2398,14 @@ def validate_continuation_authorization(root: Path) -> None:
         raise ValueError("continuation authorization and replay freeze are required")
     auth = _load_json(auth_path)
     replay = _load_json(replay_path)
+    if (
+        auth.get("candidate_root_version") != LEDGER_CANDIDATE_VERSION
+        or auth.get("ledger_path") != LEDGER_RELATIVE_PATH.as_posix()
+        or auth.get("ledger_git_blob_sha256") != _sha256_bytes(
+            _git_head_bytes(LEDGER_RELATIVE_PATH)
+        )
+    ):
+        raise ValueError("continuation committed ledger pointer is invalid")
     if auth.get("authorization_type") != "continuation" or auth.get("status") != "authorized":
         raise ValueError("invalid continuation authorization")
     if (
@@ -2275,6 +2571,12 @@ def validate_continuation_authorization(root: Path) -> None:
         }
         if not isinstance(replayed_artifacts, Mapping) or replayed_artifacts != actual_replayed:
             raise ValueError("continuation imported replay artifacts drift")
+    # The semantic checks above preserve their precise diagnostics for
+    # malformed imported/source artifacts.  Only after those checks pass do we
+    # enforce the independently committed ledger bindings, which also catch
+    # semantically equivalent byte rewrites with recomputed local hashes.
+    if check_ledger:
+        _validate_committed_ledger(root)
 
 
 def build_parser() -> argparse.ArgumentParser:
