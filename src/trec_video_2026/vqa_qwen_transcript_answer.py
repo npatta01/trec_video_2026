@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import trec_video_2026.vqa_qwen_aligner_canary as aligner_canary
+from trec_video_2026.vqa_evaluation import normalized_exact_match, token_f1
 
 
 SCHEMA_VERSION = 1
@@ -42,6 +43,7 @@ STAGE05F_PREDICTION_FREEZE_PATH = STAGE05F_ROOT / "predictions-freeze.json"
 MANIFEST_PATH = aligner_canary.FRESH_MANIFEST_PATH
 WHISPER_PATH = aligner_canary.FRESH_WHISPER_PATH
 WHISPER_CHECKSUM_PATH = aligner_canary.FRESH_WHISPER_CHECKSUM_PATH
+ANNOTATIONS_DIR = aligner_canary.FRESH_ANNOTATIONS_DIR
 RUNNER_PATH = Path(__file__).with_name("vqa_transformers_runner.py").resolve()
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 HUB_CACHE = Path("/home/npatta01/.cache/huggingface/hub").resolve()
@@ -803,6 +805,504 @@ def freeze_answer_predictions(root: Path) -> dict[str, Any]:
     return freeze
 
 
+def _verify_answer_prediction_freeze(
+    root: Path, *, require_ready: bool = True
+) -> dict[str, Any]:
+    verify_answer_inputs(root)
+    freeze = _load_json(root / "predictions-freeze.json")
+    if not isinstance(freeze, Mapping):
+        raise ValueError("answer prediction freeze is invalid")
+    if (
+        freeze.get("schema_version") != SCHEMA_VERSION
+        or freeze.get("experiment_id") != EXPERIMENT_ID
+        or freeze.get("status") != "predictions_frozen"
+        or freeze.get("input_freeze_sha256")
+        != _sha256_file(root / "inputs-freeze.json")
+    ):
+        raise ValueError("answer prediction freeze identity is invalid")
+    if require_ready and freeze.get("decision") != "ready_for_scoring":
+        raise ValueError("answer prediction freeze is not ready for scoring")
+    artifacts = freeze.get("artifacts")
+    expected_names = {
+        "command",
+        "raw-results",
+        "stderr",
+        "terminal",
+        "validated-results",
+    }
+    if not isinstance(artifacts, Mapping) or set(artifacts) != expected_names:
+        raise ValueError("answer prediction artifact freeze is incomplete")
+    if freeze.get("artifacts_sha256") != hashlib.sha256(
+        _canonical_json(artifacts).encode()
+    ).hexdigest():
+        raise ValueError("answer prediction artifact hash is invalid")
+    for record in artifacts.values():
+        if not isinstance(record, Mapping):
+            raise ValueError("answer prediction artifact record is invalid")
+        path_value = record.get("path")
+        if not isinstance(path_value, str):
+            raise ValueError("answer prediction artifact path is invalid")
+        path = root / path_value
+        if record.get("sha256") != _sha256_file(path):
+            raise ValueError("answer prediction artifact has changed")
+    return dict(freeze)
+
+
+def _selected_ids(root: Path) -> list[str]:
+    payload = _load_json(root / "requests.json")
+    rows = payload.get("requests") if isinstance(payload, Mapping) else None
+    if not isinstance(rows, list):
+        raise ValueError("frozen answer requests are invalid")
+    ids: list[str] = []
+    for index in range(0, len(rows), 2):
+        pair = rows[index : index + 2]
+        if (
+            len(pair) != 2
+            or not all(isinstance(row, Mapping) for row in pair)
+            or pair[0].get("video_id") != pair[1].get("video_id")
+            or [row.get("condition_id") for row in pair]
+            != [QWEN_CONDITION, WHISPER_CONDITION]
+        ):
+            raise ValueError("frozen answer request pairing is invalid")
+        ids.append(str(pair[0]["video_id"]))
+    if len(ids) != PANEL_SIZE or len(set(ids)) != PANEL_SIZE:
+        raise ValueError("frozen answer request identities are invalid")
+    return ids
+
+
+def bind_answer_annotations(root: Path, *, bound_at: str) -> dict[str, Any]:
+    """Hash exactly the 12 canonical annotations after prediction freeze."""
+
+    prediction_freeze = _verify_answer_prediction_freeze(root)
+    path = root / "annotation-bindings.json"
+    if path.exists():
+        raise ValueError("annotation binding already exists")
+    ids = _selected_ids(root)
+    rows = []
+    for video_id in ids:
+        annotation_path = (ANNOTATIONS_DIR / f"{video_id}.json").resolve()
+        if annotation_path.parent != ANNOTATIONS_DIR.resolve():
+            raise ValueError("annotation path escapes the canonical directory")
+        if not annotation_path.is_file():
+            raise ValueError("canonical annotation file is missing")
+        rows.append(
+            {
+                "video_id": video_id,
+                "path": str(annotation_path),
+                "sha256": _sha256_file(annotation_path),
+            }
+        )
+    binding = {
+        "schema_version": SCHEMA_VERSION,
+        "experiment_id": EXPERIMENT_ID,
+        "status": "annotations_bound",
+        "bound_at": bound_at,
+        "prediction_freeze_sha256": _sha256_file(
+            root / "predictions-freeze.json"
+        ),
+        "annotation_count": len(rows),
+        "rows": rows,
+        "rows_sha256": hashlib.sha256(_canonical_json(rows).encode()).hexdigest(),
+        "source_decision": prediction_freeze["decision"],
+    }
+    _write_json_exclusive(path, binding)
+    return binding
+
+
+def _verify_annotation_bindings(root: Path) -> dict[str, Any]:
+    _verify_answer_prediction_freeze(root)
+    binding = _load_json(root / "annotation-bindings.json")
+    if not isinstance(binding, Mapping):
+        raise ValueError("annotation binding is invalid")
+    rows = binding.get("rows")
+    if (
+        binding.get("schema_version") != SCHEMA_VERSION
+        or binding.get("experiment_id") != EXPERIMENT_ID
+        or binding.get("status") != "annotations_bound"
+        or binding.get("prediction_freeze_sha256")
+        != _sha256_file(root / "predictions-freeze.json")
+        or binding.get("annotation_count") != PANEL_SIZE
+        or not isinstance(rows, list)
+        or len(rows) != PANEL_SIZE
+        or binding.get("rows_sha256")
+        != hashlib.sha256(_canonical_json(rows).encode()).hexdigest()
+    ):
+        raise ValueError("annotation binding freeze is invalid")
+    expected_ids = _selected_ids(root)
+    if [row.get("video_id") for row in rows if isinstance(row, Mapping)] != expected_ids:
+        raise ValueError("annotation binding identities are invalid")
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise ValueError("annotation binding row is invalid")
+        video_id = str(row["video_id"])
+        path = (ANNOTATIONS_DIR / f"{video_id}.json").resolve()
+        if row.get("path") != str(path) or row.get("sha256") != _sha256_file(path):
+            raise ValueError("annotation binding hash has changed")
+    return dict(binding)
+
+
+def _answer_results(root: Path) -> dict[tuple[str, str], str]:
+    rows = _load_json(root / "raw-results.json")
+    if not isinstance(rows, list):
+        raise ValueError("frozen answer results are invalid")
+    results: dict[tuple[str, str], str] = {}
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise ValueError("frozen answer row is invalid")
+        identity = (str(row.get("condition_id")), str(row.get("video_id")))
+        answer = row.get("answer")
+        if identity in results or not isinstance(answer, str) or not answer.strip():
+            raise ValueError("frozen answer row is incomplete")
+        results[identity] = answer.strip()
+    return results
+
+
+def build_blind_review_packet(root: Path) -> dict[str, Any]:
+    """Create a deterministic arm-blind 12-row semantic review packet."""
+
+    _verify_answer_prediction_freeze(root)
+    binding = _verify_annotation_bindings(root)
+    packet_path = root / "review-packet.json"
+    key_path = root / "review-key.json"
+    if packet_path.exists() or key_path.exists():
+        raise ValueError("review packet already exists")
+    ids = _selected_ids(root)
+    requests_payload = _load_json(root / "requests.json")
+    requests = requests_payload["requests"]
+    questions = {
+        str(request["video_id"]): str(request["question"])
+        for request in requests
+        if isinstance(request, Mapping)
+    }
+    results = _answer_results(root)
+    packet_rows = []
+    key_rows = []
+    for index, video_id in enumerate(ids, start=1):
+        annotation_path = ANNOTATIONS_DIR / f"{video_id}.json"
+        annotation = _load_json(annotation_path)
+        if not isinstance(annotation, Mapping):
+            raise ValueError("canonical annotation is invalid")
+        question = annotation.get("question")
+        reference = annotation.get("correct_answer")
+        if question != questions.get(video_id):
+            raise ValueError("annotation question does not match frozen question")
+        if not isinstance(reference, str) or not reference.strip():
+            raise ValueError("canonical reference answer is invalid")
+        review_id = f"item-{index:03d}"
+        swap = int(
+            hashlib.sha256(f"{EXPERIMENT_ID}:{video_id}".encode()).hexdigest(),
+            16,
+        ) % 2
+        ordered_conditions = (
+            (QWEN_CONDITION, WHISPER_CONDITION)
+            if swap == 0
+            else (WHISPER_CONDITION, QWEN_CONDITION)
+        )
+        packet_rows.append(
+            {
+                "review_id": review_id,
+                "question": question,
+                "reference": reference.strip(),
+                "answer_a": results[(ordered_conditions[0], video_id)],
+                "answer_b": results[(ordered_conditions[1], video_id)],
+            }
+        )
+        key_rows.append(
+            {
+                "review_id": review_id,
+                "video_id": video_id,
+                "answer_a_condition": ordered_conditions[0],
+                "answer_b_condition": ordered_conditions[1],
+            }
+        )
+    packet = {
+        "schema_version": SCHEMA_VERSION,
+        "experiment_id": EXPERIMENT_ID,
+        "status": "ready_for_blind_review",
+        "annotation_bindings_sha256": _sha256_file(
+            root / "annotation-bindings.json"
+        ),
+        "row_count": PANEL_SIZE,
+        "rows": packet_rows,
+    }
+    key = {
+        "schema_version": SCHEMA_VERSION,
+        "experiment_id": EXPERIMENT_ID,
+        "status": "review_key_frozen",
+        "packet_rows_sha256": hashlib.sha256(
+            _canonical_json(packet_rows).encode()
+        ).hexdigest(),
+        "binding_rows_sha256": binding["rows_sha256"],
+        "rows": key_rows,
+    }
+    _write_json_exclusive(key_path, key)
+    _write_json_exclusive(packet_path, packet)
+    return packet
+
+
+def _load_verified_review(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    _verify_annotation_bindings(root)
+    packet = _load_json(root / "review-packet.json")
+    key = _load_json(root / "review-key.json")
+    if not isinstance(packet, Mapping) or not isinstance(key, Mapping):
+        raise ValueError("blind review packet is invalid")
+    packet_rows = packet.get("rows")
+    key_rows = key.get("rows")
+    if (
+        packet.get("status") != "ready_for_blind_review"
+        or key.get("status") != "review_key_frozen"
+        or packet.get("row_count") != PANEL_SIZE
+        or not isinstance(packet_rows, list)
+        or not isinstance(key_rows, list)
+        or len(packet_rows) != PANEL_SIZE
+        or len(key_rows) != PANEL_SIZE
+        or key.get("packet_rows_sha256")
+        != hashlib.sha256(_canonical_json(packet_rows).encode()).hexdigest()
+    ):
+        raise ValueError("blind review packet freeze is invalid")
+    return dict(packet), dict(key)
+
+
+def score_answer_review(
+    root: Path,
+    judgments: Mapping[str, Any],
+    *,
+    scored_at: str,
+) -> dict[str, Any]:
+    """Unblind one complete semantic review and freeze private answer scores."""
+
+    if any(
+        (root / name).exists()
+        for name in (
+            "review-judgments.json",
+            "postfreeze-score.json",
+            "postfreeze-score-freeze.json",
+        )
+    ):
+        raise ValueError("answer review score already exists")
+    packet, key = _load_verified_review(root)
+    judgment_rows = judgments.get("rows") if isinstance(judgments, Mapping) else None
+    if (
+        judgments.get("schema_version") != SCHEMA_VERSION
+        or not isinstance(judgments.get("reviewer"), str)
+        or not str(judgments.get("reviewer")).strip()
+        or not isinstance(judgment_rows, list)
+        or len(judgment_rows) != PANEL_SIZE
+    ):
+        raise ValueError("review judgments are incomplete")
+    allowed = {"correct", "incorrect", "ambiguous"}
+    by_review_id: dict[str, Mapping[str, Any]] = {}
+    for row in judgment_rows:
+        if not isinstance(row, Mapping):
+            raise ValueError("review judgment row is invalid")
+        review_id = row.get("review_id")
+        if not isinstance(review_id, str) or review_id in by_review_id:
+            raise ValueError("review judgment identities are invalid")
+        if row.get("answer_a") not in allowed or row.get("answer_b") not in allowed:
+            raise ValueError("review judgment verdict is invalid")
+        by_review_id[review_id] = row
+    packet_by_id = {row["review_id"]: row for row in packet["rows"]}
+    key_by_id = {row["review_id"]: row for row in key["rows"]}
+    if set(by_review_id) != set(packet_by_id) or set(by_review_id) != set(key_by_id):
+        raise ValueError("review judgment coverage is invalid")
+
+    condition_rows: dict[str, list[dict[str, Any]]] = {
+        QWEN_CONDITION: [],
+        WHISPER_CONDITION: [],
+    }
+    private_rows = []
+    for review_id in sorted(by_review_id):
+        judgment = by_review_id[review_id]
+        packet_row = packet_by_id[review_id]
+        key_row = key_by_id[review_id]
+        row_record: dict[str, Any] = {
+            "review_id": review_id,
+            "video_id": key_row["video_id"],
+        }
+        for arm_key in ("answer_a", "answer_b"):
+            condition = str(key_row[f"{arm_key}_condition"])
+            answer = str(packet_row[arm_key])
+            reference = str(packet_row["reference"])
+            verdict = str(judgment[arm_key])
+            metrics = {
+                "normalized_exact_match": normalized_exact_match(answer, reference),
+                "token_f1": token_f1(answer, reference),
+            }
+            condition_rows[condition].append(
+                {"verdict": verdict, **metrics}
+            )
+            row_record[condition] = {"verdict": verdict, **metrics}
+        private_rows.append(row_record)
+
+    condition_summary = {}
+    for condition, rows in condition_rows.items():
+        condition_summary[condition] = {
+            verdict: sum(row["verdict"] == verdict for row in rows)
+            for verdict in sorted(allowed)
+        } | {
+            "mean_normalized_exact_match": sum(
+                float(row["normalized_exact_match"]) for row in rows
+            )
+            / PANEL_SIZE,
+            "mean_token_f1": sum(float(row["token_f1"]) for row in rows)
+            / PANEL_SIZE,
+        }
+    paired = {
+        "both_correct": 0,
+        "qwen_only_correct": 0,
+        "whisper_only_correct": 0,
+        "neither_correct": 0,
+        "rows_with_ambiguous_verdict": 0,
+    }
+    for row in private_rows:
+        qwen_verdict = row[QWEN_CONDITION]["verdict"]
+        whisper_verdict = row[WHISPER_CONDITION]["verdict"]
+        qwen_correct = qwen_verdict == "correct"
+        whisper_correct = whisper_verdict == "correct"
+        if qwen_correct and whisper_correct:
+            paired["both_correct"] += 1
+        elif qwen_correct:
+            paired["qwen_only_correct"] += 1
+        elif whisper_correct:
+            paired["whisper_only_correct"] += 1
+        else:
+            paired["neither_correct"] += 1
+        if "ambiguous" in {qwen_verdict, whisper_verdict}:
+            paired["rows_with_ambiguous_verdict"] += 1
+    correct_total = sum(
+        int(condition_summary[condition]["correct"])
+        for condition in (QWEN_CONDITION, WHISPER_CONDITION)
+    )
+    decision = (
+        "formulation_bridge_observed"
+        if correct_total > 0
+        else "no_formulation_bridge_observed"
+    )
+    normalized_judgments = {
+        "schema_version": SCHEMA_VERSION,
+        "experiment_id": EXPERIMENT_ID,
+        "reviewer": str(judgments["reviewer"]).strip(),
+        "rows": [dict(by_review_id[review_id]) for review_id in sorted(by_review_id)],
+    }
+    score = {
+        "schema_version": SCHEMA_VERSION,
+        "experiment_id": EXPERIMENT_ID,
+        "status": "scored_postfreeze",
+        "scored_at": scored_at,
+        "decision": decision,
+        "row_count": PANEL_SIZE,
+        "reviewed_answer_count": PANEL_SIZE * 2,
+        "conditions": condition_summary,
+        "paired": paired,
+        "private_rows": private_rows,
+        "paid_compute_usd": 0.0,
+    }
+    _write_json_exclusive(root / "review-judgments.json", normalized_judgments)
+    _write_json_exclusive(root / "postfreeze-score.json", score)
+    score_artifacts = {
+        name: {
+            "path": name,
+            "sha256": _sha256_file(root / name),
+        }
+        for name in (
+            "annotation-bindings.json",
+            "review-packet.json",
+            "review-key.json",
+            "review-judgments.json",
+            "postfreeze-score.json",
+        )
+    }
+    score_freeze = {
+        "schema_version": SCHEMA_VERSION,
+        "experiment_id": EXPERIMENT_ID,
+        "status": "scored_postfreeze",
+        "decision": decision,
+        "artifacts": score_artifacts,
+        "artifacts_sha256": hashlib.sha256(
+            _canonical_json(score_artifacts).encode()
+        ).hexdigest(),
+    }
+    _write_json_exclusive(root / "postfreeze-score-freeze.json", score_freeze)
+    return score
+
+
+def status_answer_test(root: Path) -> dict[str, Any]:
+    """Verify the deepest existing phase and return only aggregate status."""
+
+    if not root.exists():
+        return {
+            "experiment_id": EXPERIMENT_ID,
+            "status": "absent",
+            "paid_compute_usd": 0.0,
+        }
+    verify_answer_inputs(root)
+    status: dict[str, Any] = {
+        "experiment_id": EXPERIMENT_ID,
+        "status": "inputs_frozen",
+        "paid_compute_usd": 0.0,
+    }
+    if (root / "terminal.json").exists():
+        terminal = _load_json(root / "terminal.json")
+        validation = _load_json(root / "validated-results.json")
+        if not isinstance(terminal, Mapping) or not isinstance(validation, Mapping):
+            raise ValueError("answer attempt status is invalid")
+        status.update(
+            status=str(terminal.get("status")),
+            completion_count=validation.get("completion_count"),
+            required_count=validation.get("required_count"),
+        )
+    if (root / "predictions-freeze.json").exists():
+        freeze = _verify_answer_prediction_freeze(root, require_ready=False)
+        status.update(
+            status="predictions_frozen",
+            decision=freeze.get("decision"),
+        )
+    if (root / "annotation-bindings.json").exists():
+        binding = _verify_annotation_bindings(root)
+        status.update(
+            status="annotations_bound",
+            annotation_count=binding.get("annotation_count"),
+        )
+    if (root / "review-packet.json").exists():
+        packet, _ = _load_verified_review(root)
+        status.update(
+            status="ready_for_blind_review",
+            review_row_count=packet.get("row_count"),
+        )
+    if (root / "postfreeze-score-freeze.json").exists():
+        score_freeze = _load_json(root / "postfreeze-score-freeze.json")
+        if not isinstance(score_freeze, Mapping):
+            raise ValueError("answer score freeze is invalid")
+        artifacts = score_freeze.get("artifacts")
+        if (
+            score_freeze.get("status") != "scored_postfreeze"
+            or not isinstance(artifacts, Mapping)
+            or score_freeze.get("artifacts_sha256")
+            != hashlib.sha256(_canonical_json(artifacts).encode()).hexdigest()
+        ):
+            raise ValueError("answer score freeze is invalid")
+        for record in artifacts.values():
+            if not isinstance(record, Mapping):
+                raise ValueError("answer score artifact record is invalid")
+            path_value = record.get("path")
+            if (
+                not isinstance(path_value, str)
+                or record.get("sha256") != _sha256_file(root / path_value)
+            ):
+                raise ValueError("answer score artifact has changed")
+        score = _load_json(root / "postfreeze-score.json")
+        if not isinstance(score, Mapping):
+            raise ValueError("answer score is invalid")
+        status.update(
+            status="scored_postfreeze",
+            decision=score.get("decision"),
+            reviewed_answer_count=score.get("reviewed_answer_count"),
+            conditions=score.get("conditions"),
+            paired=score.get("paired"),
+        )
+    return status
+
+
 __all__ = [
     "ANSWER_MODEL_ID",
     "ANSWER_MODEL_REVISION",
@@ -810,11 +1310,15 @@ __all__ = [
     "QWEN_CONDITION",
     "RUNTIME_IMAGE",
     "WHISPER_CONDITION",
+    "bind_answer_annotations",
     "build_answer_command",
     "build_answer_requests",
+    "build_blind_review_packet",
     "freeze_answer_predictions",
     "prepare_answer_test",
     "record_answer_attempt",
+    "score_answer_review",
+    "status_answer_test",
     "verify_answer_inputs",
     "verify_stage05f_root",
 ]

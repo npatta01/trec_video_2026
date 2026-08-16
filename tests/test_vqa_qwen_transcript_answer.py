@@ -14,11 +14,14 @@ from trec_video_2026.vqa_qwen_transcript_answer import (
     QWEN_CONDITION,
     RUNTIME_IMAGE,
     WHISPER_CONDITION,
+    bind_answer_annotations,
     build_answer_command,
     build_answer_requests,
+    build_blind_review_packet,
     freeze_answer_predictions,
     prepare_answer_test,
     record_answer_attempt,
+    score_answer_review,
     verify_answer_inputs,
 )
 
@@ -261,6 +264,9 @@ def _write_preparation_sources(
     monkeypatch.setattr(answer_module, "HUB_CACHE", hub_cache)
     monkeypatch.setattr(answer_module, "REPOSITORY_ROOT", tmp_path.resolve())
     monkeypatch.setattr(answer_module, "CANONICAL_DATA_ROOT", source_root.resolve())
+    annotations = source_root / "annotations"
+    annotations.mkdir()
+    monkeypatch.setattr(answer_module, "ANNOTATIONS_DIR", annotations)
     monkeypatch.setattr(
         answer_module,
         "verify_stage05f_root",
@@ -526,3 +532,152 @@ def test_freeze_rejects_raw_result_mutation_after_validation(
     with pytest.raises(ValueError, match="result|validation|hash"):
         freeze_answer_predictions(root)
     assert not (root / "predictions-freeze.json").exists()
+
+
+def _ready_prediction_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    name: str = "postfreeze",
+) -> Path:
+    root = _prepared_root(tmp_path, monkeypatch, name=name)
+
+    def fake_run(command, **kwargs):
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps(_passed_answer_results(root)),
+            stderr="",
+        )
+
+    record_answer_attempt(root, runner=fake_run)
+    freeze_answer_predictions(root)
+    return root
+
+
+def _write_annotations() -> None:
+    for index in range(12):
+        (answer_module.ANNOTATIONS_DIR / f"video-{index:02d}.json").write_text(
+            json.dumps(
+                {
+                    "question": f"Why did event {index} happen?",
+                    "correct_answer": f"Concise answer {index * 2}",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+
+def test_annotation_binding_cannot_open_labels_before_ready_freeze(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_preparation_sources(tmp_path, monkeypatch)
+    root = tmp_path / "private" / "not-frozen"
+    prepare_answer_test(root, prepared_at="2026-08-16T12:00:00Z")
+    _write_annotations()
+    original_hash = answer_module._sha256_file
+
+    def reject_annotation_read(path: Path) -> str:
+        if path.parent == answer_module.ANNOTATIONS_DIR:
+            raise AssertionError("annotation bytes were opened")
+        return original_hash(path)
+
+    monkeypatch.setattr(answer_module, "_sha256_file", reject_annotation_read)
+
+    with pytest.raises(ValueError, match="prediction|ready|freeze"):
+        bind_answer_annotations(root, bound_at="2026-08-16T12:01:00Z")
+
+
+def test_postfreeze_packet_is_blinded_and_scores_complete_semantic_review(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _ready_prediction_root(tmp_path, monkeypatch)
+    _write_annotations()
+
+    binding = bind_answer_annotations(root, bound_at="2026-08-16T12:01:00Z")
+    packet = build_blind_review_packet(root)
+
+    assert binding["annotation_count"] == 12
+    assert len(packet["rows"]) == 12
+    rendered = json.dumps(packet, sort_keys=True).casefold()
+    assert '"transcript"' not in rendered
+    assert QWEN_CONDITION not in rendered
+    assert WHISPER_CONDITION not in rendered
+    assert "video_id" not in rendered
+    assert all(set(row) == {
+        "review_id",
+        "question",
+        "reference",
+        "answer_a",
+        "answer_b",
+    } for row in packet["rows"])
+    judgments = {
+        "schema_version": 1,
+        "reviewer": "test-reviewer",
+        "rows": [
+            {
+                "review_id": row["review_id"],
+                "answer_a": "correct",
+                "answer_b": "correct",
+            }
+            for row in packet["rows"]
+        ],
+    }
+
+    score = score_answer_review(
+        root,
+        judgments,
+        scored_at="2026-08-16T12:02:00Z",
+    )
+
+    assert score["decision"] == "formulation_bridge_observed"
+    assert score["conditions"][QWEN_CONDITION]["correct"] == 12
+    assert score["conditions"][WHISPER_CONDITION]["correct"] == 12
+    assert score["paired"]["both_correct"] == 12
+    assert score["reviewed_answer_count"] == 24
+    assert (root / "postfreeze-score.json").exists()
+    assert (root / "postfreeze-score-freeze.json").exists()
+
+
+def test_review_packet_rejects_annotation_mutation_after_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _ready_prediction_root(tmp_path, monkeypatch, name="annotation-drift")
+    _write_annotations()
+    bind_answer_annotations(root, bound_at="2026-08-16T12:01:00Z")
+    annotation = answer_module.ANNOTATIONS_DIR / "video-00.json"
+    annotation.write_bytes(annotation.read_bytes() + b" ")
+
+    with pytest.raises(ValueError, match="annotation|hash|binding"):
+        build_blind_review_packet(root)
+
+
+@pytest.mark.parametrize("verdict", ("", "maybe", "CORRECT"))
+def test_score_rejects_invalid_or_incomplete_review_verdicts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    verdict: str,
+) -> None:
+    root = _ready_prediction_root(tmp_path, monkeypatch, name=f"bad-{verdict or 'empty'}")
+    _write_annotations()
+    bind_answer_annotations(root, bound_at="2026-08-16T12:01:00Z")
+    packet = build_blind_review_packet(root)
+    rows = [
+        {
+            "review_id": row["review_id"],
+            "answer_a": "correct",
+            "answer_b": "incorrect",
+        }
+        for row in packet["rows"]
+    ]
+    rows[0]["answer_a"] = verdict
+
+    with pytest.raises(ValueError, match="judgment|verdict|review"):
+        score_answer_review(
+            root,
+            {"schema_version": 1, "reviewer": "test", "rows": rows},
+            scored_at="2026-08-16T12:02:00Z",
+        )
