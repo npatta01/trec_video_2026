@@ -37,7 +37,7 @@
 - Produces `build_inlined_request(*, row: Mapping[str, Any], upload: Mapping[str, Any], arm: str) -> types.InlinedRequest`.
 - Exposes arm IDs `control_31pro` and `candidate_37flash` with exact model/config bindings.
 
-- [ ] **Step 1: Add the Gemini SDK extra**
+- [x] **Step 1: Add the Gemini SDK extra**
 
   Add:
 
@@ -48,7 +48,7 @@
 
   Run `uv lock` and verify `uv run --extra gemini python -c 'from google import genai; print(genai.__version__)'` reports a 2.x version.
 
-- [ ] **Step 2: Write failing protocol tests**
+- [x] **Step 2: Write failing protocol tests**
 
   Create synthetic historical protocol, upload, delivery, and provenance
   fixtures. The tests must prove that preparation:
@@ -71,7 +71,7 @@
       assert protocol["estimated_cost_ceiling_usd"] <= 0.15
   ```
 
-- [ ] **Step 3: Run protocol tests and confirm RED**
+- [x] **Step 3: Run protocol tests and confirm RED**
 
   Run:
 
@@ -80,7 +80,7 @@
   Expected: collection fails because `vqa_gemini37_flash_smoke` does not yet
   exist.
 
-- [ ] **Step 4: Implement minimal exclusive protocol preparation**
+- [x] **Step 4: Implement minimal exclusive protocol preparation**
 
   The protocol schema must include:
 
@@ -104,7 +104,7 @@
   verifier must re-hash the historical protocol, delivery bytes, historical
   upload record, delivery provenance, and both new JSON artifacts every time.
 
-- [ ] **Step 5: Write failing request serialization tests**
+- [x] **Step 5: Write failing request serialization tests**
 
   Assert both real SDK objects serialize to native FileData video followed by
   the unchanged direct-answer prompt, `fps=4.0`, high part-media resolution,
@@ -112,7 +112,7 @@
   tokens. Assert only 3.1 contains `temperature=0.0`; 3.7 must serialize no
   `temperature`, `top_p`, `top_k`, or `candidate_count` key.
 
-- [ ] **Step 6: Run request tests and confirm RED**
+- [x] **Step 6: Run request tests and confirm RED**
 
   Run:
 
@@ -121,7 +121,7 @@
   Expected: `build_inlined_request` is absent or does not yet satisfy the
   arm-specific config.
 
-- [ ] **Step 7: Implement the minimal request builder and pass Task 1**
+- [x] **Step 7: Implement the minimal request builder and pass Task 1**
 
   Use `google.genai.types.InlinedRequest`, `Content`, `Part`, `FileData`,
   `VideoMetadata`, `PartMediaResolution`, `GenerateContentConfig`, and
@@ -146,7 +146,7 @@
 - Produces `record_status(root: Path, arm: str, client: Any, *, checked_at: str) -> dict[str, Any]`.
 - Produces `freeze_predictions(root: Path, *, frozen_at: str) -> dict[str, Any]`.
 
-- [ ] **Step 1: Write failing preflight and upload tests**
+- [x] **Step 1: Write failing preflight and upload tests**
 
   With complete SDK-shaped fakes, assert preflight fetches both exact models,
   records model IDs/versions/capabilities without credentials, and refuses
@@ -155,19 +155,19 @@
   exclusive records. Reject FAILED/timeout, mutation, duplicate record, wrong
   MIME type, or a URI reused from the expired historical record.
 
-- [ ] **Step 2: Run preflight/upload tests and confirm RED**
+- [x] **Step 2: Run preflight/upload tests and confirm RED**
 
   Run:
 
   `uv run --extra gemini pytest -q tests/test_vqa_gemini37_flash_smoke.py -k 'preflight or upload'`
 
-- [ ] **Step 3: Implement preflight and one-upload lifecycle**
+- [x] **Step 3: Implement preflight and one-upload lifecycle**
 
   Call `client.models.get(model=...)`, `client.files.upload(...)`, and
   `client.files.get(name=...)`. Sanitize model snapshots to documented model
   metadata and never serialize client/config/environment state.
 
-- [ ] **Step 4: Write failing submission tests**
+- [x] **Step 4: Write failing submission tests**
 
   Assert each arm submits exactly one `client.batches.create` call with the
   arm's exact model and two requests; both arm request metadata binds the same
@@ -176,20 +176,20 @@
   duplicate submissions, mutated inputs, wrong request count, or any
   response/job file already present.
 
-- [ ] **Step 5: Run submission tests and confirm RED**
+- [x] **Step 5: Run submission tests and confirm RED**
 
   Run:
 
   `uv run --extra gemini pytest -q tests/test_vqa_gemini37_flash_smoke.py -k submit`
 
-- [ ] **Step 6: Implement one paid transition per arm**
+- [x] **Step 6: Implement one paid transition per arm**
 
   The job display names are
   `gemini37-smoke-control-31pro` and
   `gemini37-smoke-candidate-37flash`. Write `jobs/<arm>.json` before returning.
   Expose no retry or delete command.
 
-- [ ] **Step 7: Write failing status/freeze tests**
+- [x] **Step 7: Write failing status/freeze tests**
 
   Exercise pending, failed, succeeded, response-level error, empty text,
   duplicate ID, missing ID, wrong arm metadata, wrong model version, and
@@ -202,13 +202,13 @@
   band. An out-of-band or missing usage value must freeze a terminal
   `custom_fps_not_verified` decision rather than a quality-ready one.
 
-- [ ] **Step 8: Run status/freeze tests and confirm RED**
+- [x] **Step 8: Run status/freeze tests and confirm RED**
 
   Run:
 
   `uv run --extra gemini pytest -q tests/test_vqa_gemini37_flash_smoke.py -k 'status or freeze or fps'`
 
-- [ ] **Step 9: Implement status and freeze, then pass Task 2**
+- [x] **Step 9: Implement status and freeze, then pass Task 2**
 
   Status snapshots are additive under `status/<arm>/`. Freeze is exclusive and
   terminal. Calculate observed cost from prompt tokens plus
@@ -227,10 +227,12 @@
 - Modify: `tests/test_vqa_gemini37_flash_smoke.py`
 
 **Interfaces:**
-- CLI commands: `prepare`, `preflight`, `upload`, `submit`, `status`, `freeze`, `score`, and `show-status`.
+- CLI commands: `prepare`, `preflight`, `upload`, `submit`, `status`, `freeze`,
+  `bind-annotations`, `score`, and `show-status`.
+- Produces `freeze_annotation_bindings(root: Path, annotations_dir: Path, *, bound_at: str) -> dict[str, Any]`.
 - Produces `score_postfreeze(root: Path, annotations_dir: Path, *, scored_at: str) -> dict[str, Any]`.
 
-- [ ] **Step 1: Write failing CLI boundary tests**
+- [x] **Step 1: Write failing CLI boundary tests**
 
   Run `main(argv, client_factory=...)` against fakes. Assert each command calls
   one domain transition, emits only sanitized aggregate JSON, requires the
@@ -238,7 +240,7 @@
   sanitized error on invalid input. Assert `--help` exposes no retry, delete,
   model override, arbitrary panel, or credential option.
 
-- [ ] **Step 2: Run CLI tests and confirm RED**
+- [x] **Step 2: Run CLI tests and confirm RED**
 
   Run:
 
@@ -246,28 +248,32 @@
 
   Expected: the CLI file is absent.
 
-- [ ] **Step 3: Implement the thin CLI**
+- [x] **Step 3: Implement the thin CLI**
 
   Live commands construct `genai.Client(api_key=os.environ["GEMINI_API_KEY"])`.
   `prepare`, `freeze`, `score`, and `show-status` do not construct a provider
   client. Every printed object is restricted to status, arm, counts, decision,
   and aggregate cost.
 
-- [ ] **Step 4: Write failing post-freeze score tests**
+- [x] **Step 4: Write failing post-freeze score tests**
 
   Assert scoring refuses absent/incomplete/mutated prediction freezes before
-  reading any annotation file. With a ready two-arm freeze, assert it binds the
-  two canonical annotation hashes and reports normalized exact match, token F1,
-  paired win/tie/loss counts, and one of the three design decisions. Keep the
-  question/reference/answers and row metrics only in the private score.
+  reading any annotation file. Add a hash-only `bind-annotations` transition
+  that can run only after a ready two-arm freeze, opens exactly two canonical
+  annotation files as raw bytes without parsing them, and exclusively freezes
+  their exact identities, paths, and SHA-256 values. Assert scoring refuses an
+  absent, incomplete, or mutated binding manifest and verifies each raw hash
+  before JSON parsing. With a valid binding, report normalized exact match,
+  token F1, paired win/tie/loss counts, and one of the three design decisions.
+  Keep the question/reference/answers and row metrics only in the private score.
 
-- [ ] **Step 5: Run scorer tests and confirm RED**
+- [x] **Step 5: Run scorer tests and confirm RED**
 
   Run:
 
   `uv run --extra gemini pytest -q tests/test_vqa_gemini37_flash_smoke.py -k score`
 
-- [ ] **Step 6: Implement the minimal scorer and pass Task 3**
+- [x] **Step 6: Implement the minimal scorer and pass Task 3**
 
   Use case-folded alphanumeric tokens. Exact match compares normalized strings;
   token F1 uses multiset overlap. Candidate improvement/regression is decided
@@ -277,7 +283,7 @@
   Run both new test files, Ruff, JSON serialization checks, and
   `git diff --check`.
 
-- [ ] **Step 7: Commit the provider-free harness**
+- [x] **Step 7: Commit the provider-free harness**
 
   Stage only the spec, plan, dependency files, module, CLI, and tests. Commit:
 
@@ -344,11 +350,12 @@
   snapshots. When both are terminal, run `freeze` once. If either is failed or
   incomplete, preserve `not_ready` and stop before score inputs.
 
-- [ ] **Step 7: Score only after a ready freeze**
+- [ ] **Step 7: Bind and score only after a ready freeze**
 
-  Run `score` only if `show-status` reports a complete prediction freeze with
-  custom FPS verified. Inspect row-level answers privately, then expose only
-  aggregate completion, usage, cost, paired diagnostic counts, and decision.
+  Run `bind-annotations` only if `show-status` reports a complete prediction
+  freeze with custom FPS verified. Require its two-row hash-only manifest, then
+  run `score`. Inspect row-level answers privately, then expose only aggregate
+  completion, usage, cost, paired diagnostic counts, and decision.
 
 ---
 

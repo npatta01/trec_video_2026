@@ -167,11 +167,20 @@ cap.
 
 ## Post-freeze diagnostic
 
-The score step verifies the prediction freeze before reading annotations. It
-records normalized exact match and token-F1 for each arm, plus a private
-side-by-side inspection packet containing the question, reference, and both
-answers. These two dependency-free metrics are diagnostics, not a substitute
-for the established full-panel semantic composite.
+The prediction freeze is followed by a separate hash-only annotation-binding
+transition. That transition first re-verifies the complete `quality_ready`
+prediction freeze, locates exactly the two canonical ID-derived annotation
+files, hashes their raw bytes without parsing JSON or extracting a reference,
+and writes one exclusive private manifest. It is the first permitted access to
+annotation bytes and cannot run before both model arms freeze.
+
+The score step fails closed unless that exact two-row manifest exists and
+validates. It hashes each annotation's raw bytes and compares the result with
+the frozen manifest before parsing JSON or reading a reference. It then records
+normalized exact match and token-F1 for each arm, plus a private side-by-side
+inspection packet containing the question, reference, and both answers. These
+two dependency-free metrics are diagnostics, not a substitute for the
+established full-panel semantic composite.
 
 The aggregate decision is one of:
 
@@ -182,6 +191,15 @@ The aggregate decision is one of:
   at least one matched diagnostic improvement.
 
 No outcome changes the production baseline or triggers a 475-row rerun.
+
+### Implementation erratum: explicit annotation binding
+
+The executable CLI therefore includes `bind-annotations` between `freeze` and
+`score`. This is an additive integrity correction to the original command list,
+not an inference arm or quality result. The binding manifest remains private,
+contains the two identities, canonical paths, and SHA-256 values, and is itself
+hash-bound into the private score and score freeze. No tracked artifact may
+contain those row-level fields.
 
 ## Artifacts
 
