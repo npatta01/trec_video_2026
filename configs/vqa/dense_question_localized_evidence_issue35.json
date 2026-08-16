@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "experiment_id": "dense-question-localized-evidence-issue35-v1",
+  "model": "gemini-3.1-pro-preview",
+  "settings": {
+    "temperature": 0.0,
+    "seed": 42,
+    "thinking_level": "HIGH",
+    "media_resolution": "HIGH",
+    "candidate_count": 1,
+    "max_output_tokens": 2048,
+    "retry_count": 0
+  },
+  "expected_fps": [
+    4.0,
+    12.0
+  ],
+  "max_calls": 24,
+  "compatibility_canary_pairs": 1,
+  "minimum_targets": 2,
+  "minimum_controls": 2,
+  "decision_gate": {
+    "minimum_targets": 2,
+    "maximum_targets": 8,
+    "minimum_controls": 2,
+    "maximum_controls": 4,
+    "maximum_calls": 24,
+    "requires_complete_terminal_pairs": true,
+    "minimum_incremental_target_recoveries": 2,
+    "minimum_12fps_target_recovery_fraction": 0.5,
+    "maximum_unsupported_observations": 0,
+    "maximum_12fps_control_regressions": 0,
+    "requires_manual_inspection": true
+  },
+  "one_attempt_per_arm": true,
+  "label_isolation": "provider receives only question, frozen map lines, clip offset, and local clip",
+  "measurement": "question-localized visual evidence recovery; not answer accuracy or prevalence",
+  "decision_rule": "compare byte-identical clips at requested 4 FPS and 12 FPS"
+}

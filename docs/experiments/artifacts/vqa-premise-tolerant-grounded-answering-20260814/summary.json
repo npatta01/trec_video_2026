@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "experiment_id": "grounded-map-answering-issue35-premise-v3",
+  "evidence_validity": "Diagnostic",
+  "decision_disposition": "Not promoted under the tested condition",
+  "panel": {"rows": 11, "fix_false_abstention": 5, "detectable_insufficiency": 2, "known_limit": 1, "stability_control": 3},
+  "completion": {"paid_calls": 11, "retries": 0, "passed_contract": 8, "contract_errors": 3, "audited_rows": 11, "total_tokens": 12560},
+  "gate": {
+    "passed": false,
+    "false_abstention_rescues": 1,
+    "minimum_false_abstention_rescues": 4,
+    "detectable_insufficiency_verifications": 1,
+    "required_detectable_insufficiency_verifications": 2,
+    "stability_controls_preserved": 1,
+    "required_stability_controls_preserved": 3,
+    "unsupported_final_answers": 0
+  },
+  "conditions": {
+    "direct_baseline": {"meteor": 0.402626133030134, "bertscore_f1": 0.9096914529800415, "sts": null, "semantic_composite": null},
+    "grounded_v2": {"meteor": 0.22782266850586838, "bertscore_f1": 0.8454316041686318, "sts": null, "semantic_composite": null},
+    "premise_v3": {"meteor": 0.15500894543653282, "bertscore_f1": 0.6144564585252241, "sts": null, "semantic_composite": null}
+  },
+  "role_metrics": {
+    "fix_false_abstention": {
+      "direct_baseline": {"meteor": 0.29260108928352657, "bertscore_f1": 0.9059553503990173},
+      "grounded_v2": {"meteor": 0.0, "bertscore_f1": 0.8035693049430848},
+      "premise_v3": {"meteor": 0.1497896634615385, "bertscore_f1": 0.8368659853935242}
+    },
+    "stability_control": {
+      "direct_baseline": {"meteor": 0.7628200539475051, "bertscore_f1": 0.9413220485051473},
+      "grounded_v2": {"meteor": 0.6964429397323197, "bertscore_f1": 0.9035114447275797},
+      "premise_v3": {"meteor": 0.2726337448559671, "bertscore_f1": 0.291784147421519}
+    }
+  },
+  "mechanism_findings": [
+    "The policy rescued only the bicyclist row; it treated three uniquely resolvable locator variants as answer-blocking.",
+    "D_HTq7IiSPo resolved its locator but abstained because the causal why was not explicit; post-freeze sensitivity treats it as not demonstrated false abstention, leaving 1/4 rescues among confirmed false-abstention cases while preserving the frozen 1/5 gate.",
+    "One of two evidence-insufficient rows produced a valid verification route; the other attempted verification but failed the structured contract.",
+    "Two of three supported controls regressed through contract failures.",
+    "The known map omission remained undetectable: the answer was grounded in the frozen map but missed the labeled dancing event absent from that map.",
+    "No accepted final answer was unsupported by its cited frozen evidence."
+  ],
+  "integrity": {
+    "source_v2_protocol_sha256": "5619dbb852c1fdca1482749c6d4b3024455507e6bb3eab58e5a6747e0bff18c1",
+    "selection_sha256": "42fd65ffa53acc833c473d0ad7dc972fffec5ee65853dd73d7ab0ae57fd2e853",
+    "prompt_template_sha256": "f80816d4d58cee0898a6c0e914ad08c2f830a5304a4947d53836b5cf88d09836",
+    "response_schema_sha256": "03019d3baf42cce8ffde67f00ca3c3eb987b7ae846706f56777ec17a454dacb8",
+    "protocol_sha256": "daa5ce4ce0fa88566114d62a4f029dcc38e168b22f4c0fc892ce3a14ccfdf93a",
+    "preinference_gate_freeze_sha256": "9749a28f027af9c1ca504e3c3bb12851cc5e01a0510757d3b096ffed0a033034",
+    "predictions_freeze_sha256": "e10fdc7a86699b583e2d4a8726a3849af5c66e4ea0bd1eb9f1657396f8b2ba1c",
+    "evidence_freeze_sha256": "5e109f2d7cfbdf9c339f4ebd47a70fb8cb808999e0b342d5c6790d0092ec41ee",
+    "additive_gate_integrity_sha256": "8482080bd81d86e46f3f688c4c4730ed5b8ecf7b2de1c4d341fe3b287e61d2ed",
+    "manual_audit_sha256": "eb1acd621f2a3dab54da30a6c6986f6245863fe809e8a4df28284136bb3a73dd",
+    "postfreeze_score_sha256": "030aabaa71cfeca676a96a566a0164c48b0ffa760c98dc2fa86bb74072b7cc3b",
+    "v2_predictions_freeze_sha256": "897e022164233c64f1aaeb66e1c73e0d33c1dec96d7c9fd3b907a88dd599f117",
+    "v2_evidence_freeze_sha256": "b82255dc2ea5513c69d022fe6c0d9508f40a4095488419e4bc956542b44fe110"
+  },
+  "metric_note": "The historical UMBC STS service is unavailable and no comparable local STS implementation was frozen, so STS and composite remain null.",
+  "private_root": "/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/grounded-map-answering-issue35-premise-v3/"
+}

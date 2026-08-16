@@ -3362,9 +3362,10 @@ break-inside: avoid;
 <div class="legacy-fragment-alias-group" aria-hidden="true"><span id="specialist-evidence"></span><span id="taxonomy-audit"></span></div>
 <section id="routing-fusion-and-answer-selection" class="level3">
 <h3 class="anchored" data-anchor-id="routing-fusion-and-answer-selection"><a href="./research-routing.html">Routing, fusion, and answer selection</a></h3>
-<p><strong>Working answer:</strong> use the baseline unless a label-blind specialist rule applies; the repository has route seeds, not a validated router.</p>
-<p><strong>Strongest evidence:</strong> <a href="./research-routing.html#taxonomy-audit">taxonomy and residual-error diagnostics</a>.</p>
-<p><strong>Open question:</strong> is each failure missing evidence, unused evidence, or wrong answer selection—and can a router abstain without regressions?</p>
+<p><strong>Working answer:</strong> retain global video context, but let the question retrieve and verify the needed evidence before a concise evidence-bound answer; direct Gemini native AV is a frontier baseline, not a decisive winner.</p>
+<p><strong>Strongest evidence:</strong> <a href="./research-routing.html#frontier-boundary-verifier">completed Gemini full-panel and hard-row mechanism audit</a>, followed by the <a href="./research-routing.html#task-support-sufficiency-audit-20260815">zero-call task-support sufficiency audit</a> and the <a href="./research-routing.html#dense-question-localized-evidence-20260816">dense localized-evidence recovery diagnostic</a>. The latter’s frozen score was <code>0/6</code> at both 4 FPS and 12 FPS, but post-hoc manual decomposition found that five of the six scored targets lacked the reference-level answer inside the selected clip; only one target was a clean FPS-treatment opportunity, and neither arm recovered it. That diagnostic records <code>48</code> authorized attempts: <code>24</code> initial-authorization v2 HTTP 400 pre-model rejects plus <code>24</code> separately user-reauthorized model-bearing arms from v4+v22; the final score denominator is <code>24</code> model-bearing arms, not <code>48</code>.</p>
+<p>The dense result has evidence validity <strong>Diagnostic</strong>, with a mechanism interpretation of <strong>inconclusive after post-hoc failure decomposition</strong>. Its original v22 freeze preserved <code>16</code> passed arms and <code>8</code> contract errors, then correction-v2 used an output-informed, zero-call parser repair. The frozen gate remains failed, but <code>0/6</code> is not a valid six-opportunity dense-recovery rate. The sole clean target was an entity-focus miss, not a missing-frame miss.</p>
+<p><strong>Open question:</strong> can a treatment-frozen question-to-entity/action/span rule repair the observed focus error on at least four independently verified answer-sufficient clips while preserving matched controls?</p>
 </section>
 </div>
 </div>
@@ -3428,10 +3429,10 @@ break-inside: avoid;
 <tr class="even">
 <td><a href="./research-routing.html#current-working-answer">Routing</a></td>
 <td>Chooses evidence and separates retrieval from answering</td>
-<td><a href="./research-routing.html#taxonomy-audit">Route seeds</a></td>
-<td><strong>Use:</strong> direct Gemini native AV as frontier baseline; timeline/synthesis as context</td>
-<td><strong>Do not promote:</strong> self-verifier, scope-only, synthesis-conditioned, or derived timeline answer paths</td>
-<td><a href="./research-routing.html#frontier-boundary-verifier">Frozen targeted temporal/speech verification</a></td>
+<td><a href="./research-routing.html#frontier-boundary-verifier">Full-panel Gemini and grounded-answering tests</a>; <a href="./research-routing.html#answer-election">multi-interpretation election</a>; <a href="./research-routing.html#dense-question-localized-evidence-20260816">dense localized-evidence recovery</a></td>
+<td><strong>Use:</strong> direct Gemini native AV as frontier baseline; map as optional retrieval index</td>
+<td><strong>Do not promote:</strong> self-verifier, generic derived answer path, tested election rule, or dense 4→12-FPS recovery under this condition</td>
+<td><a href="./research-routing.html#cheapest-valid-next-experiments">Question-conditioned evidence selection/verification</a></td>
 </tr>
 </tbody>
 </table>
@@ -3505,6 +3506,8 @@ Expand named experiments by theme
 <li><a href="./research-routing.html#transcript-residuals">Transcript residuals: evidence present, answer still wrong</a></li>
 <li><a href="./research-routing.html#retrieval-versus-fusion">Retrieval versus fusion diagnostic</a></li>
 <li><a href="./research-routing.html#answer-election">Evidence-aware answer election</a></li>
+<li><a href="./research-routing.html#task-support-sufficiency-audit-20260815">Task-support sufficiency audit (corrected v3; zero provider calls)</a></li>
+<li><a href="./research-routing.html#dense-question-localized-evidence-20260816">Dense question-localized evidence recovery (4 versus 12 FPS)</a></li>
 </ul>
 </section></details>
 </section>
@@ -3538,7 +3541,7 @@ Expand named experiments by theme
 <li><strong>Human/reference transcript controls:</strong> <a href="./research-speech-transcripts.html#label-blind-human-transcript-upper-bound">produce an independently reviewed, label-blind upper bound</a>.</li>
 <li><strong>Routed native audio/sound:</strong> <a href="./research-native-audio.html#matched-native-audio-specialist-panel">test prosody and non-speech strata with abstention and matched controls</a>.</li>
 <li><strong>Repaired/specialist models or bottleneck-first adaptation:</strong> <a href="./research-models.html#repaired-complete-neutral-qwen3-omni-run">repair the strict Omni path</a>, or <a href="./research-models.html#bottleneck-first-adaptation-decision">measure the bottleneck before adapting</a>.</li>
-<li><strong>Routing, fusion, and answer election:</strong> use the completed seven-category direct-API bundle to repair the clear temporal-scope failure without new video calls, and adjudicate the counting/global references before selecting a larger panel; test election only after top-1 evidence use is stable.</li>
+<li><strong>Routing, fusion, and answer election:</strong> the 475-row panel, hard-row audit, 24-row generic grounded-answering test, 11-row premise-tolerant follow-up, fresh 12-row multi-interpretation election, and dense localized-evidence diagnostic now supersede the earlier 60-row-audit-first queue item. Do not spend these panels on another global answer-policy rewrite, another FPS increase, or the failed ensemble. The <code>0/2</code> paper walkthrough blocked an immediate verifier run. The treatment-frozen 32-row sufficiency audit failed its target quota (<code>1/4</code>, deficit <code>3</code>), and the dense 4-versus-12-FPS diagnostic’s frozen score was <code>0/6</code> in either arm, but only <code>1/8</code> targets was a clean local answer opportunity after manual decomposition; both results are preserved with that limitation. The dense run had <code>48</code> authorized attempts across stages (<code>24</code> initial v2 pre-model HTTP 400 rejects and <code>24</code> separately user-reauthorized model-bearing v4+v22 arms); the final score denominator was <code>24</code> model-bearing arms. Its original <code>16/8</code> acceptance freeze and post-hoc correction are preserved, and the repaired target pair remained unrecovered. The next bounded test is a frozen question-to-entity/action/span transformation on independently verified answer-sufficient clips, not another density arm or modality-specific acquisition with matched supported controls and explicit reauthorization. Do not introduce a shared router framework or counting specialist in that test.</li>
 </ol>
 <p><span id="how-to-interpret-results" class="legacy-fragment-alias" aria-hidden="true"></span></p>
 </section>
@@ -3665,10 +3668,10 @@ Expand the historical issue and PR trail
 </section>
 <section id="what-superseded-what" class="level3">
 <h3 class="anchored" data-anchor-id="what-superseded-what">What superseded what</h3>
-<p>Six records explain which later evidence replaced an earlier project statement.</p>
+<p>Seven records explain which later evidence replaced an earlier project statement.</p>
 <details>
 <summary>
-Expand six supersession records
+Expand seven supersession records
 </summary>
 <table class="caption-top table">
 <colgroup>
@@ -3713,6 +3716,11 @@ Expand six supersession records
 <td>Directed and dense temporal heuristics</td>
 <td>Their matched diagnostic panels</td>
 <td>The tested implementations were not promoted; smarter fixed-budget sampling remains an open hypothesis.</td>
+</tr>
+<tr class="odd">
+<td>Issue #35 v1/v2 sufficiency audit and selection decision</td>
+<td>Corrected v3 zero-call feasibility audit</td>
+<td>Current role counts are <code>1/17/8/6</code>; the target quota fails <code>1/4</code> (deficit <code>3</code>), the original v1 selection/protocol are invalid for provider authorization, and no provider calls were made.</td>
 </tr>
 </tbody>
 </table>

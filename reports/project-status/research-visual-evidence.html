@@ -3351,7 +3351,8 @@ break-inside: avoid;
 <summary>
 Method, result, validity risks, and evidence
 </summary>
-Original MKV streams were losslessly copied to WebM and verified through codec, packet-hash, duration, file-hash, and uploaded-byte bindings. Native provider schema translation was unreliable, so the working route uses prompt-JSON, strict local validation, and no semantic repair. Sol, Fable, and Gemini Pro independently reviewed the same sanitized packet and agreed that the primary failure is answer–evidence decoupling rather than failed map localization. Fable noted that a merely shorter answer would not solve both observed errors: one answer embellished while the other lost specificity. See the <a href="../experiments/2026-08-11-frontier-video-map-diagnostic.qmd">dated evidence record</a>.
+<p>Original MKV streams were losslessly copied to WebM and verified through codec, packet-hash, duration, file-hash, and uploaded-byte bindings. Native provider schema translation was unreliable, so the working route uses prompt-JSON, strict local validation, and no semantic repair. Sol, Fable, and Gemini Pro independently reviewed the same sanitized packet and agreed that the primary failure is answer–evidence decoupling rather than failed map localization. Fable noted that a merely shorter answer would not solve both observed errors: one answer embellished while the other lost specificity. See the format-specific evidence records below.</p>
+<p><a href="research-visual-evidence.html#gemini-native-av-event-map-canary">Canary section in this rendered report</a>.</p>
 </details>
 </section>
 <section id="frozen-30-protocol-v2" class="level3">
@@ -3537,10 +3538,21 @@ The crop was manually selected and not scale-ready. One targeted failure cannot 
 <li>Rows with a verified uniform miss may fail at retrieval; rows with full interval coverage may instead fail at visual representation, fusion, or answer selection.</li>
 <li>A fixed budget that combines broad context and query-local evidence may improve recall without the narrowness of the tested directed heuristic.</li>
 <li>Spatial detail may be worthwhile only for routed OCR or small-object cases.</li>
+<li><a href="https://github.com/NVlabs/AutoGaze">AutoGaze</a> is a promising question-blind visual-patch efficiency mechanism, not an answer-support selector. Its required-detail recall on brief actions and small text is unknown here and must be measured before any answer run. The repo-local technical assessment is <code>docs/research/2026-08-15-autogaze-task-support.md</code>.</li>
 </ul>
 </section>
 <section id="cheapest-valid-next-experiments" class="level2">
 <h2 class="anchored" data-anchor-id="cheapest-valid-next-experiments">Cheapest valid next experiments</h2>
+<section id="autogaze-required-detail-recall-canary" class="level3">
+<h3 class="anchored" data-anchor-id="autogaze-required-detail-recall-canary">AutoGaze required-detail recall canary</h3>
+<ul>
+<li><strong>Hypothesis:</strong> AutoGaze can reduce local visual-token cost while preserving every independently labeled patch/crop needed for brief-action and small-text evidence recovery.</li>
+<li><strong>Smallest valid panel or work item:</strong> a no-answer held-out canary of short clips with independently marked required frames and spatial regions, comparing the compatible full-patch encoder with AutoGaze at one frozen patch budget.</li>
+<li><strong>Matched controls and integrity safeguards:</strong> identical decoded frames, resolution, local ViT revision, temporal schedule, and evidence labels; score required-region recall before exposing questions or running an MLLM. Keep it separate from Gemini and issue #35 answer-use evidence.</li>
+<li><strong>Decision or promotion rule:</strong> advance only with complete required-detail recall on the canary plus a material token/runtime reduction; any missed decisive region stops answer inference at that budget.</li>
+<li><strong>Boundary on what a positive result would establish:</strong> compatibility and retrieval efficiency for the tested local encoder and detail slice, not answer quality, question-aware retrieval, audio recovery, or a Gemini path.</li>
+</ul>
+</section>
 <section id="selection-sensitive-relevant-scene-panel" class="level3">
 <h3 class="anchored" data-anchor-id="selection-sensitive-relevant-scene-panel">Selection-sensitive relevant-scene panel</h3>
 <ul>

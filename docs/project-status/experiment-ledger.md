@@ -144,10 +144,31 @@ answer; direct Gemini native AV is a frontier baseline, not a decisive
 winner.
 
 **Strongest evidence:** [completed Gemini full-panel and hard-row
-mechanism audit](research-routing.md#frontier-boundary-verifier).
+mechanism audit](research-routing.md#frontier-boundary-verifier),
+followed by the [zero-call task-support sufficiency
+audit](research-routing.md#task-support-sufficiency-audit-20260815) and
+the [dense localized-evidence recovery
+diagnostic](research-routing.md#dense-question-localized-evidence-20260816).
+The latter’s frozen score was `0/6` at both 4 FPS and 12 FPS, but
+post-hoc manual decomposition found that five of the six scored targets
+lacked the reference-level answer inside the selected clip; only one
+target was a clean FPS-treatment opportunity, and neither arm recovered
+it. That diagnostic records `48` authorized attempts: `24`
+initial-authorization v2 HTTP 400 pre-model rejects plus `24` separately
+user-reauthorized model-bearing arms from v4+v22; the final score
+denominator is `24` model-bearing arms, not `48`.
 
-**Open question:** is each failure missing evidence, unused evidence, or
-wrong answer selection—and can a router abstain without regressions?
+The dense result has evidence validity **Diagnostic**, with a mechanism
+interpretation of **inconclusive after post-hoc failure decomposition**.
+Its original v22 freeze preserved `16` passed arms and `8` contract
+errors, then correction-v2 used an output-informed, zero-call parser
+repair. The frozen gate remains failed, but `0/6` is not a valid
+six-opportunity dense-recovery rate. The sole clean target was an
+entity-focus miss, not a missing-frame miss.
+
+**Open question:** can a treatment-frozen question-to-entity/action/span
+rule repair the observed focus error on at least four independently
+verified answer-sufficient clips while preserving matched controls?
 
 </div>
 
@@ -170,7 +191,7 @@ aria-label="Scrollable research theme status matrix" tabindex="0">
 | [Speech](research-speech-transcripts.md#current-working-answer) | Adds spoken words with explicit provenance | [Whisper ablation](research-speech-transcripts.md#automatic-transcript-ablation) | **Use selectively:** accepted Whisper | **Blocked:** human tier; **Possible:** alternate ASR | [Selective Whisper route](research-speech-transcripts.md#distribution-level-selective-whisper) |
 | [Native audio](research-native-audio.md#current-working-answer) | Preserves prosody and non-speech sound | [Audio on/off](research-native-audio.md#minicpm-audio-on-off) | **Do not default:** global audio on | **Possible:** routed sound/prosody | [Specialist panel](research-native-audio.md#matched-native-audio-specialist-panel) |
 | [Models](research-models.md#current-working-answer) | Separates compatibility, quality, and adaptation | [Candidate screens](research-models.md#failure-panel) | **Use:** Qwen3.5-4B; **Fast:** MiniCPM-o | **Possible:** repaired/specialist model or adaptation | [Bottleneck-first decision](research-models.md#bottleneck-first-adaptation-decision) |
-| [Routing](research-routing.md#current-working-answer) | Chooses evidence and separates retrieval from answering | [Full-panel Gemini and hard-row audit](research-routing.md#frontier-boundary-verifier) | **Use:** direct Gemini native AV as frontier baseline; map as optional retrieval index | **Do not promote:** direct Gemini as a winner, self-verifier, or fixed derived answer path | [Representative 60-row audit, then frozen map grounding](research-routing.md#frontier-boundary-verifier) |
+| [Routing](research-routing.md#current-working-answer) | Chooses evidence and separates retrieval from answering | [Full-panel Gemini and grounded-answering tests](research-routing.md#frontier-boundary-verifier); [multi-interpretation election](research-routing.md#answer-election); [dense localized-evidence recovery](research-routing.md#dense-question-localized-evidence-20260816) | **Use:** direct Gemini native AV as frontier baseline; map as optional retrieval index | **Do not promote:** self-verifier, generic derived answer path, tested election rule, or dense 4→12-FPS recovery under this condition | [Question-conditioned evidence selection/verification](research-routing.md#cheapest-valid-next-experiments) |
 
 </div>
 
@@ -261,6 +282,10 @@ Expand named experiments by theme
 - [Retrieval versus fusion
   diagnostic](research-routing.md#retrieval-versus-fusion)
 - [Evidence-aware answer election](research-routing.md#answer-election)
+- [Task-support sufficiency audit (corrected v3; zero provider
+  calls)](research-routing.md#task-support-sufficiency-audit-20260815)
+- [Dense question-localized evidence recovery (4 versus 12
+  FPS)](research-routing.md#dense-question-localized-evidence-20260816)
 
 </details>
 
@@ -331,13 +356,29 @@ reference, not a prescribed research sequence.
     path](research-models.md#repaired-complete-neutral-qwen3-omni-run),
     or [measure the bottleneck before
     adapting](research-models.md#bottleneck-first-adaptation-decision).
-6.  **Routing, fusion, and answer election:** first draw a
-    deterministic, question-stratified 60-row sample and blindly
-    adjudicate answer quality plus map sufficiency. If its gates pass,
-    use frozen maps to test claim/span grounding and concise
-    serialization, then add targeted dense/OCR/speech verification only
-    for confirmed map omissions. Test election only after top-1 evidence
-    use is stable.
+6.  **Routing, fusion, and answer election:** the 475-row panel,
+    hard-row audit, 24-row generic grounded-answering test, 11-row
+    premise-tolerant follow-up, fresh 12-row multi-interpretation
+    election, and dense localized-evidence diagnostic now supersede the
+    earlier 60-row-audit-first queue item. Do not spend these panels on
+    another global answer-policy rewrite, another FPS increase, or the
+    failed ensemble. The `0/2` paper walkthrough blocked an immediate
+    verifier run. The treatment-frozen 32-row sufficiency audit failed
+    its target quota (`1/4`, deficit `3`), and the dense 4-versus-12-FPS
+    diagnostic’s frozen score was `0/6` in either arm, but only `1/8`
+    targets was a clean local answer opportunity after manual
+    decomposition; both results are preserved with that limitation. The
+    dense run had `48` authorized attempts across stages (`24` initial
+    v2 pre-model HTTP 400 rejects and `24` separately user-reauthorized
+    model-bearing v4+v22 arms); the final score denominator was `24`
+    model-bearing arms. Its original `16/8` acceptance freeze and
+    post-hoc correction are preserved, and the repaired target pair
+    remained unrecovered. The next bounded test is a frozen
+    question-to-entity/action/span transformation on independently
+    verified answer-sufficient clips, not another density arm or
+    modality-specific acquisition with matched supported controls and
+    explicit reauthorization. Do not introduce a shared router framework
+    or counting specialist in that test.
 
 <span id="how-to-interpret-results" class="legacy-fragment-alias"
 aria-hidden="true"></span>
@@ -471,14 +512,14 @@ provenance, not substitutes for the current condition-bound conclusions.
 
 ### What superseded what
 
-Six records explain which later evidence replaced an earlier project
+Seven records explain which later evidence replaced an earlier project
 statement.
 
 <details>
 
 <summary>
 
-Expand six supersession records
+Expand seven supersession records
 </summary>
 
 | Earlier statement or result | Superseding evidence | Current interpretation |
@@ -489,6 +530,7 @@ Expand six supersession records
 | Initial Gemma compatibility promotion | Phi/Gemma semantic gate | Gemma and Phi were not promoted beyond the tested three-row semantic screen; compatibility is not quality. |
 | Qwen3-Omni compatibility success | Neutral quality-10 A2 | The strict run is ineligible for its predeclared promotion decision after 19/20 outputs; the model remains eligible for a repaired fresh comparison. |
 | Directed and dense temporal heuristics | Their matched diagnostic panels | The tested implementations were not promoted; smarter fixed-budget sampling remains an open hypothesis. |
+| Issue \#35 v1/v2 sufficiency audit and selection decision | Corrected v3 zero-call feasibility audit | Current role counts are `1/17/8/6`; the target quota fails `1/4` (deficit `3`), the original v1 selection/protocol are invalid for provider authorization, and no provider calls were made. |
 
 </details>
 

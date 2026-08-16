@@ -249,9 +249,12 @@ not a prevalence sample. Review found 6 supported answers, 5 partial
 answers, 15 incorrect answers, and 4 ambiguous or reference-conflicted
 rows.
 
-Among the 20 incorrect or partial answers, Gemini’s independent
-question-blind map already contained the needed evidence in 12; 8 maps
-omitted or misread the required detail. The primary mechanisms were:
+Among the 20 incorrect or partial answers, the original audit marked 12
+as having the needed evidence in Gemini’s independent question-blind map
+and 8 as map omissions or misreads. Independent post-freeze review of
+the later grounded-answering experiment corrected two of those 12: their
+maps described the visible mechanics or state but did not contain the
+reference-level purpose or action. The original mechanism counts were:
 
 | Mechanism | Rows in the 20-row hard-failure subset |
 |----|---:|
@@ -290,6 +293,495 @@ calculation uses `$1` per million input tokens and `$6` per million
 candidate-plus-thinking tokens; the provider invoice was not exposed, so
 it is an estimate rather than observed billing.
 
+## Grounded map-answering mechanism test
+
+Issue \#35 then tested answer interpretation and evidence use separately
+from new evidence recovery. The frozen panel contained all 12 incorrect
+or partial hard-audit rows whose source audit marked the question-blind
+map sufficient, plus 12 one-to-one controls matched by scorer stratum
+and screened for answer support. Post-freeze independent review found
+that only 10/12 targets actually contained the reference-level fact; the
+other two cannot isolate answer-stage repair. This is a label-aware
+spent-row mechanism panel with a corrected audit limitation, not a
+prevalence estimate.
+
+Each row received only its frozen question and preselected exact lines
+from the existing question-blind map. The text-only Gemini 3.1 Pro
+Preview treatment had to return a question interpretation,
+evidence-cited claims, conflicts or missing qualifiers,
+`needs_verification`, and one concise top-1 answer. It received no
+native media, new evidence, reference, prior answer, or alternate answer
+candidates. All 24 responses completed without retry and were frozen
+before references or scoring entered the workflow. The treatment changed
+all 24 normalized answers, so every target and control received manual
+inspection.
+
+The predeclared gate required at least 6/12 target rescues, at most one
+control regression, citation support for every answer claim, no
+unnecessary verification route, and inspection of every changed row. It
+failed:
+
+| Gate component                  |      Required |  Observed |
+|---------------------------------|--------------:|----------:|
+| Target rescues                  | at least 6/12 |  **5/12** |
+| Control regressions             |  at most 1/12 |  **2/12** |
+| Unsupported answer citations    |             0 |     **0** |
+| Unnecessary verification routes |             0 |     **7** |
+| Changed rows inspected          |           all | **24/24** |
+
+The constraint repaired several clear failures, including a demolition
+explanation, object identity, one count, stinger-related action
+specificity, and an unsupported ownership inference. It did not reliably
+force use of already-present evidence. Seven rows—including explicit
+later actions, speech, illumination, and countable map events—were sent
+to verification instead of answered. Two previously supported controls
+regressed for the same reason. Among the nine remaining target failures
+and control regressions, the corrected audit labels were four reasoning
+failures, two wrong-span uses, one specificity/normalization failure,
+and two rows with insufficient frozen evidence. The predeclared target
+count remains 12 because membership and predictions were frozen;
+descriptively, the treatment rescued 5/10 targets confirmed
+answer-sufficient after re-adjudication.
+
+The available paired metrics agree that this is not a general
+replacement for the direct answer path. Target METEOR improved, but
+target BERTScore-F1 fell; controls regressed substantially on both
+metrics.
+
+| Scope       | METEOR delta | BERTScore-F1 delta |
+|-------------|-------------:|-------------------:|
+| 12 targets  |      +0.0932 |            -0.0154 |
+| 12 controls |      -0.2902 |            -0.0585 |
+| All 24 rows |      -0.0985 |            -0.0370 |
+
+UMBC STS was unavailable: the frozen HTTP service timed out locally and
+from an independent bounded DigitalOcean egress probe, its HTTPS port
+was closed, and the current UMBC domain returned 404 for that service
+path. The existing 24 baseline STS values are provenance-bound in a
+private resumable cache, but the 24 new treatment pairs were not scored.
+STS and semantic composite are therefore recorded as `null`; no zero or
+substitute metric is presented as the legacy measure. This missing
+metric does not change the predeclared mechanism gate, which failed
+independently.
+
+One initial v1 call is preserved as an invalid preflight-only attempt:
+Google’s client rejected an unsupported JSON-schema keyword before an
+answer candidate was returned. The schema was corrected under a
+regression test and the experiment was prepared additively as v2; v1 was
+not relabeled or retried.
+
+Independent code review found two integrity gaps in the completed v2
+tooling. The frozen validator required cited `answer_claims` but did not
+structurally require the final `answer` to equal one of those claims.
+Manual inspection of all 24 changed rows found no unsupported final
+answer, so the observed gate is unchanged; future protocol version 2
+enforces an exact answer-to-cited-claim match. The original prediction
+freeze also hashed terminals but not request, raw-response, metadata, or
+parsed-response files. A post-hoc additive evidence freeze now binds all
+current row artifacts. It cannot retroactively establish their contents
+at the original freeze instant; future runs create that sidecar with the
+prediction freeze. Malformed paid JSON is now preserved before being
+classified as a contract error.
+
+Evidence validity: this is a valid-but-negative selected mechanism
+result; its automatic semantic record is partial because STS/composite
+are unavailable, and the corrected audit leaves 10 answer-sufficient
+targets rather than 12. Decision disposition: **Not promoted under the
+tested condition**. The evidence-citation contract prevented unsupported
+cited claims, but its abstention behavior was too conservative and did
+not reliably repair temporal scope, requested purpose, or complete
+specificity. Do not scale this prompt, do not add multiple candidate
+answers, and do not treat it as the shared router or counting
+specialist. This originally motivated an explicit question-driven
+temporal or speech verification proposal. The later `0/2` zero-call
+paper walkthrough supersedes that immediate next step: first freeze the
+treatment, then independently audit fresh target sufficiency against
+labels/direct evidence while keeping those materials hidden from
+inference.
+
+The sanitized tracked evidence index is
+`docs/experiments/artifacts/vqa-grounded-map-answering-20260814/`.
+Complete private requests, terminal responses, freezes, audit, partial
+metrics, and STS cache are retained under
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/grounded-map-answering-issue35-v2/`.
+
+### Premise-tolerant follow-up
+
+A focused 11-row follow-up tested the main actionable v2 failure: false
+abstention when the map contains one uniquely relevant event but the
+question’s locator is imprecise. The frozen panel contained five such
+cases, two detectable evidence-insufficiency cases, one known map
+omission, and three supported controls. The only treatment change was an
+explicit policy separating `harmless_locator_variance` from
+`answer_blocking`. Model, frozen questions and map lines, temperature,
+seed, high thinking, one-candidate output, and no-retry policy were
+preserved. The provider never received panel roles, references, prior
+answers, or scoring labels.
+
+The gate failed decisively:
+
+| Gate component                         |     Required |  Observed |
+|----------------------------------------|-------------:|----------:|
+| False-abstention rescues               | at least 4/5 |   **1/5** |
+| Detectable insufficiency verifications |          2/2 |   **1/2** |
+| Stability controls preserved           |          3/3 |   **1/3** |
+| Unsupported accepted answers           |            0 |     **0** |
+| Rows manually inspected                |          all | **11/11** |
+
+Eight responses passed the structured contract and three were preserved
+as contract errors without retry. The sole false-abstention rescue
+correctly ignored “tennis court” versus “platform” and answered that the
+bicyclist rode across the tennis net. Three other cases treated a
+uniquely resolvable locator as answer-blocking: claimed-tall versus
+actually-taller woman, an implicit keyboard-on transition, and
+inaccurate split-screen cooking wording. The table-versus-counter row
+resolved that locator as harmless, then abstained because the causal
+“why” was not explicit. Post-freeze sensitivity therefore does not treat
+it as a demonstrated false abstention: the descriptive rescue is 1/4
+among confirmed false-abstention cases, while the frozen gate remains
+1/5. One true insufficiency routed correctly; the other attempted
+verification but omitted the contract-required reason. Two supported
+controls regressed through contract failures.
+
+This rules out more deliberation under the tested strict premise policy
+as the repair. It does not justify guessing through ambiguous evidence.
+A future answer-use test would need a deterministic unique-event
+resolution rule that permits reporting the directly observed successor
+or contemporaneous activity without inventing a causal motive. That rule
+must be developed outside this spent panel and tested on fresh frozen
+rows with controls. Explicit temporal or speech verification remains the
+separate next recovery experiment; counting and a shared router remain
+out of scope.
+
+Automatic metrics are descriptive only because the roles mix desired
+answers, desired verification sentinels, and a known map omission. On
+the five frozen false-abstention rows, METEOR/BERTScore-F1 were
+`0.2926/0.9060` for direct native answers, `0.0000/0.8036` for v2, and
+`0.1498/0.8369` for the new policy. On the three stability controls they
+were `0.7628/0.9413`, `0.6964/0.9035`, and `0.2726/0.2918`,
+respectively. The score artifact also preserves per-role and all-row
+aggregates; the all-row mean is not a mechanism success measure because
+it necessarily penalizes intended verification. STS and composite remain
+`null` because the frozen historical UMBC service is unavailable and no
+comparable local implementation was preregistered. The gate already
+fails independently of those automatic metrics.
+
+The sanitized index is
+`docs/experiments/artifacts/vqa-premise-tolerant-grounded-answering-20260814/`.
+Complete private evidence is retained at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/grounded-map-answering-issue35-premise-v3/`.
+
+Independent review found that the original prediction/evidence freezes
+did not bind the separate role/threshold gate. The observed gate exactly
+matched the committed selection, so the counts above are unchanged. An
+additive `gate-integrity.json` now binds that unchanged gate and
+selection to both original freezes without rewriting them. The hardened
+runner rejects role or threshold drift and binds the gate directly in
+future prediction freezes.
+
+Evidence validity: **Diagnostic**—valid negative selected/spent
+mechanism evidence, with a post-freeze sensitivity correction for one
+source role and an additive gate-integrity sidecar that cannot
+retroactively establish the gate’s contents at the original
+prediction-freeze instant. Decision disposition: **Not promoted under
+the tested condition**.
+
+### Multi-interpretation answer election
+
+A fresh 12-row follow-up tested the user’s explicit hypothesis that
+generating multiple answers might expose a better supported
+interpretation. It excluded every issue \#35 v2/v3 row and the earlier
+seven-row canary, then froze four premise-variance failures, four
+evidence-insufficiency safeguards, and four supported controls. Each row
+received one no-retry single unique-event call and one no-retry call
+producing exactly three typed candidates: literal premise, unique-event
+paraphrase, and conservative verification. A fixed local rule, with no
+labels, metrics, prior answers, or model call, elected one top-1 answer
+or `NEEDS VERIFICATION`.
+
+The rows are disjoint from every issue \#35 v2/v3 row and the earlier
+canary, but this is not a clean panel-isolation claim. The original
+selection manifest named and bound v2 and the canary, not v3; a
+post-freeze additive exclusion audit binds the exact v3 protocol and
+proves all 11 v3 rows were already a subset of the frozen 24-row v2
+exclusion. More importantly, label-aware panel selection was committed
+before the treatment runner/election implementation. The selected
+examples could therefore have influenced treatment-code design. This
+audit gap downgrades the result to diagnostic mechanism evidence and
+bars any fresh-panel performance claim; it does not change the negative
+gate.
+
+All 24 responses passed the structural contract. Both arms were
+prediction- and evidence-frozen before references were loaded, and all
+12 candidate sets (36 candidates) plus all six changed emitted answers
+were manually inspected. The predeclared gate failed:
+
+| Gate component                                 |     Required |  Observed |
+|------------------------------------------------|-------------:|----------:|
+| Correct multi answers on premise-variance rows | at least 3/4 |   **4/4** |
+| Premise improvements over single               |   at least 2 |     **1** |
+| Safeguards verified by both arms               |          4/4 |   **3/4** |
+| Controls preserved by multi                    |          4/4 |   **3/4** |
+| Unsupported emitted answers                    |            0 |     **0** |
+| Candidate sets manually inspected              |          all | **12/12** |
+
+The result answers why multiple candidates did not solve this cleanly.
+Every row had at least one correct candidate (`12/12` oracle coverage),
+but the fixed election produced only `10/12` correct routes. On the
+awkward “spinner” premise row, the multi arm correctly elected the
+unique-event interpretation where the single arm abstained. On an
+evidence-insufficient robot row, however, literal and conservative
+candidates correctly requested verification while the sole-answer rule
+selected a cited alternate action that missed the labeled requested
+fact. On a displayed-text control, a correct literal candidate and a
+wrong later-text candidate conflicted, forcing unnecessary verification.
+Five candidate sets reached answer agreement, but their three declared
+interpretation types converged to the same wording rather than adding
+semantic diversity.
+
+Automatic metrics are descriptive answer-only means; verification and
+failure sentinels are excluded rather than scored as text.
+Direct/single/multi have metric denominators `12/7/8`, respectively.
+Their METEOR values are `0.3161/0.1685/0.2929` and BERTScore-F1 values
+are `0.9002/0.8882/0.9001`. On premise-variance rows, multi METEOR is
+`0.1140` over four answered rows versus single `0.0992` over three, with
+BERTScore-F1 `0.8746` versus `0.8865`; the different denominators
+preclude a simple paired quality claim. The safety and control gates
+independently failed. STS and the semantic composite remain `null`: the
+historical UMBC-compatible service is unavailable, and substituting
+another model would not preserve comparability.
+
+This is a useful negative result, not evidence that candidate generation
+never helps. Candidate diversity exposed recoverable answers, but exact
+normalized agreement plus the sole-supported-answer rule was not a safe
+selector. Do not scale this election or replace its emitted top-1 result
+with oracle-best candidate scoring.
+
+A later zero-call, label-aware paper walkthrough tested the proposed
+entity–fact–time/span support contract on the two decisive failures
+before authorizing another 24 calls. It resolved `0/2`. On the
+insufficiency row, the reference-level action is absent from the
+complete frozen map; accepting the unique entity alias repeats the cited
+alternate-action error, while rejecting the alias repeats locator-based
+false abstention. On the displayed-text control, two timestamped text
+spans both satisfy the question because it has no temporal qualifier;
+choosing the reference span requires a separately frozen salience or
+text-type rule, not tuple entailment. Therefore do not launch the
+proposed paid task-support follow-up from these cases. A future
+answer-use test first needs the treatment frozen before an independent,
+label-aware sufficiency audit shows that each target’s requested fact
+and unique span are present; labels and direct evidence must remain
+hidden from inference. This does not authorize another global prompt
+rewrite, answer ensemble, counting specialist, or shared router
+framework.
+
+The sanitized evidence index is
+`docs/experiments/artifacts/vqa-multi-interpretation-answer-election-20260814/`.
+Complete private protocols, requests, raw responses, metadata, candidate
+traces, freezes, audit, scores, and the exact paper walkthrough are
+retained at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/multi-interpretation-answer-election-issue35-v1/`.
+The original score and additive metric-provenance v2 are preserved; the
+additive v3 score binds the explicit v3 exclusion and corrects
+verification-sentinel handling. V4 and final v5 rebind the same
+numerical calculation to the finalized formatted/refactored scorer
+bytes; v5 also binds the exact BERT model view, upstream snapshot, and
+metric package versions. The private paper-walkthrough SHA-256 is
+`453e0abf54e0bcec58c8b00ebb0e3db458f6a19d67e730617afb8e156bceda29`; the
+tracked bundle contains a sanitized two-mechanism summary.
+
+Evidence validity: **Diagnostic**—valid negative selected-panel
+mechanism evidence for this candidate generator and deterministic
+election rule, with the disclosed treatment-code-after-selection audit
+gap; not a clean fresh-panel or prevalence estimate. Decision
+disposition: **Not promoted under the tested condition**.
+
+### Task-support sufficiency audit (zero provider calls)
+
+- **Reason for testing:** determine whether a treatment-frozen,
+  label-aware sufficiency audit could produce enough uniquely supported
+  target rows for the proposed evidence-citing verifier without spending
+  provider calls first.
+- **Tested condition and panel:** all `475/475` eligible source rows
+  remained eligible. A deterministic audit covered `32` rows: `24`
+  low-score candidates and `8` controls. Prior exposure was retained
+  only as a boolean reporting flag; it was not an exclusion or a fresh
+  generalization stratum.
+- **Observed result:** the corrected v3 audit adjudicated all `32/32`
+  rows. Role counts were `1` answer-sufficient target, `17`
+  insufficiency safeguards, `8` supported controls, and `6`
+  nonselectable reference/question issues. The predeclared minimum was
+  `4` per selectable role, so the target quota failed by `3`; safeguard
+  and control quotas passed.
+- **Combined prior-exposure split:** among rows with any prior-exposure
+  flag, the counts were target `1`, safeguard `4`, control `5`, and
+  reference/question issue `0`; among rows without any prior-exposure
+  flag, they were target `0`, safeguard `13`, control `3`, and
+  reference/question issue `6`. The sole target was previously exposed,
+  so there is no unexposed answer-sufficient target.
+- **Provider authorization and completion:** the offline feasibility
+  gate was **FAIL**, provider authorization was **blocked**, and no
+  `provider/API/native-video` calls were made. No replacement selection
+  or provider-safe replacement was created; provider cost and metrics
+  are not applicable. A historical label-free v1 protocol and selection
+  remain preserved, but are invalidated and are not currently
+  authorized.
+- **Current condition-bound status:** **Valid but negative offline
+  feasibility result; Not promoted under the tested condition.** This is
+  a panel-feasibility finding, not a provider-quality result.
+- **What this rules out now:** running the provider task from the
+  invalidated original selection, or treating exposed-row results as a
+  fresh generalization test. Do not infer answer rescue, safeguard
+  verification, control preservation, unsupported-answer rate, or
+  metrics from this zero-call result.
+- **What it does not rule out:** a future verifier test after a newly
+  reviewed panel satisfies the role quotas and receives explicit
+  reauthorization, or provider quality under that separately authorized
+  condition.
+- **Possible defect, audit gap, or uncertainty:** this audit is
+  label-aware and uses frozen map/reference/direct-answer material only
+  for sufficiency adjudication; it cannot measure provider behavior. The
+  six reference/question issues are preserved in the denominator but are
+  not selectable roles.
+- **Reconsider when:** a newly reviewed, treatment-frozen panel supplies
+  at least four uniquely answer-sufficient targets plus four safeguards
+  and four supported controls, with labels and direct evidence hidden
+  from inference and explicit provider reauthorization.
+
+The sanitized evidence index is
+`docs/experiments/artifacts/vqa-task-support-sufficiency-20260815/`. The
+complete private evidence remains under the approved benchmark root
+`data/vqa/benchmarks/task-support-sufficiency-audit-issue35-v1/`; its
+current v3 correction, freeze, and source bindings are recorded by
+SHA-256 in the sanitized index. This result supersedes the earlier v1/v2
+feasibility wording; those historical private artifacts remain
+unchanged.
+
+### Dense question-localized evidence recovery
+
+- **Primary theme:** routing, fusion, and answer selection.
+- **Related theme:** visual and temporal evidence.
+- **Reason for testing:** determine whether denser visual sampling can
+  recover brief target facts that the existing question-blind map
+  omitted, when the question has already selected a short local window.
+- **Tested condition and panel:** one byte-identical local clip per
+  selected row, requested at 4 FPS and 12 FPS; eight selected visual
+  targets and four supported controls. Two targets remained explicitly
+  ambiguous and stayed in completion but were excluded from the frozen
+  auditable-target denominator, leaving six scored targets. A later
+  additive manual sensitivity audit found that five of those six did not
+  contain the reference-level answer inside the selected clip. Prior
+  exposure was retained as a reporting flag, never as an exclusion. All
+  475 eligible source rows remained in the eligibility boundary.
+- **Attempt accounting and authorization:** the authorized stages
+  contain `48` total provider attempts. The initial authorization issued
+  `24` v2 attempts, all HTTP 400 `INVALID_ARGUMENT` schema rejects
+  before a model response. After the schema repair, the user separately
+  reauthorized the same `24`-arm treatment; v4 plus the v22 continuation
+  issued `24` unique model-bearing arms. The final score denominator is
+  therefore `24` model-bearing arms, not `48`; neither stage retried or
+  duplicated an arm.
+- **Observed result:** all `24/24` arms and `12/12` target/control pairs
+  completed, and all `12` clips plus `24` arms were manually inspected.
+  Target recovery was `0/6` at both 4 FPS and 12 FPS, with `0` paired
+  incremental rescues. Controls recovered `3/4` at each FPS, with `0`
+  12-FPS control regressions and `0` unsupported observations in either
+  arm. The correction-v2 replay made no provider calls and repaired
+  eight parser acceptances before this reference-aware score; the final
+  execution used `24` unique provider calls, with no retries. Provider
+  cost was unavailable in the frozen metadata, and no answer metrics
+  were computed.
+- **Post-hoc failure decomposition:** the original predictions and score
+  remain frozen, but the row-level interpretation changes materially. Of
+  the eight targets, three were reference/premise mismatches, two used
+  truncated windows, two had ambiguous question/reference pairs, and
+  only one was a clean local answer opportunity. Both arms made an
+  entity-focus error on that row (`0/1` at each FPS). The frozen `0/6`
+  is therefore descriptive, not a valid six-opportunity dense-recovery
+  rate. Control outputs recovered `3/4`, but only one control clip
+  contained both the answer fact and its temporal anchor. Three showed
+  the answer while placing the anchor outside or at the clip boundary;
+  two were answered and one routed to verification, showing inconsistent
+  missing-anchor handling.
+- **Current condition-bound status:** evidence validity **Diagnostic**;
+  mechanism interpretation **inconclusive after post-hoc failure
+  decomposition**; decision disposition **Not promoted under the tested
+  condition**. The predeclared gate failed because there were fewer than
+  two incremental recoveries and 12-FPS recovery was below one half of
+  the auditable-target denominator. Completion, inspection, zero
+  unsupported observations, and zero control regressions passed.
+- **Acceptance boundary and correction:** the original v22 prediction
+  freeze preserved `16` passed arms and `8` contract errors.
+  Correction-v2 was a post-hoc, output-informed parser repair with zero
+  provider calls; it accepted those eight responses under a wider
+  encoded-duration tolerance. This is **Diagnostic/post-hoc corrected**
+  evidence, not a clean completion of the predeclared acceptance
+  protocol. The negative target conclusion is robust to the repair: the
+  only repaired target pair remained unrecovered, so excluding it leaves
+  `0/5` recoveries among the remaining auditable targets, while the
+  corrected score is `0/6`. Control recovery is
+  acceptance-boundary-sensitive (only `1/4` control pairs had both arms
+  accepted before correction versus `3/4` recovered after it), so it is
+  not used to upgrade the gate.
+- **What this rules out now:** promoting another FPS increase from this
+  evidence; treating the frozen `0/6` as six valid dense-recovery
+  opportunities; and any claim that this selected panel measures a broad
+  FPS effect, router performance, or prevalence.
+- **What it does not rule out:** question-conditioned evidence
+  selection/verification, modality-specific acquisition for speech,
+  text, or fine detail, or a future router whose evidence paths and
+  route-level safeguards are measured independently.
+- **Possible defect, audit gap, or uncertainty:** **Panel-validity
+  defect**—the label-aware modality screen classified likely visual
+  mechanisms and selected windows, but did not establish that the exact
+  reference-level fact and its temporal anchor were present inside each
+  target clip. The post-freeze score excluded only two explicitly
+  ambiguous references, leaving five impossible recovery opportunities
+  in its six-row denominator.
+- **Reconsider when:** a newly frozen panel contains at least four
+  independently verified answer-sufficient target clips plus matched
+  controls before provider authorization.
+
+<details>
+
+<summary>
+
+Method, result, validity risks, and evidence
+</summary>
+
+The treatment used `gemini-3.1-pro-preview`, native audio/video, high
+media resolution, high thinking, temperature `0`, seed `42`, one attempt
+per arm, and maximum output `2,048`. The only arm difference was the
+requested FPS; each pair reused the same local clip bytes. The
+provider-safe request omitted references, predictions, scores, audit
+verdicts, and raw label material. Correction-v2 was an additive
+zero-call repair over the frozen responses, applied after observing
+their encoded durations: it changed eight endpoint acceptances from
+contract error to parsed success and did not alter the source prediction
+freeze. The original `16/8` acceptance freeze remains preserved. The
+final score consumed the corrected observations only after the
+prediction and audit freezes were verified, so the result is post-hoc
+corrected diagnostic evidence rather than a clean predeclared acceptance
+estimate. The repaired target pair still had no recovery; the gate
+remains negative even if that pair is excluded.
+
+The complete sanitized aggregate index is [the dense localized-evidence
+artifact
+bundle](artifacts/vqa-dense-localized-evidence-20260816/README.md).
+
+It contains counts and immutable hashes only; row identifiers,
+questions, references, evidence text, predictions, raw responses, media,
+credentials, and private filesystem paths are excluded. The full score
+chain records the correction, source prediction freeze, manual audit,
+audit freeze, score, and score-integrity bindings.
+
+The next bounded idea is to freeze a question-to-entity/action/span
+transformation and then independently verify answer sufficiency for at
+least four selected target clips before provider authorization. Do not
+spend this result on another FPS increase, global prompt rewrite,
+full-panel rerun, counting specialist, or shared router framework.
+</details>
+
 ## Cost and completion boundary
 
 The final v5 pilot plus verifier cost `$0.102772`. Including all
@@ -312,6 +804,9 @@ answer-quality metrics.
   evidence.
 - Do not run the v4 verifier, fresh category videos, or the seven-video
   answer screen under this unchanged mechanism.
+- Do not run the task-support provider test from the invalidated
+  original selection: the treatment-frozen zero-call audit found only
+  `1/4` target rows and blocked authorization.
 
 ## What it does not rule out
 
@@ -324,30 +819,32 @@ its boundaries were still coarse.
 
 Keep Google’s direct native-AV answer as a frontier baseline and retain
 the question-blind map as an optional retrieval index. Do not run
-another 475-video global prompt treatment. First draw a deterministic,
-question-stratified 60-row sample independent of metric outcome. Blindly
-adjudicate randomized Gemini/Qwen answers, then inspect map sufficiency.
-This estimates whether the hard-audit mechanisms are common enough to
-justify architecture work and separates reference defects from model
-defects.
+another 475-video global prompt treatment. The earlier
+representative-audit-then-generic- grounding sequence is superseded by
+the completed 475-row panel, hard-row audit, and issue \#35 mechanism
+test.
 
-Proceed to map-grounded answering only if at least 8/60 clean rows are
-wrong/partial despite sufficient map evidence; proceed to targeted
-retrieval only if at least 6/60 have genuine map omissions. If more than
-6/60 references are materially ambiguous, repair evaluation before
-optimizing architecture. The adjudication can use an independent
-frontier text judge with a small blinded human spot-check instead of
-requiring full manual review.
-
-If the first gate passes, test one narrow seam on frozen evidence:
-question plus map to requested scope and atomic claim/span bindings,
-then either a supported answer or `needs_verification`, followed by
-deterministic concise serialization. Compare it against a plain
-question-plus-map answer on the 12 audited map-sufficient failures plus
-six supported controls. Require at least 7/12 repairs, a four-case net
-advantage, at most one control regression, and no new unsupported
-claims. Only `needs_verification` should trigger one targeted AV check
-in a later screen.
+The narrow grounded-answering seam has now been tested on 12 failures
+marked map-sufficient by the source audit plus 12 matched supported
+controls. Post-freeze review confirmed only 10/12 as answer-sufficient;
+the treatment repaired 5/12 under the frozen gate (5/10 descriptively
+after correction), regressed two controls, and routed seven
+evidence-present rows to verification unnecessarily. Do not scale or
+broadly reprompt that condition. The fresh 12-row multi-interpretation
+follow-up then found a correct candidate on all 12 rows but failed to
+elect them safely: only one premise row improved over the single arm,
+one safeguard answered when verification was required, and one control
+regressed to verification. The later paper walkthrough resolved neither
+decisive failure: one is a map omission and one is an underspecified
+two-span text question. The subsequent treatment-frozen zero-call audit
+adjudicated all `32/32` rows but found only `1` answer-sufficient target
+versus the required `4`; its gate therefore failed with deficit `3`, and
+no provider calls were authorized. Do not launch the proposed verifier
+from the invalidated original selection. First prepare a newly reviewed
+panel and obtain explicit reauthorization; only then consider one
+explicit temporal or speech operation. Do not repeat this answer
+ensemble, introduce a shared router framework, or add a counting
+specialist.
 
 An independent Sol review rejected a generic generative consistency
 pass: the same-model verifier already repeated a known error, so another
@@ -426,3 +923,32 @@ additive retry-provenance SHA-256 is
 `e309d52904d54e400a420a386117934823794ffe2e8c4725df8bfb7e076e0c99`. The
 sanitized tracked index is
 `docs/experiments/artifacts/vqa-gemini-native-av-full-panel-20260813/`.
+
+The completed issue \#35 grounded-answering evidence is under:
+
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/grounded-map-answering-issue35-v2/`
+
+Its protocol, gate-freeze, prediction-freeze, changed-row audit, and
+post-freeze metric SHA-256 values are respectively
+`5619dbb852c1fdca1482749c6d4b3024455507e6bb3eab58e5a6747e0bff18c1`,
+`fd72e7bab8b7e356c2d28886488c8e968a7e536f906c9f8cb1ede7a122f624b2`,
+`897e022164233c64f1aaeb66e1c73e0d33c1dec96d7c9fd3b907a88dd599f117`,
+`986ac9c081fd51c19a163151a37c0a189ecb25c880fe6a60be317154ce3de95e`, and
+`37b5a9494ff59c6673f96d6282b30849f3a8ed595f3a31af0f70d132dce0d3b9`. The
+invalid v1 preflight remains separately preserved. The tracked sanitized
+index is
+`docs/experiments/artifacts/vqa-grounded-map-answering-20260814/`.
+
+The completed multi-interpretation answer-election evidence is under:
+
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/multi-interpretation-answer-election-issue35-v1/`
+
+Its combined integrity, manual-audit freeze, and final corrected
+post-freeze score SHA-256 values are respectively
+`c3ddeedb0bea446bc9d65c7de6b5e6fe6c8a2f78600a373cf7f0d2de042d6280`,
+`1b753a20dc6ae3e6e35b45c2dbbdf53822760c0b39f0f3c1af1fb18aba3e0ae1`, and
+`66baeaf72ef32fad88531bab9cc97f4cca99de8c929d414d1ca8d79f968d7a38`. The
+post-freeze exclusion-attestation SHA-256 is
+`29a252f51e97f45117cf80857f5c0694249a6f01f9135391d6fe031284967939`. The
+sanitized tracked index is
+`docs/experiments/artifacts/vqa-multi-interpretation-answer-election-20260814/`.

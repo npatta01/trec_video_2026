@@ -158,8 +158,11 @@ Fable, and Gemini Pro independently reviewed the same sanitized packet
 and agreed that the primary failure is answer–evidence decoupling rather
 than failed map localization. Fable noted that a merely shorter answer
 would not solve both observed errors: one answer embellished while the
-other lost specificity. See the [dated evidence
+other lost specificity. See the format-specific evidence records below.
+
+[Dated evidence
 record](../experiments/2026-08-11-frontier-video-map-diagnostic.qmd).
+
 </details>
 
 <a name="frozen-30-protocol-v2"></a>
@@ -604,8 +607,37 @@ class="legacy-fragment-alias" aria-hidden="true"></span>
   heuristic.
 - Spatial detail may be worthwhile only for routed OCR or small-object
   cases.
+- [AutoGaze](https://github.com/NVlabs/AutoGaze) is a promising
+  question-blind visual-patch efficiency mechanism, not an
+  answer-support selector. Its required-detail recall on brief actions
+  and small text is unknown here and must be measured before any answer
+  run. The repo-local technical assessment is
+  `docs/research/2026-08-15-autogaze-task-support.md`.
 
 ## Cheapest valid next experiments
+
+### AutoGaze required-detail recall canary
+
+- **Hypothesis:** AutoGaze can reduce local visual-token cost while
+  preserving every independently labeled patch/crop needed for
+  brief-action and small-text evidence recovery.
+- **Smallest valid panel or work item:** a no-answer held-out canary of
+  short clips with independently marked required frames and spatial
+  regions, comparing the compatible full-patch encoder with AutoGaze at
+  one frozen patch budget.
+- **Matched controls and integrity safeguards:** identical decoded
+  frames, resolution, local ViT revision, temporal schedule, and
+  evidence labels; score required-region recall before exposing
+  questions or running an MLLM. Keep it separate from Gemini and issue
+  \#35 answer-use evidence.
+- **Decision or promotion rule:** advance only with complete
+  required-detail recall on the canary plus a material token/runtime
+  reduction; any missed decisive region stops answer inference at that
+  budget.
+- **Boundary on what a positive result would establish:** compatibility
+  and retrieval efficiency for the tested local encoder and detail
+  slice, not answer quality, question-aware retrieval, audio recovery,
+  or a Gemini path.
 
 ### Selection-sensitive relevant-scene panel
 

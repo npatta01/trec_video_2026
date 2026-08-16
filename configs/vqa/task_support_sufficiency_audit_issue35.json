@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "experiment_id": "task-support-sufficiency-audit-issue35-v1",
+  "runner_path": "scripts/run_task_support_verifier.py",
+  "runner_sha256": "09df6be99ac0d82d8d3b69aab5e539a94e1879f7d0bd443a522307667df3efb6",
+  "prompt_template_sha256": "f1cd3936f923bd5cbf3936e1ef141418b23390a374df63593ffc8216d59f5bb6",
+  "response_schema_sha256": "940529058b7f27a1cb8bd352cd5348605e522c8e1fc45386b8810d3121f88f5e",
+  "validator_sha256": "c856d1b2f583ee52669ece0f92909c085b29dcb73cde78923af057aefa0935d6",
+  "settings": {
+    "model": "gemini-3.1-pro-preview",
+    "temperature": 0.0,
+    "seed": 42,
+    "thinking_level": "HIGH",
+    "candidate_count": 1,
+    "max_output_tokens": 2048,
+    "retry_count": 0
+  },
+  "score_condition": "gemini-3.1-pro-native-av-4fps",
+  "queue_policy": {
+    "strata": ["temporal", "audio_or_text"],
+    "low_score_max": 0.45,
+    "control_score_min": 0.7,
+    "low_order": ["semantic_composite", "video_id"],
+    "control_order": ["semantic_composite_desc", "video_id"]
+  },
+  "source_artifacts": {
+    "protocol": {
+      "path": "data/vqa/benchmarks/direct-gemini-batch-475-v1/protocol.json",
+      "sha256": "ca64baaed8c5eb6e16e5a397fbfb749f79d10b5d92f355ca51e872f752120a87"
+    },
+    "maps": {
+      "path": "data/vqa/benchmarks/direct-gemini-batch-475-v1/maps.question-blind.json",
+      "sha256": "1931434d9ebb88c4ae43d18ec62d6c41f668d745a52ab9dd7f4e969506db9a6b"
+    },
+    "predictions": {
+      "path": "data/vqa/benchmarks/direct-gemini-batch-475-v1/predictions.direct-answer.json",
+      "sha256": "394d2cbf801b29d258cb5ef907cf6f840935bb455b2a762f676160efb5814a3e"
+    },
+    "scores": {
+      "path": "data/vqa/benchmarks/direct-gemini-batch-475-v1/postfreeze-score.json",
+      "sha256": "9b9309fca503e8f1cb972f920bc25fb6d12bcebcfbfd86a1a78d46c2de3077c3"
+    },
+    "annotations": {
+      "path": "data/vqa/2025/training/annotations",
+      "sha256": "4dbb40d42dbbff435cc70672a39785b067cddab6492b055b73b27f483474c4ca"
+    }
+  },
+  "exposure_artifacts": {
+    "hard_audit_30": {
+      "path": "/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-batch-475-v1/failure-audit-v1/manual-review.json",
+      "sha256": "bcadac3d2056a883c227ee6c0675459783ff05182808aca26e040e6155be019d"
+    },
+    "grounded_v2_24": {
+      "path": "/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/grounded-map-answering-issue35-v2/protocol.json",
+      "sha256": "5619dbb852c1fdca1482749c6d4b3024455507e6bb3eab58e5a6747e0bff18c1"
+    },
+    "grounded_v3_11": {
+      "path": "/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/grounded-map-answering-issue35-premise-v3/protocol.json",
+      "sha256": "daa5ce4ce0fa88566114d62a4f029dcc38e168b22f4c0fc892ce3a14ccfdf93a",
+      "video_ids": []
+    },
+    "multi_interpretation_12": {
+      "path": "/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/multi-interpretation-answer-election-issue35-v1/protocol.source.json",
+      "sha256": "b0720d4188111f437f8eb11ee3cbe13d0992aa781442386b5b5b3af800d465a7"
+    },
+    "seven_row_canary": {
+      "path": "/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-evidence-canary-v1/manifest.json",
+      "sha256": "184649eada27b347f40e63d60294514275c3492d367f6a6fe36649542fffca1c"
+    },
+    "scope_control": {
+      "path": "/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-scope-control-v1/protocol.json",
+      "sha256": "de85e6961b21d0d4bc388fd957a06c80672c739916fdcddbfa02d8ed7c0f5a87"
+    },
+    "synthesis_followup": {
+      "path": "/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-whole-video-synthesis-v1/protocol.json",
+      "sha256": "2e597cbbf2b5b0e8bd48ba817fae8ee82bf57647cd1c02f2f976652394fe3f77"
+    }
+  },
+  "gate": {
+    "low_audit_count": 24,
+    "control_audit_count": 8,
+    "minimum_per_role": 4,
+    "require_all_rows_audited": true,
+    "provider_rows": 12,
+    "exposure_is_flag_only": true
+  },
+  "promotion_gate": {
+    "target_rescues": {"minimum": 3, "denominator": 4},
+    "safeguard_verifications": {"required": 4, "denominator": 4},
+    "controls_preserved": {"required": 4, "denominator": 4},
+    "unsupported_answers": {"maximum": 0},
+    "completed_rows": {"required": 12},
+    "changed_rows_inspected": "all"
+  }
+}
