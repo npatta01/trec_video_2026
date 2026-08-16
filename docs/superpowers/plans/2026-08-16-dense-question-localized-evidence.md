@@ -318,6 +318,14 @@ must not be loaded for reference-aware scoring.
 - Fresh additive zero-call candidate is private run-v13: imported `2`, remaining new maximum `22`, combined maximum `24`, `provider_calls_made=0`; no new output or prediction freeze. Final runner SHA is `1a43d4d72915ea791437663f5d858131f5f851ca3a9036da6480a470933accd3`; replay SHA `5af139d072987263995b406269ebbd475dbcb0ac3b8ba10f55e5e3754a70a420`; authorization SHA `6204759bd7e784ea2d2712fd81d14c7abc776d27875391862e7fda0e5ee02022`.
 - Recursive v2/v3/v4 pre/post file-hash manifests matched. Ruff, runner compilation, and `git diff --check` passed. The expanded suite reached `2,865 passed, 1 skipped, 23` unrelated pre-existing failures outside this experiment. Task 4 remains **NOT AUTHORIZED** pending a verified provider continuation freeze.
 
+#### Task 3D fix round 1/5 — 2026-08-16
+
+- Status: complete for this bounded review round; no provider calls, labels, references, or scoring. The six new regression checks initially produced `40 passed, 6 failed`; the final runner suite is `46 passed`, and runner plus preparation tests are `60 passed`.
+- Imported continuation targets now bind request/raw/metadata bytes exactly to immutable v4, deterministically recompute amended parsed bytes and semantic hashes, and require an exact target artifact set and amended terminal identity/status/hash envelope. Replay and authorization require integer-zero call counts plus current runner, validator, strict-schema, and provider-schema hashes.
+- Strengthened fake E2E assertions verify every callback in exact positions 3–24 or 3–4, including row/audit order, role, FPS, clip hash/bytes, prompt, MIME, and request payload identity. No imported arm is called.
+- Fresh additive zero-call candidate is private run-v14: imported `2`, remaining new maximum `22`, combined maximum `24`, `provider_calls_made=0`, no prediction freeze. Runner SHA `f7a46e01879b6b8e194fb4a4176010ace1ca430b294542c60174d7742113abc1`; replay SHA `3db613a4bf0d231eaa31ab9bfdb99e68d922a269bd4fb9cc1a3214762e059378`; authorization SHA `bb0447b514d6ca52a1bca661f501939af91828b0d56a6b36af20c2d407bc1a65`.
+- v2/v3/v4 and superseded v13 recursive pre/post hashes matched. Ruff, compilation, and `git diff --check` passed. Task 4 remains **NOT AUTHORIZED** pending a verified provider continuation freeze.
+
 ### Task 4: Audit paired fact recovery and apply the gate
 
 **Files:**

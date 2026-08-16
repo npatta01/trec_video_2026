@@ -176,6 +176,10 @@ def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def _json_bytes(value: Any) -> bytes:
+    return (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
+
+
 def _load_json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -1154,6 +1158,16 @@ def _validate_response_id_uniqueness(
                 f"{response_id} in {seen[response_id].name} and {row_root.name}"
             )
         seen[response_id] = row_root
+
+
+def _replayed_artifact_hashes(root: Path, audit_index: int, role: str, fps: float) -> dict[str, str]:
+    row_root = _arm_directory(root, audit_index, role, fps)
+    return {
+        name: _sha256(row_root / name)
+        for name in sorted(path.name for path in row_root.iterdir() if path.is_file())
+    }
+
+
 def run(root: Path, call: CallFunction | None = None) -> None:
     """Run one immutable provider attempt for each selected row and FPS arm."""
 
@@ -1684,16 +1698,27 @@ def prepare_continuation(source_root: Path, output_root: Path) -> None:
             fps=fps,
         )
         _write_once(target_arm / "parsed.json", parsed)
-        _write_once(target_arm / "terminal.json", {
-            "audit_index": audit_index, "role": role, "fps": fps,
-            "status": "passed", "raw_response_sha256": _sha256_bytes(raw.encode()),
-        })
+        _write_once(
+            target_arm / "terminal.json",
+            {
+                "audit_index": audit_index,
+                "fps": fps,
+                "metadata_sha256": _sha256(target_arm / "metadata.json"),
+                "parsed_semantic_sha256": _sha256_bytes(_canonical(parsed)),
+                "parsed_sha256": _sha256(target_arm / "parsed.json"),
+                "raw_response_sha256": _sha256(target_arm / "raw-response.txt"),
+                "request_sha256": _sha256(target_arm / "request.json"),
+                "response_id": _load_json(target_arm / "metadata.json").get("response_id"),
+                "role": role,
+                "status": "passed",
+            },
+        )
         source_artifacts = {name: _sha256(source_arm / name) for name in sorted(path.name for path in source_arm.iterdir() if path.is_file())}
         prefix.append({
             "audit_index": audit_index, "role": role, "fps": fps,
             "source_artifacts": source_artifacts,
             "source_response_id": _load_json(source_arm / "metadata.json").get("response_id"),
-            "replayed_artifacts": {name: _sha256(target_arm / name) for name in sorted(path.name for path in target_arm.iterdir() if path.is_file())},
+            "replayed_artifacts": _replayed_artifact_hashes(output_root, audit_index, role, fps),
         })
     replay = {
         "schema_version": 1, "status": "frozen", "provider_calls_made": 0,
@@ -1706,6 +1731,8 @@ def prepare_continuation(source_root: Path, output_root: Path) -> None:
         "canary_pair_status": "passed",
         "runner_sha256": _sha256(SCRIPT_PATH),
         "validator_sha256": _validator_sha256(),
+        "response_schema_sha256": _schema_sha256(),
+        "provider_response_schema_sha256": _provider_schema_sha256(),
     }
     _write_once(output_root / "canary-replay-freeze.json", replay)
     auth = {
@@ -1725,6 +1752,10 @@ def prepare_continuation(source_root: Path, output_root: Path) -> None:
         "source_media_manifest_sha256": _sha256(source_root / "media-manifest.json"),
         "source_selection_freeze_sha256": _sha256(source_root / "selection-freeze.json"),
         "model": MODEL, "settings": EXPECTED_SETTINGS,
+        "runner_sha256": _sha256(SCRIPT_PATH),
+        "validator_sha256": _validator_sha256(),
+        "response_schema_sha256": _schema_sha256(),
+        "provider_response_schema_sha256": _provider_schema_sha256(),
     }
     _write_once(output_root / "continuation-authorization.json", auth)
 
@@ -1740,7 +1771,12 @@ def validate_continuation_authorization(root: Path) -> None:
     replay = _load_json(replay_path)
     if auth.get("authorization_type") != "continuation" or auth.get("status") != "authorized":
         raise ValueError("invalid continuation authorization")
-    if auth.get("provider_calls_made") != 0 or auth.get("prior_provider_calls") != 2:
+    if (
+        isinstance(auth.get("provider_calls_made"), bool)
+        or not isinstance(auth.get("provider_calls_made"), int)
+        or auth.get("provider_calls_made") != 0
+        or auth.get("prior_provider_calls") != 2
+    ):
         raise ValueError("continuation call counts are invalid")
     if auth.get("remaining_new_call_maximum") != 22 or auth.get("combined_call_maximum") != 24:
         raise ValueError("continuation call cap is invalid")
@@ -1763,6 +1799,24 @@ def validate_continuation_authorization(root: Path) -> None:
             raise ValueError(f"continuation {field} drift")
     if replay.get("status") != "frozen" or replay.get("canary_pair_status") != "passed":
         raise ValueError("continuation replay has not passed")
+    if (
+        isinstance(replay.get("provider_calls_made"), bool)
+        or not isinstance(replay.get("provider_calls_made"), int)
+        or replay.get("provider_calls_made") != 0
+    ):
+        raise ValueError("replay provider_calls_made must be integer zero")
+    replay_hashes = {
+        "runner_sha256": _sha256(SCRIPT_PATH),
+        "validator_sha256": _validator_sha256(),
+        "response_schema_sha256": _schema_sha256(),
+        "provider_response_schema_sha256": _provider_schema_sha256(),
+    }
+    for field, expected in replay_hashes.items():
+        if replay.get(field) != expected:
+            raise ValueError(f"replay {field} does not match current bytes")
+    for field, expected in replay_hashes.items():
+        if auth.get(field) != expected:
+            raise ValueError(f"continuation authorization {field} does not match current bytes")
     prefix = auth.get("imported_prefix")
     if not isinstance(prefix, list) or len(prefix) != 2 or prefix != replay.get("imported_prefix"):
         raise ValueError("continuation imported prefix drift")
@@ -1806,8 +1860,9 @@ def validate_continuation_authorization(root: Path) -> None:
             raise ValueError("continuation imported audit index does not bind source arm")
         if item.get("role") != role or item.get("fps") != source_item[1]:
             raise ValueError("continuation imported arm identity does not bind source arm")
-        arm = _arm_directory(source_root, audit_index, role, source_item[1])
-        source_metadata = _load_json(arm / "metadata.json")
+        source_arm = _arm_directory(source_root, audit_index, role, source_item[1])
+        target_arm = _arm_directory(root, audit_index, role, source_item[1])
+        source_metadata = _load_json(source_arm / "metadata.json")
         source_response_id = source_metadata.get("response_id")
         if item.get("source_response_id") != source_response_id:
             raise ValueError("continuation imported response ID does not bind source metadata")
@@ -1815,14 +1870,55 @@ def validate_continuation_authorization(root: Path) -> None:
         if not isinstance(source_artifacts, Mapping) or not source_artifacts:
             raise ValueError("continuation source artifact map must be non-empty")
         for name, expected in source_artifacts.items():
-            path = arm / name
+            path = source_arm / name
             if not path.is_file() or _sha256(path) != expected:
                 raise ValueError("continuation imported source artifact drift")
         expected_row = next((row for row in source_freeze_rows if row.get("audit_index") == audit_index and row.get("fps") == source_item[1]), None)
         if not isinstance(expected_row, Mapping) or source_artifacts != expected_row.get("artifacts"):
             raise ValueError("continuation imported source artifacts do not bind v4 freeze")
+        if not target_arm.is_dir():
+            raise ValueError("continuation imported target arm is missing")
+        target_names = {path.name for path in target_arm.iterdir() if path.is_file()}
+        if target_names != set(ROW_ARTIFACT_NAMES) or len(target_names) != len(ROW_ARTIFACT_NAMES):
+            raise ValueError("continuation imported target artifact set is not exact")
+        for name in ("request.json", "raw-response.txt", "metadata.json"):
+            if (target_arm / name).read_bytes() != (source_arm / name).read_bytes():
+                label = "raw response" if name == "raw-response.txt" else name
+                raise ValueError(f"continuation imported {label} bytes do not bind immutable v4 source")
+        target_metadata = _load_json(target_arm / "metadata.json")
+        if target_metadata.get("response_id") != source_response_id:
+            raise ValueError("continuation imported target response ID does not bind source metadata")
+        media = source_item[0]["media"]
+        try:
+            expected_parsed = validate_probe(
+                json.loads((source_arm / "raw-response.txt").read_text()),
+                media["clip_duration_seconds"],
+                nominal_duration_seconds=_nominal_duration(media),
+                fps=source_item[1],
+            )
+        except (OSError, json.JSONDecodeError, ValueError) as error:
+            raise ValueError("continuation imported source response cannot be deterministically parsed") from error
+        expected_parsed_bytes = _json_bytes(expected_parsed)
+        actual_parsed_bytes = (target_arm / "parsed.json").read_bytes()
+        if actual_parsed_bytes != expected_parsed_bytes:
+            raise ValueError("continuation imported parsed bytes do not match amended validator")
+        if _canonical(_load_json(target_arm / "parsed.json")) != _canonical(expected_parsed):
+            raise ValueError("continuation imported parsed semantic hash does not match amended validator")
+        expected_terminal = {
+            "audit_index": audit_index,
+            "fps": source_item[1],
+            "metadata_sha256": _sha256(target_arm / "metadata.json"),
+            "parsed_semantic_sha256": _sha256_bytes(_canonical(expected_parsed)),
+            "parsed_sha256": _sha256(target_arm / "parsed.json"),
+            "raw_response_sha256": _sha256(target_arm / "raw-response.txt"),
+            "request_sha256": _sha256(target_arm / "request.json"),
+            "response_id": source_response_id,
+            "role": role,
+            "status": "passed",
+        }
+        if (target_arm / "terminal.json").read_bytes() != _json_bytes(expected_terminal):
+            raise ValueError("continuation imported terminal identity or hashes drifted")
         replayed_artifacts = item.get("replayed_artifacts")
-        target_arm = _arm_directory(root, audit_index, role, source_item[1])
         actual_replayed = {
             name: _sha256(target_arm / name)
             for name in sorted(path.name for path in target_arm.iterdir() if path.is_file())

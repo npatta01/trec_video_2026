@@ -554,6 +554,75 @@ def _run_complete_continuation(root: Path) -> list[str]:
     return response_ids
 
 
+def _expected_continuation_arms(
+    root: Path, *, start_position: int, stop_position: int | None = None
+) -> list[dict[str, Any]]:
+    provider_rows = json.loads((root / "provider-rows.json").read_text())["rows"]
+    media_rows = json.loads((root / "media-manifest.json").read_text())["rows"]
+    media_by_index = {row["audit_index"]: row for row in media_rows}
+    expected: list[dict[str, Any]] = []
+    for position, provider in enumerate(provider_rows, start=1):
+        for fps in runner.EXPECTED_FPS:
+            arm_position = (position - 1) * len(runner.EXPECTED_FPS) + int(fps == 12.0) + 1
+            if arm_position < start_position or (
+                stop_position is not None and arm_position > stop_position
+            ):
+                continue
+            media = media_by_index[provider["audit_index"]]
+            clip = root / media["clip_path"]
+            prompt = runner.build_prompt(
+                provider["question"],
+                provider["map_lines"],
+                media["clip_start_seconds"],
+                media["clip_end_seconds"],
+            )
+            expected.append(
+                {
+                    "position": arm_position,
+                    "audit_index": provider["audit_index"],
+                    "role": media["role"],
+                    "fps": fps,
+                    "clip_sha256": media["clip_sha256"],
+                    "clip_bytes": clip.read_bytes(),
+                    "mime_type": media["mime_type"],
+                    "prompt": prompt,
+                    "request": runner._request_payload(
+                        provider,
+                        {
+                            "mime_type": media["mime_type"],
+                            "clip_sha256": media["clip_sha256"],
+                            "clip_start_seconds": media["clip_start_seconds"],
+                            "clip_end_seconds": media["clip_end_seconds"],
+                            "clip_duration_seconds": media["clip_duration_seconds"],
+                        },
+                        fps,
+                        prompt,
+                        runner._canary_pair_index(arm_position - 1),
+                    ),
+                }
+            )
+    return expected
+
+
+def _assert_exact_continuation_callbacks(
+    root: Path, calls: list[tuple[Any, ...]], expected: list[dict[str, Any]]
+) -> None:
+    assert len(calls) == len(expected)
+    for call_args, item in zip(calls, expected, strict=True):
+        clip_bytes, mime_type, prompt, fps = call_args
+        assert clip_bytes == item["clip_bytes"]
+        assert mime_type == item["mime_type"]
+        assert prompt == item["prompt"]
+        assert fps == item["fps"]
+        assert _sha_bytes(clip_bytes) == item["clip_sha256"]
+        arm = runner._arm_directory(root, item["audit_index"], item["role"], item["fps"])
+        assert json.loads((arm / "request.json").read_text()) == item["request"]
+
+
+def _sha_bytes(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
 def _refresh_current_input_bindings(root: Path) -> None:
     provider_rows = json.loads((root / "provider-rows.json").read_text())["rows"]
     selection_path = root / "selection-freeze.json"
@@ -755,6 +824,99 @@ def test_empty_imported_source_artifact_map_is_rejected_after_hashes_are_correct
         runner.validate_continuation_authorization(root)
 
 
+def test_self_consistent_imported_artifact_forgery_is_rejected_before_callback(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    arm = runner._arm_directory(root, 1, "target", 4.0)
+    raw = (arm / "raw-response.txt").read_text() + "\n"
+    (arm / "raw-response.txt").write_text(raw)
+    metadata = json.loads((arm / "metadata.json").read_text())
+    metadata["response_id"] = "forged-imported-response"
+    metadata["raw_response_sha256"] = _sha_bytes(raw.encode())
+    metadata["response_text_sha256"] = _sha_bytes(raw.encode())
+    _write_json(arm / "metadata.json", metadata)
+    media = json.loads((root / "media-manifest.json").read_text())["rows"][0]
+    parsed = runner.validate_probe(
+        json.loads(raw),
+        media["clip_duration_seconds"],
+        nominal_duration_seconds=media["clip_end_seconds"] - media["clip_start_seconds"],
+        fps=4.0,
+    )
+    _write_json(arm / "parsed.json", parsed)
+    _write_json(
+        arm / "terminal.json",
+        {
+            "audit_index": 1,
+            "fps": 4.0,
+            "metadata_sha256": _sha(arm / "metadata.json"),
+            "parsed_semantic_sha256": _sha_bytes(runner._canonical(parsed)),
+            "parsed_sha256": _sha(arm / "parsed.json"),
+            "raw_response_sha256": _sha_bytes(raw.encode()),
+            "request_sha256": _sha(arm / "request.json"),
+            "response_id": "forged-imported-response",
+            "role": "target",
+            "status": "passed",
+        },
+    )
+    for filename in ("continuation-authorization.json", "canary-replay-freeze.json"):
+        path = root / filename
+        payload = json.loads(path.read_text())
+        payload["imported_prefix"][0]["replayed_artifacts"] = {
+            name: _sha(arm / name)
+            for name in sorted(path.name for path in arm.iterdir())
+        }
+        _write_json(path, payload)
+    replay_path = root / "canary-replay-freeze.json"
+    replay = json.loads(replay_path.read_text())
+    _write_json(replay_path, replay)
+    auth_path = root / "continuation-authorization.json"
+    auth = json.loads(auth_path.read_text())
+    auth["canary_replay_freeze_sha256"] = _sha(replay_path)
+    _write_json(auth_path, auth)
+    calls: list[tuple[Any, ...]] = []
+    response_ids = iter(f"unused-{index}" for index in range(22))
+    with pytest.raises(ValueError, match="imported raw response bytes"):
+        runner.run(root, call=lambda *args: calls.append(args) or _id_call(next(response_ids)))
+    assert calls == []
+
+
+def test_replay_provider_calls_made_must_remain_integer_zero_with_recomputed_auth(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    replay_path = root / "canary-replay-freeze.json"
+    replay = json.loads(replay_path.read_text())
+    replay["provider_calls_made"] = 17
+    _write_json(replay_path, replay)
+    auth_path = root / "continuation-authorization.json"
+    auth = json.loads(auth_path.read_text())
+    auth["canary_replay_freeze_sha256"] = _sha(replay_path)
+    _write_json(auth_path, auth)
+    with pytest.raises(ValueError, match="replay provider_calls_made"):
+        runner.validate_continuation_authorization(root)
+
+
+@pytest.mark.parametrize(
+    "field",
+    ("runner_sha256", "validator_sha256", "response_schema_sha256", "provider_response_schema_sha256"),
+)
+def test_replay_requires_current_runner_validator_and_schema_hashes(
+    tmp_path: Path, field: str
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    replay_path = root / "canary-replay-freeze.json"
+    replay = json.loads(replay_path.read_text())
+    replay[field] = "forged-replay-hash"
+    _write_json(replay_path, replay)
+    auth_path = root / "continuation-authorization.json"
+    auth = json.loads(auth_path.read_text())
+    auth["canary_replay_freeze_sha256"] = _sha(replay_path)
+    _write_json(auth_path, auth)
+    with pytest.raises(ValueError, match=f"replay {field}"):
+        runner.validate_continuation_authorization(root)
+
+
 def test_complete_combined_freeze_rejects_nonpassed_fresh_canary_position(
     tmp_path: Path,
 ) -> None:
@@ -814,6 +976,7 @@ def test_passing_continuation_calls_only_remaining_arms_and_freezes_combined_his
     tmp_path: Path,
 ) -> None:
     root = _prepare_continuation_fixture(tmp_path)
+    expected = _expected_continuation_arms(root, start_position=3, stop_position=24)
     calls: list[tuple[Any, ...]] = []
     response_ids: list[str] = []
 
@@ -825,11 +988,23 @@ def test_passing_continuation_calls_only_remaining_arms_and_freezes_combined_his
 
     runner.run(root, call=call)
     runner.verify_predictions_freeze(root)
-    assert len(calls) == 22
-    media_rows = json.loads((root / "media-manifest.json").read_text())["rows"]
-    second_clip = root / media_rows[1]["clip_path"]
-    assert calls[0][0] == second_clip.read_bytes()
-    assert calls[0][3] == 4.0
+    _assert_exact_continuation_callbacks(root, calls, expected)
+    assert [item["position"] for item in expected] == list(range(3, 25))
+    provider_rows = json.loads((root / "provider-rows.json").read_text())["rows"]
+    assert [item["audit_index"] for item in expected] == [
+        row["audit_index"]
+        for row in provider_rows
+        for _ in runner.EXPECTED_FPS
+    ][2:]
+    assert [item["role"] for item in expected] == [
+        next(
+            row["role"]
+            for row in json.loads((root / "media-manifest.json").read_text())["rows"]
+            if row["audit_index"] == item["audit_index"]
+        )
+        for item in expected
+    ]
+    assert [item["fps"] for item in expected] == list(runner.EXPECTED_FPS) * 11
     assert len(response_ids) == len(set(response_ids)) == 22
     assert json.loads((root / "predictions-freeze.json").read_text())["completed_count"] == 24
     freeze = json.loads((root / "predictions-freeze.json").read_text())
@@ -843,10 +1018,15 @@ def test_failed_continuation_calls_only_fresh_canary_and_freezes_incomplete_hist
     tmp_path: Path,
 ) -> None:
     root = _prepare_continuation_fixture(tmp_path)
+    expected = _expected_continuation_arms(root, start_position=3, stop_position=4)
     calls: list[tuple[Any, ...]] = []
     responses = iter([_id_call("fresh-01", valid=False), _id_call("fresh-02")])
     runner.run(root, call=lambda *args: calls.append(args) or next(responses))
-    assert len(calls) == 2
+    _assert_exact_continuation_callbacks(root, calls, expected)
+    assert [item["position"] for item in expected] == [3, 4]
+    assert [item["audit_index"] for item in expected] == [2, 2]
+    assert [item["role"] for item in expected] == ["target", "target"]
+    assert [item["fps"] for item in expected] == [4.0, 12.0]
     freeze = json.loads((root / "predictions-freeze.json").read_text())
     assert freeze["completed_count"] == 4
     assert freeze["call_count"] == 4
