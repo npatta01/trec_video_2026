@@ -50,6 +50,22 @@
     "complete_terminal_pairs": true,
     "manual_inspection_complete": true
   },
+  "attempt_accounting": {
+    "total_authorized_attempts": 48,
+    "initial_authorization_v2": {
+      "attempts": 24,
+      "model_bearing_calls": 0,
+      "terminal_boundary": "HTTP 400 INVALID_ARGUMENT schema rejects before a model response"
+    },
+    "separate_user_reauthorization_v4_v22": {
+      "attempts": 24,
+      "unique_model_bearing_arms": 24,
+      "retries": 0,
+      "duplicate_arms": 0
+    },
+    "final_score_denominator_model_bearing_arms": 24,
+    "interpretation": "The 48 attempts are across authorized stages; the final score uses the 24 separately reauthorized model-bearing arms, not the 24 pre-model v2 rejects."
+  },
   "observed_result": {
     "target_recovery": {
       "4fps": {"recovered": 0, "denominator": 6},
@@ -76,12 +92,20 @@
   },
   "correction": {
     "version": "run-v22-correction-v2",
+    "status": "post-hoc output-informed parser repair; Diagnostic/post-hoc corrected, not clean predeclared acceptance",
     "provider_calls": 0,
     "original_passed_arms": 16,
     "original_contract_errors": 8,
     "corrected_passed_arms": 24,
     "corrected_contract_errors": 0,
-    "acceptance_repairs": 8
+    "acceptance_repairs": 8,
+    "robustness": {
+      "repaired_target_pairs": 1,
+      "repaired_target_recovery": "0/1 pair",
+      "corrected_target_recovery": "0/6",
+      "corrected_target_recovery_excluding_repaired_pair": "0/5",
+      "control_recovery_note": "Acceptance-boundary-sensitive: only 1/4 control pairs had both arms accepted before correction versus 3/4 recovered after correction; this does not upgrade the gate."
+    }
   },
   "provider_usage": {
     "calls": 24,

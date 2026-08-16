@@ -671,6 +671,14 @@ unchanged.
   auditable-target denominator, leaving six auditable targets. Prior
   exposure was retained as a reporting flag, never as an exclusion. All
   475 eligible source rows remained in the eligibility boundary.
+- **Attempt accounting and authorization:** the authorized stages
+  contain `48` total provider attempts. The initial authorization issued
+  `24` v2 attempts, all HTTP 400 `INVALID_ARGUMENT` schema rejects
+  before a model response. After the schema repair, the user separately
+  reauthorized the same `24`-arm treatment; v4 plus the v22 continuation
+  issued `24` unique model-bearing arms. The final score denominator is
+  therefore `24` model-bearing arms, not `48`; neither stage retried or
+  duplicated an arm.
 - **Observed result:** all `24/24` arms and `12/12` target/control pairs
   completed, and all `12` clips plus `24` arms were manually inspected.
   Target recovery was `0/6` at both 4 FPS and 12 FPS, with `0` paired
@@ -687,6 +695,19 @@ unchanged.
   12-FPS recovery was below one half of the auditable-target
   denominator. Completion, inspection, zero unsupported observations,
   and zero control regressions passed.
+- **Acceptance boundary and correction:** the original v22 prediction
+  freeze preserved `16` passed arms and `8` contract errors.
+  Correction-v2 was a post-hoc, output-informed parser repair with zero
+  provider calls; it accepted those eight responses under a wider
+  encoded-duration tolerance. This is **Diagnostic/post-hoc corrected**
+  evidence, not a clean completion of the predeclared acceptance
+  protocol. The negative target conclusion is robust to the repair: the
+  only repaired target pair remained unrecovered, so excluding it leaves
+  `0/5` recoveries among the remaining auditable targets, while the
+  corrected score is `0/6`. Control recovery is
+  acceptance-boundary-sensitive (only `1/4` control pairs had both arms
+  accepted before correction versus `3/4` recovered after it), so it is
+  not used to upgrade the gate.
 - **What this rules out now:** denser frames inside these
   oracle-screened localized windows as a recovery mechanism under the
   tested provider condition; another FPS increase as the next test for
@@ -719,10 +740,15 @@ per arm, and maximum output `2,048`. The only arm difference was the
 requested FPS; each pair reused the same local clip bytes. The
 provider-safe request omitted references, predictions, scores, audit
 verdicts, and raw label material. Correction-v2 was an additive
-zero-call repair over the frozen responses: it changed eight endpoint
-acceptances from contract error to parsed success and did not alter the
-source prediction freeze. The final score consumed the corrected
-observations only after the prediction and audit freezes were verified.
+zero-call repair over the frozen responses, applied after observing
+their encoded durations: it changed eight endpoint acceptances from
+contract error to parsed success and did not alter the source prediction
+freeze. The original `16/8` acceptance freeze remains preserved. The
+final score consumed the corrected observations only after the
+prediction and audit freezes were verified, so the result is post-hoc
+corrected diagnostic evidence rather than a clean predeclared acceptance
+estimate. The repaired target pair still had no recovery; the gate
+remains negative even if that pair is excluded.
 
 The complete sanitized aggregate index is [the dense localized-evidence
 artifact

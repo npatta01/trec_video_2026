@@ -416,6 +416,23 @@ contains only aggregate counts, exposure counts, hashes, and limitations.
   calls to repair eight parser acceptances before scoring; the final execution
   used `24` unique calls and no retries. Cost was unavailable and answer
   metrics were not computed.
+- **Attempt accounting and authorization:** the authorized stages contain
+  `48` total provider attempts: the initial authorization issued `24` v2
+  HTTP 400 `INVALID_ARGUMENT` schema rejects before a model response, then the
+  user separately reauthorized the same `24`-arm treatment. V4 plus the v22
+  continuation issued `24` unique model-bearing arms. The final score
+  denominator is `24` model-bearing arms, not `48`; neither stage retried or
+  duplicated an arm.
+- **Acceptance boundary and correction:** the original v22 prediction freeze
+  preserved `16` passed arms and `8` contract errors. Correction-v2 was a
+  post-hoc, output-informed parser repair with zero provider calls, so this is
+  **Diagnostic/post-hoc corrected** evidence rather than a clean completion of
+  the predeclared acceptance protocol. The only repaired target pair remained
+  unrecovered: corrected target recovery is `0/6`, and excluding that pair
+  leaves `0/5` among the remaining auditable targets. Controls are
+  acceptance-boundary-sensitive (only `1/4` control pairs had both arms
+  accepted before correction versus `3/4` recovered after it), so they do not
+  upgrade the negative gate.
 - **Current condition-bound status:** **Diagnostic**; **Not promoted under the
   tested condition**. The predeclared gate failed on both the incremental
   recovery minimum and the half-target 12-FPS recovery requirement, while
@@ -440,14 +457,25 @@ This was a native audio/video Gemini diagnostic with high resolution, high
 thinking, temperature `0`, seed `42`, one attempt per arm, and maximum output
 `2,048`. Requested FPS was the only arm difference. The provider-safe request
 excluded references, predictions, scores, audit verdicts, and raw label
-material. The sanitized aggregate index is the
-[dense localized-evidence artifact bundle](../experiments/artifacts/vqa-dense-localized-evidence-20260816/README.md);
-it contains counts and immutable hashes only. The complete score chain was
-verified before interpretation. Do not use this negative result to justify
-another FPS increase, global prompt rewrite, full-panel rerun, counting
-specialist, or shared router framework. The next bounded idea is
+material. Correction-v2 was applied after observing encoded durations and
+changed eight endpoint acceptances; the original `16/8` acceptance freeze is
+preserved. The complete score chain was verified before interpretation, but
+the correction makes this post-hoc corrected diagnostic evidence rather than
+a clean predeclared acceptance estimate. Do not use this negative result to
+justify another FPS increase, global prompt rewrite, full-panel rerun,
+counting specialist, or shared router framework. The next bounded idea is
 question-conditioned evidence selection/verification or modality-specific
 acquisition.
+
+::: {.content-visible when-format="gfm"}
+The sanitized aggregate index is the
+[dense localized-evidence artifact bundle](../experiments/artifacts/vqa-dense-localized-evidence-20260816/README.md).
+:::
+
+::: {.content-visible when-format="html"}
+The same aggregate result is preserved in the
+[dated diagnostic’s dense-evidence section](../vqa-frontier-boundary-verifier-20260812.html#dense-question-localized-evidence-20260816).
+:::
 </details>
 
 ::: {.content-visible when-format="gfm"}
@@ -490,9 +518,17 @@ acquisition.
 <summary>Method, result, validity risks, and evidence</summary>
 
 An election mechanism cannot repair missing evidence, and candidate availability
-does not guarantee a safe winner. The completed diagnostic is documented in the
+does not guarantee a safe winner. The completed diagnostic is documented in
+the following format-specific records:
+
+::: {.content-visible when-format="gfm"}
 [dated report](../experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd) and
 [sanitized evidence index](../experiments/artifacts/vqa-multi-interpretation-answer-election-20260814/README.md).
+:::
+
+::: {.content-visible when-format="html"}
+[dated diagnostic section](../vqa-frontier-boundary-verifier-20260812.html#multi-interpretation-answer-election).
+:::
 </details>
 
 ## Known failures and cases
@@ -517,12 +553,26 @@ does not guarantee a safe winner. The completed diagnostic is documented in the
 - The 11-row premise-tolerant issue #35 follow-up did not repair generic answer
   use: it rescued 1/5 false abstentions, completed 1/2 evidence-insufficiency
   routes, and preserved 1/3 controls. More deliberation under the same strict
-  locator policy is not the next test. See the
-  [sanitized follow-up index](../experiments/artifacts/vqa-premise-tolerant-grounded-answering-20260814/README.md).
+  locator policy is not the next test.
+
+::: {.content-visible when-format="gfm"}
+See the [sanitized follow-up index](../experiments/artifacts/vqa-premise-tolerant-grounded-answering-20260814/README.md).
+:::
+
+::: {.content-visible when-format="html"}
+See the [dated follow-up section](../vqa-frontier-boundary-verifier-20260812.html#premise-tolerant-follow-up).
+:::
 - The fresh multi-interpretation follow-up found at least one correct candidate
   on all 12 rows but safely elected only 10. Candidate generation has headroom;
-  the tested exact-agreement/sole-answer selector is not promoted. See the
-  [sanitized election index](../experiments/artifacts/vqa-multi-interpretation-answer-election-20260814/README.md).
+  the tested exact-agreement/sole-answer selector is not promoted.
+
+::: {.content-visible when-format="gfm"}
+See the [sanitized election index](../experiments/artifacts/vqa-multi-interpretation-answer-election-20260814/README.md).
+:::
+
+::: {.content-visible when-format="html"}
+See the [dated election section](../vqa-frontier-boundary-verifier-20260812.html#multi-interpretation-answer-election).
+:::
 
 ### What it does not rule out
 

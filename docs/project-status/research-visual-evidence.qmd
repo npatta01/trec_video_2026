@@ -148,8 +148,16 @@ strict local validation, and no semantic repair. Sol, Fable, and Gemini Pro
 independently reviewed the same sanitized packet and agreed that the primary
 failure is answer–evidence decoupling rather than failed map localization.
 Fable noted that a merely shorter answer would not solve both observed errors:
-one answer embellished while the other lost specificity. See the
-[dated evidence record](../experiments/2026-08-11-frontier-video-map-diagnostic.qmd).
+one answer embellished while the other lost specificity. See the format-specific
+evidence records below.
+
+::: {.content-visible when-format="gfm"}
+[Dated evidence record](../experiments/2026-08-11-frontier-video-map-diagnostic.qmd).
+:::
+
+::: {.content-visible when-format="html"}
+[Canary section in this rendered report](research-visual-evidence.html#gemini-native-av-event-map-canary).
+:::
 </details>
 
 ::: {.content-visible when-format="gfm"}

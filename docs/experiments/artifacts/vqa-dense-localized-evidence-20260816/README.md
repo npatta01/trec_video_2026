@@ -15,6 +15,24 @@ recovered an auditable target fact, so denser frames produced zero incremental
 rescues. Controls were preserved at 3/4 in both arms, with zero 12-FPS
 regressions and zero unsupported observations. The predeclared gate failed.
 
+Attempt accounting is separate from the final score denominator. Across
+authorized stages there were 48 provider attempts: the initial authorization
+issued 24 v2 attempts, all HTTP 400 `INVALID_ARGUMENT` schema rejects before a
+model response; after schema repair, the user separately reauthorized the
+24-arm treatment and v4 plus v22 issued 24 unique model-bearing arms. The
+final score denominator is 24 model-bearing arms, not 48, with no retry or
+duplicate arm.
+
+The original v22 prediction freeze preserved 16 passed arms and 8 contract
+errors. Correction-v2 was a post-hoc, output-informed, zero-call parser repair
+that accepted those eight responses; it is not a clean completion of the
+predeclared acceptance protocol. This is **Diagnostic/post-hoc corrected**
+evidence. The only repaired target pair remained unrecovered, so the negative
+target conclusion is robust (`0/6` corrected, `0/5` if that pair is excluded);
+control recovery is acceptance-boundary-sensitive (only `1/4` control pairs
+had both arms accepted before correction versus `3/4` recovered after it) and
+does not upgrade the gate.
+
 Evidence validity is **Diagnostic** and the decision disposition is **Not
 promoted under the tested condition**. This was an oracle-screened,
 label-aware mechanism diagnostic, not a prevalence estimate or router

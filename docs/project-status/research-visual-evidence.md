@@ -158,8 +158,11 @@ Fable, and Gemini Pro independently reviewed the same sanitized packet
 and agreed that the primary failure is answer–evidence decoupling rather
 than failed map localization. Fable noted that a merely shorter answer
 would not solve both observed errors: one answer embellished while the
-other lost specificity. See the [dated evidence
+other lost specificity. See the format-specific evidence records below.
+
+[Dated evidence
 record](../experiments/2026-08-11-frontier-video-map-diagnostic.qmd).
+
 </details>
 
 <a name="frozen-30-protocol-v2"></a>

@@ -149,7 +149,18 @@ followed by the [zero-call task-support sufficiency
 audit](research-routing.md#task-support-sufficiency-audit-20260815) and
 the [dense localized-evidence recovery
 diagnostic](research-routing.md#dense-question-localized-evidence-20260816),
-which recovered `0/6` auditable targets at both 4 FPS and 12 FPS.
+which recovered `0/6` auditable targets at both 4 FPS and 12 FPS. That
+diagnostic records `48` authorized attempts: `24` initial-authorization
+v2 HTTP 400 pre-model rejects plus `24` separately user-reauthorized
+model-bearing arms from v4+v22; the final score denominator is `24`
+model-bearing arms, not `48`.
+
+The dense result is **Diagnostic/post-hoc corrected**: its original v22
+freeze preserved `16` passed arms and `8` contract errors, then
+correction-v2 used an output-informed, zero-call parser repair. The
+repaired target pair remained unrecovered, so the negative target gate
+is unchanged; control recovery is acceptance-boundary-sensitive and does
+not upgrade the result.
 
 **Open question:** can a small question-conditioned evidence-selection/
 verification or modality-specific acquisition test address the inspected
@@ -352,11 +363,16 @@ reference, not a prescribed research sequence.
     verifier run. The treatment-frozen 32-row sufficiency audit failed
     its target quota (`1/4`, deficit `3`), and the dense 4-versus-12-FPS
     diagnostic recovered `0/6` auditable targets in either arm; both
-    results are preserved as negative diagnostics. The next bounded test
-    is question-conditioned evidence selection/verification or
-    modality-specific acquisition with matched supported controls and
-    explicit reauthorization. Do not introduce a shared router framework
-    or counting specialist in that test.
+    results are preserved as negative diagnostics. The dense run had
+    `48` authorized attempts across stages (`24` initial v2 pre-model
+    HTTP 400 rejects and `24` separately user-reauthorized model-bearing
+    v4+v22 arms); the final score denominator was `24` model-bearing
+    arms. Its original `16/8` acceptance freeze and post-hoc correction
+    are preserved, and the repaired target pair remained unrecovered.
+    The next bounded test is question-conditioned evidence
+    selection/verification or modality-specific acquisition with matched
+    supported controls and explicit reauthorization. Do not introduce a
+    shared router framework or counting specialist in that test.
 
 <span id="how-to-interpret-results" class="legacy-fragment-alias"
 aria-hidden="true"></span>
