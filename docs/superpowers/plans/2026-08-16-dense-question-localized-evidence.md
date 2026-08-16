@@ -285,6 +285,23 @@ Add exact call count, terminal statuses, cost, prediction-freeze SHA-256, and wh
 - V4 hashes: treatment freeze `0e418e8a3f25ae055ba64d865a7eddd4a5912ba0b58a71d63acaf9fbfc2592b5`, selection freeze `05eb1f91c5404a7481875b6c3e29c0a9b5f098d4fd9d1488428eab4a54d713c5`, provider-row artifact `007fd6a66fd403d88782438c655028c0381a714ef84f70a812ed511d44eed293`, media manifest `0b0875fec5c83f5567d0ff3b6d1051a3026b938a0ee5c7dbaa90a07023be5b66`, and authorization `c240010ca312e7b3c86c7eecc0f532ed7e47955209e145e2167cafbc75434c09`.
 - Hardened binding: current runner `a6c0aaecbdd3d4843033f492b2bc593eaa5e2d7782392f181cf5c5fd426eed34`, config `0d6843d51695251c0fdb4cb75483d61cfd20a2e3496eab6c0a06f5b24e51caab`, and provider schema `26322157cd6879c7576b7e1ad0099afbc17be6fa2c024c7fcb18052cb7cf8498` are bound by v4 treatment. Task 1 input validation passes; no provider execution or output artifacts were created.
 
+#### Task 3B execution boundary — 2026-08-16
+
+The authorized additive v4 run stopped at its mandated one-pair compatibility
+canary. Exactly 2 of 24 planned provider calls were made, with terminal status
+counts `passed=1`, `contract_error=1`, and `incomplete=22`; no retry or
+duplicate attempt occurred. The observed model version was
+`gemini-3.1-pro-preview`. Aggregate usage was 17,973 prompt tokens, 284
+candidate tokens, and 18,849 total tokens; provider cost was unavailable.
+
+The immutable prediction freeze is `status=incomplete`,
+`stop_reason=canary_failure`, `completed_count=2`, `call_count=2`,
+`canary_pair_status=failed`, and SHA-256
+`7a5be02b759aec4a6b1b504d73f3616ea7987900369c6b6ba9273a1fdaa5b7a0`.
+Freeze verification passed, and recursive v2/v3 pre/post SHA-256 manifests
+matched exactly. Task 4 is **NOT AUTHORIZED**: the incomplete canary freeze
+must not be loaded for reference-aware scoring.
+
 ### Task 4: Audit paired fact recovery and apply the gate
 
 **Files:**
