@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import re
 import shlex
 import subprocess
@@ -34,6 +33,10 @@ CONTROLLER_URI = (
     "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/"
     f"{RUN_ID}/input-controller"
 )
+B4_SOURCE_BUNDLE_SHA256 = (
+    "ae86c30371c298f3083342e0b70baaca8f9d87b8c9dc48c599b40721a9d75f29"
+)
+B4_SUBMITTED_CODE_REVISION = "f204a490f935d2dec1643c16e11bf0c784b7b495"
 
 
 def test_selector_configs_are_pinned_private_bounded_tasks() -> None:
@@ -190,30 +193,22 @@ main
     assert "buckets sync /dstack/output" not in calls
 
 
-def test_selector_configs_pin_exact_submitted_source_bundle() -> None:
-    script = RUNNER.read_bytes()
-    files = {RUNNER.as_posix(): script}
-    source_root = Path("src/trec_video_2026")
-    for path in source_root.rglob("*.py"):
-        files[path.as_posix()] = path.read_bytes()
-    digest = hashlib.sha256()
-    for relative, payload in sorted(files.items()):
-        digest.update(relative.encode("utf-8"))
-        digest.update(b"\0")
-        digest.update(str(len(payload)).encode("ascii"))
-        digest.update(b"\0")
-        digest.update(payload)
-        digest.update(b"\0")
-    expected_source = digest.hexdigest()
-
-    revisions = set()
+def test_selector_configs_preserve_frozen_b4_source_identity() -> None:
+    # Preserve the frozen B4 configuration set's recorded source/revision pair
+    # instead of recomputing it from unrelated current Python modules.
+    submitted_identities = set()
     attempt_ids = set()
     for path in CONFIGS.values():
         text = path.read_text(encoding="utf-8")
-        assert f"EXPECTED_SOURCE_BUNDLE_SHA256={expected_source}" in text
-        match = re.search(r"SUBMITTED_CODE_REVISION=([0-9a-f]{40})", text)
-        assert match is not None
-        revisions.add(match.group(1))
+        source_match = re.search(
+            r"EXPECTED_SOURCE_BUNDLE_SHA256=([0-9a-f]{64})", text
+        )
+        revision_match = re.search(
+            r"SUBMITTED_CODE_REVISION=([0-9a-f]{40})", text
+        )
+        assert source_match is not None
+        assert revision_match is not None
+        submitted_identities.add((source_match.group(1), revision_match.group(1)))
         attempt_match = re.search(
             r"EXECUTION_ATTEMPT_ID=([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-"
             r"[89ab][0-9a-f]{3}-[0-9a-f]{12})",
@@ -221,6 +216,7 @@ def test_selector_configs_pin_exact_submitted_source_bundle() -> None:
         )
         assert attempt_match is not None
         attempt_ids.add(attempt_match.group(1))
-    assert len(revisions) == 1
-    assert revisions == {"f204a490f935d2dec1643c16e11bf0c784b7b495"}
+    assert submitted_identities == {
+        (B4_SOURCE_BUNDLE_SHA256, B4_SUBMITTED_CODE_REVISION)
+    }
     assert len(attempt_ids) == len(CONFIGS)
