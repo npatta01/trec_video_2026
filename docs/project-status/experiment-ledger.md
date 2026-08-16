@@ -339,9 +339,12 @@ reference, not a prescribed research sequence.
     serialization, then add targeted dense/OCR/speech verification only
     for confirmed map omissions. Test election only after top-1 evidence
     use is stable. The unchanged generic atomic counting enumerator is
-    now a stopped branch; any later counting variant must predeclare
-    unit, temporal boundary, and inclusion rules before using the frozen
-    39-row challenge panel.
+    now a stopped branch; a one-row post-label human-oracle check showed
+    that endpoint-inclusive structured frame-presence decisions plus a
+    deterministic episode reducer can represent the intended count. Any
+    blind counting variant must still predeclare unit, temporal
+    boundary, sampling, inclusion, and abstention rules, include
+    controls, and receive fresh authorization before using a new panel.
 
 <span id="how-to-interpret-results" class="legacy-fragment-alias"
 aria-hidden="true"></span>

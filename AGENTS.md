@@ -250,9 +250,22 @@ A separately authorized hardened one-row repeat is complete at
 `/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-counting-recovery-hardened-v2/`.
 It completed and froze the first failure row only, returned exact count 2
 against reference 4, rescued 0/1, ran no control, and cost `$0.111700`. Start
-with `inspection.md`. Frame review found missed appearances at both temporal
-edges even though the challenger asserted complete coverage. Preserve this
-valid negative result; do not rerun or scale the unchanged condition. No
-further paid counting run is authorized. A future zero-cost design seam must
-mechanically certify boundary coverage rather than trust model-declared full
-review.
+with `inspection.md`. Its original post-freeze interpretation said the model
+missed appearances at both temporal edges. An additive endpoint-complete
+decoded-frame audit corrected that interpretation: the first
+Gemini range collapsed two separate appearances into one atomic instance, and
+the final appearance near 6.5 seconds was omitted. The frozen negative result,
+metrics, and stop decision are unchanged. Preserve this valid negative result;
+do not rerun or scale the unchanged condition. No further paid counting run is
+authorized.
+
+The completed zero-cost structured frame-presence feasibility check is at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-counting-frame-presence-feasibility-v1/`.
+It used 55 endpoint-inclusive decoded frames at 7.5 fps and a deterministic
+presence-run reducer. Human-authored post-label decisions recovered the known
+four appearances, establishing representational feasibility only; this is not
+model-quality or promotion evidence. The result also preserves the additive
+correction to the hardened-v2 interpretation. Do not rerun it. A future blind
+test requires new authorization, a frozen sampling and abstention rule,
+model-generated structured decisions, and controls; no paid inference is authorized
+by this result.

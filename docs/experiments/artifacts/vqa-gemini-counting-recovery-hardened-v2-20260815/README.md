@@ -16,11 +16,14 @@ frozen before reference unlock, and the authenticated exact prediction was
 - Evidence validity: `Diagnostic`.
 - Decision disposition: `Not promoted under the tested condition`.
 
-Post-freeze frame inspection found that Gemini identified the two middle ball
-appearances but missed appearances at both temporal edges. The challenger
-nevertheless certified the incomplete ledger. The result therefore rejects
-the unchanged model-asserted full-span coverage mechanism; no retry or scale-up
-is warranted.
+An additive decoded-frame audit corrected the original failure interpretation.
+Gemini's first broad range contained two separate ball appearances that its
+verifier collapsed into one; it then omitted the final appearance near `6.5s`.
+The earlier claim that it missed both temporal edges came from a seeked review
+sheet whose displayed timestamps restarted at zero. The frozen prediction,
+score, `0/1` rescue result, and stop decision are unchanged. The challenger
+still falsely certified an incomplete ledger, so the unchanged mechanism is
+not warranted for retry or scale-up.
 
 `summary.json` contains only sanitized aggregate evidence and cryptographic
 bindings. Complete private evidence remains in the canonical benchmark root

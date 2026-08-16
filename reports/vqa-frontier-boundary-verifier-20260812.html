@@ -2168,7 +2168,7 @@ vertical-align: -.125em;
 
 <div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
 <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="vqa-frontier-boundary-verifier-20260812.html"><i class="bi bi-file-code"></i>Github (GFM)</a></li></ul></div></div>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="2026-08-12-vqa-frontier-boundary-verifier.html"><i class="bi bi-file-code"></i>Github (GFM)</a></li></ul></div></div>
 <main class="content" id="quarto-document-content">
 
 <header id="title-block-header" class="quarto-title-block default">
@@ -2586,7 +2586,7 @@ vertical-align: -.125em;
 </tr>
 </tbody>
 </table>
-<p>The high BERTScore is not evidence of count correctness. Exact correctness, METEOR, and numeric-rule STS all identify the miss. Post-freeze 8-FPS frame inspection shows four separate ball appearances: the model found the two middle appearances but missed one already visible at the beginning and another near <code>6.5s</code>. Its challenger nevertheless returned no missed instances or unresolved ranges after claiming complete <code>0.000–7.268s</code> review. The remaining defect is therefore a false coverage certificate at temporal boundaries, not JSON reliability, reducer behavior, or answer rendering.</p>
+<p>The high BERTScore is not evidence of count correctness. Exact correctness, METEOR, and numeric-rule STS all identify the miss. An additive endpoint-complete decoded-frame audit corrected the original post-freeze interpretation: the model’s first broad range (<code>0.700–2.200s</code>) contained two separated ball appearances that the verifier collapsed into one atomic instance, while the fourth appearance near <code>6.5s</code> was omitted. The earlier statement that one ball was already visible at the source beginning came from a seeked inspection sheet whose displayed timestamps restarted at zero. The challenger nevertheless returned no missed instances or unresolved ranges after claiming complete <code>0.000–7.268s</code> review. The confirmed defects are within-range episode collapse, late-clip omission, and a false coverage certificate—not JSON reliability, reducer behavior, or answer rendering. The frozen prediction, metrics, rescue rate, and stop decision are unchanged.</p>
 <ul>
 <li><strong>Evidence validity:</strong> Diagnostic.</li>
 <li><strong>Decision disposition:</strong> Not promoted under the tested condition.</li>
@@ -2595,6 +2595,22 @@ vertical-align: -.125em;
 <p>This valid negative result rules out retrying or scaling the unchanged model-asserted full-span coverage mechanism. A materially different future seam would need mechanically checked boundary coverage—for example mandatory start/end review tiles or a deterministic coverage certificate—not another prompt-only repetition. No further paid counting run is authorized.</p>
 <p>The sanitized evidence index is <code>docs/experiments/artifacts/vqa-gemini-counting-recovery-hardened-v2-20260815/</code>. Complete private requests, direct media bindings, raw responses, costs, terminals, prediction freeze, post-freeze score, inspection, and source/file provenance remain at <code>data/vqa/benchmarks/direct-gemini-counting-recovery-hardened-v2/</code> in the canonical shared dataset.</p>
 </section>
+</section>
+<section id="endpoint-complete-structured-frame-presence-feasibility" class="level2">
+<h2 class="anchored" data-anchor-id="endpoint-complete-structured-frame-presence-feasibility">Endpoint-complete structured frame-presence feasibility</h2>
+<p><strong>Reason for testing.</strong> The failed Gemini repeat showed that prose ranges and a model-declared full-span review were not mechanically checkable. This zero-cost follow-up asked the narrower question: if every position on a fixed decoded-frame grid receives a strict presence decision, can a deterministic reducer represent the intended four appearance episodes without another video-LLM call?</p>
+<p><strong>Tested condition and panel.</strong> The only panel item was the already-unblinded <code>RZrkA52TGBA</code> failure row. Code selected decoded frame indices <code>0, 4, ..., 216</code>, including the first and last decoded frames: 55 JPEGs at an effective 7.5 fps with maximum PTS gap <code>0.134s</code>. A human reviewer assigned only <code>present</code> or <code>absent</code> for “ball visibly present in the frame.” The strict interface also supports <code>uncertain</code> and <code>unobservable</code>; either would force abstention. Code then counted maximal contiguous runs of <code>present</code> samples. There were no model or provider calls and cost was <code>$0.00</code>.</p>
+<p><strong>Observed result.</strong> The reducer returned exact count <strong>4</strong>, with sampled episodes <code>F007–F010</code> (<code>0.933–1.333s</code>), <code>F014–F016</code> (<code>1.867–2.133s</code>), <code>F030–F033</code> (<code>4.000–4.400s</code>), and <code>F049–F050</code> (<code>6.533–6.666s</code>). These are sampled evidence bounds, not claims about exact physical onset or offset. The count matches the known reference.</p>
+<ul>
+<li><strong>Evidence validity:</strong> Diagnostic.</li>
+<li><strong>Decision disposition:</strong> Diagnostic signal.</li>
+<li><strong>Decision code:</strong> <code>proceed_to_blind_structured_frame_presence_canary_if_authorized</code>.</li>
+<li><strong>Decision rule and gate:</strong> no promotion gate was predeclared or evaluated; this post-label human-oracle check can establish representational feasibility only.</li>
+<li><strong>Completion:</strong> 1/1 developmental row; no control.</li>
+<li><strong>Supersedes:</strong> only the hardened-v2 failure interpretation quoted above; it does not supersede the frozen negative result or decision.</li>
+</ul>
+<p>This rules out the claim that a correct four-episode representation requires a new generic prose prompt. It does <strong>not</strong> establish that Gemini, a detector, or a tracker can emit the required frame decisions blind; it does not estimate accuracy or prevalence; and an appearance shorter than the frozen sampling gap could still be missed. The simple reducer deliberately abstains on uncertainty and does not solve identity through occlusion. Reconsider a model-generated version only with a fresh label-blind panel, a predeclared sampling/abstention rule, and separate controls. No paid inference is authorized by this result.</p>
+<p>The sanitized evidence index is <code>docs/experiments/artifacts/vqa-counting-frame-presence-feasibility-20260816/</code>. Complete private frames, contact sheets, ledger, result, provenance, and the additive hardened-v2 interpretation correction remain at <code>data/vqa/benchmarks/direct-gemini-counting-frame-presence-feasibility-v1/</code> and <code>data/vqa/benchmarks/direct-gemini-counting-recovery-hardened-v2/</code> in the canonical shared dataset.</p>
 </section>
 <section id="cost-and-completion-boundary" class="level2">
 <h2 class="anchored" data-anchor-id="cost-and-completion-boundary">Cost and completion boundary</h2>
