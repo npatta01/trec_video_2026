@@ -3,19 +3,36 @@
 Date: **16 Aug 2026**. AG runs are due **17 Aug**. `q35_4b_u12` was uploaded 11 Aug and
 passed server-side validation, so this is a live submission, not a draft.
 
+> ## Correction applied 16 Aug, after reading the 2026 guidelines
+>
+> An earlier draft of this record said we keep 69% of our score. That is true only of the
+> **top-10 cutoff**. The 2026 track guidelines report metrics "at different cut off ranks
+> (top 1, top 5, top 10)", so the answer-set shape costs nothing at top-1, where only the
+> rank-1 answer counts. The draft assumed the 2025 kit's plain mean over all ten answers was
+> the whole story. It is one of three reported numbers.
+>
+> The same guidelines close the other option: "runs must submit 10 generated answers. Any
+> submission with less than 10 answers will be rejected by the validator." The prepared
+> `submission-top1.json` passes our local validator at `--answers-per-query 1` but **cannot
+> be submitted**.
+>
+> What survives: rewording still beats diverse guesses at top-5 and top-10, and is neutral
+> at top-1. The gain is real but narrower than the draft claimed.
+
 ## The finding
 
-The official scorer takes the **mean** across every answer we submit for a query. The
-validator requires **exactly ten distinct answers**. Our run fills those ten slots with one
-best answer plus nine deliberately different alternatives — so nine wrong answers are
-averaged into every query's score.
+The validator requires **exactly ten distinct answers**. Our run fills those slots with one
+best answer plus nine deliberately different alternatives. At the top-5 and top-10 cutoffs
+those nine are averaged in, so nine wrong answers dilute the score.
 
-    submitted policy   best answer + 9 different alternatives    0.203 METEOR
-    paraphrase policy  10 rewordings of the best answer          up to 0.295
-    what we earned     the best answer on its own                0.295
+    cutoff    submitted (best + 9 alternatives)    rewordings of the best answer
+    top-1     0.295                                0.295      no change
+    top-5     ~0.213                               0.295      diluted by 4 wrong answers
+    top-10    0.203                                0.295      diluted by 9 wrong answers
 
-**We are keeping about 69% of the score we already earned.** The rest is thrown away by the
-shape of the answer set, not by anything the model got wrong.
+At top-10 we keep about **69%** of what our rank-1 answers already earned. At top-1 we keep
+all of it. Two of the three reported cutoffs are hurt by the shape of the answer set; one is
+untouched.
 
 ## 1. The mechanism
 
@@ -27,8 +44,12 @@ bert_scores.append(np.mean(bert_relevance))
 sts_scores.append(float(np.nanmean(sts_relevance)))
 ```
 
-Every submitted answer counts equally. Rank does not weight these three metrics at all —
-rank only feeds NDCG.
+Within a cutoff, every answer counts equally — the mean is unweighted, so rank does not tilt
+these three metrics. Rank decides only which answers fall inside the cutoff, plus NDCG.
+
+The 2025 kit computes one plain mean over everything submitted, which is the top-10 case.
+The 2026 guidelines add top-1 and top-5 alongside it. So the same run yields three numbers,
+and the answer set's shape matters more as the cutoff widens.
 
 From the shipped validator, `validate.ag.run.py`: `DEFAULT_ANSWERS_PER_QUERY = 10`, an
 error when `len(answers) != answers_per_query`, and an error on duplicate normalized answer
@@ -40,7 +61,15 @@ answer** — distinct as strings, the same underneath, so every slot scores near
 The worst answer set is ten genuinely different guesses, because at most one can be right
 and the other nine pull the mean toward the wrong-answer floor.
 
-We built the worst one, on purpose, as a ranked-alternatives design.
+We built the worst one, on purpose, as a ranked-alternatives design. It is the right design
+for a task that rewards covering several possibilities, and the wrong one for a task that
+averages them.
+
+One caveat on rewording, since it cuts the other way when rank-1 is wrong. Our rank-1 answer
+is right about 61% of the time. When it is right, rewording holds every slot near 0.378 and
+diverse guesses drop the query to 0.212. When it is wrong, diverse guesses do slightly
+better — 0.190 against 0.166 — because one of the nine may land. Taking both cases at their
+measured rates, rewording still wins on expectation: **0.295 against 0.203** at top-10.
 
 ## 2. That our run really is the bad case
 
@@ -84,20 +113,28 @@ them costs little. Neither change touches the model, the frames, or the video pi
   wrong-answer floor. We measured that the tails sit at 0.198 from our best answer, against
   a 0.193 floor, which supports the stand-in — but it is a stand-in, not a direct
   measurement of our tails against the references.
-- **The 2026 rules may differ.** The kit's own `README.md` says it is "to be updated for VQA
-  2026 to take into account new run format submissions and revised scoring metric
-  reporting." Ten answers passed Evalbase on 11 Aug, so ten is accepted. Unknown: whether
-  fewer is now allowed, and whether the reported metrics changed. Check the 2026 guidelines
-  page before rebuilding.
+- **The gain does not apply at top-1.** Only the rank-1 answer counts there, so rewording
+  changes nothing. Two of three cutoffs improve; one is untouched. No cutoff is designated
+  as the headline, so how much this is worth overall is unknown.
+- **The per-cutoff figures for top-5 are modelled, not measured.** `0.213` is
+  `(0.295 + 4 x 0.193) / 5`. The 2025 kit does not implement cutoffs, so the exact 2026
+  implementation is unseen.
+- **Ten answers are mandatory.** The 2026 guidelines say "runs must submit 10 generated
+  answers. Any submission with less than 10 answers will be rejected by the validator." The
+  prepared `submission-top1.json` passes our local validator at `--answers-per-query 1`,
+  which is a property of our copy of the script, not permission to send it.
 
 ## 5. What to do before the deadline
 
-Rebuild the ten slots as rewordings of the existing rank-1 answer and submit as a second
-run. The rank-1 answers already exist for all 2,443 queries and already validated, so this
-is a text rewrite of a tracked artifact — no video inference, no GPU.
+Keep rank-1 exactly as it is — it carries top-1 and it is already frozen and validated.
+Rebuild ranks 2 through 10 as rewordings of that rank-1 answer. This is a text rewrite of a
+tracked artifact: no video inference, no GPU, no new provider calls.
 
-Keep `q35_4b_u12` as it stands. Submit the rewrite under a new tag so the two are comparable
-when scores come back.
+Expected effect: top-1 unchanged, top-5 and top-10 up. Since no cutoff is the designated
+headline, this improves two of the three reported numbers and cannot reduce the third.
+
+Keep `q35_4b_u12` as it stands. Submit the rewrite under a new tag so the two stay
+comparable when scores come back.
 
 This is a scoring-format repair, not a research result. It says nothing about whether the
 system understands video — see
