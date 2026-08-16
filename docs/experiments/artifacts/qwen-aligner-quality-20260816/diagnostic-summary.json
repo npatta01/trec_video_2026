@@ -90,6 +90,13 @@
   "decision": "ready_for_fresh_aligned_quality_panel",
   "advancing_arm": "aligned_english",
   "quality_score_created": false,
+  "post_run_audit": {
+    "status": "corrected_protocol_deviation",
+    "finding": "The original host selector redundantly read private transcript and alignment fields on rows already marked passed, contrary to the metadata-only selection design.",
+    "impact_assessment": "No values were copied and no labels or scoring inputs were opened. Stage 0.5d had already frozen six completions and six valid alignments, so metadata-only reselection yields the same first two controls and leaves the aggregate mechanism result unchanged.",
+    "remediation": "The host selector now uses permitted metadata and cross-checks status counts against the frozen Stage 0.5d completion and alignment aggregates; a regression traps private transcript-field access.",
+    "experiments_rerun": false
+  },
   "immutable_hashes": {
     "input_freeze_sha256": "aed463e5c6f206e346c29b41b56b7199f07874981ffadc908d41974cf0466083",
     "freeze_payload_sha256": "d157e6dc2187ea14d7ead4f42f8ee2d8c14dddc8707acd314d1e7c4a02fe57ec"

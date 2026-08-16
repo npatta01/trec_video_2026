@@ -58,6 +58,16 @@ text, questions, correct answers, annotations, Whisper text, metrics, or grades.
 Row identities and all row-level results remain private under the ignored data
 root.
 
+> **Post-execution audit correction (2026-08-16):** The original host selector
+> violated the final requirement above by redundantly reading `text`,
+> `language`, and `chunks` on rows already marked `passed`. It copied no values
+> into the diagnostic and opened no labels or scoring inputs. Stage 0.5d's
+> frozen aggregate had already certified all six passed rows as completed and
+> alignment-valid, so metadata-only reselection produces the same first two
+> controls. The frozen runs were preserved without rerun; the host harness now
+> uses only status/order metadata plus the frozen aggregate counts, with a
+> regression that traps private-field access.
+
 ## Frozen arms
 
 Run each arm once, in this immutable order, in a fresh rootless Podman process:

@@ -43,6 +43,15 @@ def _refresh_source_request_freeze(source_root: Path) -> None:
     prediction_path.write_text(json.dumps(prediction))
 
 
+def _refresh_source_validation_freeze(source_root: Path) -> None:
+    prediction_path = source_root / "predictions-freeze.json"
+    prediction = json.loads(prediction_path.read_text())
+    record = prediction["artifacts"]["validated-results"]
+    record["artifact_sha256"] = _sha256(source_root / "validated-results.json")
+    prediction["artifacts_sha256"] = diagnostic.canonical_sha256(prediction["artifacts"])
+    prediction_path.write_text(json.dumps(prediction))
+
+
 @pytest.fixture
 def source_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path, Path]:
     data_root = tmp_path / "data"
@@ -110,6 +119,8 @@ def source_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Pat
         "completion_count": 3,
         "required_count": 5,
         "failure_count": 2,
+        "valid_alignment_count": 3,
+        "results_sha256": diagnostic.canonical_sha256(results),
     }
     raw_path = source_root / "raw-results.json"
     _write_json(raw_path, results)
@@ -170,6 +181,72 @@ def test_prepare_selects_failures_and_first_two_successes_without_labels(source_
             payload = path.read_text(errors="replace")
             assert "private transcript" not in payload
             assert "answer" not in payload.casefold()
+
+
+class _PrivateOutputAccessTrap(dict[str, object]):
+    """Fail if selection touches private Stage 0.5d transcript fields."""
+
+    _PRIVATE_KEYS = {"text", "language", "chunks", "timestamped_text"}
+
+    def get(self, key: str, default: object = None) -> object:
+        if key in self._PRIVATE_KEYS:
+            raise AssertionError(f"selector accessed private output field: {key}")
+        return super().get(key, default)
+
+    def __getitem__(self, key: str) -> object:
+        if key in self._PRIVATE_KEYS:
+            raise AssertionError(f"selector accessed private output field: {key}")
+        return super().__getitem__(key)
+
+    def items(self):
+        raise AssertionError("selector traversed the complete private output row")
+
+
+def test_prepare_never_accesses_private_source_transcript_fields(
+    source_fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, source_root, _ = source_fixture
+    original_read_json = diagnostic._read_json
+
+    def guarded_read_json(path: Path) -> object:
+        payload = original_read_json(path)
+        if path.name == "raw-results.json":
+            assert isinstance(payload, list)
+            return [_PrivateOutputAccessTrap(row) for row in payload]
+        return payload
+
+    monkeypatch.setattr(diagnostic, "_read_json", guarded_read_json)
+
+    result = diagnostic.prepare_diagnostic(
+        root, source_root, runner_path=Path(diagnostic.DIAGNOSTIC_RUNNER_PATH)
+    )
+
+    assert result["status"] == "inputs_frozen"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("completion_count", 2),
+        ("failure_count", 1),
+        ("valid_alignment_count", 2),
+        ("results_sha256", "not-a-sha256"),
+    ],
+)
+def test_prepare_rejects_inconsistent_frozen_source_validation(
+    source_fixture, field: str, value: object
+) -> None:
+    root, source_root, _ = source_fixture
+    validation_path = source_root / "validated-results.json"
+    validation = json.loads(validation_path.read_text())
+    validation[field] = value
+    _write_json(validation_path, validation)
+    _refresh_source_validation_freeze(source_root)
+
+    with pytest.raises(ValueError, match="validation aggregates"):
+        diagnostic.prepare_diagnostic(
+            root, source_root, runner_path=Path(diagnostic.DIAGNOSTIC_RUNNER_PATH)
+        )
 
 
 def test_prepare_rejects_ready_source(source_fixture) -> None:

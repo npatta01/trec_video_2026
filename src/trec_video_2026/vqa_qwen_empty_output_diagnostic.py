@@ -324,7 +324,6 @@ def _verify_source_freeze(source_root: Path) -> tuple[dict[str, Any], dict[str, 
 
     request_rows = requests.get("requests")
     raw_results = _read_json(source_root / "raw-results.json")
-    _walk_forbidden_keys(raw_results, allow_null_values=True)
     if not isinstance(request_rows, list) or not request_rows:
         raise ValueError("Stage 0.5d requests are missing")
     if not isinstance(raw_results, list) or len(raw_results) != len(request_rows):
@@ -338,6 +337,7 @@ def _verify_source_freeze(source_root: Path) -> tuple[dict[str, Any], dict[str, 
 
     failures: list[dict[str, Any]] = []
     successes: list[dict[str, Any]] = []
+    failed_count = 0
     audio_hashes = protocol.get("audio_sha256")
     durations = protocol.get("duration_seconds")
     if not isinstance(audio_hashes, Mapping) or not isinstance(durations, Mapping):
@@ -379,47 +379,27 @@ def _verify_source_freeze(source_root: Path) -> tuple[dict[str, Any], dict[str, 
             "duration_seconds": float(duration),
         }
         if result.get("status") == "failed":
+            failed_count += 1
             if result.get("error_type") == EMPTY_ERROR_TYPE and result.get("error_message") == EMPTY_ERROR_MESSAGE:
                 failures.append(metadata)
         elif result.get("status") == "passed":
-            # Deliberately inspect only whether text is nonempty; never copy it.
-            chunks = result.get("chunks")
-            previous_end = 0.0
-            valid_chunks = isinstance(chunks, list) and bool(chunks)
-            if valid_chunks:
-                for chunk in chunks:
-                    if not isinstance(chunk, Mapping):
-                        valid_chunks = False
-                        break
-                    try:
-                        start = _number(chunk.get("start"), "source chunk start")
-                        end = _number(chunk.get("end"), "source chunk end")
-                    except ValueError:
-                        valid_chunks = False
-                        break
-                    if (
-                        start < 0
-                        or end < start
-                        or end > float(duration)
-                        or start < previous_end
-                        or not isinstance(chunk.get("text"), str)
-                        or not chunk["text"].strip()
-                    ):
-                        valid_chunks = False
-                        break
-                    previous_end = end
-            if (
-                isinstance(result.get("text"), str)
-                and bool(result["text"].strip())
-                and isinstance(result.get("language"), str)
-                and bool(result["language"].strip())
-                and valid_chunks
-            ):
-                successes.append(metadata)
+            # Stage 0.5d's frozen validator already certified every completed
+            # row's nonempty English transcript and valid alignment. Selection
+            # deliberately reads only the preserved status and metadata.
+            successes.append(metadata)
+        else:
+            raise ValueError("Stage 0.5d result status is invalid")
     if len(failures) != 2:
         raise ValueError("Stage 0.5d source must contain exactly two empty-output failures")
     if len(successes) < 2:
         raise ValueError("Stage 0.5d source must contain at least two passing controls")
+    if (
+        validation.get("completion_count") != len(successes)
+        or validation.get("failure_count") != failed_count
+        or validation.get("valid_alignment_count") != len(successes)
+        or not _is_sha256(validation.get("results_sha256"))
+    ):
+        raise ValueError("Stage 0.5d frozen validation aggregates are inconsistent")
     selected = sorted(
         [*failures, *successes[:2]], key=lambda row: row["source_request_index"]
     )

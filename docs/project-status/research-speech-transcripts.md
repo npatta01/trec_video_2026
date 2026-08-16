@@ -192,10 +192,10 @@ incomplete-output diagnostic.
 - **Reason for testing:** localize the preserved empty-output behavior
   before authorizing another quality comparison, while keeping the
   original Stage 0.5d attempt immutable.
-- **Tested condition and panel:** four rows selected only from frozen
-  Stage 0.5d terminal status—two preserved empty failures and the first
-  two passing controls—then run once through four process-isolated arms.
-  Arms held the pinned Qwen revisions, audio bytes, ROCm runtime,
+- **Tested condition and panel:** four rows selected from frozen Stage
+  0.5d results in request order—two preserved empty failures and the
+  first two passing controls—then run once through four process-isolated
+  arms. Arms held the pinned Qwen revisions, audio bytes, ROCm runtime,
   read-only mounts, `--network none`, and `$0.00` paid compute fixed.
 - **Observed result:** the aligned automatic-language baseline A
   reproduced `2` failures and `2` valid aligned successes. The
@@ -219,7 +219,14 @@ incomplete-output diagnostic.
 - **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the
   evidence is a four-row outcome-selected mechanism diagnostic and
   identifies an automatic-language path association only under this
-  pinned condition.
+  pinned condition. **Confirmed protocol deviation, corrected after the
+  run:** the original selector redundantly read private
+  transcript/alignment fields on rows already marked passed, contrary to
+  the metadata-only design. It copied none of those values, and no
+  labels or scoring inputs were opened. The frozen Stage 0.5d aggregate
+  had already certified all six passed rows as completed and
+  alignment-valid, so metadata-only reselection yields the same first
+  two controls and does not change this aggregate mechanism result.
 - **Reconsider when:** a new label-blind aligned-English quality panel
   using no reused Qwen rows completes its all-row readiness gate; do not
   reuse these four rows or reopen this frozen root.
@@ -245,9 +252,16 @@ sanitized aggregate is in
 with the additive Stage 0.5e record in
 [`diagnostic-summary.json`](../../docs/experiments/artifacts/qwen-aligner-quality-20260816/diagnostic-summary.json).
 No labels, annotations, Whisper text, or scoring inputs were opened.
-Row-level Qwen outputs necessarily existed for validation, but remained
-private and were neither inspected nor scored. The earlier Stage 0.5d
-`summary.json` remains unchanged.
+Row-level Qwen outputs remained private and were never manually
+inspected or scored. Post-run review found that deterministic validation
+and the original host selector did programmatically read
+transcript/alignment fields; the selector’s access was a protocol
+deviation because the design required metadata-only selection. It copied
+none of those values. Stage 0.5d’s frozen aggregate certified all six
+passed rows as completed and alignment-valid, so the corrected
+metadata-only selector yields the same first two controls. Neither
+frozen experiment was rerun, and the earlier Stage 0.5d `summary.json`
+remains unchanged.
 </details>
 
 ### Proposed Gemini 3.7 Flash native-AV compatibility smoke

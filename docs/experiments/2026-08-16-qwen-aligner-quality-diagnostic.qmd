@@ -88,17 +88,37 @@ English-language condition. The four diagnostic rows are never scored.
 
 ### Frozen method and panel
 
-- Four rows selected only from the frozen Stage 0.5d terminal status: the two
-  preserved empty-output failures and the first two preserved passing controls
-  in frozen request order.
+- Four rows selected from the frozen Stage 0.5d results in request order: the
+  two preserved empty-output failures and the first two preserved passing
+  controls.
 - Four process-isolated arms ran once, in order, with read-only mounts,
   `--network none`, pinned model revisions, and `$0.00` paid compute.
 - Qwen3-ASR revision:
   `7278e1e70fe206f11671096ffdd38061171dd6e5`; forced-aligner revision:
   `c7cbfc2048c462b0d63a45797104fc9db3ad62b7`.
 - The diagnostic froze before any labels, annotations, Whisper text, or
-  scoring inputs were opened. Row-level Qwen outputs necessarily existed for
-  validation, but remained private and were neither inspected nor scored.
+  scoring inputs were opened. Row-level Qwen outputs remained private and
+  were never manually inspected or scored, but deterministic validation and
+  the original host selector did programmatically read transcript/alignment
+  fields as disclosed below.
+
+### Post-run protocol correction
+
+Independent review found a confirmed protocol deviation in the original host
+selector: for rows already marked `passed`, it redundantly read and stripped
+the private `text`, `language`, and `chunks` fields. The predeclared design
+allowed selection from status, error, order, identity, duration, and hash
+metadata only. The selector did not copy those values into the diagnostic,
+and labels, annotations, Whisper text, and scoring inputs remained unopened.
+
+This deviation did not change the frozen panel or the aggregate mechanism
+result. Stage 0.5d's separately frozen validation records six completed rows
+and six valid alignments, so every one of its six `passed` rows had already
+met the transcript/alignment contract; the first two passed statuses in frozen
+order are therefore the same two controls. Neither frozen experiment was
+rerun. The host harness now cross-checks only passed/failed statuses against
+those frozen completion/alignment counts, and a regression test fails if
+selection accesses any private transcript field.
 
 ### Observed result
 

@@ -340,3 +340,16 @@
   Review source, tests, frozen aggregate evidence, and report wording. Resolve
   all actionable findings, rerun verification, and commit only intended
   tracked project files.
+
+### Task 6: Correct the post-run selection audit finding
+
+- [x] Preserve both frozen experiment roots without rerunning either one.
+- [x] Replace private transcript/alignment reads in the host selector with
+  status/order selection cross-checked against Stage 0.5d's frozen completion
+  and valid-alignment counts.
+- [x] Add a regression whose private result rows raise on transcript-field
+  access or whole-row traversal.
+- [x] Amend the design, evidence index, dated report, and owning theme record
+  to disclose the confirmed protocol deviation and its bounded impact.
+- [x] Regenerate derived report outputs, verify checksums and focused tests,
+  and obtain a clean independent re-review before committing the correction.

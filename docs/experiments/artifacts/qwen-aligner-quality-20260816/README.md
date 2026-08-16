@@ -38,3 +38,16 @@ and 2 failures and neither restored all four rows. See
 hash-bound aggregate record. A fresh label-blind aligned-English quality panel
 using no reused Qwen rows is authorized as the next Qwen action; it has not
 run here.
+
+## Post-run protocol correction
+
+Independent review found that the original Stage 0.5e host selector
+programmatically read private `text`, `language`, and `chunks` fields on rows
+already marked passed, contrary to the metadata-only selection design. It
+copied no row-level values into this bundle, and no labels, annotations,
+Whisper text, or scoring inputs were opened. Stage 0.5d's frozen aggregate had
+already certified all six passed rows as completed and alignment-valid, so a
+corrected metadata-only selection yields the same first two controls. Neither
+frozen run was repeated. The corrected harness cross-checks only statuses and
+permitted metadata against the frozen completion/alignment counts, and its
+regression test traps private transcript-field access.
