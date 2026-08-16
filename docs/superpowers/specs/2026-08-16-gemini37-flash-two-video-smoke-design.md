@@ -144,8 +144,11 @@ finish reason, and complete usage metadata.
 Google documents approximately 280 tokens per high-resolution video frame and
 32 audio tokens per second. At four frames per second, the selected 39.576
 seconds imply approximately 45,591 media tokens per arm before prompt/metadata
-overhead. Compare returned prompt-token usage with this frozen estimate. A
-large mismatch does not get silently explained away; it yields
+overhead. Compare each arm's summed returned prompt-token usage with this
+frozen estimate. The accepted reconciliation band is inclusive `0.75x` through
+`1.35x` (`34,193` through `61,548` prompt tokens per arm); it is deliberately
+wide for metadata and rounding but excludes the documented one-FPS scale. A
+value outside that band does not get silently explained away; it yields
 `custom_fps_not_verified` and blocks a capability or quality claim.
 
 ## Cost boundary

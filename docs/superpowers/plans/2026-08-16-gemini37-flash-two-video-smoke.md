@@ -197,9 +197,10 @@
   IDs, finish reasons, model versions, complete usage metadata, request hashes,
   and provider snapshot hashes, but no references or prior outputs.
 
-  Require aggregate prompt tokens to fall within the design's documented
-  custom-FPS reconciliation band. A large or missing usage value must freeze a
-  terminal `custom_fps_not_verified` decision rather than a quality-ready one.
+  Require each arm's aggregate prompt tokens to fall inclusively between
+  `34_193` and `61_548`, the design's documented custom-FPS reconciliation
+  band. An out-of-band or missing usage value must freeze a terminal
+  `custom_fps_not_verified` decision rather than a quality-ready one.
 
 - [ ] **Step 8: Run status/freeze tests and confirm RED**
 
