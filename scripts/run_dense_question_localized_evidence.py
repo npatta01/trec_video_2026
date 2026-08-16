@@ -506,7 +506,9 @@ def _index_by_audit(rows: Sequence[Mapping[str, Any]], filename: str) -> dict[in
     return result
 
 
-def _media_row(row: Mapping[str, Any], root: Path) -> dict[str, Any]:
+def _media_row(
+    row: Mapping[str, Any], root: Path, *, verify_clip_bytes: bool = True
+) -> dict[str, Any]:
     audit_index = row.get("audit_index", row.get("index"))
     if isinstance(audit_index, bool) or not isinstance(audit_index, int) or audit_index < 1:
         raise ValueError("media row audit_index is invalid")
@@ -519,8 +521,7 @@ def _media_row(row: Mapping[str, Any], root: Path) -> dict[str, Any]:
         raise ValueError(f"clip is missing: {path}")
     declared_sha = row.get("clip_sha256", row.get("sha256", row.get("media_sha256")))
     declared_sha = _string(declared_sha, f"media row {audit_index}.clip_sha256")
-    actual_sha = _sha256(path)
-    if declared_sha != actual_sha:
+    if verify_clip_bytes and declared_sha != _sha256(path):
         raise ValueError(f"clip hash mismatch for audit_index {audit_index}")
     mime_type = _string(row.get("mime_type", "video/mp4"), f"media row {audit_index}.mime_type")
     start = _number(row.get("clip_start_seconds", row.get("start_seconds")), f"media row {audit_index}.clip_start_seconds")
@@ -598,7 +599,9 @@ def _validate_role_counts(role_counts: Mapping[str, int]) -> None:
         )
 
 
-def _validate_inputs(root: Path) -> tuple[list[dict[str, Any]], dict[int, dict[str, Any]], dict[int, dict[str, Any]]]:
+def _validate_inputs(
+    root: Path, *, verify_clip_bytes: bool = True
+) -> tuple[list[dict[str, Any]], dict[int, dict[str, Any]], dict[int, dict[str, Any]]]:
     required = (
         "treatment-freeze.json",
         "selection-freeze.json",
@@ -654,7 +657,10 @@ def _validate_inputs(root: Path) -> tuple[list[dict[str, Any]], dict[int, dict[s
     projection = _provider_projection(provider_rows)
     provider_by_index = {row["audit_index"]: row for row in projection}
     media_raw = _rows_payload(media_payload, "media-manifest.json")
-    media_by_index = {row["audit_index"]: _media_row(row, root) for row in media_raw}
+    media_by_index = {
+        row["audit_index"]: _media_row(row, root, verify_clip_bytes=verify_clip_bytes)
+        for row in media_raw
+    }
     if set(provider_by_index) != set(media_by_index):
         raise ValueError("provider rows and media manifest audit indexes do not match")
     provider_sha = provider_rows_sha256(provider_rows)
@@ -1170,6 +1176,82 @@ def _replayed_artifact_hashes(root: Path, audit_index: int, role: str, fps: floa
     }
 
 
+def _continuation_snapshot(root: Path) -> tuple[tuple[str, str], ...]:
+    """Capture immutable continuation inputs, source artifacts, and code hashes."""
+
+    auth_path = root / "continuation-authorization.json"
+    replay_path = root / "canary-replay-freeze.json"
+    auth = _load_json(auth_path)
+    replay = _load_json(replay_path)
+    source_root = Path(str(replay.get("source_root", "")))
+    paths: set[Path] = {
+        root / name
+        for name in (
+            "treatment-freeze.json",
+            "selection-freeze.json",
+            "provider-rows.json",
+            "media-manifest.json",
+            "provider-authorization.json",
+            "continuation-authorization.json",
+            "canary-replay-freeze.json",
+        )
+    }
+    paths.update(
+        source_root / name
+        for name in (
+            "treatment-freeze.json",
+            "selection-freeze.json",
+            "provider-rows.json",
+            "media-manifest.json",
+            "provider-authorization.json",
+            "predictions-freeze.json",
+        )
+    )
+    prefix = auth.get("imported_prefix", [])
+    if not isinstance(prefix, list):
+        raise ValueError("continuation snapshot imported prefix is invalid")
+    for item in prefix:
+        if not isinstance(item, Mapping):
+            raise ValueError("continuation snapshot imported arm is invalid")
+        audit_index = item.get("audit_index")
+        role = item.get("role")
+        fps = item.get("fps")
+        if not isinstance(audit_index, int) or not isinstance(role, str) or fps not in EXPECTED_FPS:
+            raise ValueError("continuation snapshot imported arm identity is invalid")
+        source_arm = _arm_directory(source_root, audit_index, role, fps)
+        target_arm = _arm_directory(root, audit_index, role, fps)
+        source_artifacts = item.get("source_artifacts")
+        if not isinstance(source_artifacts, Mapping):
+            raise ValueError("continuation snapshot source artifacts are invalid")
+        paths.update(source_arm / name for name in source_artifacts)
+        paths.update(target_arm / name for name in ROW_ARTIFACT_NAMES)
+    code_hashes = {
+        "runner_sha256": _sha256(SCRIPT_PATH),
+        "config_sha256": _sha256(CONFIG_PATH),
+        "prompt_template_sha256": _prompt_template_sha256(),
+        "validator_sha256": _validator_sha256(),
+        "response_schema_sha256": _schema_sha256(),
+        "provider_response_schema_sha256": _provider_schema_sha256(),
+    }
+    snapshot: list[tuple[str, str]] = [(f"code:{key}", value) for key, value in code_hashes.items()]
+    for path in sorted(paths, key=str):
+        if not path.is_file() or path.is_symlink():
+            raise ValueError(f"continuation snapshot input is not a regular file: {path}")
+        snapshot.append((str(path.resolve()), _sha256(path)))
+    return tuple(snapshot)
+
+
+def _validate_continuation_snapshot(
+    root: Path, expected: tuple[tuple[str, str], ...]
+) -> None:
+    """Revalidate semantics and reject any immutable input drift."""
+
+    validate_continuation_authorization(root)
+    current = _continuation_snapshot(root)
+    if current != expected:
+        raise ValueError("continuation snapshot drift detected")
+
+
 def run(root: Path, call: CallFunction | None = None) -> None:
     """Run one immutable provider attempt for each selected row and FPS arm."""
 
@@ -1177,8 +1259,10 @@ def run(root: Path, call: CallFunction | None = None) -> None:
     if not root.is_dir():
         raise ValueError(f"run root does not exist: {root}")
     continuation = (root / "continuation-authorization.json").exists()
+    continuation_snapshot: tuple[tuple[str, str], ...] | None = None
     if continuation:
         validate_continuation_authorization(root)
+        continuation_snapshot = _continuation_snapshot(root)
     if (root / "predictions-freeze.json").exists() or ((root / "rows").exists() and not continuation):
         raise ValueError("output already has artifacts; refusing to overwrite")
     rows, _provider_by_index, _media_by_index = _validate_inputs(root)
@@ -1200,6 +1284,10 @@ def run(root: Path, call: CallFunction | None = None) -> None:
             if response_id in response_ids:
                 raise ValueError("duplicate imported provider response ID")
             response_ids.add(response_id)
+
+    def validate_snapshot() -> None:
+        if continuation_snapshot is not None:
+            _validate_continuation_snapshot(root, continuation_snapshot)
 
     def stop_after_failed_canary(task_index: int) -> bool:
         canary_end = (start_index + 2 - 1) if continuation else (2 * COMPATIBILITY_CANARY_PAIRS - 1)
@@ -1248,6 +1336,7 @@ def run(root: Path, call: CallFunction | None = None) -> None:
             fps,
             _canary_pair_index(task_index),
         )
+        validate_snapshot()
         calls += 1
         try:
             raw, metadata = _provider_result(provider(clip_bytes, media["mime_type"], prompt, fps))
@@ -1258,6 +1347,7 @@ def run(root: Path, call: CallFunction | None = None) -> None:
                     row_root / "terminal.json",
                     {"audit_index": audit_index, "role": role, "fps": fps, "status": "provider_error", "error_type": type(error).__name__},
                 )
+                validate_snapshot()
                 if _canary_pair_index(task_index) is not None:
                     canary_statuses.append("provider_error")
                 if stop_after_failed_canary(task_index):
@@ -1268,6 +1358,7 @@ def run(root: Path, call: CallFunction | None = None) -> None:
                 row_root / "terminal.json",
                 {"audit_index": audit_index, "role": role, "fps": fps, "status": "interrupted", "error_type": type(error).__name__, "error": str(error)},
             )
+            validate_snapshot()
             _write_pending_incomplete(
                 root,
                 tasks,
@@ -1279,6 +1370,7 @@ def run(root: Path, call: CallFunction | None = None) -> None:
         _write_text_once(row_root / "raw-response.txt", raw)
         metadata = {**metadata, "raw_response_sha256": _sha256_bytes(raw.encode())}
         _write_once(row_root / "metadata.json", metadata)
+        validate_snapshot()
         response_id: str | None = None
         if continuation:
             candidate_id = metadata.get("response_id")
@@ -1361,6 +1453,7 @@ def run(root: Path, call: CallFunction | None = None) -> None:
             return
     if calls != planned:
         raise ValueError("provider call count drift")
+    validate_snapshot()
 
 
 def _freeze_inputs(root: Path) -> dict[str, Any]:
@@ -1637,12 +1730,14 @@ def verify_predictions_freeze(root: Path) -> None:
     _verify_freeze_contents(root, freeze)
 
 
-def _source_rows_for_replay(source_root: Path) -> tuple[list[dict[str, Any]], dict[int, dict[str, Any]], dict[int, dict[str, Any]]]:
+def _source_rows_for_replay(
+    source_root: Path, *, verify_clip_bytes: bool = True
+) -> tuple[list[dict[str, Any]], dict[int, dict[str, Any]], dict[int, dict[str, Any]]]:
     provider_payload = _load_json(source_root / "provider-rows.json")
     media_payload = _load_json(source_root / "media-manifest.json")
     provider_rows = _provider_projection(_rows_payload(provider_payload, "provider-rows.json"))
     media_by_index = {
-        row["audit_index"]: _media_row(row, source_root)
+        row["audit_index"]: _media_row(row, source_root, verify_clip_bytes=verify_clip_bytes)
         for row in _rows_payload(media_payload, "media-manifest.json")
     }
     provider_by_index = {row["audit_index"]: row for row in provider_rows}
@@ -1792,7 +1887,9 @@ def validate_continuation_authorization(root: Path) -> None:
         raise ValueError("continuation fresh canary status must be not_run")
     if auth.get("canary_replay_freeze_sha256") != _sha256(replay_path):
         raise ValueError("continuation replay hash drift")
-    rows, _provider_by_index, _media_by_index = _validate_inputs(root)
+    rows, _provider_by_index, _media_by_index = _validate_inputs(
+        root, verify_clip_bytes=False
+    )
     if len(rows) != 12 or len(rows) * len(EXPECTED_FPS) != 24:
         raise ValueError("continuation panel must contain exactly 12 rows and 24 arms")
     for field, filename in (
@@ -1833,7 +1930,9 @@ def validate_continuation_authorization(root: Path) -> None:
     source_root = Path(str(replay.get("source_root", "")))
     if not source_root.is_dir():
         raise ValueError("continuation source root is unavailable")
-    source_rows, _provider_by_index, _media_by_index = _source_rows_for_replay(source_root)
+    source_rows, _provider_by_index, _media_by_index = _source_rows_for_replay(
+        source_root, verify_clip_bytes=False
+    )
     source_freeze_path = source_root / "predictions-freeze.json"
     if replay.get("source_predictions_freeze_sha256") != _sha256(source_freeze_path):
         raise ValueError("continuation source prediction freeze drift")

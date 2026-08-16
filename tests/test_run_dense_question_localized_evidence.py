@@ -688,6 +688,16 @@ def _rewrite_replay_provider_calls(root: Path, value: Any = 17) -> None:
     _write_json(auth_path, auth)
 
 
+def _rewrite_replay_bytes_self_consistently(root: Path) -> None:
+    replay_path = root / "canary-replay-freeze.json"
+    replay = json.loads(replay_path.read_text())
+    replay_path.write_text(json.dumps(replay, ensure_ascii=False, indent=4) + "\n")
+    auth_path = root / "continuation-authorization.json"
+    auth = json.loads(auth_path.read_text())
+    auth["canary_replay_freeze_sha256"] = _sha(replay_path)
+    _write_json(auth_path, auth)
+
+
 def _refresh_current_input_bindings(root: Path) -> None:
     provider_rows = json.loads((root / "provider-rows.json").read_text())["rows"]
     selection_path = root / "selection-freeze.json"
@@ -991,6 +1001,68 @@ def test_continuation_rejects_non_regular_extra_entry_before_callback(
     with pytest.raises(ValueError, match="exact regular-file artifact set"):
         runner.run(root, call=lambda *args: calls.append(args) or _id_call("unused"))
     assert calls == []
+
+
+def test_continuation_snapshot_stops_after_first_callback_replay_byte_drift(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    calls: list[tuple[Any, ...]] = []
+
+    def call(*args: Any) -> tuple[str, dict[str, Any]]:
+        calls.append(args)
+        if len(calls) == 1:
+            _rewrite_replay_bytes_self_consistently(root)
+        return _id_call(f"snapshot-{len(calls)}")
+
+    with pytest.raises(ValueError, match="continuation snapshot"):
+        runner.run(root, call=call)
+    assert len(calls) == 1
+    triggered = runner._arm_directory(root, 2, "target", 4.0)
+    assert (triggered / "raw-response.txt").is_file()
+    assert not (triggered / "terminal.json").exists()
+    assert not runner._arm_directory(root, 2, "target", 12.0).exists()
+
+
+def test_failed_continuation_snapshot_drift_after_position_three_never_calls_position_four(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    calls: list[tuple[Any, ...]] = []
+
+    def call(*args: Any) -> tuple[str, dict[str, Any]]:
+        calls.append(args)
+        _rewrite_replay_bytes_self_consistently(root)
+        return _id_call(f"snapshot-failed-{len(calls)}", valid=False)
+
+    with pytest.raises(ValueError, match="continuation snapshot"):
+        runner.run(root, call=call)
+    assert len(calls) == 1
+    triggered = runner._arm_directory(root, 2, "target", 4.0)
+    assert (triggered / "raw-response.txt").is_file()
+    assert not (triggered / "terminal.json").exists()
+    assert not runner._arm_directory(root, 2, "target", 12.0).exists()
+
+
+def test_last_callback_snapshot_drift_fails_before_run_returns_or_freeze(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    calls: list[tuple[Any, ...]] = []
+
+    def call(*args: Any) -> tuple[str, dict[str, Any]]:
+        calls.append(args)
+        if len(calls) == 22:
+            _rewrite_replay_bytes_self_consistently(root)
+        return _id_call(f"snapshot-last-{len(calls)}")
+
+    with pytest.raises(ValueError, match="continuation snapshot"):
+        runner.run(root, call=call)
+    assert len(calls) == 22
+    triggered = runner._arm_directory(root, 29, "control", 12.0)
+    assert (triggered / "raw-response.txt").is_file()
+    assert not (triggered / "terminal.json").exists()
+    assert not (root / "predictions-freeze.json").exists()
 
 
 def test_replay_provider_calls_made_must_remain_integer_zero_with_recomputed_auth(

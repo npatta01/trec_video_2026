@@ -333,6 +333,14 @@ must not be loaded for reference-aware scoring.
 - Post-run and post-freeze self-consistent imported-artifact rewrites and replay `provider_calls_made=17` rewrites reject before freeze creation/trust. Fresh additive zero-call candidate is private run-v15: imported `2`, remaining new maximum `22`, combined maximum `24`, `provider_calls_made=0`, no prediction freeze. Runner SHA `7b64ae1d6285f1bb5b55873928503c190d605d88de56f237d70d1f77cbde7281`; replay SHA `65451f0f69204f523ede71d9412fe592530bb94663a9d4be7e56463d256d66e8`; authorization SHA `03861132cd11660478876893d132173e13866bca5246b068374d032bf7d50de1`.
 - v2/v3/v4 and superseded v13/v14 recursive pre/post hashes matched. Ruff, compilation, and `git diff --check` passed. Task 4 remains **NOT AUTHORIZED** pending a verified provider continuation freeze.
 
+#### Task 3D fix round 3/5 — 2026-08-16
+
+- Status: complete for this bounded TOCTOU review round; no provider calls, labels, references, or scoring. Three callback-drift regressions initially produced `54 passed, 3 failed`; final runner/preparation tests are `71 passed`.
+- A stable continuation snapshot now covers replay/auth/source/imported artifacts, panel/input bytes, and current runner/validator/schema hashes. It is semantically revalidated and compared immediately before each callback and after every callback, including the final callback. New arm outputs are excluded; raw response and metadata remain persisted before post-callback drift rejection.
+- Drift after position 3 stops before position 4; last-callback drift fails after exactly the expected callbacks and before return/freeze. Valid complete and failed continuation paths remain unchanged.
+- Fresh additive zero-call candidate is private run-v17: imported `2`, remaining new maximum `22`, combined maximum `24`, `provider_calls_made=0`, no prediction freeze. Runner SHA `d987e05a44be0801953682b1335d41f910de395f3f6c2360bb3da490ab226146`; replay SHA `fee8f54d8f9a2b2c622dfa966fd7515d3f4d352855ffc8515c95f376a9fd28cb`; authorization SHA `7289e861903d553998900dd4f61d0f0432034f6cdd01e7209a7a76ff81fe8c78`.
+- v2/v3/v4 and superseded v13/v14/v15/v16 recursive pre/post hashes matched. Ruff, compilation, and `git diff --check` passed. Task 4 remains **NOT AUTHORIZED** pending a verified provider continuation freeze.
+
 ### Task 4: Audit paired fact recovery and apply the gate
 
 **Files:**
