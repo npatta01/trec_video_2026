@@ -45,6 +45,7 @@ RUNTIME_IMAGE = (
     "b1f97c47769a8a2f32a5ac9a18cc62d2aab57ed32c66720775407f6213ebf96f"
 )
 BATCH_SIZE = 11
+MEDIA_EXTENSION = ".png"
 IMPLEMENTATION_PATHS = (
     "scripts/prepare_local_gemma_frame_counting_canary.py",
     "src/trec_video_2026/vqa_blind_frame_counting.py",
@@ -142,7 +143,7 @@ def _contact_sheet(
                 fill="black",
             )
     output.parent.mkdir(parents=True, exist_ok=True)
-    canvas.save(output, format="JPEG", quality=92)
+    canvas.save(output, format="PNG", compress_level=6)
 
 
 def _prepare_row(*, data_root: Path, run_root: Path, row: dict[str, object]):
@@ -157,7 +158,7 @@ def _prepare_row(*, data_root: Path, run_root: Path, row: dict[str, object]):
     pts = tuple(all_pts[index] for index in source_indices)
     maximum_gap = max(b - a for a, b in zip(pts, pts[1:], strict=False))
     frame_dir = run_root / "media" / video_id / "frames"
-    frame_paths = tuple(sorted(frame_dir.glob("*.jpg")))
+    frame_paths = tuple(sorted(frame_dir.glob(f"*{MEDIA_EXTENSION}")))
     if len(frame_paths) != len(source_indices):
         raise ValueError(f"selected frame count changed for {video_id}")
     frame_ids = tuple(f"F{index}" for index in range(len(frame_paths)))
@@ -170,14 +171,12 @@ def _prepare_row(*, data_root: Path, run_root: Path, row: dict[str, object]):
             / "media"
             / video_id
             / "contact-sheets"
-            / f"sheet-{start // BATCH_SIZE:02d}.jpg"
+            / f"sheet-{start // BATCH_SIZE:02d}{MEDIA_EXTENSION}"
         )
         _contact_sheet(output=sheet_path, frames=batch)
         sheet_records.append((sheet_path, batch))
 
-    decoder_text = (
-        "ffmpeg 8.0.1; select=not(mod(n,4))+eq(n,last); fps_mode=vfr; qscale=2"
-    )
+    decoder_text = "ffmpeg 8.0.1; select=not(mod(n,4))+eq(n,last); fps_mode=vfr; png"
     decoder_path = run_root / "preparation" / "decoder-configuration.txt"
     if not decoder_path.exists():
         decoder_path.write_text(decoder_text + "\n", encoding="utf-8")

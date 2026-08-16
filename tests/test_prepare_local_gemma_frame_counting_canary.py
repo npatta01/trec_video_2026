@@ -49,3 +49,4 @@ def test_preparation_binds_the_complete_inference_and_reducer_trust_base() -> No
         "pyproject.toml",
         "uv.lock",
     }
+    assert module.MEDIA_EXTENSION == ".png"
