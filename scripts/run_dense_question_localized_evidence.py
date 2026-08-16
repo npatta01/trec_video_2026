@@ -28,6 +28,10 @@ MODEL = "gemini-3.1-pro-preview"
 EXPECTED_FPS = (4.0, 12.0)
 MAX_CALLS = 24
 COMPATIBILITY_CANARY_PAIRS = 1
+# Immutable Task 3B source anchor; prevents a self-consistent substituted
+# panel/freeze from becoming a continuation authority.
+TRUSTED_V4_PREDICTION_FREEZE_SHA256 = "7a5be02b759aec4a6b1b504d73f3616ea7987900369c6b6ba9273a1fdaa5b7a0"
+TRUSTED_V4_PROVIDER_ROWS_SHA256 = "007fd6a66fd403d88782438c655028c0381a714ef84f70a812ed511d44eed293"
 SCRIPT_PATH = Path(__file__).resolve()
 CONFIG_PATH = SCRIPT_PATH.parents[1] / "configs" / "vqa" / "dense_question_localized_evidence_issue35.json"
 EXPECTED_SETTINGS: dict[str, Any] = {
@@ -1666,6 +1670,10 @@ def validate_continuation_authorization(root: Path) -> None:
     source_freeze_path = source_root / "predictions-freeze.json"
     if replay.get("source_predictions_freeze_sha256") != _sha256(source_freeze_path):
         raise ValueError("continuation source prediction freeze drift")
+    if _sha256(source_freeze_path) != TRUSTED_V4_PREDICTION_FREEZE_SHA256:
+        raise ValueError("continuation source prediction freeze is not trusted v4")
+    if _sha256(source_root / "provider-rows.json") != TRUSTED_V4_PROVIDER_ROWS_SHA256:
+        raise ValueError("continuation source provider rows are not trusted v4")
     source_freeze = _load_json(source_freeze_path)
     source_freeze_rows = source_freeze.get("rows", [])
     for item, source_item in zip(prefix, [(source_rows[0], EXPECTED_FPS[0]), (source_rows[0], EXPECTED_FPS[1])], strict=True):

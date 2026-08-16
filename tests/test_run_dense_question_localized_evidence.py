@@ -283,6 +283,18 @@ def test_continuation_validator_rejects_empty_imported_source_artifacts(tmp_path
         runner.validate_continuation_authorization(root)
 
 
+def test_continuation_uses_fixed_v4_prediction_anchor() -> None:
+    assert runner.TRUSTED_V4_PREDICTION_FREEZE_SHA256 == (
+        "7a5be02b759aec4a6b1b504d73f3616ea7987900369c6b6ba9273a1fdaa5b7a0"
+    )
+
+
+def test_continuation_uses_fixed_v4_provider_rows_anchor() -> None:
+    assert runner.TRUSTED_V4_PROVIDER_ROWS_SHA256 == (
+        "007fd6a66fd403d88782438c655028c0381a714ef84f70a812ed511d44eed293"
+    )
+
+
 def test_prompt_is_question_localized_and_prohibits_label_leakage() -> None:
     prompt = runner.build_prompt(
         "What does the robot do at the end?",
