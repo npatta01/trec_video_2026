@@ -121,8 +121,6 @@ The additive runner exposes these transitions:
    inference call, then freeze sanitized model metadata;
 3. `upload`: upload each delivery once and wait for `ACTIVE`, recording one
    exclusive upload record per row;
-   an exceptional `recover-upload`/`resume-upload` pair is permitted only by
-   the frozen incident erratum below;
 4. `submit`: create exactly one inline Batch job for the named arm, containing
    exactly two requests;
 5. `status`: append provider snapshots without modifying earlier evidence;
@@ -137,7 +135,7 @@ row error is terminal, preserved, and yields `not_ready`. Duplicate submission,
 incomplete output, duplicate response, mutation, or overwrite attempts fail
 closed.
 
-### Implementation erratum: first-upload metadata recovery
+### Implementation erratum: terminal v1 setup and clean v2 replacement
 
 The sole 2026-08-16 `upload` invocation reached Google for the first delivery,
 but the local metadata parser rejected the returned `sha256Hash` before it
@@ -153,26 +151,16 @@ printed and retained only aggregate format facts, not a provider name, URI, or
 digest. This unplanned read is disclosed as an audit event; it did not mutate
 provider or local state.
 
-To avoid re-uploading the accepted bytes, this root permits one narrow additive
-recovery sequence after a tested and committed fix:
+The user explicitly requested the smallest decision check under a next-day
+deadline. The attempted recovery framework was therefore abandoned before any
+recovery code or provider mutation. The v1 root remains terminal and immutable.
 
-1. `recover-upload` first exclusively freezes hashes of the complete existing
-   v1 inventory, then uses paginated `Files.list` and exact `Files.get` reads;
-2. recovery fails closed unless exactly one non-historical, unexpired `ACTIVE`
-   resource matches the first frozen delivery's MIME type, byte size, normalized
-   SHA-256, and creation window, and the get snapshot reproduces its identity;
-3. the failed record is preserved byte-for-byte and an exclusive recovery
-   record binds it, the original attempt, the pre-recovery inventory, the local
-   delivery, the sanitized scan counts, and the selected list/get snapshots;
-4. `resume-upload` re-verifies all those bindings and uploads only the untouched
-   second delivery once. It cannot re-upload the first delivery or call Batch;
-5. downstream submission accepts the recovered first record only while
-   revalidating the original failed evidence and accepts the ordinary second
-   upload record.
-
-Zero or multiple matches, expiry, a historical URI, any hash/identity mismatch,
-or any pre-existing downstream artifact freezes v1 as `not_ready`. A new v2
-replacement remains outside this erratum and requires separate user approval.
+After a focused regression test and parser fix, one clean v2 replacement may
+repeat only the setup uploads and execute the original two-video/two-arm design.
+It must use a new exclusive private root and experiment ID, retain v1, and make
+no claim that v1 continued. The already accepted v1 upload may expire normally;
+it is not reused or deleted. V2 still permits exactly one upload per delivery,
+one Batch job per arm, no inference retry, and the original `$0.15` cap.
 
 ## Custom-FPS and provenance evidence
 
@@ -244,7 +232,10 @@ contain those row-level fields.
 
 Private root:
 
-`data/vqa/benchmarks/gemini37-flash-two-video-smoke-v1/`
+`data/vqa/benchmarks/gemini37-flash-two-video-smoke-v2/`
+
+The terminal setup-only v1 incident remains preserved separately at
+`data/vqa/benchmarks/gemini37-flash-two-video-smoke-v1/`.
 
 Tracked sanitized evidence, if the run reaches a terminal freeze:
 

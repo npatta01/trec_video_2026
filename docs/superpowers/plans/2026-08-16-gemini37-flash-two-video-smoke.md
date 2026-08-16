@@ -87,7 +87,7 @@
   ```python
   {
       "schema_version": 1,
-      "experiment_id": "gemini37-flash-two-video-smoke-v1",
+      "experiment_id": "gemini37-flash-two-video-smoke-v2",
       "status": "inputs_frozen",
       "source_protocol": {"path": ..., "sha256": ...},
       "arms": {
@@ -294,7 +294,8 @@
 ### Task 4: Preflight and execute the sole Batch A/B
 
 **Files:**
-- Private create: `data/vqa/benchmarks/gemini37-flash-two-video-smoke-v1/`
+- Private preserve: `data/vqa/benchmarks/gemini37-flash-two-video-smoke-v1/`
+- Private create: `data/vqa/benchmarks/gemini37-flash-two-video-smoke-v2/`
 
 **Interfaces:**
 - Consumes only the frozen source protocol and two preserved delivery bundles before freeze.
@@ -339,15 +340,13 @@
   parser rejected its base64-wrapped ASCII-hex digest. Preserve its exclusive
   attempt and failed record; row two and both inference arms remain untouched.
 
-- [ ] **Step 4b: Recover row one read-only and upload only row two once**
+- [ ] **Step 4b: Run one clean v2 replacement after the parser fix**
 
-  After committing the design erratum and tested recovery code, invoke
-  `recover-upload` once. It must hash-freeze the existing v1 inventory before
-  provider reads, select exactly one non-historical, unexpired `ACTIVE` match
-  by MIME, size, normalized SHA-256, and creation window, and bind a stable
-  `Files.get` snapshot without calling upload or Batch. Then invoke
-  `resume-upload` once; it must upload only row two and finish with 2/2 verified
-  `ACTIVE` records. Reuse those URIs for both arms.
+  Preserve v1 unchanged. Add a focused regression for Google's live
+  base64-of-ASCII-hex digest, fix only that normalizer, and bump the private
+  experiment root/ID to v2. Invoke v2 `prepare`, `preflight`, and `upload` once
+  each; require 2/2 verified `ACTIVE` records. Do not add a recovery framework
+  or delete/reuse the v1 provider resource.
 
 - [ ] **Step 5: Submit exactly one Batch job per arm**
 
