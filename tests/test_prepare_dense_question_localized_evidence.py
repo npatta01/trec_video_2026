@@ -299,3 +299,54 @@ def test_mid_panel_failure_leaves_resumable_incomplete_staging(tmp_path: Path, m
     prep.freeze_panel(**fixture)
     assert (fixture["root"] / "media-manifest.json").exists()
     assert len(list((fixture["root"] / "clips").glob("*.mp4"))) == 4
+
+
+def test_clip_failure_after_output_exists_leaves_no_unrecorded_staged_clip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = _completed_fixture(tmp_path)
+    prep.freeze_treatment(**fixture)
+    prep.prepare_modality_audit(**fixture)
+    _complete_manual_audit(fixture)
+    manual = json.loads((fixture["root"] / "manual-modality-audit.json").read_text())
+    row = next(item for item in manual["rows"] if item["role"] == "target")
+    stage = fixture["root"] / ".single-clip-stage"
+
+    def writes_then_fails(_source: Path, output: Path, _start: float, _end: float) -> dict[str, object]:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(b"partial encoded clip")
+        raise RuntimeError("synthetic ffprobe failure")
+
+    monkeypatch.setattr(prep, "_run_ffmpeg_clip", writes_then_fails)
+    with pytest.raises(RuntimeError, match="synthetic ffprobe failure"):
+        prep._make_clip(stage, row)
+    assert not list((stage / "clips").glob("*.mp4"))
+    assert not list((stage / "clips").glob("*.tmp.mp4"))
+
+
+def test_final_promotion_failure_recovers_without_overwrite(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fixture = _completed_fixture(tmp_path)
+    prep.freeze_treatment(**fixture)
+    prep.prepare_modality_audit(**fixture)
+    _complete_manual_audit(fixture)
+    original = prep._promote_bundle_artifact
+    failed = False
+
+    def fail_before_first_json(root: Path, artifact: dict[str, object]) -> None:
+        nonlocal failed
+        if artifact["kind"] == "json" and not failed:
+            failed = True
+            raise RuntimeError("synthetic final JSON promotion failure")
+        original(root, artifact)
+
+    monkeypatch.setattr(prep, "_promote_bundle_artifact", fail_before_first_json)
+    with pytest.raises(RuntimeError, match="synthetic final JSON promotion failure"):
+        prep.freeze_panel(**fixture)
+    assert (fixture["root"] / "bundle-promotion.json").exists()
+    assert (fixture["root"] / "clips").exists()
+    assert not (fixture["root"] / "selection-freeze.json").exists()
+    monkeypatch.setattr(prep, "_promote_bundle_artifact", original)
+    prep.freeze_panel(**fixture)
+    assert (fixture["root"] / "selection-freeze.json").exists()
+    assert (fixture["root"] / "media-manifest.json").exists()
+    assert (fixture["root"] / "provider-rows.json").exists()

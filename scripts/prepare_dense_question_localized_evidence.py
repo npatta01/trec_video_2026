@@ -668,8 +668,15 @@ def _make_clip(root: Path, row: Mapping[str, Any]) -> dict[str, Any]:
     output = root / "clips" / f"{row['audit_index']:02d}-{row['video_id']}.mp4"
     if output.exists():
         raise ValueError(f"refusing to overwrite existing clip: {output}")
-    probe = _run_ffmpeg_clip(source, output, start, end)
-    clip_sha = _sha256(output)
+    temporary = output.with_name(output.stem + ".tmp.mp4")
+    temporary.unlink(missing_ok=True)
+    try:
+        probe = _run_ffmpeg_clip(source, temporary, start, end)
+        clip_sha = _sha256(temporary)
+        temporary.replace(output)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
     return {
         "audit_index": row["audit_index"],
         "video_id": row["video_id"],
@@ -713,6 +720,10 @@ def _write_progress(path: Path, payload: Mapping[str, Any]) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
     temporary.replace(path)
+
+
+def _serialized_json(payload: Any) -> bytes:
+    return (json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
 
 
 def _stage_panel_clips(
@@ -795,6 +806,123 @@ def _stage_panel_clips(
     progress["media_rows"] = staged_rows
     _write_progress(progress_path, progress)
     return staged_rows
+
+
+def _bundle_signature(root: Path, selected_rows: Sequence[Mapping[str, Any]], manual_path: Path) -> str:
+    return _sha256_bytes(
+        _canonical(
+            {
+                "selected_rows": [row["audit_index"] for row in selected_rows],
+                "treatment_freeze_sha256": _sha256(root / "treatment-freeze.json"),
+                "manual_modality_audit_sha256": _sha256(manual_path),
+            }
+        )
+    )
+
+
+def _promote_bundle_artifact(root: Path, artifact: Mapping[str, Any]) -> None:
+    """Promote one staged byte set without ever overwriting final evidence."""
+
+    final = root / artifact["final"]
+    staged = root / artifact["staged"]
+    expected_sha = artifact["sha256"]
+    if final.exists():
+        if not final.is_file() or _sha256(final) != expected_sha:
+            raise ValueError(f"promoted artifact drifted: {final}")
+        return
+    if not staged.is_file():
+        raise ValueError(f"staged artifact is missing: {staged}")
+    final.parent.mkdir(parents=True, exist_ok=True)
+    staged.replace(final)
+    if _sha256(final) != expected_sha:
+        raise ValueError(f"promoted artifact hash mismatch: {final}")
+
+
+def _resume_bundle_promotion(root: Path, expected_signature: str | None = None) -> None:
+    ledger_path = root / "bundle-promotion.json"
+    if not ledger_path.is_file():
+        raise ValueError("bundle promotion ledger is missing")
+    ledger = _load_json(ledger_path)
+    if expected_signature is not None and ledger.get("signature") != expected_signature:
+        raise ValueError("bundle promotion signature drifted; refusing recovery")
+    artifacts = ledger.get("artifacts")
+    if not isinstance(artifacts, list) or not artifacts:
+        raise ValueError("bundle promotion ledger has no artifacts")
+    progress_path = root / "bundle-promotion-progress.json"
+    progress = _load_json(progress_path) if progress_path.is_file() else {"completed": []}
+    completed = set(progress.get("completed", []))
+    for index, artifact in enumerate(artifacts):
+        if not isinstance(artifact, Mapping):
+            raise ValueError(f"bundle promotion artifact {index} is invalid")
+        artifact_id = str(artifact.get("final"))
+        _promote_bundle_artifact(root, artifact)
+        completed.add(artifact_id)
+        _write_progress(
+            progress_path,
+            {
+                "schema_version": 1,
+                "status": "complete" if len(completed) == len(artifacts) else "promoting",
+                "ledger_sha256": _sha256(ledger_path),
+                "completed": [item["final"] for item in artifacts if item["final"] in completed],
+            },
+        )
+    if len(completed) != len(artifacts):
+        raise ValueError("bundle promotion did not complete every artifact")
+
+
+def _promote_bundle(
+    root: Path,
+    selected_rows: Sequence[Mapping[str, Any]],
+    clips: Sequence[Mapping[str, Any]],
+    payloads: Mapping[str, Any],
+    signature: str,
+) -> None:
+    """Stage JSON and promote clips/JSON with an immutable recovery ledger."""
+
+    stage = root / STAGING_DIR_NAME
+    final_stage = stage / "final"
+    final_stage.mkdir(parents=True, exist_ok=True)
+    artifacts: list[dict[str, Any]] = []
+    for clip in clips:
+        staged = stage / clip["clip_path"]
+        final = Path(clip["clip_path"])
+        artifacts.append(
+            {
+                "kind": "clip",
+                "staged": str(staged.relative_to(root)),
+                "final": str(final),
+                "sha256": clip["clip_sha256"],
+            }
+        )
+    for name, payload in payloads.items():
+        staged = final_stage / name
+        staged.write_bytes(_serialized_json(payload))
+        artifacts.append(
+            {
+                "kind": "json",
+                "staged": str(staged.relative_to(root)),
+                "final": name,
+                "sha256": _sha256(staged),
+            }
+        )
+    ledger_path = root / "bundle-promotion.json"
+    if not ledger_path.exists():
+        _write_once(
+            ledger_path,
+            {
+                "schema_version": 1,
+                "status": "promoting",
+                "signature": signature,
+                "selected_rows": [row["audit_index"] for row in selected_rows],
+                "artifacts": artifacts,
+                "provider_calls_made": 0,
+            },
+        )
+    else:
+        ledger = _load_json(ledger_path)
+        if ledger.get("signature") != signature or ledger.get("artifacts") != artifacts:
+            raise ValueError("bundle promotion ledger drifted; refusing overwrite")
+    _resume_bundle_promotion(root, expected_signature=signature)
 
 
 def _provider_row(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -937,6 +1065,11 @@ def freeze_panel(
         )
         raise ValueError(f"fewer than 2 visually eligible controls remain: {len(control_rows)}")
     selected_rows = target_rows + control_rows
+    signature = _bundle_signature(root_path, selected_rows, manual_path)
+    if (root_path / "bundle-promotion.json").is_file():
+        _resume_bundle_promotion(root_path, expected_signature=signature)
+        if (root_path / "selection-freeze.json").is_file():
+            return root_path / "selection-freeze.json"
     final_outputs = (
         root_path / "clips",
         root_path / "media-manifest.json",
@@ -956,21 +1089,14 @@ def freeze_panel(
         provider_row["clip_duration_seconds"] = clip_duration_by_index[provider_row["audit_index"]]
     runner = _task1_module(_resolve(task1_runner or runner_path))
     provider_hash = runner.provider_rows_sha256(provider_rows)
-    staged_clips = root_path / STAGING_DIR_NAME / "clips"
-    final_clips = root_path / "clips"
-    if final_clips.exists():
-        raise ValueError("final clips directory already exists; refusing to overwrite")
-    staged_clips.rename(final_clips)
     media_payload = {
         "schema_version": 1,
         "status": "frozen",
         "private": True,
         "rows": clips,
     }
-    media_path = root_path / "media-manifest.json"
-    _write_once(media_path, media_payload)
-    provider_path = root_path / "provider-rows.json"
-    _write_once(provider_path, {"schema_version": 1, "status": "frozen", "rows": provider_rows})
+    media_hash = _sha256_bytes(_serialized_json(media_payload))
+    provider_payload = {"schema_version": 1, "status": "frozen", "rows": provider_rows}
     selected_ids = [row["audit_index"] for row in selected_rows]
     selection_payload = {
         "schema_version": 1,
@@ -982,7 +1108,7 @@ def freeze_panel(
         "modality_audit_sha256": _sha256(manual_path),
         "modality_template_sha256": _sha256(template_path),
         "provider_rows_sha256": provider_hash,
-        "media_manifest_sha256": _sha256(media_path),
+        "media_manifest_sha256": media_hash,
         "selected_rows": selected_ids,
         "selected_row_metadata": [
             {
@@ -1006,7 +1132,17 @@ def freeze_panel(
     }
     if selection_payload["planned_call_count"] > 24:
         raise ValueError("planned call count exceeds 24-call maximum")
-    _write_once(root_path / "selection-freeze.json", selection_payload)
+    _promote_bundle(
+        root_path,
+        selected_rows,
+        clips,
+        {
+            "media-manifest.json": media_payload,
+            "provider-rows.json": provider_payload,
+            "selection-freeze.json": selection_payload,
+        },
+        signature,
+    )
     return root_path / "selection-freeze.json"
 
 
