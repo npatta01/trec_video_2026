@@ -75,11 +75,10 @@ fact.
   self-verification.
 - **Still possible:** abstaining multi-label routing, grounded fusion,
   and evidence-aware answer election.
-- **Next test:** first freeze the treatment, then run an independent
-  zero-call sufficiency audit on fresh candidates using labels/direct
-  evidence that remain hidden from inference; authorize a temporal or
-  speech verifier only when the requested fact and unique span are
-  present.
+- **Next test:** the zero-call sufficiency audit is complete but failed
+  its target quota (`1/4`, deficit `3`); prepare a newly reviewed panel
+  before any temporal or speech verifier call, with explicit
+  reauthorization.
 
 </div>
 
@@ -340,6 +339,52 @@ GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
   and unique span are present, with labels hidden from inference, after
   which an explicit temporal or speech verifier can be tested without
   regressing matched supported controls.
+
+### Task-support sufficiency audit (zero provider calls)
+
+- **Reason for testing:** determine whether a treatment-frozen,
+  label-aware sufficiency audit could establish a provider-safe panel
+  before spending inference calls.
+- **Tested condition and panel:** all `475/475` eligible source rows
+  remained eligible. The deterministic audit covered `32` rows (`24`
+  low-score candidates and `8` controls), with prior exposure retained
+  only as reporting flags.
+- **Observed result:** the corrected v3 audit adjudicated all `32/32`
+  rows: `1` answer-sufficient target, `17` insufficiency safeguards, `8`
+  supported controls, and `6` nonselectable reference/question issues.
+  The target quota required `4`, so the gate failed with deficit `3`;
+  safeguard and control quotas passed.
+- **Provider authorization and completion:** provider authorization was
+  **blocked** after the offline feasibility gate **FAIL**. No
+  provider/API/ native-video calls, cost, or metrics exist for this
+  result. No replacement selection or protocol was created. The original
+  selection/protocol are preserved as historical artifacts but invalid
+  for provider authorization.
+- **Current condition-bound status:** **Valid but negative offline
+  feasibility result; Not promoted under the tested condition.** This
+  does not measure provider answer quality.
+- **What this rules out now:** launching the provider task from the
+  invalidated original panel or treating exposed-row flags as a fresh
+  generalization estimate. Rescue, safeguard-verification,
+  control-preservation, unsupported-answer, and quality metrics remain
+  unevaluated.
+- **What it does not rule out:** a future verifier test with a newly
+  reviewed panel, explicit reauthorization, and enough uniquely
+  supported target, safeguard, and control rows.
+- **Possible defect, audit gap, or uncertainty:** this was a
+  label-aware, zero-call sufficiency audit over frozen
+  map/reference/direct-answer material; the six nonselectable issues
+  remain in the denominator but cannot fill a selectable role quota.
+- **Reconsider when:** a newly reviewed treatment-frozen panel supplies
+  at least four uniquely answer-sufficient targets, four safeguards, and
+  four supported controls while labels and direct evidence remain hidden
+  from inference.
+
+The sanitized evidence index is
+`../experiments/artifacts/vqa-task-support-sufficiency-20260815/README.md`.
+The complete private evidence remains under the approved benchmark root
+`data/vqa/benchmarks/task-support-sufficiency-audit-issue35-v1/`;
+row-level content is not copied into tracked reports.
 
 <details>
 

@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "experiment_id": "task-support-sufficiency-audit-issue35-v1",
+  "report_date": "2026-08-15",
+  "status": "feasibility_failed",
+  "evidence_validity": "valid_but_negative",
+  "decision_disposition": "Not promoted under the tested condition",
+  "tested_condition": {
+    "design": "treatment-first, label-aware offline sufficiency audit",
+    "eligibility": {
+      "eligible_source_rows": 475,
+      "all_eligible_rows_retained": true
+    },
+    "audit_denominator": {
+      "rows": 32,
+      "low_score_rows": 24,
+      "control_rows": 8,
+      "all_rows_adjudicated": true
+    },
+    "provider_inputs": "not created because the offline feasibility gate failed",
+    "exposure_policy": "reporting flags only; no eligibility exclusions"
+  },
+  "observed_result": {
+    "role_counts": {
+      "answer_sufficient_failure": 1,
+      "insufficient_or_ambiguous": 17,
+      "supported_control": 8,
+      "reference_or_question_issue": 6
+    },
+    "requirements": {
+      "minimum_per_selectable_role": 4,
+      "target_required": 4,
+      "target_observed": 1,
+      "target_deficit": 3,
+      "safeguard_required": 4,
+      "safeguard_observed": 17,
+      "control_required": 4,
+      "control_observed": 8
+    },
+    "gate": "FAIL",
+    "replacement_selection_created": false,
+    "replacement_protocol_created": false
+  },
+  "exposure_counts": {
+    "hard_audit_30": 30,
+    "grounded_v2_24": 24,
+    "grounded_v3_11": 11,
+    "multi_interpretation_12": 12,
+    "seven_row_canary": 7,
+    "scope_control": 7,
+    "synthesis_followup": 7
+  },
+  "provider": {
+    "authorization": "blocked",
+    "calls_made": 0,
+    "completion": null,
+    "cost": null,
+    "metrics": null,
+    "not_run_reason": "offline feasibility gate failed before provider authorization"
+  },
+  "historical_selection": {
+    "status": "invalid_for_provider_authorization",
+    "selection_freeze_sha256": "1e8ed1bf26f0b7ebe527fb4bd1bf673a3200e682a532ef1119957471576e8c3e",
+    "protocol_sha256": "f456883192cf8a231ef32cfaa988492d8284be32bd5fc4d4ddf711bd2a0fadbf"
+  },
+  "private_evidence": {
+    "benchmark_root": "data/vqa/benchmarks/task-support-sufficiency-audit-issue35-v1/",
+    "current_correction": {
+      "manual_audit_corrected_v3_sha256": "db68cec9be89f4f89305b70578fbd7cb67893e0196c92f93143b5d154db6d3d2",
+      "audit_correction_v3_sha256": "4fb41decdca6d2c1df09ac8be2507d28eb02ca5427e607fde2e15ed8e29dcc4a",
+      "corrected_audit_freeze_v3_sha256": "45e796683c75cc7f698cbac286e0ba32e006aeae55537e33c6ac6e863f9ae55c",
+      "feasibility_result_v3_sha256": "b639de5dae550f3ba0a5003545b5c35d9b7f9e470d117924d21edd9db8440b1a"
+    },
+    "treatment_and_candidates": {
+      "treatment_freeze_sha256": "fc850cc44e4108959d58ff1bf31a6b737d5e1c4b9a37e083a9f050f387d642ce",
+      "config_sha256": "e50ac9f77a705bba124cf26bdaf77684a7aeb34954bcf5f3c1a2c42fc9b4ec1d",
+      "runner_sha256": "6e4fa8dc0ea342e4a90adf42d348b63b7bf47b737d7f10053bb0f0ed71b4a097",
+      "prompt_template_sha256": "f1cd3936f923bd5cbf3936e1ef141418b23390a374df63593ffc8216d59f5bb6",
+      "response_schema_sha256": "940529058b7f27a1cb8bd352cd5348605e522c8e1fc45386b8810d3121f88f5e",
+      "validator_sha256": "c856d1b2f583ee52669ece0f92909c085b29dcb73cde78923af057aefa0935d6",
+      "candidate_sheet_freeze_sha256": "ad85b0382020b898ae3a747791b72e7a6dfd0ab9cb9a062ead97a71b557cc6f3",
+      "candidate_sheet_sha256": "1d7f284e848f6ad79ad7f743dce1ae2948e8f1a2ef40f99ff3f57c6907010dbb",
+      "audit_template_sha256": "a1f40048e0b57a33bdebecdae69720466bf8979924aeb2ebbf3882cf88fbcfd5"
+    },
+    "source_bindings": {
+      "annotations_sha256": "4dbb40d42dbbff435cc70672a39785b067cddab6492b055b73b27f483474c4ca",
+      "maps_sha256": "1931434d9ebb88c4ae43d18ec62d6c41f668d745a52ab9dd7f4e969506db9a6b",
+      "predictions_sha256": "394d2cbf801b29d258cb5ef907cf6f840935bb455b2a762f676160efb5814a3e",
+      "scores_sha256": "9b9309fca503e8f1cb972f920bc25fb6d12bcebcfbfd86a1a78d46c2de3077c3",
+      "exposure_hard_audit_30_sha256": "bcadac3d2056a883c227ee6c0675459783ff05182808aca26e040e6155be019d",
+      "exposure_grounded_v2_24_sha256": "5619dbb852c1fdca1482749c6d4b3024455507e6bb3eab58e5a6747e0bff18c1",
+      "exposure_grounded_v3_11_sha256": "daa5ce4ce0fa88566114d62a4f029dcc38e168b22f4c0fc892ce3a14ccfdf93a",
+      "exposure_multi_interpretation_12_sha256": "b0720d4188111f437f8eb11ee3cbe13d0992aa781442386b5b5b3af800d465a7",
+      "exposure_seven_row_canary_sha256": "184649eada27b347f40e63d60294514275c3492d367f6a6fe36649542fffca1c",
+      "exposure_scope_control_sha256": "de85e6961b21d0d4bc388fd957a06c80672c739916fdcddbfa02d8ed7c0f5a87",
+      "exposure_synthesis_followup_sha256": "2e597cbbf2b5b0e8bd48ba817fae8ee82bf57647cd1c02f2f976652394fe3f77"
+    },
+    "superseded_v2": {
+      "manual_audit_corrected_v2_sha256": "d7e092ed4986cc1c63c5ed4cb9be53214268f1cedbb9ed028a4323343672c7a9",
+      "audit_correction_v2_sha256": "bf081c0201074b4302c9dde45b24df3f717c84760bc4ad0750b1f29b821e2956",
+      "corrected_audit_freeze_v2_sha256": "90d579f77bf153945229cb120300e2260bcab066a1f7e905601323290b2dd473",
+      "feasibility_result_v2_sha256": "b36e8ac1a502bece0dcc1edc37bb64997df555ca7722e44c6ecc99d916ded878"
+    }
+  },
+  "interpretation": {
+    "observed_vs_interpreted": "Observed counts failed the predeclared target quota; interpretation is limited to panel feasibility.",
+    "rules_out_now": [
+      "running the provider task from the invalidated original selection",
+      "treating this zero-call audit as provider-quality evidence",
+      "treating exposed-row flags as a fresh generalization estimate"
+    ],
+    "does_not_rule_out": [
+      "a future verifier test after a newly reviewed panel and explicit reauthorization",
+      "provider quality under a separately authorized condition"
+    ],
+    "next_action": "Preserve the negative result; do not run the provider task without a newly reviewed panel and explicit reauthorization."
+  },
+  "limitations": [
+    "The audit is label-aware and not a provider inference run.",
+    "Prior exposure is recorded only as a boolean reporting flag and is not a fresh generalization stratum.",
+    "Six reference/question issues are nonselectable and cannot satisfy role quotas.",
+    "Provider completion, cost, rescue, safeguard verification, control preservation, unsupported-answer outcomes, and metrics are not applicable because authorization was blocked."
+  ]
+}

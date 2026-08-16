@@ -534,6 +534,56 @@ labels and direct evidence must remain hidden from inference. This does not auth
 another global prompt rewrite, answer ensemble, counting specialist, or shared
 router framework.
 
+### Task-support sufficiency audit (zero provider calls) {#task-support-sufficiency-audit-20260815}
+
+- **Reason for testing:** determine whether a treatment-frozen,
+  label-aware sufficiency audit could produce enough uniquely supported target
+  rows for the proposed evidence-citing verifier without spending provider
+  calls first.
+- **Tested condition and panel:** all `475/475` eligible source rows remained
+  eligible. A deterministic audit covered `32` rows: `24` low-score candidates
+  and `8` controls. Prior exposure was retained only as a boolean reporting
+  flag; it was not an exclusion or a fresh generalization stratum.
+- **Observed result:** the corrected v3 audit adjudicated all `32/32` rows.
+  Role counts were `1` answer-sufficient target, `17` insufficiency
+  safeguards, `8` supported controls, and `6` nonselectable
+  reference/question issues. The predeclared minimum was `4` per selectable
+  role, so the target quota failed by `3`; safeguard and control quotas passed.
+- **Provider authorization and completion:** the offline feasibility gate was
+  **FAIL**, provider authorization was **blocked**, and no
+  `provider/API/native-video` calls were made. No replacement selection or
+  provider-safe protocol was created; provider cost and metrics are not
+  applicable. The original v1
+  selection/protocol remain preserved as historical artifacts but are invalid
+  for provider authorization.
+- **Current condition-bound status:** **Valid but negative offline feasibility
+  result; Not promoted under the tested condition.** This is a
+  panel-feasibility finding, not a provider-quality result.
+- **What this rules out now:** running the provider task from the invalidated
+  original selection, or treating exposed-row results as a fresh generalization
+  test. Do not infer answer rescue, safeguard verification, control
+  preservation, unsupported-answer rate, or metrics from this zero-call result.
+- **What it does not rule out:** a future verifier test after a newly reviewed
+  panel satisfies the role quotas and receives explicit reauthorization, or
+  provider quality under that separately authorized condition.
+- **Possible defect, audit gap, or uncertainty:** this audit is label-aware and
+  uses frozen map/reference/direct-answer material only for sufficiency
+  adjudication; it cannot measure provider behavior. The six
+  reference/question issues are preserved in the denominator but are not
+  selectable roles.
+- **Reconsider when:** a newly reviewed, treatment-frozen panel supplies at
+  least four uniquely answer-sufficient targets plus four safeguards and four
+  supported controls, with labels and direct evidence hidden from inference
+  and explicit provider reauthorization.
+
+The sanitized evidence index is
+`docs/experiments/artifacts/vqa-task-support-sufficiency-20260815/`.
+The complete private evidence remains under the approved benchmark root
+`data/vqa/benchmarks/task-support-sufficiency-audit-issue35-v1/`; its current
+v3 correction, freeze, and source bindings are recorded by SHA-256 in the
+sanitized index. This result supersedes the earlier v1/v2 feasibility wording;
+those historical private artifacts remain unchanged.
+
 The sanitized evidence index is
 `docs/experiments/artifacts/vqa-multi-interpretation-answer-election-20260814/`.
 Complete private protocols, requests, raw responses, metadata, candidate
@@ -572,6 +622,9 @@ diagnostic and is the only source of the reported answer-quality metrics.
   evidence.
 - Do not run the v4 verifier, fresh category videos, or the seven-video answer
   screen under this unchanged mechanism.
+- Do not run the task-support provider test from the invalidated original
+  selection: the treatment-frozen zero-call audit found only `1/4` target rows
+  and blocked authorization.
 
 ## What it does not rule out
 
@@ -599,12 +652,14 @@ on all 12 rows but failed to elect them safely: only one premise row improved
 over the single arm, one safeguard answered when verification was required, and
 one control regressed to verification. The later paper walkthrough resolved
 neither decisive failure: one is a map omission and one is an underspecified
-two-span text question. Do not launch the proposed verifier from these rows.
-First freeze the treatment contract and perform an independent label-aware
-sufficiency audit on fresh candidates, with labels hidden from inference; only
-then consider one explicit temporal or speech
-operation. Do not repeat this answer ensemble, introduce a shared router
-framework, or add a counting specialist.
+two-span text question. The subsequent treatment-frozen zero-call audit
+adjudicated all `32/32` rows but found only `1` answer-sufficient target versus
+the required `4`; its gate therefore failed with deficit `3`, and no provider
+calls were authorized. Do not launch the proposed verifier from the
+invalidated original selection. First prepare a newly reviewed panel and
+obtain explicit reauthorization; only then consider one explicit temporal or
+speech operation. Do not repeat this answer ensemble, introduce a shared
+router framework, or add a counting specialist.
 
 An independent Sol review rejected a generic generative consistency pass: the
 same-model verifier already repeated a known error, so another self-opinion can
