@@ -65,6 +65,8 @@ ROW_ARTIFACT_NAMES = (
     "parsed.json",
     "terminal.json",
 )
+EXECUTION_SNAPSHOT_NAME = "execution-snapshot.json"
+EXECUTION_SNAPSHOT_FINAL_NAME = "execution-snapshot-final.json"
 TERMINAL_STATUSES = {
     "passed",
     "invalid_json",
@@ -815,6 +817,44 @@ def _arm_directory(root: Path, audit_index: int, role: str, fps: float) -> Path:
     return root / "rows" / f"{audit_index:02d}-{role}-{_arm_name(fps)}"
 
 
+def _validate_continuation_startup_layout(root: Path) -> None:
+    """Reject any pending output before the first continuation callback."""
+
+    rows_root = root / "rows"
+    if not rows_root.is_dir() or rows_root.is_symlink():
+        raise ValueError("continuation startup rows directory is invalid")
+    auth = _load_json(root / "continuation-authorization.json")
+    prefix = auth.get("imported_prefix")
+    if not isinstance(prefix, list) or len(prefix) != 2:
+        raise ValueError("continuation startup imported prefix is invalid")
+    expected_names = {
+        _arm_directory(root, item["audit_index"], item["role"], item["fps"]).name
+        for item in prefix
+    }
+    entries = list(rows_root.iterdir())
+    if {entry.name for entry in entries} != expected_names or any(
+        not entry.is_dir() or entry.is_symlink() for entry in entries
+    ):
+        raise ValueError("continuation startup rows contain stale pending artifacts")
+    for entry in entries:
+        child_entries = list(entry.iterdir())
+        names = {child.name for child in child_entries}
+        if (
+            names != set(ROW_ARTIFACT_NAMES)
+            or len(names) != len(ROW_ARTIFACT_NAMES)
+            or any(not child.is_file() or child.is_symlink() for child in child_entries)
+        ):
+            raise ValueError("continuation startup imported arm artifact set is invalid")
+
+
+def _validate_fresh_callback_arm(row_root: Path) -> None:
+    if not row_root.is_dir() or row_root.is_symlink():
+        raise ValueError("fresh callback arm directory is invalid")
+    entries = list(row_root.iterdir())
+    if len(entries) != 1 or entries[0].name != "request.json" or not entries[0].is_file() or entries[0].is_symlink():
+        raise ValueError("fresh callback arm must contain exactly request.json")
+
+
 def _request_payload(
     provider: Mapping[str, Any],
     media: Mapping[str, Any],
@@ -1176,7 +1216,12 @@ def _replayed_artifact_hashes(root: Path, audit_index: int, role: str, fps: floa
     }
 
 
-def _continuation_snapshot(root: Path) -> tuple[tuple[str, str], ...]:
+def _continuation_snapshot(
+    root: Path,
+    rows: Sequence[Mapping[str, Any]] | None = None,
+    *,
+    baseline: tuple[tuple[str, str], ...] | None = None,
+) -> tuple[tuple[str, str], ...]:
     """Capture immutable continuation inputs, source artifacts, and code hashes."""
 
     auth_path = root / "continuation-authorization.json"
@@ -1207,6 +1252,15 @@ def _continuation_snapshot(root: Path) -> tuple[tuple[str, str], ...]:
             "predictions-freeze.json",
         )
     )
+    if rows is None:
+        rows, _provider_by_index, _media_by_index = _validate_inputs(
+            root, verify_clip_bytes=False
+        )
+    clip_paths = {
+        Path(str(item["media"]["clip_path"])).resolve()
+        for item in rows
+    }
+    paths.update(clip_paths)
     prefix = auth.get("imported_prefix", [])
     if not isinstance(prefix, list):
         raise ValueError("continuation snapshot imported prefix is invalid")
@@ -1234,11 +1288,151 @@ def _continuation_snapshot(root: Path) -> tuple[tuple[str, str], ...]:
         "provider_response_schema_sha256": _provider_schema_sha256(),
     }
     snapshot: list[tuple[str, str]] = [(f"code:{key}", value) for key, value in code_hashes.items()]
+    baseline_by_name = dict(baseline or ())
+    root_stat = root.stat()
+    source_stat = source_root.stat()
+    snapshot.extend(
+        (
+            ("identity:continuation-root", f"{root_stat.st_dev}:{root_stat.st_ino}"),
+            ("identity:source-root", f"{source_stat.st_dev}:{source_stat.st_ino}"),
+        )
+    )
     for path in sorted(paths, key=str):
         if not path.is_file() or path.is_symlink():
             raise ValueError(f"continuation snapshot input is not a regular file: {path}")
-        snapshot.append((str(path.resolve()), _sha256(path)))
+        stat = path.stat()
+        resolved = str(path.resolve())
+        identity = f"{stat.st_dev}:{stat.st_ino}:{stat.st_size}:{stat.st_mtime_ns}"
+        snapshot.append((f"identity:{resolved}", identity))
+        digest = (
+            baseline_by_name.get(resolved)
+            if baseline_by_name.get(f"identity:{resolved}") == identity
+            else None
+        )
+        snapshot.append((resolved, digest if digest is not None else _sha256(path)))
     return tuple(snapshot)
+
+
+def _snapshot_manifest(snapshot: tuple[tuple[str, str], ...]) -> list[dict[str, str]]:
+    return [{"name": name, "value": value} for name, value in snapshot]
+
+
+def _snapshot_digest(snapshot: tuple[tuple[str, str], ...]) -> str:
+    return _sha256_bytes(_canonical(_snapshot_manifest(snapshot)))
+
+
+def _write_execution_snapshot(
+    root: Path, snapshot: tuple[tuple[str, str], ...]
+) -> None:
+    _write_once(
+        root / EXECUTION_SNAPSHOT_NAME,
+        {
+            "schema_version": 1,
+            "status": "active",
+            "snapshot_sha256": _snapshot_digest(snapshot),
+            "manifest": _snapshot_manifest(snapshot),
+        },
+    )
+
+
+def _write_execution_snapshot_final(
+    root: Path,
+    snapshot: tuple[tuple[str, str], ...],
+    callback_order: Sequence[Mapping[str, Any]],
+    combined_call_count: int,
+    *,
+    status: str,
+) -> None:
+    initial_path = root / EXECUTION_SNAPSHOT_NAME
+    if not initial_path.is_file():
+        raise ValueError("execution snapshot initial artifact is missing")
+    _write_once(
+        root / EXECUTION_SNAPSHOT_FINAL_NAME,
+        {
+            "schema_version": 1,
+            "status": status,
+            "snapshot_sha256": _snapshot_digest(snapshot),
+            "initial_artifact_sha256": _sha256(initial_path),
+            "call_count": len(callback_order),
+            "new_call_count": len(callback_order),
+            "combined_call_count": combined_call_count,
+            "callback_order": [dict(item) for item in callback_order],
+        },
+    )
+
+
+def _execution_snapshot_expected(root: Path) -> tuple[tuple[str, str], ...]:
+    path = root / EXECUTION_SNAPSHOT_NAME
+    payload = _load_json(path)
+    if not isinstance(payload, Mapping):
+        raise ValueError("execution snapshot initial artifact is invalid")
+    manifest = payload.get("manifest")
+    if payload.get("status") != "active" or not isinstance(manifest, list):
+        raise ValueError("execution snapshot initial artifact is invalid")
+    expected: list[tuple[str, str]] = []
+    for item in manifest:
+        if not isinstance(item, Mapping) or not isinstance(item.get("name"), str) or not isinstance(item.get("value"), str):
+            raise ValueError("execution snapshot manifest is invalid")
+        expected.append((item["name"], item["value"]))
+    snapshot = tuple(expected)
+    if payload.get("snapshot_sha256") != _snapshot_digest(snapshot):
+        raise ValueError("execution snapshot digest drift")
+    return snapshot
+
+
+def _validate_execution_snapshot(
+    root: Path,
+    *,
+    expected: tuple[tuple[str, str], ...] | None = None,
+    require_final: bool = False,
+    current: tuple[tuple[str, str], ...] | None = None,
+) -> tuple[tuple[str, str], ...]:
+    snapshot = _execution_snapshot_expected(root)
+    if expected is not None and snapshot != expected:
+        raise ValueError("execution snapshot manifest drift detected")
+    current = current or _continuation_snapshot(root, baseline=snapshot)
+    if current != snapshot:
+        raise ValueError("continuation snapshot drift detected")
+    final_path = root / EXECUTION_SNAPSHOT_FINAL_NAME
+    if require_final:
+        if not final_path.is_file():
+            raise ValueError("execution snapshot final artifact is missing")
+        final = _load_json(final_path)
+        if not isinstance(final, Mapping) or final.get("status") not in {"complete", "stopped", "interrupted"}:
+            raise ValueError("execution snapshot final artifact is invalid")
+        if final.get("snapshot_sha256") != _snapshot_digest(snapshot):
+            raise ValueError("execution snapshot final digest drift")
+        if final.get("initial_artifact_sha256") != _sha256(root / EXECUTION_SNAPSHOT_NAME):
+            raise ValueError("execution snapshot final artifact binding drift")
+        callback_order = final.get("callback_order")
+        if not isinstance(callback_order, list) or final.get("new_call_count") != len(callback_order):
+            raise ValueError("execution snapshot callback count is invalid")
+        if final.get("call_count") != len(callback_order) or final.get("combined_call_count") != 2 + len(callback_order):
+            raise ValueError("execution snapshot call count is invalid")
+        positions = [item.get("position") for item in callback_order if isinstance(item, Mapping)]
+        if len(positions) != len(callback_order) or positions != list(range(3, 3 + len(callback_order))):
+            raise ValueError("execution snapshot callback order is invalid")
+        rows, _provider_by_index, _media_by_index = _validate_inputs(
+            root, verify_clip_bytes=False
+        )
+        tasks = [(item, fps) for item in rows for fps in EXPECTED_FPS]
+        for index, callback in enumerate(callback_order):
+            if not isinstance(callback, Mapping) or index + 2 >= len(tasks):
+                raise ValueError("execution snapshot callback identity is invalid")
+            item, fps = tasks[index + 2]
+            expected = {
+                "position": index + 3,
+                "audit_index": item["provider"]["audit_index"],
+                "role": item["media"]["role"],
+                "fps": fps,
+            }
+            if dict(callback) != expected:
+                raise ValueError("execution snapshot callback identity drift")
+        if final.get("status") == "complete" and len(callback_order) != len(tasks) - 2:
+            raise ValueError("complete execution snapshot callback count is invalid")
+        if final.get("status") == "stopped" and len(callback_order) != 2:
+            raise ValueError("stopped execution snapshot callback count is invalid")
+    return snapshot
 
 
 def _validate_continuation_snapshot(
@@ -1247,7 +1441,8 @@ def _validate_continuation_snapshot(
     """Revalidate semantics and reject any immutable input drift."""
 
     validate_continuation_authorization(root)
-    current = _continuation_snapshot(root)
+    current = _continuation_snapshot(root, baseline=expected)
+    _validate_execution_snapshot(root, expected=expected, current=current)
     if current != expected:
         raise ValueError("continuation snapshot drift detected")
 
@@ -1262,10 +1457,15 @@ def run(root: Path, call: CallFunction | None = None) -> None:
     continuation_snapshot: tuple[tuple[str, str], ...] | None = None
     if continuation:
         validate_continuation_authorization(root)
-        continuation_snapshot = _continuation_snapshot(root)
     if (root / "predictions-freeze.json").exists() or ((root / "rows").exists() and not continuation):
         raise ValueError("output already has artifacts; refusing to overwrite")
     rows, _provider_by_index, _media_by_index = _validate_inputs(root)
+    if continuation:
+        _validate_continuation_startup_layout(root)
+        if (root / EXECUTION_SNAPSHOT_NAME).exists() or (root / EXECUTION_SNAPSHOT_FINAL_NAME).exists():
+            raise ValueError("execution snapshot artifacts already exist; refusing to resume")
+        continuation_snapshot = _continuation_snapshot(root, rows)
+        _write_execution_snapshot(root, continuation_snapshot)
     provider = call or _call_provider
     planned = len(rows) * len(EXPECTED_FPS)
     if planned > MAX_CALLS:
@@ -1275,6 +1475,7 @@ def run(root: Path, call: CallFunction | None = None) -> None:
     canary_statuses: list[str] = []
     start_index = 2 if continuation else 0
     response_ids: set[str] = set()
+    callback_order: list[dict[str, Any]] = []
     if continuation:
         auth = _load_json(root / "continuation-authorization.json")
         for item in auth.get("imported_prefix", []):
@@ -1309,6 +1510,14 @@ def run(root: Path, call: CallFunction | None = None) -> None:
             task_index + 1,
             "compatibility canary pair failed before provider attempt",
         )
+        if continuation_snapshot is not None:
+            _write_execution_snapshot_final(
+                root,
+                continuation_snapshot,
+                callback_order,
+                calls,
+                status="stopped",
+            )
         _write_incomplete_freeze(
             root,
             rows,
@@ -1336,7 +1545,17 @@ def run(root: Path, call: CallFunction | None = None) -> None:
             fps,
             _canary_pair_index(task_index),
         )
+        if continuation_snapshot is not None:
+            _validate_fresh_callback_arm(row_root)
         validate_snapshot()
+        callback_order.append(
+            {
+                "position": task_index + 1,
+                "audit_index": audit_index,
+                "role": role,
+                "fps": fps,
+            }
+        )
         calls += 1
         try:
             raw, metadata = _provider_result(provider(clip_bytes, media["mime_type"], prompt, fps))
@@ -1365,6 +1584,14 @@ def run(root: Path, call: CallFunction | None = None) -> None:
                 task_index + 1,
                 "run interrupted before provider attempt",
             )
+            if continuation_snapshot is not None:
+                _write_execution_snapshot_final(
+                    root,
+                    continuation_snapshot,
+                    callback_order,
+                    calls,
+                    status="interrupted",
+                )
             _write_incomplete_freeze(root, rows, calls, error)
             raise
         _write_text_once(row_root / "raw-response.txt", raw)
@@ -1454,6 +1681,14 @@ def run(root: Path, call: CallFunction | None = None) -> None:
     if calls != planned:
         raise ValueError("provider call count drift")
     validate_snapshot()
+    if continuation_snapshot is not None:
+        _write_execution_snapshot_final(
+            root,
+            continuation_snapshot,
+            callback_order,
+            calls,
+            status="complete",
+        )
 
 
 def _freeze_inputs(root: Path) -> dict[str, Any]:
@@ -1470,6 +1705,7 @@ def _freeze_inputs(root: Path) -> dict[str, Any]:
     if continuation.is_file() or replay.is_file():
         if not continuation.is_file() or not replay.is_file():
             raise ValueError("continuation freeze inputs are incomplete")
+        _validate_execution_snapshot(root, require_final=True)
         auth = _load_json(continuation)
         replay_payload = _load_json(replay)
         source_root = Path(str(replay_payload.get("source_root", "")))
@@ -1485,6 +1721,8 @@ def _freeze_inputs(root: Path) -> dict[str, Any]:
             "remaining_new_call_maximum": auth.get("remaining_new_call_maximum"),
             "next_arm_position": auth.get("next_arm_position"),
             "fresh_canary_positions": [3, 4],
+            "execution_snapshot_sha256": _sha256(root / EXECUTION_SNAPSHOT_NAME),
+            "execution_snapshot_final_sha256": _sha256(root / EXECUTION_SNAPSHOT_FINAL_NAME),
         })
     return result
 
@@ -1492,6 +1730,7 @@ def _freeze_inputs(root: Path) -> dict[str, Any]:
 def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
     if (root / "continuation-authorization.json").is_file():
         validate_continuation_authorization(root)
+        _validate_execution_snapshot(root, require_final=True)
     rows, _provider_by_index, _media_by_index = _validate_inputs(root)
     ordered_records = _ordered_terminal_records(root, rows)
     continuation = (root / "continuation-authorization.json").is_file()
@@ -1641,6 +1880,7 @@ def verify_predictions_freeze(root: Path) -> None:
     root = Path(root)
     if (root / "continuation-authorization.json").is_file():
         validate_continuation_authorization(root)
+        _validate_execution_snapshot(root, require_final=True)
     rows, _provider_by_index, _media_by_index = _validate_inputs(root)
     ordered_records = _ordered_terminal_records(root, rows)
     planned = len(rows) * len(EXPECTED_FPS)

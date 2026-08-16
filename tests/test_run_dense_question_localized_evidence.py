@@ -698,6 +698,34 @@ def _rewrite_replay_bytes_self_consistently(root: Path) -> None:
     _write_json(auth_path, auth)
 
 
+def _detach_continuation_clips(root: Path, tmp_path: Path) -> None:
+    """Give a continuation fixture private clip bytes for mutation tests."""
+
+    source = (root / "clips").resolve()
+    detached = tmp_path / "detached-clips"
+    shutil.copytree(source, detached)
+    (root / "clips").unlink()
+    shutil.move(str(detached), str(root / "clips"))
+
+
+def _clip_path_for(root: Path, audit_index: int) -> Path:
+    rows = json.loads((root / "media-manifest.json").read_text())["rows"]
+    row = next(row for row in rows if row["audit_index"] == audit_index)
+    return root / row["clip_path"]
+
+
+def _rewrite_replay_bytes_and_auth(root: Path) -> None:
+    """Make a semantically equivalent replay/auth byte rewrite."""
+
+    replay_path = root / "canary-replay-freeze.json"
+    replay = json.loads(replay_path.read_text())
+    replay_path.write_text(json.dumps(replay, ensure_ascii=False, indent=4) + "\n")
+    auth_path = root / "continuation-authorization.json"
+    auth = json.loads(auth_path.read_text())
+    auth["canary_replay_freeze_sha256"] = _sha(replay_path)
+    _write_json(auth_path, auth)
+
+
 def _refresh_current_input_bindings(root: Path) -> None:
     provider_rows = json.loads((root / "provider-rows.json").read_text())["rows"]
     selection_path = root / "selection-freeze.json"
@@ -1063,6 +1091,108 @@ def test_last_callback_snapshot_drift_fails_before_run_returns_or_freeze(
     assert (triggered / "raw-response.txt").is_file()
     assert not (triggered / "terminal.json").exists()
     assert not (root / "predictions-freeze.json").exists()
+
+
+@pytest.mark.parametrize("audit_index", [1, 3])
+def test_continuation_snapshot_catches_imported_or_future_clip_drift_after_first_callback(
+    tmp_path: Path, audit_index: int
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    _detach_continuation_clips(root, tmp_path)
+    calls: list[tuple[Any, ...]] = []
+
+    def call(*args: Any) -> tuple[str, dict[str, Any]]:
+        calls.append(args)
+        clip = _clip_path_for(root, audit_index)
+        clip.write_bytes(clip.read_bytes() + b"clip drift")
+        return _id_call(f"clip-drift-{len(calls)}")
+
+    with pytest.raises(ValueError, match="continuation snapshot"):
+        runner.run(root, call=call)
+    assert len(calls) == 1
+    triggered = runner._arm_directory(root, 2, "target", 4.0)
+    assert (triggered / "raw-response.txt").is_file()
+    assert not (triggered / "terminal.json").exists()
+    assert not runner._arm_directory(root, 2, "target", 12.0).exists()
+
+
+def test_continuation_freeze_requires_call_time_snapshot_after_semantic_replay_rewrite(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    response_ids = iter(f"snapshot-freeze-{index}" for index in range(22))
+    runner.run(root, call=lambda *_args: _id_call(next(response_ids)))
+    _rewrite_replay_bytes_and_auth(root)
+    with pytest.raises(ValueError, match="execution snapshot|continuation snapshot"):
+        runner.verify_predictions_freeze(root)
+    assert not (root / "predictions-freeze.json").exists()
+
+
+def test_existing_continuation_freeze_rejects_semantic_replay_rewrite(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    _run_complete_continuation(root)
+    _rewrite_replay_bytes_and_auth(root)
+    with pytest.raises(ValueError, match="execution snapshot|continuation snapshot"):
+        runner.verify_predictions_freeze(root)
+
+
+def test_continuation_freeze_binds_write_once_execution_snapshot_for_complete_run(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    _run_complete_continuation(root)
+    snapshot = root / "execution-snapshot.json"
+    finalized = root / "execution-snapshot-final.json"
+    assert snapshot.is_file()
+    assert finalized.is_file()
+    freeze = json.loads((root / "predictions-freeze.json").read_text())
+    assert freeze["execution_snapshot_sha256"] == _sha(snapshot)
+    assert freeze["execution_snapshot_final_sha256"] == _sha(finalized)
+    assert json.loads(finalized.read_text())["call_count"] == 22
+
+
+def test_continuation_failed_canary_freeze_binds_final_execution_snapshot(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    responses = iter([_id_call("snapshot-failed-01", valid=False), _id_call("snapshot-failed-02")])
+    runner.run(root, call=lambda *_args: next(responses))
+    snapshot = root / "execution-snapshot.json"
+    finalized = root / "execution-snapshot-final.json"
+    freeze = json.loads((root / "predictions-freeze.json").read_text())
+    assert snapshot.is_file()
+    assert finalized.is_file()
+    assert json.loads(finalized.read_text())["call_count"] == 2
+    assert freeze["execution_snapshot_sha256"] == _sha(snapshot)
+    assert freeze["execution_snapshot_final_sha256"] == _sha(finalized)
+
+
+def _make_stale_pending_arm(root: Path, artifact: str) -> None:
+    stale = runner._arm_directory(root, 2, "target", 4.0)
+    stale.mkdir(parents=True)
+    if artifact == "extra-dir":
+        (stale / "unexpected").mkdir()
+    else:
+        if artifact == "raw-response.txt":
+            (stale / artifact).write_text("stale raw")
+        elif artifact == "metadata.json":
+            _write_json(stale / artifact, {"stale": True})
+        else:
+            _write_json(stale / artifact, {"stale": True})
+
+
+@pytest.mark.parametrize("artifact", ["request.json", "raw-response.txt", "metadata.json", "extra-dir"])
+def test_continuation_startup_rejects_stale_pending_arm_without_callback(
+    tmp_path: Path, artifact: str
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    _make_stale_pending_arm(root, artifact)
+    calls: list[tuple[Any, ...]] = []
+    with pytest.raises(ValueError, match="continuation startup"):
+        runner.run(root, call=lambda *args: calls.append(args) or _id_call("unused"))
+    assert calls == []
 
 
 def test_replay_provider_calls_made_must_remain_integer_zero_with_recomputed_auth(

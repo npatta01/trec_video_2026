@@ -341,6 +341,16 @@ must not be loaded for reference-aware scoring.
 - Fresh additive zero-call candidate is private run-v17: imported `2`, remaining new maximum `22`, combined maximum `24`, `provider_calls_made=0`, no prediction freeze. Runner SHA `d987e05a44be0801953682b1335d41f910de395f3f6c2360bb3da490ab226146`; replay SHA `fee8f54d8f9a2b2c622dfa966fd7515d3f4d352855ffc8515c95f376a9fd28cb`; authorization SHA `7289e861903d553998900dd4f61d0f0432034f6cdd01e7209a7a76ff81fe8c78`.
 - v2/v3/v4 and superseded v13/v14/v15/v16 recursive pre/post hashes matched. Ruff, compilation, and `git diff --check` passed. Task 4 remains **NOT AUTHORIZED** pending a verified provider continuation freeze.
 
+#### Task 3D fix round 4/5 — 2026-08-16
+
+- Status: complete for this bounded provider-free review round; no provider calls, labels, references, or scoring. Nine new regressions initially produced `57 passed, 9 failed`; final runner plus preparation tests are `81 passed`.
+- The continuation snapshot now binds every distinct clip used by all 24 arms, including resolved source path, root/source identity, file identity, and content SHA-256. Ordinary unchanged files reuse their bound digest between callback checks; content or identity drift is rehashed and rejected immediately after the callback. Imported and future clip drift after callback 1 both stop at exactly one callback with no position-4 call.
+- A write-once `execution-snapshot.json` records the canonical initial manifest before the first new call. A separate write-once final snapshot records exact callback positions/identities and new/combined call counts after complete, canary-stop, or interruption paths. Freeze creation and verification require the current snapshot and bind both artifact hashes into complete and incomplete freezes.
+- Continuation startup requires exactly the two imported arm directories and their five regular artifacts, with no pending arm directories or artifacts. Immediately before each callback the current arm must contain exactly its freshly written request; stale request/raw/metadata/extra entries fail before any callback. Raw response persistence remains first after each callback.
+- Fresh additive zero-call candidate is private run-v18: imported `2`, remaining new maximum `22`, combined maximum `24`, `provider_calls_made=0`, no prediction freeze. Runner SHA `c8ee517e7dfee81f70e0927840e5c63ba2348a8b1747a0723a3670e27f9d4771`; replay SHA `6a19b8ecffcb299dbeb8aa266531807e93ec76aac0fccb3b875612dc3c5f058b`; authorization SHA `1df4b7c1fb6f8178b8db7787e3539e92c98062e6e7cba5a7272e756abed9238a`.
+- Treatment SHA `712f7b4945d7da3eda0ab68e196cad3796fac19e75b52c070640b6e8a1951708`; selection SHA `6b56adb585f30b2fec1e5acfe48d4a67f40402df5feb56d817b638358bc09f15`; provider rows SHA `007fd6a66fd403d88782438c655028c0381a714ef84f70a812ed511d44eed293`; media manifest SHA `0b0875fec5c83f5567d0ff3b6d1051a3026b938a0ee5c7dbaa90a07023be5b66`.
+- v2/v3/v4 and superseded v13/v14/v15/v16/v17 recursive pre/post hashes matched. Ruff, compilation, and `git diff --check` passed. Task 4 remains **NOT AUTHORIZED** pending a verified provider continuation freeze.
+
 ### Task 4: Audit paired fact recovery and apply the gate
 
 **Files:**
