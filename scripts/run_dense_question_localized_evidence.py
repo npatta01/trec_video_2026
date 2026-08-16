@@ -32,6 +32,8 @@ COMPATIBILITY_CANARY_PAIRS = 1
 # panel/freeze from becoming a continuation authority.
 TRUSTED_V4_PREDICTION_FREEZE_SHA256 = "7a5be02b759aec4a6b1b504d73f3616ea7987900369c6b6ba9273a1fdaa5b7a0"
 TRUSTED_V4_PROVIDER_ROWS_SHA256 = "007fd6a66fd403d88782438c655028c0381a714ef84f70a812ed511d44eed293"
+TRUSTED_V4_MEDIA_MANIFEST_SHA256 = "0b0875fec5c83f5567d0ff3b6d1051a3026b938a0ee5c7dbaa90a07023be5b66"
+TRUSTED_V4_SELECTION_FREEZE_SHA256 = "05eb1f91c5404a7481875b6c3e29c0a9b5f098d4fd9d1488428eab4a54d713c5"
 SCRIPT_PATH = Path(__file__).resolve()
 CONFIG_PATH = SCRIPT_PATH.parents[1] / "configs" / "vqa" / "dense_question_localized_evidence_issue35.json"
 EXPECTED_SETTINGS: dict[str, Any] = {
@@ -924,6 +926,17 @@ def _derived_canary_status(records: Sequence[Mapping[str, Any]]) -> str:
     return "passed" if all(status == "passed" for status in statuses) else "failed"
 
 
+def _derived_fresh_canary_status(
+    records: Sequence[Mapping[str, Any]], *, continuation: bool
+) -> str | None:
+    if not continuation:
+        return None
+    fresh = list(records[2:4])
+    if len(fresh) != 2 or any(item["status"] == "incomplete" for item in fresh):
+        return "not_reached"
+    return "passed" if all(item["status"] == "passed" for item in fresh) else "failed"
+
+
 def _validate_execution_branch(
     records: Sequence[Mapping[str, Any]],
     *,
@@ -932,6 +945,7 @@ def _validate_execution_branch(
     stop_reason: Any,
     call_count: Any,
     canary_pair_status: Any,
+    continuation: bool = False,
 ) -> None:
     """Validate branch declarations against ordered terminal artifacts."""
 
@@ -942,6 +956,8 @@ def _validate_execution_branch(
     if freeze_status == "frozen":
         if completed != planned or call_count != planned or derived_canary != "passed":
             raise ValueError("complete predictions freeze does not match ordered terminal artifacts")
+        if continuation and any(item["status"] != "passed" for item in records[2:4]):
+            raise ValueError("complete continuation freeze requires passed fresh canary")
         return
     if stop_reason == "canary_failure":
         if (
@@ -961,7 +977,7 @@ def _validate_execution_branch(
             or any(item["status"] != "incomplete" for item in records[4:])
             or all(item["status"] == "passed" for item in records[2:4])
         ):
-            raise ValueError("continuation canary freeze does not match four combined terminals")
+            raise ValueError("continuation canary freeze does not match fresh canary branch")
         return
     if freeze_status == "frozen" and len(records) == 24:
         if any(item["status"] != "passed" for item in records[2:4]):
@@ -996,6 +1012,7 @@ def _write_incomplete_freeze(
         canary_pair_status=(
             derived_canary_status if stop_reason != "canary_failure" else "failed"
         ),
+        continuation=(root / "continuation-authorization.json").is_file(),
     )
     frozen_rows: list[dict[str, Any]] = []
     completed = 0
@@ -1047,6 +1064,10 @@ def _write_incomplete_freeze(
         "expected_fps": list(EXPECTED_FPS),
         "compatibility_canary_pairs": COMPATIBILITY_CANARY_PAIRS,
         "canary_pair_status": derived_canary_status,
+        "fresh_canary_pair_status": _derived_fresh_canary_status(
+            ordered_records,
+            continuation=(root / "continuation-authorization.json").is_file(),
+        ),
         "decision_gate": EXPECTED_DECISION_GATE,
         "frozen_at": datetime.now(UTC).isoformat(),
         "row_count": planned,
@@ -1105,6 +1126,34 @@ def _write_pending_incomplete(
         )
 
 
+def _validate_response_id_uniqueness(
+    records: Sequence[Mapping[str, Any]], *, continuation: bool
+) -> None:
+    """Require a nonempty, unique provider response ID for each persisted arm."""
+
+    if not continuation:
+        return
+    seen: dict[str, Path] = {}
+    for record in records:
+        status = record["status"]
+        if status in {"incomplete", "interrupted", "provider_error"}:
+            continue
+        row_root = record["row_root"]
+        metadata_path = row_root / "metadata.json"
+        metadata = _load_json(metadata_path)
+        response_id = metadata.get("response_id") if isinstance(metadata, Mapping) else None
+        if not isinstance(response_id, str) or not response_id.strip():
+            raise ValueError(f"completed continuation arm has no response ID: {row_root.name}")
+        terminal = _load_json(row_root / "terminal.json")
+        terminal_id = terminal.get("response_id") if isinstance(terminal, Mapping) else None
+        if terminal_id is not None and terminal_id != response_id:
+            raise ValueError(f"continuation terminal response ID drift: {row_root.name}")
+        if response_id in seen:
+            raise ValueError(
+                "duplicate provider response ID: "
+                f"{response_id} in {seen[response_id].name} and {row_root.name}"
+            )
+        seen[response_id] = row_root
 def run(root: Path, call: CallFunction | None = None) -> None:
     """Run one immutable provider attempt for each selected row and FPS arm."""
 
@@ -1186,13 +1235,6 @@ def run(root: Path, call: CallFunction | None = None) -> None:
         calls += 1
         try:
             raw, metadata = _provider_result(provider(clip_bytes, media["mime_type"], prompt, fps))
-            if continuation:
-                response_id = metadata.get("response_id")
-                if not isinstance(response_id, str) or not response_id.strip():
-                    raise ValueError("continuation provider response ID is required")
-                if response_id in response_ids:
-                    raise ValueError("duplicate continuation provider response ID")
-                response_ids.add(response_id)
         except BaseException as error:
             if isinstance(error, Exception):
                 _write_once(row_root / "metadata.json", {"error_type": type(error).__name__, "error": str(error)})
@@ -1221,6 +1263,48 @@ def run(root: Path, call: CallFunction | None = None) -> None:
         _write_text_once(row_root / "raw-response.txt", raw)
         metadata = {**metadata, "raw_response_sha256": _sha256_bytes(raw.encode())}
         _write_once(row_root / "metadata.json", metadata)
+        response_id: str | None = None
+        if continuation:
+            candidate_id = metadata.get("response_id")
+            if not isinstance(candidate_id, str) or not candidate_id.strip():
+                _write_once(
+                    row_root / "terminal.json",
+                    {
+                        "audit_index": audit_index,
+                        "role": role,
+                        "fps": fps,
+                        "status": "contract_error",
+                        "error_type": "MissingResponseID",
+                        "error": "continuation provider response ID is required",
+                        "raw_response_sha256": _sha256_bytes(raw.encode()),
+                    },
+                )
+                if _canary_pair_index(task_index) is not None:
+                    canary_statuses.append("contract_error")
+                if stop_after_failed_canary(task_index):
+                    return
+                continue
+            response_id = candidate_id.strip()
+            if response_id in response_ids:
+                _write_once(
+                    row_root / "terminal.json",
+                    {
+                        "audit_index": audit_index,
+                        "role": role,
+                        "fps": fps,
+                        "status": "contract_error",
+                        "error_type": "DuplicateResponseID",
+                        "error": "duplicate continuation provider response ID",
+                        "response_id": response_id,
+                        "raw_response_sha256": _sha256_bytes(raw.encode()),
+                    },
+                )
+                if _canary_pair_index(task_index) is not None:
+                    canary_statuses.append("contract_error")
+                if stop_after_failed_canary(task_index):
+                    return
+                continue
+            response_ids.add(response_id)
         try:
             payload = json.loads(raw)
         except json.JSONDecodeError as error:
@@ -1253,7 +1337,7 @@ def run(root: Path, call: CallFunction | None = None) -> None:
         _write_once(row_root / "parsed.json", parsed)
         _write_once(
             row_root / "terminal.json",
-            {"audit_index": audit_index, "role": role, "fps": fps, "status": "passed", "raw_response_sha256": _sha256_bytes(raw.encode()), **({"response_id": metadata.get("response_id")} if continuation else {})},
+            {"audit_index": audit_index, "role": role, "fps": fps, "status": "passed", "raw_response_sha256": _sha256_bytes(raw.encode()), **({"response_id": response_id} if continuation else {})},
         )
         if _canary_pair_index(task_index) is not None:
             canary_statuses.append("passed")
@@ -1290,6 +1374,7 @@ def _freeze_inputs(root: Path) -> dict[str, Any]:
             "prior_provider_calls": auth.get("prior_provider_calls"),
             "combined_call_maximum": auth.get("combined_call_maximum"),
             "remaining_new_call_maximum": auth.get("remaining_new_call_maximum"),
+            "next_arm_position": auth.get("next_arm_position"),
             "fresh_canary_positions": [3, 4],
         })
     return result
@@ -1298,9 +1383,13 @@ def _freeze_inputs(root: Path) -> dict[str, Any]:
 def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
     rows, _provider_by_index, _media_by_index = _validate_inputs(root)
     ordered_records = _ordered_terminal_records(root, rows)
+    continuation = (root / "continuation-authorization.json").is_file()
+    _validate_response_id_uniqueness(ordered_records, continuation=continuation)
     expected_inputs = _freeze_inputs(root)
     for key, value in expected_inputs.items():
         if freeze.get(key) != value:
+            if key == "continuation_authorization_sha256":
+                raise ValueError("continuation authorization bytes drift after freeze")
             raise ValueError(f"predictions freeze does not bind current {key}")
     expected_metadata = {
         "runner_sha256": _sha256(SCRIPT_PATH),
@@ -1406,7 +1495,12 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
         stop_reason=freeze.get("stop_reason"),
         call_count=freeze.get("call_count"),
         canary_pair_status=freeze.get("canary_pair_status"),
+        continuation=continuation,
     )
+    if freeze.get("fresh_canary_pair_status") != _derived_fresh_canary_status(
+        ordered_records, continuation=continuation
+    ):
+        raise ValueError("predictions freeze fresh canary status is not derived from artifacts")
     if status_value == "frozen":
         if completed != planned or freeze.get("call_count") != planned:
             raise ValueError("complete predictions freeze has incomplete call count")
@@ -1513,6 +1607,10 @@ def verify_predictions_freeze(root: Path) -> None:
         "validator_sha256": _validator_sha256(),
         "compatibility_canary_pairs": COMPATIBILITY_CANARY_PAIRS,
         "canary_pair_status": _derived_canary_status(ordered_records),
+        "fresh_canary_pair_status": _derived_fresh_canary_status(
+            ordered_records,
+            continuation=(root / "continuation-authorization.json").is_file(),
+        ),
         "rows": frozen_rows,
     }
     _write_once(prediction_path, freeze)
@@ -1601,6 +1699,9 @@ def prepare_continuation(source_root: Path, output_root: Path) -> None:
         "schema_version": 1, "status": "frozen", "provider_calls_made": 0,
         "source_root": str(source_root),
         "source_predictions_freeze_sha256": _sha256(prediction_path),
+        "source_provider_rows_sha256": _sha256(source_root / "provider-rows.json"),
+        "source_media_manifest_sha256": _sha256(source_root / "media-manifest.json"),
+        "source_selection_freeze_sha256": _sha256(source_root / "selection-freeze.json"),
         "imported_prefix": prefix,
         "canary_pair_status": "passed",
         "runner_sha256": _sha256(SCRIPT_PATH),
@@ -1612,6 +1713,7 @@ def prepare_continuation(source_root: Path, output_root: Path) -> None:
         "provider_calls_made": 0, "prior_provider_calls": 2,
         "remaining_new_call_maximum": 22, "combined_call_maximum": 24,
         "next_arm_position": 3, "fresh_canary_pair": {"start_position": 3, "arms": 2},
+        "fresh_canary_pair_status": "not_run",
         "imported_prefix": prefix,
         "canary_replay_freeze_sha256": _sha256(output_root / "canary-replay-freeze.json"),
         "source_predictions_freeze_sha256": _sha256(prediction_path),
@@ -1619,6 +1721,9 @@ def prepare_continuation(source_root: Path, output_root: Path) -> None:
         "selection_freeze_sha256": _sha256(output_root / "selection-freeze.json"),
         "provider_rows_sha256": _sha256(output_root / "provider-rows.json"),
         "media_manifest_sha256": _sha256(output_root / "media-manifest.json"),
+        "source_provider_rows_sha256": _sha256(source_root / "provider-rows.json"),
+        "source_media_manifest_sha256": _sha256(source_root / "media-manifest.json"),
+        "source_selection_freeze_sha256": _sha256(source_root / "selection-freeze.json"),
         "model": MODEL, "settings": EXPECTED_SETTINGS,
     }
     _write_once(output_root / "continuation-authorization.json", auth)
@@ -1641,6 +1746,8 @@ def validate_continuation_authorization(root: Path) -> None:
         raise ValueError("continuation call cap is invalid")
     if auth.get("next_arm_position") != 3:
         raise ValueError("continuation must begin at arm 3")
+    if auth.get("fresh_canary_pair_status") != "not_run":
+        raise ValueError("continuation fresh canary status must be not_run")
     if auth.get("canary_replay_freeze_sha256") != _sha256(replay_path):
         raise ValueError("continuation replay hash drift")
     rows, _provider_by_index, _media_by_index = _validate_inputs(root)
@@ -1671,22 +1778,57 @@ def validate_continuation_authorization(root: Path) -> None:
     if replay.get("source_predictions_freeze_sha256") != _sha256(source_freeze_path):
         raise ValueError("continuation source prediction freeze drift")
     if _sha256(source_freeze_path) != TRUSTED_V4_PREDICTION_FREEZE_SHA256:
-        raise ValueError("continuation source prediction freeze is not trusted v4")
+        raise ValueError("continuation fixed source anchor rejects rewritten source freeze")
     if _sha256(source_root / "provider-rows.json") != TRUSTED_V4_PROVIDER_ROWS_SHA256:
-        raise ValueError("continuation source provider rows are not trusted v4")
+        raise ValueError("continuation fixed source anchor rejects rewritten source panel")
+    if _sha256(source_root / "media-manifest.json") != TRUSTED_V4_MEDIA_MANIFEST_SHA256:
+        raise ValueError("continuation fixed source anchor rejects rewritten source media")
+    if _sha256(source_root / "selection-freeze.json") != TRUSTED_V4_SELECTION_FREEZE_SHA256:
+        raise ValueError("continuation fixed source anchor rejects rewritten source selection")
+    if replay.get("source_provider_rows_sha256") != TRUSTED_V4_PROVIDER_ROWS_SHA256:
+        raise ValueError("continuation fixed source anchor rejects source panel identity")
+    if replay.get("source_media_manifest_sha256") != TRUSTED_V4_MEDIA_MANIFEST_SHA256:
+        raise ValueError("continuation fixed source anchor rejects source media identity")
+    if replay.get("source_selection_freeze_sha256") != TRUSTED_V4_SELECTION_FREEZE_SHA256:
+        raise ValueError("continuation fixed source anchor rejects source selection identity")
+    if _sha256(root / "provider-rows.json") != TRUSTED_V4_PROVIDER_ROWS_SHA256:
+        raise ValueError("continuation ordered source panel identity drift")
+    if _sha256(root / "media-manifest.json") != TRUSTED_V4_MEDIA_MANIFEST_SHA256:
+        raise ValueError("continuation ordered source panel identity drift")
+    if auth.get("source_provider_rows_sha256") != TRUSTED_V4_PROVIDER_ROWS_SHA256:
+        raise ValueError("continuation ordered source panel identity drift")
     source_freeze = _load_json(source_freeze_path)
     source_freeze_rows = source_freeze.get("rows", [])
     for item, source_item in zip(prefix, [(source_rows[0], EXPECTED_FPS[0]), (source_rows[0], EXPECTED_FPS[1])], strict=True):
         audit_index = source_item[0]["provider"]["audit_index"]
         role = source_item[0]["media"]["role"]
+        if item.get("audit_index") != audit_index:
+            raise ValueError("continuation imported audit index does not bind source arm")
+        if item.get("role") != role or item.get("fps") != source_item[1]:
+            raise ValueError("continuation imported arm identity does not bind source arm")
         arm = _arm_directory(source_root, audit_index, role, source_item[1])
-        for name, expected in item.get("source_artifacts", {}).items():
+        source_metadata = _load_json(arm / "metadata.json")
+        source_response_id = source_metadata.get("response_id")
+        if item.get("source_response_id") != source_response_id:
+            raise ValueError("continuation imported response ID does not bind source metadata")
+        source_artifacts = item.get("source_artifacts")
+        if not isinstance(source_artifacts, Mapping) or not source_artifacts:
+            raise ValueError("continuation source artifact map must be non-empty")
+        for name, expected in source_artifacts.items():
             path = arm / name
             if not path.is_file() or _sha256(path) != expected:
                 raise ValueError("continuation imported source artifact drift")
         expected_row = next((row for row in source_freeze_rows if row.get("audit_index") == audit_index and row.get("fps") == source_item[1]), None)
-        if not isinstance(expected_row, Mapping) or not item.get("source_artifacts") or item["source_artifacts"] != expected_row.get("artifacts"):
+        if not isinstance(expected_row, Mapping) or source_artifacts != expected_row.get("artifacts"):
             raise ValueError("continuation imported source artifacts do not bind v4 freeze")
+        replayed_artifacts = item.get("replayed_artifacts")
+        target_arm = _arm_directory(root, audit_index, role, source_item[1])
+        actual_replayed = {
+            name: _sha256(target_arm / name)
+            for name in sorted(path.name for path in target_arm.iterdir() if path.is_file())
+        }
+        if not isinstance(replayed_artifacts, Mapping) or replayed_artifacts != actual_replayed:
+            raise ValueError("continuation imported replay artifacts drift")
 
 
 def build_parser() -> argparse.ArgumentParser:

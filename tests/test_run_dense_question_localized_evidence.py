@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 from typing import Any
 
 import pytest
@@ -518,3 +519,340 @@ def test_passed_compatibility_canary_allows_complete_panel_freeze(tmp_path: Path
     assert freeze["completed_count"] == 24
     assert freeze["compatibility_canary_pairs"] == 1
     assert freeze["canary_pair_status"] == "passed"
+
+
+# Task 3D continuation audit-chain fixtures.  These use the frozen local v4
+# source and fake callbacks only; they never load labels/references or call a
+# provider endpoint.
+SOURCE_V4 = (
+    ROOT
+    / "data/vqa/benchmarks/dense-question-localized-evidence-issue35-v1/run-v4"
+)
+
+
+def _prepare_continuation_fixture(tmp_path: Path) -> Path:
+    root = tmp_path / "continuation"
+    runner.prepare_continuation(SOURCE_V4, root)
+    return root
+
+
+def _id_call(response_id: str, *, valid: bool = True) -> tuple[str, dict[str, Any]]:
+    raw = json.dumps(_valid_probe() if valid else {"wrong": True})
+    return raw, {"provider": "fake", "response_id": response_id}
+
+
+def _run_complete_continuation(root: Path) -> list[str]:
+    response_ids: list[str] = []
+
+    def call(*_args: Any) -> tuple[str, dict[str, Any]]:
+        response_id = f"new-{len(response_ids) + 1:02d}"
+        response_ids.append(response_id)
+        return _id_call(response_id)
+
+    runner.run(root, call=call)
+    runner.verify_predictions_freeze(root)
+    return response_ids
+
+
+def _refresh_current_input_bindings(root: Path) -> None:
+    provider_rows = json.loads((root / "provider-rows.json").read_text())["rows"]
+    selection_path = root / "selection-freeze.json"
+    selection = json.loads(selection_path.read_text())
+    selection["selected_rows"] = [row["audit_index"] for row in provider_rows]
+    selection["provider_rows_sha256"] = runner.provider_rows_sha256(provider_rows)
+    selection["media_manifest_sha256"] = _sha(root / "media-manifest.json")
+    _write_json(selection_path, selection)
+    authorization_path = root / "provider-authorization.json"
+    authorization = json.loads(authorization_path.read_text())
+    authorization["selection_freeze_sha256"] = _sha(selection_path)
+    authorization["provider_rows_sha256"] = runner.provider_rows_sha256(provider_rows)
+    authorization["media_manifest_sha256"] = _sha(root / "media-manifest.json")
+    _write_json(authorization_path, authorization)
+    continuation_path = root / "continuation-authorization.json"
+    continuation = json.loads(continuation_path.read_text())
+    continuation["selection_freeze_sha256"] = _sha(selection_path)
+    continuation["provider_rows_sha256"] = _sha(root / "provider-rows.json")
+    continuation["media_manifest_sha256"] = _sha(root / "media-manifest.json")
+    _write_json(continuation_path, continuation)
+
+
+def _freeze_row_for(root: Path, audit_index: int, fps: float) -> dict[str, Any]:
+    freeze = json.loads((root / "predictions-freeze.json").read_text())
+    return next(
+        row
+        for row in freeze["rows"]
+        if row["audit_index"] == audit_index and row["fps"] == fps
+    )
+
+
+def _rewrite_freeze_rows(root: Path) -> dict[str, Any]:
+    freeze_path = root / "predictions-freeze.json"
+    freeze = json.loads(freeze_path.read_text())
+    rebuilt: list[dict[str, Any]] = []
+    passed = 0
+    completed = 0
+    provider_rows = json.loads((root / "provider-rows.json").read_text())["rows"]
+    media_rows = json.loads((root / "media-manifest.json").read_text())["rows"]
+    roles = {row["audit_index"]: row["role"] for row in media_rows}
+    for provider_row in provider_rows:
+        audit_index = provider_row["audit_index"]
+        role = roles[audit_index]
+        for fps in runner.EXPECTED_FPS:
+            arm = runner._arm_directory(root, audit_index, role, fps)
+            terminal = json.loads((arm / "terminal.json").read_text())
+            status = terminal["status"]
+            completed += status != "incomplete"
+            passed += status == "passed"
+            rebuilt.append(
+                {
+                    "audit_index": audit_index,
+                    "role": role,
+                    "fps": fps,
+                    "status": status,
+                    "artifacts": {
+                        name: _sha(arm / name)
+                        for name in sorted(path.name for path in arm.iterdir())
+                    },
+                }
+            )
+    freeze["rows"] = rebuilt
+    freeze["passed_count"] = passed
+    freeze["failed_count"] = len(rebuilt) - passed
+    freeze["completed_count"] = completed
+    freeze["call_count"] = completed
+    _write_json(freeze_path, freeze)
+    return freeze
+
+
+def test_continuation_authorization_bytes_drift_after_freeze_is_rejected(tmp_path: Path) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    _run_complete_continuation(root)
+    auth_path = root / "continuation-authorization.json"
+    auth = json.loads(auth_path.read_text())
+    auth["remaining_new_call_maximum"] = 21
+    _write_json(auth_path, auth)
+    with pytest.raises(ValueError, match="continuation authorization bytes"):
+        runner.verify_predictions_freeze(root)
+
+
+def test_continuation_rejects_self_consistent_remaining_row_order_drift_before_callback(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    provider_path = root / "provider-rows.json"
+    provider = json.loads(provider_path.read_text())
+    provider["rows"] = list(reversed(provider["rows"]))
+    _write_json(provider_path, provider)
+    _refresh_current_input_bindings(root)
+    calls: list[tuple[Any, ...]] = []
+    with pytest.raises(ValueError, match="ordered source panel identity"):
+        runner.run(root, call=lambda *args: calls.append(args) or _id_call("unused"))
+    assert calls == []
+
+
+def test_continuation_rejects_forged_imported_response_id_before_callback(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    for filename in ("continuation-authorization.json", "canary-replay-freeze.json"):
+        path = root / filename
+        payload = json.loads(path.read_text())
+        payload["imported_prefix"][0]["source_response_id"] = "forged-response-id"
+        _write_json(path, payload)
+    auth_path = root / "continuation-authorization.json"
+    auth = json.loads(auth_path.read_text())
+    auth["canary_replay_freeze_sha256"] = _sha(root / "canary-replay-freeze.json")
+    _write_json(auth_path, auth)
+    calls: list[tuple[Any, ...]] = []
+    with pytest.raises(ValueError, match="response ID does not bind source metadata"):
+        runner.run(root, call=lambda *args: calls.append(args) or _id_call("unused"))
+    assert calls == []
+
+
+def test_continuation_rejects_forged_imported_audit_index_before_callback(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    for filename in ("continuation-authorization.json", "canary-replay-freeze.json"):
+        path = root / filename
+        payload = json.loads(path.read_text())
+        payload["imported_prefix"][0]["audit_index"] = 999
+        _write_json(path, payload)
+    auth_path = root / "continuation-authorization.json"
+    auth = json.loads(auth_path.read_text())
+    auth["canary_replay_freeze_sha256"] = _sha(root / "canary-replay-freeze.json")
+    _write_json(auth_path, auth)
+    calls: list[tuple[Any, ...]] = []
+    with pytest.raises(ValueError, match="audit index does not bind source arm"):
+        runner.run(root, call=lambda *args: calls.append(args) or _id_call("unused"))
+    assert calls == []
+
+
+def test_continuation_rejects_self_consistent_rewritten_source_terminal_and_freeze(
+    tmp_path: Path,
+) -> None:
+    source_copy = tmp_path / "rewritten-source"
+    shutil.copytree(SOURCE_V4, source_copy, symlinks=True, ignore=shutil.ignore_patterns("clips"))
+    (source_copy / "clips").symlink_to(SOURCE_V4 / "clips", target_is_directory=True)
+    terminal_path = source_copy / "rows/01-target-4fps/terminal.json"
+    terminal = json.loads(terminal_path.read_text())
+    terminal["audit_index"] = 999
+    _write_json(terminal_path, terminal)
+    freeze_path = source_copy / "predictions-freeze.json"
+    freeze = json.loads(freeze_path.read_text())
+    for row in freeze["rows"]:
+        if row["audit_index"] == 1 and row["fps"] == 4.0:
+            row["artifacts"]["terminal.json"] = _sha(terminal_path)
+    _write_json(freeze_path, freeze)
+    root = _prepare_continuation_fixture(tmp_path)
+    for filename in ("continuation-authorization.json", "canary-replay-freeze.json"):
+        path = root / filename
+        payload = json.loads(path.read_text())
+        payload["source_root"] = str(source_copy)
+        payload["source_predictions_freeze_sha256"] = _sha(freeze_path)
+        _write_json(path, payload)
+    auth_path = root / "continuation-authorization.json"
+    auth = json.loads(auth_path.read_text())
+    auth["canary_replay_freeze_sha256"] = _sha(root / "canary-replay-freeze.json")
+    _write_json(auth_path, auth)
+    with pytest.raises(ValueError, match="fixed source anchor"):
+        runner.validate_continuation_authorization(root)
+
+
+def test_duplicate_new_response_id_preserves_raw_metadata_and_blocks_freeze(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    ids = iter(["new-01", "new-02", "new-02", *[f"new-{i:02d}" for i in range(4, 23)]])
+    calls: list[tuple[Any, ...]] = []
+    runner.run(root, call=lambda *args: calls.append(args) or _id_call(next(ids)))
+    assert len(calls) == 22
+    duplicate_arm = runner._arm_directory(root, 3, "target", 4.0)
+    assert (duplicate_arm / "raw-response.txt").is_file()
+    metadata = json.loads((duplicate_arm / "metadata.json").read_text())
+    assert metadata["response_id"] == "new-02"
+    terminal = json.loads((duplicate_arm / "terminal.json").read_text())
+    assert terminal["status"] == "contract_error"
+    assert terminal["error_type"] == "DuplicateResponseID"
+    with pytest.raises(ValueError, match="duplicate provider response ID"):
+        runner.verify_predictions_freeze(root)
+
+
+def test_empty_imported_source_artifact_map_is_rejected_after_hashes_are_corrected(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    for filename in ("continuation-authorization.json", "canary-replay-freeze.json"):
+        path = root / filename
+        payload = json.loads(path.read_text())
+        payload["imported_prefix"][0]["source_artifacts"] = {}
+        _write_json(path, payload)
+    auth_path = root / "continuation-authorization.json"
+    auth = json.loads(auth_path.read_text())
+    auth["canary_replay_freeze_sha256"] = _sha(root / "canary-replay-freeze.json")
+    _write_json(auth_path, auth)
+    with pytest.raises(ValueError, match="source artifact map must be non-empty"):
+        runner.validate_continuation_authorization(root)
+
+
+def test_complete_combined_freeze_rejects_nonpassed_fresh_canary_position(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    _run_complete_continuation(root)
+    arm = runner._arm_directory(root, 2, "target", 4.0)
+    terminal = json.loads((arm / "terminal.json").read_text())
+    terminal["status"] = "contract_error"
+    terminal["error_type"] = "ValueError"
+    _write_json(arm / "terminal.json", terminal)
+    _rewrite_freeze_rows(root)
+    with pytest.raises(ValueError, match="fresh canary"):
+        runner.verify_predictions_freeze(root)
+
+
+def test_failed_continuation_freeze_rejects_all_passed_fresh_canary_positions(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    _run_complete_continuation(root)
+    provider_rows = json.loads((root / "provider-rows.json").read_text())["rows"]
+    media_rows = json.loads((root / "media-manifest.json").read_text())["rows"]
+    roles = {row["audit_index"]: row["role"] for row in media_rows}
+    for provider_row in provider_rows[2:]:
+        for fps in runner.EXPECTED_FPS:
+            arm = runner._arm_directory(root, provider_row["audit_index"], roles[provider_row["audit_index"]], fps)
+            for name in ("parsed.json", "raw-response.txt"):
+                (arm / name).unlink(missing_ok=True)
+            _write_json(
+                arm / "metadata.json",
+                {"status": "incomplete", "reason": "fresh canary test"},
+            )
+            _write_json(
+                arm / "terminal.json",
+                {
+                    "audit_index": provider_row["audit_index"],
+                    "role": roles[provider_row["audit_index"]],
+                    "fps": fps,
+                    "status": "incomplete",
+                },
+            )
+    freeze = _rewrite_freeze_rows(root)
+    freeze["status"] = "incomplete"
+    freeze["stop_reason"] = "continuation_canary_failure"
+    freeze["interrupted"] = False
+    freeze["call_count"] = 4
+    freeze["completed_count"] = 4
+    freeze["failed_count"] = 20
+    freeze["passed_count"] = 4
+    freeze["canary_pair_status"] = "passed"
+    _write_json(root / "predictions-freeze.json", freeze)
+    with pytest.raises(ValueError, match="fresh canary"):
+        runner.verify_predictions_freeze(root)
+
+
+def test_passing_continuation_calls_only_remaining_arms_and_freezes_combined_history(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    calls: list[tuple[Any, ...]] = []
+    response_ids: list[str] = []
+
+    def call(*args: Any) -> tuple[str, dict[str, Any]]:
+        calls.append(args)
+        response_id = f"ordered-{len(calls):02d}"
+        response_ids.append(response_id)
+        return _id_call(response_id)
+
+    runner.run(root, call=call)
+    runner.verify_predictions_freeze(root)
+    assert len(calls) == 22
+    media_rows = json.loads((root / "media-manifest.json").read_text())["rows"]
+    second_clip = root / media_rows[1]["clip_path"]
+    assert calls[0][0] == second_clip.read_bytes()
+    assert calls[0][3] == 4.0
+    assert len(response_ids) == len(set(response_ids)) == 22
+    assert json.loads((root / "predictions-freeze.json").read_text())["completed_count"] == 24
+    freeze = json.loads((root / "predictions-freeze.json").read_text())
+    assert freeze["fresh_canary_pair_status"] == "passed"
+    assert freeze["prior_provider_calls"] == 2
+    assert freeze["remaining_new_call_maximum"] == 22
+    assert freeze["combined_call_maximum"] == 24
+
+
+def test_failed_continuation_calls_only_fresh_canary_and_freezes_incomplete_history(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    calls: list[tuple[Any, ...]] = []
+    responses = iter([_id_call("fresh-01", valid=False), _id_call("fresh-02")])
+    runner.run(root, call=lambda *args: calls.append(args) or next(responses))
+    assert len(calls) == 2
+    freeze = json.loads((root / "predictions-freeze.json").read_text())
+    assert freeze["completed_count"] == 4
+    assert freeze["call_count"] == 4
+    assert freeze["fresh_canary_pair_status"] == "failed"
+    assert sum(
+        json.loads(path.read_text())["status"] == "incomplete"
+        for path in (root / "rows").glob("*/terminal.json")
+    ) == 20
+    runner.verify_predictions_freeze(root)

@@ -311,6 +311,13 @@ must not be loaded for reference-aware scoring.
 - Run-v5 retains the upstream provider rows and media manifest hashes (`007fd6a66fd403d88782438c655028c0381a714ef84f70a812ed511d44eed293`, `0b0875fec5c83f5567d0ff3b6d1051a3026b938a0ee5c7dbaa90a07023be5b66`) and uses additive treatment/selection/authorization bindings. Task 4 remains **NOT AUTHORIZED** pending a complete verified continuation freeze.
 - Continuation execution hardening is now covered: imported positions 1–2 are never called, the fresh amended-validator canary is positions 3–4, failed fresh canaries stop at 4 combined terminals with 20 incomplete, and a passing fresh canary permits exactly 22 new calls for a 24-arm combined freeze. Clip access is source-bound through the immutable v4 clip bundle. The refreshed zero-call candidate is private run-v10 (replay `abe130aa5c216dd7eebd459f1d22031ba48d437fdbdaf5611ea4ea0928b03554`, authorization `7cb8690248104bb4bbd649398f59973afc73565db64d00215564e6577aac0c33`).
 
+#### Task 3D continuation audit-chain hardening — 2026-08-16
+
+- Status: complete for the bounded provider-free implementation. All 11 required red tests were added; the initial run was `29 passed, 11 failed`, and the final runner suite is `40 passed` (`54 passed` with preparation tests). No provider calls, labels, references, or scoring were used.
+- Enforcement now binds continuation authorization/replay bytes, immutable v4 source-freeze and panel/media/selection identities, ordered arm position, prior/new/combined call caps, fresh-canary status, imported response IDs/audit indices/roles/FPS/artifact maps, and unique response IDs across imported and new completed arms. New outputs are persisted raw-first before response-ID and contract checks.
+- Fresh additive zero-call candidate is private run-v13: imported `2`, remaining new maximum `22`, combined maximum `24`, `provider_calls_made=0`; no new output or prediction freeze. Final runner SHA is `1a43d4d72915ea791437663f5d858131f5f851ca3a9036da6480a470933accd3`; replay SHA `5af139d072987263995b406269ebbd475dbcb0ac3b8ba10f55e5e3754a70a420`; authorization SHA `6204759bd7e784ea2d2712fd81d14c7abc776d27875391862e7fda0e5ee02022`.
+- Recursive v2/v3/v4 pre/post file-hash manifests matched. Ruff, runner compilation, and `git diff --check` passed. The expanded suite reached `2,865 passed, 1 skipped, 23` unrelated pre-existing failures outside this experiment. Task 4 remains **NOT AUTHORIZED** pending a verified provider continuation freeze.
+
 ### Task 4: Audit paired fact recovery and apply the gate
 
 **Files:**
