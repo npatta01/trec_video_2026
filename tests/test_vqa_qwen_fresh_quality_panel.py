@@ -944,10 +944,9 @@ def _write_canonical_score_sources(
     )
 
 
-def test_score_adds_paired_cells_and_directional_decision(tmp_path: Path) -> None:
-    data_root = (tmp_path / "data").resolve()
+def _ready_fresh_score_root(data_root: Path, name: str) -> tuple[Path, list[str]]:
     selection, _, _, _, _ = _select(data_root)
-    root = data_root / "score-run"
+    root = data_root / name
     prepare_canary(root, selection, runner_path=canary.DEDICATED_RUNNER_PATH)
     command = build_podman_command(root, hub_cache=data_root, data_root=data_root)
 
@@ -961,47 +960,76 @@ def test_score_adds_paired_cells_and_directional_decision(tmp_path: Path) -> Non
 
     record_attempt(root, command, runner=fake_run)
     freeze_predictions(root)
-    ids = [row["video_id"] for row in selection["rows"]]
-    _write_canonical_score_sources(
-        ids,
-        whisper_text_by_index={
-            index: "official phrase" if 3 <= index < 9 or index == 0 else None
-            for index in range(12)
-        },
-        rejected_indexes={0, 1, 2, 9, 10, 11},
-    )
-    references, whisper, source_bindings = canary_cli._score_inputs(
-        root,
-        canary.FRESH_ANNOTATIONS_DIR,
-        canary.FRESH_WHISPER_PATH,
-    )
+    return root, [row["video_id"] for row in selection["rows"]]
 
-    score = score_postfreeze(
-        root,
-        references=references,
-        whisper=whisper,
-        source_bindings=source_bindings,
-    )
 
-    assert score["official_phrase_present_count"] == 6
-    assert score["whisper_official_phrase_present_count"] == 6
-    assert score["both_present_count"] == 3
-    assert score["qwen_only_present_count"] == 3
-    assert score["whisper_only_present_count"] == 3
-    assert score["neither_present_count"] == 3
-    assert score["directional_decision"] == "no_directional_difference"
-    assert sum(
-        score[key]
-        for key in (
-            "both_present_count",
-            "qwen_only_present_count",
-            "whisper_only_present_count",
-            "neither_present_count",
+def test_fresh_score_inputs_reject_vqa_answers_before_loading_labels(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data_root = (tmp_path / "data").resolve()
+    root, ids = _ready_fresh_score_root(data_root, "invalid-score-inputs")
+    _write_canonical_score_sources(ids, whisper_text_by_index={})
+    original_load = canary_cli._load_json
+
+    def reject_annotation_read(path: Path):
+        if path.parent == canary.FRESH_ANNOTATIONS_DIR:
+            raise AssertionError("VQA answer labels were opened")
+        return original_load(path)
+
+    monkeypatch.setattr(canary_cli, "_load_json", reject_annotation_read)
+
+    with pytest.raises(
+        ValueError,
+        match="VQA answers are not transcript references",
+    ):
+        canary_cli._score_inputs(
+            root,
+            canary.FRESH_ANNOTATIONS_DIR,
+            canary.FRESH_WHISPER_PATH,
         )
-    ) == 12
-    assert score["scoring_source_bindings"]["whisper_sha256"] == _sha256(
-        canary.FRESH_WHISPER_PATH
-    )
+
+
+def test_fresh_direct_scorer_rejects_vqa_answers_as_transcript_references(
+    tmp_path: Path,
+) -> None:
+    data_root = (tmp_path / "data").resolve()
+    root, ids = _ready_fresh_score_root(data_root, "invalid-direct-score")
+    _write_canonical_score_sources(ids, whisper_text_by_index={})
+    references = {video_id: "because he received some news" for video_id in ids}
+    whisper_payload = json.loads(canary.FRESH_WHISPER_PATH.read_text())
+    whisper = canary._fresh_whisper_comparison(whisper_payload, ids)
+    relative = canary.FRESH_WHISPER_PATH.relative_to(
+        canary.FRESH_WHISPER_CHECKSUM_PATH.parent
+    ).as_posix()
+    source_bindings = {
+        "annotations_dir": str(canary.FRESH_ANNOTATIONS_DIR.resolve()),
+        "annotation_files_sha256": {
+            video_id: _sha256(canary.FRESH_ANNOTATIONS_DIR / f"{video_id}.json")
+            for video_id in ids
+        },
+        "whisper_path": str(canary.FRESH_WHISPER_PATH.resolve()),
+        "whisper_sha256": _sha256(canary.FRESH_WHISPER_PATH),
+        "whisper_checksum_path": str(
+            canary.FRESH_WHISPER_CHECKSUM_PATH.resolve()
+        ),
+        "whisper_checksum_sha256": _sha256(
+            canary.FRESH_WHISPER_CHECKSUM_PATH
+        ),
+        "whisper_checksum_relative_path": relative,
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="VQA answers are not transcript references",
+    ):
+        score_postfreeze(
+            root,
+            references=references,
+            whisper=whisper,
+            source_bindings=source_bindings,
+        )
+    assert not (root / "postfreeze-score.json").exists()
 
 
 def test_fresh_score_inputs_reject_noncanonical_comparator_paths(
@@ -1030,13 +1058,19 @@ def test_fresh_score_inputs_reject_noncanonical_comparator_paths(
     wrong_whisper = data_root / "wrong-whisper.json"
     wrong_whisper.write_bytes(canary.FRESH_WHISPER_PATH.read_bytes())
 
-    with pytest.raises(ValueError, match="canonical scoring sources"):
+    with pytest.raises(
+        ValueError,
+        match="VQA answers are not transcript references",
+    ):
         canary_cli._score_inputs(
             root,
             wrong_annotations,
             canary.FRESH_WHISPER_PATH,
         )
-    with pytest.raises(ValueError, match="canonical scoring sources"):
+    with pytest.raises(
+        ValueError,
+        match="VQA answers are not transcript references",
+    ):
         canary_cli._score_inputs(
             root,
             canary.FRESH_ANNOTATIONS_DIR,

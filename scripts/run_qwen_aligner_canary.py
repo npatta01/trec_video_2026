@@ -184,6 +184,11 @@ def _score_inputs(
         and protocol.get("selection_kind")
         == canary_module.FRESH_ENGLISH_SELECTION_KIND
     )
+    if fresh_english:
+        raise ValueError(
+            "VQA answers are not transcript references; "
+            "fresh English answer containment cannot score ASR quality"
+        )
     if fresh_english and (
         annotations_dir.resolve() != canary_module.FRESH_ANNOTATIONS_DIR.resolve()
         or whisper_path.resolve() != canary_module.FRESH_WHISPER_PATH.resolve()

@@ -2079,6 +2079,11 @@ def score_postfreeze(
         raise ValueError("refusing to overwrite postfreeze score")
     protocol = _read_object(root / "protocol.json")
     fresh_english = protocol.get("selection_kind") == FRESH_ENGLISH_SELECTION_KIND
+    if fresh_english:
+        raise ValueError(
+            "VQA answers are not transcript references; "
+            "fresh English answer containment cannot score ASR quality"
+        )
     validated_source_bindings = (
         _validate_fresh_score_bindings(
             references=references,
