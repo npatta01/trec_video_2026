@@ -254,6 +254,18 @@ def test_complete_review_cannot_request_refinement() -> None:
         parse_coverage_review(payload, spec=spec, ledger=ledger)
 
 
+def test_coverage_review_accepts_empty_optional_notes() -> None:
+    spec = parse_count_spec(spec_payload(), question=QUESTION, duration_seconds=4.0)
+    ledger = parse_evidence(
+        evidence_payload(), spec=spec, requested_views=spec.candidate_views
+    )
+    payload = review_payload()
+    payload["notes"] = ""
+    review = parse_coverage_review(payload, spec=spec, ledger=ledger)
+    assert review.complete is True
+    assert review.notes == ""
+
+
 def test_reduce_count_counts_two_disjoint_supported_events() -> None:
     spec = parse_count_spec(spec_payload(), question=QUESTION, duration_seconds=4.0)
     ledger = parse_evidence(

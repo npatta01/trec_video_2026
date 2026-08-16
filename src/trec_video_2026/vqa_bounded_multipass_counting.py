@@ -145,6 +145,12 @@ def _string(value: object, *, field: str) -> str:
     return value.strip()
 
 
+def _text(value: object, *, field: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a string")
+    return value.strip()
+
+
 def _number(value: object, *, field: str) -> float:
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise ValueError(f"{field} must be numeric")
@@ -554,7 +560,7 @@ def parse_coverage_review(
         missing_view_ids=missing,
         disputes=tuple(disputes),
         refinement_request=refinement,
-        notes=_string(value["notes"], field="notes"),
+        notes=_text(value["notes"], field="notes"),
     )
 
 
