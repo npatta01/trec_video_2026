@@ -24,6 +24,15 @@ REQUIRED_STRATA = {
     "control_temporal": 2,
     "control_static": 2,
 }
+IMPLEMENTATION_SOURCE_PATHS = (
+    "pyproject.toml",
+    "scripts/prepare_bounded_multipass_counting.py",
+    "src/trec_video_2026/vqa_bounded_multipass_counting.py",
+    "src/trec_video_2026/vqa_counting_evidence.py",
+    "src/trec_video_2026/vqa_gate.py",
+    "src/trec_video_2026/vqa_submission.py",
+    "uv.lock",
+)
 
 
 def load_json(path: Path) -> Any:
@@ -330,6 +339,14 @@ def prepare_experiment(
             ),
         },
     )
+    repository = Path(__file__).resolve().parents[1]
+    source_revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repository,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
     return write_self_hashed_once(
         output_root / "preparation-complete.json",
         {
@@ -337,6 +354,25 @@ def prepare_experiment(
             "panel_complete_sha256": panel_freeze["complete_sha256"],
             "requests_complete_sha256": requests["complete_sha256"],
             "planned_rows": len(panel),
+            "input_files": {
+                "census": {
+                    "path": str(census_path),
+                    "sha256": _file_sha256(census_path),
+                },
+                "routing": {
+                    "path": str(routing_path),
+                    "sha256": _file_sha256(routing_path),
+                },
+                "excluded_ids": {
+                    "path": str(excluded_ids_path),
+                    "sha256": _file_sha256(excluded_ids_path),
+                },
+            },
+            "source_revision": source_revision,
+            "implementation_sources": {
+                relative: _file_sha256(repository / relative)
+                for relative in IMPLEMENTATION_SOURCE_PATHS
+            },
         },
     )
 

@@ -8,6 +8,7 @@ import hashlib
 import importlib.util
 import json
 import statistics
+import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -112,6 +113,17 @@ def build_decision(
 def _verify_preparation(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     preparation = load_json(root / "preparation-complete.json")
     verify_self_hash(preparation, name="preparation terminal")
+    if preparation.get("schema_version") == "bounded-multipass-preparation-complete-v1":
+        _verify_source_bundle(preparation, name="preparation terminal")
+        input_files = preparation.get("input_files")
+        if not isinstance(input_files, Mapping):
+            raise ValueError("preparation input files are missing")
+        for name, binding in input_files.items():
+            if not isinstance(binding, Mapping):
+                raise ValueError(f"preparation input binding is invalid: {name}")
+            path = Path(str(binding.get("path")))
+            if file_sha256(path) != binding.get("sha256"):
+                raise ValueError(f"preparation input changed: {name}")
     panel = load_json(root / "panel.freeze.json")
     panel_hash = verify_self_hash(panel, name="panel freeze")
     requests = load_json(root / "requests.label-blind.json")
@@ -177,6 +189,7 @@ def _verify_stage(
         raise ValueError(f"{stage_root} terminal does not bind request")
     if request.get("predecessor_sha256") != predecessor_hash:
         raise ValueError(f"{stage_root} predecessor binding changed")
+    _verify_source_bundle(request, name=str(stage_root))
     prompt_path = stage_root / "prompt.txt"
     if hashlib.sha256(prompt_path.read_bytes()).hexdigest() != request.get(
         "prompt_sha256"
@@ -241,6 +254,35 @@ def _verify_stage(
     ):
         raise ValueError(f"{stage_root} normalized artifacts do not bind request")
     return terminal_hash
+
+
+def _verify_source_bundle(payload: Mapping[str, object], *, name: str) -> None:
+    revision = payload.get("source_revision")
+    sources = payload.get("implementation_sources")
+    if (
+        not isinstance(revision, str)
+        or len(revision) != 40
+        or not isinstance(sources, Mapping)
+    ):
+        raise ValueError(f"{name} source provenance is missing")
+    repository = Path(__file__).resolve().parents[1]
+    for relative, claimed in sources.items():
+        if not isinstance(relative, str) or not isinstance(claimed, str):
+            raise ValueError(f"{name} source provenance is invalid")
+        current_path = repository / relative
+        current_hash = file_sha256(current_path) if current_path.is_file() else None
+        historical = subprocess.run(
+            ["git", "show", f"{revision}:{relative}"],
+            cwd=repository,
+            capture_output=True,
+        )
+        historical_hash = (
+            hashlib.sha256(historical.stdout).hexdigest()
+            if historical.returncode == 0
+            else None
+        )
+        if claimed not in {current_hash, historical_hash}:
+            raise ValueError(f"{name} source hash changed: {relative}")
 
 
 def authenticate_arm(*, root: Path, arm: str) -> dict[str, dict[str, Any]]:

@@ -57,6 +57,16 @@ def test_build_stage_request_binds_media_schema_and_not_labels() -> None:
     assert request["model"] == "gemini-3.1-pro-preview"
     assert request["thinking_level"] == "LOW"
     assert request["max_output_tokens"] == 8192
+    assert len(request["source_revision"]) == 40
+    assert set(request["implementation_sources"]) == {
+        "pyproject.toml",
+        "scripts/run_bounded_multipass_counting.py",
+        "src/trec_video_2026/vqa_bounded_multipass_counting.py",
+        "src/trec_video_2026/vqa_counting_evidence.py",
+        "src/trec_video_2026/vqa_gate.py",
+        "src/trec_video_2026/vqa_submission.py",
+        "uv.lock",
+    }
     assert request["media_binding"]["file_uri"] == "files/v1"
     rendered = json.dumps(request).lower()
     assert "reference" not in rendered

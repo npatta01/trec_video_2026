@@ -47,6 +47,15 @@ THINKING_LEVEL = "LOW"
 GLOBAL_CEILING_USD = 30.0
 SMOKE_CEILING_USD = 3.0
 PRE_REFINEMENT_CEILING_USD = 15.0
+IMPLEMENTATION_SOURCE_PATHS = (
+    "pyproject.toml",
+    "scripts/run_bounded_multipass_counting.py",
+    "src/trec_video_2026/vqa_bounded_multipass_counting.py",
+    "src/trec_video_2026/vqa_counting_evidence.py",
+    "src/trec_video_2026/vqa_gate.py",
+    "src/trec_video_2026/vqa_submission.py",
+    "uv.lock",
+)
 
 
 def _render_json(payload: object) -> str:
@@ -236,6 +245,18 @@ def build_stage_request(
     media_binding: Mapping[str, object],
     predecessor_sha256: str | None,
 ) -> dict[str, object]:
+    repository = Path(__file__).resolve().parents[1]
+    source_revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repository,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    implementation_sources = {
+        relative: _file_sha256(repository / relative)
+        for relative in IMPLEMENTATION_SOURCE_PATHS
+    }
     request = _self_hashed(
         {
             "schema_version": "bounded-multipass-stage-request-v1",
@@ -247,6 +268,8 @@ def build_stage_request(
             "response_schema_sha256": canonical_sha256(response_schema),
             "media_binding": dict(media_binding),
             "predecessor_sha256": predecessor_sha256,
+            "source_revision": source_revision,
+            "implementation_sources": implementation_sources,
             "temperature": TEMPERATURE,
             "seed": SEED,
             "max_output_tokens": MAX_OUTPUT_TOKENS,
