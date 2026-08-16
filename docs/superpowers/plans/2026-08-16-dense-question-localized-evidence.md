@@ -343,7 +343,7 @@ must not be loaded for reference-aware scoring.
 
 #### Task 3D fix round 4/5 — 2026-08-16
 
-- Status: complete for this bounded provider-free review round; no provider calls, labels, references, or scoring. Nine new regressions initially produced `57 passed, 9 failed`; final runner plus preparation tests are `81 passed`.
+- Status: complete for this bounded provider-free review round; no provider calls, labels, references, or scoring. Nine new regressions initially produced `57 passed, 9 failed`; final runner plus preparation tests are `82 passed`.
 - The continuation snapshot now binds every distinct clip used by all 24 arms, including resolved source path, root/source identity, file identity, and content SHA-256. Ordinary unchanged files reuse their bound digest between callback checks; content or identity drift is rehashed and rejected immediately after the callback. Imported and future clip drift after callback 1 both stop at exactly one callback with no position-4 call.
 - A write-once `execution-snapshot.json` records the canonical initial manifest before the first new call. A separate write-once final snapshot records exact callback positions/identities and new/combined call counts after complete, canary-stop, or interruption paths. Freeze creation and verification require the current snapshot and bind both artifact hashes into complete and incomplete freezes.
 - Continuation startup requires exactly the two imported arm directories and their five regular artifacts, with no pending arm directories or artifacts. Immediately before each callback the current arm must contain exactly its freshly written request; stale request/raw/metadata/extra entries fail before any callback. Raw response persistence remains first after each callback.
