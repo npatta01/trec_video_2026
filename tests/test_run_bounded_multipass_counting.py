@@ -142,6 +142,42 @@ def test_write_once_stage_terminal_refuses_mutation(tmp_path: Path) -> None:
         )
 
 
+def test_execute_stage_rejects_provider_model_version_mismatch(tmp_path: Path) -> None:
+    request = runner.build_stage_request(
+        stage="count_spec",
+        arm="fixed",
+        video_id="v1",
+        model=runner.MODEL,
+        prompt="question-only structured task",
+        response_schema={"type": "object"},
+        media_binding={
+            "file_uri": "files/v1",
+            "mime_type": "video/webm",
+            "delivery_sha256": "a" * 64,
+            "upload_complete_sha256": "b" * 64,
+            "fps": 4.0,
+            "views": [],
+        },
+        predecessor_sha256=None,
+    )
+    client = FakeClient([{"ok": True}], model_version="gemini-unexpected")
+    terminal = runner.execute_stage(
+        client=client,
+        stage_root=tmp_path / "stage",
+        request=request,
+        parts=(),
+        prompt="question-only structured task",
+        response_schema={"type": "object"},
+        budget_root=tmp_path / "budget",
+        reserved_usd=0.3,
+        hard_ceiling_usd=3.0,
+        validator=lambda payload: payload,
+    )
+    assert terminal["outcome"] == "invalid_provider_model"
+    metadata = json.loads((tmp_path / "stage/provider-metadata.json").read_text())
+    assert metadata["model_version"] == "gemini-unexpected"
+
+
 def test_client_from_env_uses_established_gemini_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -169,13 +205,17 @@ class FakeFiles:
 
 
 class FakeModels:
-    def __init__(self, payloads: list[dict[str, object]]) -> None:
+    def __init__(
+        self, payloads: list[dict[str, object]], model_version: str = runner.MODEL
+    ) -> None:
         self.payloads = list(payloads)
+        self.model_version = model_version
 
     def generate_content(self, **_kwargs):
         payload = self.payloads.pop(0)
         return SimpleNamespace(
             text=json.dumps(payload),
+            model_version=self.model_version,
             usage_metadata=SimpleNamespace(
                 prompt_token_count=100,
                 candidates_token_count=50,
@@ -186,9 +226,134 @@ class FakeModels:
 
 
 class FakeClient:
-    def __init__(self, payloads: list[dict[str, object]]) -> None:
+    def __init__(
+        self, payloads: list[dict[str, object]], model_version: str = runner.MODEL
+    ) -> None:
         self.files = FakeFiles()
-        self.models = FakeModels(payloads)
+        self.models = FakeModels(payloads, model_version=model_version)
+
+
+def test_inference_preparation_reads_only_label_blind_requests(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "run"
+    rows = [
+        {
+            "video_id": f"v{index:02d}",
+            "question": f"How many jumps in video {index}?",
+            "duration_seconds": 4.0,
+            "delivery_path": str(tmp_path / f"v{index:02d}.webm"),
+            "delivery_sha256": "a" * 64,
+            "delivery_mime_type": "video/webm",
+        }
+        for index in range(12)
+    ]
+    requests = runner.write_self_hashed_once(
+        root / "requests.label-blind.json",
+        {
+            "schema_version": "bounded-multipass-requests-v1",
+            "smoke_video_id": "v00",
+            "rows": rows,
+        },
+    )
+    runner.write_self_hashed_once(
+        root / "preparation-complete.json",
+        {
+            "schema_version": "bounded-multipass-preparation-complete-v1",
+            "requests_complete_sha256": requests["complete_sha256"],
+            "planned_rows": 12,
+            "smoke_video_id": "v00",
+        },
+    )
+    # There is intentionally no panel.freeze.json in this inference fixture.
+    loaded = runner._load_preparation(root)
+    assert loaded["smoke_video_id"] == "v00"
+    assert len(loaded["rows"]) == 12
+
+
+def test_refinement_arm_requires_authenticated_fixed_predictions_freeze(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    requests = {"rows": [{"video_id": f"v{index:02d}"} for index in range(12)]}
+    monkeypatch.setattr(runner, "_load_preparation", lambda _root: requests)
+    with pytest.raises(RuntimeError, match="fixed predictions freeze is required"):
+        runner.run_refinement_arm(root=tmp_path, client=object())
+
+
+def test_static_crop_refinement_fails_closed_without_provider_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    delivery = tmp_path / "v1.webm"
+    delivery.write_bytes(b"bound delivery")
+    question = "How many red objects are visible?"
+    spec = {
+        "schema_version": "bounded-multipass-count-spec-v1",
+        "question_sha256": hashlib.sha256(question.encode()).hexdigest(),
+        "target": "red object",
+        "unit": "static_cardinality",
+        "route": "static",
+        "scope": {"start_seconds": 0.0, "end_seconds": 4.0},
+        "inclusions": ["red object"],
+        "exclusions": [],
+        "identity_policy": "localized_instance",
+        "candidate_views": [
+            {"view_id": "S0", "kind": "shot_frame", "timestamp_seconds": 1.0}
+        ],
+        "uncertainty": "possible crop needed",
+    }
+    evidence = {
+        "schema_version": "bounded-multipass-evidence-v1",
+        "reviewed_view_ids": ["S0"],
+        "records": [
+            {
+                "record_id": "E0",
+                "view_ids": ["S0"],
+                "shot_id": "shot-0",
+                "timestamp_seconds": 1.0,
+                "bbox_norm": [0.1, 0.1, 0.3, 0.3],
+                "target_supported": True,
+                "ambiguous": False,
+                "descriptor": "red object",
+            }
+        ],
+    }
+    coverage = {
+        "schema_version": "bounded-multipass-coverage-v1",
+        "complete": False,
+        "reviewed_view_ids": ["S0"],
+        "accepted_record_ids": ["E0"],
+        "rejected_record_ids": [],
+        "missing_view_ids": [],
+        "disputes": [{"record_id": "E0", "reason": "small object"}],
+        "refinement_request": {
+            "kind": "crop",
+            "view_id": "S0",
+            "reason": "inspect the small object",
+        },
+        "notes": "crop required",
+    }
+    monkeypatch.setattr(runner, "extract_static_parts", lambda **_: ((), []))
+    row = {
+        "video_id": "v1",
+        "question": question,
+        "duration_seconds": 4.0,
+        "delivery_path": str(delivery),
+        "delivery_sha256": hashlib.sha256(delivery.read_bytes()).hexdigest(),
+        "delivery_mime_type": "video/webm",
+    }
+    root = tmp_path / "run"
+    client = FakeClient([spec, evidence, coverage])
+    fixed = runner.run_fixed_row(
+        client=client, row=row, root=root, hard_ceiling_usd=3.0
+    )
+    assert fixed["outcome"] == "complete"
+    remaining = len(client.models.payloads)
+    refined = runner.run_refinement_row(
+        client=client, row=row, root=root, hard_ceiling_usd=3.0
+    )
+    assert refined["outcome"] == "incomplete"
+    assert refined["reason"] == "static_crop_refinement_not_implemented"
+    assert len(client.models.payloads) == remaining
 
 
 def test_run_fixed_row_freezes_exact_result_from_three_structured_stages(
@@ -357,7 +522,7 @@ def test_run_refinement_row_adds_one_targeted_window_then_freezes(
     final_coverage = {
         "schema_version": "bounded-multipass-coverage-v1",
         "complete": True,
-        "reviewed_view_ids": ["W0"],
+        "reviewed_view_ids": ["W0", "R0"],
         "accepted_record_ids": ["E0", "E1"],
         "rejected_record_ids": [],
         "missing_view_ids": [],

@@ -17,6 +17,17 @@ from trec_video_2026.vqa_counting_evidence import (
     parse_prediction_count,
     parse_reference_count,
 )
+from trec_video_2026.vqa_bounded_multipass_counting import (
+    CandidateView,
+    CountSpec,
+    UnsupportedCountSpec,
+    count_result_to_dict,
+    merge_refinement,
+    parse_count_spec,
+    parse_coverage_review,
+    parse_evidence,
+    reduce_count,
+)
 from trec_video_2026.vqa_submission import canonical_sha256
 
 
@@ -233,6 +244,15 @@ def _verify_stage(
     metadata_hash = verify_self_hash(metadata, name=f"{stage_root} provider metadata")
     if metadata_hash != terminal.get("provider_metadata_sha256"):
         raise ValueError(f"{stage_root} terminal does not bind provider metadata")
+    expected_model = request.get("model")
+    if expected_model != "gemini-3.1-pro-preview":
+        raise ValueError(f"{stage_root} request model is not the approved model")
+    reported_model_version = metadata.get("model_version")
+    if reported_model_version is not None:
+        if reported_model_version != expected_model:
+            raise ValueError(f"{stage_root} provider model_version changed")
+    elif metadata.get("model") != expected_model:
+        raise ValueError(f"{stage_root} legacy provider model changed")
     raw_path = stage_root / "raw-response.txt"
     if hashlib.sha256(raw_path.read_bytes()).hexdigest() != metadata.get(
         "raw_response_sha256"
@@ -254,6 +274,177 @@ def _verify_stage(
     ):
         raise ValueError(f"{stage_root} normalized artifacts do not bind request")
     return terminal_hash
+
+
+def _validated_stage_payload(stage_root: Path) -> dict[str, Any]:
+    validated = load_json(stage_root / "validated.json")
+    verify_self_hash(validated, name=f"{stage_root} validated")
+    payload = validated.get("payload")
+    if not isinstance(payload, dict):
+        raise ValueError(f"{stage_root} validated payload is not an object")
+    return payload
+
+
+def _stage_terminal(stage_root: Path) -> dict[str, Any]:
+    terminal = load_json(stage_root / "complete.json")
+    verify_self_hash(terminal, name=f"{stage_root} terminal")
+    return terminal
+
+
+def _assert_result_matches(
+    *, result: Mapping[str, object], recomputed: Mapping[str, object], name: str
+) -> None:
+    for field in ("outcome", "value", "reasons", "selected_record_ids"):
+        if result.get(field) != recomputed.get(field):
+            raise ValueError(f"{name} {field} does not match replay")
+
+
+def _parse_fixed_chain(
+    *,
+    root: Path,
+    video_id: str,
+    request_row: Mapping[str, object],
+) -> tuple[CountSpec | UnsupportedCountSpec, dict[str, object], dict[str, object]]:
+    row_root = root / "rows" / video_id / "fixed"
+    spec_payload = _validated_stage_payload(row_root / "count-spec")
+    question = str(request_row["question"])
+    duration = float(request_row["duration_seconds"])
+    if "unsupported_reason" in spec_payload:
+        return (
+            UnsupportedCountSpec(
+                unit=str(spec_payload.get("unit")),
+                reason=str(spec_payload["unsupported_reason"]),
+            ),
+            spec_payload,
+            {},
+        )
+    parsed_spec = parse_count_spec(
+        spec_payload,
+        question=question,
+        duration_seconds=duration,
+    )
+    if not isinstance(parsed_spec, CountSpec):
+        raise ValueError(f"{video_id} fixed CountSpec unexpectedly unsupported")
+    evidence_payload = _validated_stage_payload(row_root / "evidence")
+    ledger = parse_evidence(
+        evidence_payload,
+        spec=parsed_spec,
+        requested_views=parsed_spec.candidate_views,
+    )
+    coverage_payload = _validated_stage_payload(row_root / "coverage")
+    review = parse_coverage_review(
+        coverage_payload,
+        spec=parsed_spec,
+        ledger=ledger,
+    )
+    recomputed = reduce_count(parsed_spec, ledger, review)
+    return (
+        parsed_spec,
+        {
+            "ledger": ledger,
+            "review": review,
+            "recomputed": recomputed,
+        },
+        {
+            "spec_payload": spec_payload,
+            "evidence_payload": evidence_payload,
+            "coverage_payload": coverage_payload,
+        },
+    )
+
+
+def _replay_refinement_chain(
+    *,
+    root: Path,
+    video_id: str,
+    request_row: Mapping[str, object],
+    result: Mapping[str, object],
+    stage_hashes: Mapping[str, object],
+    stage_terminals: Mapping[str, Mapping[str, object]],
+) -> None:
+    fixed_root = root / "rows" / video_id / "fixed"
+    fixed_result = load_json(fixed_root / "result.json")
+    fixed_result_hash = verify_self_hash(fixed_result, name=f"{video_id} fixed result")
+    if result.get("fixed_result_sha256") != fixed_result_hash:
+        raise ValueError(f"{video_id} refinement fixed-result provenance changed")
+    parsed_spec, chain, _payloads = _parse_fixed_chain(
+        root=root, video_id=video_id, request_row=request_row
+    )
+    if isinstance(parsed_spec, UnsupportedCountSpec):
+        if stage_hashes:
+            raise ValueError(f"{video_id} unsupported refinement has paid stages")
+        _assert_result_matches(
+            result=result,
+            recomputed=fixed_result,
+            name=f"{video_id} no-op refinement result",
+        )
+        return
+    initial_review = chain["review"]
+    request_value = initial_review.refinement_request
+    if not stage_hashes:
+        if request_value is not None:
+            raise ValueError(f"{video_id} refinement omitted a requested refinement")
+        _assert_result_matches(
+            result=result,
+            recomputed=fixed_result,
+            name=f"{video_id} no-op refinement result",
+        )
+        return
+    if set(stage_hashes) != {"refinement_evidence", "final_coverage"}:
+        raise ValueError(f"{video_id} refinement stage set is incomplete")
+    if request_value is None:
+        raise ValueError(f"{video_id} refinement ran without a requested refinement")
+    if request_value.kind == "window":
+        refinement_view = CandidateView(
+            "R0",
+            "window",
+            start_seconds=request_value.start_seconds,
+            end_seconds=request_value.end_seconds,
+        )
+    elif request_value.kind == "shot_frame":
+        original = next(
+            (
+                view
+                for view in parsed_spec.candidate_views
+                if view.view_id == request_value.view_id
+            ),
+            None,
+        )
+        if original is None or original.timestamp_seconds is None:
+            raise ValueError(f"{video_id} refinement shot frame is unbound")
+        refinement_view = CandidateView(
+            "R0", "shot_frame", timestamp_seconds=original.timestamp_seconds
+        )
+    else:
+        raise ValueError(f"{video_id} crop refinement cannot be authenticated")
+    refinement_payload = _validated_stage_payload(
+        root / "rows" / video_id / "refinement" / "refinement-evidence"
+    )
+    refinement_ledger = parse_evidence(
+        refinement_payload,
+        spec=parsed_spec,
+        requested_views=(refinement_view,),
+    )
+    merged = merge_refinement(chain["ledger"], refinement_ledger)
+    final_payload = _validated_stage_payload(
+        root / "rows" / video_id / "refinement" / "final-coverage"
+    )
+    final_review = parse_coverage_review(
+        final_payload,
+        spec=parsed_spec,
+        ledger=merged,
+        requested_views=(*parsed_spec.candidate_views, refinement_view),
+    )
+    recomputed = count_result_to_dict(reduce_count(parsed_spec, merged, final_review))
+    _assert_result_matches(
+        result=result, recomputed=recomputed, name=f"{video_id} refinement result"
+    )
+    for field, stage in (
+        ("refinement_evidence_sha256", "refinement_evidence"),
+        ("final_coverage_sha256", "final_coverage"),
+    ):
+        if result.get(field) != stage_terminals[stage].get("validated_sha256"):
+            raise ValueError(f"{video_id} refinement {field} provenance changed")
 
 
 def _verify_source_bundle(payload: Mapping[str, object], *, name: str) -> None:
@@ -288,6 +479,8 @@ def _verify_source_bundle(payload: Mapping[str, object], *, name: str) -> None:
 def authenticate_arm(*, root: Path, arm: str) -> dict[str, dict[str, Any]]:
     if arm not in {"fixed", "refinement"}:
         raise ValueError("arm must be fixed or refinement")
+    if arm == "refinement":
+        authenticate_arm(root=root, arm="fixed")
     _panel, requests = _verify_preparation(root)
     request_by_id = {str(row["video_id"]): row for row in requests["rows"]}
     arm_terminal = load_json(root / f"{arm}-arm-complete.json")
@@ -339,8 +532,14 @@ def authenticate_arm(*, root: Path, arm: str) -> dict[str, dict[str, Any]]:
             predecessor = verify_self_hash(
                 fixed_terminal, name=f"{video_id} fixed predecessor"
             )
-        if set(stage_hashes) not in (set(), set(stage_dirs)):
+        allowed_stage_sets = (
+            ({"count_spec"}, set(stage_dirs))
+            if arm == "fixed"
+            else (set(), set(stage_dirs))
+        )
+        if set(stage_hashes) not in allowed_stage_sets:
             raise ValueError(f"{video_id} {arm} has an invalid required-stage set")
+        stage_terminals: dict[str, dict[str, Any]] = {}
         for key, directory in stage_dirs.items():
             if key not in stage_hashes:
                 continue
@@ -351,6 +550,7 @@ def authenticate_arm(*, root: Path, arm: str) -> dict[str, dict[str, Any]]:
                 upload_hash=upload_hash,
                 predecessor_hash=predecessor,
             )
+            stage_terminals[key] = _stage_terminal(row_root / directory)
         result = load_json(row_root / "result.json")
         result_hash = verify_self_hash(result, name=f"{video_id} {arm} result")
         if result_hash != terminal.get(
@@ -360,6 +560,53 @@ def authenticate_arm(*, root: Path, arm: str) -> dict[str, dict[str, Any]]:
         for key in ("outcome", "value", "reasons", "selected_record_ids"):
             if result.get(key) != freeze_row.get(key):
                 raise ValueError(f"{video_id} {arm} frozen {key} changed")
+        if arm == "fixed":
+            parsed_spec, chain, payloads = _parse_fixed_chain(
+                root=root, video_id=video_id, request_row=request_row
+            )
+            if isinstance(parsed_spec, UnsupportedCountSpec):
+                if set(stage_hashes) != {"count_spec"}:
+                    raise ValueError(
+                        f"{video_id} unsupported CountSpec has extra stages"
+                    )
+                if (
+                    result.get("outcome") != "abstain"
+                    or result.get("value") is not None
+                ):
+                    raise ValueError(
+                        f"{video_id} unsupported CountSpec result is not abstention"
+                    )
+                if result.get("reasons") != [parsed_spec.reason]:
+                    raise ValueError(f"{video_id} unsupported CountSpec reason changed")
+                if result.get("count_spec_sha256") != stage_terminals["count_spec"].get(
+                    "validated_sha256"
+                ):
+                    raise ValueError(f"{video_id} unsupported CountSpec proof changed")
+            else:
+                recomputed = count_result_to_dict(chain["recomputed"])
+                _assert_result_matches(
+                    result=result,
+                    recomputed=recomputed,
+                    name=f"{video_id} fixed result",
+                )
+                for field, stage in (
+                    ("count_spec_sha256", "count_spec"),
+                    ("evidence_sha256", "evidence"),
+                    ("coverage_sha256", "coverage"),
+                ):
+                    if result.get(field) != stage_terminals[stage].get(
+                        "validated_sha256"
+                    ):
+                        raise ValueError(f"{video_id} fixed {field} provenance changed")
+        else:
+            _replay_refinement_chain(
+                root=root,
+                video_id=video_id,
+                request_row=request_row,
+                result=result,
+                stage_hashes=stage_hashes,
+                stage_terminals=stage_terminals,
+            )
         results[video_id] = result
     return results
 

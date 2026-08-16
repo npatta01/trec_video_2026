@@ -703,6 +703,7 @@ def execute_stage(
         {
             "schema_version": "bounded-multipass-provider-metadata-v1",
             "model": MODEL,
+            "model_version": str(getattr(response, "model_version", "")),
             "prompt_tokens": prompt_tokens,
             "output_tokens": output_tokens,
             "thought_tokens": thought_tokens,
@@ -718,6 +719,25 @@ def execute_stage(
             ),
         },
     )
+    if metadata["model_version"] != MODEL:
+        return write_self_hashed_once(
+            stage_root / "complete.json",
+            {
+                "schema_version": "bounded-multipass-stage-complete-v1",
+                "stage": request["stage"],
+                "outcome": "invalid_provider_model",
+                "attempted_provider_calls": 1,
+                "request_sha256": request_hash,
+                "paid_call_claim_sha256": claim["complete_sha256"],
+                "provider_metadata_sha256": metadata["complete_sha256"],
+                "error_type": "ProviderModelMismatch",
+                "error_message": (
+                    f"provider response model_version {metadata['model_version']!r} "
+                    f"does not equal expected {MODEL!r}"
+                ),
+                "observed_cost_usd": cost,
+            },
+        )
     try:
         parsed = json.loads(raw)
         if not isinstance(parsed, dict):
@@ -995,6 +1015,7 @@ def run_fixed_row(
                 "value": None,
                 "reasons": [spec_payload["unsupported_reason"]],
                 "selected_record_ids": [],
+                "count_spec_sha256": spec_terminal["validated_sha256"],
             },
         )
         return write_self_hashed_once(
@@ -1262,6 +1283,14 @@ def run_refinement_row(
         )
         refinement_fps: float | None = 12.0
         static_bindings: list[dict[str, object]] = []
+    elif request_value.kind == "crop":
+        return _incomplete_row(
+            row_root=refinement_root,
+            video_id=video_id,
+            arm="refinement",
+            reason="static_crop_refinement_not_implemented",
+            stage_hashes={},
+        )
     else:
         original = next(
             (
@@ -1382,7 +1411,12 @@ def run_refinement_row(
     def validate_final(payload: Mapping[str, object]) -> dict[str, object]:
         normalized = normalize_coverage_payload(payload)
         return coverage_review_to_dict(
-            parse_coverage_review(normalized, spec=parsed_spec, ledger=merged)
+            parse_coverage_review(
+                normalized,
+                spec=parsed_spec,
+                ledger=merged,
+                requested_views=(*parsed_spec.candidate_views, refinement_view),
+            )
         )
 
     final_terminal = execute_stage(
@@ -1407,7 +1441,10 @@ def run_refinement_row(
             stage_hashes=stage_hashes,
         )
     final_review = parse_coverage_review(
-        _validated_payload(final_root), spec=parsed_spec, ledger=merged
+        _validated_payload(final_root),
+        spec=parsed_spec,
+        ledger=merged,
+        requested_views=(*parsed_spec.candidate_views, refinement_view),
     )
     count = reduce_count(parsed_spec, merged, final_review)
     result = write_self_hashed_once(
@@ -1437,26 +1474,38 @@ def run_refinement_row(
     )
 
 
-def _load_preparation(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+def _load_preparation(root: Path) -> dict[str, Any]:
     preparation = _load_json(root / "preparation-complete.json")
     _verify_self_hash(preparation, name="preparation terminal")
-    panel = _load_json(root / "panel.freeze.json")
-    panel_hash = _verify_self_hash(panel, name="panel freeze")
     requests = _load_json(root / "requests.label-blind.json")
     requests_hash = _verify_self_hash(requests, name="requests freeze")
-    if panel_hash != preparation.get("panel_complete_sha256"):
-        raise ValueError("preparation terminal does not bind panel")
     if requests_hash != preparation.get("requests_complete_sha256"):
         raise ValueError("preparation terminal does not bind requests")
-    panel_ids = [row.get("video_id") for row in panel.get("rows", [])]
-    request_ids = [row.get("video_id") for row in requests.get("rows", [])]
-    if (
-        len(panel_ids) != 12
-        or len(set(panel_ids)) != 12
-        or set(panel_ids) != set(request_ids)
+    request_rows = requests.get("rows")
+    if not isinstance(request_rows, list):
+        raise ValueError("label-blind request rows are missing")
+    if len(request_rows) != 12:
+        raise ValueError("preparation must contain exactly twelve label-blind rows")
+    if not all(isinstance(row, Mapping) for row in request_rows):
+        raise ValueError("label-blind request row is invalid")
+    request_ids = [row.get("video_id") for row in request_rows]
+    if len(set(request_ids)) != 12 or not all(
+        isinstance(video_id, str) and video_id for video_id in request_ids
     ):
-        raise ValueError("preparation must bind exactly twelve matching row identities")
-    return panel, requests
+        raise ValueError("label-blind request identities are invalid")
+    validate_label_blind(requests)
+    smoke_id = requests.get("smoke_video_id") or preparation.get("smoke_video_id")
+    if not isinstance(smoke_id, str) or smoke_id not in set(request_ids):
+        raise ValueError("label-blind preparation must declare a valid smoke_video_id")
+    return requests
+
+
+def _declared_smoke_id(*, root: Path, requests: Mapping[str, object]) -> str:
+    preparation = _load_json(root / "preparation-complete.json")
+    smoke_id = requests.get("smoke_video_id") or preparation.get("smoke_video_id")
+    if not isinstance(smoke_id, str) or not smoke_id:
+        raise ValueError("label-blind preparation must declare a valid smoke_video_id")
+    return smoke_id
 
 
 def run_preflight(*, root: Path, client: Any) -> dict[str, object]:
@@ -1513,12 +1562,8 @@ def _row_by_id(requests: Mapping[str, object]) -> dict[str, Mapping[str, object]
 
 
 def run_smoke(*, root: Path, client: Any) -> dict[str, object]:
-    panel, requests = _load_preparation(root)
-    smoke_id = next(
-        str(row["video_id"])
-        for row in panel["rows"]
-        if row.get("stratum") == "failure_action"
-    )
+    requests = _load_preparation(root)
+    smoke_id = _declared_smoke_id(root=root, requests=requests)
     row = _row_by_id(requests)[smoke_id]
     terminal = run_fixed_row(
         client=client,
@@ -1539,7 +1584,7 @@ def run_smoke(*, root: Path, client: Any) -> dict[str, object]:
 
 
 def run_fixed_arm(*, root: Path, client: Any) -> dict[str, object]:
-    _panel, requests = _load_preparation(root)
+    requests = _load_preparation(root)
     smoke = _load_json(root / "smoke-complete.json")
     _verify_self_hash(smoke, name="smoke terminal")
     if smoke.get("structurally_valid") is not True:
@@ -1574,12 +1619,60 @@ def run_fixed_arm(*, root: Path, client: Any) -> dict[str, object]:
     )
 
 
+def _authenticate_predictions_freeze(
+    *, root: Path, arm: str, requests: Mapping[str, object]
+) -> dict[str, Any]:
+    freeze_path = root / f"{arm}-predictions-freeze.json"
+    if not freeze_path.is_file():
+        raise RuntimeError(f"{arm} predictions freeze is required before refinement")
+    freeze = _load_json(freeze_path)
+    freeze_hash = _verify_self_hash(freeze, name=f"{arm} predictions freeze")
+    if freeze.get("arm") != arm:
+        raise ValueError(f"{arm} predictions freeze has the wrong arm")
+    arm_terminal = _load_json(root / f"{arm}-arm-complete.json")
+    arm_terminal_hash = _verify_self_hash(arm_terminal, name=f"{arm} arm terminal")
+    if freeze.get("arm_complete_sha256") != arm_terminal_hash:
+        raise ValueError(f"{arm} predictions freeze does not bind arm terminal")
+    if arm_terminal.get("completed_rows") != 12:
+        raise RuntimeError(f"{arm} arm is not complete")
+    freeze_rows = freeze.get("rows")
+    request_rows = requests.get("rows")
+    if not isinstance(freeze_rows, list) or not isinstance(request_rows, list):
+        raise ValueError(f"{arm} freeze/request rows are missing")
+    request_ids = {str(row["video_id"]) for row in request_rows}
+    freeze_by_id = {str(row["video_id"]): row for row in freeze_rows}
+    if len(freeze_rows) != 12 or set(freeze_by_id) != request_ids:
+        raise ValueError(f"{arm} predictions freeze identity set differs from requests")
+    terminal_rows = arm_terminal.get("row_complete_sha256")
+    if not isinstance(terminal_rows, Mapping) or set(terminal_rows) != request_ids:
+        raise ValueError(f"{arm} arm terminal identity set differs from requests")
+    for video_id in request_ids:
+        row_root = root / "rows" / video_id / arm
+        terminal = _load_json(row_root / "complete.json")
+        terminal_hash = _verify_self_hash(terminal, name=f"{video_id} {arm} terminal")
+        if terminal_hash != terminal_rows.get(video_id):
+            raise ValueError(f"{video_id} {arm} arm binding changed")
+        if terminal.get("outcome") != "complete":
+            raise ValueError(f"{video_id} {arm} row is not complete")
+        freeze_row = freeze_by_id[video_id]
+        if freeze_row.get("row_complete_sha256") != terminal_hash:
+            raise ValueError(f"{video_id} {arm} freeze row binding changed")
+        result = _load_json(row_root / "result.json")
+        result_hash = _verify_self_hash(result, name=f"{video_id} {arm} result")
+        if result_hash != terminal.get(
+            "result_sha256"
+        ) or result_hash != freeze_row.get("result_sha256"):
+            raise ValueError(f"{video_id} {arm} freeze result binding changed")
+        for field in ("outcome", "value", "reasons", "selected_record_ids"):
+            if result.get(field) != freeze_row.get(field):
+                raise ValueError(f"{video_id} {arm} freeze {field} changed")
+    freeze["complete_sha256"] = freeze_hash
+    return freeze
+
+
 def run_refinement_arm(*, root: Path, client: Any) -> dict[str, object]:
-    _panel, requests = _load_preparation(root)
-    fixed = _load_json(root / "fixed-arm-complete.json")
-    _verify_self_hash(fixed, name="fixed arm terminal")
-    if fixed.get("completed_rows") != 12:
-        raise RuntimeError("fixed arm is not complete")
+    requests = _load_preparation(root)
+    _authenticate_predictions_freeze(root=root, arm="fixed", requests=requests)
     terminals = {}
     for video_id, row in _row_by_id(requests).items():
         terminal = run_refinement_row(
@@ -1613,7 +1706,7 @@ def run_refinement_arm(*, root: Path, client: Any) -> dict[str, object]:
 def freeze_predictions(*, root: Path, arm: str) -> dict[str, object]:
     if arm not in {"fixed", "refinement"}:
         raise ValueError("arm must be fixed or refinement")
-    _panel, requests = _load_preparation(root)
+    requests = _load_preparation(root)
     arm_terminal = _load_json(root / f"{arm}-arm-complete.json")
     arm_hash = _verify_self_hash(arm_terminal, name=f"{arm} arm terminal")
     if arm_terminal.get("completed_rows") != 12:

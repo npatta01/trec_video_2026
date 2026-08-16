@@ -146,6 +146,21 @@ def project_label_blind(
     return requests
 
 
+def predeclared_smoke_video_id(panel: Sequence[Mapping[str, object]]) -> str:
+    """Choose the first deterministic action-failure row before labels are sealed."""
+    smoke = next(
+        (
+            str(row["video_id"])
+            for row in panel
+            if row.get("stratum") == "failure_action"
+        ),
+        None,
+    )
+    if smoke is None:
+        raise ValueError("panel has no failure_action smoke row")
+    return smoke
+
+
 def _file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -318,6 +333,7 @@ def prepare_experiment(
         routing=routing,
         excluded_ids={str(value) for value in exclusions["video_ids"]},
     )
+    smoke_video_id = predeclared_smoke_video_id(panel)
     panel_freeze = write_self_hashed_once(
         output_root / "panel.freeze.json",
         {
@@ -334,6 +350,7 @@ def prepare_experiment(
         {
             "schema_version": "bounded-multipass-requests-v1",
             "panel_complete_sha256": panel_freeze["complete_sha256"],
+            "smoke_video_id": smoke_video_id,
             "rows": bind_media_from_roots(
                 panel=panel, source_root=source_root, delivery_root=delivery_root
             ),
@@ -353,6 +370,7 @@ def prepare_experiment(
             "schema_version": "bounded-multipass-preparation-complete-v1",
             "panel_complete_sha256": panel_freeze["complete_sha256"],
             "requests_complete_sha256": requests["complete_sha256"],
+            "smoke_video_id": smoke_video_id,
             "planned_rows": len(panel),
             "input_files": {
                 "census": {

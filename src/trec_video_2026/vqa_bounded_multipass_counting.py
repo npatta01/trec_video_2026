@@ -510,7 +510,11 @@ def _parse_refinement(value: object, *, spec: CountSpec) -> RefinementRequest:
 
 
 def parse_coverage_review(
-    payload: object, *, spec: CountSpec, ledger: EvidenceLedger
+    payload: object,
+    *,
+    spec: CountSpec,
+    ledger: EvidenceLedger,
+    requested_views: Sequence[CandidateView] | None = None,
 ) -> CoverageReview:
     validate_label_blind(payload)
     value = _mapping(payload, field="coverage_review")
@@ -533,7 +537,10 @@ def parse_coverage_review(
     )
     if value["schema_version"] != "bounded-multipass-coverage-v1":
         raise ValueError("unsupported coverage schema_version")
-    view_ids = frozenset(view.view_id for view in spec.candidate_views)
+    views = spec.candidate_views if requested_views is None else tuple(requested_views)
+    view_ids = frozenset(view.view_id for view in views)
+    if len(view_ids) != len(views):
+        raise ValueError("requested coverage view IDs must be unique")
     record_ids = frozenset(record.record_id for record in ledger.records)
     reviewed = _strings(
         value["reviewed_view_ids"], field="reviewed_view_ids", allow_empty=True

@@ -146,6 +146,7 @@ class FakeModels:
         payload = self.payloads.pop(0)
         return SimpleNamespace(
             text=json.dumps(payload),
+            model_version=runner.MODEL,
             usage_metadata=SimpleNamespace(
                 prompt_token_count=100,
                 candidates_token_count=50,
@@ -269,6 +270,7 @@ def test_authenticate_arm_detects_mutated_referenced_raw_response(
         {
             "schema_version": "requests-v1",
             "panel_complete_sha256": panel["complete_sha256"],
+            "smoke_video_id": "v00",
             "rows": request_rows,
         },
     )
@@ -284,8 +286,8 @@ def test_authenticate_arm_detects_mutated_referenced_raw_response(
     client = FakeClient(payloads)
     runner.run_smoke(root=root, client=client)
     runner.run_fixed_arm(root=root, client=client)
-    runner.run_refinement_arm(root=root, client=client)
     runner.freeze_predictions(root=root, arm="fixed")
+    runner.run_refinement_arm(root=root, client=client)
     runner.freeze_predictions(root=root, arm="refinement")
 
     authenticated = scorer.authenticate_arm(root=root, arm="fixed")
@@ -298,4 +300,114 @@ def test_authenticate_arm_detects_mutated_referenced_raw_response(
     raw = root / "rows/v00/fixed/count-spec/raw-response.txt"
     raw.write_text(raw.read_text() + " ")
     with pytest.raises(ValueError, match="raw response changed"):
+        scorer.authenticate_arm(root=root, arm="fixed")
+
+    # Restore the raw response, then mutate a fully rebound validated chain.
+    raw.write_text(raw.read_text()[:-1])
+
+    result_path = root / "rows/v00/fixed/result.json"
+    result_payload = json.loads(result_path.read_text())
+    result_payload["value"] = 99
+    result_path.write_text(
+        json.dumps(
+            {
+                **{
+                    key: value
+                    for key, value in result_payload.items()
+                    if key != "complete_sha256"
+                },
+                "complete_sha256": scorer.canonical_sha256(
+                    {
+                        key: value
+                        for key, value in result_payload.items()
+                        if key != "complete_sha256"
+                    }
+                ),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+    result_payload = json.loads(result_path.read_text())
+    fixed_row_terminal_path = root / "rows/v00/fixed/complete.json"
+    fixed_row_terminal = json.loads(fixed_row_terminal_path.read_text())
+    fixed_row_terminal["result_sha256"] = result_payload["complete_sha256"]
+    fixed_row_terminal_path.write_text(
+        json.dumps(
+            {
+                **{
+                    key: value
+                    for key, value in fixed_row_terminal.items()
+                    if key != "complete_sha256"
+                },
+                "complete_sha256": scorer.canonical_sha256(
+                    {
+                        key: value
+                        for key, value in fixed_row_terminal.items()
+                        if key != "complete_sha256"
+                    }
+                ),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+    fixed_row_terminal = json.loads(fixed_row_terminal_path.read_text())
+    fixed_arm_path = root / "fixed-arm-complete.json"
+    fixed_arm = json.loads(fixed_arm_path.read_text())
+    fixed_arm["row_complete_sha256"]["v00"] = fixed_row_terminal["complete_sha256"]
+    fixed_arm_path.write_text(
+        json.dumps(
+            {
+                **{
+                    key: value
+                    for key, value in fixed_arm.items()
+                    if key != "complete_sha256"
+                },
+                "complete_sha256": scorer.canonical_sha256(
+                    {
+                        key: value
+                        for key, value in fixed_arm.items()
+                        if key != "complete_sha256"
+                    }
+                ),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+    fixed_arm = json.loads(fixed_arm_path.read_text())
+    fixed_freeze_path = root / "fixed-predictions-freeze.json"
+    fixed_freeze = json.loads(fixed_freeze_path.read_text())
+    fixed_freeze["arm_complete_sha256"] = fixed_arm["complete_sha256"]
+    fixed_freeze["rows"][0]["row_complete_sha256"] = fixed_row_terminal[
+        "complete_sha256"
+    ]
+    fixed_freeze["rows"][0]["result_sha256"] = result_payload["complete_sha256"]
+    fixed_freeze["rows"][0]["value"] = 99
+    fixed_freeze_path.write_text(
+        json.dumps(
+            {
+                **{
+                    key: value
+                    for key, value in fixed_freeze.items()
+                    if key != "complete_sha256"
+                },
+                "complete_sha256": scorer.canonical_sha256(
+                    {
+                        key: value
+                        for key, value in fixed_freeze.items()
+                        if key != "complete_sha256"
+                    }
+                ),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+    with pytest.raises(ValueError, match="result value does not match replay"):
         scorer.authenticate_arm(root=root, arm="fixed")

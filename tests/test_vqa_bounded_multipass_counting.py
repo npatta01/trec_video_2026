@@ -5,6 +5,7 @@ import hashlib
 import pytest
 
 from trec_video_2026.vqa_bounded_multipass_counting import (
+    CandidateView,
     CountResult,
     UnsupportedCountSpec,
     build_count_spec_prompt,
@@ -283,6 +284,22 @@ def test_complete_review_cannot_request_refinement() -> None:
     )
     with pytest.raises(ValueError, match="complete"):
         parse_coverage_review(payload, spec=spec, ledger=ledger)
+
+
+def test_refinement_review_must_partition_the_new_r0_view() -> None:
+    spec = parse_count_spec(spec_payload(), question=QUESTION, duration_seconds=4.0)
+    ledger = parse_evidence(
+        evidence_payload(), spec=spec, requested_views=spec.candidate_views
+    )
+    refinement_view = CandidateView("R0", "window", start_seconds=2.0, end_seconds=3.5)
+    payload = review_payload()
+    with pytest.raises(ValueError, match="reviewed and missing view IDs"):
+        parse_coverage_review(
+            payload,
+            spec=spec,
+            ledger=ledger,
+            requested_views=(*spec.candidate_views, refinement_view),
+        )
 
 
 def test_coverage_review_accepts_empty_optional_notes() -> None:

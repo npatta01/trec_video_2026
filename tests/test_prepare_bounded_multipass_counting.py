@@ -131,6 +131,16 @@ def test_project_label_blind_removes_outcome_fields() -> None:
     assert set(requests[0]) == {"ordinal", "question", "video_id"}
 
 
+def test_predeclared_smoke_id_is_a_label_blind_media_identity() -> None:
+    rows = synthetic_rows()
+    panel = prepare.select_panel(rows=rows, routing=routing(rows), excluded_ids=set())
+    smoke_id = prepare.predeclared_smoke_video_id(panel)
+    assert smoke_id == panel[0]["video_id"]
+    smoke_rows = prepare.project_label_blind(panel)
+    smoke_row = next(row for row in smoke_rows if row["video_id"] == smoke_id)
+    assert set(smoke_row) == {"ordinal", "question", "video_id"}
+
+
 def test_write_freeze_is_byte_identical_or_refuses_conflict(tmp_path: Path) -> None:
     payload = {"schema_version": "fixture-v1", "rows": [{"video_id": "v1"}]}
     path = tmp_path / "freeze.json"
