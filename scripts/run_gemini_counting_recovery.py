@@ -970,13 +970,19 @@ def resume_row_after_locator_correction(**kwargs: Any) -> dict[str, object]:
 
 
 def freeze_predictions(
-    *, root: Path, manifest: Mapping[str, object]
+    *, root: Path, manifest: Mapping[str, object], row_limit: int | None = None
 ) -> dict[str, object]:
     rows_payload = manifest.get("rows")
     if not isinstance(rows_payload, list):
         raise TypeError("request manifest rows must be an array")
+    if row_limit is None:
+        selected_rows = rows_payload
+    else:
+        if not 1 <= row_limit <= len(rows_payload):
+            raise ValueError("row_limit must select at least one manifest row")
+        selected_rows = rows_payload[:row_limit]
     frozen_rows: list[dict[str, object]] = []
-    for row in rows_payload:
+    for row in selected_rows:
         if not isinstance(row, Mapping):
             raise TypeError("request row must be an object")
         video_id = str(row["video_id"])
@@ -1160,8 +1166,9 @@ def freeze_predictions(
             "request_manifest_sha256": manifest["complete_sha256"],
             "completion": {
                 "completed": len(frozen_rows),
-                "total": len(rows_payload),
+                "total": len(selected_rows),
             },
+            "manifest_row_count": len(rows_payload),
             "rows": frozen_rows,
             "total_estimated_cost_usd": sum(
                 float(row["estimated_cost_usd"]) for row in frozen_rows
@@ -1248,7 +1255,9 @@ def prepare_experiment(
     return manifest
 
 
-def run_canary(*, root: Path, pricing_path: Path) -> dict[str, object]:
+def run_canary(
+    *, root: Path, pricing_path: Path, max_rows: int = len(ORDERED_VIDEO_IDS)
+) -> dict[str, object]:
     manifest = _load_self_hashed(
         root / "requests.label-blind.json", name="recovery request manifest"
     )
@@ -1257,13 +1266,14 @@ def run_canary(*, root: Path, pricing_path: Path) -> dict[str, object]:
     rows = manifest.get("rows")
     if not isinstance(rows, list) or len(rows) != len(ORDERED_VIDEO_IDS):
         raise ValueError("recovery request manifest must contain exactly three rows")
+    if not 1 <= max_rows <= len(ORDERED_VIDEO_IDS):
+        raise ValueError("max_rows must be between one and three")
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is unavailable")
     client = genai.Client(api_key=api_key)
-    for row, video_id, limit in zip(
-        rows, ORDERED_VIDEO_IDS, CUMULATIVE_LIMITS_USD, strict=True
-    ):
+    ordered = list(zip(rows, ORDERED_VIDEO_IDS, CUMULATIVE_LIMITS_USD, strict=True))
+    for row, video_id, limit in ordered[:max_rows]:
         if not isinstance(row, Mapping) or row.get("video_id") != video_id:
             raise ValueError("recovery row ordering changed")
         row_root = root / "rows" / video_id
@@ -1284,7 +1294,7 @@ def run_canary(*, root: Path, pricing_path: Path) -> dict[str, object]:
             raise RuntimeError(
                 f"post-row proportional cost gate failed: {exposure:.6f} > {limit:.6f}"
             )
-    return freeze_predictions(root=root, manifest=manifest)
+    return freeze_predictions(root=root, manifest=manifest, row_limit=max_rows)
 
 
 def status_payload(root: Path) -> dict[str, object]:
@@ -1528,6 +1538,9 @@ def main() -> None:
     run_parser = subparsers.add_parser("run-canary")
     run_parser.add_argument("--root", required=True, type=Path)
     run_parser.add_argument("--pricing", required=True, type=Path)
+    run_parser.add_argument(
+        "--max-rows", type=int, choices=range(1, 4), default=len(ORDERED_VIDEO_IDS)
+    )
     status_parser = subparsers.add_parser("status")
     status_parser.add_argument("--root", required=True, type=Path)
     args = parser.parse_args()
@@ -1538,7 +1551,9 @@ def main() -> None:
             delivery_root=args.delivery_root,
         )
     elif args.command == "run-canary":
-        result = run_canary(root=args.root, pricing_path=args.pricing)
+        result = run_canary(
+            root=args.root, pricing_path=args.pricing, max_rows=args.max_rows
+        )
     else:
         result = status_payload(args.root)
     print(json.dumps(result, indent=2, sort_keys=True))

@@ -775,3 +775,55 @@ def test_freeze_requires_all_mandatory_stages(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="mandatory stages"):
         MODULE.freeze_predictions(root=tmp_path, manifest=manifest)
+
+
+def test_run_canary_max_rows_one_cannot_continue_to_later_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rows = [
+        {
+            "video_id": video_id,
+            "delivery_sha256": f"delivery-{video_id}",
+            "delivery_mime_type": "video/webm",
+        }
+        for video_id in MODULE.ORDERED_VIDEO_IDS
+    ]
+    manifest = MODULE._self_hashed(
+        {"schema_version": 1, "rows": rows, "condition": "fixture"}
+    )
+    pricing = MODULE._self_hashed({"schema_version": 1, **MODULE.fixture_pricing()})
+    MODULE._write_once_json(tmp_path / "requests.label-blind.json", manifest)
+    MODULE._write_once_json(tmp_path / "pricing.json", pricing)
+    attempted: list[str] = []
+    frozen_limits: list[int | None] = []
+
+    monkeypatch.setenv("GEMINI_API_KEY", "fixture")
+    monkeypatch.setattr(MODULE.genai, "Client", lambda **kwargs: object())
+    monkeypatch.setattr(
+        MODULE,
+        "ensure_upload",
+        lambda *, row, **kwargs: {
+            "file_uri": f"files/{row['video_id']}",
+            "complete_sha256": f"upload-{row['video_id']}",
+        },
+    )
+    monkeypatch.setattr(
+        MODULE,
+        "run_row",
+        lambda *, row, **kwargs: attempted.append(str(row["video_id"])),
+    )
+    monkeypatch.setattr(MODULE, "budget_exposure", lambda root: 0.0)
+
+    def freeze(*, row_limit=None, **kwargs):
+        frozen_limits.append(row_limit)
+        return {"completion": {"completed": row_limit, "total": row_limit}}
+
+    monkeypatch.setattr(MODULE, "freeze_predictions", freeze)
+
+    result = MODULE.run_canary(
+        root=tmp_path, pricing_path=tmp_path / "pricing.json", max_rows=1
+    )
+
+    assert attempted == [MODULE.ORDERED_VIDEO_IDS[0]]
+    assert frozen_limits == [1]
+    assert result["completion"] == {"completed": 1, "total": 1}
