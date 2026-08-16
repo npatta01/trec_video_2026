@@ -430,6 +430,7 @@ def prepare_request_manifest(
     source_rows: Sequence[Mapping[str, object]],
     ordered_video_ids: tuple[str, ...],
     delivery_root: Path,
+    condition: str = "gemini-native-counting-recovery-v1",
 ) -> dict[str, object]:
     by_id = {str(row.get("video_id")): row for row in source_rows}
     if len(by_id) != len(source_rows):
@@ -460,7 +461,7 @@ def prepare_request_manifest(
     payload = _self_hashed(
         {
             "schema_version": 1,
-            "condition": "gemini-native-counting-recovery-v1",
+            "condition": condition,
             "model": MODEL,
             "ordered_video_ids": list(ordered_video_ids),
             "rows": rows,
@@ -1161,7 +1162,7 @@ def freeze_predictions(
     freeze = _self_hashed(
         {
             "schema_version": 1,
-            "condition": "gemini-native-counting-recovery-v1",
+            "condition": manifest["condition"],
             "model": MODEL,
             "request_manifest_sha256": manifest["complete_sha256"],
             "completion": {
@@ -1225,7 +1226,11 @@ def apply_locator_alias_correction(
 
 
 def prepare_experiment(
-    *, root: Path, source_manifest_path: Path, delivery_root: Path
+    *,
+    root: Path,
+    source_manifest_path: Path,
+    delivery_root: Path,
+    condition: str = "gemini-native-counting-recovery-v1",
 ) -> dict[str, object]:
     source_manifest = _load_self_hashed(
         source_manifest_path, name="source counting request manifest"
@@ -1239,6 +1244,7 @@ def prepare_experiment(
         source_rows=source_rows,
         ordered_video_ids=ORDERED_VIDEO_IDS,
         delivery_root=delivery_root,
+        condition=condition,
     )
     provenance = _self_hashed(
         {
@@ -1535,6 +1541,9 @@ def main() -> None:
     prepare_parser.add_argument("--root", required=True, type=Path)
     prepare_parser.add_argument("--source-manifest", required=True, type=Path)
     prepare_parser.add_argument("--delivery-root", required=True, type=Path)
+    prepare_parser.add_argument(
+        "--condition", default="gemini-native-counting-recovery-v1"
+    )
     run_parser = subparsers.add_parser("run-canary")
     run_parser.add_argument("--root", required=True, type=Path)
     run_parser.add_argument("--pricing", required=True, type=Path)
@@ -1549,6 +1558,7 @@ def main() -> None:
             root=args.root,
             source_manifest_path=args.source_manifest,
             delivery_root=args.delivery_root,
+            condition=args.condition,
         )
     elif args.command == "run-canary":
         result = run_canary(

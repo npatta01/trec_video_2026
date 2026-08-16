@@ -63,7 +63,13 @@ def build_fixture(
         }
         for video_id, _, _, _ in rows
     ]
-    manifest = self_hashed({"schema_version": 1, "rows": manifest_rows})
+    manifest = self_hashed(
+        {
+            "schema_version": 1,
+            "condition": "gemini-native-counting-recovery-v1",
+            "rows": manifest_rows,
+        }
+    )
     manifest_sha256 = manifest["complete_sha256"]
     panel_rows = []
     freeze_rows = []

@@ -135,8 +135,10 @@ def test_prepare_manifest_projects_only_label_blind_fields(tmp_path: Path) -> No
         source_rows=rows,
         ordered_video_ids=("v1",),
         delivery_root=tmp_path / "deliveries",
+        condition="gemini-native-counting-recovery-hardened-v2",
     )
 
+    assert manifest["condition"] == "gemini-native-counting-recovery-hardened-v2"
     assert manifest["rows"] == [
         {
             "video_id": "v1",
@@ -708,6 +710,7 @@ def test_run_row_executes_distinct_three_passes_and_freezes_exact_result(
     }
     manifest = {
         "schema_version": 1,
+        "condition": "gemini-native-counting-recovery-v1",
         "rows": [row],
         "complete_sha256": "manifest-sha",
     }

@@ -459,7 +459,7 @@ def build_score(
     baseline_semantic_metrics = _metric_mean(list(baseline_rows.values()))
     score = {
         "schema_version": 1,
-        "condition": "gemini-native-counting-recovery-v1",
+        "condition": manifest["condition"],
         "completion": {"completed": len(rows), "total": 3},
         "rescue": {
             "rescued": rescued,
