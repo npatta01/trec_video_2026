@@ -1,0 +1,51 @@
+{
+  "schema_version": "qwen-aligned-english-metric-audit.v1",
+  "experiment_id": "qwen-aligner-stage05f-20260816-aligned-english-12-v1",
+  "audit_status": "complete_read_only",
+  "audit_date": "2026-08-16",
+  "frozen_result_preserved": true,
+  "reproduction": {
+    "source_and_hash_bindings_reproduced": true,
+    "stored_row_booleans_reproduced": true,
+    "qwen_nonempty_outputs": 12,
+    "required_rows": 12
+  },
+  "quality_gates": {
+    "qwen_accepted": 8,
+    "qwen_rejected": 4,
+    "whisper_accepted": 10,
+    "whisper_rejected": 2,
+    "raw_whisper_exact_hits": 1,
+    "frozen_quality_gated_whisper_exact_hits": 0,
+    "raw_whisper_hit_excluded_by_timestamp_gate": true
+  },
+  "construct_audit": {
+    "direct_literal_phrase_or_name_tasks": 1,
+    "semantic_conversation_tasks": 1,
+    "tasks_not_supporting_exact_transcript_containment": 10,
+    "finding": "The question-keyword selector did not create a valid panel for measuring ASR quality with exact official-answer-phrase containment."
+  },
+  "posthoc_nonpromotional_diagnostics": {
+    "metric": "mean_unordered_official_answer_token_recall",
+    "qwen": 0.035,
+    "whisper": 0.212,
+    "interpretation": "Descriptive only; official VQA answers are not transcript references and this audit cannot rank the ASR systems."
+  },
+  "corrected_interpretation": {
+    "operational_evidence": "valid",
+    "asr_quality_evidence": "construct_invalid",
+    "decision": "Do not scale or rerun the same selector and containment metric. Preserve the original 0/12 versus 0/12 score as historical frozen output."
+  },
+  "immutable_source_hashes": {
+    "inputs_freeze_sha256": "797812494b4f139fd4f57a3ed271de163e92b934745f1977bfd6d59489623475",
+    "predictions_freeze_sha256": "0851bb9e0e26e22f69e80548b6f0857e033183c8a149fafc9cad062fea3a8c1e",
+    "postfreeze_score_sha256": "5dfad614628ce57e236793067dfa3a9f2e529bfcd1998304ba29901cffab1a94"
+  },
+  "privacy": {
+    "contains_row_ids": false,
+    "contains_questions": false,
+    "contains_answers": false,
+    "contains_transcripts": false,
+    "contains_row_level_scores": false
+  }
+}

@@ -57,6 +57,11 @@ and at least one interval in `9/10`. The matched test therefore had
 limited selection headroom and does not by itself isolate downstream
 evidence use as the failure mechanism.
 
+A separate same-media two-video native-AV smoke confirms that stable
+Gemini 3.7 Flash can complete the tested direct-answer path, but it does
+not show a quality advantage over Gemini 3.1 Pro: both were semantically
+correct on both rows in an unblinded post-hoc check.
+
 <div class="theme-decision-strip"
 aria-label="Visual-evidence decisions">
 
@@ -89,6 +94,9 @@ aria-label="Visual-evidence decisions">
   the exact dense-burst implementation is absent.
 - **Condition boundary:** none of these results rejects smarter visual
   sampling or retrieval as a research branch.
+- **Frontier-model smoke:** Gemini 3.7 Flash and the 3.1 Pro control
+  both completed `2/2` native-AV rows; the diagnostic found no quality
+  separation.
 
 ## What has been tried
 
@@ -99,6 +107,39 @@ completed 474/475 maps and 462/475 selector answers, but was **Not
 promoted under the tested condition**: the failed rows had
 answer-relevant evidence, which shifts the next test toward multi-scene
 context and downstream answer use rather than another one-shot selector.
+
+### Gemini 3.7 Flash two-video native-AV smoke
+
+- **Reason for testing:** quickly rule out the idea that the new stable
+  Flash model is an obvious native-AV upgrade over the pinned Gemini 3.1
+  Pro path.
+- **Tested condition and panel:** the same two frozen WebM deliveries
+  and direct-answer prompt, four FPS and high media resolution, one
+  two-request Batch job per arm.
+- **Observed result:** both arms returned `2/2` non-empty answers, used
+  `42,842` prompt tokens inside the custom-FPS band, and were
+  semantically correct on both rows in an unblinded post-hoc check.
+  Exact match was `0/2` for both. Flash won one token-F1 comparison and
+  lost one; mean token F1 was `0.2496` Flash versus `0.4365` control.
+  Observed total cost was `$0.067445`.
+- **Current condition-bound status:** **Diagnostic capability observed;
+  no quality separation.** The immutable strict freeze remains
+  `not_ready` because response aliases did not equal separate catalog
+  version strings.
+- **What this rules out now:** treating Gemini 3.7 Flash as an obvious
+  upgrade on the strength of model recency alone, or scaling this
+  two-row result.
+- **What it does not rule out:** a Flash advantage on a larger or
+  targeted panel, latency/cost advantages, or differences on temporal,
+  speech, and fine-counting strata.
+- **Possible defect, audit gap, or uncertainty:** two rows,
+  verbosity-sensitive lexical metrics, and a post-hoc unblinded semantic
+  check.
+- **Reconsider when:** a targeted panel is justified by a specific
+  unresolved hypothesis rather than a broad model-ranking question.
+
+The sanitized, hash-bound aggregate is
+[`summary.json`](../../docs/experiments/artifacts/gemini37-flash-two-video-smoke-20260816/summary.json).
 
 <a name="frozen-30-protocol-v2"></a>
 

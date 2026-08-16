@@ -14,7 +14,8 @@ Historical Stage 0.5d disposition: **Not ready for comparison**
 Stage 0.5e mechanism disposition: **Ready for a fresh aligned-English
 quality panel**
 
-Stage 0.5f quality disposition: **Not promoted under the tested condition**
+Stage 0.5f quality disposition: **Construct-invalid for ASR quality; not
+promoted**
 
 ## Plain-English result
 
@@ -32,9 +33,12 @@ speech rows. It passed the operational gate with `12/12` completed and
 `12/12` valid aligned outputs, so the frozen quality inputs were opened. The
 predeclared exact official-answer-phrase metric was `0/12` for Qwen and
 `0/12` for Whisper, with all 12 rows in the paired neither-present cell.
-The forced-English condition completed without the observed empty-output
-problem on this panel, but it produced no directional quality signal and does
-not advance Qwen.
+The calculation and frozen row booleans reproduce, but a private read-only
+audit found that the panel did not measure what the metric assumed: only one
+row directly requested a recoverable literal phrase or name, while ten rows
+did not support exact transcript containment. The forced-English condition
+therefore supplies valid `12/12` operational evidence, but the `0`/`0` result
+is construct-invalid for comparing ASR quality and does not advance Qwen.
 
 ## Frozen condition
 
@@ -244,30 +248,50 @@ test; a tie or lower count would stop this Qwen quality route.
 
 ### Interpretation, validity, and decision
 
-- **Evidence validity:** **Valid but negative.** The sole attempt and all-row
-  gate completed, and scoring occurred only after the verified prediction
-  freeze.
+- **Evidence validity:** **Operationally valid; construct-invalid for ASR
+  quality.** The sole attempt and all-row gate completed, and scoring occurred
+  only after the verified prediction freeze. The stored booleans and `0`/`0`
+  aggregate reproduce; the defect is the relationship between the selected
+  tasks and the metric, not the calculation.
 - **Decision disposition:** **Not promoted under the tested condition.**
   The forced-English condition completed this fresh panel without an
-  empty-output failure, but Qwen did not exceed Whisper on the predeclared
-  containment metric.
+  empty-output failure. The containment score cannot support a Qwen-versus-
+  Whisper quality comparison because the keyword selector admitted mostly
+  non-literal tasks.
 - **What this rules out now:** the need for another same-condition completion
-  diagnostic, and a claim that this exact test supplies a Qwen quality
-  advantage.
+  diagnostic, a claim that this exact test supplies a Qwen quality advantage,
+  and scaling the same selector/metric combination.
 - **What it does not establish:** WER, transcript fidelity, timestamp accuracy,
   general English robustness, Whisper replacement value, downstream VQA
   improvement, or model ranking. A `0`/`0` containment tie is
   non-discriminating and does not imply that both transcripts were equally
   accurate or equally inaccurate.
-- **Uncertainty:** official VQA answers are not transcript references. Exact
-  answer-phrase containment can be useful for a decision-bound retrieval
-  signal, but all-neither output supplies no transcript-fidelity measurement.
+- **Confirmed construct defect:** official VQA answers are not transcript
+  references. The selector's speech-related question keywords did not ensure
+  that the requested answer was a literal spoken phrase. Exact answer-phrase
+  containment therefore did not measure transcript fidelity on this panel.
 - **Reconsider when:** a separately designed experiment has independently
   grounded transcript references or a frozen downstream VQA decision rule.
   Do not scale or rerun this same containment comparison.
 - **Supersession:** this result completes the action authorized by Stage 0.5e;
   it does not supersede the valid Stage 0.5d incomplete-output observation or
   the Stage 0.5e mechanism result.
+
+### Post-hoc metric audit
+
+The read-only audit re-hashed the frozen sources and independently reproduced
+every stored containment boolean. All 12 Qwen outputs were non-empty. The
+quality gates accepted `8/12` Qwen and `10/12` Whisper outputs. Raw Whisper had
+one exact phrase hit, but that row failed the frozen timestamp-quality gate,
+so the predeclared gated count correctly remained `0/12`.
+
+Private task-type inspection found one direct literal-phrase/name request, one
+semantic conversation request, and ten tasks that did not support exact
+transcript containment. As a descriptive post-hoc check, mean unordered
+official-answer token recall was `0.035` for Qwen and `0.212` for Whisper.
+That check is non-promotional because official VQA answers are still not
+transcript references. No row identities, questions, answers, transcripts, or
+row-level scores are published.
 
 ### Evidence and immutable bindings
 
@@ -283,32 +307,32 @@ test; a tie or lower count would stop this Qwen quality route.
   `0851bb9e0e26e22f69e80548b6f0857e033183c8a149fafc9cad062fea3a8c1e`
 - Post-freeze-score SHA-256:
   `5dfad614628ce57e236793067dfa3a9f2e529bfcd1998304ba29901cffab1a94`
+- Sanitized post-hoc audit:
+  [`aligned-english-metric-audit.json`](artifacts/qwen-aligner-quality-20260816/aligned-english-metric-audit.json)
 
-## Separate proposed Gemini 3.7 Flash native-AV smoke
+## Separate completed Gemini 3.7 Flash native-AV smoke
 
-No Gemini call was issued by this diagnostic. Google documents stable
-`gemini-3.7-flash` as a native-multimodal model with text, image, video, audio,
-and PDF inputs, text output, structured outputs, a 1,048,576-token input limit,
-and a 65,536-token output limit in the [official model
-page](https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash). The
-[official changelog](https://ai.google.dev/gemini-api/docs/changelog) records
-GA release on 2026-08-13. The [official pricing
-page](https://ai.google.dev/gemini-api/docs/pricing) lists introductory
-standard paid pricing through 2026-12-31 of `$0.75/M` input and `$3.75/M`
-output and Batch/Flex pricing of `$0.375/M` input and `$1.875/M` output.
+Google documents stable `gemini-3.7-flash` as a native-multimodal model and
+records its 2026-08-13 GA release on the [official model
+page](https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash) and
+[changelog](https://ai.google.dev/gemini-api/docs/changelog). A separate
+same-media two-video Batch smoke is now complete against
+`gemini-3.1-pro-preview`. Both arms received the same WebM bytes and direct
+answer prompt at four FPS; the 3.7 arm omitted the sampling controls deprecated
+for Gemini 3.6 and later.
 
-This is a separate proposed compatibility smoke, not an arm of the Qwen
-mechanism test and not a superiority claim. If authorized, compare it against
-the pinned Gemini 3.1 Pro native-AV condition with the same media bytes and
-media resolution, API route and request surface, timestamp and FPS settings,
-structured-output schema, post-freeze evaluation, and declared panel. The
-[video-understanding guide](https://ai.google.dev/gemini-api/docs/video-understanding)
-documents timestamp prompts and default FPS behavior. Google's [latest-model
-migration guidance](https://ai.google.dev/gemini-api/docs/latest-model) says
-sampling controls including `temperature`, `top_p`, and `top_k` are deprecated
-for Gemini 3.6 and later, so the existing 3.1 Pro request cannot be copied
-unchanged. The smallest valid next action is therefore a separate two-video
-same-media Batch compatibility smoke, direct-answer first, with the 3.7 arm
-omitting deprecated sampling controls. The current repository harness is
-hard-pinned to Gemini 3.1 Pro and exactly 475 rows, so that smoke requires a
-new model/panel surface before any paid call. No Gemini call was issued here.
+Both models returned two non-empty answers, both arms had `42,842` prompt
+tokens inside the frozen custom-FPS band, and observed total cost was
+`$0.067445`. The immutable strict freeze is `not_ready` solely because Batch
+responses returned each exact requested model alias rather than the catalog's
+separate dated version string. That freeze remains unchanged. A bounded
+no-new-inference diagnostic found both models semantically correct on both
+rows in an unblinded manual check. Exact match was `0/2` for both; 3.7 Flash
+won one token-F1 comparison and lost one, with mean token F1 `0.2496` versus
+`0.4365` for 3.1 Pro. The candidate answers were more verbose, so this lexical
+gap is not a semantic failure.
+
+The smoke confirms that stable Gemini 3.7 Flash can complete this native-AV
+path. It provides no evidence that Flash is better than the 3.1 Pro control
+and does not trigger a larger run. The sanitized aggregate is
+[`summary.json`](artifacts/gemini37-flash-two-video-smoke-20260816/summary.json).

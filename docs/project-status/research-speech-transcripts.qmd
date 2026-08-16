@@ -52,9 +52,9 @@ transcriber/reviewer records exist.
 - **Do not default:** transcripts on every question or mechanical acceptance as proof of fidelity.
 - **Still possible:** alternative ASR, grounded spans, dataset-reference controls, and a valid human upper bound.
 - **Next tests:** the distribution-level selective-Whisper route with
-  deterministic fallback and an independently frozen comparison; separately,
-  a two-video Gemini 3.7 Flash native-AV compatibility smoke only after its
-  model/panel controls are implemented and authorized.
+  deterministic fallback and an independently frozen comparison. Do not scale
+  the completed two-video Gemini 3.7 smoke; revisit Gemini only for a targeted
+  unresolved temporal or speech hypothesis with a matched control.
 :::
 
 ## Evidence at a glance
@@ -69,8 +69,10 @@ transcriber/reviewer records exist.
   with forced English; its authorized fresh-panel action is now complete.
 - **Fresh Qwen aligned-English result:** forced English completed and aligned
   `12/12` new rows, but exact official-answer-phrase containment was `0/12`
-  for both Qwen and frozen Whisper. The result is valid but non-discriminating,
-  with Qwen not promoted under the tested condition.
+  for both Qwen and frozen Whisper. The frozen calculation reproduces, but a
+  post-hoc audit found the panel construct-invalid for ASR quality: only one
+  task directly requested a recoverable literal phrase or name, while ten did
+  not support exact transcript containment. Qwen is not promoted.
 - **Failure mechanisms:** text can miss non-lexical events or contain the right
   token without changing the answer.
 - **Blocked:** a human-transcript upper bound lacks independent producer and
@@ -252,20 +254,24 @@ unchanged.
   normalized official-answer-phrase containment scored Qwen `0/12` and frozen
   Whisper `0/12`: both present `0`, Qwen only `0`, Whisper only `0`, and
   neither present `12`.
-- **Current condition-bound status:** **Not promoted under the tested
-  condition.** Operational status is `ready_for_quality_test`; the predeclared
-  quality decision is `no_directional_difference`.
+- **Current condition-bound status:** **Operationally complete;
+  construct-invalid for ASR quality; not promoted.** The historical frozen
+  fields remain `ready_for_quality_test` and `no_directional_difference`, but
+  the post-hoc validity audit supersedes that quality interpretation without
+  changing the score.
 - **What this rules out now:** another same-condition completion diagnostic,
-  and promotion from this exact phrase-containment comparison. Forced English
-  completed this fresh panel without an empty-output failure but supplied no
-  directional quality signal.
+  promotion from this exact phrase-containment comparison, and scaling the
+  same selector/metric combination. Forced English completed this fresh panel
+  without an empty-output failure.
 - **What it does not establish:** WER, transcript fidelity, timestamp accuracy,
   general English robustness, Whisper replacement, downstream VQA value, or a
   model ranking. The all-neither tie does not imply equal transcript quality.
-- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—official VQA
-  answers are not transcript references, and this predeclared metric was
-  non-discriminating on all 12 rows. The evidence is valid for its bounded
-  decision but supplies no transcript-fidelity measurement.
+- **Possible defect, audit gap, or uncertainty:** **Confirmed construct
+  defect**—official VQA answers are not transcript references, and the
+  question-keyword selector did not ensure literal spoken-answer tasks. A
+  private read-only audit classified one direct literal-phrase/name request,
+  one semantic conversation request, and ten tasks that did not support exact
+  transcript containment.
 - **Reconsider when:** a separately designed test has independently grounded
   transcript references or a frozen downstream VQA decision rule. Do not
   scale or rerun this same containment comparison.
@@ -287,9 +293,13 @@ The run used controller revision
 summed `102.241` row-inference seconds, and recorded maximum allocated memory
 of `6,162,299,392` bytes. Predictions froze before the scorer opened canonical
 annotations and checksum-bound frozen Whisper. Row identities, questions,
-answers, transcripts, and row-level scores remain private. Evidence validity
-is **Valid but negative**; the decision rule was predeclared; and the
-disposition is **Not promoted under the tested condition**. This result
+answers, transcripts, and row-level scores remain private. A later read-only
+audit reproduced every source binding and stored boolean. All 12 Qwen outputs
+were non-empty; the quality gates accepted `8/12` Qwen and `10/12` Whisper
+outputs; and raw Whisper had one exact hit that the frozen timestamp gate
+excluded. Mean unordered official-answer token recall was `0.035` Qwen and
+`0.212` Whisper, post-hoc and non-promotional. Evidence validity is therefore
+**operationally valid but construct-invalid for ASR quality**. This result
 completes the action authorized by Stage 0.5e without superseding the Stage
 0.5d incomplete-output observation or Stage 0.5e mechanism result.
 
@@ -297,36 +307,26 @@ The private root is
 `data/vqa/benchmarks/model-verifier-canaries-20260814/stage05f-qwen-aligned-english-quality-v1/`.
 The sanitized, hash-bound aggregate is
 [`aligned-english-summary.json`](../../docs/experiments/artifacts/qwen-aligner-quality-20260816/aligned-english-summary.json).
+The sanitized correction is
+[`aligned-english-metric-audit.json`](../../docs/experiments/artifacts/qwen-aligner-quality-20260816/aligned-english-metric-audit.json).
 </details>
 
-### Proposed Gemini 3.7 Flash native-AV compatibility smoke {#gemini-37-flash-native-av-smoke}
+### Completed Gemini 3.7 Flash native-AV compatibility smoke {#gemini-37-flash-native-av-smoke}
 
-This is a separate proposal, not an arm of the Qwen diagnostic. No Gemini API
-call has been issued and no superiority claim is supported. The [official
-model page](https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash)
-lists stable `gemini-3.7-flash` as natively multimodal with text, image, video,
-audio, and PDF inputs, text output, structured outputs, a 1,048,576-token
-input limit, and a 65,536-token output limit. The [official
-changelog](https://ai.google.dev/gemini-api/docs/changelog) records GA release
-on 2026-08-13. The [official pricing
-page](https://ai.google.dev/gemini-api/docs/pricing) lists standard paid
-pricing of `$0.75/M` input and `$3.75/M` output through 2026-12-31, then
-`$1.50/M` and `$7.50/M`; Batch/Flex is currently `$0.375/M` input and
-`$1.875/M` output.
+This is a separate two-video diagnostic, not an arm of the Qwen experiment.
+Stable `gemini-3.7-flash` and `gemini-3.1-pro-preview` received the same WebM
+bytes and direct-answer prompt at four FPS. Both returned `2/2` non-empty
+answers and both arms had `42,842` prompt tokens inside the frozen custom-FPS
+band; observed cost was `$0.067445`.
 
-If separately authorized, compare this model with the pinned Gemini 3.1 Pro
-native-AV condition while holding media bytes and media resolution, API route
-and request surface, timestamp/FPS behavior, structured-output schema, panel,
-and post-freeze evaluation fixed. The [video-understanding
-guide](https://ai.google.dev/gemini-api/docs/video-understanding) documents
-timestamp prompts and sampling behavior. The [latest-model migration
-guidance](https://ai.google.dev/gemini-api/docs/latest-model) says
-`temperature`, `top_p`, and `top_k` are deprecated for Gemini 3.6 and later,
-so the current 3.1 Pro request cannot be copied unchanged. The current Batch
-harness is also hard-pinned to Gemini 3.1 Pro and exactly 475 rows. The
-smallest valid next step is therefore a separate two-video same-media Batch
-compatibility smoke, direct-answer first, with deprecated sampling controls
-omitted from the 3.7 arm. No Gemini call was issued here.
+The immutable strict freeze is `not_ready` only because Batch reported the
+exact requested model aliases instead of the catalog's separate dated version
+strings. A bounded no-new-inference diagnostic preserved that decision and
+found both arms semantically correct on both rows in an unblinded manual
+check. Exact match was `0/2` for both; Flash won one token-F1 comparison and
+lost one, averaging `0.2496` versus `0.4365` for 3.1 Pro. Flash was more
+verbose, and the two-row result supplies no quality separation or scale-up
+signal. See the [sanitized aggregate](../../docs/experiments/artifacts/gemini37-flash-two-video-smoke-20260816/summary.json).
 
 ### Matched full-panel frame/audio audit {#matched-full-panel-frame-audio-audit}
 
@@ -525,8 +525,10 @@ cite.
   and `2` failures and neither restored all four rows; this was valid bounded
   mechanism evidence, not a quality result.
 - On the subsequent fresh 12-row panel, forced English produced `12/12` valid
-  aligned outputs without an empty-output failure. Qwen and Whisper both had
-  `0/12` complete official-answer-phrase hits, so Qwen was not promoted.
+  aligned outputs without an empty-output failure. The preserved `0/12`
+  versus `0/12` phrase result is construct-invalid for ASR quality because the
+  selector admitted mostly tasks without a literal spoken answer; Qwen was
+  not promoted.
 - Fluent or mechanically accepted translation is not by itself faithful audio
   evidence; the Seamless diagnostic shows this distinction.
 - Dataset recording-prompt references can be a separately labeled control, not
@@ -545,8 +547,9 @@ cite.
 - The four-row Qwen mechanism diagnostic does not establish a general model
   defect, transcript quality, downstream VQA value, or a Whisper comparison.
 - The fresh Qwen `0`/`0` containment tie does not establish equal transcript
-  fidelity, WER, timestamp accuracy, or downstream VQA value; official VQA
-  answers are not transcript references.
+  fidelity, WER, timestamp accuracy, or downstream VQA value; its post-hoc
+  audit confirms that official VQA answers and the selected tasks did not form
+  a valid transcript-quality reference panel.
 
 <span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span>
 
@@ -558,6 +561,10 @@ cite.
   detector, an accuracy measure, or a human transcript review.
 - **Audit gap:** no human source-language transcript or faithful translation
   reference is available for the completed multilingual route.
+- **Confirmed construct defect:** the fresh Qwen aligned-English selector used
+  speech-related question keywords, but ten of 12 selected tasks did not
+  support exact transcript containment. Preserve the operational result and
+  frozen score; do not reuse this selector/metric as an ASR quality test.
 - **Blocked prerequisite:** the strict human tier lacks independent
   transcriber/reviewer provenance records; other text tiers must not fill that
   gap by renaming.

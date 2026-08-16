@@ -360,7 +360,7 @@
   snapshots. When both are terminal, run `freeze` once. If either is failed or
   incomplete, preserve `not_ready` and stop before score inputs.
 
-- [ ] **Step 7: Run the bounded post-hoc alias diagnostic**
+- [x] **Step 7: Run the bounded post-hoc alias diagnostic**
 
   Preserve the strict `not_ready` freeze. Verify privately that all four
   responses are present, custom FPS passed, every failure is only the exact
@@ -393,7 +393,7 @@
 - Preserves original Qwen score while correcting its evidence-validity interpretation.
 - Publishes only sanitized Gemini/Qwen aggregates and immutable hashes.
 
-- [ ] **Step 1: Freeze the sanitized Qwen metric audit**
+- [x] **Step 1: Freeze the sanitized Qwen metric audit**
 
   Record only these aggregate facts from the private read-only audit:
 
@@ -409,7 +409,7 @@
 
   Exclude identities, questions, answers, transcripts, and row-level scores.
 
-- [ ] **Step 2: Correct the owning Qwen claim without rewriting history**
+- [x] **Step 2: Correct the owning Qwen claim without rewriting history**
 
   Keep the original frozen `0/12` versus `0/12` score. Change the quality
   evidence state from valid-negative/non-directional to
@@ -417,21 +417,21 @@
   completion observation. State that the selector's keyword heuristic admitted
   ten non-literal tasks and that scaling the same metric is prohibited.
 
-- [ ] **Step 3: Create the sanitized Gemini aggregate**
+- [x] **Step 3: Create the sanitized Gemini aggregate**
 
   Record two-arm completion, returned model provenance, custom-FPS decision,
   aggregate prompt/output tokens, observed cost estimate, paired exact/token-F1
   counts, decision, protocol/prediction/score hashes, and limitations. Exclude
   every private row field and provider URI/name.
 
-- [ ] **Step 4: Update the primary theme and regenerate outputs**
+- [x] **Step 4: Update the primary theme and regenerate outputs**
 
   Follow `docs/project-status/adding-experiments.qmd`: one canonical Gemini
   claim under Visual and Temporal Evidence, a cross-link from Speech and
   Transcript Evidence, and no duplicated full result. Render Markdown/HTML only
   through Quarto.
 
-- [ ] **Step 5: Verify, independently review, and commit**
+- [x] **Step 5: Verify, independently review, and commit**
 
   Run new and affected tests, Ruff, JSON parsing, tracked checksums, private-ID
   and credential scans, relative-link checks from every generated output,

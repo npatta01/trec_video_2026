@@ -45,7 +45,7 @@ recorded below.
 - Private root:
   `data/vqa/benchmarks/model-verifier-canaries-20260814/stage05f-qwen-aligned-english-quality-v1/`
 - Experiment ID: `qwen-aligner-stage05f-20260816-aligned-english-12-v1`
-- Evidence validity: **Valid but negative**
+- Evidence validity: **Operationally valid; construct-invalid for ASR quality**
 - Decision disposition: **Not promoted under the tested condition**
 - Operational gate: `12/12` completed and `12/12` valid aligned rows
 - Quality result: Qwen `0/12`, frozen Whisper `0/12`, with all `12` rows in
@@ -56,12 +56,23 @@ recorded below.
 The sole attempt completed with exit code `0`. The `12/12` prediction freeze
 was verified before annotations or frozen Whisper text were opened. The
 forced-English condition completed this fresh panel without an empty-output
-failure, but the predeclared exact official-answer-phrase containment metric
-was non-discriminating: neither system produced one complete official answer
-phrase. This result does not promote Qwen, measure WER or timestamp accuracy,
-or establish transcript fidelity or downstream VQA value. See
-[`aligned-english-summary.json`](aligned-english-summary.json) for the
-sanitized, hash-bound aggregate record.
+failure. A later private read-only audit reproduced all source bindings and
+stored booleans, but found that only one task directly requested a recoverable
+literal phrase or name and ten tasks did not support exact transcript
+containment. The `0`/`0` score is therefore preserved as frozen history but is
+construct-invalid for comparing ASR quality. It does not promote Qwen, measure
+WER or timestamp accuracy, or establish transcript fidelity or downstream VQA
+value. See [`aligned-english-summary.json`](aligned-english-summary.json) for
+the original sanitized aggregate and
+[`aligned-english-metric-audit.json`](aligned-english-metric-audit.json) for
+the aggregate correction.
+
+The post-hoc audit also records, without row-level material, that all 12 Qwen
+outputs were non-empty; the quality gates accepted `8/12` Qwen and `10/12`
+Whisper outputs; raw Whisper had one exact hit that the frozen timestamp gate
+excluded; and mean unordered official-answer token recall was `0.035` Qwen
+and `0.212` Whisper. The token-recall check is descriptive and
+non-promotional because official VQA answers are not transcript references.
 
 ## Post-run protocol correction
 
