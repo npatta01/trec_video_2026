@@ -133,6 +133,8 @@ def test_all_v22_raws_replay_with_zero_calls_and_expected_correction_count(tmp_p
         "corrected_contract_error": 0,
         "corrected_acceptance_changes": 8,
     }
+    freeze = json.loads((output_root / "correction-freeze.json").read_text())
+    assert freeze["correction_version"] == "run-v22-correction-v2"
     correction.verify_correction(SOURCE_ROOT, output_root)
 
 
@@ -162,6 +164,92 @@ def test_corrected_output_drift_is_rejected_by_independent_verifier(tmp_path: Pa
     parsed.write_text(parsed.read_text() + "\n", encoding="utf-8")
     with pytest.raises(ValueError, match="parsed|correction"):
         correction.verify_correction(SOURCE_ROOT, output_root)
+
+
+def test_parsed_root_rejects_extra_regular_file(tmp_path: Path) -> None:
+    output_root = tmp_path / "correction"
+    correction.correct_run(SOURCE_ROOT, output_root)
+    (output_root / "parsed" / "unexpected.txt").write_text("unexpected\n")
+    with pytest.raises(ValueError, match="parsed root|extra"):
+        correction.verify_correction(SOURCE_ROOT, output_root)
+
+
+def test_parsed_root_rejects_extra_symlink(tmp_path: Path) -> None:
+    output_root = tmp_path / "correction"
+    correction.correct_run(SOURCE_ROOT, output_root)
+    target = next((output_root / "parsed").iterdir())
+    (output_root / "parsed" / "unexpected-link").symlink_to(target, target_is_directory=True)
+    with pytest.raises(ValueError, match="symlink|parsed root|extra"):
+        correction.verify_correction(SOURCE_ROOT, output_root)
+
+
+def test_parsed_root_rejects_extra_arm_directory(tmp_path: Path) -> None:
+    output_root = tmp_path / "correction"
+    correction.correct_run(SOURCE_ROOT, output_root)
+    (output_root / "parsed" / "99-99-extra-4fps").mkdir()
+    with pytest.raises(ValueError, match="parsed root|extra"):
+        correction.verify_correction(SOURCE_ROOT, output_root)
+
+
+def test_arm_rejects_missing_or_extra_entry(tmp_path: Path) -> None:
+    output_root = tmp_path / "correction"
+    correction.correct_run(SOURCE_ROOT, output_root)
+    arm = next((output_root / "parsed").iterdir())
+    (arm / "parsed.json").unlink()
+    with pytest.raises(ValueError, match="regular file|missing|parsed"):
+        correction.verify_correction(SOURCE_ROOT, output_root)
+
+    output_root = tmp_path / "correction-extra"
+    correction.correct_run(SOURCE_ROOT, output_root)
+    arm = next((output_root / "parsed").iterdir())
+    (arm / "extra.json").write_text("{}\n")
+    with pytest.raises(ValueError, match="arm|extra|entry"):
+        correction.verify_correction(SOURCE_ROOT, output_root)
+
+
+def test_formatting_only_freeze_drift_is_rejected(tmp_path: Path) -> None:
+    output_root = tmp_path / "correction"
+    correction.correct_run(SOURCE_ROOT, output_root)
+    freeze_path = output_root / "correction-freeze.json"
+    payload = json.loads(freeze_path.read_text())
+    freeze_path.write_text(json.dumps(payload, indent=4, sort_keys=False) + "\n")
+    with pytest.raises(ValueError, match="bytes|canonical|freeze"):
+        correction.verify_correction(SOURCE_ROOT, output_root)
+
+
+@pytest.mark.parametrize("mutation", ["top_level", "aggregate", "arm"])
+def test_freeze_rejects_top_level_and_nested_schema_extras(tmp_path: Path, mutation: str) -> None:
+    output_root = tmp_path / f"correction-{mutation}"
+    correction.correct_run(SOURCE_ROOT, output_root)
+    freeze_path = output_root / "correction-freeze.json"
+    payload = json.loads(freeze_path.read_text())
+    if mutation == "top_level":
+        payload["unexpected"] = True
+    elif mutation == "aggregate":
+        payload["aggregate"]["unexpected"] = 1
+    else:
+        payload["arms"][0]["unexpected"] = True
+    freeze_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    with pytest.raises(ValueError, match="schema|canonical|bytes"):
+        correction.verify_correction(SOURCE_ROOT, output_root)
+
+
+def test_historical_v1_correction_freeze_bytes_remain_unchanged() -> None:
+    v1_root = SOURCE_ROOT.parent / "run-v22-correction-v1"
+    assert _sha(v1_root / "correction-freeze.json") == correction.TRUSTED_V1_CORRECTION_FREEZE_SHA256
+    correction.verify_correction(SOURCE_ROOT, v1_root)
+
+
+@pytest.mark.parametrize("relation", ["equal", "descendant", "ancestor"])
+def test_correct_run_rejects_unsafe_source_output_overlap(tmp_path: Path, relation: str) -> None:
+    if relation == "equal":
+        output_root = SOURCE_ROOT
+    elif relation == "descendant":
+        output_root = SOURCE_ROOT / "unsafe-correction-child"
+    else:
+        output_root = SOURCE_ROOT.parent
+    with pytest.raises(ValueError, match="overlap|source.*output|unsafe"):
+        correction.correct_run(SOURCE_ROOT, output_root)
 
 
 def test_correction_artifacts_are_label_free_and_bind_all_ordered_source_artifacts(

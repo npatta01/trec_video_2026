@@ -28,8 +28,21 @@ EXPECTED_SOURCE_ARTIFACTS = (
     "terminal.json",
 )
 OUTPUT_TOP_LEVEL = ("correction-freeze.json", "parsed")
+CORRECTION_VERSION = "run-v22-correction-v2"
 TRUSTED_V22_PREDICTION_FREEZE_SHA256 = (
     "fb002af0bb8e663e495afcd2b1888dd37d11e0c24ef57d0f14f5ecf65434f758"
+)
+# v1 is retained as an immutable historical additive artifact.  These anchors
+# let the stricter v2 verifier confirm that v1 was not rewritten after this
+# script evolved, without treating v1 as a new correction execution.
+TRUSTED_V1_CORRECTION_FREEZE_SHA256 = (
+    "489a32419f6ae2c5518b435f7ae0c114020f3425727a40b684183d604e655662"
+)
+TRUSTED_V1_CORRECTION_SCRIPT_SHA256 = (
+    "32949c9a47b1e4247e7db2ed649de42bde9e2128f2bc5e2bcf2c1b60cc29f98b"
+)
+TRUSTED_V1_CORRECTION_RULE_SHA256 = (
+    "83b5de725de609292a3eedbb9ba720ce07c6c166496468ee71068366a936002b"
 )
 RULE = {
     "name": "symmetric_encoded_duration_one_frame_v1",
@@ -75,6 +88,45 @@ INTERPRETATION_FIELDS = frozenset(
     {"requested_entity", "requested_visual_fact", "temporal_qualifier"}
 )
 SCRIPT_PATH = Path(__file__).resolve()
+FREEZE_FIELDS = frozenset(
+    {
+        "schema_version",
+        "status",
+        "correction_version",
+        "source_prediction_freeze_sha256",
+        "correction_script_sha256",
+        "correction_rule_sha256",
+        "provider_calls",
+        "aggregate",
+        "arms",
+    }
+)
+AGGREGATE_FIELDS = frozenset(
+    {
+        "arms",
+        "original_passed",
+        "original_contract_error",
+        "corrected_passed",
+        "corrected_contract_error",
+        "corrected_acceptance_changes",
+    }
+)
+ARM_FIELDS = frozenset(
+    {
+        "position",
+        "audit_index",
+        "role",
+        "fps",
+        "original_status",
+        "corrected_status",
+        "corrected_acceptance_changed",
+        "response_id",
+        "source_artifacts",
+        "source_original_parsed_sha256",
+        "parsed_output_sha256",
+    }
+)
+HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 RULE_SHA256 = hashlib.sha256(
     json.dumps(RULE, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
 ).hexdigest()
@@ -446,11 +498,79 @@ def _public_arm_record(record: Mapping[str, Any], parsed_sha256: str | None) -> 
     return result
 
 
-def _freeze_payload(source_freeze_sha256: str, records: Sequence[Mapping[str, Any]], aggregate: Mapping[str, int]) -> dict[str, Any]:
+def _validate_freeze_schema(freeze: Mapping[str, Any]) -> None:
+    """Reject schema drift before interpreting any correction result."""
+
+    if set(freeze) != FREEZE_FIELDS:
+        raise ValueError("correction freeze top-level schema drift")
+    if freeze.get("schema_version") != 1 or freeze.get("status") != "frozen":
+        raise ValueError("correction freeze status/schema is invalid")
+    if not isinstance(freeze.get("correction_version"), str):
+        raise ValueError("correction freeze version is invalid")
+    for field in (
+        "source_prediction_freeze_sha256",
+        "correction_script_sha256",
+        "correction_rule_sha256",
+    ):
+        value = freeze.get(field)
+        if not isinstance(value, str) or HASH_RE.fullmatch(value) is None:
+            raise ValueError(f"correction freeze {field} is invalid")
+    provider_calls = freeze.get("provider_calls")
+    if isinstance(provider_calls, bool) or not isinstance(provider_calls, int):
+        raise ValueError("correction freeze provider call count is invalid")
+    aggregate = freeze.get("aggregate")
+    if not isinstance(aggregate, Mapping) or set(aggregate) != AGGREGATE_FIELDS:
+        raise ValueError("correction freeze aggregate schema drift")
+    for field in AGGREGATE_FIELDS:
+        value = aggregate[field]
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError(f"correction freeze aggregate field is invalid: {field}")
+    arms = freeze.get("arms")
+    if not isinstance(arms, list) or len(arms) != EXPECTED_ARM_COUNT:
+        raise ValueError("correction freeze arm schema is invalid")
+    for arm in arms:
+        if not isinstance(arm, Mapping) or set(arm) != ARM_FIELDS:
+            raise ValueError("correction freeze nested arm schema drift")
+        if (
+            isinstance(arm.get("position"), bool)
+            or not isinstance(arm.get("position"), int)
+            or arm["position"] < 1
+            or isinstance(arm.get("audit_index"), bool)
+            or not isinstance(arm.get("audit_index"), int)
+            or arm["audit_index"] < 1
+            or not isinstance(arm.get("role"), str)
+            or SAFE_ID_RE.fullmatch(arm["role"]) is None
+            or arm.get("fps") not in EXPECTED_FPS
+            or arm.get("original_status") not in {"passed", "contract_error", "invalid_json"}
+            or arm.get("corrected_status") not in {"passed", "contract_error", "invalid_json"}
+            or not isinstance(arm.get("corrected_acceptance_changed"), bool)
+            or not isinstance(arm.get("response_id"), str)
+            or not arm["response_id"].strip()
+        ):
+            raise ValueError("correction freeze nested arm identity/type is invalid")
+        source_artifacts = arm.get("source_artifacts")
+        if not isinstance(source_artifacts, Mapping) or set(source_artifacts) != set(EXPECTED_SOURCE_ARTIFACTS):
+            raise ValueError("correction freeze source artifact schema drift")
+        for digest in source_artifacts.values():
+            if not isinstance(digest, str) or HASH_RE.fullmatch(digest) is None:
+                raise ValueError("correction freeze source artifact digest is invalid")
+        for field in ("source_original_parsed_sha256", "parsed_output_sha256"):
+            value = arm[field]
+            if value is not None and (not isinstance(value, str) or HASH_RE.fullmatch(value) is None):
+                raise ValueError(f"correction freeze {field} is invalid")
+
+
+def _freeze_payload(
+    source_freeze_sha256: str,
+    records: Sequence[Mapping[str, Any]],
+    aggregate: Mapping[str, int],
+    *,
+    correction_version: str = CORRECTION_VERSION,
+) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "status": "frozen",
-        "correction_version": "run-v22-correction-v1",
+        "correction_version": correction_version,
         "source_prediction_freeze_sha256": source_freeze_sha256,
         "correction_script_sha256": _sha256(SCRIPT_PATH),
         "correction_rule_sha256": RULE_SHA256,
@@ -467,6 +587,12 @@ def correct_run(source_root: Path, output_root: Path) -> dict[str, Any]:
 
     source_root = Path(source_root).resolve()
     output_root = Path(output_root).resolve()
+    if (
+        output_root == source_root
+        or source_root in output_root.parents
+        or output_root in source_root.parents
+    ):
+        raise ValueError("unsafe source/output path overlap")
     if output_root.exists() or output_root.is_symlink():
         raise ValueError(f"refusing to overwrite existing correction root: {output_root}")
     records = _source_records(source_root)
@@ -505,11 +631,21 @@ def verify_correction(source_root: Path, output_root: Path) -> None:
 
     source_root = Path(source_root).resolve()
     output_root = Path(output_root).resolve()
+    if (
+        output_root == source_root
+        or source_root in output_root.parents
+        or output_root in source_root.parents
+    ):
+        raise ValueError("unsafe source/output path overlap")
     if not output_root.is_dir() or output_root.is_symlink():
         raise ValueError("correction root is invalid")
-    actual_top = {path.name for path in output_root.iterdir()}
+    top_entries = list(output_root.iterdir())
+    actual_top = {path.name for path in top_entries}
     if actual_top != set(OUTPUT_TOP_LEVEL):
         raise ValueError("correction root has extra or missing artifacts")
+    if any(path.is_symlink() for path in top_entries):
+        raise ValueError("correction root contains a symlink artifact")
+    _regular_file(output_root / "correction-freeze.json", "correction freeze")
     parsed_root = output_root / "parsed"
     if not parsed_root.is_dir() or parsed_root.is_symlink():
         raise ValueError("correction parsed root is invalid")
@@ -518,12 +654,24 @@ def verify_correction(source_root: Path, output_root: Path) -> None:
     freeze = _load_json(_regular_file(output_root / "correction-freeze.json", "correction freeze"))
     if not isinstance(freeze, Mapping) or freeze.get("status") != "frozen":
         raise ValueError("correction freeze is invalid")
+    _validate_freeze_schema(freeze)
     if freeze.get("source_prediction_freeze_sha256") != TRUSTED_V22_PREDICTION_FREEZE_SHA256:
         raise ValueError("correction freeze source prediction hash drift")
-    if freeze.get("correction_script_sha256") != _sha256(SCRIPT_PATH):
-        raise ValueError("correction script hash drift")
-    if freeze.get("correction_rule_sha256") != RULE_SHA256:
-        raise ValueError("correction rule hash drift")
+    correction_version = freeze.get("correction_version")
+    if correction_version == "run-v22-correction-v1":
+        if _sha256(output_root / "correction-freeze.json") != TRUSTED_V1_CORRECTION_FREEZE_SHA256:
+            raise ValueError("historical v1 correction freeze bytes drift")
+        if freeze.get("correction_script_sha256") != TRUSTED_V1_CORRECTION_SCRIPT_SHA256:
+            raise ValueError("historical v1 correction script hash drift")
+        if freeze.get("correction_rule_sha256") != TRUSTED_V1_CORRECTION_RULE_SHA256:
+            raise ValueError("historical v1 correction rule hash drift")
+    elif correction_version == CORRECTION_VERSION:
+        if freeze.get("correction_script_sha256") != _sha256(SCRIPT_PATH):
+            raise ValueError("correction script hash drift")
+        if freeze.get("correction_rule_sha256") != RULE_SHA256:
+            raise ValueError("correction rule hash drift")
+    else:
+        raise ValueError("correction version is unsupported")
     if freeze.get("provider_calls") != 0:
         raise ValueError("correction provider call count is not zero")
     if freeze.get("aggregate") != aggregate:
@@ -542,10 +690,18 @@ def verify_correction(source_root: Path, output_root: Path) -> None:
             record["role"],
             record["fps"],
         )
-        expected_output_names.add(arm_root.name)
         expected_parsed = record["parsed"]
+        if expected_parsed is not None:
+            expected_output_names.add(arm_root.name)
         parsed_sha256: str | None = None
         if expected_parsed is not None:
+            arm_entries = list(arm_root.iterdir()) if arm_root.is_dir() else []
+            if not arm_root.is_dir() or arm_root.is_symlink():
+                raise ValueError(f"corrected parsed arm directory is invalid: {arm_root.name}")
+            if {path.name for path in arm_entries} != {"parsed.json"}:
+                raise ValueError(f"corrected parsed arm has extra or missing entries: {arm_root.name}")
+            if any(path.is_symlink() or not path.is_file() for path in arm_entries):
+                raise ValueError(f"corrected parsed arm contains a non-regular entry: {arm_root.name}")
             parsed_path = _regular_file(arm_root / "parsed.json", "corrected parsed output")
             parsed_bytes = parsed_path.read_bytes()
             parsed_sha256 = _sha256_bytes(parsed_bytes)
@@ -556,17 +712,28 @@ def verify_correction(source_root: Path, output_root: Path) -> None:
             if parsed_payload != expected_parsed:
                 raise ValueError(f"corrected parsed semantic drift: {arm_root.name}")
         elif arm_root.exists():
-            if list(arm_root.iterdir()):
-                raise ValueError(f"unexpected corrected output for rejected arm: {arm_root.name}")
+            raise ValueError(f"unexpected corrected output for rejected arm: {arm_root.name}")
+        record["parsed_output_sha256"] = parsed_sha256
         expected_frozen = _public_arm_record(record, parsed_sha256)
         if dict(frozen) != expected_frozen:
             raise ValueError(f"correction freeze arm binding drift: {arm_root.name}")
-    actual_output_names = {
-        path.name for path in parsed_root.iterdir() if path.is_dir() and not path.is_symlink()
-    }
+    parsed_entries = list(parsed_root.iterdir())
+    if any(path.is_symlink() or not path.is_dir() for path in parsed_entries):
+        raise ValueError("correction parsed root contains a non-directory or symlink extra")
+    actual_output_names = {path.name for path in parsed_entries}
     if actual_output_names != expected_output_names:
         raise ValueError("correction parsed root has extra or missing arms")
     _reject_forbidden_keys(freeze, "correction-freeze.json")
+    if correction_version == CORRECTION_VERSION:
+        expected_freeze = _freeze_payload(
+            TRUSTED_V22_PREDICTION_FREEZE_SHA256,
+            records,
+            aggregate,
+            correction_version=CORRECTION_VERSION,
+        )
+        freeze_bytes = (output_root / "correction-freeze.json").read_bytes()
+        if freeze_bytes != _json_bytes(expected_freeze):
+            raise ValueError("correction freeze bytes are not deterministic canonical bytes")
 
 
 def build_parser() -> argparse.ArgumentParser:
