@@ -4,6 +4,7 @@
   "report_date": "2026-08-16",
   "primary_theme": "routing-fusion-answer-selection",
   "evidence_validity": "Diagnostic",
+  "mechanism_interpretation": "Inconclusive after post-hoc failure decomposition",
   "decision_disposition": "Not promoted under the tested condition",
   "reason": "Test whether denser visual sampling inside a frozen question-relevant local window recovers brief visual facts omitted from a question-blind map.",
   "condition": {
@@ -26,7 +27,7 @@
     "ambiguous_targets": 2,
     "auditable_targets": 6,
     "supported_controls": 4,
-    "selection_boundary": "selected, oracle-screened mechanism diagnostic; prior exposure was a reporting flag, not an exclusion",
+    "selection_boundary": "selected mechanism diagnostic; prior exposure was a reporting flag, not an exclusion. A post-hoc visual review found that the label-aware modality screen did not establish reference-level answer sufficiency inside each selected target clip.",
     "exposure_split": {
       "targets": {
         "exposed": {"all": 3, "auditable": 3},
@@ -90,6 +91,33 @@
       "zero 12-FPS control regressions"
     ]
   },
+  "posthoc_failure_decomposition": {
+    "status": "additive manual sensitivity audit; frozen predictions and original score preserved",
+    "targets_reviewed": 8,
+    "controls_reviewed": 4,
+    "mechanism_eligible_targets": 1,
+    "mechanism_eligible_recovery": {
+      "4fps": "0/1",
+      "12fps": "0/1"
+    },
+    "original_auditable_targets_without_reference_answer_in_selected_clip": "5/6",
+    "primary_gap_counts": {
+      "reference_or_premise_mismatch": 3,
+      "window_truncation": 2,
+      "reference_or_question_ambiguity": 2,
+      "model_entity_focus_failure": 1
+    },
+    "control_diagnosis": {
+      "output_outcomes": {"recovered": 3, "verification": 1},
+      "clip_sufficiency": {
+        "fully_self_contained": 1,
+        "answer_visible_anchor_outside_or_boundary": 3
+      },
+      "interpretation": "Control output correctness and clip sufficiency differ. Two anchor-incomplete controls were answered while one routed to verification, showing inconsistent handling of missing temporal anchors."
+    },
+    "interpretation": "The frozen 0/6 score is descriptive but not a valid six-opportunity dense-recovery rate. Five of the six scored targets lacked the reference-level answer inside the selected clip. The sole clean target failed through an entity-focus error; neither tested FPS arm addressed that error.",
+    "private_audit_sha256": "2dc613c0a05b01750d65abcee4b849d54351cd2ddc675781ed9ceab004aa2bd8"
+  },
   "correction": {
     "version": "run-v22-correction-v2",
     "status": "post-hoc output-informed parser repair; Diagnostic/post-hoc corrected, not clean predeclared acceptance",
@@ -133,18 +161,18 @@
     "scorer_sha256": "2fdbce190990d8464e64a033a79292b2c279992c7be73dd63b74f814f37f2748"
   },
   "interpretation": {
-    "observed": "Denser frames inside the oracle-screened localized windows did not recover the auditable target facts.",
+    "observed": "The frozen aggregate was 0/6 at both FPS, but post-hoc row-level review found only one clean target opportunity. Both FPS arms missed that target through an entity-focus error.",
     "rules_out_now": [
-      "the tested 4-FPS-to-12-FPS dense local sampling mechanism under this provider and selected-window condition",
-      "another FPS increase as the next test for these failure categories",
-      "interpreting this selected result as router performance or prevalence"
+      "promoting another FPS increase from this evidence",
+      "treating the frozen 0/6 as six valid dense-recovery opportunities",
+      "interpreting this selected result as a broad FPS effect, router performance, or prevalence"
     ],
     "does_not_rule_out": [
       "question-conditioned evidence selection or targeted verification under a newly frozen condition",
       "modality-specific acquisition for speech, text, spatial detail, or other non-visual mechanisms",
       "a future router after its evidence paths and route-level safeguards are independently measured"
     ],
-    "next_action": "Use a small question-driven evidence-selection/verification or modality-specific acquisition test; do not scale this FPS treatment."
+    "next_action": "Freeze a question-to-entity/action/span transformation, then independently verify at least four targets whose exact reference-level fact and temporal anchor are present in the frozen clip before authorizing another provider comparison."
   },
-  "reconsider_when": "A newly frozen, explicitly authorized panel demonstrates that the proposed evidence path addresses the inspected failure category and includes matched supported controls with route-level non-regression safeguards."
+  "reconsider_when": "A newly frozen panel contains at least four independently verified answer-sufficient target clips, plus matched controls, before provider authorization."
 }

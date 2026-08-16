@@ -11,6 +11,7 @@
 ## Global Constraints
 
 - Treat this as selected, oracle-screened evidence-recovery evidence, not a prevalence estimate or deployable localization evaluation.
+- Post-hoc correction: manual decomposition found that the intended oracle screen did not establish reference-level answer sufficiency for most selected target clips.
 - Keep all 475 source rows eligible; prior inspection is an exposure flag, never an exclusion.
 - Freeze and commit the prompt, schema, validator, runner, model settings, call cap, and decision rule before label-aware panel formation.
 - Provider requests contain only the question, frozen scene-map lines, clip offset, and local clip; never references, direct predictions, prior answers, scores, or audit verdicts.
@@ -461,22 +462,45 @@ git commit -m "feat: score dense localized evidence recovery"
 - Consumes only verified aggregate results and immutable private hashes.
 - Produces a sanitized evidence index and updates the Routing theme's next action without exposing row-level competition material.
 
-- [ ] **Step 1: Write the condition-bound result**
+- [x] **Step 1: Write the condition-bound result**
 
 Report reason, paired condition, target/control denominator, completion, recovery counts by arm, incremental dense-only recoveries, unsupported observations, control regressions, exposure split, cost, gate, evidence validity, decision disposition, limitations, and reconsideration condition. State clearly that oracle-screened localization cannot establish router performance or prevalence.
 
-- [ ] **Step 2: Generate the sanitized bundle and checksums**
+- [x] **Step 2: Generate the sanitized bundle and checksums**
 
 Include only aggregate counts, schema descriptions, hashes, model/settings, call count, cost, and gate. Exclude row IDs, questions, references, clips, paths outside the repository, evidence text, raw responses, and predictions.
 
-- [ ] **Step 3: Render QMD-owned outputs**
+- [x] **Step 3: Render QMD-owned outputs**
 
 Render the dated experiment QMD to GFM and HTML. Render all project-status QMD files using the repository guide's isolated cache commands. Do not hand-edit generated Markdown or HTML.
 
-- [ ] **Step 4: Run complete verification**
+- [x] **Step 4: Run complete verification**
 
 Run focused and neighboring tests; Ruff; Python compilation; JSON parsing; private freeze verification; score recalculation; bundle checksums; privacy scans; `git diff --check`; generated-source consistency; link checks; and tailnet-only portal HTTP checks. Then run an independent review of the full branch diff before push or issue update.
 
-- [ ] **Step 5: Commit the result without publishing externally**
+- [x] **Step 5: Commit the result and publish after explicit authorization**
 
-Stage only code, tests, canonical QMD, generated outputs, the plan, and sanitized artifacts. Confirm no dataset paths are staged. Commit with a result-specific message. Do not push, update GitHub Issue #35, or alter sharing permissions without explicit user authorization.
+Stage only code, tests, canonical QMD, generated outputs, the plan, and sanitized artifacts. Confirm no dataset paths are staged. Commit with a result-specific message. The user explicitly authorized the focused PR and Issue #35 update; both were completed.
+
+### Task 6: Post-hoc manual failure decomposition — 2026-08-16
+
+- [x] Reinspect all eight target clips, four controls, both raw arm responses,
+  full-source target frame sequences, references, questions, and selected map
+  windows without changing predictions or the frozen score.
+- [x] Preserve an additive private row-level adjudication bound to the frozen
+  selection, modality audit, manual audit v3, and score v5.
+- [x] Correct the sanitized interpretation and canonical reports without
+  overwriting the historical `0/6` score.
+- [ ] Regenerate QMD-owned outputs, checksums, portal copy, and focused PR/issue
+  text; verify before handoff.
+
+The decomposition found a panel-validity defect. Five of the six targets in
+the frozen recovery denominator did not contain the reference-level answer in
+the exact selected clip. Across all eight targets, three were
+reference/premise mismatches, two used truncated windows, two had ambiguous
+question/reference pairs, and only one was a clean local answer opportunity.
+Both FPS arms missed that one through an entity-focus error. The preserved frozen score remains
+`0/6`, but the decision-useful sensitivity is `0/1` at both FPS and is
+insufficient to estimate a broad density effect. Evidence validity remains
+**Diagnostic**; the mechanism interpretation is **inconclusive after post-hoc
+failure decomposition**.

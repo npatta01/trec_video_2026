@@ -667,8 +667,10 @@ unchanged.
 - **Tested condition and panel:** one byte-identical local clip per
   selected row, requested at 4 FPS and 12 FPS; eight selected visual
   targets and four supported controls. Two targets remained explicitly
-  ambiguous and stayed in completion but were excluded only from the
-  auditable-target denominator, leaving six auditable targets. Prior
+  ambiguous and stayed in completion but were excluded from the frozen
+  auditable-target denominator, leaving six scored targets. A later
+  additive manual sensitivity audit found that five of those six did not
+  contain the reference-level answer inside the selected clip. Prior
   exposure was retained as a reporting flag, never as an exclusion. All
   475 eligible source rows remained in the eligibility boundary.
 - **Attempt accounting and authorization:** the authorized stages
@@ -689,12 +691,25 @@ unchanged.
   execution used `24` unique provider calls, with no retries. Provider
   cost was unavailable in the frozen metadata, and no answer metrics
   were computed.
-- **Current condition-bound status:** **Diagnostic negative result**;
-  **Not promoted under the tested condition**. The predeclared gate
-  failed because there were fewer than two incremental recoveries and
-  12-FPS recovery was below one half of the auditable-target
-  denominator. Completion, inspection, zero unsupported observations,
-  and zero control regressions passed.
+- **Post-hoc failure decomposition:** the original predictions and score
+  remain frozen, but the row-level interpretation changes materially. Of
+  the eight targets, three were reference/premise mismatches, two used
+  truncated windows, two had ambiguous question/reference pairs, and
+  only one was a clean local answer opportunity. Both arms made an
+  entity-focus error on that row (`0/1` at each FPS). The frozen `0/6`
+  is therefore descriptive, not a valid six-opportunity dense-recovery
+  rate. Control outputs recovered `3/4`, but only one control clip
+  contained both the answer fact and its temporal anchor. Three showed
+  the answer while placing the anchor outside or at the clip boundary;
+  two were answered and one routed to verification, showing inconsistent
+  missing-anchor handling.
+- **Current condition-bound status:** evidence validity **Diagnostic**;
+  mechanism interpretation **inconclusive after post-hoc failure
+  decomposition**; decision disposition **Not promoted under the tested
+  condition**. The predeclared gate failed because there were fewer than
+  two incremental recoveries and 12-FPS recovery was below one half of
+  the auditable-target denominator. Completion, inspection, zero
+  unsupported observations, and zero control regressions passed.
 - **Acceptance boundary and correction:** the original v22 prediction
   freeze preserved `16` passed arms and `8` contract errors.
   Correction-v2 was a post-hoc, output-informed parser repair with zero
@@ -708,24 +723,24 @@ unchanged.
   acceptance-boundary-sensitive (only `1/4` control pairs had both arms
   accepted before correction versus `3/4` recovered after it), so it is
   not used to upgrade the gate.
-- **What this rules out now:** denser frames inside these
-  oracle-screened localized windows as a recovery mechanism under the
-  tested provider condition; another FPS increase as the next test for
-  the inspected failure categories; and any claim that this selected
-  panel measures router performance or prevalence.
+- **What this rules out now:** promoting another FPS increase from this
+  evidence; treating the frozen `0/6` as six valid dense-recovery
+  opportunities; and any claim that this selected panel measures a broad
+  FPS effect, router performance, or prevalence.
 - **What it does not rule out:** question-conditioned evidence
   selection/verification, modality-specific acquisition for speech,
   text, or fine detail, or a future router whose evidence paths and
   route-level safeguards are measured independently.
-- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—this
-  is a selected, oracle-screened mechanism diagnostic. The two ambiguous
-  targets are retained in completion, and the exposure split is
-  descriptive only; the result is not a prevalence estimate or a
-  deployable localization evaluation.
-- **Reconsider when:** a newly frozen and explicitly authorized panel
-  shows that the proposed evidence path addresses the inspected failure
-  category and includes matched supported controls with route-level
-  non-regression safeguards.
+- **Possible defect, audit gap, or uncertainty:** **Panel-validity
+  defect**—the label-aware modality screen classified likely visual
+  mechanisms and selected windows, but did not establish that the exact
+  reference-level fact and its temporal anchor were present inside each
+  target clip. The post-freeze score excluded only two explicitly
+  ambiguous references, leaving five impossible recovery opportunities
+  in its six-row denominator.
+- **Reconsider when:** a newly frozen panel contains at least four
+  independently verified answer-sufficient target clips plus matched
+  controls before provider authorization.
 
 <details>
 
@@ -760,9 +775,10 @@ credentials, and private filesystem paths are excluded. The full score
 chain records the correction, source prediction freeze, manual audit,
 audit freeze, score, and score-integrity bindings.
 
-The next bounded idea is question-conditioned evidence
-selection/verification or modality-specific acquisition. Do not spend
-this negative result on another FPS increase, global prompt rewrite,
+The next bounded idea is to freeze a question-to-entity/action/span
+transformation and then independently verify answer sufficiency for at
+least four selected target clips before provider authorization. Do not
+spend this result on another FPS increase, global prompt rewrite,
 full-panel rerun, counting specialist, or shared router framework.
 </details>
 
