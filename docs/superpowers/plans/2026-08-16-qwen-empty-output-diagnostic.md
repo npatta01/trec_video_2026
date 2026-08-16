@@ -12,6 +12,7 @@
 
 - Follow `docs/superpowers/specs/2026-08-16-qwen-empty-output-diagnostic-design.md` exactly.
 - Preserve `src/trec_video_2026/vqa_audio_runner.py` byte-for-byte so the Stage 0.5d runner binding remains valid.
+- Bind and re-verify both the new diagnostic runner hash and its imported `vqa_audio_runner.py` helper-source hash throughout the new diagnostic lifecycle.
 - Never retry, relabel, overwrite, score, or reopen the frozen Stage 0.5d attempt.
 - Keep questions, answers, annotations, Whisper text, transcript text, grades, and metrics out of selection and inference.
 - Use exactly two preserved empty-output rows plus the first two preserved passing rows in frozen request order.
@@ -33,7 +34,7 @@
 - Produce: `require_quality_scoring_ready(root: Path) -> dict[str, Any]`
 - Consume: verified `predictions-freeze.json` and `validated-results.json`
 
-- [ ] **Step 1: Write the core failing regression test**
+- [x] **Step 1: Write the core failing regression test**
 
   Extend `test_nonzero_exit_cannot_freeze_ready_decision` after freezing:
 
@@ -47,14 +48,14 @@
   assert not (root / "postfreeze-score.json").exists()
   ```
 
-- [ ] **Step 2: Write the CLI privacy-boundary failing test**
+- [x] **Step 2: Write the CLI privacy-boundary failing test**
 
   Import `scripts.run_qwen_aligner_canary`, monkeypatch `status_canary()` to
   return `{"status": "predictions_frozen", "decision": "not_ready"}`, and
   make `_load_json()` raise `AssertionError("labels were opened")`. Assert
   `_score_inputs()` raises the readiness error before `_load_json()` is called.
 
-- [ ] **Step 3: Run both tests and verify RED**
+- [x] **Step 3: Run both tests and verify RED**
 
   Run:
 
@@ -67,7 +68,7 @@
   Expected: direct scoring succeeds unexpectedly and the CLI calls
   `_load_json()`.
 
-- [ ] **Step 4: Implement the minimal shared guard**
+- [x] **Step 4: Implement the minimal shared guard**
 
   In the core module:
 
@@ -85,7 +86,7 @@
   Call it from `score_postfreeze()` and export it. In `_score_inputs()`, call it
   before the first `_load_json()` so private labels cannot be opened first.
 
-- [ ] **Step 5: Verify GREEN and the focused canary suite**
+- [x] **Step 5: Verify GREEN and the focused canary suite**
 
   Run:
 
@@ -94,7 +95,7 @@
   uv run ruff check src/trec_video_2026/vqa_qwen_aligner_canary.py scripts/run_qwen_aligner_canary.py tests/test_vqa_qwen_aligner_canary.py tests/test_run_qwen_aligner_canary.py
   ```
 
-- [ ] **Step 6: Commit the scoring repair**
+- [x] **Step 6: Commit the scoring repair**
 
   Commit only the two source files and their tests with message
   `fix: block incomplete Qwen quality scoring`.
@@ -111,7 +112,7 @@
 - Produce: `parse_args(argv) -> argparse.Namespace` with `--language auto|English` and `--timestamps on|off`
 - Produce: `main(argv=None) -> int`, stdin ordered request batch to stdout ordered result batch
 
-- [ ] **Step 1: Write failing exact-call tests for all decode modes**
+- [x] **Step 1: Write failing exact-call tests for all decode modes**
 
   Use a fake model whose `transcribe()` records keyword arguments. Assert:
 
@@ -130,12 +131,12 @@
 
   Also assert timestamps `on` without forced-aligner arguments is rejected.
 
-- [ ] **Step 2: Run the runner tests and verify RED**
+- [x] **Step 2: Run the runner tests and verify RED**
 
   Run `uv run pytest -q tests/test_vqa_qwen_empty_output_runner.py`.
   Expected: import failure because the dedicated runner does not exist.
 
-- [ ] **Step 3: Implement the smallest Qwen-only runner**
+- [x] **Step 3: Implement the smallest Qwen-only runner**
 
   Reuse `load_qwen`, `load_qwen_with_aligner`, `normalize_qwen_asr_result`,
   `validate_request`, `validate_rocm_bfloat16`, `audio_evidence_quality`, and
@@ -144,13 +145,13 @@
   structured result keys, per-row error capture, source hash, duration,
   runtime, BF16/device check, and stdout/stderr separation.
 
-- [ ] **Step 4: Add request-batch and failure-preservation tests**
+- [x] **Step 4: Add request-batch and failure-preservation tests**
 
   Use fake dependencies to assert ordered four-row output, nonempty success
   normalization, exact empty-text `ValueError` preservation, and no label keys
   in output identity.
 
-- [ ] **Step 5: Verify GREEN without changing the original runner**
+- [x] **Step 5: Verify GREEN without changing the original runner**
 
   Run:
 
@@ -160,7 +161,7 @@
   uv run ruff check src/trec_video_2026/vqa_qwen_empty_output_runner.py tests/test_vqa_qwen_empty_output_runner.py
   ```
 
-- [ ] **Step 6: Commit the isolated runner**
+- [x] **Step 6: Commit the isolated runner**
 
   Commit the new runner and tests with message
   `feat: add isolated Qwen empty-output runner`.
@@ -184,8 +185,9 @@
   Build a synthetic verified Stage 0.5d source with two exact empty failures
   and at least two successes. Assert preparation selects the two failures plus
   the first two successes in source request order; freezes audio hashes,
-  durations, source freeze hash, runner hash, four arm definitions, and four
-  ordered request files; and rejects label-bearing keys, a ready source,
+  durations, source freeze hash, diagnostic runner hash, imported helper-source
+  hash, four arm definitions, and four ordered request files; and rejects
+  label-bearing keys, a ready source,
   wrong failure count, missing audio, or a noncanonical data root.
 
 - [ ] **Step 2: Run preparation tests and verify RED**
@@ -200,7 +202,8 @@
   the design. Bind the exact source prediction-freeze SHA-256, source runner
   evidence, selected WAV hashes/durations, new runner path/hash, arms, model
   revisions, image digest, row order, one-attempt rule, and `$0.00` provider
-  cost. Write with exclusive creation only.
+  cost. Re-verify both executed source hashes before command construction,
+  recording, freezing, and status. Write with exclusive creation only.
 
 - [ ] **Step 4: Write failing command and one-attempt tests**
 
@@ -269,8 +272,9 @@
 - [ ] **Step 1: Run the cheapest full preflight**
 
   Verify the canonical `data` symlink, host, ROCm visibility, free disk,
-  digest-pinned local image, both exact model snapshots, new runner hash, clean
-  private target root, and frozen Stage 0.5d `predictions_frozen/not_ready`
+  digest-pinned local image, both exact model snapshots, the new runner and
+  imported helper-source hashes, clean private target root, and frozen Stage
+  0.5d `predictions_frozen/not_ready`
   status. Run the dedicated runner's no-model stdin/argument smoke before
   preparation.
 
@@ -336,4 +340,3 @@
   Review source, tests, frozen aggregate evidence, and report wording. Resolve
   all actionable findings, rerun verification, and commit only intended
   tracked project files.
-

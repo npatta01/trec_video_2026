@@ -126,7 +126,9 @@ an all-row ready freeze.
 2. Keep `vqa_audio_runner.py` byte-for-byte unchanged so the Stage 0.5d runner
    binding remains verifiable. Add a dedicated Qwen-only diagnostic runner
    with arm-wide language and timestamp command switches, reusing the existing
-   load, normalization, quality, and metric helpers.
+   load, normalization, quality, and metric helpers. The input freeze and every
+   command/record/freeze/status verification must bind both the dedicated
+   runner hash and the imported `vqa_audio_runner.py` helper-source hash.
 3. Add a dedicated diagnostic harness and CLI rather than weakening the
    quality canary's one-condition contract.
 4. Test selection, input freeze, command construction, result validation,
