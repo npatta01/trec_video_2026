@@ -491,7 +491,7 @@ Stage only code, tests, canonical QMD, generated outputs, the plan, and sanitize
   selection, modality audit, manual audit v3, and score v5.
 - [x] Correct the sanitized interpretation and canonical reports without
   overwriting the historical `0/6` score.
-- [ ] Regenerate QMD-owned outputs, checksums, portal copy, and focused PR/issue
+- [x] Regenerate QMD-owned outputs, checksums, portal copy, and focused PR/issue
   text; verify before handoff.
 
 The decomposition found a panel-validity defect. Five of the six targets in
