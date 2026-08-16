@@ -66,12 +66,17 @@ def build_fixture(
         row_root = root / "rows" / video_id
         prior = None
         stage_hashes = {}
-        for stage in ("locate", "verify", "challenge"):
+        stages = ["locate", "verify", "challenge"]
+        if video_id == "failure-a":
+            stages.insert(1, "locate-correction-v2")
+        for stage in stages:
             terminal = self_hashed(
                 {
                     "schema_version": 1,
                     "stage": stage,
-                    "outcome": "success",
+                    "outcome": "invalid_response"
+                    if stage == "locate" and video_id == "failure-a"
+                    else "success",
                     "prior_complete_sha256": prior,
                     "estimated_cost_usd": 0.01,
                 }

@@ -10,6 +10,7 @@ import pytest
 from google.genai import types
 
 from trec_video_2026.vqa_gemini_counting_recovery import TimeRange
+from trec_video_2026.vqa_submission import canonical_sha256
 
 SCRIPT = (
     Path(__file__).resolve().parents[1] / "scripts" / "run_gemini_counting_recovery.py"
@@ -47,6 +48,10 @@ def test_all_response_schemas_are_accepted_by_pinned_sdk() -> None:
     ):
         accepted = types.Schema.model_validate(schema)
         assert accepted.type.value == "OBJECT"
+    assert (
+        "generic_occurrence"
+        in MODULE.LOCATOR_RESPONSE_SCHEMA["properties"]["count_unit"]["enum"]
+    )
 
 
 def test_paid_stage_claim_is_exclusive(tmp_path: Path) -> None:
@@ -329,6 +334,149 @@ def test_invalid_paid_response_is_frozen_before_validation_error(
     assert json.loads((tmp_path / "locate" / "parsed.json").read_text()) == {
         "schema_version": 99
     }
+
+
+def test_locator_alias_correction_is_additive_and_binds_invalid_paid_terminal(
+    tmp_path: Path,
+) -> None:
+    locate = tmp_path / "rows" / "v1" / "locate"
+    parsed = {
+        "schema_version": 1,
+        "count_unit": "times",
+        "target": "events",
+        "candidates": [],
+        "reviewed_spans": [{"start_seconds": 0.0, "end_seconds": 8.0}],
+        "unresolved_spans": [],
+    }
+    raw = json.dumps(parsed)
+    locate.mkdir(parents=True)
+    (locate / "raw-response.txt").write_text(raw)
+    (locate / "parsed.json").write_text(json.dumps(parsed))
+    terminal = {
+        "schema_version": 1,
+        "stage": "locate",
+        "outcome": "invalid_response",
+        "prior_complete_sha256": None,
+        "raw_response_sha256": hashlib.sha256(raw.encode()).hexdigest(),
+        "error_message": "unsupported count_unit: times",
+    }
+    terminal["complete_sha256"] = canonical_sha256(terminal)
+    (locate / "complete.json").write_text(json.dumps(terminal))
+    original = (locate / "complete.json").read_bytes()
+
+    correction = MODULE.apply_locator_alias_correction(
+        row_root=tmp_path / "rows" / "v1",
+        duration_seconds=8.0,
+    )
+
+    assert (locate / "complete.json").read_bytes() == original
+    corrected = json.loads(
+        (
+            tmp_path / "rows" / "v1" / "locate-correction-v2" / "validated.json"
+        ).read_text()
+    )
+    assert corrected["count_unit"] == "generic_occurrence"
+    assert correction["prior_complete_sha256"] == terminal["complete_sha256"]
+    assert correction["correction_reason"] == "label_independent_count_unit_alias"
+
+
+def test_resume_after_alias_correction_skips_paid_locator_call(tmp_path: Path) -> None:
+    row_root = tmp_path / "rows" / "v1"
+    locate = row_root / "locate"
+    locator = {
+        "schema_version": 1,
+        "count_unit": "times",
+        "target": "passes",
+        "candidates": [
+            {
+                "candidate_id": "C1",
+                "start_seconds": 2.0,
+                "end_seconds": 3.0,
+                "reason": "possible pass",
+            }
+        ],
+        "reviewed_spans": [{"start_seconds": 0.0, "end_seconds": 8.0}],
+        "unresolved_spans": [],
+    }
+    raw = json.dumps(locator)
+    locate.mkdir(parents=True)
+    (locate / "raw-response.txt").write_text(raw)
+    (locate / "parsed.json").write_text(json.dumps(locator))
+    invalid = {
+        "schema_version": 1,
+        "stage": "locate",
+        "outcome": "invalid_response",
+        "prior_complete_sha256": None,
+        "raw_response_sha256": hashlib.sha256(raw.encode()).hexdigest(),
+        "error_message": "unsupported count_unit: times",
+        "estimated_cost_usd": 0.01,
+    }
+    invalid["complete_sha256"] = canonical_sha256(invalid)
+    (locate / "complete.json").write_text(json.dumps(invalid))
+    MODULE.apply_locator_alias_correction(row_root=row_root, duration_seconds=8.0)
+    MODULE.reserve_budget(
+        budget_root=tmp_path / "budget",
+        reservation_id="v1-locate",
+        reserved_usd=0.34,
+    )
+    MODULE.settle_budget(
+        budget_root=tmp_path / "budget",
+        reservation_id="v1-locate",
+        observed_usd=0.01,
+    )
+    ledger = {
+        "schema_version": 1,
+        "instances": [
+            {
+                "instance_id": "I1",
+                "start_seconds": 2.1,
+                "peak_seconds": 2.5,
+                "end_seconds": 2.9,
+                "before_state": "player A controls ball",
+                "during_state": "ball travels",
+                "after_state": "player B controls ball",
+                "separation_evidence": "completed transfer",
+                "predicate_supported": True,
+                "ambiguous": False,
+            }
+        ],
+        "unresolved_observations": [],
+    }
+    challenge = {
+        "schema_version": 1,
+        "instance_dispositions": [
+            {"instance_id": "I1", "disposition": "accept", "reason": "distinct"}
+        ],
+        "missed_instances": [],
+        "requested_ranges": [],
+        "unresolved_reasons": [],
+    }
+    client = SequenceClient([json.dumps(ledger), json.dumps(challenge)])
+    row = {
+        "video_id": "v1",
+        "question": "How many passes occur?",
+        "duration_seconds": 8.0,
+        "delivery_mime_type": "video/webm",
+    }
+
+    complete = MODULE.resume_row_after_locator_correction(
+        client=client,
+        row=row,
+        file_uri="files/v1",
+        row_root=row_root,
+        budget_root=tmp_path / "budget",
+        request_manifest_sha256="manifest-sha",
+        pricing=MODULE.fixture_pricing(),
+        cumulative_limit_usd=0.34,
+    )
+
+    assert len(client.calls) == 2
+    assert [call["contents"][0].video_metadata.fps for call in client.calls] == [
+        12.0,
+        12.0,
+    ]
+    assert complete["stage_complete_sha256"]["locate"] == invalid["complete_sha256"]
+    assert "locate-correction-v2" in complete["stage_complete_sha256"]
 
 
 def test_run_row_executes_distinct_three_passes_and_freezes_exact_result(

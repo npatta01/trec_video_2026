@@ -16,8 +16,15 @@ COUNT_UNITS = frozenset(
         "physical_entity",
         "visible_instance",
         "part_cardinality",
+        "generic_occurrence",
     }
 )
+COUNT_UNIT_ALIASES = {
+    "time": "generic_occurrence",
+    "times": "generic_occurrence",
+    "occurrence": "generic_occurrence",
+    "occurrences": "generic_occurrence",
+}
 CHALLENGE_DISPOSITIONS = frozenset(
     {"accept", "duplicate", "split", "predicate_mismatch", "ambiguous"}
 )
@@ -188,6 +195,7 @@ def parse_locator(payload: object, *, duration_seconds: float) -> LocatorResult:
     if root["schema_version"] != 1:
         raise ValueError("locator schema_version must be 1")
     count_unit = _string(root["count_unit"], field="locator.count_unit")
+    count_unit = COUNT_UNIT_ALIASES.get(count_unit.lower(), count_unit)
     if count_unit not in COUNT_UNITS:
         raise ValueError(f"unsupported count_unit: {count_unit}")
     candidates: list[Candidate] = []
@@ -527,7 +535,9 @@ def build_locator_prompt(row: Mapping[str, object]) -> str:
         "Partition the complete duration into reviewed and unresolved spans.\n"
         f"Source duration: {duration:.3f} seconds\nQuestion: {question}\n"
         "Return strict JSON using schema_version 1, count_unit, target, candidates, "
-        "reviewed_spans, and unresolved_spans."
+        "reviewed_spans, and unresolved_spans. count_unit must be exactly one of: "
+        + ", ".join(sorted(COUNT_UNITS))
+        + "."
     )
 
 

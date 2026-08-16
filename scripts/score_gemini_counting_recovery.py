@@ -96,7 +96,13 @@ def _authenticate(
         if not isinstance(stage_hashes, Mapping):
             raise TypeError(f"row {video_id} stage bindings must be an object")
         prior: str | None = None
-        for stage in ("locate", "verify", "challenge", "additional-verify"):
+        for stage in (
+            "locate",
+            "locate-correction-v2",
+            "verify",
+            "challenge",
+            "additional-verify",
+        ):
             if stage not in stage_hashes:
                 continue
             terminal = load_json(row_root / stage / "complete.json")
@@ -107,7 +113,15 @@ def _authenticate(
                 raise ValueError(f"row {video_id} {stage} binding changed")
             if terminal.get("prior_complete_sha256") != prior:
                 raise ValueError(f"row {video_id} {stage} prior binding changed")
-            if terminal.get("outcome") != "success":
+            corrected_locator = (
+                stage == "locate" and "locate-correction-v2" in stage_hashes
+            )
+            valid_outcome = (
+                terminal.get("outcome") == "invalid_response"
+                if corrected_locator
+                else terminal.get("outcome") == "success"
+            )
+            if not valid_outcome:
                 raise ValueError(f"row {video_id} {stage} did not succeed")
             prior = terminal_hash
         result_path = row_root / "result.json"

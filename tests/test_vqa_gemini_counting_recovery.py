@@ -112,6 +112,15 @@ def test_locator_rejects_duplicate_ids_and_label_keys() -> None:
         parse_locator(leaked, duration_seconds=7.268)
 
 
+def test_locator_normalizes_generic_times_without_using_an_answer() -> None:
+    payload = locator_payload()
+    payload["count_unit"] = "times"
+
+    locator = parse_locator(payload, duration_seconds=7.268)
+
+    assert locator.count_unit == "generic_occurrence"
+
+
 def test_atomic_ledger_requires_ordered_grounded_instances() -> None:
     payload = ledger_payload()
     payload["instances"][0]["peak_seconds"] = 0.1
@@ -274,6 +283,7 @@ def test_prompts_assign_distinct_jobs_without_answer_or_labels() -> None:
     challenger_prompt = build_challenger_prompt(row, locator, ledger)
 
     assert "Do not answer" in locator_prompt
+    assert "generic_occurrence" in locator_prompt
     assert "absolute source timestamps" in verifier_prompt
     assert "seek counterexamples" in challenger_prompt
     combined = locator_prompt + verifier_prompt + challenger_prompt

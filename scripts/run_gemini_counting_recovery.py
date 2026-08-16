@@ -21,6 +21,7 @@ from google.genai import types
 
 from trec_video_2026.vqa_counting_evidence import validate_label_blind
 from trec_video_2026.vqa_gemini_counting_recovery import (
+    COUNT_UNITS,
     AtomicLedger,
     TimeRange,
     build_challenger_prompt,
@@ -91,7 +92,7 @@ LOCATOR_RESPONSE_SCHEMA = {
     ],
     "properties": {
         "schema_version": {"type": "integer"},
-        "count_unit": {"type": "string"},
+        "count_unit": {"type": "string", "enum": sorted(COUNT_UNITS)},
         "target": {"type": "string"},
         "candidates": {
             "type": "array",
@@ -703,29 +704,48 @@ def run_row(
     duration = float(row["duration_seconds"])
     mime_type = str(row["delivery_mime_type"])
 
-    locator_prompt = build_locator_prompt(row)
-    locate_complete = _execute_row_stage(
-        client=client,
-        row_root=row_root,
-        budget_root=budget_root,
-        video_id=video_id,
-        stage="locate",
-        file_uri=file_uri,
-        mime_type=mime_type,
-        fps=LOCATOR_FPS,
-        time_range=None,
-        prompt=locator_prompt,
-        response_schema=LOCATOR_RESPONSE_SCHEMA,
-        validate_response=lambda payload: _validated_locator(
-            payload, duration_seconds=duration
-        ),
-        prior_complete_sha256=None,
-        request_manifest_sha256=request_manifest_sha256,
-        pricing=pricing,
-        cumulative_limit_usd=cumulative_limit_usd,
-        source_duration_seconds=duration,
-    )
-    locator_payload = _load_mapping(row_root / "locate" / "validated.json")
+    correction_path = row_root / "locate-correction-v2" / "complete.json"
+    if correction_path.exists():
+        invalid_locate = _load_mapping(row_root / "locate" / "complete.json")
+        invalid_hash = _verify_self_hash(invalid_locate, name="invalid locator")
+        locate_complete = _load_mapping(correction_path)
+        correction_hash = _verify_self_hash(
+            locate_complete, name="locator alias correction"
+        )
+        if locate_complete.get("prior_complete_sha256") != invalid_hash:
+            raise ValueError("locator correction prior binding changed")
+        locator_payload = _load_mapping(
+            row_root / "locate-correction-v2" / "validated.json"
+        )
+        initial_stage_completes = {
+            "locate": invalid_hash,
+            "locate-correction-v2": correction_hash,
+        }
+    else:
+        locator_prompt = build_locator_prompt(row)
+        locate_complete = _execute_row_stage(
+            client=client,
+            row_root=row_root,
+            budget_root=budget_root,
+            video_id=video_id,
+            stage="locate",
+            file_uri=file_uri,
+            mime_type=mime_type,
+            fps=LOCATOR_FPS,
+            time_range=None,
+            prompt=locator_prompt,
+            response_schema=LOCATOR_RESPONSE_SCHEMA,
+            validate_response=lambda payload: _validated_locator(
+                payload, duration_seconds=duration
+            ),
+            prior_complete_sha256=None,
+            request_manifest_sha256=request_manifest_sha256,
+            pricing=pricing,
+            cumulative_limit_usd=cumulative_limit_usd,
+            source_duration_seconds=duration,
+        )
+        locator_payload = _load_mapping(row_root / "locate" / "validated.json")
+        initial_stage_completes = {"locate": str(locate_complete["complete_sha256"])}
     locator = parse_locator(locator_payload, duration_seconds=duration)
     envelope = verification_envelope(locator, duration)
 
@@ -793,7 +813,7 @@ def run_row(
 
     additive: AtomicLedger | None = None
     stage_completes = {
-        "locate": str(locate_complete["complete_sha256"]),
+        **initial_stage_completes,
         "verify": str(verify_complete["complete_sha256"]),
         "challenge": str(challenge_complete["complete_sha256"]),
     }
@@ -860,6 +880,16 @@ def run_row(
     return complete
 
 
+def resume_row_after_locator_correction(**kwargs: Any) -> dict[str, object]:
+    row_root = kwargs.get("row_root")
+    if (
+        not isinstance(row_root, Path)
+        or not (row_root / "locate-correction-v2" / "complete.json").is_file()
+    ):
+        raise ValueError("locator alias correction is unavailable")
+    return run_row(**kwargs)
+
+
 def freeze_predictions(
     *, root: Path, manifest: Mapping[str, object]
 ) -> dict[str, object]:
@@ -878,7 +908,13 @@ def freeze_predictions(
         if not isinstance(stage_hashes, Mapping):
             raise TypeError("row stage hashes must be an object")
         prior: str | None = None
-        for stage in ("locate", "verify", "challenge", "additional-verify"):
+        for stage in (
+            "locate",
+            "locate-correction-v2",
+            "verify",
+            "challenge",
+            "additional-verify",
+        ):
             if stage not in stage_hashes:
                 continue
             stage_complete = _load_mapping(row_root / stage / "complete.json")
@@ -928,6 +964,44 @@ def _load_self_hashed(path: Path, *, name: str) -> dict[str, object]:
     payload = _load_mapping(path)
     _verify_self_hash(payload, name=name)
     return payload
+
+
+def apply_locator_alias_correction(
+    *, row_root: Path, duration_seconds: float
+) -> dict[str, object]:
+    locate_root = row_root / "locate"
+    terminal = _load_mapping(locate_root / "complete.json")
+    terminal_hash = _verify_self_hash(terminal, name="invalid locator terminal")
+    if terminal.get("outcome") != "invalid_response" or not str(
+        terminal.get("error_message", "")
+    ).startswith("unsupported count_unit:"):
+        raise ValueError("locator correction applies only to count-unit alias failures")
+    raw_path = locate_root / "raw-response.txt"
+    if _file_sha256(raw_path) != terminal.get("raw_response_sha256"):
+        raise ValueError("invalid locator raw-response binding changed")
+    parsed_path = locate_root / "parsed.json"
+    parsed = _load_mapping(parsed_path)
+    locator = parse_locator(parsed, duration_seconds=duration_seconds)
+    corrected = {**parsed, "count_unit": locator.count_unit}
+    validate_label_blind(corrected)
+    correction_root = row_root / "locate-correction-v2"
+    _write_once_json(correction_root / "validated.json", corrected)
+    complete = _self_hashed(
+        {
+            "schema_version": 1,
+            "stage": "locate-correction-v2",
+            "outcome": "success",
+            "correction_reason": "label_independent_count_unit_alias",
+            "prior_complete_sha256": terminal_hash,
+            "invalid_raw_response_sha256": _file_sha256(raw_path),
+            "invalid_parsed_sha256": _file_sha256(parsed_path),
+            "validated_sha256": _file_sha256(correction_root / "validated.json"),
+            "runner_sha256": _file_sha256(Path(__file__)),
+            "estimated_cost_usd": 0.0,
+        }
+    )
+    _write_once_json(correction_root / "complete.json", complete)
+    return complete
 
 
 def prepare_experiment(
