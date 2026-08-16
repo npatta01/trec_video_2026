@@ -319,19 +319,19 @@ not performed because publication was not authorized in this session.
   both project-status QMD sources were rendered to GFM and HTML using the
   commands in `docs/project-status/adding-experiments.qmd`. Derived files match
   their QMD sources.
-- **Step 4:** exact verification outcomes were:
+- **Step 4:** exact verification commands and observed outcomes were:
   - `pytest -q tests/test_prepare_task_support_sufficiency_audit.py tests/test_run_task_support_verifier.py` — **32 passed**.
   - `ruff check scripts/prepare_task_support_sufficiency_audit.py scripts/run_task_support_verifier.py tests/test_prepare_task_support_sufficiency_audit.py tests/test_run_task_support_verifier.py` — **All checks passed**.
   - `python -m py_compile scripts/prepare_task_support_sufficiency_audit.py scripts/run_task_support_verifier.py` — **passed**.
-  - `jq empty` over the sanitized JSON and `sha256sum -c docs/experiments/artifacts/vqa-task-support-sufficiency-20260815/SHA256SUMS` — **passed**.
-  - `git diff --check` — **passed**; privacy scan of new tracked additions — **zero** row-ID, question, reference, answer, evidence, or private-payload hits.
-  - isolated QMD-to-derived-GFM consistency checks — **passed**.
-  - tailnet portal artifact hashes matched the tracked ledger/routing HTML,
-    HTTPS returned **200**, and `tailscale serve status` plus
-    `tailscale funnel status` remained **tailnet only**.
-  - The broader `.venv/bin/pytest -q` check recorded **2,784 passed, 1
-    skipped, 29 unrelated baseline/environment failures**; these failures did
-    not involve Task 5 files and were not changed.
+  - `jq empty docs/experiments/artifacts/vqa-task-support-sufficiency-20260815/summary.json` — **exit 0, no output**.
+  - `sha256sum -c docs/experiments/artifacts/vqa-task-support-sufficiency-20260815/SHA256SUMS` — **README.md: OK; summary.json: OK**.
+  - `if { awk '/^### Task-support sufficiency audit/{inside=1} inside{print} /^### Evidence-aware answer election/{inside=0}' docs/project-status/research-routing.qmd; awk '/^### Task-support sufficiency audit/{inside=1} inside{print} /^## Cost and completion boundary/{inside=0}' docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd; sed -n '1,200p' docs/experiments/artifacts/vqa-task-support-sufficiency-20260815/README.md; cat docs/experiments/artifacts/vqa-task-support-sufficiency-20260815/summary.json; } | rg -n '/home/|"(row|question|reference|answer|evidence|request|video)[_-]?(id|text|uri|path)"[[:space:]]*:'; then exit 1; else echo 'privacy scan passed'; fi` — **no matches; privacy scan passed**.
+  - `render_cache=$(mktemp -d /tmp/trecvid-round2-verify.XXXXXX); env XDG_CACHE_HOME="$render_cache/cache" quarto render docs/project-status/research-routing.qmd --to gfm --output-dir docs/project-status --output research-routing.md; env XDG_CACHE_HOME="$render_cache/cache" quarto render docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd --to gfm --output-dir docs/experiments --output 2026-08-12-vqa-frontier-boundary-verifier.md; git diff --quiet -- docs/project-status/research-routing.md docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.md` — **QMD/derived comparison: no diff**.
+  - `git diff --check` — **passed**.
+  - `sha256sum reports/project-status/experiment-ledger.html /home/npatta01/codex-rendered/plans/trecvid-vqa-current-state/experiment-ledger.html; sha256sum reports/project-status/research-routing.html /home/npatta01/codex-rendered/plans/trecvid-vqa-current-state/research-routing.html` — **each repository/portal hash pair identical**.
+  - `curl -L --silent --show-error --output /tmp/trecvid-final-ledger.html --write-out 'ledger %{http_code}\\n' 'https://npatta01-framework.tail481212.ts.net/plans/trecvid-vqa-current-state/experiment-ledger.html'; curl -L --silent --show-error --output /tmp/trecvid-final-routing.html --write-out 'routing %{http_code}\\n' 'https://npatta01-framework.tail481212.ts.net/plans/trecvid-vqa-current-state/research-routing.html'; curl -L --silent --show-error --output /tmp/trecvid-task-support-page.html --write-out 'artifact %{http_code}\\n' 'https://npatta01-framework.tail481212.ts.net/plans/trecvid-vqa-current-state/task-support-sufficiency-20260815.html'` — **ledger 200; routing 200; artifact 200**.
+  - `tailscale serve status` — **existing HTTPS mapping, tailnet only**; `tailscale funnel status` — **same tailnet-only mapping**.
+  - The broader `.venv/bin/pytest -q` check recorded **2,784 passed, 1 skipped, 29 unrelated baseline/environment failures**; these failures did not involve Task 5 files and were not changed.
 - **Step 5 commit/status:** the first verified reporting commit was
   `9f5c040` (`docs: record task-support sufficiency gate`), followed by the
   review-fix reporting commit `303bb5d` (`docs: clarify task-support audit

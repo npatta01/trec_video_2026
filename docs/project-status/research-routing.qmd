@@ -381,7 +381,7 @@ contains only aggregate counts, exposure counts, hashes, and limitations.
 :::
 
 ::: {.content-visible when-format="html"}
-The [sanitized evidence index](../experiments/artifacts/vqa-task-support-sufficiency-20260815/README.md)
+The [sanitized evidence index](https://npatta01-framework.tail481212.ts.net/plans/trecvid-vqa-current-state/task-support-sufficiency-20260815.html)
 contains only aggregate counts, exposure counts, hashes, and limitations.
 :::
 </details>
