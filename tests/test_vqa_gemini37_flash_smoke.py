@@ -15,11 +15,13 @@ import trec_video_2026.vqa_gemini37_flash_smoke as smoke
 from trec_video_2026.vqa_gemini37_flash_smoke import (
     ARMS,
     build_inlined_request,
+    freeze_annotation_bindings,
     freeze_predictions,
     prepare_protocol,
     preflight_models,
     record_status,
     score_postfreeze,
+    show_status,
     submit_arm,
     upload_rows,
     verify_inputs,
@@ -1634,6 +1636,7 @@ def test_score_postfreeze_reports_private_lexical_metrics_and_paired_decision(
     tmp_path: Path,
 ) -> None:
     root, annotations = _ready_score_fixture(tmp_path)
+    freeze_annotation_bindings(root, annotations, bound_at="2026-08-16T12:06:00Z")
     score = score_postfreeze(root, annotations, scored_at="2026-08-16T12:06:00Z")
     assert score["status"] == "scored_postfreeze"
     assert score["decision"] == "ready_for_larger_canary"
@@ -1653,6 +1656,7 @@ def test_score_postfreeze_rejects_mutated_response_order_or_cardinality(
     tmp_path: Path, mutation: str
 ) -> None:
     root, annotations = _ready_score_fixture(tmp_path)
+    freeze_annotation_bindings(root, annotations, bound_at="2026-08-16T12:06:00Z")
     path = next((root / "status" / "control_31pro").glob("*.json"))
     status = json.loads(path.read_text())
     responses = status["provider_snapshot"]["responses"]
@@ -1692,6 +1696,7 @@ def test_score_postfreeze_rejects_duplicate_or_missing_annotation_binding(
     tmp_path: Path,
 ) -> None:
     root, annotations = _ready_score_fixture(tmp_path)
+    freeze_annotation_bindings(root, annotations, bound_at="2026-08-16T12:06:00Z")
     (annotations / "video-001.json").unlink()
     with pytest.raises(ValueError, match="annotation|missing"):
         score_postfreeze(root, annotations, scored_at="2026-08-16T12:06:00Z")
@@ -1705,11 +1710,10 @@ def test_score_postfreeze_rejects_annotation_hash_mismatch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root, annotations = _ready_score_fixture(tmp_path)
-    expected = {
-        "video-000": _sha256(annotations / "video-000.json"),
-        "video-001": "f" * 64,
-    }
-    monkeypatch.setattr(smoke, "CANONICAL_ANNOTATION_HASHES", expected)
+    freeze_annotation_bindings(root, annotations, bound_at="2026-08-16T12:06:00Z")
+    (annotations / "video-001.json").write_text(
+        '{"video_id":"video-001","correct_answer":"changed"}\n', encoding="utf-8"
+    )
     with pytest.raises(ValueError, match="annotation hash"):
         score_postfreeze(root, annotations, scored_at="2026-08-16T12:06:00Z")
 
@@ -1730,3 +1734,128 @@ def test_score_postfreeze_refuses_missing_freeze_before_opening_annotations(
         )
 
     assert sentinel.read_text(encoding="utf-8") == "not opened"
+
+
+def test_annotation_binding_freezes_raw_bytes_without_parsing_annotation_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, annotations = _ready_score_fixture(tmp_path)
+    original_read_json = smoke._read_json
+
+    def reject_annotation_json(path: Path) -> Any:
+        if path.parent == annotations:
+            raise AssertionError("annotation JSON was parsed during binding")
+        return original_read_json(path)
+
+    monkeypatch.setattr(smoke, "_read_json", reject_annotation_json)
+    manifest = freeze_annotation_bindings(
+        root, annotations, bound_at="2026-08-16T12:06:00Z"
+    )
+    assert manifest["status"] == "annotations_frozen"
+    assert len(manifest["files"]) == 2
+    assert (root / "annotations-freeze.json").is_file()
+
+
+def test_annotation_binding_rejects_invalid_prediction_before_reading_labels(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, annotations = _ready_score_fixture(tmp_path)
+    prediction = root / "predictions-freeze.json"
+    payload = json.loads(prediction.read_text())
+    payload["decision"] = "not_ready"
+    body = dict(payload)
+    body.pop("_artifact_sha256", None)
+    payload["_artifact_sha256"] = smoke._sha256_bytes(smoke._canonical_json(body))
+    prediction.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+    def fail_annotation_bytes(_: Path) -> bytes:
+        raise AssertionError("annotation bytes were read before prediction validation")
+
+    monkeypatch.setattr(smoke, "_raw_annotation_bytes", fail_annotation_bytes)
+    with pytest.raises(ValueError, match="quality-ready|prediction freeze"):
+        freeze_annotation_bindings(root, annotations, bound_at="2026-08-16T12:06:00Z")
+
+
+def test_score_requires_complete_annotation_manifest_before_json_parse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, annotations = _ready_score_fixture(tmp_path)
+    monkeypatch.setattr(
+        smoke, "_raw_annotation_bytes", lambda _: pytest.fail("annotation bytes read without manifest")
+    )
+    with pytest.raises(ValueError, match="annotation.*freeze|manifest"):
+        score_postfreeze(root, annotations, scored_at="2026-08-16T12:07:00Z")
+
+
+def test_score_checks_annotation_bytes_before_reference_access(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, annotations = _ready_score_fixture(tmp_path)
+    freeze_annotation_bindings(root, annotations, bound_at="2026-08-16T12:06:00Z")
+    (annotations / "video-000.json").write_text(
+        '{"video_id":"video-000","correct_answer":"changed"}\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        smoke, "_annotation_reference", lambda *args, **kwargs: pytest.fail("reference accessed after mutation")
+    )
+    with pytest.raises(ValueError, match="annotation hash|bytes"):
+        score_postfreeze(root, annotations, scored_at="2026-08-16T12:07:00Z")
+
+
+def test_score_rejects_self_rehashed_incomplete_annotation_manifest(
+    tmp_path: Path,
+) -> None:
+    root, annotations = _ready_score_fixture(tmp_path)
+    freeze_annotation_bindings(root, annotations, bound_at="2026-08-16T12:06:00Z")
+    manifest_path = root / "annotations-freeze.json"
+    payload = json.loads(manifest_path.read_text())
+    payload["files"].pop()
+    body = dict(payload)
+    body.pop("_artifact_sha256", None)
+    payload["_artifact_sha256"] = smoke._sha256_bytes(smoke._canonical_json(body))
+    manifest_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    with pytest.raises(ValueError, match="annotation.*(complete|exact)|manifest"):
+        score_postfreeze(root, annotations, scored_at="2026-08-16T12:07:00Z")
+
+
+@pytest.mark.parametrize("field", ["observed_cost_usd", "prompt_tokens", "custom_fps_verified", "job_attempt_sha256"])
+def test_score_rederives_and_rejects_forged_arm_summary(
+    tmp_path: Path, field: str
+) -> None:
+    root, annotations = _ready_score_fixture(tmp_path)
+    prediction = root / "predictions-freeze.json"
+    payload = json.loads(prediction.read_text())
+    arm = payload["arms"]["control_31pro"]
+    if field == "observed_cost_usd":
+        arm[field] = 99.0
+    elif field == "prompt_tokens":
+        arm[field] += 1
+    elif field == "custom_fps_verified":
+        arm[field] = False
+    else:
+        arm[field] = "forged"
+    body = dict(payload)
+    body.pop("_artifact_sha256", None)
+    payload["_artifact_sha256"] = smoke._sha256_bytes(smoke._canonical_json(body))
+    prediction.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    with pytest.raises(ValueError, match="summary|cost|tokens|FPS|attempt|quality"):
+        score_postfreeze(root, annotations, scored_at="2026-08-16T12:07:00Z")
+
+
+def test_exact_normalization_preserves_token_boundaries() -> None:
+    assert smoke._normalized_answer("ab c") != smoke._normalized_answer("a bc")
+
+
+def test_show_status_rejects_self_rehashed_prediction_private_string(
+    tmp_path: Path,
+) -> None:
+    root, _ = _ready_score_fixture(tmp_path)
+    prediction = root / "predictions-freeze.json"
+    payload = json.loads(prediction.read_text())
+    payload["decision"] = "private-provider-uri"
+    body = dict(payload)
+    body.pop("_artifact_sha256", None)
+    payload["_artifact_sha256"] = smoke._sha256_bytes(smoke._canonical_json(body))
+    prediction.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    with pytest.raises(ValueError, match="quality-ready|decision"):
+        show_status(root)

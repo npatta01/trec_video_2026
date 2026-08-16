@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import time
 from datetime import UTC, datetime
@@ -20,6 +21,32 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 CANONICAL_SOURCE_ROOT = _REPO_ROOT / "data/vqa/benchmarks/direct-gemini-batch-475-v1"
 PRIVATE_RUN_ROOT = _REPO_ROOT / "data/vqa/benchmarks/gemini37-flash-two-video-smoke-v1"
 CANONICAL_ANNOTATIONS_ROOT = _REPO_ROOT / "data/vqa/2025/training/annotations"
+_ALLOWED_STATUSES = frozenset(
+    {
+        "error",
+        "inputs_frozen",
+        "verified",
+        "models_frozen",
+        "uploaded",
+        "submitted",
+        "pending",
+        "succeeded",
+        "failed",
+        "not_ready",
+        "predictions_frozen",
+        "annotations_frozen",
+        "scored_postfreeze",
+    }
+)
+_ALLOWED_DECISIONS = frozenset(
+    {
+        "not_ready",
+        "custom_fps_not_verified",
+        "quality_ready",
+        "compatible_no_directional_claim",
+        "ready_for_larger_canary",
+    }
+)
 
 
 def client_factory(*, api_key: str) -> Any:
@@ -38,7 +65,15 @@ def _parser() -> argparse.ArgumentParser:
         description=__doc__,
     )
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("prepare", "preflight", "upload", "freeze", "score", "show-status"):
+    for name in (
+        "prepare",
+        "preflight",
+        "upload",
+        "freeze",
+        "bind-annotations",
+        "score",
+        "show-status",
+    ):
         commands.add_parser(name)
     for name in ("submit", "status"):
         command = commands.add_parser(name)
@@ -92,7 +127,10 @@ def _aggregate_counts(payload: dict[str, Any]) -> dict[str, int]:
 def _emit(payload: dict[str, Any]) -> None:
     """Print only aggregate-safe fields; all row/provider fields remain private."""
 
-    output: dict[str, Any] = {"status": payload.get("status")}
+    status = payload.get("status")
+    if not isinstance(status, str) or status not in _ALLOWED_STATUSES:
+        raise ValueError("unexpected status")
+    output: dict[str, Any] = {"status": status}
     arm = payload.get("arm")
     if isinstance(arm, str) and arm in smoke.ARMS:
         output["arm"] = arm
@@ -101,7 +139,12 @@ def _emit(payload: dict[str, Any]) -> None:
         output["counts"] = counts
     for key in ("decision", "estimated_cost_ceiling_usd", "observed_cost_usd"):
         value = payload.get(key)
-        if isinstance(value, (str, int, float)) and not isinstance(value, bool):
+        if key == "decision":
+            if value is not None:
+                if not isinstance(value, str) or value not in _ALLOWED_DECISIONS:
+                    raise ValueError("unexpected decision")
+                output[key] = value
+        elif isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
             output[key] = value
     print(json.dumps(output, sort_keys=True, separators=(",", ":")))
 
@@ -155,6 +198,12 @@ def main(
             )
         elif command == "freeze":
             result = smoke.freeze_predictions(PRIVATE_RUN_ROOT, frozen_at=_now())
+        elif command == "bind-annotations":
+            result = smoke.freeze_annotation_bindings(
+                PRIVATE_RUN_ROOT,
+                CANONICAL_ANNOTATIONS_ROOT,
+                bound_at=_now(),
+            )
         elif command == "score":
             result = smoke.score_postfreeze(
                 PRIVATE_RUN_ROOT,

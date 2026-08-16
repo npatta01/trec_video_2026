@@ -23,6 +23,7 @@ def test_help_exposes_only_fixed_commands_and_no_unsafe_controls() -> None:
         "submit",
         "status",
         "freeze",
+        "bind-annotations",
         "score",
         "show-status",
     ):
@@ -83,12 +84,17 @@ def test_prepare_is_one_domain_transition_and_emits_aggregate_only(
         (
             "score",
             "score_postfreeze",
-            {"status": "scored", "decision": "compatible_no_directional_claim"},
+            {"status": "scored_postfreeze", "decision": "compatible_no_directional_claim"},
         ),
         (
             "show-status",
             "show_status",
             {"status": "inputs_frozen", "decision": "not_ready"},
+        ),
+        (
+            "bind-annotations",
+            "freeze_annotation_bindings",
+            {"status": "annotations_frozen", "files": [{"sha256": "private"}]},
         ),
     ],
 )
@@ -137,7 +143,7 @@ def test_live_commands_use_environment_key_and_one_transition(
     }[command]
 
     def fake_transition(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        return {"status": "ok", "arm": kwargs.get("arm"), "rows": [{"question": "private"}]}
+        return {"status": "succeeded", "arm": kwargs.get("arm"), "rows": [{"question": "private"}]}
 
     monkeypatch.setattr(cli.smoke, function_name, fake_transition)
     argv = [command]
@@ -147,7 +153,7 @@ def test_live_commands_use_environment_key_and_one_transition(
     assert client_calls == ["synthetic-secret"]
     output_text = capsys.readouterr().out
     output = json.loads(output_text)
-    assert output["status"] == "ok"
+    assert output["status"] == "succeeded"
     assert "private" not in output_text
 
 
@@ -183,3 +189,18 @@ def test_domain_error_is_generic_and_does_not_leak_private_details(
     assert "What happens" not in output.out
     assert "/private/source" not in output.out
     assert "Bearer" not in output.out
+
+
+def test_cli_rejects_private_status_strings_without_echoing_them(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        cli.smoke,
+        "show_status",
+        lambda _: {"status": "private-provider-uri", "decision": "private-question"},
+    )
+    assert cli.main(["show-status"]) != 0
+    output = capsys.readouterr().out
+    assert "private-provider-uri" not in output
+    assert "private-question" not in output
+    assert json.loads(output) == {"status": "error", "error": "command failed"}

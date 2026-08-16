@@ -2164,10 +2164,7 @@ def freeze_predictions(root: Path, *, frozen_at: str) -> dict[str, Any]:
 # annotation file to be opened.
 _SCORE_FILENAME = "postfreeze-score.json"
 _SCORE_FREEZE_FILENAME = "postfreeze-score-freeze.json"
-# Production execution supplies this map from the approved canonical annotation
-# manifest.  Tests may redirect it to synthetic files; an empty map is useful
-# for provider-free development where that private manifest is unavailable.
-CANONICAL_ANNOTATION_HASHES: dict[str, str] = {}
+_ANNOTATION_FREEZE_FILENAME = "annotations-freeze.json"
 _ANNOTATION_REFERENCE_KEYS = (
     "correct_answer",
     "correctAnswer",
@@ -2180,7 +2177,7 @@ _ANNOTATION_REFERENCE_KEYS = (
 
 
 def _normalized_answer(value: str) -> str:
-    return "".join(re.findall(r"[a-z0-9]", value.casefold()))
+    return " ".join(_answer_tokens(value))
 
 
 def _answer_tokens(value: str) -> list[str]:
@@ -2246,6 +2243,173 @@ def _canonical_annotation_path(annotations_dir: Path, row: Mapping[str, Any]) ->
     return path
 
 
+def _raw_annotation_bytes(path: Path) -> bytes:
+    if not _is_regular_file(path):
+        raise ValueError("canonical annotation is missing or not regular")
+    try:
+        return path.read_bytes()
+    except OSError as error:
+        raise ValueError("canonical annotation bytes cannot be read") from error
+
+
+def freeze_annotation_bindings(
+    root: Path, annotations_dir: Path, *, bound_at: str
+) -> dict[str, Any]:
+    """Freeze exact canonical annotation paths and raw-byte hashes post-prediction."""
+
+    root = Path(root)
+    manifest_path = root / _ANNOTATION_FREEZE_FILENAME
+    if manifest_path.exists() or manifest_path.is_symlink():
+        raise ValueError("annotation bindings are already frozen")
+    freeze, protocol, protocol_hash = _verify_prediction_freeze_for_score(root)
+    annotations_dir = Path(annotations_dir)
+    if annotations_dir.is_symlink() or not annotations_dir.is_dir():
+        raise ValueError("canonical annotations directory is missing or not regular")
+    annotations_dir = annotations_dir.resolve(strict=True)
+    rows = _protocol_rows(protocol)
+    files: list[dict[str, Any]] = []
+    for row in rows:
+        path = _canonical_annotation_path(annotations_dir, row).resolve(strict=True)
+        raw = _raw_annotation_bytes(path)
+        files.append(
+            {
+                "video_id": row["video_id"],
+                "path": str(path),
+                "sha256": _sha256_bytes(raw),
+                "size_bytes": len(raw),
+            }
+        )
+    body = {
+        "schema_version": 1,
+        "experiment_id": EXPERIMENT_ID,
+        "status": "annotations_frozen",
+        "bound_at": bound_at,
+        "protocol_sha256": protocol_hash,
+        "prediction_freeze_sha256": _sha256_file(root / _PREDICTIONS_FILENAME),
+        "annotations_dir": str(annotations_dir),
+        "files": files,
+    }
+    _write_json_exclusive(manifest_path, body)
+    return _read_object(manifest_path)
+
+
+def _verified_annotation_bindings(
+    root: Path,
+    annotations_dir: Path,
+    freeze: Mapping[str, Any],
+    protocol: Mapping[str, Any],
+) -> tuple[dict[str, Any], list[tuple[dict[str, Any], Path, bytes]]]:
+    """Verify the private raw-byte annotation manifest before any JSON parse."""
+
+    manifest_path = Path(root) / _ANNOTATION_FREEZE_FILENAME
+    if not _is_regular_file(manifest_path):
+        raise ValueError("annotation freeze manifest is missing")
+    manifest = _verify_artifact(manifest_path)
+    if manifest.get("status") != "annotations_frozen":
+        raise ValueError("annotation freeze manifest is incomplete")
+    if manifest.get("experiment_id") != EXPERIMENT_ID:
+        raise ValueError("annotation freeze manifest experiment mismatch")
+    if manifest.get("protocol_sha256") != freeze.get("protocol_sha256"):
+        raise ValueError("annotation freeze protocol hash mismatch")
+    if manifest.get("prediction_freeze_sha256") != _sha256_file(
+        Path(root) / _PREDICTIONS_FILENAME
+    ):
+        raise ValueError("annotation freeze prediction hash mismatch")
+    annotations_dir = Path(annotations_dir)
+    if annotations_dir.is_symlink() or not annotations_dir.is_dir():
+        raise ValueError("canonical annotations directory is missing or not regular")
+    annotations_dir = annotations_dir.resolve(strict=True)
+    if manifest.get("annotations_dir") != str(annotations_dir):
+        raise ValueError("annotation freeze directory binding mismatch")
+    rows = _protocol_rows(protocol)
+    files = manifest.get("files")
+    if not isinstance(files, list) or len(files) != len(rows):
+        raise ValueError("annotation freeze manifest is incomplete")
+    expected_ids = [str(row["video_id"]) for row in rows]
+    observed_ids = [item.get("video_id") if isinstance(item, Mapping) else None for item in files]
+    if observed_ids != expected_ids or len(set(observed_ids)) != len(expected_ids):
+        raise ValueError("annotation freeze manifest IDs/order are invalid")
+    checked: list[tuple[dict[str, Any], Path, bytes]] = []
+    for row, item in zip(rows, files, strict=True):
+        if not isinstance(item, Mapping) or set(item) != {
+            "video_id", "path", "sha256", "size_bytes"
+        }:
+            raise ValueError("annotation freeze manifest file entry is invalid")
+        path = _canonical_annotation_path(annotations_dir, row).resolve(strict=True)
+        if item.get("path") != str(path):
+            raise ValueError("annotation freeze manifest path binding mismatch")
+        raw = _raw_annotation_bytes(path)
+        if item.get("size_bytes") != len(raw) or item.get("sha256") != _sha256_bytes(raw):
+            raise ValueError("annotation freeze annotation hash mismatch")
+        checked.append((dict(item), path, raw))
+    return manifest, checked
+
+
+def _derived_arm_freeze_summary(
+    root: Path,
+    protocol: Mapping[str, Any],
+    protocol_hash: str,
+    uploads: Sequence[Mapping[str, Any]],
+    models: Mapping[str, Any],
+    rows: Sequence[Mapping[str, Any]],
+    arm: str,
+) -> dict[str, Any]:
+    job, expected_requests = _validated_job_record(
+        root, protocol, protocol_hash, uploads, arm
+    )
+    status, status_path = _latest_status(root, arm, protocol_hash)
+    if status.get("status") != "succeeded":
+        raise ValueError(f"prediction freeze status is incomplete for {arm}")
+    model_record = models["models"][arm]
+    provider_snapshot = status.get("provider_snapshot")
+    if not isinstance(provider_snapshot, Mapping):
+        raise ValueError(f"prediction freeze provider snapshot is missing for {arm}")
+    if provider_snapshot.get("model") not in {None, ARMS[arm]["model"]}:
+        raise ValueError(f"prediction freeze provider model mismatch for {arm}")
+    responses_raw = provider_snapshot.get("responses")
+    if not isinstance(responses_raw, list):
+        raise ValueError(f"prediction freeze responses are missing for {arm}")
+    normalized, failures, usage_complete = _validated_responses(
+        responses=responses_raw,
+        rows=rows,
+        expected_version=model_record.get("version"),
+        expected_model=ARMS[arm]["model"],
+        expected_arm=arm,
+        expected_requests=expected_requests,
+    )
+    prompt_tokens = sum(
+        item["usage"]["prompt_tokens"] for item in normalized if item["usage"] is not None
+    )
+    output_tokens = sum(
+        item["usage"]["total_tokens"] - item["usage"]["prompt_tokens"]
+        for item in normalized
+        if item["usage"] is not None
+    )
+    fps_verified = (
+        usage_complete
+        and _FPS_PROMPT_TOKEN_MIN <= prompt_tokens <= _FPS_PROMPT_TOKEN_MAX
+    )
+    if failures or not usage_complete or len(normalized) != 2 or not fps_verified:
+        raise ValueError(f"prediction freeze responses are incomplete for {arm}")
+    rates = _BATCH_RATES_USD_PER_MILLION[arm]
+    arm_cost = prompt_tokens / 1_000_000 * rates["prompt"] + output_tokens / 1_000_000 * rates["output"]
+    return {
+        "status": "succeeded",
+        "status_snapshot_sha256": _sha256_file(status_path),
+        "provider_snapshot_sha256": status.get("provider_snapshot_sha256"),
+        "request_hash": job.get("request_hash"),
+        "job_attempt_sha256": job.get("attempt_sha256"),
+        "model_snapshot_sha256": model_record.get("provider_snapshot_sha256"),
+        "model_version": model_record.get("version"),
+        "response_count": len(normalized),
+        "responses": normalized,
+        "prompt_tokens": prompt_tokens,
+        "output_tokens": output_tokens,
+        "observed_cost_usd": round(arm_cost, 8),
+        "custom_fps_verified": fps_verified,
+    }
+
+
 def _verify_prediction_freeze_for_score(root: Path) -> tuple[dict[str, Any], dict[str, Any], str]:
     freeze_path = Path(root) / _PREDICTIONS_FILENAME
     if not _is_regular_file(freeze_path):
@@ -2276,44 +2440,26 @@ def _verify_prediction_freeze_for_score(root: Path) -> tuple[dict[str, Any], dic
     arms = freeze.get("arms")
     if not isinstance(arms, Mapping) or set(arms) != set(ARMS):
         raise ValueError("prediction freeze arms are incomplete")
+    expected_cost = 0.0
+    expected_upload_attempts = {
+        record["row_id"]: record["attempt_sha256"] for record in uploads
+    }
+    if freeze.get("upload_attempt_sha256") != expected_upload_attempts:
+        raise ValueError("prediction freeze upload attempt binding mismatch")
     for arm in ARMS:
         result = arms.get(arm)
         if not isinstance(result, Mapping):
             raise ValueError(f"prediction freeze arm is missing for {arm}")
-        if result.get("status") != "succeeded" or result.get("custom_fps_verified") is not True:
-            raise ValueError(f"prediction freeze arm is incomplete for {arm}")
-        job, expected_requests = _validated_job_record(
-            root, protocol, protocol_hash, uploads, arm
+        expected = _derived_arm_freeze_summary(
+            root, protocol, protocol_hash, uploads, models, rows, arm
         )
-        status, status_path = _latest_status(root, arm, protocol_hash)
-        if status.get("status") != "succeeded":
-            raise ValueError(f"prediction freeze status is incomplete for {arm}")
-        if result.get("status_snapshot_sha256") != _sha256_file(status_path):
-            raise ValueError(f"prediction freeze status hash mismatch for {arm}")
-        if result.get("provider_snapshot_sha256") != status.get("provider_snapshot_sha256"):
-            raise ValueError(f"prediction freeze provider hash mismatch for {arm}")
-        model_record = models["models"][arm]
-        if result.get("model_snapshot_sha256") != model_record.get("provider_snapshot_sha256"):
-            raise ValueError(f"prediction freeze model hash mismatch for {arm}")
-        if result.get("request_hash") != job.get("request_hash"):
-            raise ValueError(f"prediction freeze request hash mismatch for {arm}")
-        expected_version = model_record.get("version")
-        provider_snapshot = status.get("provider_snapshot")
-        responses_raw = _attr(provider_snapshot, "responses", default=[])
-        if not isinstance(responses_raw, list):
-            raise ValueError(f"prediction freeze responses are missing for {arm}")
-        normalized, failures, usage_complete = _validated_responses(
-            responses=responses_raw,
-            rows=rows,
-            expected_version=expected_version,
-            expected_model=ARMS[arm]["model"],
-            expected_arm=arm,
-            expected_requests=expected_requests,
-        )
-        if failures or not usage_complete or len(normalized) != 2:
-            raise ValueError(f"prediction freeze responses are incomplete for {arm}")
-        if result.get("response_count") != 2 or result.get("responses") != normalized:
-            raise ValueError(f"prediction freeze response binding mismatch for {arm}")
+        if dict(result) != expected:
+            raise ValueError(f"prediction freeze arm summary mismatch for {arm}")
+        expected_cost += expected["observed_cost_usd"]
+    if freeze.get("observed_cost_usd") != round(expected_cost, 8):
+        raise ValueError("prediction freeze observed cost mismatch")
+    if freeze.get("decision") != "quality_ready":
+        raise ValueError("prediction freeze decision mismatch")
     return freeze, protocol, protocol_hash
 
 
@@ -2338,15 +2484,16 @@ def score_postfreeze(
         raise ValueError("post-freeze score already exists")
     freeze, protocol, protocol_hash = _verify_prediction_freeze_for_score(root)
     rows = _protocol_rows(protocol)
-    if CANONICAL_ANNOTATION_HASHES and set(CANONICAL_ANNOTATION_HASHES) != {
-        str(row["video_id"]) for row in rows
-    }:
-        raise ValueError("canonical annotation hash bindings are incomplete")
+    annotation_manifest, bound_annotations = _verified_annotation_bindings(
+        root, annotations_dir, freeze, protocol
+    )
     annotations: list[dict[str, Any]] = []
-    # This is deliberately the first point at which annotations_dir is read.
-    for row in rows:
-        path = _canonical_annotation_path(Path(annotations_dir), row)
-        payload = _read_json(path)
+    # Raw bytes were checked against the approved manifest before parsing.
+    for row, (_, path, raw) in zip(rows, bound_annotations, strict=True):
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ValueError("canonical annotation JSON is invalid") from error
         if isinstance(payload, Mapping):
             for key, expected in (
                 ("video_id", row["video_id"]),
@@ -2357,16 +2504,12 @@ def score_postfreeze(
                 if key in payload and payload[key] != expected:
                     raise ValueError(f"canonical annotation identity mismatch for {row['video_id']}")
         reference = _annotation_reference(payload, label=str(row["video_id"]))
-        annotation_hash = _sha256_file(path)
-        expected_hash = CANONICAL_ANNOTATION_HASHES.get(str(row["video_id"]))
-        if expected_hash is not None and annotation_hash != expected_hash:
-            raise ValueError(f"canonical annotation hash mismatch for {row['video_id']}")
         annotations.append(
             {
                 "row_id": row["row_id"],
                 "video_id": row["video_id"],
                 "path": str(path),
-                "sha256": annotation_hash,
+                "sha256": _sha256_bytes(raw),
                 "reference": reference,
             }
         )
@@ -2441,7 +2584,8 @@ def score_postfreeze(
         "scored_at": scored_at,
         "protocol_sha256": protocol_hash,
         "prediction_freeze_sha256": _sha256_file(root / _PREDICTIONS_FILENAME),
-        "annotation_root": str(Path(annotations_dir)),
+        "annotation_bindings_sha256": _sha256_file(root / _ANNOTATION_FREEZE_FILENAME),
+        "annotation_root": annotation_manifest["annotations_dir"],
         "annotation_hashes": {
             item["video_id"]: item["sha256"] for item in annotations
         },
@@ -2457,6 +2601,9 @@ def score_postfreeze(
             "experiment_id": EXPERIMENT_ID,
             "status": "scored_postfreeze",
             "score_sha256": _sha256_file(score_path),
+            "annotation_bindings_sha256": _sha256_file(
+                root / _ANNOTATION_FREEZE_FILENAME
+            ),
         },
     )
     return _read_object(score_path)
@@ -2468,22 +2615,26 @@ def show_status(root: Path) -> dict[str, Any]:
     root = Path(root)
     prediction_path = root / _PREDICTIONS_FILENAME
     if prediction_path.exists() or prediction_path.is_symlink():
-        prediction = _verify_artifact(prediction_path)
+        prediction, _, _ = _verify_prediction_freeze_for_score(root)
         arms = prediction.get("arms")
         return {
-            "status": prediction.get("status"),
-            "decision": prediction.get("decision"),
+            "status": "predictions_frozen",
+            "decision": "quality_ready",
             "arms": arms if isinstance(arms, Mapping) else {},
             "observed_cost_usd": prediction.get("observed_cost_usd"),
         }
     protocol_path = root / "protocol.json"
     if protocol_path.exists() or protocol_path.is_symlink():
+        verification = verify_inputs(root)
         protocol = _verify_artifact(protocol_path)
+        if protocol.get("status") != "inputs_frozen":
+            raise ValueError("protocol status is invalid")
         rows = protocol.get("rows")
         return {
             "status": protocol.get("status"),
             "decision": "not_ready",
             "rows": rows if isinstance(rows, list) else [],
+            "rows_verified": verification["rows_verified"],
             "estimated_cost_ceiling_usd": protocol.get("estimated_cost_ceiling_usd"),
         }
     return {"status": "not_ready", "decision": "not_ready", "rows": []}
