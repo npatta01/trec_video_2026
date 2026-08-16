@@ -212,6 +212,28 @@ def _schema_sha256() -> str:
     ).hexdigest()
 
 
+def provider_rows_sha256(rows: Sequence[Mapping[str, Any]]) -> str:
+    """Hash the exact ordered provider-safe row projection."""
+
+    projection = [
+        {
+            "video_id": row["video_id"],
+            "question": row["question"],
+            "evidence": [
+                {
+                    "evidence_id": evidence["evidence_id"],
+                    "claim": evidence["claim"],
+                }
+                for evidence in row["evidence"]
+            ],
+        }
+        for row in rows
+    ]
+    return hashlib.sha256(
+        json.dumps(projection, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
 def _prompt_template_sha256() -> str:
     return hashlib.sha256(
         build_prompt(
@@ -430,10 +452,10 @@ def _validate_freeze_contract(
         raise ValueError("protocol schema hash does not match current schema")
     if protocol.get("treatment_freeze_sha256") != _sha256(treatment_path):
         raise ValueError("protocol treatment freeze hash does not match current freeze")
-    if protocol.get("selection_freeze_sha256") != _sha256(selection_path):
-        raise ValueError("protocol selection freeze hash does not match current freeze")
     if selection.get("treatment_freeze_sha256") != _sha256(treatment_path):
         raise ValueError("selection treatment freeze hash does not match current freeze")
+    if selection.get("provider_rows_sha256") != provider_rows_sha256(rows):
+        raise ValueError("selection provider rows digest does not match protocol rows")
     selected = selection.get("selected_rows")
     if not isinstance(selected, list) or len(selected) != len(rows):
         raise ValueError("selection freeze selected_rows do not match protocol")

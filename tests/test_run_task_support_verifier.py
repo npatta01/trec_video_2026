@@ -79,13 +79,11 @@ def _write_protocol_fixture(tmp_path: Path, row_count: int = 12) -> Path:
                 protocol_root / "treatment-freeze.json"
             ),
             "selected_rows": [row["video_id"] for row in rows],
+            "provider_rows_sha256": verifier.provider_rows_sha256(rows),
         },
     )
     protocol["treatment_freeze_sha256"] = verifier._sha256(
         protocol_root / "treatment-freeze.json"
-    )
-    protocol["selection_freeze_sha256"] = verifier._sha256(
-        protocol_root / "selection-freeze.json"
     )
     _write(protocol_root / "protocol.json", protocol)
     return protocol_root
@@ -267,6 +265,27 @@ def test_run_rejects_freeze_relationship_drift_before_calls(
         return json.dumps(_valid_payload()), {}
 
     with pytest.raises(ValueError, match=message):
+        verifier.run(protocol_root, tmp_path / "run", call=should_not_call)
+    assert calls == 0
+
+
+def test_run_rejects_provider_row_content_drift_with_same_ids_before_calls(
+    tmp_path: Path,
+) -> None:
+    protocol_root = _write_protocol_fixture(tmp_path)
+    protocol_path = protocol_root / "protocol.json"
+    protocol = json.loads(protocol_path.read_text())
+    protocol["rows"][0]["question"] = "A changed question with the same row ID."
+    protocol["rows"][0]["evidence"][0]["claim"] = "A changed claim."
+    _write(protocol_path, protocol)
+    calls = 0
+
+    def should_not_call(_prompt: str) -> tuple[str, dict[str, Any]]:
+        nonlocal calls
+        calls += 1
+        return json.dumps(_valid_payload()), {}
+
+    with pytest.raises(ValueError, match="provider rows digest"):
         verifier.run(protocol_root, tmp_path / "run", call=should_not_call)
     assert calls == 0
 
