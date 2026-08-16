@@ -1,0 +1,362 @@
+# Dense Question-Localized Evidence Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Determine whether 12-FPS sampling inside frozen question-relevant clips recovers brief visual facts that the existing 4-FPS question-blind map omitted.
+
+**Architecture:** A treatment-first runner owns the exact Gemini probe, schema, validator, one-attempt artifact chain, and prediction freeze. A separate preparation script classifies the completed Issue #35 insufficiency rows, freezes paired local clips and provider-safe inputs, and enforces the 24-call cap. A post-freeze scorer performs reference-aware paired adjudication and produces a sanitized mechanism result without final-answer metrics.
+
+**Tech Stack:** Python 3.11, pytest, Google GenAI SDK, ffmpeg/ffprobe, SHA-256-bound JSON artifacts, Quarto QMD/GFM/HTML reporting.
+
+## Global Constraints
+
+- Treat this as selected, oracle-screened evidence-recovery evidence, not a prevalence estimate or deployable localization evaluation.
+- Keep all 475 source rows eligible; prior inspection is an exposure flag, never an exclusion.
+- Freeze and commit the prompt, schema, validator, runner, model settings, call cap, and decision rule before label-aware panel formation.
+- Provider requests contain only the question, frozen scene-map lines, clip offset, and local clip; never references, direct predictions, prior answers, scores, or audit verdicts.
+- Use `gemini-3.1-pro-preview`, temperature `0.0`, thinking level `HIGH`, high media resolution, maximum output `2048`, one attempt per arm, and no retry.
+- Compare one byte-identical local clip at `4.0` FPS and `12.0` FPS; requested FPS is the only arm difference.
+- Run at most eight brief-visual targets and four supported controls, for at most 24 calls. Require at least two targets and two controls before authorization.
+- Do not emit competition answers or multiple candidate facts. This stage measures evidence recovery only.
+- Do not implement counting issue #34, shared router issue #36, AutoGaze, a global map rerun, or a full-panel native-video rerun.
+- Store private media, questions, references, responses, and row-level evidence only under `data/vqa/benchmarks/dense-question-localized-evidence-issue35-v1/`.
+- Preserve zero-call, incomplete, negative, and failed-gate outcomes; never overwrite a frozen artifact.
+
+---
+
+### Task 1: Freeze the paired probe treatment
+
+**Files:**
+- Create: `configs/vqa/dense_question_localized_evidence_issue35.json`
+- Create: `scripts/run_dense_question_localized_evidence.py`
+- Create: `tests/test_run_dense_question_localized_evidence.py`
+
+**Interfaces:**
+- Produces `PROBE_SCHEMA`, `build_prompt(question: str, map_lines: Sequence[Mapping[str, Any]], clip_start_seconds: float, clip_end_seconds: float) -> str`, `validate_probe(payload: Any, clip_duration_seconds: float) -> dict[str, Any]`, `run(root: Path, call: CallFunction | None = None) -> None`, and `verify_predictions_freeze(root: Path) -> None`.
+- `CallFunction` consumes `(clip_bytes: bytes, mime_type: str, prompt: str, fps: float)` and returns `(raw_text: str, metadata: Mapping[str, Any])`.
+- Consumes later: `treatment-freeze.json`, `selection-freeze.json`, `provider-rows.json`, `media-manifest.json`, and `provider-authorization.json` from Task 2.
+
+- [ ] **Step 1: Write failing prompt and validator tests**
+
+```python
+def test_probe_requires_supported_observation_or_explicit_more_evidence():
+    observed = runner.validate_probe(
+        {
+            "question_interpretation": {
+                "requested_entity": "the robot",
+                "requested_visual_fact": "final action",
+                "temporal_qualifier": "at the end",
+            },
+            "fact_observed": True,
+            "observed_fact": "The robot clicks its feet.",
+            "evidence_timestamps": [2.75],
+            "conflicts_or_uncertainty": [],
+            "needs_more_evidence": False,
+        },
+        clip_duration_seconds=4.0,
+    )
+    assert observed["evidence_timestamps"] == [2.75]
+    with pytest.raises(ValueError, match="timestamp"):
+        runner.validate_probe(
+            {**observed, "evidence_timestamps": [4.5]},
+            clip_duration_seconds=4.0,
+        )
+```
+
+Also assert that `fact_observed=false` requires an empty `observed_fact`, no timestamps, nonempty uncertainty, and `needs_more_evidence=true`; reject extra fields and competition-answer fields.
+
+- [ ] **Step 2: Run the focused test and confirm red**
+
+Run: `pytest -q tests/test_run_dense_question_localized_evidence.py`
+
+Expected: import or collection failure because the runner does not exist.
+
+- [ ] **Step 3: Implement the exact probe and arm contract**
+
+The runner must build a strict JSON-schema request with the video part first and prompt second. The prompt identifies the clip's source offset, asks only whether the requested visual fact is observable, requires clip-relative timestamps, and prohibits references, previous answers, guessing, answer candidates, purpose, exact speech, OCR inference, and counts. `EXPECTED_FPS = (4.0, 12.0)` and `MAX_CALLS = 24` are constants bound by the treatment freeze.
+
+- [ ] **Step 4: Write failing artifact-chain and authorization tests**
+
+```python
+def test_run_writes_one_terminal_chain_per_pair_without_retry(tmp_path):
+    root = write_authorized_fixture(tmp_path, rows=2)
+    calls = []
+    runner.run(root, call=lambda *args: calls.append(args) or valid_probe_call())
+    assert len(calls) == 4
+    assert len(list((root / "rows").glob("*/terminal.json"))) == 4
+    runner.verify_predictions_freeze(root)
+
+
+def test_run_rejects_label_bearing_provider_rows_before_call(tmp_path):
+    root = write_authorized_fixture(tmp_path, rows=2)
+    add_forbidden_field(root / "provider-rows.json", "reference", "hidden")
+    calls = []
+    with pytest.raises(ValueError, match="provider-safe"):
+        runner.run(root, call=lambda *args: calls.append(args))
+    assert calls == []
+```
+
+Cover malformed JSON preservation, schema failure, missing raw response, one-attempt enforcement, call-cap drift, FPS drift, selection/treatment/authorization hash drift, mismatched clip bytes, and write-once refusal.
+
+- [ ] **Step 5: Implement raw-first storage and prediction freezing**
+
+Each `rows/{audit_index:02d}-{role}-{fps}/` directory contains exactly `request.json`, `raw-response.txt`, `metadata.json`, optional `parsed.json`, and `terminal.json`. The prediction freeze binds all five possible artifacts per arm plus the treatment, selection, provider-row, media-manifest, authorization, runner, config, prompt, schema, and validator hashes.
+
+- [ ] **Step 6: Verify and commit the treatment implementation**
+
+Run:
+
+```bash
+pytest -q tests/test_run_dense_question_localized_evidence.py
+ruff check scripts/run_dense_question_localized_evidence.py tests/test_run_dense_question_localized_evidence.py
+python -m py_compile scripts/run_dense_question_localized_evidence.py
+git diff --check
+```
+
+Expected: all commands exit 0.
+
+Commit:
+
+```bash
+git add configs/vqa/dense_question_localized_evidence_issue35.json scripts/run_dense_question_localized_evidence.py tests/test_run_dense_question_localized_evidence.py
+git commit -m "feat: freeze dense localized evidence probe"
+```
+
+### Task 2: Form the modality panel and freeze identical local clips
+
+**Files:**
+- Create: `scripts/prepare_dense_question_localized_evidence.py`
+- Create: `tests/test_prepare_dense_question_localized_evidence.py`
+- Create private: `data/vqa/benchmarks/dense-question-localized-evidence-issue35-v1/**`
+
+**Interfaces:**
+- Produces CLI phases `freeze-treatment`, `prepare-modality-audit`, `freeze-panel`, and `authorize`.
+- Produces private `treatment-freeze.json`, `modality-audit-template.json`, `manual-modality-audit.json`, `selection-freeze.json`, `provider-rows.json`, `media-manifest.json`, `clips/*.mp4`, and `provider-authorization.json`.
+- `freeze-panel` consumes the completed `manual-modality-audit.json`, full-panel `protocol.json`, corrected Issue #35 audit, and exact Task 1 treatment hash.
+
+- [ ] **Step 1: Write failing treatment-order and modality-completeness tests**
+
+```python
+def test_modality_template_requires_committed_treatment_freeze(tmp_path):
+    fixture = write_source_fixture(tmp_path)
+    with pytest.raises(ValueError, match="treatment freeze"):
+        prep.prepare_modality_audit(**fixture)
+
+
+def test_freeze_panel_requires_all_17_insufficiency_rows_classified(tmp_path):
+    fixture = write_source_fixture(tmp_path, insufficient_rows=17)
+    prep.freeze_treatment(**fixture)
+    prep.prepare_modality_audit(**fixture)
+    fill_only_first_n_rows(fixture["manual_audit"], 16)
+    with pytest.raises(ValueError, match="17"):
+        prep.freeze_panel(**fixture)
+```
+
+- [ ] **Step 2: Run the preparation tests and confirm red**
+
+Run: `pytest -q tests/test_prepare_dense_question_localized_evidence.py`
+
+Expected: import or collection failure because the preparation script does not exist.
+
+- [ ] **Step 3: Implement treatment freeze and complete modality template**
+
+`freeze-treatment` binds the committed Task 1 runner/config/prompt/schema/validator bytes, model settings, FPS arms, call cap, source protocol/maps, corrected Issue #35 audit, and decision gate. `prepare-modality-audit` emits all 17 insufficiency rows and all 8 controls privately with blank `modality`, `rationale`, `map_line_numbers`, `window_start_seconds`, `window_end_seconds`, and `include` fields.
+
+- [ ] **Step 4: Complete and validate the label-aware modality audit**
+
+Classify each insufficiency row as exactly one of `brief_visual_action`, `speech_or_audio`, `onscreen_text`, `fine_spatial_detail`, or `genuinely_absent_or_ambiguous`. Mark controls visually eligible or ineligible. Record a 2–6 second window and map-line rationale for every included row. Do not stop early and do not exclude on exposure.
+
+- [ ] **Step 5: Write failing deterministic selection and media tests**
+
+```python
+def test_selection_uses_first_eight_visual_targets_and_first_four_controls(tmp_path):
+    fixture = write_completed_modality_fixture(tmp_path, visual_targets=9, controls=5)
+    prep.freeze_panel(**fixture)
+    selection = load(fixture["root"] / "selection-freeze.json")
+    assert selection["target_count"] == 8
+    assert selection["control_count"] == 4
+    assert selection["planned_call_count"] == 24
+
+
+def test_both_arms_bind_the_same_clip_bytes(tmp_path):
+    fixture = write_completed_modality_fixture(tmp_path, visual_targets=2, controls=2)
+    prep.freeze_panel(**fixture)
+    rows = load(fixture["root"] / "provider-rows.json")["rows"]
+    assert all(row["arms"]["4fps"]["clip_sha256"] == row["arms"]["12fps"]["clip_sha256"] for row in rows)
+```
+
+Also test the two-target/two-control minimum, 24-call maximum, exact audit ordering, invalid windows, source SHA drift, map-line drift, missing media, output clips over 100 MB, exposure reporting, and private/provider projection separation.
+
+- [ ] **Step 6: Implement accurate MP4 clip generation**
+
+Use ffmpeg with input seeking, exact duration, video decode to H.264 lossless (`libx264`, `-crf 0`, `yuv420p`), AAC audio at 192 kbps when present, and `+faststart`. Run ffprobe afterward and bind duration, codecs, source hash, clip hash, and command policy. Create one clip per row; the arms reference that same clip and differ only in requested FPS metadata.
+
+- [ ] **Step 7: Verify and commit preparation code before real selection**
+
+Run:
+
+```bash
+pytest -q tests/test_prepare_dense_question_localized_evidence.py tests/test_run_dense_question_localized_evidence.py
+ruff check scripts/prepare_dense_question_localized_evidence.py tests/test_prepare_dense_question_localized_evidence.py
+python -m py_compile scripts/prepare_dense_question_localized_evidence.py
+git diff --check
+```
+
+Expected: all commands exit 0. Never stage private artifacts.
+
+Commit:
+
+```bash
+git add scripts/prepare_dense_question_localized_evidence.py tests/test_prepare_dense_question_localized_evidence.py
+git commit -m "feat: prepare dense localized evidence panel"
+```
+
+- [ ] **Step 8: Freeze the real panel or preserve a zero-call result**
+
+Run the four preparation phases against:
+
+- source protocol: `data/vqa/benchmarks/direct-gemini-batch-475-v1/protocol.json`;
+- frozen maps: `data/vqa/benchmarks/direct-gemini-batch-475-v1/maps.question-blind.json`;
+- corrected audit: `data/vqa/benchmarks/task-support-sufficiency-audit-issue35-v1/manual-audit-corrected-v3.json`.
+
+If fewer than two credible visual targets or two controls remain, write a frozen feasibility failure and skip `authorize`. Otherwise generate `provider-authorization.json` binding the approved 24-call maximum and every current freeze/hash.
+
+### Task 3: Execute and freeze the paired Gemini probe
+
+**Files:**
+- Create private: additional immutable files under `data/vqa/benchmarks/dense-question-localized-evidence-issue35-v1/`
+- Modify: `docs/superpowers/plans/2026-08-16-dense-question-localized-evidence.md`
+
+**Interfaces:**
+- Consumes Task 2's frozen treatment, selection, clips, provider rows, and authorization.
+- Produces one terminal artifact chain per row-arm and `predictions-freeze.json` before any reference-aware scoring.
+
+- [ ] **Step 1: Perform the cheapest pre-call validation**
+
+Verify the dataset symlink resolves to `/home/npatta01/data/competitions/trec_video_2026/data`; all source/clip hashes match; requests contain none of `reference`, `direct_answer`, `verdict`, `score`, or prior candidate text; every pair shares its clip hash; planned calls are at most 24; and the environment contains `GEMINI_API_KEY` without printing it.
+
+- [ ] **Step 2: Run one representative mocked end-to-end test**
+
+Run the real frozen protocol through the runner with the injected fake provider and a temporary output root. Verify request ordering, complete artifact chains, raw-first malformed-response handling, and prediction-freeze verification.
+
+- [ ] **Step 3: Issue the authorized paired calls**
+
+Run:
+
+```bash
+python scripts/run_dense_question_localized_evidence.py run \
+  --root data/vqa/benchmarks/dense-question-localized-evidence-issue35-v1
+```
+
+Do not retry any terminal failure. Record progress by completed pairs and total calls, not by repeating unchanged status.
+
+- [ ] **Step 4: Freeze predictions before references**
+
+Run the runner's `freeze` and `verify-freeze` phases. Confirm the exact completion denominator, usage/cost metadata, model version, requested FPS values, raw-response hashes, and zero duplicate attempts. Only after this succeeds may Task 4 load references.
+
+- [ ] **Step 5: Record the execution boundary**
+
+Add exact call count, terminal statuses, cost, prediction-freeze SHA-256, and whether Task 4 is authorized to this plan. Commit only the plan update; never stage private rows or clips.
+
+### Task 4: Audit paired fact recovery and apply the gate
+
+**Files:**
+- Create: `scripts/score_dense_question_localized_evidence.py`
+- Create: `tests/test_score_dense_question_localized_evidence.py`
+- Create private: `postfreeze-audit-template.json`, `manual-postfreeze-audit.json`, `postfreeze-score.json`, and integrity sidecars under the benchmark root.
+
+**Interfaces:**
+- Produces `validate_manual_audit(selection: Mapping[str, Any], predictions: Mapping[str, Any], audit: Mapping[str, Any]) -> list[dict[str, Any]]`, `score(root: Path) -> dict[str, Any]`, and `verify_score(root: Path) -> None`.
+- Consumes only a verified prediction freeze, the frozen selection/media chain, corrected references, and a complete manual audit.
+
+- [ ] **Step 1: Write failing audit-consistency and metric tests**
+
+```python
+def test_incremental_recovery_requires_4fps_false_and_12fps_true():
+    rows = paired_fixture(targets=[(False, True), (True, True)], controls=[(True, True)])
+    result = scorer.aggregate(rows)
+    assert result["target_4fps_recovered"] == 1
+    assert result["target_12fps_recovered"] == 2
+    assert result["incremental_recoveries"] == 1
+
+
+def test_gate_rejects_unsupported_observation_even_with_two_recoveries():
+    result = passing_gate_fixture()
+    result["unsupported_observations_12fps"] = 1
+    assert scorer.classify_gate(result) == "FAIL"
+```
+
+Cover incomplete pairs, uninspected rows, ambiguous references excluded from the auditable-target denominator but retained in completion, control regressions, timestamp support, exposure splits, and score-input hash drift.
+
+- [ ] **Step 2: Run the score tests and confirm red**
+
+Run: `pytest -q tests/test_score_dense_question_localized_evidence.py`
+
+Expected: import or collection failure because the scorer does not exist.
+
+- [ ] **Step 3: Implement post-freeze audit generation and validation**
+
+Each row-arm audit records clip fact presence, model fact support, recovery, timestamp support, unsupported observation, ambiguity, and reviewer note. Require every selected row and both arms exactly once. Reject a claimed recovery without a supported observed fact and timestamp.
+
+- [ ] **Step 4: Inspect every real pair and freeze the audit**
+
+Use the private clips, raw responses, parsed probes, question, and reference. Preserve disagreements and questionable references explicitly. Freeze the completed audit before aggregating results.
+
+- [ ] **Step 5: Compute the predeclared gate**
+
+Pass only with complete terminal pairs and inspection, at least two supported `4 FPS false -> 12 FPS true` target recoveries, 12-FPS recovery on at least half of auditable targets, zero unsupported observations in either arm, and zero 12-FPS control regressions. Report 4-FPS and 12-FPS recovery, incremental recoveries, controls, completion, exposure splits, and cost. Do not compute answer metrics.
+
+- [ ] **Step 6: Verify and commit the scorer**
+
+Run:
+
+```bash
+pytest -q tests/test_score_dense_question_localized_evidence.py tests/test_prepare_dense_question_localized_evidence.py tests/test_run_dense_question_localized_evidence.py
+ruff check scripts/score_dense_question_localized_evidence.py tests/test_score_dense_question_localized_evidence.py
+python -m py_compile scripts/score_dense_question_localized_evidence.py
+git diff --check
+```
+
+Expected: all commands exit 0.
+
+Commit:
+
+```bash
+git add scripts/score_dense_question_localized_evidence.py tests/test_score_dense_question_localized_evidence.py
+git commit -m "feat: score dense localized evidence recovery"
+```
+
+### Task 5: Publish the durable negative-or-positive result privately and verify
+
+**Files:**
+- Modify: `docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd`
+- Modify: `docs/project-status/research-routing.qmd`
+- Modify: `docs/project-status/experiment-ledger.qmd`
+- Modify generated: sibling Markdown and HTML outputs
+- Create: `docs/experiments/artifacts/vqa-dense-localized-evidence-20260816/README.md`
+- Create: `docs/experiments/artifacts/vqa-dense-localized-evidence-20260816/summary.json`
+- Create: `docs/experiments/artifacts/vqa-dense-localized-evidence-20260816/SHA256SUMS`
+
+**Interfaces:**
+- Consumes only verified aggregate results and immutable private hashes.
+- Produces a sanitized evidence index and updates the Routing theme's next action without exposing row-level competition material.
+
+- [ ] **Step 1: Write the condition-bound result**
+
+Report reason, paired condition, target/control denominator, completion, recovery counts by arm, incremental dense-only recoveries, unsupported observations, control regressions, exposure split, cost, gate, evidence validity, decision disposition, limitations, and reconsideration condition. State clearly that oracle-screened localization cannot establish router performance or prevalence.
+
+- [ ] **Step 2: Generate the sanitized bundle and checksums**
+
+Include only aggregate counts, schema descriptions, hashes, model/settings, call count, cost, and gate. Exclude row IDs, questions, references, clips, paths outside the repository, evidence text, raw responses, and predictions.
+
+- [ ] **Step 3: Render QMD-owned outputs**
+
+Render the dated experiment QMD to GFM and HTML. Render all project-status QMD files using the repository guide's isolated cache commands. Do not hand-edit generated Markdown or HTML.
+
+- [ ] **Step 4: Run complete verification**
+
+Run focused and neighboring tests; Ruff; Python compilation; JSON parsing; private freeze verification; score recalculation; bundle checksums; privacy scans; `git diff --check`; generated-source consistency; link checks; and tailnet-only portal HTTP checks. Then run an independent review of the full branch diff before push or issue update.
+
+- [ ] **Step 5: Commit the result without publishing externally**
+
+Stage only code, tests, canonical QMD, generated outputs, the plan, and sanitized artifacts. Confirm no dataset paths are staged. Commit with a result-specific message. Do not push, update GitHub Issue #35, or alter sharing permissions without explicit user authorization.
