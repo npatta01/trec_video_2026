@@ -300,7 +300,7 @@
 - Consumes only the frozen source protocol and two preserved delivery bundles before freeze.
 - Produces immutable private protocol, model, upload, job, status, prediction, and score artifacts.
 
-- [ ] **Step 1: Run provider-free final preflight**
+- [x] **Step 1: Run provider-free final preflight**
 
   Verify:
 
@@ -322,21 +322,32 @@
   or below `$0.15`, and no private-source or credential pattern in tracked
   changes.
 
-- [ ] **Step 2: Prepare and inspect only aggregate protocol evidence**
+- [x] **Step 2: Prepare and inspect only aggregate protocol evidence**
 
   Run `prepare` once. Inspect only status, row count, duration sum, cost ceiling,
   privacy-scan count, and hashes. Never print the protocol or row identities.
 
-- [ ] **Step 3: Run authenticated no-inference model preflight**
+- [x] **Step 3: Run authenticated no-inference model preflight**
 
   Source the approved private environment without printing it, invoke
   `preflight` once, and require exact availability of both arm model IDs.
   A failure stops before upload/submission.
 
-- [ ] **Step 4: Upload the two preserved deliveries once**
+- [x] **Step 4a: Preserve the terminal first-upload parser incident**
 
-  Invoke `upload` once. Require 2/2 `ACTIVE` records and re-run input/hash
-  verification. Reuse those URIs for both arms.
+  The sole `upload` invocation reached Google for row one, then the local
+  parser rejected its base64-wrapped ASCII-hex digest. Preserve its exclusive
+  attempt and failed record; row two and both inference arms remain untouched.
+
+- [ ] **Step 4b: Recover row one read-only and upload only row two once**
+
+  After committing the design erratum and tested recovery code, invoke
+  `recover-upload` once. It must hash-freeze the existing v1 inventory before
+  provider reads, select exactly one non-historical, unexpired `ACTIVE` match
+  by MIME, size, normalized SHA-256, and creation window, and bind a stable
+  `Files.get` snapshot without calling upload or Batch. Then invoke
+  `resume-upload` once; it must upload only row two and finish with 2/2 verified
+  `ACTIVE` records. Reuse those URIs for both arms.
 
 - [ ] **Step 5: Submit exactly one Batch job per arm**
 
