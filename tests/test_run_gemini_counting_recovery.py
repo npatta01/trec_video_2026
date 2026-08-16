@@ -334,6 +334,15 @@ def test_invalid_paid_response_is_frozen_before_validation_error(
     assert json.loads((tmp_path / "locate" / "parsed.json").read_text()) == {
         "schema_version": 99
     }
+    provider = json.loads((tmp_path / "locate" / "provider-metadata.json").read_text())
+    assert provider["model_version"] == "gemini-fixture"
+    assert provider["response_id"] == "response-fixture"
+    assert provider["prompt_tokens"] == 1_000
+    assert provider["output_tokens"] == 100
+    assert provider["thinking_tokens"] == 100
+    assert terminal["provider_metadata_sha256"] == MODULE._file_sha256(
+        tmp_path / "locate" / "provider-metadata.json"
+    )
 
 
 def test_locator_alias_correction_is_additive_and_binds_invalid_paid_terminal(

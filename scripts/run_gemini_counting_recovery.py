@@ -1220,6 +1220,18 @@ def execute_paid_stage(
             f"observed provider cost {observed_cost:.6f} exceeds reservation "
             f"{reserved_usd:.6f}"
         )
+    provider = _self_hashed(
+        {
+            "schema_version": 1,
+            "model_version": getattr(response, "model_version", None),
+            "response_id": getattr(response, "response_id", None),
+            "prompt_tokens": prompt_tokens,
+            "output_tokens": output_tokens,
+            "thinking_tokens": thinking_tokens,
+            "estimated_cost_usd": observed_cost,
+        }
+    )
+    _write_once_json(stage_root / "provider-metadata.json", provider)
     try:
         parsed = json.loads(raw)
         if not isinstance(parsed, dict):
@@ -1238,6 +1250,9 @@ def execute_paid_stage(
                 "attempted_provider_calls": 1,
                 "request_sha256": request["complete_sha256"],
                 "raw_response_sha256": _file_sha256(stage_root / "raw-response.txt"),
+                "provider_metadata_sha256": _file_sha256(
+                    stage_root / "provider-metadata.json"
+                ),
                 "prior_complete_sha256": prior_complete_sha256,
                 "elapsed_seconds": time.monotonic() - started,
                 "error_type": type(error).__name__,
@@ -1252,18 +1267,6 @@ def execute_paid_stage(
             observed_usd=observed_cost,
         )
         raise
-    provider = _self_hashed(
-        {
-            "schema_version": 1,
-            "model_version": getattr(response, "model_version", None),
-            "response_id": getattr(response, "response_id", None),
-            "prompt_tokens": prompt_tokens,
-            "output_tokens": output_tokens,
-            "thinking_tokens": thinking_tokens,
-            "estimated_cost_usd": observed_cost,
-        }
-    )
-    _write_once_json(stage_root / "provider-metadata.json", provider)
     terminal = _self_hashed(
         {
             "schema_version": 1,
