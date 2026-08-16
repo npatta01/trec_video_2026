@@ -280,3 +280,24 @@ therefore invalid, not merely incomplete; challenges, repeats, and quality
 metrics did not run. Preserve the raw attempt and additive validity correction,
 do not repair or rerun the condition, and keep the validated competition
 fallback unchanged. No additional paid counting inference is authorized.
+
+The separately authorized bounded multi-pass Gemini counting canary is complete
+at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-bounded-multipass-counting-v4/`.
+Start with `inspection.md`. Its frozen twelve-row replicate used label-free
+provider requests plus a
+typed CountSpec, code-scheduled endpoint-complete overlapping windows, atomic
+evidence, a same-model coverage audit, deterministic reduction, and at most one
+targeted refinement. It observed 1/8 confirmed failures rescued and only 1/4
+controls preserved; all coverage responses encoded no dispute, so the
+refinement arm made no calls and was identical. Additive review classified the
+intended comparison Invalid: the runner process could read the private panel,
+the frozen small-target static crop condition did not execute, and per-call
+returned model revisions were not preserved. The v4 provider cost was
+`$2.048074`, and cumulative v1-v4 exposure was `$3.358862`. Preserve v1-v3 as incomplete
+development/transport attempts, including v3's response-free HTTP 503. Do not
+rerun or scale the same-model CountSpec/evidence/self-audit condition and do not
+derive row-specific rules from the post-label inspection. The frozen outputs
+and metrics are factual observations only, not evidence for the intended
+promotion comparison. No additional paid counting inference is authorized by
+this result.

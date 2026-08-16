@@ -1,0 +1,56 @@
+{
+  "complete_sha256": "5950700920c76371dc87e2bd153d0b707043012a47fc59d8106d13715ec9c13e",
+  "completion": {
+    "completed_rows": 12,
+    "planned_rows": 12
+  },
+  "cost": {
+    "fixed_usd": 2.048074,
+    "refinement_incremental_usd": 0.0,
+    "total_usd": 2.048074
+  },
+  "decision": {
+    "fixed": {
+      "control_total": 4,
+      "controls_preserved": 1,
+      "failure_total": 8,
+      "gain_over_baseline": -2,
+      "gate_passed": false,
+      "rescued": 1
+    },
+    "refinement": {
+      "added_over_fixed": 0,
+      "control_total": 4,
+      "controls_preserved": 1,
+      "fixed_cost_usd": 2.048074,
+      "gate_passed": false,
+      "regressions_from_fixed": 0,
+      "total_cost_usd": 2.048074
+    },
+    "selected_arm": "none"
+  },
+  "decision_disposition": "Not promoted under the tested condition",
+  "evidence_validity": "Diagnostic",
+  "private_score_complete_sha256": "86575144f497c7176088ecf7f3fc31afd1cd83dc2b4ff669140c882b8d0d82f7",
+  "schema_version": "bounded-multipass-sanitized-summary-v1",
+  "semantic_metrics": {
+    "baseline": {
+      "bertscore_f1": 0.8712987552086512,
+      "meteor": 0.08333333333333333,
+      "semantic_composite": 0.40154402951399487,
+      "sts": 0.25
+    },
+    "fixed": {
+      "bertscore_f1": 0.8321596930424372,
+      "meteor": 0.08333333333333333,
+      "semantic_composite": 0.33294211990303463,
+      "sts": 0.08333333333333333
+    },
+    "refinement": {
+      "bertscore_f1": 0.8321596930424372,
+      "meteor": 0.08333333333333333,
+      "semantic_composite": 0.33294211990303463,
+      "sts": 0.08333333333333333
+    }
+  }
+}

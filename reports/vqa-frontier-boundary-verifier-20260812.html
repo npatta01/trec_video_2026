@@ -2164,11 +2164,10 @@ vertical-align: -.125em;
 
 </head>
 
-<body class="quarto-light">
+<body class="fullcontent quarto-light">
 
 <div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
-<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="2026-08-12-vqa-frontier-boundary-verifier.md"><i class="bi bi-file-code"></i>Github (GFM)</a></li></ul></div></div>
+
 <main class="content" id="quarto-document-content">
 
 <header id="title-block-header" class="quarto-title-block default">
@@ -2625,6 +2624,58 @@ vertical-align: -.125em;
 </ul>
 <p>The fenced outputs remain factual observations of the deviating executed condition, but they are unusable as evidence for the planned canary and say nothing reliable about visual perception. The two-row eligible panel was also too small to justify changing the primary submission even if a valid smoke had passed. With the deadline imminent, stop this counting branch and preserve the already validated fallback submission. Do not retry with fence stripping, tune the prompt, run the challenges, or start another paid counting canary.</p>
 <p>The sanitized evidence index is <code>docs/experiments/artifacts/vqa-local-gemma-frame-counting-20260816/</code>. Complete private selected frames, contact sheets, requests, raw local outputs, freezes, additive validity correction, decisions, and inspections remain at <code>data/vqa/benchmarks/local-gemma-frame-counting-canary-v2/</code> in the canonical shared dataset.</p>
+</section>
+<section id="bounded-multi-pass-gemini-counting-canary" class="level2">
+<h2 class="anchored" data-anchor-id="bounded-multi-pass-gemini-counting-canary">Bounded multi-pass Gemini counting canary</h2>
+<p><strong>Reason for testing.</strong> The preceding frame-presence work suggested that dense visual states can represent counting evidence, while the generic atomic enumerator and typed reducer still missed event boundaries and coverage. This test asked whether a question-driven video agent could do better by separating the work into a typed CountSpec, endpoint-complete overlapping evidence windows, an atomic event ledger, a full-video coverage audit, and a deterministic reducer. A matched third arm permitted one targeted refinement only when the coverage audit encoded a localized dispute.</p>
+<p><strong>Tested condition and panel.</strong> Code selected a frozen twelve-row panel: eight confirmed Gemini counting failures and four correct controls, excluding every row used in the earlier counting canaries. Direct Google <code>gemini-3.1-pro-preview</code> ran with LOW thinking and schema-constrained JSON. Provider prompts and request artifacts contained no labels, references, statuses, or baseline answers, and scoring began only after both arm freezes. However, the runner process authenticated <code>panel.freeze.json</code>, which contains those fields, before inference; labels were therefore not process-unavailable as required. For temporal questions, code—not the model—scheduled endpoint-complete six-second windows with one-second overlap. Exact answers came only from typed atomic records accepted by the coverage pass. The predeclared gates required at least 5/8 rescues, 4/4 controls preserved, and a positive net gain.</p>
+<p>v1 and v2 stopped on label-independent interface defects and remain preserved. v3 completed its representative smoke, then stopped on a response-free HTTP 503 from the provider. Before any additional call, a transport addendum froze one fresh full replicate with unchanged model, panel, prompts, schemas, scheduler, reducers, ceilings, and no-retry rule. v4 carried all earlier exposure into its live budget ledger and completed 12/12 rows.</p>
+<p><strong>Observed result.</strong> The fixed arm returned ten exact values and two bounded abstentions. It rescued <strong>1/8 failures</strong> and preserved <strong>1/4 controls</strong>, for a net change of <strong>-2 correct rows</strong> versus the original direct answers. Every coverage response encoded no eligible dispute, so the bounded-refinement arm made zero additional calls and reproduced the fixed arm exactly. The v4 provider cost was <code>$2.048074</code>; cumulative v1-v4 exposure was <code>$3.358862</code>, below the frozen ceilings.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Arm</th>
+<th style="text-align: right;">METEOR</th>
+<th style="text-align: right;">BERTScore-F1</th>
+<th style="text-align: right;">STS</th>
+<th style="text-align: right;">Composite</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Original direct Gemini</td>
+<td style="text-align: right;">0.0833</td>
+<td style="text-align: right;">0.8713</td>
+<td style="text-align: right;">0.2500</td>
+<td style="text-align: right;">0.4015</td>
+</tr>
+<tr class="even">
+<td>Fixed multi-pass</td>
+<td style="text-align: right;">0.0833</td>
+<td style="text-align: right;">0.8322</td>
+<td style="text-align: right;">0.0833</td>
+<td style="text-align: right;">0.3329</td>
+</tr>
+<tr class="odd">
+<td>Bounded refinement</td>
+<td style="text-align: right;">0.0833</td>
+<td style="text-align: right;">0.8322</td>
+<td style="text-align: right;">0.0833</td>
+<td style="text-align: right;">0.3329</td>
+</tr>
+</tbody>
+</table>
+<p>The factual observed count outcomes, broken down by the model-authored unit, were: action repetition 0/5 failures rescued and 0/1 controls preserved; appearance episode 0/1 and 0/1; static cardinality 1/2 and 1/2. By frozen panel stratum, the observed correct counts were 0/4 action failures, 0/1 other temporal failure, 1/3 static failures, 0/2 temporal controls, and 1/2 static controls.</p>
+<ul>
+<li><strong>Evidence validity:</strong> Invalid (supersedes the original Diagnostic score).</li>
+<li><strong>Decision disposition:</strong> Not promoted under the tested condition.</li>
+<li><strong>Decision code:</strong> <code>stop_invalid_bounded_same_model_counting_agent</code>.</li>
+<li><strong>Completion:</strong> 12/12 observed in v4; v3 is separately preserved as an incomplete 1/12 transport failure.</li>
+</ul>
+<p>The intended promotion comparison is unusable. In addition to the label firewall process-access gap, the predeclared static route required deterministic crops when a target occupied a small part of the frame. v4 sent only one full frame per static row; the eight small flags are an outcome-relevant example. Per-call provider metadata also omitted the returned <code>response.model_version</code>, so the exact returned revision cannot be audited. The immutable score and its original sanitized summary remain preserved as factual outputs; additive <code>validity-correction.json</code> binds them and supersedes their validity classification.</p>
+<p>Post-freeze frame and ledger inspection found that complete temporal coverage did not solve event segmentation. The model collapsed three push-ups into one long interval and two separated laptop appearances into one episode, while it split nine toy entries into thirteen records and eight parkour jumps into ten. Most importantly, the same-model coverage pass declared no dispute on every row. On one abstained outlet control, its prose explicitly said that outlets were visible and refinement should be requested, while its structured fields simultaneously said <code>complete: true</code> and <code>refinement_request: null</code>. The tested refinement gate therefore supplied no independent correction signal.</p>
+<p>Do not claim this as evidence for the designed bounded workflow, scale the same-model CountSpec/evidence/self-audit chain, or convert the post-label failure patterns into row-specific rules. A quality claim would require a fresh isolated run. If counting work continues, test a materially different frame-state or transition detector with mechanically triggered challenges and deterministic run reduction on a fresh held-out panel. Another same-model prose pass is not supported by these factual observations.</p>
+<p>The sanitized evidence index is <code>docs/experiments/artifacts/vqa-bounded-multipass-counting-20260816/</code>. Complete private requests, uploads, provider responses, stage terminals, prediction freezes, score, budget ledger, and inspection remain at <code>data/vqa/benchmarks/direct-gemini-bounded-multipass-counting-v4/</code>; the response-free transport failure remains at <code>data/vqa/benchmarks/direct-gemini-bounded-multipass-counting-v3/</code>.</p>
 </section>
 <section id="cost-and-completion-boundary" class="level2">
 <h2 class="anchored" data-anchor-id="cost-and-completion-boundary">Cost and completion boundary</h2>

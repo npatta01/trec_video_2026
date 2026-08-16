@@ -322,6 +322,15 @@ GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
   states). Both responses were also Markdown-fenced. The intended canary
   is invalid; challenges, repeats, and quality metrics did not run.
   Retain the validated deadline fallback.
+- **Bounded multi-pass Gemini canary:** a fresh twelve-row replicate
+  with label-free provider requests observed 1/8 failures rescued and
+  1/4 controls preserved; every coverage response encoded no eligible
+  dispute, so the refinement arm made no calls. Additive review
+  classified the intended comparison Invalid because labels were
+  runner-process-accessible, required small-target static crops did not
+  execute, and returned model revisions were not preserved per call. The
+  observed outputs are factual only; the same-model agent is not
+  promoted.
 - **What it does not rule out:** reusable question-blind scene maps or
   Gemini native video. It isolates the earlier failure to the tested
   route/verifier.
@@ -332,12 +341,11 @@ GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
 - **Reconsider when:** a representative 60-row audit confirms enough
   clean evidence-present and map-omission failures, then map-grounded
   answering repairs its predeclared share without regressing supported
-  controls. For counting, require a fresh label-blind panel with
-  model-generated structured frame decisions, endpoint and sampling
-  checks, explicit abstention, and controls. The current two-row
-  eligibility pool is too small for submission promotion. Do not rerun
-  the unchanged generic atomic enumerator, Gemini recovery, or local
-  Gemma smoke condition before the deadline.
+  controls. For counting, require a materially different frame-state or
+  transition detector with mechanically triggered challenges, endpoint
+  and sampling checks, explicit abstention, and fresh controls. Do not
+  rerun the unchanged generic atomic enumerator, Gemini recovery, local
+  Gemma smoke, or bounded same-model self-audit condition.
 
 <details>
 
@@ -372,7 +380,9 @@ feasibility](../experiments/artifacts/vqa-counting-frame-presence-feasibility-20
 preserve the prior counting result and additive interpretation
 correction. The [local Gemma smoke
 test](../experiments/artifacts/vqa-local-gemma-frame-counting-20260816/README.md)
-records the final deadline stop decision.
+records its invalid stop decision, and the [bounded multi-pass Gemini
+canary](../experiments/artifacts/vqa-bounded-multipass-counting-20260816/README.md)
+records the completed same-model negative.
 
 </details>
 

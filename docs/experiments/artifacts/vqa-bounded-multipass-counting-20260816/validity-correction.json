@@ -1,0 +1,77 @@
+{
+  "affected_claims": [
+    "completed label-isolated promotion comparison",
+    "execution of the full predeclared static evidence condition",
+    "per-call exact returned-model verification"
+  ],
+  "complete_sha256": "97e455a5a3ac12a1860575f62cab792e30cdf08c96d53e6fd908fc7ed85cb00b",
+  "decision_disposition": "Not promoted under the tested condition",
+  "deviations": [
+    {
+      "code": "label_firewall_process_access",
+      "detail": "Inference requests and prompts excluded labels and references, but the runner process loaded panel.freeze.json containing them."
+    },
+    {
+      "code": "static_crop_condition_not_implemented",
+      "detail": "The predeclared static route required deterministic crops when targets were small; v4 provided one full native-resolution frame per static row and no crop path."
+    },
+    {
+      "code": "returned_model_revision_not_preserved",
+      "detail": "Preflight authenticated the catalog model name, but per-call provider metadata did not preserve response.model_version."
+    }
+  ],
+  "evidence_validity": "Invalid",
+  "fixed_predictions_freeze_sha256": "6466f99ec940c8dcea1313413c8ed83a822a8f810884b68ee34fe645f3c9ff23",
+  "intended_claim_usable": false,
+  "observed_aggregate_breakdown": {
+    "by_authored_count_unit": {
+      "action_repetition": {
+        "controls_preserved": 0,
+        "controls_total": 1,
+        "failures_rescued": 0,
+        "failures_total": 5
+      },
+      "appearance_episode": {
+        "controls_preserved": 0,
+        "controls_total": 1,
+        "failures_rescued": 0,
+        "failures_total": 1
+      },
+      "static_cardinality": {
+        "controls_preserved": 1,
+        "controls_total": 2,
+        "failures_rescued": 1,
+        "failures_total": 2
+      }
+    },
+    "by_frozen_panel_stratum": {
+      "control_static": {
+        "correct": 1,
+        "total": 2
+      },
+      "control_temporal": {
+        "correct": 0,
+        "total": 2
+      },
+      "failure_action": {
+        "correct": 0,
+        "total": 4
+      },
+      "failure_other_temporal": {
+        "correct": 0,
+        "total": 1
+      },
+      "failure_static": {
+        "correct": 1,
+        "total": 3
+      }
+    }
+  },
+  "observed_outputs_status": "Preserved factual observations only; not evidence for the intended promotion comparison.",
+  "original_private_score_sha256": "86575144f497c7176088ecf7f3fc31afd1cd83dc2b4ff669140c882b8d0d82f7",
+  "original_sanitized_summary_file_sha256": "0011fa3c3e401a92d17c922ed3d8fd5222b0f83180d262037cf12d486a19ad7d",
+  "refinement_predictions_freeze_sha256": "c0db37e9c4d985083a25ebb026572d96948f4d9de0b8aa5c945c8173fb00a2da",
+  "requires_fresh_isolated_run_for_claim": true,
+  "schema_version": "bounded-multipass-validity-correction-v1",
+  "supersedes_evidence_validity": "Diagnostic"
+}
