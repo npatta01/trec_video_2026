@@ -957,15 +957,12 @@ def _answer_results(root: Path) -> dict[tuple[str, str], str]:
     return results
 
 
-def build_blind_review_packet(root: Path) -> dict[str, Any]:
-    """Create a deterministic arm-blind 12-row semantic review packet."""
+def _derive_blind_review_payloads(
+    root: Path,
+    binding: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Derive the complete packet and arm key from frozen source artifacts."""
 
-    _verify_answer_prediction_freeze(root)
-    binding = _verify_annotation_bindings(root)
-    packet_path = root / "review-packet.json"
-    key_path = root / "review-key.json"
-    if packet_path.exists() or key_path.exists():
-        raise ValueError("review packet already exists")
     ids = _selected_ids(root)
     requests_payload = _load_json(root / "requests.json")
     requests = requests_payload["requests"]
@@ -1035,13 +1032,26 @@ def build_blind_review_packet(root: Path) -> dict[str, Any]:
         "binding_rows_sha256": binding["rows_sha256"],
         "rows": key_rows,
     }
+    return packet, key
+
+
+def build_blind_review_packet(root: Path) -> dict[str, Any]:
+    """Create a deterministic arm-blind 12-row semantic review packet."""
+
+    _verify_answer_prediction_freeze(root)
+    binding = _verify_annotation_bindings(root)
+    packet_path = root / "review-packet.json"
+    key_path = root / "review-key.json"
+    if packet_path.exists() or key_path.exists():
+        raise ValueError("review packet already exists")
+    packet, key = _derive_blind_review_payloads(root, binding)
     _write_json_exclusive(key_path, key)
     _write_json_exclusive(packet_path, packet)
     return packet
 
 
 def _load_verified_review(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
-    _verify_annotation_bindings(root)
+    binding = _verify_annotation_bindings(root)
     packet = _load_json(root / "review-packet.json")
     key = _load_json(root / "review-key.json")
     if not isinstance(packet, Mapping) or not isinstance(key, Mapping):
@@ -1058,6 +1068,12 @@ def _load_verified_review(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
         or len(key_rows) != PANEL_SIZE
         or key.get("packet_rows_sha256")
         != hashlib.sha256(_canonical_json(packet_rows).encode()).hexdigest()
+    ):
+        raise ValueError("blind review packet freeze is invalid")
+    expected_packet, expected_key = _derive_blind_review_payloads(root, binding)
+    if (
+        _canonical_json(packet) != _canonical_json(expected_packet)
+        or _canonical_json(key) != _canonical_json(expected_key)
     ):
         raise ValueError("blind review packet freeze is invalid")
     return dict(packet), dict(key)

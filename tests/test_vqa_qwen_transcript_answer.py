@@ -655,6 +655,43 @@ def test_review_packet_rejects_annotation_mutation_after_binding(
         build_blind_review_packet(root)
 
 
+def test_score_rejects_review_key_arm_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _ready_prediction_root(tmp_path, monkeypatch, name="review-key-drift")
+    _write_annotations()
+    bind_answer_annotations(root, bound_at="2026-08-16T12:01:00Z")
+    packet = build_blind_review_packet(root)
+    key_path = root / "review-key.json"
+    key = json.loads(key_path.read_text(encoding="utf-8"))
+    first_row = key["rows"][0]
+    first_row["answer_a_condition"], first_row["answer_b_condition"] = (
+        first_row["answer_b_condition"],
+        first_row["answer_a_condition"],
+    )
+    key_path.write_text(json.dumps(key), encoding="utf-8")
+    judgments = {
+        "schema_version": 1,
+        "reviewer": "test-reviewer",
+        "rows": [
+            {
+                "review_id": row["review_id"],
+                "answer_a": "correct",
+                "answer_b": "incorrect",
+            }
+            for row in packet["rows"]
+        ],
+    }
+
+    with pytest.raises(ValueError, match="blind review packet freeze"):
+        score_answer_review(
+            root,
+            judgments,
+            scored_at="2026-08-16T12:02:00Z",
+        )
+
+
 @pytest.mark.parametrize("verdict", ("", "maybe", "CORRECT"))
 def test_score_rejects_invalid_or_incomplete_review_verdicts(
     tmp_path: Path,
