@@ -60,6 +60,7 @@ class FakeQwenModel:
                 "return_time_stamps": True,
             },
         ),
+        ("English", False, {"audio": "/a.wav", "language": "English"}),
     ),
 )
 def test_transcribe_qwen_mode_uses_exact_decode_call(
