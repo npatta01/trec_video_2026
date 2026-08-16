@@ -1001,6 +1001,8 @@ def _write_incomplete_freeze(
 ) -> None:
     """Persist every pending arm after a terminal stop, without retrying."""
 
+    if (root / "continuation-authorization.json").is_file():
+        validate_continuation_authorization(root)
     planned = len(rows) * len(EXPECTED_FPS)
     ordered_records = _ordered_terminal_records(root, rows)
     derived_call_count = sum(item["status"] != "incomplete" for item in ordered_records)
@@ -1395,6 +1397,8 @@ def _freeze_inputs(root: Path) -> dict[str, Any]:
 
 
 def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
+    if (root / "continuation-authorization.json").is_file():
+        validate_continuation_authorization(root)
     rows, _provider_by_index, _media_by_index = _validate_inputs(root)
     ordered_records = _ordered_terminal_records(root, rows)
     continuation = (root / "continuation-authorization.json").is_file()
@@ -1542,6 +1546,8 @@ def verify_predictions_freeze(root: Path) -> None:
     """Create the prediction freeze once, then reject any byte drift."""
 
     root = Path(root)
+    if (root / "continuation-authorization.json").is_file():
+        validate_continuation_authorization(root)
     rows, _provider_by_index, _media_by_index = _validate_inputs(root)
     ordered_records = _ordered_terminal_records(root, rows)
     planned = len(rows) * len(EXPECTED_FPS)
@@ -1878,9 +1884,14 @@ def validate_continuation_authorization(root: Path) -> None:
             raise ValueError("continuation imported source artifacts do not bind v4 freeze")
         if not target_arm.is_dir():
             raise ValueError("continuation imported target arm is missing")
-        target_names = {path.name for path in target_arm.iterdir() if path.is_file()}
-        if target_names != set(ROW_ARTIFACT_NAMES) or len(target_names) != len(ROW_ARTIFACT_NAMES):
-            raise ValueError("continuation imported target artifact set is not exact")
+        target_entries = list(target_arm.iterdir())
+        target_names = {path.name for path in target_entries}
+        if (
+            target_names != set(ROW_ARTIFACT_NAMES)
+            or len(target_names) != len(ROW_ARTIFACT_NAMES)
+            or any(not path.is_file() or path.is_symlink() for path in target_entries)
+        ):
+            raise ValueError("continuation imported target exact regular-file artifact set is required")
         for name in ("request.json", "raw-response.txt", "metadata.json"):
             if (target_arm / name).read_bytes() != (source_arm / name).read_bytes():
                 label = "raw response" if name == "raw-response.txt" else name

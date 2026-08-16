@@ -326,6 +326,13 @@ must not be loaded for reference-aware scoring.
 - Fresh additive zero-call candidate is private run-v14: imported `2`, remaining new maximum `22`, combined maximum `24`, `provider_calls_made=0`, no prediction freeze. Runner SHA `f7a46e01879b6b8e194fb4a4176010ace1ca430b294542c60174d7742113abc1`; replay SHA `3db613a4bf0d231eaa31ab9bfdb99e68d922a269bd4fb9cc1a3214762e059378`; authorization SHA `bb0447b514d6ca52a1bca661f501939af91828b0d56a6b36af20c2d407bc1a65`.
 - v2/v3/v4 and superseded v13 recursive pre/post hashes matched. Ruff, compilation, and `git diff --check` passed. Task 4 remains **NOT AUTHORIZED** pending a verified provider continuation freeze.
 
+#### Task 3D fix round 2/5 — 2026-08-16
+
+- Status: complete for this bounded review round; no provider calls, labels, references, or scoring. Eight new freeze-path/entry regressions initially produced `46 passed, 8 failed`; final runner plus preparation tests are `68 passed`.
+- Every continuation freeze write and existing-freeze verification now performs full continuation authorization semantic validation first, including complete and incomplete paths. Imported target directories require exactly the five regular-file artifacts before any callback; extra directories, FIFOs, symlinks, and special entries are rejected.
+- Post-run and post-freeze self-consistent imported-artifact rewrites and replay `provider_calls_made=17` rewrites reject before freeze creation/trust. Fresh additive zero-call candidate is private run-v15: imported `2`, remaining new maximum `22`, combined maximum `24`, `provider_calls_made=0`, no prediction freeze. Runner SHA `7b64ae1d6285f1bb5b55873928503c190d605d88de56f237d70d1f77cbde7281`; replay SHA `65451f0f69204f523ede71d9412fe592530bb94663a9d4be7e56463d256d66e8`; authorization SHA `03861132cd11660478876893d132173e13866bca5246b068374d032bf7d50de1`.
+- v2/v3/v4 and superseded v13/v14 recursive pre/post hashes matched. Ruff, compilation, and `git diff --check` passed. Task 4 remains **NOT AUTHORIZED** pending a verified provider continuation freeze.
+
 ### Task 4: Audit paired fact recovery and apply the gate
 
 **Files:**

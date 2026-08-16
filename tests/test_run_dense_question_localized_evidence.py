@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import shutil
 from typing import Any
@@ -623,6 +624,70 @@ def _sha_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def _rewrite_imported_artifacts_self_consistently(root: Path) -> None:
+    arm = runner._arm_directory(root, 1, "target", 4.0)
+    raw = (arm / "raw-response.txt").read_text() + "\n"
+    (arm / "raw-response.txt").write_text(raw)
+    metadata = json.loads((arm / "metadata.json").read_text())
+    metadata["response_id"] = "forged-imported-response"
+    metadata["raw_response_sha256"] = _sha_bytes(raw.encode())
+    metadata["response_text_sha256"] = _sha_bytes(raw.encode())
+    _write_json(arm / "metadata.json", metadata)
+    media = json.loads((root / "media-manifest.json").read_text())["rows"][0]
+    parsed = runner.validate_probe(
+        json.loads(raw),
+        media["clip_duration_seconds"],
+        nominal_duration_seconds=media["clip_end_seconds"] - media["clip_start_seconds"],
+        fps=4.0,
+    )
+    _write_json(arm / "parsed.json", parsed)
+    _write_json(
+        arm / "terminal.json",
+        {
+            "audit_index": 1,
+            "fps": 4.0,
+            "metadata_sha256": _sha(arm / "metadata.json"),
+            "parsed_semantic_sha256": _sha_bytes(runner._canonical(parsed)),
+            "parsed_sha256": _sha(arm / "parsed.json"),
+            "raw_response_sha256": _sha_bytes(raw.encode()),
+            "request_sha256": _sha(arm / "request.json"),
+            "response_id": "forged-imported-response",
+            "role": "target",
+            "status": "passed",
+        },
+    )
+    replay_path = root / "canary-replay-freeze.json"
+    replay = json.loads(replay_path.read_text())
+    for prefix_item in replay["imported_prefix"]:
+        if prefix_item["audit_index"] == 1 and prefix_item["fps"] == 4.0:
+            prefix_item["replayed_artifacts"] = {
+                name: _sha(arm / name)
+                for name in sorted(path.name for path in arm.iterdir())
+            }
+    _write_json(replay_path, replay)
+    auth_path = root / "continuation-authorization.json"
+    auth = json.loads(auth_path.read_text())
+    for prefix_item in auth["imported_prefix"]:
+        if prefix_item["audit_index"] == 1 and prefix_item["fps"] == 4.0:
+            prefix_item["replayed_artifacts"] = {
+                name: _sha(arm / name)
+                for name in sorted(path.name for path in arm.iterdir())
+            }
+    auth["canary_replay_freeze_sha256"] = _sha(replay_path)
+    _write_json(auth_path, auth)
+
+
+def _rewrite_replay_provider_calls(root: Path, value: Any = 17) -> None:
+    replay_path = root / "canary-replay-freeze.json"
+    replay = json.loads(replay_path.read_text())
+    replay["provider_calls_made"] = value
+    _write_json(replay_path, replay)
+    auth_path = root / "continuation-authorization.json"
+    auth = json.loads(auth_path.read_text())
+    auth["canary_replay_freeze_sha256"] = _sha(replay_path)
+    _write_json(auth_path, auth)
+
+
 def _refresh_current_input_bindings(root: Path) -> None:
     provider_rows = json.loads((root / "provider-rows.json").read_text())["rows"]
     selection_path = root / "selection-freeze.json"
@@ -700,7 +765,7 @@ def test_continuation_authorization_bytes_drift_after_freeze_is_rejected(tmp_pat
     auth = json.loads(auth_path.read_text())
     auth["remaining_new_call_maximum"] = 21
     _write_json(auth_path, auth)
-    with pytest.raises(ValueError, match="continuation authorization bytes"):
+    with pytest.raises(ValueError, match="continuation (call cap is invalid|authorization bytes)"):
         runner.verify_predictions_freeze(root)
 
 
@@ -828,56 +893,103 @@ def test_self_consistent_imported_artifact_forgery_is_rejected_before_callback(
     tmp_path: Path,
 ) -> None:
     root = _prepare_continuation_fixture(tmp_path)
-    arm = runner._arm_directory(root, 1, "target", 4.0)
-    raw = (arm / "raw-response.txt").read_text() + "\n"
-    (arm / "raw-response.txt").write_text(raw)
-    metadata = json.loads((arm / "metadata.json").read_text())
-    metadata["response_id"] = "forged-imported-response"
-    metadata["raw_response_sha256"] = _sha_bytes(raw.encode())
-    metadata["response_text_sha256"] = _sha_bytes(raw.encode())
-    _write_json(arm / "metadata.json", metadata)
-    media = json.loads((root / "media-manifest.json").read_text())["rows"][0]
-    parsed = runner.validate_probe(
-        json.loads(raw),
-        media["clip_duration_seconds"],
-        nominal_duration_seconds=media["clip_end_seconds"] - media["clip_start_seconds"],
-        fps=4.0,
-    )
-    _write_json(arm / "parsed.json", parsed)
-    _write_json(
-        arm / "terminal.json",
-        {
-            "audit_index": 1,
-            "fps": 4.0,
-            "metadata_sha256": _sha(arm / "metadata.json"),
-            "parsed_semantic_sha256": _sha_bytes(runner._canonical(parsed)),
-            "parsed_sha256": _sha(arm / "parsed.json"),
-            "raw_response_sha256": _sha_bytes(raw.encode()),
-            "request_sha256": _sha(arm / "request.json"),
-            "response_id": "forged-imported-response",
-            "role": "target",
-            "status": "passed",
-        },
-    )
-    for filename in ("continuation-authorization.json", "canary-replay-freeze.json"):
-        path = root / filename
-        payload = json.loads(path.read_text())
-        payload["imported_prefix"][0]["replayed_artifacts"] = {
-            name: _sha(arm / name)
-            for name in sorted(path.name for path in arm.iterdir())
-        }
-        _write_json(path, payload)
-    replay_path = root / "canary-replay-freeze.json"
-    replay = json.loads(replay_path.read_text())
-    _write_json(replay_path, replay)
-    auth_path = root / "continuation-authorization.json"
-    auth = json.loads(auth_path.read_text())
-    auth["canary_replay_freeze_sha256"] = _sha(replay_path)
-    _write_json(auth_path, auth)
+    _rewrite_imported_artifacts_self_consistently(root)
     calls: list[tuple[Any, ...]] = []
     response_ids = iter(f"unused-{index}" for index in range(22))
     with pytest.raises(ValueError, match="imported raw response bytes"):
         runner.run(root, call=lambda *args: calls.append(args) or _id_call(next(response_ids)))
+    assert calls == []
+
+
+def test_post_run_imported_artifact_forgery_rejects_complete_freeze_creation(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    calls: list[tuple[Any, ...]] = []
+    response_ids = iter(f"post-run-{index}" for index in range(22))
+    runner.run(root, call=lambda *args: calls.append(args) or _id_call(next(response_ids)))
+    _rewrite_imported_artifacts_self_consistently(root)
+    with pytest.raises(ValueError, match="imported raw response bytes"):
+        runner.verify_predictions_freeze(root)
+    assert not (root / "predictions-freeze.json").exists()
+
+
+def test_post_freeze_imported_artifact_forgery_rejects_existing_freeze_verification(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    _run_complete_continuation(root)
+    _rewrite_imported_artifacts_self_consistently(root)
+    with pytest.raises(ValueError, match="imported raw response bytes"):
+        runner.verify_predictions_freeze(root)
+
+
+def test_incomplete_freeze_creation_validates_imported_artifacts_before_write(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    calls: list[tuple[Any, ...]] = []
+    responses = iter([_id_call("incomplete-01", valid=False), _id_call("incomplete-02")])
+
+    def call(*args: Any) -> tuple[str, dict[str, Any]]:
+        calls.append(args)
+        response = next(responses)
+        if len(calls) == 2:
+            _rewrite_imported_artifacts_self_consistently(root)
+        return response
+
+    with pytest.raises(ValueError, match="imported raw response bytes"):
+        runner.run(root, call=call)
+    assert len(calls) == 2
+    assert not (root / "predictions-freeze.json").exists()
+
+
+def test_post_freeze_incomplete_imported_artifact_forgery_rejects_verification(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    responses = iter([_id_call("incomplete-01", valid=False), _id_call("incomplete-02")])
+    runner.run(root, call=lambda *args: next(responses))
+    _rewrite_imported_artifacts_self_consistently(root)
+    with pytest.raises(ValueError, match="imported raw response bytes"):
+        runner.verify_predictions_freeze(root)
+
+
+def test_post_run_replay_call_count_rejects_complete_freeze_creation(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    response_ids = iter(f"replay-create-{index}" for index in range(22))
+    runner.run(root, call=lambda *_args: _id_call(next(response_ids)))
+    _rewrite_replay_provider_calls(root)
+    with pytest.raises(ValueError, match="replay provider_calls_made"):
+        runner.verify_predictions_freeze(root)
+    assert not (root / "predictions-freeze.json").exists()
+
+
+def test_post_freeze_replay_call_count_rejects_existing_freeze_verification(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    _run_complete_continuation(root)
+    _rewrite_replay_provider_calls(root)
+    with pytest.raises(ValueError, match="replay provider_calls_made"):
+        runner.verify_predictions_freeze(root)
+
+
+@pytest.mark.parametrize("entry_kind", ["directory", "fifo"])
+def test_continuation_rejects_non_regular_extra_entry_before_callback(
+    tmp_path: Path, entry_kind: str
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    extra = runner._arm_directory(root, 1, "target", 4.0) / "unexpected-entry"
+    if entry_kind == "directory":
+        extra.mkdir()
+    else:
+        os.mkfifo(extra)
+    calls: list[tuple[Any, ...]] = []
+    with pytest.raises(ValueError, match="exact regular-file artifact set"):
+        runner.run(root, call=lambda *args: calls.append(args) or _id_call("unused"))
     assert calls == []
 
 
