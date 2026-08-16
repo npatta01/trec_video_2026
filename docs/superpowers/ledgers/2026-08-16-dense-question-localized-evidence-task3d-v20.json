@@ -4,7 +4,7 @@
   "candidate_root_version": "run-v20",
   "combined_call_maximum": 24,
   "config_sha256": "0d6843d51695251c0fdb4cb75483d61cfd20a2e3496eab6c0a06f5b24e51caab",
-  "initial_snapshot_sha256": "5ddec288dcb993b259b3cc922e49c28c60a98085da6a02cb7307ce10edda7635",
+  "initial_snapshot_sha256": "40bcde2c0633733b6b928a8dac87980c3bf70e57e0b097ee7176015475553988",
   "media_manifest_sha256": "0b0875fec5c83f5567d0ff3b6d1051a3026b938a0ee5c7dbaa90a07023be5b66",
   "prior_provider_calls": 2,
   "prompt_template_sha256": "dc72a7724ad1a2448f7073d8d8f90cc93c60d462d74e364b846309376483e62b",
