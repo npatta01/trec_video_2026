@@ -168,7 +168,7 @@ Tests exercise public behavior at these seams:
 
 1. `parse_visible_episode_count_spec(payload) -> VisibleEpisodeCountSpec | UnsupportedCountSpec`
 2. `build_frame_decision_request(spec, inventory, presentations) -> FrameDecisionRequest`
-3. `parse_frame_decisions(request, payload) -> FrameDecisionSet`
+3. `parse_frame_decisions(request, payload, *, required_frame_ids=None) -> FrameDecisionSet`; the default requires every request frame, while a large-request challenge passes the exact deterministic selector output.
 4. `select_challenge_frames(request, decisions) -> tuple[str, ...]`
 5. `reconcile_frame_decisions(primary, challenge) -> FramePresenceLedger`
 6. `certify_frame_presence_result(...) -> FramePresenceCoverageCertificate`

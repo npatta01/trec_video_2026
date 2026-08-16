@@ -7,7 +7,12 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 
-from trec_video_2026.vqa_count_frame_presence import EPISODE_RULE
+from trec_video_2026.vqa_count_frame_presence import (
+    EPISODE_RULE,
+    TARGET_STATES,
+    FrameObservation,
+    FramePresenceLedger,
+)
 from trec_video_2026.vqa_counting_evidence import validate_label_blind
 from trec_video_2026.vqa_submission import canonical_sha256
 
@@ -69,6 +74,21 @@ class FrameDecisionRequest:
     frames: tuple[RequestFrame, ...]
     presentations: tuple[PresentationBinding, ...]
     maximum_observed_gap_seconds: float
+    complete_sha256: str
+
+
+@dataclass(frozen=True)
+class FrameDecision:
+    frame_id: str
+    target_state: str
+
+
+@dataclass(frozen=True)
+class FrameDecisionSet:
+    pass_id: str
+    request_complete_sha256: str
+    presentation_mode: str
+    decisions: tuple[FrameDecision, ...]
     complete_sha256: str
 
 
@@ -385,4 +405,199 @@ def build_frame_decision_request(
         presentations=bindings,
         maximum_observed_gap_seconds=maximum_gap,
         complete_sha256=canonical_sha256(unsigned),
+    )
+
+
+def parse_frame_decisions(
+    request: FrameDecisionRequest,
+    payload: Mapping[str, object],
+    *,
+    required_frame_ids: Sequence[str] | None = None,
+) -> FrameDecisionSet:
+    """Parse one model pass over an authenticated frame request."""
+
+    validate_label_blind(payload)
+    _strict_fields(
+        payload,
+        expected={
+            "schema_version",
+            "pass_id",
+            "request_complete_sha256",
+            "presentation_mode",
+            "decisions",
+        },
+        name="frame decisions",
+    )
+    if payload["schema_version"] != 1:
+        raise ValueError("unsupported frame decisions schema_version")
+    pass_id = _nonempty_string(payload["pass_id"], field="pass_id")
+    if pass_id not in {"primary", "challenge"}:
+        raise ValueError("pass_id must be primary or challenge")
+    request_sha256 = _sha256(
+        payload["request_complete_sha256"], field="request_complete_sha256"
+    )
+    if request_sha256 != request.complete_sha256:
+        raise ValueError("frame decisions request binding changed")
+    presentation_mode = _nonempty_string(
+        payload["presentation_mode"], field="presentation_mode"
+    )
+    if presentation_mode not in {binding.mode for binding in request.presentations}:
+        raise ValueError("presentation_mode is not bound by the request")
+    request_frame_ids = tuple(frame.frame_id for frame in request.frames)
+    if required_frame_ids is None:
+        expected_frame_ids = request_frame_ids
+    else:
+        expected_frame_ids = tuple(required_frame_ids)
+        if not expected_frame_ids:
+            raise ValueError("required_frame_ids must not be empty")
+        request_positions = {
+            frame_id: position for position, frame_id in enumerate(request_frame_ids)
+        }
+        if any(frame_id not in request_positions for frame_id in expected_frame_ids):
+            raise ValueError("required_frame_ids contains an unknown request frame")
+        if (
+            len(set(expected_frame_ids)) != len(expected_frame_ids)
+            or tuple(sorted(expected_frame_ids, key=request_positions.__getitem__))
+            != expected_frame_ids
+        ):
+            raise ValueError("required_frame_ids must be unique and request ordered")
+    raw_decisions = payload["decisions"]
+    if not isinstance(raw_decisions, Sequence) or isinstance(
+        raw_decisions, str | bytes
+    ):
+        raise TypeError("decisions must be an array")
+    parsed_decisions: list[FrameDecision] = []
+    for position, raw_decision in enumerate(raw_decisions):
+        if not isinstance(raw_decision, Mapping):
+            raise TypeError(f"decisions[{position}] must be an object")
+        _strict_fields(
+            raw_decision,
+            expected={"frame_id", "target_state"},
+            name=f"decisions[{position}]",
+        )
+        frame_id = _nonempty_string(
+            raw_decision["frame_id"], field=f"decisions[{position}].frame_id"
+        )
+        target_state = _nonempty_string(
+            raw_decision["target_state"],
+            field=f"decisions[{position}].target_state",
+        )
+        if target_state not in TARGET_STATES:
+            raise ValueError(f"unsupported target_state: {target_state}")
+        parsed_decisions.append(FrameDecision(frame_id, target_state))
+    decisions = tuple(parsed_decisions)
+    if tuple(decision.frame_id for decision in decisions) != expected_frame_ids:
+        raise ValueError("decisions must cover every required frame exactly once")
+    unsigned = {
+        "schema_version": 1,
+        "pass_id": pass_id,
+        "request_complete_sha256": request_sha256,
+        "presentation_mode": presentation_mode,
+        "decisions": [asdict(decision) for decision in decisions],
+    }
+    return FrameDecisionSet(
+        pass_id=pass_id,
+        request_complete_sha256=request_sha256,
+        presentation_mode=presentation_mode,
+        decisions=decisions,
+        complete_sha256=canonical_sha256(unsigned),
+    )
+
+
+def select_challenge_frames(
+    request: FrameDecisionRequest, decisions: FrameDecisionSet
+) -> tuple[str, ...]:
+    """Select source frames that a different presentation must challenge."""
+
+    if decisions.request_complete_sha256 != request.complete_sha256:
+        raise ValueError("frame decisions request binding changed")
+    if len(request.frames) <= 100:
+        return tuple(frame.frame_id for frame in request.frames)
+
+    states = [decision.target_state for decision in decisions.decisions]
+    selected = {0, len(states) - 1}
+    for index in range(1, len(states)):
+        if states[index] != states[index - 1]:
+            selected.update(
+                candidate
+                for candidate in (index - 2, index - 1, index, index + 1)
+                if 0 <= candidate < len(states)
+            )
+
+    run_start = 0
+    for index in range(1, len(states) + 1):
+        if index < len(states) and states[index] == states[run_start]:
+            continue
+        run_end = index - 1
+        interior = list(range(run_start + 1, run_end))
+        if len(interior) <= 3:
+            selected.update(interior)
+        else:
+            run_length = run_end - run_start + 1
+            selected.update(
+                run_start + (run_length * quartile) // 4 for quartile in (1, 2, 3)
+            )
+        run_start = index
+
+    return tuple(request.frames[index].frame_id for index in sorted(selected))
+
+
+def reconcile_frame_decisions(
+    request: FrameDecisionRequest,
+    primary: FrameDecisionSet,
+    challenge: FrameDecisionSet,
+) -> FramePresenceLedger:
+    """Reconcile two differently presented model passes conservatively."""
+
+    if primary.pass_id != "primary" or challenge.pass_id != "challenge":
+        raise ValueError("primary and challenge pass IDs are required")
+    if (
+        primary.request_complete_sha256 != request.complete_sha256
+        or challenge.request_complete_sha256 != request.complete_sha256
+    ):
+        raise ValueError("decision request binding changed")
+    if primary.presentation_mode == challenge.presentation_mode:
+        raise ValueError("primary and challenge presentations must differ")
+    required_challenge_ids = select_challenge_frames(request, primary)
+    if tuple(decision.frame_id for decision in challenge.decisions) != (
+        required_challenge_ids
+    ):
+        raise ValueError("challenge decisions do not match the selected frames")
+
+    challenge_by_id = {
+        decision.frame_id: decision.target_state for decision in challenge.decisions
+    }
+    primary_by_id = {
+        decision.frame_id: decision.target_state for decision in primary.decisions
+    }
+    observations = tuple(
+        FrameObservation(
+            frame_id=frame.frame_id,
+            decoded_frame_index=frame.decoded_frame_index,
+            timestamp_seconds=frame.timestamp_seconds,
+            artifact_sha256=frame.artifact_sha256,
+            target_state=(
+                "uncertain"
+                if request.spec.cut_policy == "split_at_cuts"
+                else (
+                    primary_by_id[frame.frame_id]
+                    if frame.frame_id not in challenge_by_id
+                    or primary_by_id[frame.frame_id] == challenge_by_id[frame.frame_id]
+                    else "uncertain"
+                )
+            ),
+            is_first_decoded_frame=frame.is_first_decoded_frame,
+            is_last_decoded_frame=frame.is_last_decoded_frame,
+        )
+        for frame in request.frames
+    )
+    return FramePresenceLedger(
+        video_id=request.video_id,
+        source_sha256=request.source_sha256,
+        target=request.spec.target,
+        episode_rule=request.spec.episode_rule,
+        duration_seconds=request.duration_seconds,
+        decoded_frame_count=request.decoded_frame_count,
+        maximum_sample_gap_seconds=request.spec.maximum_sample_gap_seconds,
+        frames=observations,
     )

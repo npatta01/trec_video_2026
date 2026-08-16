@@ -193,7 +193,7 @@ git commit -m "feat: bind blind frame counting requests"
 
 **Interfaces:**
 - Consumes: `FrameDecisionRequest` from Task 1 and JSON-like model decision payloads.
-- Produces: `parse_frame_decisions(request, payload)`, `select_challenge_frames(request, decisions)`, `reconcile_frame_decisions(request, primary, challenge)`, `FrameDecisionSet`, and an existing `FramePresenceLedger`.
+- Produces: `parse_frame_decisions(request, payload, *, required_frame_ids=None)`, `select_challenge_frames(request, decisions)`, `reconcile_frame_decisions(request, primary, challenge)`, `FrameDecisionSet`, and an existing `FramePresenceLedger`. The parser default requires all request frames; a large-request challenge supplies the selector's exact IDs.
 
 - [ ] **Step 1: Write and run a failing exact-coverage response test**
 
@@ -230,8 +230,10 @@ class FrameDecisionSet:
 ```
 
 Require strict top-level and row fields, exact request hash, allowed states from
-`vqa_count_frame_presence.TARGET_STATES`, and exact set/order equality with the
-request frame IDs. Recursively reject label-bearing keys.
+`vqa_count_frame_presence.TARGET_STATES`, and exact set/order equality with
+`required_frame_ids` when supplied or all request frame IDs otherwise. Every
+required ID must belong to the authenticated request. Recursively reject
+label-bearing keys.
 
 - [ ] **Step 3: Add red-green decision rejection slices**
 
