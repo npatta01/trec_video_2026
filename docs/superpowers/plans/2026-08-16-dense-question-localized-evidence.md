@@ -302,6 +302,14 @@ Freeze verification passed, and recursive v2/v3 pre/post SHA-256 manifests
 matched exactly. Task 4 is **NOT AUTHORIZED**: the incomplete canary freeze
 must not be loaded for reference-aware scoring.
 
+#### Task 3C amended endpoint replay and continuation boundary — 2026-08-16
+
+- V4 remains immutable: its failed two-call canary freeze is preserved byte-for-byte (`7a5be02b759aec4a6b1b504d73f3616ea7987900369c6b6ba9273a1fdaa5b7a0`); no provider call was issued by replay preparation.
+- The runner now binds the nominal requested window while accepting an encoded endpoint shortfall only when it is no larger than one requested frame and the endpoint overshoot is no larger than that measured shortfall. Strict local schema and additional-property rejection remain unchanged.
+- Additive private run-v5 contains a frozen two-arm zero-call replay of the imported v4 canary. Replay freeze SHA-256 is `540201cc23b7f1a483586d6e5c903ee4261f25a6f7c05d7994a58cb02cc56e00`; continuation authorization SHA-256 is `176e4abdde0d05e9d9e1639452b01c37fa5771a4bb3eda84bd370a7142cf672a`. The candidate binds prior calls `2`, remaining new-call maximum `22`, combined maximum `24`, and next arm position `3`.
+- The next untouched 4-FPS/12-FPS pair is predeclared as the fresh amended-validator canary; only if both pass may the final 20 new arms be attempted. Imported canary arms are not retried. No labels, references, questions, raw content, or scoring artifacts were loaded into tracked files.
+- Run-v5 retains the upstream provider rows and media manifest hashes (`007fd6a66fd403d88782438c655028c0381a714ef84f70a812ed511d44eed293`, `0b0875fec5c83f5567d0ff3b6d1051a3026b938a0ee5c7dbaa90a07023be5b66`) and uses additive treatment/selection/authorization bindings. Task 4 remains **NOT AUTHORIZED** pending a complete verified continuation freeze.
+
 ### Task 4: Audit paired fact recovery and apply the gate
 
 **Files:**
