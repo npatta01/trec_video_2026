@@ -19,6 +19,7 @@ from trec_video_2026.vqa_gemini37_flash_smoke import (
     prepare_protocol,
     preflight_models,
     record_status,
+    score_postfreeze,
     submit_arm,
     upload_rows,
     verify_inputs,
@@ -1607,3 +1608,125 @@ def test_upload_lifecycle_revalidates_unsafe_row_id_before_provider_call(
         upload_rows(root, client, sleep=lambda _: None)
     assert client.files.upload_calls == []
     assert not (root.parent / "escaped.attempt.json").exists()
+
+
+def _ready_score_fixture(tmp_path: Path) -> tuple[Path, Path]:
+    root, client = _ready_for_batches(tmp_path)
+    for arm in ARMS:
+        version = f"{ARMS[arm]['model']}-version-20260816"
+        client.batches.responses = [
+            _response(response_id=f"{arm}-0", model_version=version, prompt=20_000),
+            _response(response_id=f"{arm}-1", model_version=version, prompt=20_000),
+        ]
+        client.batches.responses[0]["text"] = "red red blue" if arm == "control_31pro" else "red"
+        client.batches.responses[1]["text"] = "blue"
+        submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    assert freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")["decision"] == "quality_ready"
+    annotations = tmp_path / "annotations"
+    annotations.mkdir()
+    _write_json(annotations / "video-000.json", {"video_id": "video-000", "correct_answer": "red"})
+    _write_json(annotations / "video-001.json", {"video_id": "video-001", "correct_answer": "blue"})
+    return root, annotations
+
+
+def test_score_postfreeze_reports_private_lexical_metrics_and_paired_decision(
+    tmp_path: Path,
+) -> None:
+    root, annotations = _ready_score_fixture(tmp_path)
+    score = score_postfreeze(root, annotations, scored_at="2026-08-16T12:06:00Z")
+    assert score["status"] == "scored_postfreeze"
+    assert score["decision"] == "ready_for_larger_canary"
+    assert score["aggregate"]["paired"] == {
+        "candidate_wins": 1,
+        "ties": 1,
+        "candidate_losses": 0,
+    }
+    assert score["aggregate"]["exact_match"]["candidate_37flash"]["count"] == 2
+    assert score["rows"][0]["reference"] == "red"
+    assert score["rows"][0]["answers"]["candidate_37flash"] == "red"
+    assert len(score["annotation_hashes"]) == 2
+
+
+@pytest.mark.parametrize("mutation", ["missing", "duplicate", "order"])
+def test_score_postfreeze_rejects_mutated_response_order_or_cardinality(
+    tmp_path: Path, mutation: str
+) -> None:
+    root, annotations = _ready_score_fixture(tmp_path)
+    path = next((root / "status" / "control_31pro").glob("*.json"))
+    status = json.loads(path.read_text())
+    responses = status["provider_snapshot"]["responses"]
+    if mutation == "missing":
+        responses.pop()
+    elif mutation == "duplicate":
+        responses[1]["response"]["response_id"] = responses[0]["response"]["response_id"]
+    else:
+        status["provider_snapshot"]["responses"] = list(reversed(responses))
+    status["provider_snapshot_sha256"] = smoke._sha256_bytes(
+        smoke._canonical_json(status["provider_snapshot"])
+    )
+    body = dict(status)
+    body.pop("_artifact_sha256", None)
+    status["_artifact_sha256"] = smoke._sha256_bytes(smoke._canonical_json(body))
+    path.write_text(json.dumps(status, indent=2, sort_keys=True) + "\n")
+    with pytest.raises(ValueError, match="prediction freeze|response|binding"):
+        score_postfreeze(root, annotations, scored_at="2026-08-16T12:06:00Z")
+
+
+def test_score_postfreeze_rejects_prediction_freeze_mutation_before_annotations(
+    tmp_path: Path,
+) -> None:
+    root, annotations = _ready_score_fixture(tmp_path)
+    path = root / "predictions-freeze.json"
+    prediction = json.loads(path.read_text())
+    prediction["arms"]["control_31pro"]["responses"][0]["text"] = "leaked"
+    body = dict(prediction)
+    body.pop("_artifact_sha256", None)
+    prediction["_artifact_sha256"] = smoke._sha256_bytes(smoke._canonical_json(body))
+    path.write_text(json.dumps(prediction, indent=2, sort_keys=True) + "\n")
+    with pytest.raises(ValueError, match="prediction freeze|response"):
+        score_postfreeze(root, annotations, scored_at="2026-08-16T12:06:00Z")
+
+
+def test_score_postfreeze_rejects_duplicate_or_missing_annotation_binding(
+    tmp_path: Path,
+) -> None:
+    root, annotations = _ready_score_fixture(tmp_path)
+    (annotations / "video-001.json").unlink()
+    with pytest.raises(ValueError, match="annotation|missing"):
+        score_postfreeze(root, annotations, scored_at="2026-08-16T12:06:00Z")
+
+    _write_json(annotations / "video-001.json", {"video_id": "video-000", "correct_answer": "blue"})
+    with pytest.raises(ValueError, match="identity|annotation"):
+        score_postfreeze(root, annotations, scored_at="2026-08-16T12:06:00Z")
+
+
+def test_score_postfreeze_rejects_annotation_hash_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, annotations = _ready_score_fixture(tmp_path)
+    expected = {
+        "video-000": _sha256(annotations / "video-000.json"),
+        "video-001": "f" * 64,
+    }
+    monkeypatch.setattr(smoke, "CANONICAL_ANNOTATION_HASHES", expected)
+    with pytest.raises(ValueError, match="annotation hash"):
+        score_postfreeze(root, annotations, scored_at="2026-08-16T12:06:00Z")
+
+
+def test_score_postfreeze_refuses_missing_freeze_before_opening_annotations(
+    tmp_path: Path,
+) -> None:
+    annotations = tmp_path / "annotations"
+    annotations.mkdir()
+    sentinel = annotations / "opened"
+    sentinel.write_text("not opened", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="prediction freeze|missing"):
+        score_postfreeze(
+            tmp_path / "run",
+            annotations,
+            scored_at="2026-08-16T12:08:00Z",
+        )
+
+    assert sentinel.read_text(encoding="utf-8") == "not opened"

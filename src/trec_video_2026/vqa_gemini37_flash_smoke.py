@@ -1,7 +1,8 @@
 """Freeze and serialize the two-row Gemini 3.7 Flash smoke protocol.
 
-This module deliberately stops at input preparation and request serialization.  It
-does not call a provider, score answers, or carry any historical answer fields.
+Provider transitions remain explicit and one-attempt.  Post-freeze scoring is a
+small dependency-free diagnostic and is only allowed after every immutable
+prediction binding has been re-verified.
 """
 
 from __future__ import annotations
@@ -2155,3 +2156,334 @@ def freeze_predictions(root: Path, *, frozen_at: str) -> dict[str, Any]:
     }
     _write_json_exclusive(path, body)
     return _read_object(path)
+
+
+# Post-freeze scoring is intentionally separate from provider lifecycle code.
+# These helpers never run until the prediction freeze and every upstream hash
+# binding have been checked, so an incomplete or mutated freeze cannot cause an
+# annotation file to be opened.
+_SCORE_FILENAME = "postfreeze-score.json"
+_SCORE_FREEZE_FILENAME = "postfreeze-score-freeze.json"
+# Production execution supplies this map from the approved canonical annotation
+# manifest.  Tests may redirect it to synthetic files; an empty map is useful
+# for provider-free development where that private manifest is unavailable.
+CANONICAL_ANNOTATION_HASHES: dict[str, str] = {}
+_ANNOTATION_REFERENCE_KEYS = (
+    "correct_answer",
+    "correctAnswer",
+    "reference",
+    "reference_answer",
+    "referenceAnswer",
+    "answer",
+    "answers",
+)
+
+
+def _normalized_answer(value: str) -> str:
+    return "".join(re.findall(r"[a-z0-9]", value.casefold()))
+
+
+def _answer_tokens(value: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", value.casefold())
+
+
+def _multiset_token_f1(reference: str, answer: str) -> float:
+    reference_tokens = _answer_tokens(reference)
+    answer_tokens = _answer_tokens(answer)
+    if not reference_tokens and not answer_tokens:
+        return 1.0
+    if not reference_tokens or not answer_tokens:
+        return 0.0
+    from collections import Counter
+
+    overlap = sum((Counter(reference_tokens) & Counter(answer_tokens)).values())
+    if overlap == 0:
+        return 0.0
+    precision = overlap / len(answer_tokens)
+    recall = overlap / len(reference_tokens)
+    return 2.0 * precision * recall / (precision + recall)
+
+
+def _annotation_reference(payload: Any, *, label: str) -> str:
+    if isinstance(payload, str):
+        value = payload
+    elif isinstance(payload, Mapping):
+        value = None
+        for key in _ANNOTATION_REFERENCE_KEYS:
+            candidate = payload.get(key)
+            if isinstance(candidate, str):
+                value = candidate
+                break
+            if isinstance(candidate, Sequence) and not isinstance(candidate, (str, bytes, bytearray)):
+                strings = [item for item in candidate if isinstance(item, str)]
+                if strings:
+                    value = strings[0]
+                    break
+        if value is None:
+            nested = payload.get("annotation")
+            if nested is not payload:
+                return _annotation_reference(nested, label=label)
+    else:
+        value = None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"canonical annotation reference is missing for {label}")
+    return value.strip()
+
+
+def _canonical_annotation_path(annotations_dir: Path, row: Mapping[str, Any]) -> Path:
+    if annotations_dir.is_symlink() or not annotations_dir.is_dir():
+        raise ValueError("canonical annotations directory is missing or not regular")
+    video_id = _video_id(row, context="score row")
+    _row_id(row, context="score row")
+    _validate_canonical_video_id(video_id, context="score video ID")
+    candidates = [annotations_dir / f"{video_id}.json"]
+    existing = [candidate for candidate in candidates if candidate.exists() or candidate.is_symlink()]
+    if len(existing) != 1:
+        raise ValueError(f"canonical annotation binding is missing or ambiguous for {video_id}")
+    path = existing[0]
+    if not _is_regular_file(path):
+        raise ValueError(f"canonical annotation is missing or not regular for {video_id}")
+    return path
+
+
+def _verify_prediction_freeze_for_score(root: Path) -> tuple[dict[str, Any], dict[str, Any], str]:
+    freeze_path = Path(root) / _PREDICTIONS_FILENAME
+    if not _is_regular_file(freeze_path):
+        raise ValueError("prediction freeze is missing")
+    freeze = _verify_artifact(freeze_path)
+    if freeze.get("status") != "predictions_frozen":
+        raise ValueError("prediction freeze is incomplete")
+    if freeze.get("decision") != "quality_ready":
+        raise ValueError("prediction freeze is not quality-ready")
+    failure_reasons = freeze.get("failure_reasons")
+    if not isinstance(failure_reasons, list) or failure_reasons:
+        raise ValueError("prediction freeze contains failure reasons")
+    root, protocol, protocol_hash = _protocol_context(Path(root))
+    if freeze.get("protocol_sha256") != protocol_hash:
+        raise ValueError("prediction freeze protocol hash mismatch")
+    for filename, key in (
+        ("inputs-freeze.json", "inputs_freeze_sha256"),
+        (_MODELS_FILENAME, "models_sha256"),
+    ):
+        if freeze.get(key) != _sha256_file(root / filename):
+            raise ValueError(f"prediction freeze {key} mismatch")
+    models = _models_artifact(root, protocol_hash)
+    uploads = _upload_records(root, protocol, protocol_hash)
+    upload_hash = _hash_paths(sorted((root / _UPLOADS_DIRNAME).glob("*.json")))
+    if freeze.get("upload_record_sha256") != upload_hash:
+        raise ValueError("prediction freeze upload record hash mismatch")
+    rows = _protocol_rows(protocol)
+    arms = freeze.get("arms")
+    if not isinstance(arms, Mapping) or set(arms) != set(ARMS):
+        raise ValueError("prediction freeze arms are incomplete")
+    for arm in ARMS:
+        result = arms.get(arm)
+        if not isinstance(result, Mapping):
+            raise ValueError(f"prediction freeze arm is missing for {arm}")
+        if result.get("status") != "succeeded" or result.get("custom_fps_verified") is not True:
+            raise ValueError(f"prediction freeze arm is incomplete for {arm}")
+        job, expected_requests = _validated_job_record(
+            root, protocol, protocol_hash, uploads, arm
+        )
+        status, status_path = _latest_status(root, arm, protocol_hash)
+        if status.get("status") != "succeeded":
+            raise ValueError(f"prediction freeze status is incomplete for {arm}")
+        if result.get("status_snapshot_sha256") != _sha256_file(status_path):
+            raise ValueError(f"prediction freeze status hash mismatch for {arm}")
+        if result.get("provider_snapshot_sha256") != status.get("provider_snapshot_sha256"):
+            raise ValueError(f"prediction freeze provider hash mismatch for {arm}")
+        model_record = models["models"][arm]
+        if result.get("model_snapshot_sha256") != model_record.get("provider_snapshot_sha256"):
+            raise ValueError(f"prediction freeze model hash mismatch for {arm}")
+        if result.get("request_hash") != job.get("request_hash"):
+            raise ValueError(f"prediction freeze request hash mismatch for {arm}")
+        expected_version = model_record.get("version")
+        provider_snapshot = status.get("provider_snapshot")
+        responses_raw = _attr(provider_snapshot, "responses", default=[])
+        if not isinstance(responses_raw, list):
+            raise ValueError(f"prediction freeze responses are missing for {arm}")
+        normalized, failures, usage_complete = _validated_responses(
+            responses=responses_raw,
+            rows=rows,
+            expected_version=expected_version,
+            expected_model=ARMS[arm]["model"],
+            expected_arm=arm,
+            expected_requests=expected_requests,
+        )
+        if failures or not usage_complete or len(normalized) != 2:
+            raise ValueError(f"prediction freeze responses are incomplete for {arm}")
+        if result.get("response_count") != 2 or result.get("responses") != normalized:
+            raise ValueError(f"prediction freeze response binding mismatch for {arm}")
+    return freeze, protocol, protocol_hash
+
+
+def score_postfreeze(
+    root: Path, annotations_dir: Path, *, scored_at: str
+) -> dict[str, Any]:
+    """Score the immutable two-arm prediction freeze against canonical answers.
+
+    The returned object and private score artifact contain row-level evidence;
+    callers such as the CLI must reduce it to aggregate fields before printing.
+    """
+
+    root = Path(root)
+    score_path = root / _SCORE_FILENAME
+    score_freeze_path = root / _SCORE_FREEZE_FILENAME
+    if (
+        score_path.exists()
+        or score_path.is_symlink()
+        or score_freeze_path.exists()
+        or score_freeze_path.is_symlink()
+    ):
+        raise ValueError("post-freeze score already exists")
+    freeze, protocol, protocol_hash = _verify_prediction_freeze_for_score(root)
+    rows = _protocol_rows(protocol)
+    if CANONICAL_ANNOTATION_HASHES and set(CANONICAL_ANNOTATION_HASHES) != {
+        str(row["video_id"]) for row in rows
+    }:
+        raise ValueError("canonical annotation hash bindings are incomplete")
+    annotations: list[dict[str, Any]] = []
+    # This is deliberately the first point at which annotations_dir is read.
+    for row in rows:
+        path = _canonical_annotation_path(Path(annotations_dir), row)
+        payload = _read_json(path)
+        if isinstance(payload, Mapping):
+            for key, expected in (
+                ("video_id", row["video_id"]),
+                ("videoId", row["video_id"]),
+                ("row_id", row["row_id"]),
+                ("rowId", row["row_id"]),
+            ):
+                if key in payload and payload[key] != expected:
+                    raise ValueError(f"canonical annotation identity mismatch for {row['video_id']}")
+        reference = _annotation_reference(payload, label=str(row["video_id"]))
+        annotation_hash = _sha256_file(path)
+        expected_hash = CANONICAL_ANNOTATION_HASHES.get(str(row["video_id"]))
+        if expected_hash is not None and annotation_hash != expected_hash:
+            raise ValueError(f"canonical annotation hash mismatch for {row['video_id']}")
+        annotations.append(
+            {
+                "row_id": row["row_id"],
+                "video_id": row["video_id"],
+                "path": str(path),
+                "sha256": annotation_hash,
+                "reference": reference,
+            }
+        )
+    if len(annotations) != 2 or len({item["row_id"] for item in annotations}) != 2:
+        raise ValueError("canonical annotations must contain exactly two unique rows")
+    response_by_arm = {
+        arm: freeze["arms"][arm]["responses"] for arm in ARMS
+    }
+    rows_scored: list[dict[str, Any]] = []
+    wins = ties = losses = 0
+    exact_counts = {arm: 0 for arm in ARMS}
+    f1_totals = {arm: 0.0 for arm in ARMS}
+    for index, annotation in enumerate(annotations):
+        reference = annotation["reference"]
+        answers: dict[str, str] = {}
+        metrics: dict[str, dict[str, Any]] = {}
+        raw_f1: dict[str, float] = {}
+        for arm in ARMS:
+            responses = response_by_arm[arm]
+            if not isinstance(responses, list) or index >= len(responses):
+                raise ValueError(f"prediction response is missing for {arm}")
+            answer = responses[index].get("text")
+            if not isinstance(answer, str) or not answer.strip():
+                raise ValueError(f"prediction answer is empty for {arm}")
+            answer = answer.strip()
+            answers[arm] = answer
+            exact = _normalized_answer(reference) == _normalized_answer(answer)
+            f1 = _multiset_token_f1(reference, answer)
+            raw_f1[arm] = f1
+            metrics[arm] = {"exact_match": exact, "token_f1": round(f1, 8)}
+            exact_counts[arm] += int(exact)
+            f1_totals[arm] += f1
+        control_f1 = raw_f1["control_31pro"]
+        candidate_f1 = raw_f1["candidate_37flash"]
+        if candidate_f1 > control_f1:
+            wins += 1
+        elif candidate_f1 < control_f1:
+            losses += 1
+        else:
+            ties += 1
+        rows_scored.append(
+            {
+                "row_id": annotation["row_id"],
+                "video_id": annotation["video_id"],
+                "question": rows[index]["question"],
+                "reference": reference,
+                "answers": answers,
+                "metrics": metrics,
+            }
+        )
+    aggregate = {
+        "row_count": len(rows_scored),
+        "exact_match": {
+            arm: {"count": exact_counts[arm], "rate": exact_counts[arm] / len(rows_scored)}
+            for arm in ARMS
+        },
+        "token_f1": {
+            arm: f1_totals[arm] / len(rows_scored) for arm in ARMS
+        },
+        "paired": {"candidate_wins": wins, "ties": ties, "candidate_losses": losses},
+    }
+    decision = (
+        "ready_for_larger_canary"
+        if losses == 0 and wins > 0
+        else "compatible_no_directional_claim"
+    )
+    body = {
+        "schema_version": 1,
+        "experiment_id": EXPERIMENT_ID,
+        "status": "scored_postfreeze",
+        "decision": decision,
+        "scored_at": scored_at,
+        "protocol_sha256": protocol_hash,
+        "prediction_freeze_sha256": _sha256_file(root / _PREDICTIONS_FILENAME),
+        "annotation_root": str(Path(annotations_dir)),
+        "annotation_hashes": {
+            item["video_id"]: item["sha256"] for item in annotations
+        },
+        "aggregate": aggregate,
+        "observed_cost_usd": freeze.get("observed_cost_usd"),
+        "rows": rows_scored,
+    }
+    _write_json_exclusive(score_path, body)
+    _write_json_exclusive(
+        score_freeze_path,
+        {
+            "schema_version": 1,
+            "experiment_id": EXPERIMENT_ID,
+            "status": "scored_postfreeze",
+            "score_sha256": _sha256_file(score_path),
+        },
+    )
+    return _read_object(score_path)
+
+
+def show_status(root: Path) -> dict[str, Any]:
+    """Return a private status snapshot for the CLI to reduce to aggregates."""
+
+    root = Path(root)
+    prediction_path = root / _PREDICTIONS_FILENAME
+    if prediction_path.exists() or prediction_path.is_symlink():
+        prediction = _verify_artifact(prediction_path)
+        arms = prediction.get("arms")
+        return {
+            "status": prediction.get("status"),
+            "decision": prediction.get("decision"),
+            "arms": arms if isinstance(arms, Mapping) else {},
+            "observed_cost_usd": prediction.get("observed_cost_usd"),
+        }
+    protocol_path = root / "protocol.json"
+    if protocol_path.exists() or protocol_path.is_symlink():
+        protocol = _verify_artifact(protocol_path)
+        rows = protocol.get("rows")
+        return {
+            "status": protocol.get("status"),
+            "decision": "not_ready",
+            "rows": rows if isinstance(rows, list) else [],
+            "estimated_cost_ceiling_usd": protocol.get("estimated_cost_ceiling_usd"),
+        }
+    return {"status": "not_ready", "decision": "not_ready", "rows": []}
