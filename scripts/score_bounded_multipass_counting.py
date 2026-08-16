@@ -339,7 +339,7 @@ def authenticate_arm(*, root: Path, arm: str) -> dict[str, dict[str, Any]]:
             predecessor = verify_self_hash(
                 fixed_terminal, name=f"{video_id} fixed predecessor"
             )
-        if set(stage_hashes) not in ({}, set(stage_dirs)):
+        if set(stage_hashes) not in (set(), set(stage_dirs)):
             raise ValueError(f"{video_id} {arm} has an invalid required-stage set")
         for key, directory in stage_dirs.items():
             if key not in stage_hashes:

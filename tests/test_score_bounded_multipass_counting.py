@@ -282,6 +282,11 @@ def test_authenticate_arm_detects_mutated_referenced_raw_response(
 
     authenticated = scorer.authenticate_arm(root=root, arm="fixed")
     assert len(authenticated) == 12
+    refinement_authenticated = scorer.authenticate_arm(root=root, arm="refinement")
+    assert len(refinement_authenticated) == 12
+    assert all(
+        result["arm"] == "refinement" for result in refinement_authenticated.values()
+    )
     raw = root / "rows/v00/fixed/count-spec/raw-response.txt"
     raw.write_text(raw.read_text() + " ")
     with pytest.raises(ValueError, match="raw response changed"):
