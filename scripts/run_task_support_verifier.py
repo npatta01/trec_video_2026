@@ -14,7 +14,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import time
 from typing import Any, Callable, Mapping, Sequence
 
@@ -23,6 +22,23 @@ MODEL = "gemini-3.1-pro-preview"
 EXPECTED_ROWS = 12
 MAX_ANSWER_WORDS = 24
 VERIFICATION_SENTINEL = "NEEDS VERIFICATION"
+SCRIPT_PATH = Path(__file__).resolve()
+EXPECTED_SETTINGS: dict[str, Any] = {
+    "model": MODEL,
+    "temperature": 0.0,
+    "seed": 42,
+    "thinking_level": "HIGH",
+    "candidate_count": 1,
+    "max_output_tokens": 2048,
+    "retry_count": 0,
+}
+CONFLICT_KINDS = {
+    "harmless_alias",
+    "missing_fact",
+    "ambiguous",
+    "contradiction",
+    "missing_qualifier",
+}
 ROW_ARTIFACT_NAMES = (
     "request.json",
     "raw-response.txt",
@@ -48,7 +64,6 @@ ANSWER_SCHEMA: dict[str, Any] = {
                 "qualifier",
                 "answer_unit",
             ],
-            "additionalProperties": False,
         },
         "cited_evidence": {
             "type": "array",
@@ -59,12 +74,19 @@ ANSWER_SCHEMA: dict[str, Any] = {
                     "claim": {"type": "string"},
                 },
                 "required": ["evidence_id", "claim"],
-                "additionalProperties": False,
             },
         },
         "conflicts_or_missing_qualifiers": {
             "type": "array",
-            "items": {"type": "string"},
+            "items": {
+                "type": "object",
+                "properties": {
+                    "kind": {"type": "string", "enum": sorted(CONFLICT_KINDS)},
+                    "blocking": {"type": "boolean"},
+                    "detail": {"type": "string"},
+                },
+                "required": ["kind", "blocking", "detail"],
+            },
         },
         "needs_verification": {"type": "boolean"},
         "answer": {"type": "string"},
@@ -76,7 +98,6 @@ ANSWER_SCHEMA: dict[str, Any] = {
         "needs_verification",
         "answer",
     ],
-    "additionalProperties": False,
 }
 
 CallFunction = Callable[
@@ -172,10 +193,11 @@ Return exactly these five top-level fields: question_interpretation, cited_evide
 conflicts_or_missing_qualifiers, needs_verification, and answer. The
 question_interpretation object must contain requested_entity, requested_fact,
 qualifier, and answer_unit. If verification is needed, return no cited evidence,
-record the reason, set needs_verification to true, and set answer exactly to
-{VERIFICATION_SENTINEL}. Otherwise cite at least one evidence line, set
-needs_verification to false, and return one concise answer of at most
-{MAX_ANSWER_WORDS} words.
+record each conflict as an object with kind, blocking, and detail, set
+needs_verification to true, and set answer exactly to {VERIFICATION_SENTINEL}.
+For an answered row, every conflict must be a non-blocking harmless_alias
+conflict. Otherwise cite at least one evidence line, set needs_verification to
+false, and return one concise answer of at most {MAX_ANSWER_WORDS} words.
 
 Question:
 {question_text}
@@ -184,44 +206,27 @@ Frozen evidence:
 {evidence_text}"""
 
 
+def _schema_sha256() -> str:
+    return hashlib.sha256(
+        json.dumps(ANSWER_SCHEMA, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def _prompt_template_sha256() -> str:
+    return hashlib.sha256(
+        build_prompt(
+            "{QUESTION}",
+            [{"evidence_id": "E01", "claim": "{EVIDENCE}"}],
+        ).encode()
+    ).hexdigest()
+
+
 _INTERPRETATION_FIELDS = {
     "requested_entity",
     "requested_fact",
     "qualifier",
     "answer_unit",
 }
-
-
-def _conflict_blocks_answer(conflict: str) -> bool:
-    lower = conflict.casefold()
-    # Explicitly positive statements such as "no ambiguity remains" do not
-    # block an answer.  Everything below describes unresolved support.
-    if re.search(r"\bno\s+(?:remaining\s+)?ambigu(?:ity|ous)\b", lower):
-        return False
-    blocked_phrases = (
-        "requested fact is absent",
-        "requested fact absent",
-        "requested action is absent",
-        "requested action absent",
-        "requested fact is missing",
-        "requested fact missing",
-        "requested action is missing",
-        "requested action missing",
-        "fact is absent",
-        "fact absent",
-        "fact is missing",
-        "fact missing",
-        "not shown",
-        "not present",
-        "missing qualifier",
-        "missing requested",
-        "ambiguous",
-        "multiple plausible",
-        "multiple possible",
-        "cannot determine",
-        "contradict",
-    )
-    return any(phrase in lower for phrase in blocked_phrases)
 
 
 def validate_answer(payload: Any, evidence_ids: set[str]) -> dict[str, Any]:
@@ -273,10 +278,25 @@ def validate_answer(payload: Any, evidence_ids: set[str]) -> dict[str, Any]:
     conflicts_payload = payload["conflicts_or_missing_qualifiers"]
     if not isinstance(conflicts_payload, list):
         raise ValueError("conflicts_or_missing_qualifiers must be a list")
-    conflicts = [
-        _nonempty_string(value, field="conflicts_or_missing_qualifiers item")
-        for value in conflicts_payload
-    ]
+    conflicts: list[dict[str, Any]] = []
+    for index, item in enumerate(conflicts_payload):
+        if not isinstance(item, Mapping) or set(item) != {"kind", "blocking", "detail"}:
+            raise ValueError(f"conflict[{index}] fields are invalid")
+        kind = item["kind"]
+        if kind not in CONFLICT_KINDS:
+            raise ValueError(f"conflict[{index}] kind is invalid")
+        blocking = item["blocking"]
+        if not isinstance(blocking, bool):
+            raise ValueError(f"conflict[{index}] blocking must be boolean")
+        conflicts.append(
+            {
+                "kind": kind,
+                "blocking": blocking,
+                "detail": _nonempty_string(
+                    item["detail"], field=f"conflict[{index}].detail"
+                ),
+            }
+        )
 
     needs_verification = payload["needs_verification"]
     if not isinstance(needs_verification, bool):
@@ -294,7 +314,7 @@ def validate_answer(payload: Any, evidence_ids: set[str]) -> dict[str, Any]:
             )
         if cited:
             raise ValueError("verification-routed answer must not contain answer claims")
-        if not conflicts:
+        if not conflicts or not any(item["blocking"] for item in conflicts):
             raise ValueError("verification-routed answer requires a reason")
     else:
         if not cited:
@@ -303,8 +323,10 @@ def validate_answer(payload: Any, evidence_ids: set[str]) -> dict[str, Any]:
             raise ValueError("non-verification answer cannot use verification sentinel")
         if answer not in {item["claim"] for item in cited}:
             raise ValueError("answer must exactly match one cited claim")
-        if any(_conflict_blocks_answer(conflict) for conflict in conflicts):
-            raise ValueError("answered row has an unresolved verification conflict")
+        if any(item["blocking"] for item in conflicts):
+            raise ValueError("answered row has a blocking verification conflict")
+        if any(item["kind"] != "harmless_alias" for item in conflicts):
+            raise ValueError("answered row conflicts must be harmless_alias")
 
     return {
         "question_interpretation": interpretation,
@@ -362,11 +384,73 @@ def _load_inputs(protocol_root: Path) -> tuple[dict[str, Any], list[dict[str, An
     selection = _load_json(selection_path)
     if not isinstance(treatment, Mapping) or not isinstance(selection, Mapping):
         raise ValueError("treatment and selection freezes must be JSON objects")
-    for name, freeze in (("treatment", treatment), ("selection", selection)):
-        status = freeze.get("status")
-        if status is not None and status != "frozen":
-            raise ValueError(f"{name} freeze is not frozen")
+    _validate_freeze_contract(
+        protocol,
+        rows,
+        treatment,
+        selection,
+        protocol_path=protocol_path,
+        treatment_path=treatment_path,
+        selection_path=selection_path,
+    )
     return dict(protocol), rows, dict(treatment), dict(selection)
+
+
+def _validate_freeze_contract(
+    protocol: Mapping[str, Any],
+    rows: Sequence[Mapping[str, Any]],
+    treatment: Mapping[str, Any],
+    selection: Mapping[str, Any],
+    *,
+    protocol_path: Path,
+    treatment_path: Path,
+    selection_path: Path,
+) -> None:
+    """Validate the immutable Task 2 -> Task 1 boundary before any call."""
+
+    if treatment.get("status") != "frozen":
+        raise ValueError("treatment freeze must have exact status=frozen")
+    if selection.get("status") != "frozen":
+        raise ValueError("selection freeze must have exact status=frozen")
+    if treatment.get("runner_sha256") != _sha256(SCRIPT_PATH):
+        raise ValueError("treatment freeze runner hash does not match current runner")
+    if treatment.get("prompt_template_sha256") != _prompt_template_sha256():
+        raise ValueError("treatment freeze prompt hash does not match current prompt")
+    if treatment.get("response_schema_sha256") != _schema_sha256():
+        raise ValueError("treatment freeze schema hash does not match current schema")
+    if treatment.get("settings") != EXPECTED_SETTINGS:
+        raise ValueError("treatment freeze settings do not match frozen settings")
+    if protocol.get("model") != MODEL:
+        raise ValueError("protocol model does not match frozen model")
+    if protocol.get("settings") != EXPECTED_SETTINGS:
+        raise ValueError("protocol settings do not match frozen settings")
+    if protocol.get("prompt_template_sha256") != _prompt_template_sha256():
+        raise ValueError("protocol prompt hash does not match current prompt")
+    if protocol.get("response_schema_sha256") != _schema_sha256():
+        raise ValueError("protocol schema hash does not match current schema")
+    if protocol.get("treatment_freeze_sha256") != _sha256(treatment_path):
+        raise ValueError("protocol treatment freeze hash does not match current freeze")
+    if protocol.get("selection_freeze_sha256") != _sha256(selection_path):
+        raise ValueError("protocol selection freeze hash does not match current freeze")
+    if selection.get("treatment_freeze_sha256") != _sha256(treatment_path):
+        raise ValueError("selection treatment freeze hash does not match current freeze")
+    selected = selection.get("selected_rows")
+    if not isinstance(selected, list) or len(selected) != len(rows):
+        raise ValueError("selection freeze selected_rows do not match protocol")
+    selected_ids: list[str] = []
+    for item in selected:
+        if isinstance(item, str):
+            selected_ids.append(item)
+        elif isinstance(item, Mapping) and isinstance(item.get("video_id"), str):
+            selected_ids.append(item["video_id"])
+        else:
+            raise ValueError("selection freeze selected_rows are invalid")
+    protocol_ids = [row["video_id"] for row in rows]
+    if selected_ids != protocol_ids:
+        raise ValueError("selection freeze selected_rows do not match protocol rows")
+    selection_protocol_hash = selection.get("protocol_sha256")
+    if selection_protocol_hash is not None and selection_protocol_hash != _sha256(protocol_path):
+        raise ValueError("selection protocol hash does not match current protocol")
 
 
 def _response_metadata(response: Any, elapsed_seconds: float, raw: str) -> dict[str, Any]:
@@ -433,10 +517,10 @@ def _provider_result(result: Any) -> tuple[Mapping[str, Any] | None, str, dict[s
     return payload, raw, dict(metadata)
 
 
-def _copy_input_once(path: Path, destination: Path, payload: Mapping[str, Any]) -> None:
+def _copy_input_once(path: Path, destination: Path) -> None:
     if path.resolve() == destination.resolve():
         return
-    _write_once(destination, payload)
+    _write_text_once(destination, path.read_text(encoding="utf-8"))
 
 
 def run(
@@ -458,16 +542,14 @@ def run(
         raise ValueError("output already has artifacts; refusing to overwrite")
     protocol, rows, treatment, selection = _load_inputs(protocol_root)
     output_root.mkdir(parents=True, exist_ok=True)
-    _copy_input_once(protocol_root / "protocol.json", output_root / "protocol.json", protocol)
+    _copy_input_once(protocol_root / "protocol.json", output_root / "protocol.json")
     _copy_input_once(
         protocol_root / "treatment-freeze.json",
         output_root / "treatment-freeze.json",
-        treatment,
     )
     _copy_input_once(
         protocol_root / "selection-freeze.json",
         output_root / "selection-freeze.json",
-        selection,
     )
     provider = call or _call_provider
     for row in rows:
@@ -504,10 +586,10 @@ def run(
         _write_text_once(row_root / "raw-response.txt", raw)
         _write_once(row_root / "metadata.json", metadata)
         try:
-            if payload is None:
-                parsed_payload = json.loads(raw)
-            else:
-                parsed_payload = payload
+            # The provider's raw bytes are authoritative.  A test seam may
+            # return a parsed convenience payload, but it can never bypass
+            # malformed JSON or alter what was actually persisted.
+            parsed_payload = json.loads(raw)
             parsed = validate_answer(
                 parsed_payload,
                 {item["evidence_id"] for item in row["evidence"]},
@@ -550,11 +632,24 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
     protocol_path = root / "protocol.json"
     protocol = _load_json(protocol_path)
     rows = _index_protocol_rows(protocol)
+    treatment_path = root / "treatment-freeze.json"
+    selection_path = root / "selection-freeze.json"
+    treatment = _load_json(treatment_path)
+    selection = _load_json(selection_path)
+    _validate_freeze_contract(
+        protocol,
+        rows,
+        treatment,
+        selection,
+        protocol_path=protocol_path,
+        treatment_path=treatment_path,
+        selection_path=selection_path,
+    )
     if freeze.get("protocol_sha256") != _sha256(protocol_path):
         raise ValueError("predictions freeze does not bind current protocol")
     expected_freeze_hashes = {
-        "treatment_freeze_sha256": root / "treatment-freeze.json",
-        "selection_freeze_sha256": root / "selection-freeze.json",
+        "treatment_freeze_sha256": treatment_path,
+        "selection_freeze_sha256": selection_path,
     }
     for key, path in expected_freeze_hashes.items():
         if freeze.get(key) != _sha256(path):
@@ -619,6 +714,15 @@ def verify_predictions_freeze(root: Path) -> None:
     selection = _load_json(selection_path)
     if not isinstance(treatment, Mapping) or not isinstance(selection, Mapping):
         raise ValueError("treatment and selection freezes must be JSON objects")
+    _validate_freeze_contract(
+        protocol,
+        rows,
+        treatment,
+        selection,
+        protocol_path=protocol_path,
+        treatment_path=treatment_path,
+        selection_path=selection_path,
+    )
     frozen_rows: list[dict[str, Any]] = []
     passed_count = 0
     for row in rows:
