@@ -77,9 +77,9 @@
 
 **Interfaces:**
 - Consumes: corrected census/panel freezes, frozen direct-answer result, canonical source videos, CountSpec route eligibility.
-- Produces: `prepare_experiment(*, census_path: Path, prior_panel_path: Path, video_root: Path, output_root: Path, repository: Path) -> dict[str, object]`, private `panel.freeze.json`, `requests.label-blind.json`, `media-manifest.json`, `views.freeze.json`, and `preparation-complete.json`.
+- Produces: `prepare_experiment(*, census_path: Path, routing_path: Path, excluded_ids_path: Path, source_root: Path, delivery_root: Path, output_root: Path) -> dict[str, object]`, private `panel.freeze.json`, `requests.label-blind.json`, and `preparation-complete.json`; per-row provider views are frozen later because they depend on the model-authored CountSpec.
 
-- [ ] **Step 1: Write deterministic selection tests.** Use a synthetic census with more candidates than required and assert exactly four action failures, three static failures, one other supported failure, two temporal controls, and two static controls selected by literal SHA ordering after exclusions. Assert duplicate IDs, missing strata, ambiguity, prior-canary reuse, and zero-row input fail closed.
+- [ ] **Step 1: Write deterministic selection tests.** Use a synthetic census with more candidates than required and assert exactly four action failures, three static failures, one other supported temporal failure, two temporal controls, and two static controls selected by literal SHA ordering after exclusions. Assert duplicate IDs, missing strata, ambiguity, prior-canary reuse, and zero-row input fail closed.
 - [ ] **Step 2: Run selection tests and confirm RED.** Run `uv run pytest -q tests/test_prepare_bounded_multipass_counting.py -k selection`; expect import failure.
 - [ ] **Step 3: Implement selection and private/label-blind projections.** The inference projection must omit roles, references, prior predictions, correctness, expected counts, and annotations and pass recursive leakage validation.
 - [ ] **Step 4: Run selection tests and confirm GREEN.** Repeat Step 2.
