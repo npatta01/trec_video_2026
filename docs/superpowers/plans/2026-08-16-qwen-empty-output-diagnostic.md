@@ -308,34 +308,34 @@
 - Consume: sanitized aggregate diagnostic evidence
 - Produce: condition-bound claim and next-test decision
 
-- [ ] **Step 1: Write the observed result separately from interpretation**
+- [x] **Step 1: Write the observed result separately from interpretation**
 
   Append the four-arm method, completion denominator, per-arm aggregate
   success counts, baseline reproducibility, decision rule outcome, evidence
   validity, limits, private root, and immutable hashes. Do not include row IDs,
   transcript text, or raw logs.
 
-- [ ] **Step 2: Record the next action from the frozen decision**
+- [x] **Step 2: Record the next action from the frozen decision**
 
   If D advances, specify a new-label-blind-pool quality panel with no reused
   Qwen rows. Otherwise preserve `not_ready` or `unstable_baseline` and name the
   exact reconsideration condition. Never score the four-row diagnostic.
 
-- [ ] **Step 3: Record Gemini 3.7 Flash as a separate proposed smoke**
+- [x] **Step 3: Record Gemini 3.7 Flash as a separate proposed smoke**
 
   Note official stable model ID `gemini-3.7-flash`, 2026-08-13 GA status,
   native video/audio input, structured output, and the need for a separately
   authorized compatibility smoke against the pinned Gemini 3.1 Pro condition.
   Do not claim superiority and do not issue an API call in this task.
 
-- [ ] **Step 4: Render and perform proportional verification**
+- [x] **Step 4: Render and perform proportional verification**
 
   Regenerate affected QMD-derived Markdown/HTML. Run the complete focused
   Qwen suite, Ruff, JSON parsing, tracked SHA256SUMS checks, privacy/secret and
   private-ID scans, `git diff --check`, and status verification for both frozen
   roots. Confirm `data/` and `.claude/` are not staged.
 
-- [ ] **Step 5: Request independent review and commit the record**
+- [x] **Step 5: Request independent review and commit the record**
 
   Review source, tests, frozen aggregate evidence, and report wording. Resolve
   all actionable findings, rerun verification, and commit only intended

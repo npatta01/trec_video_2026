@@ -1,0 +1,98 @@
+{
+  "schema_version": "qwen-empty-output-diagnostic.v1",
+  "experiment_id": "qwen-aligner-stage05e-20260816-empty-output-v1",
+  "status": "diagnostic_frozen",
+  "panel_rows": 4,
+  "panel_selection": "Two preserved empty-output rows plus the first two preserved passing rows in frozen request order; no labels or annotations were loaded.",
+  "models": {
+    "asr": "Qwen/Qwen3-ASR-1.7B",
+    "asr_revision": "7278e1e70fe206f11671096ffdd38061171dd6e5",
+    "forced_aligner": "Qwen/Qwen3-ForcedAligner-0.6B",
+    "forced_aligner_revision": "c7cbfc2048c462b0d63a45797104fc9db3ad62b7"
+  },
+  "runtime_image": "localhost/trec-vqa-audio-rocm@sha256:faa70fc2896401f863fc1be1a83581585bba3bd9784cf4cf3b672d7815b6c234",
+  "one_attempt_only": true,
+  "paid_compute_usd": 0.0,
+  "arms": [
+    {
+      "arm_id": "aligned_auto",
+      "purpose": "baseline_reproduction_control",
+      "language": "auto",
+      "aligner_loaded": true,
+      "timestamps": "on",
+      "success_count": 2,
+      "failure_count": 2,
+      "aligned_success_count": 2,
+      "validation_status": "not_ready",
+      "contract_valid": true,
+      "terminal_status": "completed",
+      "exit_code": 0,
+      "wall_seconds": 46.722,
+      "max_peak_memory_bytes": 6175102976
+    },
+    {
+      "arm_id": "base_auto",
+      "purpose": "aligner_load_localization",
+      "language": "auto",
+      "aligner_loaded": false,
+      "timestamps": "off",
+      "success_count": 2,
+      "failure_count": 2,
+      "aligned_success_count": 0,
+      "validation_status": "not_ready",
+      "contract_valid": true,
+      "terminal_status": "completed",
+      "exit_code": 0,
+      "wall_seconds": 46.691,
+      "max_peak_memory_bytes": 4331441664
+    },
+    {
+      "arm_id": "aligner_plain_auto",
+      "purpose": "timestamp_path_localization",
+      "language": "auto",
+      "aligner_loaded": true,
+      "timestamps": "off",
+      "success_count": 2,
+      "failure_count": 2,
+      "aligned_success_count": 0,
+      "validation_status": "not_ready",
+      "contract_valid": true,
+      "terminal_status": "completed",
+      "exit_code": 0,
+      "wall_seconds": 46.294,
+      "max_peak_memory_bytes": 6175102464
+    },
+    {
+      "arm_id": "aligned_english",
+      "purpose": "language_selection_treatment",
+      "language": "English",
+      "aligner_loaded": true,
+      "timestamps": "on",
+      "success_count": 4,
+      "failure_count": 0,
+      "aligned_success_count": 4,
+      "validation_status": "ready",
+      "contract_valid": true,
+      "terminal_status": "completed",
+      "exit_code": 0,
+      "wall_seconds": 47.787,
+      "max_peak_memory_bytes": 6174173184
+    }
+  ],
+  "baseline_reproducible": true,
+  "explanatory_localization": {
+    "aligner_load_localization": false,
+    "aligner_plain_auto_all_rows_passed": false,
+    "base_auto_all_rows_passed": false,
+    "timestamp_path_localization": false
+  },
+  "decision_rule": "A reproduces plus D passes all four rows yields ready_for_fresh_aligned_quality_panel.",
+  "decision": "ready_for_fresh_aligned_quality_panel",
+  "advancing_arm": "aligned_english",
+  "quality_score_created": false,
+  "immutable_hashes": {
+    "input_freeze_sha256": "aed463e5c6f206e346c29b41b56b7199f07874981ffadc908d41974cf0466083",
+    "freeze_payload_sha256": "d157e6dc2187ea14d7ead4f42f8ee2d8c14dddc8707acd314d1e7c4a02fe57ec"
+  },
+  "private_root": "data/vqa/benchmarks/model-verifier-canaries-20260814/stage05e-qwen-empty-output-diagnostic-v1/"
+}
