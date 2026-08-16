@@ -1,0 +1,78 @@
+{
+  "authorization": {
+    "authorized_rows": 1,
+    "cost_cap_usd": 0.34,
+    "manifest_rows": 3,
+    "untouched_rows": 2
+  },
+  "baseline_metrics": {
+    "bertscore_f1": 0.8016393184661865,
+    "meteor": 0.0,
+    "semantic_composite": 0.2672131061553955,
+    "sts": 0.0
+  },
+  "complete_sha256": "dc415f1f2c58f58ebbb545c47e7b908fb7d156fd45ed61a09a7778cd9d5e43ad",
+  "completion": {
+    "completed": 1,
+    "total": 1
+  },
+  "condition": "gemini-native-counting-recovery-hardened-v2",
+  "control": {
+    "preserved": 0,
+    "rate": null,
+    "total": 0
+  },
+  "decision_code": "stop_gemini_counting_recovery_hardened_v2",
+  "decision_disposition": "Not promoted under the tested condition",
+  "deltas_treatment_minus_baseline": {
+    "bertscore_f1": 0.12904685735702515,
+    "meteor": 0.0,
+    "semantic_composite": 0.043015619119008364,
+    "sts": 0.0
+  },
+  "evidence_validity": "Diagnostic",
+  "failure_classification": [
+    "missed_left_edge_appearance",
+    "missed_right_edge_appearance",
+    "challenger_false_complete_coverage"
+  ],
+  "gate_evaluable": false,
+  "gate_passed": false,
+  "metric_environment": {
+    "bert_model_config_sha256": "82ba49810e6441735e696033ac2512ee09da555507b2917ac3865b202d592cc3",
+    "bert_score_distribution_version": "0.3.13",
+    "bertscore_device": "cpu",
+    "bertscore_num_layers": "17",
+    "nltk_distribution_version": "3.9.2",
+    "python_runtime_version": "3.12.13",
+    "torch_distribution_version": "2.13.0+cpu",
+    "transformers_distribution_version": "5.15.0"
+  },
+  "metrics": {
+    "bertscore_f1": 0.9306861758232117,
+    "meteor": 0.0,
+    "semantic_composite": 0.31022872527440387,
+    "sts": 0.0
+  },
+  "observed": {
+    "abstentions": 0,
+    "exact_results": 1,
+    "paid_provider_calls": 3,
+    "total_estimated_cost_usd": 0.1117
+  },
+  "private_evidence_binding": {
+    "postfreeze_provenance_complete_sha256": "4caf57d51692cc3ce85132f2a1ac609500997e578e90100cb6cf9766c6e41e09",
+    "postfreeze_provenance_file_sha256": "493d6b4584953d16faa0c5161b82ed71b1fa7316e0f2cdb9006b4043fbdfcc8b",
+    "prediction_freeze_complete_sha256": "0c222839898235dc3d08a5b2777322985807ab8911197aa4e816b84724bc76de",
+    "prediction_freeze_file_sha256": "79f200f027698c407cc5dc5df96cf537529ae9d7093431395145c4bbf607a27d",
+    "score_complete_sha256": "94792b6276d8ebbe2a600919250cf24c5f92a3fc75750f0f5776fce6a241f587",
+    "score_file_sha256": "f1ee1ff8df6309486526d775d90e3026991dde3b339f75d8f58499d6bd02d852"
+  },
+  "private_rows_omitted": true,
+  "rescue": {
+    "rate": 0.0,
+    "rescued": 0,
+    "total": 1
+  },
+  "schema_version": 1
+}

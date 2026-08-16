@@ -245,3 +245,14 @@ canary is authorized. `provenance-audit-v1.json` preserves the legacy
 paid-claim self-hash and indirect media-binding gaps; filesystem exclusivity
 still prevented duplicate stage calls. Post-run interface and provenance
 hardening is not experimental evidence.
+
+A separately authorized hardened one-row repeat is complete at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-counting-recovery-hardened-v2/`.
+It completed and froze the first failure row only, returned exact count 2
+against reference 4, rescued 0/1, ran no control, and cost `$0.111700`. Start
+with `inspection.md`. Frame review found missed appearances at both temporal
+edges even though the challenger asserted complete coverage. Preserve this
+valid negative result; do not rerun or scale the unchanged condition. No
+further paid counting run is authorized. A future zero-cost design seam must
+mechanically certify boundary coverage rather than trust model-declared full
+review.
