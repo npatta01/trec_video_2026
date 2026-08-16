@@ -25,6 +25,7 @@ from typing import Any, Callable, Mapping, Sequence
 MODEL = "gemini-3.1-pro-preview"
 EXPECTED_FPS = (4.0, 12.0)
 MAX_CALLS = 24
+COMPATIBILITY_CANARY_PAIRS = 1
 SCRIPT_PATH = Path(__file__).resolve()
 CONFIG_PATH = SCRIPT_PATH.parents[1] / "configs" / "vqa" / "dense_question_localized_evidence_issue35.json"
 EXPECTED_SETTINGS: dict[str, Any] = {
@@ -108,6 +109,23 @@ PROBE_SCHEMA: dict[str, Any] = {
         "needs_more_evidence",
     ],
 }
+
+
+def _without_additional_properties(value: Any) -> Any:
+    """Project the strict local schema to Gemini's provider-compatible schema."""
+
+    if isinstance(value, Mapping):
+        return {
+            key: _without_additional_properties(child)
+            for key, child in value.items()
+            if key != "additionalProperties"
+        }
+    if isinstance(value, list):
+        return [_without_additional_properties(child) for child in value]
+    return value
+
+
+PROVIDER_RESPONSE_SCHEMA: dict[str, Any] = _without_additional_properties(PROBE_SCHEMA)
 
 
 _FORBIDDEN_PROVIDER_KEYS = frozenset(
@@ -195,6 +213,10 @@ def _schema_sha256() -> str:
     return hashlib.sha256(_canonical(PROBE_SCHEMA)).hexdigest()
 
 
+def _provider_schema_sha256() -> str:
+    return hashlib.sha256(_canonical(PROVIDER_RESPONSE_SCHEMA)).hexdigest()
+
+
 def _validate_config() -> None:
     config = _load_json(CONFIG_PATH)
     if not isinstance(config, Mapping):
@@ -207,6 +229,8 @@ def _validate_config() -> None:
         raise ValueError("runner config expected FPS does not match runner")
     if config.get("max_calls") != MAX_CALLS:
         raise ValueError("runner config call cap does not match runner")
+    if config.get("compatibility_canary_pairs") != COMPATIBILITY_CANARY_PAIRS:
+        raise ValueError("runner config compatibility canary policy does not match runner")
     if config.get("decision_gate") != EXPECTED_DECISION_GATE:
         raise ValueError("runner config decision gate does not match runner")
 
@@ -552,6 +576,8 @@ def _validate_inputs(root: Path) -> tuple[list[dict[str, Any]], dict[int, dict[s
         raise ValueError("treatment expected FPS does not match runner")
     if treatment.get("max_calls") != MAX_CALLS:
         raise ValueError("treatment call cap does not match runner")
+    if treatment.get("compatibility_canary_pairs") != COMPATIBILITY_CANARY_PAIRS:
+        raise ValueError("treatment compatibility canary policy does not match runner")
     if treatment.get("decision_gate") != EXPECTED_DECISION_GATE:
         raise ValueError("treatment decision gate does not match frozen decision rule")
     expected_hashes = {
@@ -559,6 +585,7 @@ def _validate_inputs(root: Path) -> tuple[list[dict[str, Any]], dict[int, dict[s
         "config_sha256": _sha256(CONFIG_PATH),
         "prompt_template_sha256": _prompt_template_sha256(),
         "response_schema_sha256": _schema_sha256(),
+        "provider_response_schema_sha256": _provider_schema_sha256(),
         "validator_sha256": _validator_sha256(),
     }
     for field, expected in expected_hashes.items():
@@ -586,6 +613,8 @@ def _validate_inputs(root: Path) -> tuple[list[dict[str, Any]], dict[int, dict[s
         raise ValueError("selection freeze must have status=frozen")
     if selection.get("decision_gate") != EXPECTED_DECISION_GATE:
         raise ValueError("selection decision gate does not match frozen rule")
+    if selection.get("compatibility_canary_pairs") != COMPATIBILITY_CANARY_PAIRS:
+        raise ValueError("selection compatibility canary policy does not match runner")
     if selection.get("treatment_freeze_sha256") != treatment_sha:
         raise ValueError("selection treatment hash does not match current bytes")
     if selection.get("provider_rows_sha256") != provider_sha:
@@ -622,6 +651,8 @@ def _validate_inputs(root: Path) -> tuple[list[dict[str, Any]], dict[int, dict[s
         raise ValueError("provider authorization promotion gate must be PASS")
     if authorization.get("decision_gate") != EXPECTED_DECISION_GATE:
         raise ValueError("provider authorization decision gate does not match frozen rule")
+    if authorization.get("compatibility_canary_pairs") != COMPATIBILITY_CANARY_PAIRS:
+        raise ValueError("provider authorization compatibility canary policy does not match runner")
     auth_expected = {
         "treatment_freeze_sha256": treatment_sha,
         "selection_freeze_sha256": selection_sha,
@@ -690,7 +721,7 @@ def _call_provider(clip_bytes: bytes, mime_type: str, prompt: str, fps: float) -
             candidate_count=1,
             max_output_tokens=2048,
             response_mime_type="application/json",
-            response_schema=PROBE_SCHEMA,
+            response_schema=PROVIDER_RESPONSE_SCHEMA,
             thinking_config=types.ThinkingConfig(
                 thinking_level=types.ThinkingLevel.HIGH,
                 include_thoughts=False,
@@ -720,12 +751,18 @@ def _arm_directory(root: Path, audit_index: int, role: str, fps: float) -> Path:
 
 
 def _request_payload(
-    provider: Mapping[str, Any], media: Mapping[str, Any], fps: float, prompt: str
+    provider: Mapping[str, Any],
+    media: Mapping[str, Any],
+    fps: float,
+    prompt: str,
+    canary_pair_index: int | None,
 ) -> dict[str, Any]:
     return {
         "model": MODEL,
         "settings": EXPECTED_SETTINGS,
         "fps": fps,
+        "compatibility_canary_pairs": COMPATIBILITY_CANARY_PAIRS,
+        "canary_pair_index": canary_pair_index,
         "mime_type": media["mime_type"],
         "clip_sha256": media["clip_sha256"],
         "clip_start_seconds": media["clip_start_seconds"],
@@ -742,7 +779,7 @@ def _request_payload(
         "question": provider["question"],
         "map_lines": provider["map_lines"],
         "prompt": prompt,
-        "response_schema": PROBE_SCHEMA,
+        "response_schema": PROVIDER_RESPONSE_SCHEMA,
     }
 
 
@@ -751,6 +788,7 @@ def _write_request(
     provider: Mapping[str, Any],
     media: Mapping[str, Any],
     fps: float,
+    canary_pair_index: int | None,
 ) -> str:
     prompt = build_prompt(
         provider["question"],
@@ -758,7 +796,10 @@ def _write_request(
         media["clip_start_seconds"],
         media["clip_end_seconds"],
     )
-    _write_once(row_root / "request.json", _request_payload(provider, media, fps, prompt))
+    _write_once(
+        row_root / "request.json",
+        _request_payload(provider, media, fps, prompt, canary_pair_index),
+    )
     return prompt
 
 
@@ -767,8 +808,12 @@ def _write_incomplete_freeze(
     rows: Sequence[Mapping[str, Any]],
     call_count: int,
     error: BaseException,
+    *,
+    stop_reason: str = "interrupted",
+    interrupted: bool = True,
+    canary_pair_status: str = "not_reached",
 ) -> None:
-    """Persist every pending arm after an interruption, without retrying."""
+    """Persist every pending arm after a terminal stop, without retrying."""
 
     planned = len(rows) * len(EXPECTED_FPS)
     frozen_rows: list[dict[str, Any]] = []
@@ -781,11 +826,11 @@ def _write_incomplete_freeze(
             row_root = _arm_directory(root, audit_index, role, fps)
             terminal_path = row_root / "terminal.json"
             if not terminal_path.is_file():
-                raise ValueError(f"interrupted row has no terminal state: {row_root.name}")
+                raise ValueError(f"stopped row has no terminal state: {row_root.name}")
             terminal = _load_json(terminal_path)
             status = terminal.get("status")
             if status not in TERMINAL_STATUSES:
-                raise ValueError(f"interrupted row has unknown status: {row_root.name}")
+                raise ValueError(f"stopped row has unknown status: {row_root.name}")
             if status != "incomplete":
                 completed += 1
             if status == "passed":
@@ -798,7 +843,7 @@ def _write_incomplete_freeze(
             if status == "passed":
                 required.add("parsed.json")
             if entries != names or not required.issubset(names):
-                raise ValueError(f"interrupted row artifacts are incomplete: {row_root.name}")
+                raise ValueError(f"stopped row artifacts are incomplete: {row_root.name}")
             frozen_rows.append(
                 {
                     "audit_index": audit_index,
@@ -812,12 +857,15 @@ def _write_incomplete_freeze(
     freeze = {
         "schema_version": 1,
         "status": "incomplete",
-        "interrupted": True,
+        "interrupted": interrupted,
+        "stop_reason": stop_reason,
         "interruption_type": type(error).__name__,
         "interruption_message": str(error),
         "experiment_id": "dense-question-localized-evidence-issue35-v1",
         "model": MODEL,
         "expected_fps": list(EXPECTED_FPS),
+        "compatibility_canary_pairs": COMPATIBILITY_CANARY_PAIRS,
+        "canary_pair_status": canary_pair_status,
         "decision_gate": EXPECTED_DECISION_GATE,
         "frozen_at": datetime.now(UTC).isoformat(),
         "row_count": planned,
@@ -831,11 +879,56 @@ def _write_incomplete_freeze(
         "config_sha256": _sha256(CONFIG_PATH),
         "prompt_template_sha256": _prompt_template_sha256(),
         "response_schema_sha256": _schema_sha256(),
+        "provider_response_schema_sha256": _provider_schema_sha256(),
         "validator_sha256": _validator_sha256(),
         "rows": frozen_rows,
     }
     _write_once(root / "predictions-freeze.json", freeze)
     _verify_freeze_contents(root, freeze)
+
+
+def _canary_pair_index(task_index: int) -> int | None:
+    canary_tasks = 2 * COMPATIBILITY_CANARY_PAIRS
+    if task_index >= canary_tasks:
+        return None
+    return task_index // len(EXPECTED_FPS) + 1
+
+
+def _write_pending_incomplete(
+    root: Path,
+    tasks: Sequence[tuple[Mapping[str, Any], float]],
+    start_index: int,
+    reason: str,
+) -> None:
+    for pending_index, (pending_item, pending_fps) in enumerate(
+        tasks[start_index:], start=start_index
+    ):
+        pending_provider = pending_item["provider"]
+        pending_media = pending_item["media"]
+        audit_index = pending_provider["audit_index"]
+        role = pending_media["role"]
+        pending_root = _arm_directory(root, audit_index, role, pending_fps)
+        _write_request(
+            pending_root,
+            pending_provider,
+            pending_media,
+            pending_fps,
+            _canary_pair_index(pending_index),
+        )
+        _write_once(
+            pending_root / "metadata.json",
+            {"status": "incomplete", "reason": reason},
+        )
+        _write_once(
+            pending_root / "terminal.json",
+            {
+                "audit_index": audit_index,
+                "role": role,
+                "fps": pending_fps,
+                "status": "incomplete",
+                "reason": reason,
+            },
+        )
 
 
 def run(root: Path, call: CallFunction | None = None) -> None:
@@ -853,6 +946,31 @@ def run(root: Path, call: CallFunction | None = None) -> None:
         raise ValueError("planned call count exceeds MAX_CALLS")
     calls = 0
     tasks = [(item, fps) for item in rows for fps in EXPECTED_FPS]
+    canary_statuses: list[str] = []
+
+    def stop_after_failed_canary(task_index: int) -> bool:
+        if task_index != 2 * COMPATIBILITY_CANARY_PAIRS - 1:
+            return False
+        if all(status == "passed" for status in canary_statuses):
+            return False
+        stop_error = RuntimeError("compatibility canary pair did not pass")
+        _write_pending_incomplete(
+            root,
+            tasks,
+            task_index + 1,
+            "compatibility canary pair failed before provider attempt",
+        )
+        _write_incomplete_freeze(
+            root,
+            rows,
+            calls,
+            stop_error,
+            stop_reason="canary_failure",
+            interrupted=False,
+            canary_pair_status="failed",
+        )
+        return True
+
     for task_index, (item, fps) in enumerate(tasks):
         provider_row = item["provider"]
         media = item["media"]
@@ -863,7 +981,13 @@ def run(root: Path, call: CallFunction | None = None) -> None:
         if _sha256_bytes(clip_bytes) != media["clip_sha256"]:
             raise ValueError(f"clip hash changed before call for audit_index {audit_index}")
         row_root = _arm_directory(root, audit_index, role, fps)
-        prompt = _write_request(row_root, provider_row, media, fps)
+        prompt = _write_request(
+            row_root,
+            provider_row,
+            media,
+            fps,
+            _canary_pair_index(task_index),
+        )
         calls += 1
         try:
             raw, metadata = _provider_result(provider(clip_bytes, media["mime_type"], prompt, fps))
@@ -874,27 +998,22 @@ def run(root: Path, call: CallFunction | None = None) -> None:
                     row_root / "terminal.json",
                     {"audit_index": audit_index, "role": role, "fps": fps, "status": "provider_error", "error_type": type(error).__name__},
                 )
+                if _canary_pair_index(task_index) is not None:
+                    canary_statuses.append("provider_error")
+                if stop_after_failed_canary(task_index):
+                    return
                 continue
             _write_once(row_root / "metadata.json", {"error_type": type(error).__name__, "error": str(error), "interrupted": True})
             _write_once(
                 row_root / "terminal.json",
                 {"audit_index": audit_index, "role": role, "fps": fps, "status": "interrupted", "error_type": type(error).__name__, "error": str(error)},
             )
-            for pending_item, pending_fps in tasks[task_index + 1 :]:
-                pending_provider = pending_item["provider"]
-                pending_media = pending_item["media"]
-                pending_index = pending_provider["audit_index"]
-                pending_role = pending_media["role"]
-                pending_root = _arm_directory(root, pending_index, pending_role, pending_fps)
-                _write_request(pending_root, pending_provider, pending_media, pending_fps)
-                _write_once(
-                    pending_root / "metadata.json",
-                    {"status": "incomplete", "reason": "run interrupted before provider attempt"},
-                )
-                _write_once(
-                    pending_root / "terminal.json",
-                    {"audit_index": pending_index, "role": pending_role, "fps": pending_fps, "status": "incomplete", "reason": "run interrupted before provider attempt"},
-                )
+            _write_pending_incomplete(
+                root,
+                tasks,
+                task_index + 1,
+                "run interrupted before provider attempt",
+            )
             _write_incomplete_freeze(root, rows, calls, error)
             raise
         _write_text_once(row_root / "raw-response.txt", raw)
@@ -907,6 +1026,10 @@ def run(root: Path, call: CallFunction | None = None) -> None:
                 row_root / "terminal.json",
                 {"audit_index": audit_index, "role": role, "fps": fps, "status": "invalid_json", "error_type": type(error).__name__, "error": str(error), "raw_response_sha256": _sha256_bytes(raw.encode())},
             )
+            if _canary_pair_index(task_index) is not None:
+                canary_statuses.append("invalid_json")
+            if stop_after_failed_canary(task_index):
+                return
             continue
         try:
             parsed = validate_probe(payload, media["clip_duration_seconds"])
@@ -915,12 +1038,20 @@ def run(root: Path, call: CallFunction | None = None) -> None:
                 row_root / "terminal.json",
                 {"audit_index": audit_index, "role": role, "fps": fps, "status": "contract_error", "error_type": type(error).__name__, "error": str(error), "raw_response_sha256": _sha256_bytes(raw.encode())},
             )
+            if _canary_pair_index(task_index) is not None:
+                canary_statuses.append("contract_error")
+            if stop_after_failed_canary(task_index):
+                return
             continue
         _write_once(row_root / "parsed.json", parsed)
         _write_once(
             row_root / "terminal.json",
             {"audit_index": audit_index, "role": role, "fps": fps, "status": "passed", "raw_response_sha256": _sha256_bytes(raw.encode())},
         )
+        if _canary_pair_index(task_index) is not None:
+            canary_statuses.append("passed")
+        if stop_after_failed_canary(task_index):
+            return
     if calls != planned:
         raise ValueError("provider call count drift")
 
@@ -947,6 +1078,7 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
         "config_sha256": _sha256(CONFIG_PATH),
         "prompt_template_sha256": _prompt_template_sha256(),
         "response_schema_sha256": _schema_sha256(),
+        "provider_response_schema_sha256": _provider_schema_sha256(),
         "validator_sha256": _validator_sha256(),
     }
     for key, value in expected_metadata.items():
@@ -958,6 +1090,8 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
         raise ValueError("predictions freeze status is invalid")
     if freeze.get("decision_gate") != EXPECTED_DECISION_GATE:
         raise ValueError("predictions freeze decision gate does not match frozen rule")
+    if freeze.get("compatibility_canary_pairs") != COMPATIBILITY_CANARY_PAIRS:
+        raise ValueError("predictions freeze compatibility canary policy drifted")
     if freeze.get("row_count") != planned:
         raise ValueError("predictions freeze row count is inconsistent")
     frozen_rows = freeze.get("rows")
@@ -1026,8 +1160,13 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
             for item in frozen_rows
         ):
             raise ValueError("complete predictions freeze contains incomplete terminals")
+        if freeze.get("canary_pair_status") != "passed":
+            raise ValueError("complete predictions freeze does not bind a passed canary pair")
     else:
-        if not freeze.get("interrupted") or not interrupted:
+        if freeze.get("stop_reason") == "canary_failure":
+            if freeze.get("interrupted") or interrupted or freeze.get("canary_pair_status") != "failed":
+                raise ValueError("canary failure freeze has invalid interruption binding")
+        elif not freeze.get("interrupted") or not interrupted:
             raise ValueError("incomplete predictions freeze must bind an interruption")
         if not isinstance(freeze.get("call_count"), int) or not 0 < freeze["call_count"] < planned:
             raise ValueError("incomplete predictions freeze call count is invalid")
@@ -1109,7 +1248,10 @@ def verify_predictions_freeze(root: Path) -> None:
         "config_sha256": _sha256(CONFIG_PATH),
         "prompt_template_sha256": _prompt_template_sha256(),
         "response_schema_sha256": _schema_sha256(),
+        "provider_response_schema_sha256": _provider_schema_sha256(),
         "validator_sha256": _validator_sha256(),
+        "compatibility_canary_pairs": COMPATIBILITY_CANARY_PAIRS,
+        "canary_pair_status": "passed",
         "rows": frozen_rows,
     }
     _write_once(prediction_path, freeze)

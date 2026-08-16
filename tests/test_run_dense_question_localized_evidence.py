@@ -115,11 +115,13 @@ def _write_authorized_fixture(
             "settings": runner.EXPECTED_SETTINGS,
             "expected_fps": list(runner.EXPECTED_FPS),
             "max_calls": runner.MAX_CALLS,
+            "compatibility_canary_pairs": runner.COMPATIBILITY_CANARY_PAIRS,
             "decision_gate": runner.EXPECTED_DECISION_GATE,
             "runner_sha256": _sha(runner.SCRIPT_PATH),
             "config_sha256": _sha(ROOT / "configs/vqa/dense_question_localized_evidence_issue35.json"),
             "prompt_template_sha256": runner._prompt_template_sha256(),
             "response_schema_sha256": runner._schema_sha256(),
+            "provider_response_schema_sha256": runner._provider_schema_sha256(),
             "validator_sha256": runner._validator_sha256(),
         },
     )
@@ -136,6 +138,7 @@ def _write_authorized_fixture(
             "control_count": rows - target_count,
             "planned_call_count": rows * 2,
             "decision_gate": runner.EXPECTED_DECISION_GATE,
+            "compatibility_canary_pairs": runner.COMPATIBILITY_CANARY_PAIRS,
         },
     )
     _write_json(
@@ -145,6 +148,7 @@ def _write_authorized_fixture(
             "status": "authorized",
             "promotion_gate": "PASS",
             "decision_gate": runner.EXPECTED_DECISION_GATE,
+            "compatibility_canary_pairs": runner.COMPATIBILITY_CANARY_PAIRS,
             "treatment_freeze_sha256": _sha(root / "treatment-freeze.json"),
             "selection_freeze_sha256": _sha(root / "selection-freeze.json"),
             "provider_rows_sha256": runner.provider_rows_sha256(provider_rows),
@@ -203,6 +207,23 @@ def test_probe_rejects_extra_and_competition_answer_fields() -> None:
         runner.validate_probe({**payload, "extra": True}, 2.0)
 
 
+def test_provider_response_schema_omits_recursive_additional_properties_but_local_validation_stays_strict() -> None:
+    def walk(value: Any) -> None:
+        if isinstance(value, dict):
+            assert "additionalProperties" not in value
+            for child in value.values():
+                walk(child)
+        elif isinstance(value, list):
+            for child in value:
+                walk(child)
+
+    walk(runner.PROVIDER_RESPONSE_SCHEMA)
+    assert "additionalProperties" in runner.PROBE_SCHEMA
+    assert "additionalProperties" in runner.PROBE_SCHEMA["properties"]["question_interpretation"]
+    with pytest.raises(ValueError, match="fields"):
+        runner.validate_probe({**_valid_probe(), "extra": True}, 2.0)
+
+
 def test_prompt_is_question_localized_and_prohibits_label_leakage() -> None:
     prompt = runner.build_prompt(
         "What does the robot do at the end?",
@@ -250,7 +271,7 @@ def test_run_rejects_label_bearing_provider_rows_before_call(tmp_path: Path) -> 
     assert calls == []
 
 
-def test_run_preserves_malformed_json_and_schema_failure_without_retry(tmp_path: Path) -> None:
+def test_run_preserves_malformed_json_and_canary_schema_failure_without_retry(tmp_path: Path) -> None:
     root = _write_authorized_fixture(tmp_path)
     responses = iter(
         [
@@ -261,9 +282,9 @@ def test_run_preserves_malformed_json_and_schema_failure_without_retry(tmp_path:
     )
     calls: list[tuple[Any, ...]] = []
     runner.run(root, call=lambda *args: calls.append(args) or next(responses))
-    assert len(calls) == 8
+    assert len(calls) == 2
     statuses = sorted(json.loads(path.read_text())["status"] for path in (root / "rows").glob("*/terminal.json"))
-    assert statuses == ["contract_error", "invalid_json", "passed", "passed", "passed", "passed", "passed", "passed"]
+    assert statuses == ["contract_error", "incomplete", "incomplete", "incomplete", "incomplete", "incomplete", "incomplete", "invalid_json"]
     malformed = next(path.parent for path in (root / "rows").glob("*/terminal.json") if json.loads(path.read_text())["status"] == "invalid_json")
     assert (malformed / "raw-response.txt").read_text() == "{broken"
 
@@ -352,3 +373,39 @@ def test_run_rejects_decision_gate_drift_before_calls(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="decision gate"):
         runner.run(root, call=lambda *args: calls.append(args) or _valid_call())
     assert calls == []
+
+
+def test_failed_first_compatibility_canary_stops_before_remaining_arms(tmp_path: Path) -> None:
+    root = _write_authorized_fixture(tmp_path, rows=12, target_count=8)
+    responses = iter([json.dumps({"wrong": True}), json.dumps(_valid_probe())])
+    calls: list[tuple[Any, ...]] = []
+
+    runner.run(root, call=lambda *args: calls.append(args) or (next(responses), {"provider": "fake"}))
+
+    assert len(calls) == 2
+    terminals = [json.loads(path.read_text()) for path in (root / "rows").glob("*/terminal.json")]
+    assert sum(item["status"] == "contract_error" for item in terminals) == 1
+    assert sum(item["status"] == "passed" for item in terminals) == 1
+    assert sum(item["status"] == "incomplete" for item in terminals) == 22
+    freeze = json.loads((root / "predictions-freeze.json").read_text())
+    assert freeze["status"] == "incomplete"
+    assert freeze["call_count"] == 2
+    assert freeze["completed_count"] == 2
+    assert freeze["compatibility_canary_pairs"] == 1
+    runner.verify_predictions_freeze(root)
+
+
+def test_passed_compatibility_canary_allows_complete_panel_freeze(tmp_path: Path) -> None:
+    root = _write_authorized_fixture(tmp_path, rows=12, target_count=8)
+    calls: list[tuple[Any, ...]] = []
+
+    runner.run(root, call=lambda *args: calls.append(args) or _valid_call())
+    runner.verify_predictions_freeze(root)
+
+    assert len(calls) == 24
+    freeze = json.loads((root / "predictions-freeze.json").read_text())
+    assert freeze["status"] == "frozen"
+    assert freeze["call_count"] == 24
+    assert freeze["completed_count"] == 24
+    assert freeze["compatibility_canary_pairs"] == 1
+    assert freeze["canary_pair_status"] == "passed"

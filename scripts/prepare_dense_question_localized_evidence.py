@@ -211,6 +211,7 @@ def _task1_hashes(runner_path: Path, config_path: Path) -> dict[str, Any]:
         "settings": runner.EXPECTED_SETTINGS,
         "expected_fps": list(runner.EXPECTED_FPS),
         "max_calls": runner.MAX_CALLS,
+        "compatibility_canary_pairs": runner.COMPATIBILITY_CANARY_PAIRS,
         "decision_gate": runner.EXPECTED_DECISION_GATE,
     }
     for key, value in expected.items():
@@ -221,11 +222,13 @@ def _task1_hashes(runner_path: Path, config_path: Path) -> dict[str, Any]:
         "config_sha256": _sha256(config_path),
         "prompt_template_sha256": runner._prompt_template_sha256(),
         "response_schema_sha256": runner._schema_sha256(),
+        "provider_response_schema_sha256": runner._provider_schema_sha256(),
         "validator_sha256": runner._validator_sha256(),
         "model": runner.MODEL,
         "settings": runner.EXPECTED_SETTINGS,
         "expected_fps": list(runner.EXPECTED_FPS),
         "max_calls": runner.MAX_CALLS,
+        "compatibility_canary_pairs": runner.COMPATIBILITY_CANARY_PAIRS,
         "decision_gate": runner.EXPECTED_DECISION_GATE,
     }
 
@@ -244,11 +247,13 @@ def _validate_task1_treatment(
         "config_sha256",
         "prompt_template_sha256",
         "response_schema_sha256",
+        "provider_response_schema_sha256",
         "validator_sha256",
         "model",
         "settings",
         "expected_fps",
         "max_calls",
+        "compatibility_canary_pairs",
         "decision_gate",
     ):
         if treatment.get(field) != current[field]:
@@ -317,11 +322,13 @@ def freeze_treatment(
         "settings": task1["settings"],
         "expected_fps": task1["expected_fps"],
         "max_calls": task1["max_calls"],
+        "compatibility_canary_pairs": task1["compatibility_canary_pairs"],
         "decision_gate": task1["decision_gate"],
         "runner_sha256": task1["runner_sha256"],
         "config_sha256": task1["config_sha256"],
         "prompt_template_sha256": task1["prompt_template_sha256"],
         "response_schema_sha256": task1["response_schema_sha256"],
+        "provider_response_schema_sha256": task1["provider_response_schema_sha256"],
         "validator_sha256": task1["validator_sha256"],
         "task1_treatment_sha256": _sha256_bytes(_canonical(task1)),
         "source_protocol": str(protocol_path),
@@ -1127,6 +1134,7 @@ def freeze_panel(
         "planned_call_count": len(selected_rows) * 2,
         "expected_fps": [4.0, 12.0],
         "max_calls": 24,
+        "compatibility_canary_pairs": treatment["compatibility_canary_pairs"],
         "decision_gate": treatment["decision_gate"],
         "exposure_reporting": _exposure_report(manual_rows, selected_rows),
     }
@@ -1173,6 +1181,8 @@ def authorize(
     media_payload = _load_json(media_path)
     if selection.get("status") != "frozen":
         raise ValueError("selection freeze must be frozen before authorization")
+    if selection.get("compatibility_canary_pairs") != treatment.get("compatibility_canary_pairs"):
+        raise ValueError("selection compatibility canary policy drifted before authorization")
     _validate_task1_treatment(
         treatment,
         runner_path=_resolve(task1_runner or runner_path),
@@ -1218,6 +1228,7 @@ def authorize(
         "media_manifest_sha256": media_hash,
         "planned_call_count": planned,
         "max_calls": 24,
+        "compatibility_canary_pairs": treatment["compatibility_canary_pairs"],
         "target_count": target_count,
         "control_count": control_count,
         "provider_calls_made": 0,

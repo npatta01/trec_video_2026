@@ -16,6 +16,7 @@
     12.0
   ],
   "max_calls": 24,
+  "compatibility_canary_pairs": 1,
   "minimum_targets": 2,
   "minimum_controls": 2,
   "decision_gate": {
