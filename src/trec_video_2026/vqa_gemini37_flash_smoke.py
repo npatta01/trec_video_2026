@@ -6,6 +6,8 @@ does not call a provider, score answers, or carry any historical answer fields.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import json
 import math
@@ -80,6 +82,7 @@ _PROVENANCE_NAMES = (
     "deliveries.json",
 )
 _SAFE_CANONICAL_VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]+$")
+_SAFE_CANONICAL_ROW_ID = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def _canonical_json(value: Mapping[str, Any]) -> bytes:
@@ -183,6 +186,9 @@ def _row_id(row: Mapping[str, Any], *, context: str) -> str:
     value = row.get("row_id", row.get("id", row.get("video_id", row.get("videoId"))))
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{context} row_id must be a non-empty string")
+    value = value.strip()
+    if not _SAFE_CANONICAL_ROW_ID.fullmatch(value):
+        raise ValueError(f"{context} row_id is unsafe for canonical paths")
     return value
 
 
@@ -316,6 +322,14 @@ def _verify_artifact(path: Path) -> dict[str, Any]:
     ):
         raise ValueError(f"artifact hash mismatch: {path}")
     return value
+
+
+def _verified_artifact_file_hash(path: Path, *, label: str) -> str:
+    _verify_artifact(path)
+    try:
+        return _sha256_file(path)
+    except ValueError as error:
+        raise ValueError(f"{label} is missing or not a regular file") from error
 
 
 def _resolve_delivery(source_root: Path, delivery_path: str, *, context: str) -> Path:
@@ -1118,6 +1132,18 @@ def _upload_records(root: Path, protocol: Mapping[str, Any], protocol_hash: str)
         row_id = _row_id(row, context="protocol row")
         path = upload_dir / f"{row_id}.json"
         record = _verify_artifact(path)
+        attempt_path = upload_dir / f"{row_id}.attempt.json"
+        attempt = _verify_artifact(attempt_path)
+        attempt_sha256 = _verified_artifact_file_hash(attempt_path, label=f"upload attempt {row_id}")
+        if record.get("attempt_sha256") != attempt_sha256:
+            raise ValueError(f"upload record attempt binding mismatch for {row_id}")
+        if (
+            attempt.get("protocol_sha256") != protocol_hash
+            or attempt.get("row_id") != row_id
+            or attempt.get("video_id") != row["video_id"]
+            or attempt.get("mime_type") != row["delivery_mime_type"]
+        ):
+            raise ValueError(f"upload attempt binding mismatch for {row_id}")
         if record.get("protocol_sha256") != protocol_hash:
             raise ValueError("upload record protocol binding mismatch")
         for key in ("row_id", "video_id", "delivery_sha256", "delivery_size_bytes", "mime_type"):
@@ -1188,30 +1214,69 @@ def _ensure_directory(path: Path, *, label: str, create: bool = False) -> None:
 def _safe_error(value: Any) -> dict[str, Any] | None:
     if value is None:
         return None
+
     def sanitize_text(text: str) -> str:
         result = text[:512]
-        for pattern in (r"AIza[0-9A-Za-z_-]{20,}", r"sk-[A-Za-z0-9_-]{20,}", r"Bearer\s+\S+"):
+        for pattern in (
+            r"AIza[0-9A-Za-z_-]{20,}",
+            r"sk-[A-Za-z0-9_-]{20,}",
+            r"(?i)Bearer\s+\S+",
+            r"(?i)credential(?:s)?[=:]\s*\S+",
+        ):
             result = re.sub(pattern, "<redacted-secret>", result)
         return result
 
     def safe_value(child: Any) -> Any:
+        if isinstance(child, (bool, int, float)) or child is None:
+            return child
         if isinstance(child, Mapping):
-            return {
-                str(key): safe_value(value)
-                for key, value in child.items()
-                if str(key).casefold().replace("_", "")
-                not in {"sdkhttpresponse", "rawhttp", "client", "transport", "authorization"}
-            }
+            safe: dict[str, Any] = {}
+            for key, nested in child.items():
+                normalized = re.sub(r"[^a-z0-9]", "", str(key).casefold())
+                if normalized in {
+                    "apikey",
+                    "token",
+                    "accesstoken",
+                    "credential",
+                    "credentials",
+                    "secret",
+                    "authorization",
+                    "password",
+                    "privatekey",
+                    "clientsecret",
+                    "cookie",
+                    "setcookie",
+                    "sdkhttpresponse",
+                    "rawhttp",
+                    "client",
+                    "transport",
+                    "environment",
+                    "clientconfig",
+                } or normalized.endswith("token"):
+                    continue
+                safe[str(key)] = safe_value(nested)
+            return safe
         if isinstance(child, Sequence) and not isinstance(child, (str, bytes, bytearray)):
             return [safe_value(item) for item in child]
-        return _plain(child)
+        if isinstance(child, str):
+            return sanitize_text(child)
+        if isinstance(child, BaseException):
+            return sanitize_text(str(child))
+        model_dump = getattr(child, "model_dump", None)
+        if callable(model_dump):
+            try:
+                dumped = model_dump(mode="json", by_alias=True, exclude_none=True)
+            except TypeError:
+                dumped = model_dump()
+            return safe_value(dumped)
+        return sanitize_text(str(_scalar(child)))
 
     if isinstance(value, BaseException):
         return {"type": type(value).__name__, "message": sanitize_text(str(value))}
     if isinstance(value, Mapping):
         allowed = {"code", "status", "message", "details", "reason", "type"}
         return {
-            str(key): sanitize_text(str(child)) if str(key) == "message" else safe_value(child)
+            str(key): safe_value(child)
             for key, child in value.items()
             if str(key) in allowed
         }
@@ -1219,10 +1284,33 @@ def _safe_error(value: Any) -> dict[str, Any] | None:
     for name in ("code", "status", "message", "details", "reason", "type"):
         child = _attr(value, name, default=None)
         if child is not None:
-            result[name] = sanitize_text(str(child)) if name == "message" else safe_value(child)
+            result[name] = safe_value(child)
     if result:
         return result
     return {"type": type(value).__name__}
+
+
+def _provider_digest_hex(value: Any, *, label: str) -> str:
+    """Normalize provider SHA-256 hex/base64 into canonical lowercase hex."""
+
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} must be a SHA-256 hex or base64 digest")
+    digest = value.strip()
+    if re.fullmatch(r"[0-9a-fA-F]{64}", digest):
+        return digest.casefold()
+    if not re.fullmatch(r"[A-Za-z0-9_+/-]+={0,2}", digest):
+        raise ValueError(f"{label} is not valid base64")
+    standard = digest.replace("-", "+").replace("_", "/")
+    if len(standard) % 4 == 1:
+        raise ValueError(f"{label} is not valid base64")
+    standard += "=" * (-len(standard) % 4)
+    try:
+        decoded = base64.b64decode(standard, validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise ValueError(f"{label} is not valid base64") from error
+    if len(decoded) != hashlib.sha256().digest_size:
+        raise ValueError(f"{label} is not a SHA-256 digest")
+    return decoded.hex()
 
 
 def _provider_file_metadata(file: Any, *, expected_mime: str) -> dict[str, Any]:
@@ -1240,7 +1328,10 @@ def _provider_file_metadata(file: Any, *, expected_mime: str) -> dict[str, Any]:
         metadata["size_bytes"] = size
     digest = _attr(file, "sha256_hash", "sha256Hash", default=None)
     if isinstance(digest, str) and digest:
-        metadata["sha256_hash"] = digest
+        metadata["sha256_hash"] = _provider_digest_hex(digest, label="provider file sha256_hash")
+    error = _safe_error(_attr(file, "error", default=None))
+    if error is not None:
+        metadata["error"] = error
     return metadata
 
 
@@ -1281,7 +1372,7 @@ def upload_rows(root: Path, client: Any, *, sleep: Callable[[float], None]) -> d
     old_uris = _historical_uris(protocol)
     records: list[dict[str, Any]] = []
     for row in _protocol_rows(protocol):
-        row_id = row["row_id"]
+        row_id = _row_id(row, context="protocol row")
         attempt_path = upload_dir / f"{row_id}.attempt.json"
         record_path = upload_dir / f"{row_id}.json"
         delivery = _upload_file_path(protocol, row)
@@ -1299,6 +1390,9 @@ def upload_rows(root: Path, client: Any, *, sleep: Callable[[float], None]) -> d
             "mime_type": row["delivery_mime_type"],
         }
         _write_json_exclusive(attempt_path, attempt)
+        attempt_sha256 = _verified_artifact_file_hash(
+            attempt_path, label=f"upload attempt {row_id}"
+        )
         provider_identity: dict[str, Any] | None = None
         try:
             uploaded = client.files.upload(
@@ -1347,6 +1441,7 @@ def upload_rows(root: Path, client: Any, *, sleep: Callable[[float], None]) -> d
                 "delivery_sha256": before_hash,
                 "delivery_size_bytes": before_size,
                 "mime_type": row["delivery_mime_type"],
+                "attempt_sha256": attempt_sha256,
                 "file_name": current["name"],
                 "file_uri": current["uri"],
                 "file_state": "ACTIVE",
@@ -1365,6 +1460,7 @@ def upload_rows(root: Path, client: Any, *, sleep: Callable[[float], None]) -> d
                 "delivery_sha256": before_hash,
                 "delivery_size_bytes": before_size,
                 "mime_type": row["delivery_mime_type"],
+                "attempt_sha256": attempt_sha256,
                 "provider_snapshot": provider_identity,
                 "provider_error": _safe_error(error),
             }
@@ -1429,6 +1525,17 @@ def _validated_job_record(
     _ensure_directory(root / _JOBS_DIRNAME, label="jobs")
     path = root / _JOBS_DIRNAME / f"{arm}.json"
     job = _verify_artifact(path)
+    attempt_path = root / _JOBS_DIRNAME / f"{arm}.attempt.json"
+    attempt = _verify_artifact(attempt_path)
+    attempt_sha256 = _verified_artifact_file_hash(attempt_path, label=f"{arm} submission attempt")
+    if job.get("attempt_sha256") != attempt_sha256:
+        raise ValueError(f"job attempt binding mismatch for {arm}")
+    if (
+        attempt.get("protocol_sha256") != protocol_hash
+        or attempt.get("arm") != arm
+        or attempt.get("model") != ARMS[arm]["model"]
+    ):
+        raise ValueError(f"job attempt binding mismatch for {arm}")
     expected_requests = _expected_request_records(protocol, uploads, arm, protocol_hash)
     if (
         job.get("protocol_sha256") != protocol_hash
@@ -1525,6 +1632,9 @@ def submit_arm(root: Path, arm: str, client: Any, *, submitted_at: str) -> dict[
         "request_hash": request_hash,
     }
     _write_json_exclusive(attempt_path, reservation)
+    attempt_sha256 = _verified_artifact_file_hash(
+        attempt_path, label=f"{arm} submission attempt"
+    )
     try:
         job = client.batches.create(
             model=ARMS[arm]["model"],
@@ -1543,6 +1653,9 @@ def submit_arm(root: Path, arm: str, client: Any, *, submitted_at: str) -> dict[
             "request_count": 2,
             "requests": request_records,
             "provider_error": _safe_error(error),
+            "attempt_sha256": attempt_sha256,
+            "provider_snapshot": None,
+            "provider_snapshot_sha256": _sha256_bytes(_canonical_json({})),
         }
         _write_json_exclusive(job_path, body)
         return _read_object(job_path)
@@ -1562,6 +1675,7 @@ def submit_arm(root: Path, arm: str, client: Any, *, submitted_at: str) -> dict[
             "request_count": 2,
             "requests": request_records,
             "request_hash": request_hash,
+            "attempt_sha256": attempt_sha256,
             "provider_snapshot": snapshot,
             "provider_snapshot_sha256": _sha256_bytes(_canonical_json(snapshot)),
         }
@@ -1581,6 +1695,9 @@ def submit_arm(root: Path, arm: str, client: Any, *, submitted_at: str) -> dict[
             "requests": request_records,
             "request_hash": request_hash,
             "provider_error": _safe_error(error),
+            "attempt_sha256": attempt_sha256,
+            "provider_snapshot": None,
+            "provider_snapshot_sha256": _sha256_bytes(_canonical_json({})),
         }
         _write_json_exclusive(job_path, body)
         return _read_object(job_path)
@@ -1663,10 +1780,11 @@ def record_status(root: Path, arm: str, client: Any, *, checked_at: str) -> dict
     if (root / _PREDICTIONS_FILENAME).exists() or (root / _PREDICTIONS_FILENAME).is_symlink():
         raise ValueError("prediction freeze is terminal; status cannot be appended")
     _models_artifact(root, protocol_hash)
-    _upload_records(root, protocol, protocol_hash)
+    uploads = _upload_records(root, protocol, protocol_hash)
     job_record = _verify_artifact(root / _JOBS_DIRNAME / f"{arm}.json")
     if job_record.get("protocol_sha256") != protocol_hash:
         raise ValueError("job protocol binding mismatch")
+    validated_job, _ = _validated_job_record(root, protocol, protocol_hash, uploads, arm)
     name = job_record.get("name")
     if not isinstance(name, str) or not name.strip():
         return {
@@ -1674,13 +1792,6 @@ def record_status(root: Path, arm: str, client: Any, *, checked_at: str) -> dict
             "arm": arm,
             "provider_error_type": job_record.get("provider_error_type", "submission_failed"),
         }
-    _validated_job_record(
-        root,
-        protocol,
-        protocol_hash,
-        _upload_records(root, protocol, protocol_hash),
-        arm,
-    )
     job = client.batches.get(name=name)
     snapshot = _job_snapshot(job)
     raw_responses = _extract_responses(job)
@@ -1701,7 +1812,11 @@ def record_status(root: Path, arm: str, client: Any, *, checked_at: str) -> dict
         "checked_at": checked_at,
         "protocol_sha256": protocol_hash,
         "job_sha256": _sha256_file(root / _JOBS_DIRNAME / f"{arm}.json"),
+        "job_attempt_sha256": validated_job["attempt_sha256"],
         "job_name": name,
+        "upload_attempt_sha256": {
+            record["row_id"]: record["attempt_sha256"] for record in uploads
+        },
         "provider_snapshot": snapshot,
         "provider_snapshot_sha256": _sha256_bytes(_canonical_json(snapshot)),
         "response_count": len(snapshot["responses"]),
@@ -1725,6 +1840,26 @@ def _latest_status(root: Path, arm: str, protocol_hash: str) -> tuple[dict[str, 
     job_path = root / _JOBS_DIRNAME / f"{arm}.json"
     if snapshot.get("job_sha256") != _sha256_file(job_path):
         raise ValueError(f"status job binding mismatch for {arm}")
+    job = _verify_artifact(job_path)
+    job_attempt_sha256 = _verified_artifact_file_hash(
+        root / _JOBS_DIRNAME / f"{arm}.attempt.json", label=f"{arm} submission attempt"
+    )
+    if (
+        snapshot.get("job_attempt_sha256") != job.get("attempt_sha256")
+        or job.get("attempt_sha256") != job_attempt_sha256
+    ):
+        raise ValueError(f"status job attempt binding mismatch for {arm}")
+    upload_attempts = snapshot.get("upload_attempt_sha256")
+    if not isinstance(upload_attempts, Mapping):
+        raise ValueError(f"status upload attempt binding is missing for {arm}")
+    for row_id, expected_hash in upload_attempts.items():
+        if not isinstance(row_id, str) or not _SAFE_CANONICAL_ROW_ID.fullmatch(row_id):
+            raise ValueError(f"status upload attempt row ID is unsafe for {arm}")
+        attempt_path = root / _UPLOADS_DIRNAME / f"{row_id}.attempt.json"
+        if expected_hash != _verified_artifact_file_hash(
+            attempt_path, label=f"upload attempt {row_id}"
+        ):
+            raise ValueError(f"status upload attempt binding mismatch for {row_id}")
     provider_snapshot = snapshot.get("provider_snapshot")
     if snapshot.get("provider_snapshot_sha256") != _sha256_bytes(
         _canonical_json(provider_snapshot if isinstance(provider_snapshot, Mapping) else {})
@@ -1887,7 +2022,10 @@ def freeze_predictions(root: Path, *, frozen_at: str) -> dict[str, Any]:
     if path.exists() or path.is_symlink():
         raise ValueError("prediction freeze already exists")
     models = _models_artifact(root, protocol_hash)
-    _upload_records(root, protocol, protocol_hash)
+    upload_records = _upload_records(root, protocol, protocol_hash)
+    upload_attempt_sha256 = {
+        record["row_id"]: record["attempt_sha256"] for record in upload_records
+    }
     rows = _protocol_rows(protocol)
     arm_results: dict[str, Any] = {}
     failure_reasons: list[str] = []
@@ -1897,7 +2035,7 @@ def freeze_predictions(root: Path, *, frozen_at: str) -> dict[str, Any]:
     for arm in ARMS:
         try:
             job_record, expected_requests = _validated_job_record(
-                root, protocol, protocol_hash, _upload_records(root, protocol, protocol_hash), arm
+                root, protocol, protocol_hash, upload_records, arm
             )
         except ValueError as error:
             failure_reasons.append(f"{arm}:job_binding:{type(error).__name__}")
@@ -1963,6 +2101,7 @@ def freeze_predictions(root: Path, *, frozen_at: str) -> dict[str, Any]:
             "status_snapshot_sha256": _sha256_file(status_path),
             "provider_snapshot_sha256": status.get("provider_snapshot_sha256"),
             "request_hash": _verify_artifact(root / _JOBS_DIRNAME / f"{arm}.json").get("request_hash"),
+            "job_attempt_sha256": job_record["attempt_sha256"],
             "model_snapshot_sha256": model_record["provider_snapshot_sha256"],
             "model_version": expected_version,
             "response_count": len(normalized),
@@ -1988,6 +2127,7 @@ def freeze_predictions(root: Path, *, frozen_at: str) -> dict[str, Any]:
         "inputs_freeze_sha256": _sha256_file(root / "inputs-freeze.json"),
         "models_sha256": _sha256_file(root / _MODELS_FILENAME),
         "upload_record_sha256": _hash_paths(sorted((root / _UPLOADS_DIRNAME).glob("*.json"))),
+        "upload_attempt_sha256": upload_attempt_sha256,
         "arms": arm_results,
         "observed_cost_usd": round(observed_cost, 8),
         "failure_reasons": failure_reasons,

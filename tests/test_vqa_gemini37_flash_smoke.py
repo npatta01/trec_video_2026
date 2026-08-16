@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import base64
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -1316,3 +1317,235 @@ def test_model_short_version_binds_to_full_response_version(tmp_path: Path) -> N
     freeze = freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")
     assert freeze["decision"] == "quality_ready"
     assert freeze["arms"]["candidate_37flash"]["model_version"] == "001"
+
+
+def test_actual_sdk_file_base64_digest_is_normalized_to_delivery_hex(tmp_path: Path) -> None:
+    root = _prepared_provider_root(tmp_path)
+    client = _FakeClient()
+    preflight_models(root, client, "2026-08-16T12:01:00Z")
+    original_upload = client.files.upload
+
+    def upload_as_sdk_file(*, file: Path, config: Any) -> Any:
+        uploaded = original_upload(file=file, config=config)
+        sdk_file = smoke.types.File(
+            name=uploaded.name,
+            uri=uploaded.uri,
+            mime_type=uploaded.mime_type,
+            state="ACTIVE",
+            size_bytes=file.stat().st_size,
+            sha256_hash=base64.b64encode(bytes.fromhex(_sha256(file))).decode("ascii"),
+        )
+        client.files._files[sdk_file.name] = sdk_file
+        return sdk_file
+
+    client.files.upload = upload_as_sdk_file
+    upload_rows(root, client, sleep=lambda _: None)
+    record = json.loads((root / "uploads" / "row-000.json").read_text())
+    assert record["provider_snapshot"]["sha256_hash"] == record["delivery_sha256"]
+
+
+def test_invalid_provider_file_digest_fails_closed(tmp_path: Path) -> None:
+    root = _prepared_provider_root(tmp_path)
+    client = _FakeClient()
+    preflight_models(root, client, "2026-08-16T12:01:00Z")
+    original_upload = client.files.upload
+
+    def upload_with_invalid_digest(*, file: Path, config: Any) -> Any:
+        uploaded = original_upload(file=file, config=config)
+        return smoke.types.File(
+            name=uploaded.name,
+            uri=uploaded.uri,
+            mime_type=uploaded.mime_type,
+            state="ACTIVE",
+            size_bytes=file.stat().st_size,
+            sha256_hash="not-a-valid-sha256-digest!",
+        )
+
+    client.files.upload = upload_with_invalid_digest
+    with pytest.raises(ValueError, match="hash|digest|base64"):
+        upload_rows(root, client, sleep=lambda _: None)
+    assert json.loads((root / "uploads" / "row-000.json").read_text())["status"] == "failed"
+
+
+def test_actual_sdk_failed_file_error_is_retained_in_failure_evidence(tmp_path: Path) -> None:
+    root = _prepared_provider_root(tmp_path)
+    client = _FakeClient()
+    preflight_models(root, client, "2026-08-16T12:01:00Z")
+
+    def upload_failed_file(*, file: Path, config: Any) -> Any:
+        failed = smoke.types.File(
+            name="files/failed-row-000",
+            uri="https://generativelanguage.googleapis.com/v1beta/files/failed-row-000",
+            mime_type="video/webm",
+            state="FAILED",
+            error=smoke.types.FileStatus(
+                code=400,
+                message="upload rejected",
+                details=[{"reason": "invalidMedia", "apiKey": "secret-must-not-persist"}],
+            ),
+        )
+        client.files._files[failed.name] = failed
+        return failed
+
+    client.files.upload = upload_failed_file
+    with pytest.raises(ValueError, match="FAILED"):
+        upload_rows(root, client, sleep=lambda _: None)
+    failure = json.loads((root / "uploads" / "row-000.json").read_text())
+    assert failure["provider_snapshot"]["error"]["code"] == 400
+    assert failure["provider_snapshot"]["error"]["message"] == "upload rejected"
+    assert "apiKey" not in json.dumps(failure)
+    assert "secret-must-not-persist" not in json.dumps(failure)
+
+
+def test_nested_provider_error_secrets_are_removed_and_redacted() -> None:
+    error = {
+        "code": 400,
+        "message": "Bearer top-secret-token",
+        "details": [
+            {
+                "apiKey": "private-api-key",
+                "token": "private-token",
+                "credential": "private-credential",
+                "nested": "Bearer nested-secret",
+            }
+        ],
+    }
+    safe = smoke._safe_error(error)
+    assert safe == {
+        "code": 400,
+        "message": "<redacted-secret>",
+        "details": [{"nested": "<redacted-secret>"}],
+    }
+
+
+def test_upload_and_job_attempt_files_are_hash_bound_and_frozen(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    for arm in ARMS:
+        submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        attempt_path = root / "jobs" / f"{arm}.attempt.json"
+        job = json.loads((root / "jobs" / f"{arm}.json").read_text())
+        assert job["attempt_sha256"] == _sha256(attempt_path)
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    freeze = freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")
+    assert freeze["upload_attempt_sha256"] == {
+        row_id: json.loads((root / "uploads" / f"{row_id}.json").read_text())["attempt_sha256"]
+        for row_id in ("row-000", "row-001")
+    }
+    for arm in ARMS:
+        assert freeze["arms"][arm]["job_attempt_sha256"] == json.loads(
+            (root / "jobs" / f"{arm}.json").read_text()
+        )["attempt_sha256"]
+
+
+@pytest.mark.parametrize(
+    ("kind", "operation"),
+    [("upload", "delete"), ("job", "delete"), ("upload", "mutate"), ("job", "mutate")],
+)
+def test_attempt_deletion_or_mutation_cannot_produce_quality_ready(
+    tmp_path: Path, kind: str, operation: str
+) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    for arm in ARMS:
+        submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    if kind == "upload":
+        attempt_path = root / "uploads" / "row-000.attempt.json"
+    else:
+        attempt_path = root / "jobs" / "control_31pro.attempt.json"
+    if operation == "delete":
+        attempt_path.unlink()
+    else:
+        attempt_path.write_bytes(attempt_path.read_bytes() + b"mutation")
+    try:
+        freeze = freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")
+    except ValueError as error:
+        assert any(word in str(error).casefold() for word in ("attempt", "artifact", "missing"))
+    else:
+        assert freeze["decision"] != "quality_ready"
+
+
+def test_row_id_is_validated_before_upload_lifecycle_filename_write(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    protocol_path = root / "protocol.json"
+    protocol = json.loads(protocol_path.read_text())
+    protocol["rows"][0]["row_id"] = "../escaped"
+    protocol_path.write_text(json.dumps(protocol, sort_keys=True))
+    with pytest.raises(ValueError, match="row_id|canonical|unsafe"):
+        upload_rows(root, client, sleep=lambda _: None)
+    assert not (root.parent / "escaped.attempt.json").exists()
+
+
+def test_actual_sdk_batch_destination_and_inlined_error_are_supported(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    for arm in ARMS:
+        result = submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        requests = client.batches.create_calls[-1]["src"].inlined_requests
+        version = f"{ARMS[arm]['model']}-version-20260816"
+        responses = [
+            smoke.types.InlinedResponse(
+                metadata=request.metadata,
+                response=smoke.types.GenerateContentResponse(
+                    response_id=f"sdk-batch-{index}",
+                    model_version=version,
+                    candidates=[
+                        smoke.types.Candidate(
+                            content=smoke.types.Content(
+                                role="model",
+                                parts=[smoke.types.Part(text="sdk batch answer")],
+                            ),
+                            finish_reason="STOP",
+                        )
+                    ],
+                    usage_metadata=smoke.types.GenerateContentResponseUsageMetadata(
+                        prompt_token_count=20_000,
+                        candidates_token_count=100,
+                        total_token_count=20_100,
+                    ),
+                ),
+            )
+            for index, request in enumerate(requests)
+        ]
+        client.batches.jobs[result["name"]] = smoke.types.BatchJob(
+            name=result["name"],
+            model=ARMS[arm]["model"],
+            state="JOB_STATE_SUCCEEDED",
+            dest=smoke.types.BatchJobDestination(inlined_responses=responses),
+        )
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    assert freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")["decision"] == "quality_ready"
+
+
+def test_actual_sdk_inlined_error_is_not_ready(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    for arm in ARMS:
+        result = submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        requests = client.batches.create_calls[-1]["src"].inlined_requests
+        client.batches.jobs[result["name"]] = smoke.types.BatchJob(
+            name=result["name"],
+            model=ARMS[arm]["model"],
+            state="JOB_STATE_SUCCEEDED",
+            dest=smoke.types.BatchJobDestination(
+                inlined_responses=[
+                    smoke.types.InlinedResponse(
+                        metadata=request.metadata,
+                        error=smoke.types.JobError(code=400, message="row failed", details=["bad input"]),
+                    )
+                    for request in requests
+                ]
+            ),
+        )
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    assert freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")["decision"] == "not_ready"
+
+
+def test_upload_timeout_is_terminal_and_never_retried(tmp_path: Path) -> None:
+    root = _prepared_provider_root(tmp_path)
+    client = _FakeClient(file_state="PROCESSING")
+    preflight_models(root, client, "2026-08-16T12:01:00Z")
+    with pytest.raises(ValueError, match="timed out"):
+        upload_rows(root, client, sleep=lambda _: None)
+    assert len(client.files.upload_calls) == 1
+    assert len(client.files.get_calls) == 30
+    assert (root / "uploads" / "row-000.attempt.json").is_file()
+    with pytest.raises(ValueError, match="already|duplicate"):
+        upload_rows(root, client, sleep=lambda _: None)
