@@ -63,6 +63,8 @@ def build_smoke_freeze(
     preparation_rows = preparation.get("rows")
     if not isinstance(preparation_rows, list):
         raise TypeError("preparation rows must be an array")
+    if not preparation_rows:
+        raise ValueError("smoke freeze requires at least one planned video")
     expected_by_video: dict[str, tuple[str, ...]] = {}
     for row in preparation_rows:
         if not isinstance(row, Mapping):

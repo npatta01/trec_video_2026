@@ -189,3 +189,18 @@ def test_smoke_freeze_rejects_invalid_hash_or_revision_tokens() -> None:
             expected_run_id="smoke-v1",
             expected_answer_policy="current",
         )
+
+
+def test_smoke_freeze_rejects_empty_plan() -> None:
+    preparation = _two_row_preparation()
+    preparation["rows"] = []
+    with pytest.raises(ValueError, match="at least one planned video"):
+        build_smoke_freeze(
+            preparation=preparation,
+            raw_results=[],
+            request_batch_sha256="b" * 64,
+            raw_results_sha256="c" * 64,
+            source_revision="e" * 40,
+            expected_run_id="smoke-v1",
+            expected_answer_policy="current",
+        )
