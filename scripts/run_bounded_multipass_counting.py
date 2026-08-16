@@ -1035,6 +1035,14 @@ def run_fixed_row(
     )
     if not isinstance(parsed_spec, CountSpec):
         raise AssertionError("validated supported CountSpec became unsupported")
+    if parsed_spec.route == "static":
+        return _incomplete_row(
+            row_root=fixed_root,
+            video_id=video_id,
+            arm="fixed",
+            reason="static_crop_condition_not_implemented",
+            stage_hashes=stage_hashes,
+        )
 
     evidence_prompt = build_evidence_prompt(parsed_spec)
     static_bindings: list[dict[str, object]] = []

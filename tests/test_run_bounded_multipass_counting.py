@@ -280,7 +280,7 @@ def test_refinement_arm_requires_authenticated_fixed_predictions_freeze(
         runner.run_refinement_arm(root=tmp_path, client=object())
 
 
-def test_static_crop_refinement_fails_closed_without_provider_call(
+def test_static_fixed_row_fails_closed_before_evidence_without_crop_support(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     delivery = tmp_path / "v1.webm"
@@ -346,14 +346,10 @@ def test_static_crop_refinement_fails_closed_without_provider_call(
     fixed = runner.run_fixed_row(
         client=client, row=row, root=root, hard_ceiling_usd=3.0
     )
-    assert fixed["outcome"] == "complete"
-    remaining = len(client.models.payloads)
-    refined = runner.run_refinement_row(
-        client=client, row=row, root=root, hard_ceiling_usd=3.0
-    )
-    assert refined["outcome"] == "incomplete"
-    assert refined["reason"] == "static_crop_refinement_not_implemented"
-    assert len(client.models.payloads) == remaining
+    assert fixed["outcome"] == "incomplete"
+    assert fixed["reason"] == "static_crop_condition_not_implemented"
+    assert len(client.models.payloads) == 2
+    assert not (root / "rows/v1/fixed/evidence").exists()
 
 
 def test_run_fixed_row_freezes_exact_result_from_three_structured_stages(
