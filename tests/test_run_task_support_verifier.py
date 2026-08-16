@@ -85,6 +85,9 @@ def _write_protocol_fixture(tmp_path: Path, row_count: int = 12) -> Path:
     protocol["treatment_freeze_sha256"] = verifier._sha256(
         protocol_root / "treatment-freeze.json"
     )
+    protocol["selection_freeze_sha256"] = verifier._sha256(
+        protocol_root / "selection-freeze.json"
+    )
     _write(protocol_root / "protocol.json", protocol)
     return protocol_root
 
@@ -286,6 +289,26 @@ def test_run_rejects_provider_row_content_drift_with_same_ids_before_calls(
         return json.dumps(_valid_payload()), {}
 
     with pytest.raises(ValueError, match="provider rows digest"):
+        verifier.run(protocol_root, tmp_path / "run", call=should_not_call)
+    assert calls == 0
+
+
+def test_run_rejects_selection_metadata_drift_with_same_provider_rows_before_calls(
+    tmp_path: Path,
+) -> None:
+    protocol_root = _write_protocol_fixture(tmp_path)
+    selection_path = protocol_root / "selection-freeze.json"
+    selection = json.loads(selection_path.read_text())
+    selection["audit_metadata"] = {"role": "tampered"}
+    _write(selection_path, selection)
+    calls = 0
+
+    def should_not_call(_prompt: str) -> tuple[str, dict[str, Any]]:
+        nonlocal calls
+        calls += 1
+        return json.dumps(_valid_payload()), {}
+
+    with pytest.raises(ValueError, match="selection freeze hash"):
         verifier.run(protocol_root, tmp_path / "run", call=should_not_call)
     assert calls == 0
 

@@ -452,6 +452,8 @@ def _validate_freeze_contract(
         raise ValueError("protocol schema hash does not match current schema")
     if protocol.get("treatment_freeze_sha256") != _sha256(treatment_path):
         raise ValueError("protocol treatment freeze hash does not match current freeze")
+    if protocol.get("selection_freeze_sha256") != _sha256(selection_path):
+        raise ValueError("protocol selection freeze hash does not match current freeze")
     if selection.get("treatment_freeze_sha256") != _sha256(treatment_path):
         raise ValueError("selection treatment freeze hash does not match current freeze")
     if selection.get("provider_rows_sha256") != provider_rows_sha256(rows):
