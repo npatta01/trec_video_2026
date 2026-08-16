@@ -74,10 +74,10 @@ CAPTURE_ARTIFACT_NAMES = (
     "terminal.json",
 )
 LEDGER_RELATIVE_PATH = Path(
-    "docs/superpowers/ledgers/2026-08-16-dense-question-localized-evidence-task3d-v21.json"
+    "docs/superpowers/ledgers/2026-08-16-dense-question-localized-evidence-task3d-v22.json"
 )
 REPO_ROOT = SCRIPT_PATH.parents[1]
-LEDGER_CANDIDATE_VERSION = "run-v21"
+LEDGER_CANDIDATE_VERSION = "run-v22"
 EXECUTION_SNAPSHOT_NAME = "execution-snapshot.json"
 EXECUTION_SNAPSHOT_FINAL_NAME = "execution-snapshot-final.json"
 TERMINAL_STATUSES = {
@@ -241,8 +241,19 @@ def _ledger_binding_sha256(path: Path) -> str:
 
 
 def _snapshot_bound_bytes(path: Path) -> bytes:
-    if path.name in {"continuation-authorization.json", "canary-replay-freeze.json"}:
-        return _json_bytes(_ledger_normalized_payload(path))
+    if path.name == "continuation-authorization.json":
+        raw = path.read_bytes()
+        pattern = re.compile(
+            rb'("ledger_git_blob_sha256"\s*:\s*")[0-9a-f]{64}(")'
+        )
+        normalized, count = pattern.subn(
+            rb'\1<committed-ledger-blob-sha256>\2', raw, count=1
+        )
+        if count != 1:
+            raise ValueError("continuation authorization ledger binding is malformed")
+        return normalized
+    if path.name == "canary-replay-freeze.json":
+        return path.read_bytes()
     return path.read_bytes()
 
 
@@ -1717,7 +1728,7 @@ def _validate_continuation_snapshot(
 def run(root: Path, call: CallFunction | None = None) -> None:
     """Run one immutable provider attempt for each selected row and FPS arm."""
 
-    root = Path(root)
+    root = Path(root).resolve()
     if not root.is_dir():
         raise ValueError(f"run root does not exist: {root}")
     continuation = (root / "continuation-authorization.json").exists()
@@ -2160,10 +2171,10 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
 def verify_predictions_freeze(root: Path) -> None:
     """Create the prediction freeze once, then reject any byte drift."""
 
-    root = Path(root)
+    root = Path(root).resolve()
     if (root / "continuation-authorization.json").is_file():
-        _validate_execution_snapshot(root, require_final=True)
         validate_continuation_authorization(root)
+        _validate_execution_snapshot(root, require_final=True)
     rows, _provider_by_index, _media_by_index = _validate_inputs(root)
     ordered_records = _ordered_terminal_records(root, rows)
     planned = len(rows) * len(EXPECTED_FPS)
@@ -2274,8 +2285,8 @@ def prepare_continuation(source_root: Path, output_root: Path) -> None:
     The source run is treated as immutable.  Only its first, failed-canary
     pair is imported; the next pair remains the fresh compatibility canary.
     """
-    source_root = Path(source_root)
-    output_root = Path(output_root)
+    source_root = Path(source_root).resolve()
+    output_root = Path(output_root).resolve()
     if output_root.exists():
         raise ValueError("continuation output already exists")
     prediction_path = source_root / "predictions-freeze.json"
@@ -2392,7 +2403,7 @@ def validate_continuation_authorization(
     root: Path, *, check_ledger: bool = True
 ) -> None:
     """Validate the zero-call continuation boundary and imported prefix."""
-    root = Path(root)
+    root = Path(root).resolve()
     auth_path = root / "continuation-authorization.json"
     replay_path = root / "canary-replay-freeze.json"
     if not auth_path.is_file() or not replay_path.is_file():

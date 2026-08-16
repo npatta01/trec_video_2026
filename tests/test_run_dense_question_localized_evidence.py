@@ -1162,6 +1162,39 @@ def test_continuation_snapshot_catches_same_length_restored_mtime_replay_auth_dr
     assert not runner._arm_directory(root, 2, "target", 12.0).exists()
 
 
+def test_continuation_snapshot_catches_authorization_only_whitespace_drift(
+    tmp_path: Path,
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    calls: list[tuple[Any, ...]] = []
+
+    def call(*args: Any) -> tuple[str, dict[str, Any]]:
+        calls.append(args)
+        auth_path = root / "continuation-authorization.json"
+        stat = auth_path.stat()
+        raw = auth_path.read_bytes()
+        changed = raw.replace(b'  "authorization_type"', b'\t "authorization_type"', 1)
+        assert changed != raw and len(changed) == len(raw)
+        auth_path.write_bytes(changed)
+        os.utime(auth_path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+        return _id_call("authorization-whitespace-drift", valid=False)
+
+    with pytest.raises(ValueError, match="continuation snapshot"):
+        runner.run(root, call=call)
+    assert len(calls) == 1
+    triggered = runner._arm_directory(root, 2, "target", 4.0)
+    assert (triggered / "raw-response.txt").is_file()
+    assert not runner._arm_directory(root, 2, "target", 12.0).exists()
+
+
+def test_continuation_freeze_is_independent_of_root_path_spelling(tmp_path: Path) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    relative_root = Path(os.path.relpath(root, Path.cwd()))
+    responses = iter([_id_call("relative-01", valid=False), _id_call("relative-02")])
+    runner.run(relative_root, call=lambda *_args: next(responses))
+    runner.verify_predictions_freeze(root.resolve())
+
+
 def test_continuation_raw_capture_collision_preserves_returned_raw_and_metadata(
     tmp_path: Path,
 ) -> None:
