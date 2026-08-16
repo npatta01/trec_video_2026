@@ -36,6 +36,19 @@ EXPECTED_SETTINGS: dict[str, Any] = {
     "max_output_tokens": 2048,
     "retry_count": 0,
 }
+EXPECTED_DECISION_GATE: dict[str, Any] = {
+    "minimum_targets": 2,
+    "maximum_targets": 8,
+    "minimum_controls": 2,
+    "maximum_controls": 4,
+    "maximum_calls": 24,
+    "requires_complete_terminal_pairs": True,
+    "minimum_incremental_target_recoveries": 2,
+    "minimum_12fps_target_recovery_fraction": 0.5,
+    "maximum_unsupported_observations": 0,
+    "maximum_12fps_control_regressions": 0,
+    "requires_manual_inspection": True,
+}
 ROW_ARTIFACT_NAMES = (
     "request.json",
     "raw-response.txt",
@@ -43,7 +56,14 @@ ROW_ARTIFACT_NAMES = (
     "parsed.json",
     "terminal.json",
 )
-TERMINAL_STATUSES = {"passed", "invalid_json", "contract_error", "provider_error"}
+TERMINAL_STATUSES = {
+    "passed",
+    "invalid_json",
+    "contract_error",
+    "provider_error",
+    "interrupted",
+    "incomplete",
+}
 CallFunction = Callable[
     [bytes, str, str, float], tuple[str, Mapping[str, Any]]
 ]
@@ -173,6 +193,22 @@ def _number(value: Any, field: str) -> float:
 
 def _schema_sha256() -> str:
     return hashlib.sha256(_canonical(PROBE_SCHEMA)).hexdigest()
+
+
+def _validate_config() -> None:
+    config = _load_json(CONFIG_PATH)
+    if not isinstance(config, Mapping):
+        raise ValueError("runner config must be an object")
+    if config.get("model") != MODEL:
+        raise ValueError("runner config model does not match runner")
+    if config.get("settings") != EXPECTED_SETTINGS:
+        raise ValueError("runner config settings do not match runner")
+    if config.get("expected_fps") != list(EXPECTED_FPS):
+        raise ValueError("runner config expected FPS does not match runner")
+    if config.get("max_calls") != MAX_CALLS:
+        raise ValueError("runner config call cap does not match runner")
+    if config.get("decision_gate") != EXPECTED_DECISION_GATE:
+        raise ValueError("runner config decision gate does not match runner")
 
 
 def _validator_sha256() -> str:
@@ -447,6 +483,45 @@ def _arm_name(fps: float) -> str:
     return f"{int(fps)}fps"
 
 
+def _role_counts(
+    selection: Mapping[str, Any],
+    media_by_index: Mapping[int, Mapping[str, Any]],
+    raw_role_by_index: Mapping[int, str],
+) -> dict[str, int]:
+    metadata_roles: dict[int, str] = {}
+    metadata_rows = selection.get("selected_row_metadata", [])
+    if isinstance(metadata_rows, list):
+        for item in metadata_rows:
+            if (
+                isinstance(item, Mapping)
+                and isinstance(item.get("audit_index"), int)
+                and isinstance(item.get("role"), str)
+            ):
+                metadata_roles[item["audit_index"]] = item["role"]
+    counts = {"target": 0, "control": 0}
+    for audit_index, media in media_by_index.items():
+        role = str(media.get("role", "unknown"))
+        if role == "unknown":
+            role = metadata_roles.get(audit_index, raw_role_by_index.get(audit_index, "unknown"))
+        if role not in counts:
+            raise ValueError(f"selected row {audit_index} has unknown role: {role}")
+        counts[role] += 1
+    return counts
+
+
+def _validate_role_counts(role_counts: Mapping[str, int]) -> None:
+    if not (EXPECTED_DECISION_GATE["minimum_targets"] <= role_counts["target"] <= EXPECTED_DECISION_GATE["maximum_targets"]):
+        raise ValueError(
+            "authorized panel must contain 2-8 target rows; "
+            f"found {role_counts['target']}"
+        )
+    if not (EXPECTED_DECISION_GATE["minimum_controls"] <= role_counts["control"] <= EXPECTED_DECISION_GATE["maximum_controls"]):
+        raise ValueError(
+            "authorized panel must contain 2-4 control rows; "
+            f"found {role_counts['control']}"
+        )
+
+
 def _validate_inputs(root: Path) -> tuple[list[dict[str, Any]], dict[int, dict[str, Any]], dict[int, dict[str, Any]]]:
     required = (
         "treatment-freeze.json",
@@ -466,6 +541,7 @@ def _validate_inputs(root: Path) -> tuple[list[dict[str, Any]], dict[int, dict[s
     authorization = _load_json(paths["provider-authorization.json"])
     if not isinstance(treatment, Mapping) or not isinstance(selection, Mapping) or not isinstance(authorization, Mapping):
         raise ValueError("treatment, selection, and authorization freezes must be objects")
+    _validate_config()
     if treatment.get("status") != "frozen":
         raise ValueError("treatment freeze must have status=frozen")
     if treatment.get("model") not in {None, MODEL}:
@@ -476,6 +552,8 @@ def _validate_inputs(root: Path) -> tuple[list[dict[str, Any]], dict[int, dict[s
         raise ValueError("treatment expected FPS does not match runner")
     if treatment.get("max_calls") != MAX_CALLS:
         raise ValueError("treatment call cap does not match runner")
+    if treatment.get("decision_gate") != EXPECTED_DECISION_GATE:
+        raise ValueError("treatment decision gate does not match frozen decision rule")
     expected_hashes = {
         "runner_sha256": _sha256(SCRIPT_PATH),
         "config_sha256": _sha256(CONFIG_PATH),
@@ -506,6 +584,8 @@ def _validate_inputs(root: Path) -> tuple[list[dict[str, Any]], dict[int, dict[s
     selection_sha = _sha256(paths["selection-freeze.json"])
     if selection.get("status") != "frozen":
         raise ValueError("selection freeze must have status=frozen")
+    if selection.get("decision_gate") != EXPECTED_DECISION_GATE:
+        raise ValueError("selection decision gate does not match frozen rule")
     if selection.get("treatment_freeze_sha256") != treatment_sha:
         raise ValueError("selection treatment hash does not match current bytes")
     if selection.get("provider_rows_sha256") != provider_sha:
@@ -530,10 +610,18 @@ def _validate_inputs(root: Path) -> tuple[list[dict[str, Any]], dict[int, dict[s
         raise ValueError("planned call count exceeds frozen call cap")
     if selection.get("planned_call_count") != planned_calls:
         raise ValueError("selection planned call count drift")
+    role_counts = _role_counts(selection, media_by_index, raw_role_by_index)
+    if selection.get("target_count") != role_counts["target"]:
+        raise ValueError("selection target count does not match selected rows")
+    if selection.get("control_count") != role_counts["control"]:
+        raise ValueError("selection control count does not match selected rows")
+    _validate_role_counts(role_counts)
     if authorization.get("status") != "authorized":
         raise ValueError("provider authorization status must be exactly authorized")
-    if authorization.get("promotion_gate") not in {None, "PASS"}:
+    if authorization.get("promotion_gate") != "PASS":
         raise ValueError("provider authorization promotion gate must be PASS")
+    if authorization.get("decision_gate") != EXPECTED_DECISION_GATE:
+        raise ValueError("provider authorization decision gate does not match frozen rule")
     auth_expected = {
         "treatment_freeze_sha256": treatment_sha,
         "selection_freeze_sha256": selection_sha,
@@ -543,6 +631,10 @@ def _validate_inputs(root: Path) -> tuple[list[dict[str, Any]], dict[int, dict[s
     for field, expected in auth_expected.items():
         if authorization.get(field) != expected:
             raise ValueError(f"provider authorization {field} does not match current bytes")
+    if authorization.get("target_count") != role_counts["target"]:
+        raise ValueError("provider authorization target count does not match selected rows")
+    if authorization.get("control_count") != role_counts["control"]:
+        raise ValueError("provider authorization control count does not match selected rows")
     if authorization.get("planned_call_count") != planned_calls:
         raise ValueError("provider authorization planned call count drift")
     if authorization.get("max_calls") != MAX_CALLS:
@@ -654,6 +746,98 @@ def _request_payload(
     }
 
 
+def _write_request(
+    row_root: Path,
+    provider: Mapping[str, Any],
+    media: Mapping[str, Any],
+    fps: float,
+) -> str:
+    prompt = build_prompt(
+        provider["question"],
+        provider["map_lines"],
+        media["clip_start_seconds"],
+        media["clip_end_seconds"],
+    )
+    _write_once(row_root / "request.json", _request_payload(provider, media, fps, prompt))
+    return prompt
+
+
+def _write_incomplete_freeze(
+    root: Path,
+    rows: Sequence[Mapping[str, Any]],
+    call_count: int,
+    error: BaseException,
+) -> None:
+    """Persist every pending arm after an interruption, without retrying."""
+
+    planned = len(rows) * len(EXPECTED_FPS)
+    frozen_rows: list[dict[str, Any]] = []
+    completed = 0
+    passed = 0
+    for item in rows:
+        audit_index = item["provider"]["audit_index"]
+        role = item["media"]["role"]
+        for fps in EXPECTED_FPS:
+            row_root = _arm_directory(root, audit_index, role, fps)
+            terminal_path = row_root / "terminal.json"
+            if not terminal_path.is_file():
+                raise ValueError(f"interrupted row has no terminal state: {row_root.name}")
+            terminal = _load_json(terminal_path)
+            status = terminal.get("status")
+            if status not in TERMINAL_STATUSES:
+                raise ValueError(f"interrupted row has unknown status: {row_root.name}")
+            if status != "incomplete":
+                completed += 1
+            if status == "passed":
+                passed += 1
+            entries = {path.name for path in row_root.iterdir()}
+            names = {path.name for path in row_root.iterdir() if path.is_file()}
+            required = {"request.json", "metadata.json", "terminal.json"}
+            if status in {"passed", "invalid_json", "contract_error"}:
+                required.add("raw-response.txt")
+            if status == "passed":
+                required.add("parsed.json")
+            if entries != names or not required.issubset(names):
+                raise ValueError(f"interrupted row artifacts are incomplete: {row_root.name}")
+            frozen_rows.append(
+                {
+                    "audit_index": audit_index,
+                    "role": role,
+                    "fps": fps,
+                    "status": status,
+                    "artifacts": {name: _sha256(row_root / name) for name in sorted(names)},
+                }
+            )
+    input_hashes = _freeze_inputs(root)
+    freeze = {
+        "schema_version": 1,
+        "status": "incomplete",
+        "interrupted": True,
+        "interruption_type": type(error).__name__,
+        "interruption_message": str(error),
+        "experiment_id": "dense-question-localized-evidence-issue35-v1",
+        "model": MODEL,
+        "expected_fps": list(EXPECTED_FPS),
+        "decision_gate": EXPECTED_DECISION_GATE,
+        "frozen_at": datetime.now(UTC).isoformat(),
+        "row_count": planned,
+        "planned_call_count": planned,
+        "completed_count": completed,
+        "call_count": call_count,
+        "passed_count": passed,
+        "failed_count": planned - passed,
+        **input_hashes,
+        "runner_sha256": _sha256(SCRIPT_PATH),
+        "config_sha256": _sha256(CONFIG_PATH),
+        "prompt_template_sha256": _prompt_template_sha256(),
+        "response_schema_sha256": _schema_sha256(),
+        "validator_sha256": _validator_sha256(),
+        "rows": frozen_rows,
+    }
+    _write_once(root / "predictions-freeze.json", freeze)
+    _verify_freeze_contents(root, freeze)
+
+
 def run(root: Path, call: CallFunction | None = None) -> None:
     """Run one immutable provider attempt for each selected row and FPS arm."""
 
@@ -668,7 +852,8 @@ def run(root: Path, call: CallFunction | None = None) -> None:
     if planned > MAX_CALLS:
         raise ValueError("planned call count exceeds MAX_CALLS")
     calls = 0
-    for item in rows:
+    tasks = [(item, fps) for item in rows for fps in EXPECTED_FPS]
+    for task_index, (item, fps) in enumerate(tasks):
         provider_row = item["provider"]
         media = item["media"]
         audit_index = provider_row["audit_index"]
@@ -677,49 +862,65 @@ def run(root: Path, call: CallFunction | None = None) -> None:
         clip_bytes = clip_path.read_bytes()
         if _sha256_bytes(clip_bytes) != media["clip_sha256"]:
             raise ValueError(f"clip hash changed before call for audit_index {audit_index}")
-        for fps in EXPECTED_FPS:
-            row_root = _arm_directory(root, audit_index, role, fps)
-            prompt = build_prompt(
-                provider_row["question"],
-                provider_row["map_lines"],
-                media["clip_start_seconds"],
-                media["clip_end_seconds"],
-            )
-            _write_once(row_root / "request.json", _request_payload(provider_row, media, fps, prompt))
-            calls += 1
-            try:
-                raw, metadata = _provider_result(provider(clip_bytes, media["mime_type"], prompt, fps))
-            except Exception as error:
+        row_root = _arm_directory(root, audit_index, role, fps)
+        prompt = _write_request(row_root, provider_row, media, fps)
+        calls += 1
+        try:
+            raw, metadata = _provider_result(provider(clip_bytes, media["mime_type"], prompt, fps))
+        except BaseException as error:
+            if isinstance(error, Exception):
                 _write_once(row_root / "metadata.json", {"error_type": type(error).__name__, "error": str(error)})
                 _write_once(
                     row_root / "terminal.json",
                     {"audit_index": audit_index, "role": role, "fps": fps, "status": "provider_error", "error_type": type(error).__name__},
                 )
                 continue
-            _write_text_once(row_root / "raw-response.txt", raw)
-            metadata = {**metadata, "raw_response_sha256": _sha256_bytes(raw.encode())}
-            _write_once(row_root / "metadata.json", metadata)
-            try:
-                payload = json.loads(raw)
-            except json.JSONDecodeError as error:
-                _write_once(
-                    row_root / "terminal.json",
-                    {"audit_index": audit_index, "role": role, "fps": fps, "status": "invalid_json", "error_type": type(error).__name__, "error": str(error), "raw_response_sha256": _sha256_bytes(raw.encode())},
-                )
-                continue
-            try:
-                parsed = validate_probe(payload, media["clip_duration_seconds"])
-            except ValueError as error:
-                _write_once(
-                    row_root / "terminal.json",
-                    {"audit_index": audit_index, "role": role, "fps": fps, "status": "contract_error", "error_type": type(error).__name__, "error": str(error), "raw_response_sha256": _sha256_bytes(raw.encode())},
-                )
-                continue
-            _write_once(row_root / "parsed.json", parsed)
+            _write_once(row_root / "metadata.json", {"error_type": type(error).__name__, "error": str(error), "interrupted": True})
             _write_once(
                 row_root / "terminal.json",
-                {"audit_index": audit_index, "role": role, "fps": fps, "status": "passed", "raw_response_sha256": _sha256_bytes(raw.encode())},
+                {"audit_index": audit_index, "role": role, "fps": fps, "status": "interrupted", "error_type": type(error).__name__, "error": str(error)},
             )
+            for pending_item, pending_fps in tasks[task_index + 1 :]:
+                pending_provider = pending_item["provider"]
+                pending_media = pending_item["media"]
+                pending_index = pending_provider["audit_index"]
+                pending_role = pending_media["role"]
+                pending_root = _arm_directory(root, pending_index, pending_role, pending_fps)
+                _write_request(pending_root, pending_provider, pending_media, pending_fps)
+                _write_once(
+                    pending_root / "metadata.json",
+                    {"status": "incomplete", "reason": "run interrupted before provider attempt"},
+                )
+                _write_once(
+                    pending_root / "terminal.json",
+                    {"audit_index": pending_index, "role": pending_role, "fps": pending_fps, "status": "incomplete", "reason": "run interrupted before provider attempt"},
+                )
+            _write_incomplete_freeze(root, rows, calls, error)
+            raise
+        _write_text_once(row_root / "raw-response.txt", raw)
+        metadata = {**metadata, "raw_response_sha256": _sha256_bytes(raw.encode())}
+        _write_once(row_root / "metadata.json", metadata)
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as error:
+            _write_once(
+                row_root / "terminal.json",
+                {"audit_index": audit_index, "role": role, "fps": fps, "status": "invalid_json", "error_type": type(error).__name__, "error": str(error), "raw_response_sha256": _sha256_bytes(raw.encode())},
+            )
+            continue
+        try:
+            parsed = validate_probe(payload, media["clip_duration_seconds"])
+        except ValueError as error:
+            _write_once(
+                row_root / "terminal.json",
+                {"audit_index": audit_index, "role": role, "fps": fps, "status": "contract_error", "error_type": type(error).__name__, "error": str(error), "raw_response_sha256": _sha256_bytes(raw.encode())},
+            )
+            continue
+        _write_once(row_root / "parsed.json", parsed)
+        _write_once(
+            row_root / "terminal.json",
+            {"audit_index": audit_index, "role": role, "fps": fps, "status": "passed", "raw_response_sha256": _sha256_bytes(raw.encode())},
+        )
     if calls != planned:
         raise ValueError("provider call count drift")
 
@@ -752,13 +953,20 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
         if freeze.get(key) != value:
             raise ValueError(f"predictions freeze does not bind current {key}")
     planned = len(rows) * len(EXPECTED_FPS)
-    if freeze.get("row_count") != planned or freeze.get("completed_count") != planned or freeze.get("call_count") != planned:
-        raise ValueError("predictions freeze call count is inconsistent")
+    status_value = freeze.get("status")
+    if status_value not in {"frozen", "incomplete"}:
+        raise ValueError("predictions freeze status is invalid")
+    if freeze.get("decision_gate") != EXPECTED_DECISION_GATE:
+        raise ValueError("predictions freeze decision gate does not match frozen rule")
+    if freeze.get("row_count") != planned:
+        raise ValueError("predictions freeze row count is inconsistent")
     frozen_rows = freeze.get("rows")
     if not isinstance(frozen_rows, list) or len(frozen_rows) != planned:
         raise ValueError("predictions freeze rows are inconsistent")
     expected_keys: set[tuple[int, float]] = set()
     passed = 0
+    completed = 0
+    interrupted = False
     for item in rows:
         audit_index = item["provider"]["audit_index"]
         role = item["media"]["role"]
@@ -774,6 +982,10 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
                 raise ValueError(f"terminal row identity mismatch: {row_root.name}")
             if status not in TERMINAL_STATUSES:
                 raise ValueError(f"unknown terminal status: {row_root.name}")
+            if status != "incomplete":
+                completed += 1
+            if status == "interrupted":
+                interrupted = True
             if status == "passed":
                 passed += 1
             required = {"request.json", "metadata.json", "terminal.json"}
@@ -794,6 +1006,8 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
             frozen = next((value for value in frozen_rows if isinstance(value, Mapping) and value.get("audit_index") == audit_index and value.get("fps") == fps), None)
             if frozen is None:
                 raise ValueError(f"predictions freeze row is missing: {row_root.name}")
+            if frozen.get("status") != status or frozen.get("role") != role:
+                raise ValueError(f"predictions freeze row identity/status mismatch: {row_root.name}")
             artifacts = frozen.get("artifacts")
             if not isinstance(artifacts, Mapping) or set(artifacts) != names:
                 raise ValueError(f"frozen row artifact set changed: {row_root.name}")
@@ -802,6 +1016,21 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
                     raise ValueError(f"frozen row artifact changed: {row_root.name}/{name}")
     if freeze.get("passed_count") != passed or freeze.get("failed_count") != planned - passed:
         raise ValueError("predictions freeze status counts are inconsistent")
+    if freeze.get("completed_count") != completed:
+        raise ValueError("predictions freeze completed count is inconsistent")
+    if status_value == "frozen":
+        if completed != planned or freeze.get("call_count") != planned:
+            raise ValueError("complete predictions freeze has incomplete call count")
+        if interrupted or any(
+            isinstance(item, Mapping) and item.get("status") == "incomplete"
+            for item in frozen_rows
+        ):
+            raise ValueError("complete predictions freeze contains incomplete terminals")
+    else:
+        if not freeze.get("interrupted") or not interrupted:
+            raise ValueError("incomplete predictions freeze must bind an interruption")
+        if not isinstance(freeze.get("call_count"), int) or not 0 < freeze["call_count"] < planned:
+            raise ValueError("incomplete predictions freeze call count is invalid")
 
 
 def verify_predictions_freeze(root: Path) -> None:
@@ -812,6 +1041,7 @@ def verify_predictions_freeze(root: Path) -> None:
     planned = len(rows) * len(EXPECTED_FPS)
     frozen_rows: list[dict[str, Any]] = []
     passed = 0
+    incomplete_terminal = False
     for item in rows:
         audit_index = item["provider"]["audit_index"]
         role = item["media"]["role"]
@@ -826,6 +1056,8 @@ def verify_predictions_freeze(root: Path) -> None:
             status = terminal.get("status")
             if status not in TERMINAL_STATUSES:
                 raise ValueError(f"unknown terminal status: {row_root.name}")
+            if status in {"interrupted", "incomplete"}:
+                incomplete_terminal = True
             required = {"request.json", "metadata.json", "terminal.json"}
             if status in {"passed", "invalid_json", "contract_error"}:
                 required.add("raw-response.txt")
@@ -857,12 +1089,15 @@ def verify_predictions_freeze(root: Path) -> None:
     if prediction_path.exists():
         _verify_freeze_contents(root, _load_json(prediction_path))
         return
+    if incomplete_terminal:
+        raise ValueError("incomplete terminal states require the interruption freeze")
     freeze = {
         "schema_version": 1,
         "status": "frozen",
         "experiment_id": "dense-question-localized-evidence-issue35-v1",
         "model": MODEL,
         "expected_fps": list(EXPECTED_FPS),
+        "decision_gate": EXPECTED_DECISION_GATE,
         "frozen_at": datetime.now(UTC).isoformat(),
         "row_count": planned,
         "completed_count": planned,

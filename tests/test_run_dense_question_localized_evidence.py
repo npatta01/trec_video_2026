@@ -59,7 +59,15 @@ def _valid_call(*_args: Any) -> tuple[str, dict[str, Any]]:
     return json.dumps(_valid_probe()), {"provider": "fake", "total_token_count": 10}
 
 
-def _write_authorized_fixture(tmp_path: Path, *, rows: int = 2) -> Path:
+def _write_authorized_fixture(
+    tmp_path: Path,
+    *,
+    rows: int = 4,
+    target_count: int = 2,
+    control_count: int | None = None,
+) -> Path:
+    if control_count is not None:
+        rows = target_count + control_count
     root = tmp_path / "run"
     root.mkdir()
     clips = []
@@ -73,7 +81,7 @@ def _write_authorized_fixture(tmp_path: Path, *, rows: int = 2) -> Path:
         clips.append(
             {
                 "audit_index": audit_index,
-                "role": "target" if index == 0 else "control",
+                "role": "target" if index < target_count else "control",
                 "clip_path": str(clip),
                 "clip_sha256": clip_sha,
                 "mime_type": "video/mp4",
@@ -89,7 +97,7 @@ def _write_authorized_fixture(tmp_path: Path, *, rows: int = 2) -> Path:
         provider_rows.append(
             {
                 "audit_index": audit_index,
-                "role": "target" if index == 0 else "control",
+                "role": "target" if index < target_count else "control",
                 "question": "What does the robot do at the end?",
                 "map_lines": [
                     {"line_number": 1, "text": "The robot moves."},
@@ -107,6 +115,7 @@ def _write_authorized_fixture(tmp_path: Path, *, rows: int = 2) -> Path:
             "settings": runner.EXPECTED_SETTINGS,
             "expected_fps": list(runner.EXPECTED_FPS),
             "max_calls": runner.MAX_CALLS,
+            "decision_gate": runner.EXPECTED_DECISION_GATE,
             "runner_sha256": _sha(runner.SCRIPT_PATH),
             "config_sha256": _sha(ROOT / "configs/vqa/dense_question_localized_evidence_issue35.json"),
             "prompt_template_sha256": runner._prompt_template_sha256(),
@@ -123,9 +132,10 @@ def _write_authorized_fixture(tmp_path: Path, *, rows: int = 2) -> Path:
             "provider_rows_sha256": runner.provider_rows_sha256(provider_rows),
             "media_manifest_sha256": _sha(root / "media-manifest.json"),
             "selected_rows": [item["audit_index"] for item in provider_rows],
-            "target_count": 1 if rows > 0 else 0,
-            "control_count": max(rows - 1, 0),
+            "target_count": target_count,
+            "control_count": rows - target_count,
             "planned_call_count": rows * 2,
+            "decision_gate": runner.EXPECTED_DECISION_GATE,
         },
     )
     _write_json(
@@ -134,12 +144,15 @@ def _write_authorized_fixture(tmp_path: Path, *, rows: int = 2) -> Path:
             "schema_version": 1,
             "status": "authorized",
             "promotion_gate": "PASS",
+            "decision_gate": runner.EXPECTED_DECISION_GATE,
             "treatment_freeze_sha256": _sha(root / "treatment-freeze.json"),
             "selection_freeze_sha256": _sha(root / "selection-freeze.json"),
             "provider_rows_sha256": runner.provider_rows_sha256(provider_rows),
             "media_manifest_sha256": _sha(root / "media-manifest.json"),
             "planned_call_count": rows * 2,
             "max_calls": runner.MAX_CALLS,
+            "target_count": target_count,
+            "control_count": rows - target_count,
         },
     )
     return root
@@ -215,19 +228,19 @@ def test_prompt_is_question_localized_and_prohibits_label_leakage() -> None:
 
 
 def test_run_writes_one_terminal_chain_per_pair_without_retry(tmp_path: Path) -> None:
-    root = _write_authorized_fixture(tmp_path, rows=2)
+    root = _write_authorized_fixture(tmp_path)
     calls: list[tuple[Any, ...]] = []
     runner.run(root, call=lambda *args: calls.append(args) or _valid_call())
-    assert len(calls) == 4
-    assert len(list((root / "rows").glob("*/terminal.json"))) == 4
+    assert len(calls) == 8
+    assert len(list((root / "rows").glob("*/terminal.json"))) == 8
     runner.verify_predictions_freeze(root)
     freeze = json.loads((root / "predictions-freeze.json").read_text())
-    assert freeze["completed_count"] == 4
-    assert freeze["call_count"] == 4
+    assert freeze["completed_count"] == 8
+    assert freeze["call_count"] == 8
 
 
 def test_run_rejects_label_bearing_provider_rows_before_call(tmp_path: Path) -> None:
-    root = _write_authorized_fixture(tmp_path, rows=2)
+    root = _write_authorized_fixture(tmp_path)
     payload = json.loads((root / "provider-rows.json").read_text())
     payload["rows"][0]["reference"] = "hidden"
     _write_json(root / "provider-rows.json", payload)
@@ -238,26 +251,25 @@ def test_run_rejects_label_bearing_provider_rows_before_call(tmp_path: Path) -> 
 
 
 def test_run_preserves_malformed_json_and_schema_failure_without_retry(tmp_path: Path) -> None:
-    root = _write_authorized_fixture(tmp_path, rows=2)
+    root = _write_authorized_fixture(tmp_path)
     responses = iter(
         [
             ("{broken", {"provider": "fake"}),
             (json.dumps({"wrong": True}), {"provider": "fake"}),
-            _valid_call(),
-            _valid_call(),
+            *[_valid_call() for _ in range(6)],
         ]
     )
     calls: list[tuple[Any, ...]] = []
     runner.run(root, call=lambda *args: calls.append(args) or next(responses))
-    assert len(calls) == 4
+    assert len(calls) == 8
     statuses = sorted(json.loads(path.read_text())["status"] for path in (root / "rows").glob("*/terminal.json"))
-    assert statuses == ["contract_error", "invalid_json", "passed", "passed"]
+    assert statuses == ["contract_error", "invalid_json", "passed", "passed", "passed", "passed", "passed", "passed"]
     malformed = next(path.parent for path in (root / "rows").glob("*/terminal.json") if json.loads(path.read_text())["status"] == "invalid_json")
     assert (malformed / "raw-response.txt").read_text() == "{broken"
 
 
 def test_run_refuses_write_once_and_detects_artifact_drift(tmp_path: Path) -> None:
-    root = _write_authorized_fixture(tmp_path, rows=2)
+    root = _write_authorized_fixture(tmp_path)
     runner.run(root, call=_valid_call)
     with pytest.raises(ValueError, match="artifacts"):
         runner.run(root, call=_valid_call)
@@ -270,10 +282,73 @@ def test_run_refuses_write_once_and_detects_artifact_drift(tmp_path: Path) -> No
 
 
 def test_run_rejects_clip_hash_drift_before_calls(tmp_path: Path) -> None:
-    root = _write_authorized_fixture(tmp_path, rows=2)
+    root = _write_authorized_fixture(tmp_path)
     clip = next((root / "clips").glob("*.mp4"))
     clip.write_bytes(b"changed")
     calls: list[tuple[Any, ...]] = []
     with pytest.raises(ValueError, match="clip"):
+        runner.run(root, call=lambda *args: calls.append(args) or _valid_call())
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    ("target_count", "control_count", "message"),
+    [
+        (1, 1, "2-8 target"),
+        (12, 0, "2-8 target"),
+        (2, 10, "2-4 control"),
+    ],
+)
+def test_run_rejects_role_count_boundary_before_calls(
+    tmp_path: Path, target_count: int, control_count: int, message: str
+) -> None:
+    root = _write_authorized_fixture(
+        tmp_path,
+        target_count=target_count,
+        control_count=control_count,
+    )
+    calls: list[tuple[Any, ...]] = []
+    with pytest.raises(ValueError, match=message):
+        runner.run(root, call=lambda *args: calls.append(args) or _valid_call())
+    assert calls == []
+
+
+def test_interruption_freezes_partial_progress_without_retry(tmp_path: Path) -> None:
+    root = _write_authorized_fixture(tmp_path)
+    calls: list[tuple[Any, ...]] = []
+
+    def interrupted(*args: Any) -> tuple[str, dict[str, Any]]:
+        calls.append(args)
+        if len(calls) == 2:
+            raise KeyboardInterrupt("operator stopped run")
+        return _valid_call()
+
+    with pytest.raises(KeyboardInterrupt, match="operator stopped"):
+        runner.run(root, call=interrupted)
+    assert len(calls) == 2
+    freeze = json.loads((root / "predictions-freeze.json").read_text())
+    assert freeze["status"] == "incomplete"
+    assert freeze["call_count"] == 2
+    assert freeze["completed_count"] == 2
+    assert freeze["interrupted"] is True
+    statuses = [
+        json.loads(path.read_text())["status"]
+        for path in (root / "rows").glob("*/terminal.json")
+    ]
+    assert statuses.count("interrupted") == 1
+    assert statuses.count("incomplete") == 6
+    runner.verify_predictions_freeze(root)
+    with pytest.raises(ValueError, match="artifacts"):
+        runner.run(root, call=interrupted)
+
+
+def test_run_rejects_decision_gate_drift_before_calls(tmp_path: Path) -> None:
+    root = _write_authorized_fixture(tmp_path)
+    treatment_path = root / "treatment-freeze.json"
+    treatment = json.loads(treatment_path.read_text())
+    treatment["decision_gate"]["minimum_incremental_target_recoveries"] = 1
+    _write_json(treatment_path, treatment)
+    calls: list[tuple[Any, ...]] = []
+    with pytest.raises(ValueError, match="decision gate"):
         runner.run(root, call=lambda *args: calls.append(args) or _valid_call())
     assert calls == []
