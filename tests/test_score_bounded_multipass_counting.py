@@ -4,6 +4,7 @@ import importlib.util
 import hashlib
 import json
 from pathlib import Path
+import tomllib
 from types import SimpleNamespace
 
 import pytest
@@ -22,6 +23,13 @@ RUNNER_SPEC = importlib.util.spec_from_file_location(
 assert RUNNER_SPEC and RUNNER_SPEC.loader
 runner = importlib.util.module_from_spec(RUNNER_SPEC)
 RUNNER_SPEC.loader.exec_module(runner)
+
+
+def test_metrics_extra_pins_bert_score_compatible_transformers() -> None:
+    project = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    metrics = project["project"]["optional-dependencies"]["metrics"]
+    assert "bert-score==0.3.13" in metrics
+    assert "transformers==4.57.6" in metrics
 
 
 def row(
