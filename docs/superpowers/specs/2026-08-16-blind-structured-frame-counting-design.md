@@ -106,6 +106,11 @@ Unknown fields and label-like keys are rejected recursively. Any other count
 unit produces a typed `unsupported` result rather than being forced into the
 presence reducer.
 
+The implementation accepts the original question, derives an opaque spec ID
+from its SHA-256, and derives the target only through the supported question
+grammar. Callers cannot supply target text or identifiers that could encode a
+reference answer, failure/control role, or other post-label information.
+
 ## Request and presentation contract
 
 The request builder consumes a `CountSpec` and immutable decoded-frame
@@ -113,10 +118,18 @@ inventory. It emits an ordered manifest containing the first and last decoded
 frames, every required intermediate frame, actual PTS, artifact hashes, and the
 maximum observed gap.
 
-Presentation artifacts may be numbered contact sheets for global context or
-full-resolution individual frames/triplets for verification. Every tile or
-triplet must map back to source frame hashes. Burned-in numbers and timestamps
+Presentation artifacts in this smallest implementation may be numbered contact
+sheets for global context or full-resolution individual frames for
+verification. Every tile or individual image must map back to source frame
+hashes. Triplets are deferred until their overlapping membership has a separate
+strict schema. Burned-in numbers and timestamps
 must appear in a margin rather than cover source pixels.
+
+Every response names the exact presentation IDs it received. Those IDs bind
+the rendered byte hashes, sizes, mode, and source-frame membership. Primary
+and challenge modes must use different bytes, not merely different mode names.
+The zero-network CLI recomputes every referenced artifact hash and size from a
+content-addressed artifact root before building the request.
 
 The model receives no references, previous predictions, correctness, expected
 count, or panel role. It must return one enum state for every manifest frame ID.
@@ -128,7 +141,7 @@ allowed.
 
 For a canary with at most 100 required frames, challenge every frame using a
 different presentation: the first pass may use contact sheets, while the
-challenge uses full-resolution individual frames or centered triplets.
+challenge uses full-resolution individual frames.
 
 For a later larger request, a predeclared selector must include:
 
@@ -157,6 +170,11 @@ The certificate binds canonical hashes for:
 - final reconciled ledger;
 - interface and reducer source hashes, source revision, and result.
 
+The source binding covers the complete local trust base used by the dry run,
+including the interface, reducer, label-isolation helpers, serializer, CLI,
+project metadata, and lockfile. Certification reruns the structural validators
+from the normalized objects; self-consistent hashes alone are insufficient.
+
 It verifies endpoint inclusion, the maximum PTS gap, one-to-one decision
 coverage, all mandatory challenge records, and abstention on unresolved states.
 It proves delivery and structural completeness only. It does not claim that a
@@ -165,7 +183,9 @@ model perceived the target correctly.
 The dry-run freeze preserves the normalized CountSpec, request, primary
 response, challenge response, reconciled ledger, reducer result, and
 certificate as separate write-once JSON files so every certificate binding can
-be reconstructed locally.
+be reconstructed locally. Input JSON rejects duplicate keys. An exclusive
+filesystem lock covers conflict checking and publication, all files are staged
+first, and the certificate is published last as the terminal marker.
 
 ## Public interfaces and agreed test seams
 

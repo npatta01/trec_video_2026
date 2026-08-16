@@ -28,10 +28,17 @@ def _write_json(path: Path, payload: object) -> None:
 
 
 def _synthetic_inputs(root: Path) -> dict[str, Path]:
+    artifact_root = root / "artifacts"
+    artifact_root.mkdir()
+
+    def bind_artifact(content: bytes) -> tuple[str, int]:
+        digest = hashlib.sha256(content).hexdigest()
+        (artifact_root / digest).write_bytes(content)
+        return digest, len(content)
+
     spec_payload = {
         "schema_version": 1,
-        "spec_id": "synthetic-spec",
-        "target": "ball visibly present in the frame",
+        "question": "How many times does the ball appear in the video?",
         "unit": "visible_appearance_episode",
         "scope": "full_video",
         "episode_rule": "maximal contiguous run of present samples",
@@ -42,8 +49,15 @@ def _synthetic_inputs(root: Path) -> dict[str, Path]:
     }
     inventory = {
         "schema_version": 1,
-        "video_id": "synthetic-video",
+        "video_id": "Vaaaaaaaaaaaaaaaa",
         "source_sha256": "a" * 64,
+        "source_size_bytes": 10_000,
+        "decoder": {
+            "name": "ffmpeg",
+            "version": "7.1",
+            "configuration_sha256": "9" * 64,
+            "configuration_size_bytes": 500,
+        },
         "duration_seconds": 1.0,
         "decoded_frame_count": 3,
         "frames": [
@@ -52,6 +66,7 @@ def _synthetic_inputs(root: Path) -> dict[str, Path]:
                 "decoded_frame_index": index,
                 "timestamp_seconds": index / 2,
                 "artifact_sha256": "b" * 64,
+                "artifact_size_bytes": 100 + index,
                 "is_first_decoded_frame": index == 0,
                 "is_last_decoded_frame": index == 2,
             }
@@ -60,8 +75,9 @@ def _synthetic_inputs(root: Path) -> dict[str, Path]:
     }
     presentations = [
         {
-            "presentation_id": "sheet",
+            "presentation_id": "sheet-1",
             "presentation_sha256": "c" * 64,
+            "artifact_size_bytes": 1000,
             "frame_ids": ["F0", "F1", "F2"],
             "mode": "numbered_contact_sheet",
         },
@@ -69,12 +85,29 @@ def _synthetic_inputs(root: Path) -> dict[str, Path]:
             {
                 "presentation_id": f"individual-{index}",
                 "presentation_sha256": "d" * 64,
+                "artifact_size_bytes": 200 + index,
                 "frame_ids": [f"F{index}"],
                 "mode": "individual_frame",
             }
             for index in range(3)
         ],
     ]
+    source_digest, source_size = bind_artifact(b"synthetic-video-source")
+    inventory["source_sha256"] = source_digest
+    inventory["source_size_bytes"] = source_size
+    inventory["video_id"] = f"V{source_digest[:16]}"
+    decoder_digest, decoder_size = bind_artifact(b"ffmpeg -vsync 0 -frame_pts 1")
+    inventory["decoder"]["configuration_sha256"] = decoder_digest
+    inventory["decoder"]["configuration_size_bytes"] = decoder_size
+    for index, frame in enumerate(inventory["frames"]):
+        digest, size = bind_artifact(f"frame-{index}".encode())
+        frame["artifact_sha256"] = digest
+        frame["artifact_size_bytes"] = size
+    for index, presentation in enumerate(presentations):
+        digest, size = bind_artifact(f"presentation-{index}".encode())
+        presentation["presentation_id"] = f"P{digest}"
+        presentation["presentation_sha256"] = digest
+        presentation["artifact_size_bytes"] = size
     spec = parse_visible_episode_count_spec(spec_payload)
     assert isinstance(spec, VisibleEpisodeCountSpec)
     request = build_frame_decision_request(spec, inventory, presentations)
@@ -84,6 +117,7 @@ def _synthetic_inputs(root: Path) -> dict[str, Path]:
         "pass_id": "primary",
         "request_complete_sha256": request.complete_sha256,
         "presentation_mode": "numbered_contact_sheet",
+        "presentation_ids": [request.presentations[0].presentation_id],
         "decisions": [
             {"frame_id": f"F{index}", "target_state": state}
             for index, state in enumerate(states)
@@ -94,6 +128,11 @@ def _synthetic_inputs(root: Path) -> dict[str, Path]:
         "pass_id": "challenge",
         "request_complete_sha256": request.complete_sha256,
         "presentation_mode": "individual_frame",
+        "presentation_ids": [
+            binding.presentation_id
+            for binding in request.presentations
+            if binding.mode == "individual_frame"
+        ],
         "decisions": [
             {"frame_id": f"F{index}", "target_state": state}
             for index, state in enumerate(states)
@@ -111,6 +150,7 @@ def _synthetic_inputs(root: Path) -> dict[str, Path]:
         path = root / f"{name}.json"
         _write_json(path, payload)
         paths[name] = path
+    paths["artifact_root"] = artifact_root
     return paths
 
 
@@ -129,6 +169,8 @@ def _run_cli(inputs: dict[str, Path], output_dir: Path) -> subprocess.CompletedP
             str(inputs["primary"]),
             "--challenge",
             str(inputs["challenge"]),
+            "--artifact-root",
+            str(inputs["artifact_root"]),
             "--output-dir",
             str(output_dir),
         ],
@@ -208,7 +250,13 @@ def test_cli_freezes_byte_identical_authenticated_chain(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "case",
-    ["missing_decision", "label_bearing_input", "request_hash_mutation", "conflict"],
+    [
+        "missing_decision",
+        "label_bearing_input",
+        "request_hash_mutation",
+        "artifact_mutation",
+        "conflict",
+    ],
 )
 def test_cli_rejects_invalid_chain_without_writing_certificate(
     tmp_path: Path, case: str
@@ -228,6 +276,9 @@ def test_cli_rejects_invalid_chain_without_writing_certificate(
         primary = json.loads(inputs["primary"].read_text(encoding="utf-8"))
         primary["request_complete_sha256"] = "0" * 64
         _write_json(inputs["primary"], primary)
+    elif case == "artifact_mutation":
+        artifact = next(inputs["artifact_root"].iterdir())
+        artifact.write_bytes(b"changed")
     elif case == "conflict":
         output_dir.mkdir()
         (output_dir / "request.freeze.json").write_text(
@@ -272,3 +323,73 @@ def test_cli_freezes_no_label_or_scoring_keys(tmp_path: Path) -> None:
         "panel_role",
     }
     assert keys.isdisjoint(forbidden)
+
+
+def test_cli_rejects_duplicate_json_keys(tmp_path: Path) -> None:
+    inputs = _synthetic_inputs(tmp_path)
+    primary_text = inputs["primary"].read_text(encoding="utf-8")
+    inputs["primary"].write_text(
+        primary_text.replace(
+            '"target_state": "present"',
+            '"target_state": "absent", "target_state": "present"',
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    completed = _run_cli(inputs, tmp_path / "out")
+
+    assert completed.returncode != 0
+    assert "duplicate JSON key: target_state" in completed.stderr
+    assert not (tmp_path / "out" / "certificate.freeze.json").exists()
+
+
+def test_concurrent_conflicting_runs_cannot_mix_freezes(tmp_path: Path) -> None:
+    first_root = tmp_path / "first"
+    first_root.mkdir()
+    first_inputs = _synthetic_inputs(first_root)
+    second_root = tmp_path / "second"
+    second_root.mkdir()
+    second_inputs = _synthetic_inputs(second_root)
+    for name in ("primary", "challenge"):
+        payload = json.loads(second_inputs[name].read_text(encoding="utf-8"))
+        for decision in payload["decisions"]:
+            decision["target_state"] = "absent"
+        _write_json(second_inputs[name], payload)
+    output_dir = tmp_path / "out"
+
+    processes = [
+        subprocess.Popen(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "--spec",
+                str(inputs["spec"]),
+                "--inventory",
+                str(inputs["inventory"]),
+                "--presentations",
+                str(inputs["presentations"]),
+                "--primary",
+                str(inputs["primary"]),
+                "--challenge",
+                str(inputs["challenge"]),
+                "--artifact-root",
+                str(inputs["artifact_root"]),
+                "--output-dir",
+                str(output_dir),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for inputs in (first_inputs, second_inputs)
+    ]
+    results = [process.communicate(timeout=10) for process in processes]
+
+    assert sorted(process.returncode for process in processes) == [0, 1]
+    certificate = json.loads(
+        (output_dir / "certificate.freeze.json").read_text(encoding="utf-8")
+    )
+    assert certificate["value"] in {0, 2}
+    for stdout, stderr in results:
+        assert not (stdout and stderr)

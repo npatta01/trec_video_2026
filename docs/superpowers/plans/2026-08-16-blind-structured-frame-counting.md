@@ -8,6 +8,12 @@
 
 **Tech Stack:** Python 3.12, frozen dataclasses, standard-library JSON/hash/path handling, existing `vqa_submission.canonical_sha256`, existing `vqa_counting_evidence.validate_label_blind`, existing `vqa_count_frame_presence` reducer, pytest, Ruff.
 
+**Status (2026-08-16):** Implementation and zero-network verification are
+complete. The final focused/adjacent suite is 149 passed; independent review
+found no remaining P1/P2 issue. The full repository suite is 2,921 passed, one
+skipped, and the same two documented stale tests fail outside this scope. No
+model-quality result is claimed because paid/model inference was not authorized.
+
 ## Global Constraints
 
 - No model, provider, GPU, network, or paid call.
@@ -133,7 +139,7 @@ policies, require `occluded_identity == "unsupported"`, and return
 `build_frame_decision_request()` must reject unordered/duplicate frame IDs and
 indices, missing decoded index 0 or `decoded_frame_count - 1`, false endpoint
 timestamps, out-of-range PTS, gaps above the spec maximum, presentation modes
-outside `numbered_contact_sheet`, `individual_frame`, and `centered_triplet`,
+outside `numbered_contact_sheet` and `individual_frame`,
 unbound frames, duplicate presentation membership within one mode, and
 mismatched hashes. The same source frame may appear once in each of multiple
 different modes so primary contact sheets and challenge images can be bound by
@@ -382,21 +388,26 @@ The CLI accepts exactly:
 --presentations PRESENTATIONS.json
 --primary PRIMARY.json
 --challenge CHALLENGE.json
+--artifact-root CONTENT_ADDRESSED_ARTIFACT_DIR
 --output-dir DIR
 ```
 
 It performs no imports from `google`, no network access, and no environment
 credential reads. It calls only the public module interfaces, serializes
-dataclasses with explicit `*_to_dict()` functions, preserves both normalized
-decision passes, hashes the current reducer source, records
-`git rev-parse HEAD`, and writes each canonical artifact with a temporary file
-plus `os.replace`. Existing identical files are accepted; conflicting files
-raise `FileExistsError`.
+dataclasses with explicit `*_to_dict()` functions, rejects duplicate JSON keys,
+recomputes the size and SHA-256 of every content-addressed frame/render,
+preserves both normalized decision passes, hashes the complete implementation
+trust base, records `git rev-parse HEAD`, and writes each canonical artifact
+under an exclusive filesystem lock. Files are staged before publication and
+the certificate is published last. Existing identical files are accepted;
+conflicting files raise `FileExistsError`.
 
 - [ ] **Step 6: Add CLI failure tests**
 
 Assert nonzero exit and no certificate for missing decisions, label-bearing
-input, conflicting existing output, and hash mutation. Assert the output JSON
+input, duplicate keys, mutated artifact bytes, conflicting existing output,
+and hash mutation. Race two conflicting writers and prove their freezes cannot
+mix. Assert the output JSON
 contains no keys matching reference, label, answer, correctness, score,
 metric, expected, or panel role.
 
