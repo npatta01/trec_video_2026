@@ -1,0 +1,904 @@
+#!/usr/bin/env python3
+"""Run the immutable paired question-localized visual evidence probe.
+
+Task 2 writes the treatment, selection, provider-row, media, and authorization
+freezes consumed here.  This runner has one provider attempt per row/arm,
+persists the raw response before parsing, and freezes every resulting byte
+before any reference-aware analysis is allowed.
+"""
+
+from __future__ import annotations
+
+import argparse
+from datetime import UTC, datetime
+import hashlib
+import inspect
+import json
+import math
+import os
+from pathlib import Path
+import re
+import time
+from typing import Any, Callable, Mapping, Sequence
+
+
+MODEL = "gemini-3.1-pro-preview"
+EXPECTED_FPS = (4.0, 12.0)
+MAX_CALLS = 24
+SCRIPT_PATH = Path(__file__).resolve()
+CONFIG_PATH = SCRIPT_PATH.parents[1] / "configs" / "vqa" / "dense_question_localized_evidence_issue35.json"
+EXPECTED_SETTINGS: dict[str, Any] = {
+    "temperature": 0.0,
+    "seed": 42,
+    "thinking_level": "HIGH",
+    "media_resolution": "HIGH",
+    "candidate_count": 1,
+    "max_output_tokens": 2048,
+    "retry_count": 0,
+}
+ROW_ARTIFACT_NAMES = (
+    "request.json",
+    "raw-response.txt",
+    "metadata.json",
+    "parsed.json",
+    "terminal.json",
+)
+TERMINAL_STATUSES = {"passed", "invalid_json", "contract_error", "provider_error"}
+CallFunction = Callable[
+    [bytes, str, str, float], tuple[str, Mapping[str, Any]]
+]
+
+
+PROBE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "question_interpretation": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "requested_entity": {"type": "string", "minLength": 1},
+                "requested_visual_fact": {"type": "string", "minLength": 1},
+                "temporal_qualifier": {"type": "string", "minLength": 1},
+            },
+            "required": [
+                "requested_entity",
+                "requested_visual_fact",
+                "temporal_qualifier",
+            ],
+        },
+        "fact_observed": {"type": "boolean"},
+        "observed_fact": {"type": "string"},
+        "evidence_timestamps": {
+            "type": "array",
+            "items": {"type": "number", "minimum": 0},
+        },
+        "conflicts_or_uncertainty": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+        },
+        "needs_more_evidence": {"type": "boolean"},
+    },
+    "required": [
+        "question_interpretation",
+        "fact_observed",
+        "observed_fact",
+        "evidence_timestamps",
+        "conflicts_or_uncertainty",
+        "needs_more_evidence",
+    ],
+}
+
+
+_FORBIDDEN_PROVIDER_KEYS = frozenset(
+    {
+        "answer",
+        "annotation",
+        "audit",
+        "audit_notes",
+        "correct",
+        "direct_answer",
+        "expected_answer",
+        "gold",
+        "label",
+        "manual_audit",
+        "prediction",
+        "reference",
+        "reference_answer",
+        "reviewer",
+        "rationale",
+        "score",
+        "verdict",
+    }
+)
+_SAFE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+
+
+def _canonical(value: Any) -> bytes:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _sha256_bytes(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
+def _load_json(path: Path) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"invalid JSON input: {path}") from error
+
+
+def _write_once(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    try:
+        with path.open("x", encoding="utf-8") as handle:
+            handle.write(text)
+    except FileExistsError as error:
+        raise ValueError(f"refusing to overwrite immutable artifact: {path}") from error
+
+
+def _write_text_once(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("x", encoding="utf-8") as handle:
+            handle.write(text)
+    except FileExistsError as error:
+        raise ValueError(f"refusing to overwrite immutable artifact: {path}") from error
+
+
+def _string(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field} must be a non-empty string")
+    return value.strip()
+
+
+def _number(value: Any, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field} must be a number")
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError(f"{field} must be finite")
+    return result
+
+
+def _schema_sha256() -> str:
+    return hashlib.sha256(_canonical(PROBE_SCHEMA)).hexdigest()
+
+
+def _validator_sha256() -> str:
+    """Hash validator source so Task 2 freezes validation semantics too."""
+
+    source = inspect.getsource(validate_probe)
+    return hashlib.sha256(source.encode()).hexdigest()
+
+
+def _line_text(item: Mapping[str, Any], field: str) -> str:
+    text = item.get("text", item.get("claim", item.get("description")))
+    return _string(text, f"{field}.text")
+
+
+def _normalise_map_lines(value: Any, field: str = "map_lines") -> list[dict[str, Any]]:
+    if not isinstance(value, list) or not value:
+        raise ValueError(f"{field} must be a non-empty list")
+    lines: list[dict[str, Any]] = []
+    for index, raw in enumerate(value):
+        if not isinstance(raw, Mapping):
+            raise ValueError(f"{field}[{index}] must be an object")
+        _reject_provider_fields(raw, f"{field}[{index}]")
+        text = _line_text(raw, f"{field}[{index}]")
+        line_number = raw.get("line_number", raw.get("index", index + 1))
+        if isinstance(line_number, bool) or not isinstance(line_number, int) or line_number < 1:
+            raise ValueError(f"{field}[{index}].line_number must be a positive integer")
+        line: dict[str, Any] = {"line_number": line_number, "text": text}
+        for key in ("start_seconds", "end_seconds"):
+            if key in raw:
+                line[key] = _number(raw[key], f"{field}[{index}].{key}")
+        lines.append(line)
+    return lines
+
+
+def _reject_provider_fields(value: Any, field: str) -> None:
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            if not isinstance(key, str):
+                raise ValueError(f"{field} has a non-text field name")
+            normalized = key.casefold().replace("-", "_")
+            if normalized in _FORBIDDEN_PROVIDER_KEYS:
+                raise ValueError(f"provider-safe rows contain forbidden field: {field}.{key}")
+            _reject_provider_fields(child, f"{field}.{key}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            _reject_provider_fields(child, f"{field}[{index}]")
+
+
+def _provider_projection(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    projection: list[dict[str, Any]] = []
+    for index, raw in enumerate(rows):
+        if not isinstance(raw, Mapping):
+            raise ValueError(f"provider row {index} must be an object")
+        _reject_provider_fields(raw, f"provider row {index}")
+        audit_index = raw.get("audit_index", raw.get("index"))
+        if isinstance(audit_index, bool) or not isinstance(audit_index, int) or audit_index < 1:
+            raise ValueError(f"provider row {index}.audit_index must be a positive integer")
+        question = _string(raw.get("question"), f"provider row {index}.question")
+        map_lines = _normalise_map_lines(raw.get("map_lines", raw.get("evidence")), f"provider row {index}.map_lines")
+        item: dict[str, Any] = {
+            "audit_index": audit_index,
+            "question": question,
+            "map_lines": map_lines,
+        }
+        # A stable source-row ID is safe navigation metadata.  It is retained
+        # in the private digest but is never inserted into the prompt.
+        if "video_id" in raw:
+            item["video_id"] = _string(raw["video_id"], f"provider row {index}.video_id")
+        for key in ("clip_start_seconds", "clip_end_seconds", "clip_duration_seconds"):
+            if key in raw:
+                item[key] = _number(raw[key], f"provider row {index}.{key}")
+        projection.append(item)
+    if len({item["audit_index"] for item in projection}) != len(projection):
+        raise ValueError("provider rows contain duplicate audit_index")
+    return projection
+
+
+def provider_rows_sha256(rows: Sequence[Mapping[str, Any]]) -> str:
+    """Hash the ordered provider-safe projection, excluding all labels."""
+
+    return hashlib.sha256(_canonical(_provider_projection(rows))).hexdigest()
+
+
+def build_prompt(
+    question: str,
+    map_lines: Sequence[Mapping[str, Any]],
+    clip_start_seconds: float,
+    clip_end_seconds: float,
+) -> str:
+    """Build the frozen question-localized, evidence-only probe prompt."""
+
+    question_text = _string(question, "question")
+    start = _number(clip_start_seconds, "clip_start_seconds")
+    end = _number(clip_end_seconds, "clip_end_seconds")
+    if start < 0 or end <= start:
+        raise ValueError("clip offsets must satisfy 0 <= start < end")
+    lines = _normalise_map_lines(list(map_lines), "map_lines")
+    evidence = "\n".join(
+        f"[{line['line_number']}] {line['text']}" for line in lines
+    )
+    return f"""Inspect the local video clip first. The clip's source-video offset is {start:.3f} to {end:.3f} seconds. Timestamp every observation with a clip-relative timestamp from 0.000 through the clip duration; never use source-video timestamps in evidence_timestamps.
+
+Answer only whether the requested visual fact in the question is directly observable in this clip. Use the frozen scene-map lines only as navigation. Do not answer a competition question and do not produce answer candidates or an answer candidate.
+
+Do not use references, previous answers, labels, scores, audit verdicts, or world knowledge. Do not guess or infer purpose, cause, identity, exact speech, OCR text, counts, or any fact not visibly supported in this clip. Do not rely on audio to assert an exact speech fact. Do not describe what should be present.
+
+Return exactly the JSON fields in the supplied schema. Interpret the requested entity, requested visual fact, and temporal qualifier. If and only if the fact is visibly supported, set fact_observed to true, give one concise observed_fact, and provide one or more clip-relative evidence_timestamps. If the fact is not supported or is ambiguous, set fact_observed to false, observed_fact to an empty string, evidence_timestamps to an empty list, conflicts_or_uncertainty to a non-empty explanation, and needs_more_evidence to true. Do not return references, previous predictions, multiple candidates, purpose, exact speech, OCR, or counts.
+
+Question:
+{question_text}
+
+Frozen scene-map lines:
+{evidence}"""
+
+
+def _prompt_template_sha256() -> str:
+    return hashlib.sha256(
+        build_prompt("{{QUESTION}}", [{"line_number": 1, "text": "{{MAP_LINE}}"}], 1.25, 3.5).encode()
+    ).hexdigest()
+
+
+def validate_probe(payload: Any, clip_duration_seconds: float) -> dict[str, Any]:
+    """Validate the strict evidence-recovery response and normalize it."""
+
+    if not isinstance(payload, Mapping):
+        raise ValueError("probe response must be an object")
+    required = set(PROBE_SCHEMA["required"])
+    if set(payload) != required:
+        raise ValueError("probe response fields are invalid")
+    interpretation_payload = payload["question_interpretation"]
+    interpretation_fields = {
+        "requested_entity",
+        "requested_visual_fact",
+        "temporal_qualifier",
+    }
+    if not isinstance(interpretation_payload, Mapping) or set(interpretation_payload) != interpretation_fields:
+        raise ValueError("question_interpretation fields are invalid")
+    interpretation = {
+        key: _string(interpretation_payload[key], f"question_interpretation.{key}")
+        for key in sorted(interpretation_fields)
+    }
+    fact_observed = payload["fact_observed"]
+    if not isinstance(fact_observed, bool):
+        raise ValueError("fact_observed must be boolean")
+    observed_fact = payload["observed_fact"]
+    if not isinstance(observed_fact, str):
+        raise ValueError("observed_fact must be text")
+    if fact_observed and not observed_fact.strip():
+        raise ValueError("observed_fact is required when fact_observed is true")
+    if not fact_observed and observed_fact != "":
+        raise ValueError("observed_fact must be empty when fact_observed is false")
+    timestamp_payload = payload["evidence_timestamps"]
+    if not isinstance(timestamp_payload, list):
+        raise ValueError("evidence_timestamps must be a list")
+    duration = _number(clip_duration_seconds, "clip_duration_seconds")
+    if duration <= 0:
+        raise ValueError("clip_duration_seconds must be positive")
+    timestamps: list[float] = []
+    for index, value in enumerate(timestamp_payload):
+        timestamp = _number(value, f"evidence_timestamps[{index}]")
+        if timestamp < 0 or timestamp > duration:
+            raise ValueError(f"evidence timestamp is outside clip duration: {timestamp}")
+        timestamps.append(timestamp)
+    if timestamps != sorted(set(timestamps)):
+        raise ValueError("evidence_timestamps must be sorted and unique")
+    uncertainty_payload = payload["conflicts_or_uncertainty"]
+    if not isinstance(uncertainty_payload, list):
+        raise ValueError("conflicts_or_uncertainty must be a list")
+    uncertainty = [
+        _string(value, f"conflicts_or_uncertainty[{index}]")
+        for index, value in enumerate(uncertainty_payload)
+    ]
+    needs_more_evidence = payload["needs_more_evidence"]
+    if not isinstance(needs_more_evidence, bool):
+        raise ValueError("needs_more_evidence must be boolean")
+    if fact_observed:
+        if not timestamps:
+            raise ValueError("observed fact requires an evidence timestamp")
+        if needs_more_evidence:
+            raise ValueError("supported observed fact cannot need more evidence")
+    else:
+        if timestamps:
+            raise ValueError("unobserved fact must not include timestamps")
+        if not uncertainty:
+            raise ValueError("unobserved fact requires conflicts_or_uncertainty")
+        if not needs_more_evidence:
+            raise ValueError("unobserved fact requires needs_more_evidence")
+    return {
+        "question_interpretation": interpretation,
+        "fact_observed": fact_observed,
+        "observed_fact": observed_fact,
+        "evidence_timestamps": timestamps,
+        "conflicts_or_uncertainty": uncertainty,
+        "needs_more_evidence": needs_more_evidence,
+    }
+
+
+def _rows_payload(payload: Any, filename: str) -> list[dict[str, Any]]:
+    if isinstance(payload, Mapping):
+        rows = payload.get("rows")
+    else:
+        rows = payload
+    if not isinstance(rows, list) or not rows:
+        raise ValueError(f"{filename} must contain a non-empty rows list")
+    return [dict(row) if isinstance(row, Mapping) else row for row in rows]
+
+
+def _index_by_audit(rows: Sequence[Mapping[str, Any]], filename: str) -> dict[int, dict[str, Any]]:
+    result: dict[int, dict[str, Any]] = {}
+    for index, row in enumerate(rows):
+        if not isinstance(row, Mapping):
+            raise ValueError(f"{filename} row {index} must be an object")
+        value = row.get("audit_index", row.get("index"))
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError(f"{filename} row {index}.audit_index is invalid")
+        if value in result:
+            raise ValueError(f"{filename} contains duplicate audit_index: {value}")
+        result[value] = dict(row)
+    return result
+
+
+def _media_row(row: Mapping[str, Any], root: Path) -> dict[str, Any]:
+    audit_index = row.get("audit_index", row.get("index"))
+    if isinstance(audit_index, bool) or not isinstance(audit_index, int) or audit_index < 1:
+        raise ValueError("media row audit_index is invalid")
+    path_value = row.get("clip_path", row.get("path", row.get("media_path")))
+    path = Path(_string(path_value, f"media row {audit_index}.clip_path"))
+    if not path.is_absolute():
+        path = root / path
+    path = path.resolve()
+    if not path.is_file():
+        raise ValueError(f"clip is missing: {path}")
+    declared_sha = row.get("clip_sha256", row.get("sha256", row.get("media_sha256")))
+    declared_sha = _string(declared_sha, f"media row {audit_index}.clip_sha256")
+    actual_sha = _sha256(path)
+    if declared_sha != actual_sha:
+        raise ValueError(f"clip hash mismatch for audit_index {audit_index}")
+    mime_type = _string(row.get("mime_type", "video/mp4"), f"media row {audit_index}.mime_type")
+    start = _number(row.get("clip_start_seconds", row.get("start_seconds")), f"media row {audit_index}.clip_start_seconds")
+    end = _number(row.get("clip_end_seconds", row.get("end_seconds")), f"media row {audit_index}.clip_end_seconds")
+    duration = _number(row.get("clip_duration_seconds", row.get("duration_seconds", end - start)), f"media row {audit_index}.clip_duration_seconds")
+    if start < 0 or end <= start or duration <= 0 or end - start <= 0:
+        raise ValueError(f"media offsets are invalid for audit_index {audit_index}")
+    arms = row.get("arms", {})
+    if not isinstance(arms, Mapping):
+        raise ValueError(f"media row {audit_index}.arms must be an object")
+    for fps in EXPECTED_FPS:
+        arm_name = _arm_name(fps)
+        arm = arms.get(arm_name, arms.get(str(fps)))
+        if not isinstance(arm, Mapping):
+            raise ValueError(f"media row {audit_index} arm {arm_name} is missing")
+        arm_fps = _number(arm.get("fps", fps), f"media row {audit_index} arm {arm_name}.fps")
+        if arm_fps != fps:
+            raise ValueError(f"FPS drift for audit_index {audit_index}: expected {fps}")
+        arm_sha = arm.get("clip_sha256", arm.get("sha256", declared_sha))
+        if arm_sha != declared_sha:
+            raise ValueError(f"paired arms are not byte-identical for audit_index {audit_index}")
+    role = _string(row.get("role", "unknown"), f"media row {audit_index}.role")
+    return {
+        "audit_index": audit_index,
+        "role": role,
+        "clip_path": path,
+        "clip_sha256": declared_sha,
+        "mime_type": mime_type,
+        "clip_start_seconds": start,
+        "clip_end_seconds": end,
+        "clip_duration_seconds": duration,
+    }
+
+
+def _arm_name(fps: float) -> str:
+    return f"{int(fps)}fps"
+
+
+def _validate_inputs(root: Path) -> tuple[list[dict[str, Any]], dict[int, dict[str, Any]], dict[int, dict[str, Any]]]:
+    required = (
+        "treatment-freeze.json",
+        "selection-freeze.json",
+        "provider-rows.json",
+        "media-manifest.json",
+        "provider-authorization.json",
+    )
+    paths = {name: root / name for name in required}
+    for name, path in paths.items():
+        if not path.is_file():
+            raise ValueError(f"missing required input: {path}")
+    treatment = _load_json(paths["treatment-freeze.json"])
+    selection = _load_json(paths["selection-freeze.json"])
+    provider_payload = _load_json(paths["provider-rows.json"])
+    media_payload = _load_json(paths["media-manifest.json"])
+    authorization = _load_json(paths["provider-authorization.json"])
+    if not isinstance(treatment, Mapping) or not isinstance(selection, Mapping) or not isinstance(authorization, Mapping):
+        raise ValueError("treatment, selection, and authorization freezes must be objects")
+    if treatment.get("status") != "frozen":
+        raise ValueError("treatment freeze must have status=frozen")
+    if treatment.get("model") not in {None, MODEL}:
+        raise ValueError("treatment model does not match runner")
+    if treatment.get("settings") != EXPECTED_SETTINGS:
+        raise ValueError("treatment settings do not match runner")
+    if treatment.get("expected_fps") != list(EXPECTED_FPS):
+        raise ValueError("treatment expected FPS does not match runner")
+    if treatment.get("max_calls") != MAX_CALLS:
+        raise ValueError("treatment call cap does not match runner")
+    expected_hashes = {
+        "runner_sha256": _sha256(SCRIPT_PATH),
+        "config_sha256": _sha256(CONFIG_PATH),
+        "prompt_template_sha256": _prompt_template_sha256(),
+        "response_schema_sha256": _schema_sha256(),
+        "validator_sha256": _validator_sha256(),
+    }
+    for field, expected in expected_hashes.items():
+        if treatment.get(field) != expected:
+            raise ValueError(f"treatment {field} does not match current bytes")
+    provider_rows = _rows_payload(provider_payload, "provider-rows.json")
+    raw_role_by_index: dict[int, str] = {}
+    for row in provider_rows:
+        if not isinstance(row, Mapping):
+            continue
+        row_index = row.get("audit_index", row.get("index"))
+        if isinstance(row_index, int) and not isinstance(row_index, bool) and isinstance(row.get("role"), str):
+            raw_role_by_index[row_index] = row["role"]
+    projection = _provider_projection(provider_rows)
+    provider_by_index = {row["audit_index"]: row for row in projection}
+    media_raw = _rows_payload(media_payload, "media-manifest.json")
+    media_by_index = {row["audit_index"]: _media_row(row, root) for row in media_raw}
+    if set(provider_by_index) != set(media_by_index):
+        raise ValueError("provider rows and media manifest audit indexes do not match")
+    provider_sha = provider_rows_sha256(provider_rows)
+    media_sha = _sha256(paths["media-manifest.json"])
+    treatment_sha = _sha256(paths["treatment-freeze.json"])
+    selection_sha = _sha256(paths["selection-freeze.json"])
+    if selection.get("status") != "frozen":
+        raise ValueError("selection freeze must have status=frozen")
+    if selection.get("treatment_freeze_sha256") != treatment_sha:
+        raise ValueError("selection treatment hash does not match current bytes")
+    if selection.get("provider_rows_sha256") != provider_sha:
+        raise ValueError("selection provider rows hash does not match current bytes")
+    if selection.get("media_manifest_sha256") != media_sha:
+        raise ValueError("selection media manifest hash does not match current bytes")
+    selection_role_by_index: dict[int, str] = {}
+    metadata_rows = selection.get("selected_row_metadata", [])
+    if isinstance(metadata_rows, list):
+        for item in metadata_rows:
+            if isinstance(item, Mapping) and isinstance(item.get("audit_index"), int) and isinstance(item.get("role"), str):
+                selection_role_by_index[item["audit_index"]] = item["role"]
+    selected = selection.get("selected_rows")
+    if not isinstance(selected, list):
+        raise ValueError("selection selected_rows must be a list")
+    selected_ids = [item if isinstance(item, (int, str)) else item.get("audit_index") if isinstance(item, Mapping) else None for item in selected]
+    expected_selected = [row.get("video_id", row["audit_index"]) for row in projection]
+    if selected_ids != expected_selected and selected_ids != list(provider_by_index):
+        raise ValueError("selection selected_rows do not match provider row order")
+    planned_calls = len(provider_by_index) * len(EXPECTED_FPS)
+    if planned_calls > MAX_CALLS:
+        raise ValueError("planned call count exceeds frozen call cap")
+    if selection.get("planned_call_count") != planned_calls:
+        raise ValueError("selection planned call count drift")
+    if authorization.get("status") != "authorized":
+        raise ValueError("provider authorization status must be exactly authorized")
+    if authorization.get("promotion_gate") not in {None, "PASS"}:
+        raise ValueError("provider authorization promotion gate must be PASS")
+    auth_expected = {
+        "treatment_freeze_sha256": treatment_sha,
+        "selection_freeze_sha256": selection_sha,
+        "provider_rows_sha256": provider_sha,
+        "media_manifest_sha256": media_sha,
+    }
+    for field, expected in auth_expected.items():
+        if authorization.get(field) != expected:
+            raise ValueError(f"provider authorization {field} does not match current bytes")
+    if authorization.get("planned_call_count") != planned_calls:
+        raise ValueError("provider authorization planned call count drift")
+    if authorization.get("max_calls") != MAX_CALLS:
+        raise ValueError("provider authorization call cap drift")
+    rows: list[dict[str, Any]] = []
+    for projection_row in projection:
+        audit_index = projection_row["audit_index"]
+        media = media_by_index[audit_index]
+        for key in ("clip_start_seconds", "clip_end_seconds", "clip_duration_seconds"):
+            if key in projection_row and projection_row[key] != media[key]:
+                raise ValueError(f"provider/media {key} drift for audit_index {audit_index}")
+        if media["role"] == "unknown":
+            media = {
+                **media,
+                "role": selection_role_by_index.get(
+                    audit_index, raw_role_by_index.get(audit_index, "unknown")
+                ),
+            }
+        rows.append({"provider": projection_row, "media": media})
+    return rows, provider_by_index, media_by_index
+
+
+def _provider_result(result: Any) -> tuple[str, dict[str, Any]]:
+    if not isinstance(result, tuple) or len(result) != 2:
+        raise ValueError("provider call must return (raw_text, metadata)")
+    raw, metadata = result
+    if not isinstance(raw, str):
+        raise ValueError("provider raw response must be text")
+    if not isinstance(metadata, Mapping):
+        raise ValueError("provider metadata must be an object")
+    return raw, dict(metadata)
+
+
+def _call_provider(clip_bytes: bytes, mime_type: str, prompt: str, fps: float) -> tuple[str, dict[str, Any]]:
+    from google import genai
+    from google.genai import types
+
+    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    video = types.Part(
+        inline_data=types.Blob(data=clip_bytes, mime_type=mime_type),
+        video_metadata=types.VideoMetadata(fps=fps),
+        media_resolution=types.PartMediaResolution(
+            level=types.PartMediaResolutionLevel.MEDIA_RESOLUTION_HIGH
+        ),
+    )
+    started = time.monotonic()
+    response = client.models.generate_content(
+        model=MODEL,
+        contents=[video, prompt],
+        config=types.GenerateContentConfig(
+            temperature=0.0,
+            seed=42,
+            candidate_count=1,
+            max_output_tokens=2048,
+            response_mime_type="application/json",
+            response_schema=PROBE_SCHEMA,
+            thinking_config=types.ThinkingConfig(
+                thinking_level=types.ThinkingLevel.HIGH,
+                include_thoughts=False,
+            ),
+        ),
+    )
+    raw = response.text or ""
+    usage = getattr(response, "usage_metadata", None)
+    metadata: dict[str, Any] = {
+        "elapsed_seconds": time.monotonic() - started,
+        "response_text_sha256": _sha256_bytes(raw.encode()),
+        "model_version": getattr(response, "model_version", None),
+        "response_id": getattr(response, "response_id", None),
+    }
+    if usage is not None:
+        for name in ("prompt_token_count", "candidates_token_count", "total_token_count"):
+            value = getattr(usage, name, None)
+            if value is not None:
+                metadata[name] = value
+    return raw, metadata
+
+
+def _arm_directory(root: Path, audit_index: int, role: str, fps: float) -> Path:
+    if not _SAFE_ID_RE.fullmatch(role):
+        raise ValueError(f"row role is not path-safe: {role}")
+    return root / "rows" / f"{audit_index:02d}-{role}-{_arm_name(fps)}"
+
+
+def _request_payload(
+    provider: Mapping[str, Any], media: Mapping[str, Any], fps: float, prompt: str
+) -> dict[str, Any]:
+    return {
+        "model": MODEL,
+        "settings": EXPECTED_SETTINGS,
+        "fps": fps,
+        "mime_type": media["mime_type"],
+        "clip_sha256": media["clip_sha256"],
+        "clip_start_seconds": media["clip_start_seconds"],
+        "clip_end_seconds": media["clip_end_seconds"],
+        "clip_duration_seconds": media["clip_duration_seconds"],
+        "contents": [
+            {
+                "type": "video",
+                "mime_type": media["mime_type"],
+                "clip_sha256": media["clip_sha256"],
+            },
+            {"type": "text", "text": prompt},
+        ],
+        "question": provider["question"],
+        "map_lines": provider["map_lines"],
+        "prompt": prompt,
+        "response_schema": PROBE_SCHEMA,
+    }
+
+
+def run(root: Path, call: CallFunction | None = None) -> None:
+    """Run one immutable provider attempt for each selected row and FPS arm."""
+
+    root = Path(root)
+    if not root.is_dir():
+        raise ValueError(f"run root does not exist: {root}")
+    if (root / "predictions-freeze.json").exists() or (root / "rows").exists():
+        raise ValueError("output already has artifacts; refusing to overwrite")
+    rows, _provider_by_index, _media_by_index = _validate_inputs(root)
+    provider = call or _call_provider
+    planned = len(rows) * len(EXPECTED_FPS)
+    if planned > MAX_CALLS:
+        raise ValueError("planned call count exceeds MAX_CALLS")
+    calls = 0
+    for item in rows:
+        provider_row = item["provider"]
+        media = item["media"]
+        audit_index = provider_row["audit_index"]
+        role = _string(media["role"], f"media row {audit_index}.role")
+        clip_path = media["clip_path"]
+        clip_bytes = clip_path.read_bytes()
+        if _sha256_bytes(clip_bytes) != media["clip_sha256"]:
+            raise ValueError(f"clip hash changed before call for audit_index {audit_index}")
+        for fps in EXPECTED_FPS:
+            row_root = _arm_directory(root, audit_index, role, fps)
+            prompt = build_prompt(
+                provider_row["question"],
+                provider_row["map_lines"],
+                media["clip_start_seconds"],
+                media["clip_end_seconds"],
+            )
+            _write_once(row_root / "request.json", _request_payload(provider_row, media, fps, prompt))
+            calls += 1
+            try:
+                raw, metadata = _provider_result(provider(clip_bytes, media["mime_type"], prompt, fps))
+            except Exception as error:
+                _write_once(row_root / "metadata.json", {"error_type": type(error).__name__, "error": str(error)})
+                _write_once(
+                    row_root / "terminal.json",
+                    {"audit_index": audit_index, "role": role, "fps": fps, "status": "provider_error", "error_type": type(error).__name__},
+                )
+                continue
+            _write_text_once(row_root / "raw-response.txt", raw)
+            metadata = {**metadata, "raw_response_sha256": _sha256_bytes(raw.encode())}
+            _write_once(row_root / "metadata.json", metadata)
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError as error:
+                _write_once(
+                    row_root / "terminal.json",
+                    {"audit_index": audit_index, "role": role, "fps": fps, "status": "invalid_json", "error_type": type(error).__name__, "error": str(error), "raw_response_sha256": _sha256_bytes(raw.encode())},
+                )
+                continue
+            try:
+                parsed = validate_probe(payload, media["clip_duration_seconds"])
+            except ValueError as error:
+                _write_once(
+                    row_root / "terminal.json",
+                    {"audit_index": audit_index, "role": role, "fps": fps, "status": "contract_error", "error_type": type(error).__name__, "error": str(error), "raw_response_sha256": _sha256_bytes(raw.encode())},
+                )
+                continue
+            _write_once(row_root / "parsed.json", parsed)
+            _write_once(
+                row_root / "terminal.json",
+                {"audit_index": audit_index, "role": role, "fps": fps, "status": "passed", "raw_response_sha256": _sha256_bytes(raw.encode())},
+            )
+    if calls != planned:
+        raise ValueError("provider call count drift")
+
+
+def _freeze_inputs(root: Path) -> dict[str, Any]:
+    _validate_inputs(root)
+    return {
+        "treatment_freeze_sha256": _sha256(root / "treatment-freeze.json"),
+        "selection_freeze_sha256": _sha256(root / "selection-freeze.json"),
+        "provider_rows_sha256": _sha256(root / "provider-rows.json"),
+        "media_manifest_sha256": _sha256(root / "media-manifest.json"),
+        "provider_authorization_sha256": _sha256(root / "provider-authorization.json"),
+    }
+
+
+def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
+    rows, _provider_by_index, _media_by_index = _validate_inputs(root)
+    expected_inputs = _freeze_inputs(root)
+    for key, value in expected_inputs.items():
+        if freeze.get(key) != value:
+            raise ValueError(f"predictions freeze does not bind current {key}")
+    expected_metadata = {
+        "runner_sha256": _sha256(SCRIPT_PATH),
+        "config_sha256": _sha256(CONFIG_PATH),
+        "prompt_template_sha256": _prompt_template_sha256(),
+        "response_schema_sha256": _schema_sha256(),
+        "validator_sha256": _validator_sha256(),
+    }
+    for key, value in expected_metadata.items():
+        if freeze.get(key) != value:
+            raise ValueError(f"predictions freeze does not bind current {key}")
+    planned = len(rows) * len(EXPECTED_FPS)
+    if freeze.get("row_count") != planned or freeze.get("completed_count") != planned or freeze.get("call_count") != planned:
+        raise ValueError("predictions freeze call count is inconsistent")
+    frozen_rows = freeze.get("rows")
+    if not isinstance(frozen_rows, list) or len(frozen_rows) != planned:
+        raise ValueError("predictions freeze rows are inconsistent")
+    expected_keys: set[tuple[int, float]] = set()
+    passed = 0
+    for item in rows:
+        audit_index = item["provider"]["audit_index"]
+        role = item["media"]["role"]
+        for fps in EXPECTED_FPS:
+            expected_keys.add((audit_index, fps))
+            row_root = _arm_directory(root, audit_index, role, fps)
+            terminal_path = row_root / "terminal.json"
+            if not terminal_path.is_file():
+                raise ValueError(f"row has no terminal state: {row_root.name}")
+            terminal = _load_json(terminal_path)
+            status = terminal.get("status")
+            if terminal.get("audit_index") != audit_index or terminal.get("fps") != fps:
+                raise ValueError(f"terminal row identity mismatch: {row_root.name}")
+            if status not in TERMINAL_STATUSES:
+                raise ValueError(f"unknown terminal status: {row_root.name}")
+            if status == "passed":
+                passed += 1
+            required = {"request.json", "metadata.json", "terminal.json"}
+            if status in {"passed", "invalid_json", "contract_error"}:
+                required.add("raw-response.txt")
+            if status == "passed":
+                required.add("parsed.json")
+                validate_probe(_load_json(row_root / "parsed.json"), item["media"]["clip_duration_seconds"])
+            entries = {path.name for path in row_root.iterdir()}
+            names = {path.name for path in row_root.iterdir() if path.is_file()}
+            if entries != names or not required.issubset(names) or not names.issubset(set(ROW_ARTIFACT_NAMES)):
+                raise ValueError(f"row artifact set is invalid: {row_root.name}")
+            if status == "passed":
+                validate_probe(
+                    _load_json(row_root / "parsed.json"),
+                    item["media"]["clip_duration_seconds"],
+                )
+            frozen = next((value for value in frozen_rows if isinstance(value, Mapping) and value.get("audit_index") == audit_index and value.get("fps") == fps), None)
+            if frozen is None:
+                raise ValueError(f"predictions freeze row is missing: {row_root.name}")
+            artifacts = frozen.get("artifacts")
+            if not isinstance(artifacts, Mapping) or set(artifacts) != names:
+                raise ValueError(f"frozen row artifact set changed: {row_root.name}")
+            for name, digest in artifacts.items():
+                if _sha256(row_root / name) != digest:
+                    raise ValueError(f"frozen row artifact changed: {row_root.name}/{name}")
+    if freeze.get("passed_count") != passed or freeze.get("failed_count") != planned - passed:
+        raise ValueError("predictions freeze status counts are inconsistent")
+
+
+def verify_predictions_freeze(root: Path) -> None:
+    """Create the prediction freeze once, then reject any byte drift."""
+
+    root = Path(root)
+    rows, _provider_by_index, _media_by_index = _validate_inputs(root)
+    planned = len(rows) * len(EXPECTED_FPS)
+    frozen_rows: list[dict[str, Any]] = []
+    passed = 0
+    for item in rows:
+        audit_index = item["provider"]["audit_index"]
+        role = item["media"]["role"]
+        for fps in EXPECTED_FPS:
+            row_root = _arm_directory(root, audit_index, role, fps)
+            terminal_path = row_root / "terminal.json"
+            if not terminal_path.is_file():
+                raise ValueError(f"row has no terminal state: {row_root.name}")
+            terminal = _load_json(terminal_path)
+            if terminal.get("status") == "passed":
+                passed += 1
+            status = terminal.get("status")
+            if status not in TERMINAL_STATUSES:
+                raise ValueError(f"unknown terminal status: {row_root.name}")
+            required = {"request.json", "metadata.json", "terminal.json"}
+            if status in {"passed", "invalid_json", "contract_error"}:
+                required.add("raw-response.txt")
+            if status == "passed":
+                required.add("parsed.json")
+            entries = {path.name for path in row_root.iterdir()}
+            names = {path.name for path in row_root.iterdir() if path.is_file()}
+            missing = required - names
+            if missing:
+                raise ValueError(f"row evidence artifacts missing: {row_root.name}: {sorted(missing)}")
+            if entries != names or not names.issubset(set(ROW_ARTIFACT_NAMES)):
+                raise ValueError(f"row has unexpected artifacts: {row_root.name}")
+            if status == "passed":
+                validate_probe(
+                    _load_json(row_root / "parsed.json"),
+                    item["media"]["clip_duration_seconds"],
+                )
+            frozen_rows.append(
+                {
+                    "audit_index": audit_index,
+                    "role": role,
+                    "fps": fps,
+                    "status": status,
+                    "artifacts": {name: _sha256(row_root / name) for name in sorted(names)},
+                }
+            )
+    input_hashes = _freeze_inputs(root)
+    prediction_path = root / "predictions-freeze.json"
+    if prediction_path.exists():
+        _verify_freeze_contents(root, _load_json(prediction_path))
+        return
+    freeze = {
+        "schema_version": 1,
+        "status": "frozen",
+        "experiment_id": "dense-question-localized-evidence-issue35-v1",
+        "model": MODEL,
+        "expected_fps": list(EXPECTED_FPS),
+        "frozen_at": datetime.now(UTC).isoformat(),
+        "row_count": planned,
+        "completed_count": planned,
+        "call_count": planned,
+        "passed_count": passed,
+        "failed_count": planned - passed,
+        **input_hashes,
+        "runner_sha256": _sha256(SCRIPT_PATH),
+        "config_sha256": _sha256(CONFIG_PATH),
+        "prompt_template_sha256": _prompt_template_sha256(),
+        "response_schema_sha256": _schema_sha256(),
+        "validator_sha256": _validator_sha256(),
+        "rows": frozen_rows,
+    }
+    _write_once(prediction_path, freeze)
+    _verify_freeze_contents(root, freeze)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+    run_parser = sub.add_parser("run")
+    run_parser.add_argument("--root", type=Path, required=True)
+    freeze_parser = sub.add_parser("freeze")
+    freeze_parser.add_argument("--root", type=Path, required=True)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    if args.command == "run":
+        run(args.root)
+    else:
+        verify_predictions_freeze(args.root)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
