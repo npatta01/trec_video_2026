@@ -6,7 +6,7 @@ import hashlib
 import json
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from trec_video_2026.vqa_counting_evidence import validate_label_blind
 
@@ -220,7 +220,11 @@ def _parse_view(
 
 
 def parse_count_spec(
-    payload: object, *, question: str, duration_seconds: float
+    payload: object,
+    *,
+    question: str,
+    duration_seconds: float,
+    require_complete_views: bool = True,
 ) -> CountSpec | UnsupportedCountSpec:
     validate_label_blind(payload)
     value = _mapping(payload, field="count_spec")
@@ -284,7 +288,7 @@ def parse_count_spec(
         raise ValueError("candidate_views must not be empty")
     if len({item.view_id for item in views}) != len(views):
         raise ValueError("candidate view_id values must be unique")
-    if route == "temporal":
+    if route == "temporal" and require_complete_views:
         windows = sorted(
             views,
             key=lambda item: (
@@ -314,6 +318,32 @@ def parse_count_spec(
         candidate_views=views,
         uncertainty=_string(value["uncertainty"], field="uncertainty"),
     )
+
+
+def schedule_evidence_views(
+    spec: CountSpec, *, window_seconds: float = 6.0, overlap_seconds: float = 1.0
+) -> CountSpec:
+    if spec.route != "temporal":
+        return spec
+    if window_seconds <= 0 or overlap_seconds < 0 or overlap_seconds >= window_seconds:
+        raise ValueError("window schedule requires 0 <= overlap < positive window")
+    views = []
+    start = spec.scope.start_seconds
+    step = window_seconds - overlap_seconds
+    while start < spec.scope.end_seconds:
+        end = min(spec.scope.end_seconds, start + window_seconds)
+        views.append(
+            CandidateView(
+                view_id=f"W{len(views)}",
+                kind="window",
+                start_seconds=start,
+                end_seconds=end,
+            )
+        )
+        if end >= spec.scope.end_seconds:
+            break
+        start += step
+    return replace(spec, candidate_views=tuple(views))
 
 
 def _parse_record(
@@ -780,7 +810,9 @@ def build_count_spec_prompt(*, question: str, duration_seconds: float) -> str:
         "inclusions": ["observable inclusion rule"],
         "exclusions": ["observable exclusion rule"],
         "identity_policy": "observable identity rule",
-        "candidate_views": ["windows or shot frames covering the complete scope"],
+        "candidate_views": [
+            "candidate temporal hotspots or representative shot frames; code schedules complete temporal coverage"
+        ],
         "uncertainty": "none or a concise observable uncertainty",
     }
     return (

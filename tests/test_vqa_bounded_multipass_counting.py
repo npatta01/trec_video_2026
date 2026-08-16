@@ -20,6 +20,7 @@ from trec_video_2026.vqa_bounded_multipass_counting import (
     parse_coverage_review,
     parse_evidence,
     reduce_count,
+    schedule_evidence_views,
 )
 
 
@@ -184,6 +185,36 @@ def test_parse_count_spec_rejects_temporal_view_coverage_gap() -> None:
     ]
     with pytest.raises(ValueError, match="cover the complete scope"):
         parse_count_spec(payload, question=QUESTION, duration_seconds=4.0)
+
+
+def test_schedule_evidence_views_replaces_sparse_temporal_hotspots_with_full_windows() -> (
+    None
+):
+    payload = spec_payload()
+    payload["scope"] = {"start_seconds": 0.0, "end_seconds": 16.728}
+    payload["candidate_views"] = [
+        {
+            "view_id": "hotspot",
+            "kind": "window",
+            "start_seconds": 2.0,
+            "end_seconds": 6.0,
+        }
+    ]
+    parsed = parse_count_spec(
+        payload,
+        question=QUESTION,
+        duration_seconds=16.728,
+        require_complete_views=False,
+    )
+    scheduled = schedule_evidence_views(parsed, window_seconds=5.0, overlap_seconds=1.0)
+    assert [
+        (view.start_seconds, view.end_seconds) for view in scheduled.candidate_views
+    ] == [
+        (0.0, 5.0),
+        (4.0, 9.0),
+        (8.0, 13.0),
+        (12.0, 16.728),
+    ]
 
 
 def test_parse_evidence_requires_every_requested_view() -> None:

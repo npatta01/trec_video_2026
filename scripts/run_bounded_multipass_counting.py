@@ -34,6 +34,7 @@ from trec_video_2026.vqa_bounded_multipass_counting import (
     parse_coverage_review,
     parse_evidence,
     reduce_count,
+    schedule_evidence_views,
 )
 from trec_video_2026.vqa_counting_evidence import validate_label_blind
 from trec_video_2026.vqa_submission import canonical_sha256
@@ -951,10 +952,15 @@ def run_fixed_row(
     _write_text_once(spec_stage_root / "prompt.txt", spec_prompt)
 
     def validate_spec(payload: Mapping[str, object]) -> dict[str, object]:
-        parsed = parse_count_spec(payload, question=question, duration_seconds=duration)
+        parsed = parse_count_spec(
+            payload,
+            question=question,
+            duration_seconds=duration,
+            require_complete_views=False,
+        )
         if isinstance(parsed, UnsupportedCountSpec):
             return {"unit": parsed.unit, "unsupported_reason": parsed.reason}
-        return count_spec_to_dict(parsed)
+        return count_spec_to_dict(schedule_evidence_views(parsed))
 
     spec_terminal = execute_stage(
         client=client,
