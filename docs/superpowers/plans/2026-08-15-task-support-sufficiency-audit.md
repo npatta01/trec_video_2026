@@ -203,7 +203,7 @@ Run `freeze-selection`. If fewer than four rows qualify for any role, write `fea
 
 Never stage private artifacts. Record hashes, counts, exposure composition, gate outcome, and next action in the plan; commit that plan update.
 
-#### Task 3 execution status — 2026-08-15
+#### Superseded v1 Task 3 execution status — 2026-08-15
 
 - Treatment freeze verified before opening the label-aware template: `treatment-freeze.json` SHA-256 `fc850cc44e4108959d58ff1bf31a6b737d5e1c4b9a37e083a9f050f387d642ce`; declared source hashes and settings matched the committed config.
 - Candidate preparation retained all `475/475` eligible rows and produced the deterministic `24` low-score plus `8` control audit rows. Exposure remained flag-only: hard audit `30`, grounded v2 `24`, grounded v3 `11`, multi-interpretation `12`, seven-row canary `7`, scope control `7`, synthesis follow-up `7`.
@@ -212,13 +212,21 @@ Never stage private artifacts. Record hashes, counts, exposure composition, gate
 - Selected exposure composition (audited/selected): grounded v2 `5/1`, grounded v3 `3/1`, hard audit `1/0`, multi-interpretation `5/5`, scope control `0/0`, seven-row canary `0/0`, synthesis follow-up `0/0`. These are reporting flags, not exclusions or fresh generalization strata.
 - No provider/API/native-video calls were made. The provider promotion gate is therefore unevaluated; next action is the separately scoped Task 4 run over the frozen 12-row provider-safe protocol.
 
-#### Task 3 correction round 1 status — exact-definition re-adjudication
+#### Superseded Task 3 correction round 1 status — exact-definition re-adjudication
 
 - The original `manual-audit.json`, `selection-freeze.json`, `protocol.json`, and `selection-integrity.json` remain byte-for-byte unchanged. The original selection is invalid for provider authorization.
 - Additive corrected artifacts: `manual-audit-corrected-v2.json` SHA-256 `d7e092ed4986cc1c63c5ed4cb9be53214268f1cedbb9ed028a4323343672c7a9`, `audit-correction-v2.json` SHA-256 `bf081c0201074b4302c9dde45b24df3f717c84760bc4ad0750b1f29b821e2956`, `corrected-audit-freeze-v2.json` SHA-256 `90d579f77bf153945229cb120300e2260bcab066a1f7e905601323290b2dd473`, and `feasibility-result-v2.json` SHA-256 `b36e8ac1a502bece0dcc1edc37bb64997df555ca7722e44c6ecc99d916ded878`.
 - All `32/32` rows were re-adjudicated against the exact predeclared role definitions. Corrected counts: `answer_sufficient_failure=2`, `insufficient_or_ambiguous=16`, `reference_or_question_issue=6` (nonselectable), `supported_control=8`.
 - Corrected feasibility gate: **FAIL**. Target quota is `2/4` (deficit `2`); safeguard and control quotas pass at `16/4` and `8/4`. No replacement selection or protocol was created.
-- No provider/API/native-video calls were made. Provider authorization is blocked; Task 4 must not run. MM19feoJGmM remains a supported control because Task 1 compares the final answer to a cited model-output claim, not the full input evidence line.
+- No provider/API/native-video calls were made. Provider authorization is blocked; Task 4 must not run. The reviewer’s MM19feoJGmM long-line impossibility finding is retracted; the row remains a supported control because Task 1 compares the final answer to a cited model-output claim, not the full input evidence line.
+
+#### Task 3 correction round 2 status — current corrected feasibility
+
+- Correction round 2 preserves every v1/v2 private artifact byte-for-byte and changes only `LxZuar32o1o` from `answer_sufficient_failure` to `insufficient_or_ambiguous` because the requested two-hula-hoop count qualifier is absent from the frozen map.
+- Current additive artifacts: `manual-audit-corrected-v3.json` SHA-256 `db68cec9be89f4f89305b70578fbd7cb67893e0196c92f93143b5d154db6d3d2`, `audit-correction-v3.json` SHA-256 `4fb41decdca6d2c1df09ac8be2507d28eb02ca5427e607fde2e15ed8e29dcc4a`, `corrected-audit-freeze-v3.json` SHA-256 `45e796683c75cc7f698cbac286e0ba32e006aeae55537e33c6ac6e863f9ae55c`, and `feasibility-result-v3.json` SHA-256 `b639de5dae550f3ba0a5003545b5c35d9b7f9e470d117924d21edd9db8440b1a`.
+- All `32/32` rows remain adjudicated. Current counts: `answer_sufficient_failure=1`, `insufficient_or_ambiguous=17`, `reference_or_question_issue=6` (nonselectable), `supported_control=8`.
+- Current feasibility gate: **FAIL**. Target quota is `1/4` (deficit `3`); safeguard and control quotas pass at `17/4` and `8/4`. No replacement selection or protocol was created, provider authorization is blocked, and Task 4 must not run.
+- The MM19feoJGmM long-line impossibility finding is retracted. No provider/API/native-video calls were made.
 
 ### Task 4: Provider run, scoring, and changed-row audit (conditional)
 
