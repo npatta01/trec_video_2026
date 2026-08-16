@@ -35,9 +35,7 @@ def test_question_type_is_deterministic(question: str, expected: str) -> None:
         ("What happens before the pan catches fire and why?", "temporal"),
     ],
 )
-def test_question_type_obeys_declared_precedence(
-    question: str, expected: str
-) -> None:
+def test_question_type_obeys_declared_precedence(question: str, expected: str) -> None:
     assert classify_question_type(question) == expected
 
 
@@ -98,6 +96,24 @@ def test_current_answer_policy_preserves_existing_instruction_byte_for_byte(
     }
 
 
+def test_gemma_native_image_field_can_be_selected_without_changing_order(
+    tmp_path: Path,
+) -> None:
+    messages = build_controlled_messages(
+        question="Return JSON states",
+        frame_paths=(tmp_path / "F0.jpg", tmp_path / "F4.jpg"),
+        frame_timestamps=(0.0, 0.133),
+        transcript=None,
+        image_field="image",
+    )
+
+    image_items = [item for item in messages[0]["content"] if item["type"] == "image"]
+    assert image_items == [
+        {"type": "image", "image": str((tmp_path / "F0.jpg").resolve())},
+        {"type": "image", "image": str((tmp_path / "F4.jpg").resolve())},
+    ]
+
+
 @pytest.mark.parametrize(
     ("question", "contract"),
     [
@@ -127,7 +143,9 @@ def test_question_aware_policy_is_type_specific_and_label_free(
     serialized = repr(messages).lower()
     assert "reference answer" not in serialized
     assert "ground truth" not in serialized
-    assert not any(item.get("type") in {"reference", "label"} for item in messages[0]["content"])
+    assert not any(
+        item.get("type") in {"reference", "label"} for item in messages[0]["content"]
+    )
 
 
 def test_controlled_messages_keep_frames_in_timestamp_order(tmp_path: Path) -> None:

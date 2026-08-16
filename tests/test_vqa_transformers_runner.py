@@ -18,6 +18,7 @@ from trec_video_2026.vqa_transformers_runner import (
     generation_compat_kwargs,
     load_legacy_optional_processor,
     load_processor,
+    model_image_field,
     parse_args,
     register_legacy_default_rope,
     select_attention_implementation,
@@ -34,6 +35,8 @@ def test_gemma3n_uses_its_proven_eager_attention_runtime() -> None:
         == "eager"
     )
     assert select_attention_implementation("Qwen/example") == "sdpa"
+    assert model_image_field("gemma3n") == "image"
+    assert model_image_field("qwen2_5_vl") == "url"
 
 
 class FakeBatch(dict):

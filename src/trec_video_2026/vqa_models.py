@@ -207,11 +207,14 @@ def build_controlled_messages(
     transcript: str | None,
     frame_descriptions: tuple[str, ...] | None = None,
     answer_policy: str = "current",
+    image_field: str = "url",
 ) -> list[dict[str, Any]]:
     """Build one ordered multimodal message without any evaluation label."""
 
     if answer_policy not in {"current", "question-aware"}:
         raise ValueError(f"Unsupported answer policy: {answer_policy}")
+    if image_field not in {"url", "image"}:
+        raise ValueError(f"Unsupported image field: {image_field}")
     if len(frame_paths) != len(frame_timestamps):
         raise ValueError("Frame paths and timestamps must have equal length")
     if frame_descriptions is not None and len(frame_descriptions) != len(frame_paths):
@@ -235,7 +238,7 @@ def build_controlled_messages(
     content: list[dict[str, str]] = []
     for _, frame_path, description in ordered:
         content.append({"type": "text", "text": description})
-        content.append({"type": "image", "url": str(frame_path.resolve())})
+        content.append({"type": "image", image_field: str(frame_path.resolve())})
     if transcript is not None:
         if not transcript.strip():
             raise ValueError("Transcript must be non-empty when supplied")
