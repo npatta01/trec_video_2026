@@ -363,6 +363,32 @@ def test_score_authenticates_chain_and_passes_two_of_two_rescue_gate(
     assert score["gate_passed"] is True
 
 
+def test_score_authenticates_frozen_one_row_prefix_without_evaluating_gate(
+    tmp_path: Path,
+) -> None:
+    manifest, freeze, panel = build_fixture(tmp_path)
+    freeze["rows"] = freeze["rows"][:1]
+    freeze["completion"] = {"completed": 1, "total": 1}
+    freeze["manifest_row_count"] = 3
+    freeze["total_estimated_cost_usd"] = 0.03
+    freeze = self_hashed(freeze)
+
+    score = MODULE.build_score(
+        root=tmp_path,
+        manifest=manifest,
+        freeze=freeze,
+        panel=panel,
+        metric_rows={"failure-a": metric_rows()["failure-a"]},
+        baseline_rows={"failure-a": baseline_rows()["failure-a"]},
+    )
+
+    assert score["completion"] == {"completed": 1, "total": 1}
+    assert score["rescue"] == {"rescued": 1, "total": 1, "rate": 1.0}
+    assert score["control"] == {"preserved": 0, "total": 0, "rate": None}
+    assert score["gate_evaluable"] is False
+    assert score["gate_passed"] is False
+
+
 def test_score_rejects_post_freeze_result_mutation(tmp_path: Path) -> None:
     manifest, freeze, panel = build_fixture(tmp_path)
     result_path = tmp_path / "rows" / "failure-a" / "result.json"

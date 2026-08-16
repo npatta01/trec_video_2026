@@ -258,11 +258,25 @@ def _authenticate(
     freeze_ids = [str(row["video_id"]) for row in freeze_rows]
     if len(manifest_ids) != 3 or len(set(manifest_ids)) != 3:
         raise ValueError("canary must contain three unique rows")
-    if freeze_ids != manifest_ids:
-        raise ValueError("prediction freeze row identity changed")
     completion = freeze.get("completion")
-    if completion != {"completed": 3, "total": 3}:
+    if not isinstance(completion, Mapping):
+        raise TypeError("prediction freeze completion must be an object")
+    completed = completion.get("completed")
+    total = completion.get("total")
+    if (
+        not isinstance(completed, int)
+        or not isinstance(total, int)
+        or completed != total
+        or total != len(freeze_ids)
+        or not 1 <= total <= len(manifest_ids)
+    ):
         raise ValueError("prediction freeze is incomplete")
+    if total < len(manifest_ids) and freeze.get("manifest_row_count") != len(
+        manifest_ids
+    ):
+        raise ValueError("partial prediction freeze manifest row count changed")
+    if freeze_ids != manifest_ids[:total]:
+        raise ValueError("prediction freeze row identity changed")
 
     results: dict[str, Mapping[str, object]] = {}
     for freeze_row in freeze_rows:
@@ -406,7 +420,7 @@ def build_score(
         raise TypeError("panel rows must be an array")
     panel_by_id = {str(row["video_id"]): row for row in panel_rows}
     if (
-        set(panel_by_id) != set(results)
+        not set(results).issubset(panel_by_id)
         or set(metric_rows) != set(results)
         or set(baseline_rows) != set(results)
     ):
@@ -416,8 +430,8 @@ def build_score(
     failure_total = 0
     preserved = 0
     control_total = 0
-    for row in manifest["rows"]:
-        video_id = str(row["video_id"])
+    for freeze_row in freeze["rows"]:
+        video_id = str(freeze_row["video_id"])
         result = results[video_id]
         panel_row = panel_by_id[video_id]
         reference = str(panel_row["reference_answer"])
@@ -452,24 +466,23 @@ def build_score(
                 "semantic_composite": semantic_composite,
             }
         )
-    if failure_total != 2 or control_total != 1:
-        raise ValueError("canary must contain two failures and one control")
+    gate_evaluable = failure_total == 2 and control_total == 1 and len(rows) == 3
     total_cost = float(freeze["total_estimated_cost_usd"])
     semantic_metrics = _metric_mean(rows)
     baseline_semantic_metrics = _metric_mean(list(baseline_rows.values()))
     score = {
         "schema_version": 1,
         "condition": manifest["condition"],
-        "completion": {"completed": len(rows), "total": 3},
+        "completion": {"completed": len(rows), "total": len(rows)},
         "rescue": {
             "rescued": rescued,
             "total": failure_total,
-            "rate": rescued / failure_total,
+            "rate": rescued / failure_total if failure_total else None,
         },
         "control": {
             "preserved": preserved,
             "total": control_total,
-            "rate": preserved / control_total,
+            "rate": preserved / control_total if control_total else None,
         },
         "semantic_metrics": semantic_metrics,
         "baseline_semantic_metrics": baseline_semantic_metrics,
@@ -485,12 +498,17 @@ def build_score(
         "exact_results": sum(row["outcome"] == "exact" for row in rows),
         "abstentions": sum(row["outcome"] == "abstain" for row in rows),
         "total_estimated_cost_usd": total_cost,
-        "gate_passed": rescued == 2
+        "gate_evaluable": gate_evaluable,
+        "gate_passed": gate_evaluable
+        and rescued == 2
         and preserved == 1
         and total_cost <= BUDGET_CEILING_USD,
         "evidence_validity": "Diagnostic",
         "decision_disposition": "Promising developmental mechanism"
-        if rescued == 2 and preserved == 1 and total_cost <= BUDGET_CEILING_USD
+        if gate_evaluable
+        and rescued == 2
+        and preserved == 1
+        and total_cost <= BUDGET_CEILING_USD
         else "Not promoted under the tested condition",
         "request_manifest_sha256": manifest["complete_sha256"],
         "prediction_freeze_sha256": freeze["complete_sha256"],
