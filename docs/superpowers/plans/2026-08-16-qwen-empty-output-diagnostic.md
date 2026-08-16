@@ -269,7 +269,7 @@
 - Consume: Task 3 CLI and the frozen Stage 0.5d root
 - Produce: one immutable four-arm terminal evidence bundle and decision
 
-- [ ] **Step 1: Run the cheapest full preflight**
+- [x] **Step 1: Run the cheapest full preflight**
 
   Verify the canonical `data` symlink, host, ROCm visibility, free disk,
   digest-pinned local image, both exact model snapshots, the new runner and
@@ -278,19 +278,19 @@
   status. Run the dedicated runner's no-model stdin/argument smoke before
   preparation.
 
-- [ ] **Step 2: Prepare and inspect aggregate-only inputs**
+- [x] **Step 2: Prepare and inspect aggregate-only inputs**
 
   Run `prepare`; inspect only status, row count, role counts, arm IDs, hashes,
   and command flags. Confirm no question, answer, annotation, Whisper,
   transcript text, grade, metric, or credential key appears.
 
-- [ ] **Step 3: Execute arms A through D exactly once**
+- [x] **Step 3: Execute arms A through D exactly once**
 
   Invoke only the harness recorder for each arm in immutable order. Do not run
   a printed Podman command separately. Preserve failures and continue to later
   arms unless host safety or immutable-input verification fails.
 
-- [ ] **Step 4: Freeze and verify the diagnostic**
+- [x] **Step 4: Freeze and verify the diagnostic**
 
   Run `freeze`, then `status`. Record only aggregate counts, baseline
   reproducibility, advancing arm, final decision, elapsed time, peak memory,
