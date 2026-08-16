@@ -230,7 +230,53 @@ def test_real_two_condition_score_artifact_uses_gemini_rows(tmp_path: Path) -> N
     template = load(tmp_path / "real" / "audit-template.json")
     assert template["low_score_count"] == 24
     assert template["control_count"] == 8
-    assert all(row["question_stratum"] in {"temporal", "audio_or_text"} for row in template["rows"])
+    assert all(
+        gemini_rows[row["video_id"]]["question_stratum"] in {"temporal", "audio_or_text"}
+        for row in template["rows"]
+    )
+
+
+def test_real_queue_order_matches_independent_gemini_score_strata(tmp_path: Path) -> None:
+    config_path = ROOT / "configs" / "vqa" / "task_support_sufficiency_audit_issue35.json"
+    config = load(config_path)
+    score_spec = config["source_artifacts"]["scores"]
+    score_path = Path(score_spec["path"])
+    if not score_path.is_absolute():
+        score_path = ROOT / score_path
+    if not score_path.exists():
+        pytest.skip("canonical private full-panel score artifact is unavailable")
+
+    raw = load(score_path)
+    gemini_rows = raw["rows"]["gemini-3.1-pro-native-av-4fps"]
+    eligible = [
+        row
+        for row in gemini_rows
+        if row.get("question_stratum") in {"temporal", "audio_or_text"}
+    ]
+    expected_low = [
+        row["video_id"]
+        for row in sorted(
+            (row for row in eligible if row["semantic_composite"] <= 0.45),
+            key=lambda row: (row["semantic_composite"], row["video_id"]),
+        )[:24]
+    ]
+    expected_control = [
+        row["video_id"]
+        for row in sorted(
+            (row for row in eligible if row["semantic_composite"] >= 0.70),
+            key=lambda row: (-row["semantic_composite"], row["video_id"]),
+        )[:8]
+    ]
+
+    prep.freeze_treatment(config_path=config_path, output=tmp_path / "real")
+    prep.prepare_candidates(config_path=config_path, output=tmp_path / "real")
+    template = load(tmp_path / "real" / "audit-template.json")
+    actual_low = [row["video_id"] for row in template["rows"] if row["queue"] == "low_score"]
+    actual_control = [
+        row["video_id"] for row in template["rows"] if row["queue"] == "supported_control"
+    ]
+    assert actual_low == expected_low
+    assert actual_control == expected_control
 
 
 def test_real_exposure_manifests_have_frozen_counts(tmp_path: Path) -> None:

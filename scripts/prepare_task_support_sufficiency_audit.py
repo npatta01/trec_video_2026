@@ -603,7 +603,7 @@ def _build_candidates(
     queue_candidates = [
         item
         for item in enriched
-        if item["question_stratum"] in ALLOWED_QUEUE_STRATA
+        if item["_score_stratum"] in ALLOWED_QUEUE_STRATA
         and item["_score"] is not None
     ]
     low = sorted(
