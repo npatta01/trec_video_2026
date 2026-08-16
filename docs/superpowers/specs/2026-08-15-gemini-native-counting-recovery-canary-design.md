@@ -90,14 +90,10 @@ limited to temporal counts.
 
 ### Pass 3: challenge coverage and identity
 
-candidate intervals, and the verified atomic ledger. It is instructed to seek
-counterexamples rather than agree with the ledger:
 Gemini receives the complete native video at 12 FPS, the question, the frozen
 candidate intervals, and the verified atomic ledger. The full-duration
 high-FPS view is the protection against a locator miss. Gemini is instructed to
 seek counterexamples rather than agree with the ledger:
-candidate intervals, and the verified atomic ledger. It is instructed to seek
-counterexamples rather than agree with the ledger:
 
 - missed instances outside candidate intervals;
 - two ledger entries representing one continuous episode;
@@ -121,6 +117,12 @@ challenge dispositions. Accepted atomic instances are counted only when:
 3. all challenger-requested bursts were completed; and
 4. the complete-duration 12-FPS challenge has no unresolved interval or
    boundary ambiguity.
+
+Completion means the additive ledger's recorded review envelope contains every
+requested range and every challenger-proposed missed instance has a supported,
+unambiguous overlapping additive record. Overlapping accepted records abstain
+because this temporal-only contract cannot prove whether they are distinct
+entities or duplicate/split episodes.
 
 Otherwise the result is an auditable bounded abstention. The runner never
 changes an uncertain result into an exact integer merely to produce an answer.

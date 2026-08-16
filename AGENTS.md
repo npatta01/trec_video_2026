@@ -224,3 +224,24 @@ chains. Do not run another replay or add row-specific reducers. If counting
 work continues, the next zero-cost seam is a mechanically checkable coverage
 certificate bound to reviewed timestamps, regions, and sampling density. No
 paid microcanary is authorized.
+
+## Gemini native-video counting recovery artifact reference
+
+The incomplete 2026-08-15 multi-pass Gemini native-video counting recovery
+canary is documented in the counting section of
+[`docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd`](docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd).
+Its sanitized index is under
+[`docs/experiments/artifacts/vqa-gemini-counting-recovery-20260815/`](docs/experiments/artifacts/vqa-gemini-counting-recovery-20260815/).
+
+The complete private evidence is at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-counting-recovery-v1/`.
+Start with `inspection.md`. The first of three rows was attempted: the locator
+and verifier completed after an additive label-independent locator alias
+correction, but the mandatory challenger returned truncated JSON. Completion
+is therefore 0/3, no quality or rescue/control metrics were computed, and the
+remaining rows were not started. Three paid calls cost `$0.156048`. Preserve
+the incomplete decision and do not rerun it. No additional paid counting
+canary is authorized. `provenance-audit-v1.json` preserves the legacy
+paid-claim self-hash and indirect media-binding gaps; filesystem exclusivity
+still prevented duplicate stage calls. Post-run interface and provenance
+hardening is not experimental evidence.

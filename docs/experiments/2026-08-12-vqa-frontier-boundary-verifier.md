@@ -460,6 +460,85 @@ v2 replay, source-bound provenance, inspection media, and hashes remain
 at `data/vqa/benchmarks/direct-gemini-count-query-engine-v1/` in the
 canonical shared dataset.
 
+## Multi-pass Gemini native-video counting recovery canary
+
+The next paid test asked whether Gemini could recover brief counting
+evidence with distinct jobs instead of one generic enumerator: locate
+candidates over the complete native video at 4 FPS, verify the timestamp
+envelope at 12 FPS, then challenge the ledger over the complete video at
+12 FPS. Deterministic code alone would reconcile the timestamped
+instances and return an exact count or abstention. The frozen
+developmental panel contained two known temporal failures and one
+correct temporal control. Inference inputs excluded references, prior
+predictions, correctness, expected counts, and panel roles.
+
+The predeclared first-row gate did not complete. The locator call
+returned a complete-duration candidate map but used the generic advisory
+unit `times`, which the original parser rejected. Its paid response and
+invalid terminal were preserved. A separately hashed, label-independent
+correction normalized that synonym without repeating the locator call.
+The 12-FPS verifier then produced a valid two-instance atomic ledger.
+Under high thinking and a 2,048-token output allowance, the mandatory
+full-video challenger returned JSON that ended inside the second
+disposition, so it could not establish omissions, duplicates,
+boundaries, or complete coverage. Usage and finish metadata were not
+preserved, so neither allowance exhaustion nor its cause can be
+confirmed. The fragment was not repaired or interpreted as evidence.
+
+| First-row stage | Outcome | Estimated cost |
+|----|----|---:|
+| Complete-video 4-FPS locator | Invalid only on advisory unit vocabulary; additively normalized without a paid retry | `$0.026266` |
+| Timestamp-envelope 12-FPS verifier | Valid atomic ledger | `$0.058246` |
+| Complete-video 12-FPS challenger | Truncated invalid JSON | `$0.071536` |
+| **Total** | **Row incomplete; remaining two rows not started** | **`$0.156048`** |
+
+Completion is therefore **0/3 rows**, with one attempted row and three
+paid calls. There is no completed prediction freeze. METEOR,
+BERTScore-F1, STS, semantic composite, rescue rate, and
+control-preservation rate are deliberately reported as **not computed**,
+rather than scoring a partial row as a completed comparison. The result
+does not establish whether multi-pass native video fixes counting.
+
+- **Evidence validity:** Incomplete.
+- **Decision disposition:** Not promoted under the tested condition.
+- **Decision code:** `stop_gemini_counting_recovery_incomplete_v1`.
+
+The run does establish two interface defects: the prompt/schema did not
+bind the locator’s exact vocabulary, and the challenger failure path did
+not preserve the usage/finish metadata needed to distinguish model
+truncation, output-limit exhaustion, and other causes. The interface was
+hardened afterward with explicit enums, label-independent aliases,
+low-thinking structured extraction tests, and pre-validation provider
+metadata capture. Those changes were not rerun and are not positive
+evidence. The historical invalid-response terminals bind the raw
+responses and observed token-derived costs, but they do not preserve the
+provider response IDs or returned model-version fields. The requested
+model is still bound in each request. This is a provenance gap in the
+incomplete run, not evidence that the row completed; the runner was
+hardened afterward to preserve that metadata for future malformed
+responses. An additive provenance audit found two more limitations in
+the immutable v1 runner. Each stage used an OS-exclusive claim, so
+concurrent duplicate paid calls were prevented, but a self-hash
+namespace collision made the three serialized claim hashes invalid and
+the terminals did not cryptographically bind those claims.
+Stage-to-media binding is indirect through the frozen manifest and valid
+upload record rather than direct in each stage request. Post-run code
+now binds self-validating claims, uploaded-media identity, exact request
+configuration, and terminal files; it also requires every challenger
+request to be covered before exactness. None of that code was rerun. No
+further paid counting canary is authorized by this result. A future
+fresh test would need a new isolated run and must preserve the
+coverage-certificate boundary rather than treating the model’s
+completeness assertion as proof.
+
+The sanitized evidence index is
+`docs/experiments/artifacts/vqa-gemini-counting-recovery-20260815/`.
+Private requests, indirect manifest/upload media records, raw responses,
+costs, terminals, additive correction and provenance audit, inspection,
+and self-hashed incomplete decision remain at
+`data/vqa/benchmarks/direct-gemini-counting-recovery-v1/` in the
+canonical shared dataset.
+
 ## Cost and completion boundary
 
 The final v5 pilot plus verifier cost `$0.102772`. Including all
