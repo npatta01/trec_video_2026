@@ -134,7 +134,13 @@ policies, require `occluded_identity == "unsupported"`, and return
 indices, missing decoded index 0 or `decoded_frame_count - 1`, false endpoint
 timestamps, out-of-range PTS, gaps above the spec maximum, presentation modes
 outside `numbered_contact_sheet`, `individual_frame`, and `centered_triplet`,
-unbound frames, duplicate presentation membership, and mismatched hashes.
+unbound frames, duplicate presentation membership within one mode, and
+mismatched hashes. The same source frame may appear once in each of multiple
+different modes so primary contact sheets and challenge images can be bound by
+one request. Every mode must cover the complete required frame-ID set exactly
+once. When `every_decoded_frame` is true, decoded indices must equal
+`range(decoded_frame_count)` with no skipped index; otherwise the frozen
+maximum-gap rule is authoritative.
 
 - [ ] **Step 4: Run the tracer test and verify GREEN**
 
@@ -154,7 +160,9 @@ Add parametrized public tests that independently mutate:
     "non_monotonic_pts",
     "gap_above_limit",
     "unbound_frame",
-    "duplicate_presentation_membership",
+    "skipped_index_when_every_frame_required",
+    "duplicate_presentation_membership_within_mode",
+    "incomplete_mode_coverage",
     "unknown_presentation_mode",
 ]
 ```
