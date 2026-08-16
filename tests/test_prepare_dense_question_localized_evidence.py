@@ -98,7 +98,7 @@ def _completed_fixture(tmp_path: Path, *, visual_targets: int = 2, controls: int
                 "duration_seconds": 4.0,
             }
         )
-        map_rows.append({"video_id": video_id, "map": "SCENE | 00:00.000-00:04.000 | A person moves."})
+        map_rows.append({"video_id": video_id, "map": "SCENE | 00:00.000-00:04.000 | A person moves.\nSTATE | 00:00.000-00:04.000 | person | standing."})
         audit_rows.append(
             {
                 "audit_index": index + 1,
@@ -208,3 +208,94 @@ def test_provider_rows_do_not_project_private_labels(tmp_path: Path) -> None:
     rows = json.loads((fixture["root"] / "provider-rows.json").read_text())["rows"]
     assert all("direct_answer" not in row and "reference" not in row for row in rows)
     assert all("exposure_flags" not in row and "modality" not in row for row in rows)
+
+
+def test_selection_uses_only_brief_visual_action_targets(tmp_path: Path) -> None:
+    fixture = _completed_fixture(tmp_path, visual_targets=9, controls=4)
+    prep.freeze_treatment(**fixture)
+    prep.prepare_modality_audit(**fixture)
+    _complete_manual_audit(fixture)
+    manual = fixture["root"] / "manual-modality-audit.json"
+    payload = json.loads(manual.read_text())
+    payload["rows"][0]["modality"] = "fine_spatial_detail"
+    manual.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    prep.freeze_panel(**fixture)
+    selection = json.loads((fixture["root"] / "selection-freeze.json").read_text())
+    assert selection["selected_rows"][:8] == list(range(2, 10))
+
+
+def test_provider_rows_project_only_selected_map_lines(tmp_path: Path) -> None:
+    fixture = _completed_fixture(tmp_path)
+    prep.freeze_treatment(**fixture)
+    prep.prepare_modality_audit(**fixture)
+    _complete_manual_audit(fixture)
+    prep.freeze_panel(**fixture)
+    rows = json.loads((fixture["root"] / "provider-rows.json").read_text())["rows"]
+    assert all(row["map_lines"] == [{"line_number": 1, "text": "SCENE | 00:00.000-00:04.000 | A person moves."}] for row in rows)
+
+
+def test_minimum_panel_failure_writes_frozen_zero_call_feasibility(tmp_path: Path) -> None:
+    fixture = _completed_fixture(tmp_path, visual_targets=1, controls=1)
+    prep.freeze_treatment(**fixture)
+    prep.prepare_modality_audit(**fixture)
+    _complete_manual_audit(fixture)
+    with pytest.raises(ValueError, match="fewer than 2"):
+        prep.freeze_panel(**fixture)
+    feasibility = json.loads((fixture["root"] / "feasibility-freeze.json").read_text())
+    assert feasibility["status"] == "frozen"
+    assert feasibility["provider_calls_made"] == 0
+    assert not (fixture["root"] / "media-manifest.json").exists()
+
+
+def test_audit_exposure_drift_is_rejected_before_clip_generation(tmp_path: Path) -> None:
+    fixture = _completed_fixture(tmp_path)
+    prep.freeze_treatment(**fixture)
+    prep.prepare_modality_audit(**fixture)
+    _complete_manual_audit(fixture)
+    manual = fixture["root"] / "manual-modality-audit.json"
+    payload = json.loads(manual.read_text())
+    payload["rows"][0]["exposure_flags"]["grounded_v2_24"] = not payload["rows"][0]["exposure_flags"]["grounded_v2_24"]
+    manual.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    with pytest.raises(ValueError, match="exposure"):
+        prep.freeze_panel(**fixture)
+
+
+def test_authorize_rejects_manual_audit_hash_drift(tmp_path: Path) -> None:
+    fixture = _completed_fixture(tmp_path)
+    prep.freeze_treatment(**fixture)
+    prep.prepare_modality_audit(**fixture)
+    _complete_manual_audit(fixture)
+    prep.freeze_panel(**fixture)
+    manual = fixture["root"] / "manual-modality-audit.json"
+    payload = json.loads(manual.read_text())
+    payload["rows"][0]["rationale"] = "changed after panel freeze"
+    manual.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    with pytest.raises(ValueError, match="manual modality audit hash"):
+        prep.authorize(**fixture)
+
+
+def test_mid_panel_failure_leaves_resumable_incomplete_staging(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fixture = _completed_fixture(tmp_path)
+    prep.freeze_treatment(**fixture)
+    prep.prepare_modality_audit(**fixture)
+    _complete_manual_audit(fixture)
+    original = prep._make_clip
+    calls = 0
+
+    def fail_on_second(root: Path, row: dict[str, object]) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("synthetic clip failure")
+        return original(root, row)
+
+    monkeypatch.setattr(prep, "_make_clip", fail_on_second)
+    with pytest.raises(RuntimeError, match="synthetic clip failure"):
+        prep.freeze_panel(**fixture)
+    assert (fixture["root"] / "panel-preparation-incomplete.json").exists()
+    assert not (fixture["root"] / "media-manifest.json").exists()
+    assert not (fixture["root"] / "clips").exists()
+    monkeypatch.setattr(prep, "_make_clip", original)
+    prep.freeze_panel(**fixture)
+    assert (fixture["root"] / "media-manifest.json").exists()
+    assert len(list((fixture["root"] / "clips").glob("*.mp4"))) == 4

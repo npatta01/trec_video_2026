@@ -43,6 +43,8 @@ CONTROL_ROLE = "control"
 MAX_CLIP_BYTES = 100 * 1024 * 1024
 MIN_WINDOW_SECONDS = 2.0
 MAX_WINDOW_SECONDS = 6.0
+STAGING_DIR_NAME = ".panel-staging"
+INCOMPLETE_NAME = "panel-preparation-incomplete.json"
 EXPOSURE_KEYS = (
     "grounded_v2_24",
     "grounded_v3_11",
@@ -494,6 +496,15 @@ def _validate_audit_rows(
         for field in ("source_path", "source_sha256", "source_duration_seconds"):
             if row.get(field) != expected.get(field):
                 raise ValueError(f"{field} drift for audit_index {row['audit_index']}")
+        exposure_flags = row.get("exposure_flags")
+        if (
+            not isinstance(exposure_flags, Mapping)
+            or set(exposure_flags) != set(EXPOSURE_KEYS)
+            or any(not isinstance(exposure_flags[key], bool) for key in EXPOSURE_KEYS)
+        ):
+            raise ValueError(f"exposure flags are invalid for audit_index {row['audit_index']}")
+        if exposure_flags != expected.get("exposure_flags"):
+            raise ValueError(f"exposure flag drift for audit_index {row['audit_index']}")
         if row.get("map_sha256") != maps[row["video_id"]]["map_sha256"]:
             raise ValueError(f"map-line drift for audit_index {row['audit_index']}")
         if row.get("role") == TARGET_ROLE:
@@ -531,6 +542,8 @@ def _validate_included_row(row: Mapping[str, Any], map_data: Mapping[str, Any]) 
     available = {line["line_number"] for line in map_data["map_lines"]}
     if any(isinstance(value, bool) or not isinstance(value, int) or value not in available for value in line_numbers):
         raise ValueError(f"audit_index {row['audit_index']} has invalid map line numbers")
+    if len(line_numbers) != len(set(line_numbers)):
+        raise ValueError(f"audit_index {row['audit_index']} has duplicate map line numbers")
     start = _number(row.get("window_start_seconds"), f"audit_index {row['audit_index']}.window_start_seconds")
     end = _number(row.get("window_end_seconds"), f"audit_index {row['audit_index']}.window_end_seconds")
     if end <= start or end - start < MIN_WINDOW_SECONDS or end - start > MAX_WINDOW_SECONDS:
@@ -547,7 +560,7 @@ def _selected_rows(manual_rows: Sequence[Mapping[str, Any]]) -> tuple[list[dict[
         dict(row) for row in manual_rows
         if row.get("role") == TARGET_ROLE
         and row.get("include") is True
-        and row.get("modality") in {"brief_visual_action", "onscreen_text", "fine_spatial_detail"}
+        and row.get("modality") == "brief_visual_action"
     ]
     eligible_controls = [
         dict(row) for row in manual_rows
@@ -693,19 +706,115 @@ def _make_clip(root: Path, row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _write_progress(path: Path, payload: Mapping[str, Any]) -> None:
+    """Write mutable staging state; final evidence remains write-once."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+    temporary.replace(path)
+
+
+def _stage_panel_clips(
+    root: Path,
+    selected_rows: Sequence[Mapping[str, Any]],
+    treatment: Mapping[str, Any],
+    manual_path: Path,
+) -> list[dict[str, Any]]:
+    """Create or resume a complete private clip set before final promotion."""
+
+    stage = root / STAGING_DIR_NAME
+    stage.mkdir(parents=True, exist_ok=True)
+    progress_path = stage / "progress.json"
+    signature = _sha256_bytes(
+        _canonical(
+            {
+                "selected_rows": [row["audit_index"] for row in selected_rows],
+                "treatment_freeze_sha256": _sha256(root / "treatment-freeze.json"),
+                "manual_modality_audit_sha256": _sha256(manual_path),
+            }
+        )
+    )
+    if progress_path.is_file():
+        progress = _load_json(progress_path)
+        if progress.get("signature") != signature:
+            raise ValueError("panel staging signature drifted; refusing to resume")
+    else:
+        progress = {
+            "schema_version": 1,
+            "status": "incomplete",
+            "signature": signature,
+            "selected_rows": [row["audit_index"] for row in selected_rows],
+            "completed_rows": [],
+            "media_rows": [],
+        }
+        _write_progress(progress_path, progress)
+    completed = {row["audit_index"]: row for row in progress.get("media_rows", []) if isinstance(row, Mapping)}
+    selected_ids = [row["audit_index"] for row in selected_rows]
+    if set(completed) - set(selected_ids):
+        raise ValueError("panel staging contains an unexpected row")
+    staged_rows: list[dict[str, Any]] = []
+    try:
+        for row in selected_rows:
+            audit_index = row["audit_index"]
+            previous = completed.get(audit_index)
+            if previous is not None:
+                clip_path = stage / previous["clip_path"]
+                if not clip_path.is_file() or _sha256(clip_path) != previous.get("clip_sha256"):
+                    raise ValueError(f"staged clip is missing or changed for audit_index {audit_index}")
+                staged_rows.append(dict(previous))
+                continue
+            staged = _make_clip(stage, row)
+            staged_rows.append(staged)
+            completed[audit_index] = staged
+            progress["completed_rows"] = [item for item in selected_ids if item in completed]
+            progress["media_rows"] = [completed[item] for item in progress["completed_rows"]]
+            _write_progress(progress_path, progress)
+    except BaseException as error:
+        incomplete_path = root / INCOMPLETE_NAME
+        if not incomplete_path.exists():
+            _write_once(
+                incomplete_path,
+                {
+                    "schema_version": 1,
+                    "status": "incomplete",
+                    "outcome": "panel_preparation_incomplete",
+                    "signature": signature,
+                    "selected_rows": selected_ids,
+                    "completed_rows": [item for item in selected_ids if item in completed],
+                    "provider_calls_made": 0,
+                    "error_type": type(error).__name__,
+                    "error": str(error),
+                },
+            )
+        raise
+    if len(staged_rows) != len(selected_rows):
+        raise ValueError("panel staging did not complete every selected row")
+    progress["status"] = "complete"
+    progress["completed_rows"] = selected_ids
+    progress["media_rows"] = staged_rows
+    _write_progress(progress_path, progress)
+    return staged_rows
+
+
 def _provider_row(row: Mapping[str, Any]) -> dict[str, Any]:
     lines = row.get("map_lines")
     if not isinstance(lines, list) or not lines:
         raise ValueError(f"audit_index {row['audit_index']} has no map lines")
+    line_by_number = {line["line_number"]: line for line in lines}
+    selected_numbers = row.get("map_line_numbers")
+    if not isinstance(selected_numbers, list) or not selected_numbers:
+        raise ValueError(f"audit_index {row['audit_index']} has no selected map lines")
+    try:
+        selected_lines = [line_by_number[number] for number in selected_numbers]
+    except (KeyError, TypeError) as error:
+        raise ValueError(f"audit_index {row['audit_index']} selected map lines drifted") from error
     return {
         "audit_index": row["audit_index"],
         "video_id": row["video_id"],
         "role": row["role"],
         "question": row["question"],
-        "map_lines": [
-            {"line_number": line["line_number"], "text": line["text"]}
-            for line in lines
-        ],
+        "map_lines": [{"line_number": line["line_number"], "text": line["text"]} for line in selected_lines],
         "clip_start_seconds": row["window_start_seconds"],
         "clip_end_seconds": row["window_end_seconds"],
         "clip_duration_seconds": row["window_end_seconds"] - row["window_start_seconds"],
@@ -723,6 +832,38 @@ def _exposure_report(rows: Sequence[Mapping[str, Any]], selected: Sequence[Mappi
         )
         result[key] = {"audited": audited, "selected": chosen}
     return result
+
+
+def _write_feasibility_freeze(
+    root: Path,
+    treatment: Mapping[str, Any],
+    manual_path: Path,
+    target_count: int,
+    control_count: int,
+    reason: str,
+) -> Path:
+    """Persist a write-once zero-call result when the panel is infeasible."""
+
+    payload = {
+        "schema_version": 1,
+        "status": "frozen",
+        "outcome": "infeasible",
+        "experiment_id": "dense-question-localized-evidence-issue35-v1",
+        "frozen_at": datetime.now(UTC).isoformat(),
+        "reason": reason,
+        "target_count": target_count,
+        "control_count": control_count,
+        "minimum_targets": treatment["decision_gate"]["minimum_targets"],
+        "minimum_controls": treatment["decision_gate"]["minimum_controls"],
+        "planned_call_count": 0,
+        "provider_calls_made": 0,
+        "treatment_freeze_sha256": _sha256(root / "treatment-freeze.json"),
+        "modality_audit_sha256": _sha256(manual_path),
+        "decision_gate": treatment["decision_gate"],
+    }
+    output = root / "feasibility-freeze.json"
+    _write_once(output, payload)
+    return output
 
 
 def freeze_panel(
@@ -776,11 +917,35 @@ def freeze_panel(
     manual_rows = _validate_audit_rows(root_path, manual, template, expected_rows, maps)
     target_rows, control_rows = _selected_rows(manual_rows)
     if len(target_rows) < 2:
+        _write_feasibility_freeze(
+            root_path,
+            treatment,
+            manual_path,
+            len(target_rows),
+            len(control_rows),
+            f"fewer than 2 credible visual targets remain: {len(target_rows)}",
+        )
         raise ValueError(f"fewer than 2 credible visual targets remain: {len(target_rows)}")
     if len(control_rows) < 2:
+        _write_feasibility_freeze(
+            root_path,
+            treatment,
+            manual_path,
+            len(target_rows),
+            len(control_rows),
+            f"fewer than 2 visually eligible controls remain: {len(control_rows)}",
+        )
         raise ValueError(f"fewer than 2 visually eligible controls remain: {len(control_rows)}")
     selected_rows = target_rows + control_rows
-    clips = [_make_clip(root_path, row) for row in selected_rows]
+    final_outputs = (
+        root_path / "clips",
+        root_path / "media-manifest.json",
+        root_path / "provider-rows.json",
+        root_path / "selection-freeze.json",
+    )
+    if any(path.exists() for path in final_outputs):
+        raise ValueError("panel already has final artifacts; refusing to overwrite")
+    clips = _stage_panel_clips(root_path, selected_rows, treatment, manual_path)
     clip_duration_by_index = {
         clip["audit_index"]: clip["clip_duration_seconds"] for clip in clips
     }
@@ -791,6 +956,11 @@ def freeze_panel(
         provider_row["clip_duration_seconds"] = clip_duration_by_index[provider_row["audit_index"]]
     runner = _task1_module(_resolve(task1_runner or runner_path))
     provider_hash = runner.provider_rows_sha256(provider_rows)
+    staged_clips = root_path / STAGING_DIR_NAME / "clips"
+    final_clips = root_path / "clips"
+    if final_clips.exists():
+        raise ValueError("final clips directory already exists; refusing to overwrite")
+    staged_clips.rename(final_clips)
     media_payload = {
         "schema_version": 1,
         "status": "frozen",
@@ -874,6 +1044,8 @@ def authorize(
     )
     if selection.get("task1_treatment_sha256") != treatment.get("task1_treatment_sha256"):
         raise ValueError("selection Task 1 treatment hash drifted before authorization")
+    if selection.get("modality_audit_sha256") != _sha256(manual_path):
+        raise ValueError("manual modality audit hash drifted before authorization")
     runner = _task1_module(_resolve(task1_runner or runner_path))
     provider_rows = _rows(provider_payload, "provider-rows.json")
     provider_hash = runner.provider_rows_sha256(provider_rows)
