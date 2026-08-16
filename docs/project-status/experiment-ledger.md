@@ -344,9 +344,11 @@ reference, not a prescribed research sequence.
     repeat the failed ensemble. The `0/2` paper walkthrough blocked an
     immediate verifier run. The treatment-frozen, 32-row sufficiency
     audit then failed its target quota (`1/4`, deficit `3`), while
-    safeguards and controls passed; no provider calls were made and the
-    original selection/protocol are invalid for authorization. Prepare a
-    newly reviewed panel with explicit reauthorization before any paid
+    safeguards and controls passed; the sole target was previously
+    exposed, leaving no unexposed answer-sufficient target. No provider
+    calls were made; the historical label-free selection/protocol exist
+    but are invalidated and not currently authorized. Prepare a newly
+    reviewed panel with explicit reauthorization before any paid
     temporal or speech verification. Do not introduce a shared router
     framework or counting specialist in that test.
 

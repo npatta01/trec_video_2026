@@ -339,3 +339,44 @@ not performed because publication was not authorized in this session.
   (`docs: fix task support portal link`). The worktree was clean after that
   commit except for the ignored task report; this plan-only completion record
   is the only subsequent tracked update. No push or external post was made.
+
+#### Final-review fixes — 2026-08-15
+
+- The verifier now requires a write-once `provider-authorization.json` with
+  exact `status: authorized`, current treatment/selection/protocol hashes,
+  provider-row digest, manual-audit SHA, and `promotion_gate: PASS` before the
+  first provider call. Missing, blocked, or mismatched authorization is a
+  zero-call failure. Predictions freezes also bind the authorization sidecar.
+- A passing `freeze-selection` writes selection, protocol, then the
+  non-circular authorization sidecar, and binds its SHA in
+  `selection-integrity.json`; neither selection nor protocol binds the
+  authorization SHA.
+- Selection now rejects every incomplete completed audit row unless requested
+  entity/fact/qualifier/unit are nonempty, conflicts is an explicit list of
+  nonempty strings, note is nonempty, verdict is valid, and evidence lines are
+  valid. `reference_or_question_issue` remains audited but nonselectable.
+- Current runner SHA-256:
+  `09df6be99ac0d82d8d3b69aab5e539a94e1879f7d0bd443a522307667df3efb6`.
+  The historical treatment remains bound to runner
+  `6e4fa8dc0ea342e4a90adf42d348b63b7bf47b737d7f10053bb0f0ed71b4a097`, so the
+  current runner rejects that historical treatment before any call.
+- The additive private blocked authorization sidecar is SHA-256
+  `33a23e11c63337bab7cf01a39bbeca3476a49641fa40aa8e33fc37928acb01d1`. It
+  binds treatment `fc850cc44e4108959d58ff1bf31a6b737d5e1c4b9a37e083a9f050f387d642ce`,
+  invalid original selection `1e8ed1bf26f0b7ebe527fb4bd1bf673a3200e682a532ef1119957471576e8c3e`,
+  invalid original protocol `f456883192cf8a231ef32cfaa988492d8284be32bd5fc4d4ddf711bd2a0fadbf`,
+  provider-row digest `43810cbafdae377c3ffcf46de381e1289475b8202e6dbfffa3f51c62efd0a42a`,
+  and current v3 correction hashes `db68cec9be89f4f89305b70578fbd7cb67893e0196c92f93143b5d154db6d3d2`,
+  `4fb41decdca6d2c1df09ac8be2507d28eb02ca5427e607fde2e15ed8e29dcc4a`,
+  `45e796683c75cc7f698cbac286e0ba32e006aeae55537e33c6ac6e863f9ae55c`, and
+  `b639de5dae550f3ba0a5003545b5c35d9b7f9e470d117924d21edd9db8440b1a`.
+- Corrected-v3 combined exposure split is exposed target/safeguard/control/
+  issue `1/4/5/0` and not-exposed `0/13/3/6`; the sole target was previously
+  exposed, so there is no unexposed answer-sufficient target. The historical
+  label-free protocol exists but is invalidated and not currently authorized.
+- Final focused verification: `pytest -q
+  tests/test_prepare_task_support_sufficiency_audit.py
+  tests/test_run_task_support_verifier.py` → **50 passed**; Ruff and
+  `python -m py_compile` passed. QMD-derived Markdown/HTML were regenerated,
+  repository/portal hashes matched, and the sanitized portal pages returned
+  HTTPS 200. No provider calls, push, or external post occurred.

@@ -825,7 +825,28 @@ def _selected_protocol_rows(
     for row in audited:
         nested_adjudication = row.get("adjudication")
         adjudication = nested_adjudication if isinstance(nested_adjudication, Mapping) else {}
-        role = adjudication.get("role") or adjudication.get("verdict") or row.get("role") or row.get("verdict")
+        role_value = adjudication.get("role", row.get("role"))
+        verdict_value = adjudication.get("verdict", row.get("verdict"))
+        if role_value is None and verdict_value is None:
+            raise ValueError(f"invalid or incomplete audit verdict: {row.get('video_id')}")
+        if not isinstance(role_value, str) or not role_value.strip():
+            raise ValueError(f"invalid or incomplete audit verdict: {row.get('video_id')}")
+        if role_value not in AUDIT_ROLES:
+            raise ValueError(f"invalid audit verdict: {row.get('video_id')}")
+        if verdict_value is not None:
+            if not isinstance(verdict_value, str) or not verdict_value.strip():
+                raise ValueError(f"invalid audit verdict: {row.get('video_id')}")
+            if verdict_value not in AUDIT_ROLES:
+                raise ValueError(f"invalid audit verdict: {row.get('video_id')}")
+        role = role_value
+        for field in ("requested_entity", "requested_fact", "qualifier", "answer_unit"):
+            _nonempty(adjudication.get(field), f"{row.get('video_id')}.{field}")
+        conflicts = adjudication.get("conflicts")
+        if not isinstance(conflicts, list):
+            raise ValueError(f"conflicts must be an explicit list: {row.get('video_id')}")
+        if any(not isinstance(conflict, str) or not conflict.strip() for conflict in conflicts):
+            raise ValueError(f"conflicts must contain non-empty strings: {row.get('video_id')}")
+        _nonempty(adjudication.get("note"), f"{row.get('video_id')}.note")
         if role not in AUDIT_ROLES:
             raise ValueError(f"invalid or incomplete audit role: {row.get('video_id')}")
         numbers = adjudication.get("evidence_line_numbers")
@@ -923,6 +944,7 @@ def freeze_selection(
         "audited_row_count": len(audited),
         "audited_role_counts": audited_counts,
         "selected_row_count": len(protocol_rows),
+        "promotion_gate_status": "PASS",
         "selected_rows": [row["video_id"] for row in selected],
         "selected_row_metadata": selected_metadata,
         "role_counts": {role: MINIMUM_PER_ROLE for role in ROLES},
@@ -950,12 +972,29 @@ def freeze_selection(
     }
     _write_once(root / "protocol.json", protocol_payload)
     _write_once(
+        root / "provider-authorization.json",
+        {
+            "schema_version": 1,
+            "status": "authorized",
+            "experiment_id": cfg.get("experiment_id"),
+            "treatment_freeze_sha256": _sha256_path(root / "treatment-freeze.json"),
+            "selection_freeze_sha256": _sha256_path(root / "selection-freeze.json"),
+            "protocol_sha256": _sha256_path(root / "protocol.json"),
+            "provider_rows_sha256": provider_digest,
+            "manual_audit_sha256": _sha256_path(root / "manual-audit.json"),
+            "promotion_gate": "PASS",
+        },
+    )
+    _write_once(
         root / "selection-integrity.json",
         {
             "schema_version": 1,
             "status": "frozen",
             "selection_freeze_sha256": _sha256_path(root / "selection-freeze.json"),
             "protocol_sha256": _sha256_path(root / "protocol.json"),
+            "provider_authorization_sha256": _sha256_path(
+                root / "provider-authorization.json"
+            ),
             "manual_audit_sha256": _sha256_path(root / "manual-audit.json"),
             "provider_rows_sha256": provider_digest,
             "source_artifacts_sha256": source_hashes,

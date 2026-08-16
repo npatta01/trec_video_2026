@@ -2,7 +2,7 @@
   "schema_version": 1,
   "experiment_id": "task-support-sufficiency-audit-issue35-v1",
   "runner_path": "scripts/run_task_support_verifier.py",
-  "runner_sha256": "6e4fa8dc0ea342e4a90adf42d348b63b7bf47b737d7f10053bb0f0ed71b4a097",
+  "runner_sha256": "09df6be99ac0d82d8d3b69aab5e539a94e1879f7d0bd443a522307667df3efb6",
   "prompt_template_sha256": "f1cd3936f923bd5cbf3936e1ef141418b23390a374df63593ffc8216d59f5bb6",
   "response_schema_sha256": "940529058b7f27a1cb8bd352cd5348605e522c8e1fc45386b8810d3121f88f5e",
   "validator_sha256": "c856d1b2f583ee52669ece0f92909c085b29dcb73cde78923af057aefa0935d6",

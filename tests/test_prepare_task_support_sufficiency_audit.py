@@ -149,7 +149,13 @@ def fill_audit_with_four_per_role(path: Path) -> None:
     for index, row in enumerate(payload["rows"]):
         row["adjudication"] = {
             "role": roles[index // 4] if index < 12 else "supported_control",
+            "verdict": roles[index // 4] if index < 12 else "supported_control",
+            "requested_entity": "the person",
+            "requested_fact": "the event",
+            "qualifier": "in the scene",
+            "answer_unit": "action",
             "evidence_line_numbers": [1],
+            "conflicts": [],
             "note": "fixture adjudication",
         }
     _write(path, payload)
@@ -192,6 +198,70 @@ def test_queue_and_selection_are_deterministic(tmp_path: Path) -> None:
         "supported_control": 4,
     }
     assert len(load(fixture["output"] / "protocol.json")["rows"]) == 12
+
+
+def test_selection_writes_non_circular_authorization_and_integrity(tmp_path: Path) -> None:
+    fixture = write_auditable_fixture(tmp_path)
+    prep.freeze_treatment(**fixture)
+    prep.prepare_candidates(**fixture)
+    fill_audit_with_four_per_role(fixture["output"] / "manual-audit.json")
+
+    prep.freeze_selection(**fixture)
+    output = fixture["output"]
+    authorization = load(output / "provider-authorization.json")
+    selection = load(output / "selection-freeze.json")
+    protocol = load(output / "protocol.json")
+    integrity = load(output / "selection-integrity.json")
+    assert authorization["status"] == "authorized"
+    assert authorization["treatment_freeze_sha256"] == prep._sha256_path(
+        output / "treatment-freeze.json"
+    )
+    assert authorization["selection_freeze_sha256"] == prep._sha256_path(
+        output / "selection-freeze.json"
+    )
+    assert authorization["protocol_sha256"] == prep._sha256_path(output / "protocol.json")
+    assert authorization["manual_audit_sha256"] == prep._sha256_path(
+        output / "manual-audit.json"
+    )
+    assert authorization["provider_rows_sha256"] == selection["provider_rows_sha256"]
+    assert authorization["promotion_gate"] == "PASS"
+    assert "provider_authorization_sha256" not in selection
+    assert "provider_authorization_sha256" not in protocol
+    assert integrity["provider_authorization_sha256"] == prep._sha256_path(
+        output / "provider-authorization.json"
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("requested_entity", "", "requested_entity"),
+        ("requested_fact", "", "requested_fact"),
+        ("qualifier", "", "qualifier"),
+        ("answer_unit", "", "answer_unit"),
+        ("conflicts", None, "conflicts"),
+        ("conflicts", [""], "conflicts"),
+        ("note", "", "note"),
+        ("verdict", "not_a_verdict", "verdict"),
+        ("evidence_line_numbers", [], "evidence line"),
+    ],
+)
+def test_selection_rejects_incomplete_completed_audit_rows(
+    tmp_path: Path, field: str, value: Any, message: str
+) -> None:
+    fixture = write_auditable_fixture(tmp_path)
+    prep.freeze_treatment(**fixture)
+    prep.prepare_candidates(**fixture)
+    manual_path = fixture["output"] / "manual-audit.json"
+    fill_audit_with_four_per_role(manual_path)
+    manual = load(manual_path)
+    if field == "evidence_line_numbers":
+        manual["rows"][0]["adjudication"][field] = value
+    else:
+        manual["rows"][0]["adjudication"][field] = value
+    _write(manual_path, manual)
+    with pytest.raises(ValueError, match=message):
+        prep.freeze_selection(**fixture)
 
 
 def test_queue_uses_only_gemini_condition_and_thresholds(tmp_path: Path) -> None:
@@ -381,7 +451,14 @@ def test_selection_rejects_invalid_line_and_insufficient_roles(tmp_path: Path) -
     for index, row in enumerate(manual["rows"]):
         row["adjudication"] = {
             "role": "answer_sufficient_failure",
+            "verdict": "answer_sufficient_failure",
+            "requested_entity": "the person",
+            "requested_fact": "the event",
+            "qualifier": "in the scene",
+            "answer_unit": "action",
             "evidence_line_numbers": [999] if index == 0 else [1],
+            "conflicts": [],
+            "note": "fixture adjudication",
         }
     _write(manual_path, manual)
     with pytest.raises(ValueError, match="line"):
@@ -395,7 +472,17 @@ def test_selection_rejects_fewer_than_four_rows_in_any_role(tmp_path: Path) -> N
     manual_path = fixture["output"] / "manual-audit.json"
     manual = load(manual_path)
     for row in manual["rows"]:
-        row["adjudication"] = {"role": "answer_sufficient_failure", "evidence_line_numbers": [1]}
+        row["adjudication"] = {
+            "role": "answer_sufficient_failure",
+            "verdict": "answer_sufficient_failure",
+            "requested_entity": "the person",
+            "requested_fact": "the event",
+            "qualifier": "in the scene",
+            "answer_unit": "action",
+            "evidence_line_numbers": [1],
+            "conflicts": [],
+            "note": "fixture adjudication",
+        }
     _write(manual_path, manual)
     with pytest.raises(ValueError, match="fewer than four"):
         prep.freeze_selection(**fixture)

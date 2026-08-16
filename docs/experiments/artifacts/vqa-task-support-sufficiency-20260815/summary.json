@@ -17,7 +17,7 @@
       "control_rows": 8,
       "all_rows_adjudicated": true
     },
-    "provider_inputs": "not created because the offline feasibility gate failed",
+    "provider_inputs": "historical label-free protocol exists but is invalidated and not currently authorized; no replacement provider input was created",
     "exposure_policy": "reporting flags only; no eligibility exclusions"
   },
   "observed_result": {
@@ -37,6 +37,22 @@
       "control_required": 4,
       "control_observed": 8
     },
+    "combined_prior_exposure_split": {
+      "exposed": {
+        "answer_sufficient_failure": 1,
+        "insufficient_or_ambiguous": 4,
+        "supported_control": 5,
+        "reference_or_question_issue": 0
+      },
+      "not_exposed": {
+        "answer_sufficient_failure": 0,
+        "insufficient_or_ambiguous": 13,
+        "supported_control": 3,
+        "reference_or_question_issue": 6
+      },
+      "sole_target_was_previously_exposed": true,
+      "unexposed_answer_sufficient_target": 0
+    },
     "gate": "FAIL",
     "replacement_selection_created": false,
     "replacement_protocol_created": false
@@ -52,11 +68,12 @@
   },
   "provider": {
     "authorization": "blocked",
+    "authorization_sha256": "33a23e11c63337bab7cf01a39bbeca3476a49641fa40aa8e33fc37928acb01d1",
     "calls_made": 0,
     "completion": null,
     "cost": null,
     "metrics": null,
-    "not_run_reason": "offline feasibility gate failed before provider authorization"
+    "not_run_reason": "offline feasibility gate failed before provider authorization; the historical label-free protocol exists but is invalidated and not currently authorized"
   },
   "historical_selection": {
     "status": "invalid_for_provider_authorization",
@@ -73,14 +90,28 @@
     },
     "treatment_and_candidates": {
       "treatment_freeze_sha256": "fc850cc44e4108959d58ff1bf31a6b737d5e1c4b9a37e083a9f050f387d642ce",
-      "config_sha256": "e50ac9f77a705bba124cf26bdaf77684a7aeb34954bcf5f3c1a2c42fc9b4ec1d",
-      "runner_sha256": "6e4fa8dc0ea342e4a90adf42d348b63b7bf47b737d7f10053bb0f0ed71b4a097",
+      "config_sha256": "bf07379c7d952a53b853b7185b8c3d2fd9c1f7a5d653ac1a51ecadcc1c9f2681",
+      "historical_runner_sha256": "6e4fa8dc0ea342e4a90adf42d348b63b7bf47b737d7f10053bb0f0ed71b4a097",
+      "current_runner_sha256": "09df6be99ac0d82d8d3b69aab5e539a94e1879f7d0bd443a522307667df3efb6",
       "prompt_template_sha256": "f1cd3936f923bd5cbf3936e1ef141418b23390a374df63593ffc8216d59f5bb6",
       "response_schema_sha256": "940529058b7f27a1cb8bd352cd5348605e522c8e1fc45386b8810d3121f88f5e",
       "validator_sha256": "c856d1b2f583ee52669ece0f92909c085b29dcb73cde78923af057aefa0935d6",
       "candidate_sheet_freeze_sha256": "ad85b0382020b898ae3a747791b72e7a6dfd0ab9cb9a062ead97a71b557cc6f3",
       "candidate_sheet_sha256": "1d7f284e848f6ad79ad7f743dce1ae2948e8f1a2ef40f99ff3f57c6907010dbb",
       "audit_template_sha256": "a1f40048e0b57a33bdebecdae69720466bf8979924aeb2ebbf3882cf88fbcfd5"
+    },
+    "provider_authorization": {
+      "status": "blocked",
+      "provider_authorization_sha256": "33a23e11c63337bab7cf01a39bbeca3476a49641fa40aa8e33fc37928acb01d1",
+      "treatment_freeze_sha256": "fc850cc44e4108959d58ff1bf31a6b737d5e1c4b9a37e083a9f050f387d642ce",
+      "invalid_original_selection_freeze_sha256": "1e8ed1bf26f0b7ebe527fb4bd1bf673a3200e682a532ef1119957471576e8c3e",
+      "invalid_original_protocol_sha256": "f456883192cf8a231ef32cfaa988492d8284be32bd5fc4d4ddf711bd2a0fadbf",
+      "provider_rows_sha256": "43810cbafdae377c3ffcf46de381e1289475b8202e6dbfffa3f51c62efd0a42a",
+      "manual_audit_corrected_v3_sha256": "db68cec9be89f4f89305b70578fbd7cb67893e0196c92f93143b5d154db6d3d2",
+      "audit_correction_v3_sha256": "4fb41decdca6d2c1df09ac8be2507d28eb02ca5427e607fde2e15ed8e29dcc4a",
+      "corrected_audit_freeze_v3_sha256": "45e796683c75cc7f698cbac286e0ba32e006aeae55537e33c6ac6e863f9ae55c",
+      "feasibility_result_v3_sha256": "b639de5dae550f3ba0a5003545b5c35d9b7f9e470d117924d21edd9db8440b1a",
+      "promotion_gate": "FAIL"
     },
     "source_bindings": {
       "annotations_sha256": "4dbb40d42dbbff435cc70672a39785b067cddab6492b055b73b27f483474c4ca",

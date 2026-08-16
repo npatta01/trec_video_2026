@@ -333,11 +333,15 @@ Its tracked sanitized indexes include
   controls, and `6` nonselectable reference/question issues. The target quota
   required `4`, so the gate failed with deficit `3`; safeguard and control
   quotas passed.
+- **Combined prior-exposure split:** the exposed rows contained target `1`,
+  safeguard `4`, control `5`, and issue `0`; the not-exposed rows contained
+  target `0`, safeguard `13`, control `3`, and issue `6`. The sole target was
+  previously exposed, so no unexposed answer-sufficient target exists.
 - **Provider authorization and completion:** provider authorization was
   **blocked** after the offline feasibility gate **FAIL**. No provider/API/
   native-video calls, cost, or metrics exist for this result. No replacement
-  selection or protocol was created. The original selection/protocol are
-  preserved as historical artifacts but invalid for provider authorization.
+  selection or protocol was created. A historical label-free protocol and
+  selection exist, but are invalidated and not currently authorized.
 - **Current condition-bound status:** **Valid but negative offline feasibility
   result; Not promoted under the tested condition.** This does not measure
   provider answer quality.
@@ -371,9 +375,10 @@ preparation retained all eligible rows and produced deterministic 24-row
 low-score and 8-row control queues. Independent correction v3 re-adjudicated
 all 32 rows against the predeclared role definitions; the sanitized index
 binds the current correction, freeze, and source hashes. Prior exposure is a
-reporting flag only. Because the target quota failed, no provider-safe input
-or provider call was created. This is valid but negative feasibility evidence,
-not provider-quality evidence or a fresh generalization estimate.
+reporting flag only. Because the target quota failed, the historical
+label-free provider protocol is invalidated and not currently authorized; no
+provider call was made. This is valid but negative feasibility evidence, not
+provider-quality evidence or a fresh generalization estimate.
 
 ::: {.content-visible when-format="gfm"}
 The [sanitized evidence index](../experiments/artifacts/vqa-task-support-sufficiency-20260815/README.md)

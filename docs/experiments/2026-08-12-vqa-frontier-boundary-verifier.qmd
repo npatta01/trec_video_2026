@@ -569,13 +569,18 @@ condition**.
   safeguards, `8` supported controls, and `6` nonselectable
   reference/question issues. The predeclared minimum was `4` per selectable
   role, so the target quota failed by `3`; safeguard and control quotas passed.
+- **Combined prior-exposure split:** among rows with any prior-exposure flag,
+  the counts were target `1`, safeguard `4`, control `5`, and
+  reference/question issue `0`; among rows without any prior-exposure flag,
+  they were target `0`, safeguard `13`, control `3`, and reference/question
+  issue `6`. The sole target was previously exposed, so there is no unexposed
+  answer-sufficient target.
 - **Provider authorization and completion:** the offline feasibility gate was
   **FAIL**, provider authorization was **blocked**, and no
   `provider/API/native-video` calls were made. No replacement selection or
-  provider-safe protocol was created; provider cost and metrics are not
-  applicable. The original v1
-  selection/protocol remain preserved as historical artifacts but are invalid
-  for provider authorization.
+  provider-safe replacement was created; provider cost and metrics are not
+  applicable. A historical label-free v1 protocol and selection remain
+  preserved, but are invalidated and are not currently authorized.
 - **Current condition-bound status:** **Valid but negative offline feasibility
   result; Not promoted under the tested condition.** This is a
   panel-feasibility finding, not a provider-quality result.

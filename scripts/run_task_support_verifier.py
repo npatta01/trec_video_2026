@@ -400,10 +400,12 @@ def _load_inputs(protocol_root: Path) -> tuple[dict[str, Any], list[dict[str, An
     protocol_path = protocol_root / "protocol.json"
     treatment_path = protocol_root / "treatment-freeze.json"
     selection_path = protocol_root / "selection-freeze.json"
+    authorization_path = protocol_root / "provider-authorization.json"
     protocol = _load_json(protocol_path)
     rows = _index_protocol_rows(protocol)
     treatment = _load_json(treatment_path)
     selection = _load_json(selection_path)
+    authorization = _load_json(authorization_path) if authorization_path.is_file() else None
     if not isinstance(treatment, Mapping) or not isinstance(selection, Mapping):
         raise ValueError("treatment and selection freezes must be JSON objects")
     _validate_freeze_contract(
@@ -411,9 +413,11 @@ def _load_inputs(protocol_root: Path) -> tuple[dict[str, Any], list[dict[str, An
         rows,
         treatment,
         selection,
+        authorization,
         protocol_path=protocol_path,
         treatment_path=treatment_path,
         selection_path=selection_path,
+        authorization_path=authorization_path,
     )
     return dict(protocol), rows, dict(treatment), dict(selection)
 
@@ -423,13 +427,19 @@ def _validate_freeze_contract(
     rows: Sequence[Mapping[str, Any]],
     treatment: Mapping[str, Any],
     selection: Mapping[str, Any],
+    authorization: Mapping[str, Any] | None,
     *,
     protocol_path: Path,
     treatment_path: Path,
     selection_path: Path,
+    authorization_path: Path,
 ) -> None:
     """Validate the immutable Task 2 -> Task 1 boundary before any call."""
 
+    if authorization is None:
+        raise ValueError(f"provider authorization is required: {authorization_path}")
+    if authorization.get("status") != "authorized":
+        raise ValueError("provider authorization status must be exactly authorized")
     if treatment.get("status") != "frozen":
         raise ValueError("treatment freeze must have exact status=frozen")
     if selection.get("status") != "frozen":
@@ -475,6 +485,57 @@ def _validate_freeze_contract(
     selection_protocol_hash = selection.get("protocol_sha256")
     if selection_protocol_hash is not None and selection_protocol_hash != _sha256(protocol_path):
         raise ValueError("selection protocol hash does not match current protocol")
+    _validate_authorization_contract(
+        authorization,
+        protocol,
+        rows,
+        treatment,
+        selection,
+        protocol_path=protocol_path,
+        treatment_path=treatment_path,
+        selection_path=selection_path,
+        authorization_path=authorization_path,
+    )
+
+
+def _validate_authorization_contract(
+    authorization: Mapping[str, Any] | None,
+    protocol: Mapping[str, Any],
+    rows: Sequence[Mapping[str, Any]],
+    treatment: Mapping[str, Any],
+    selection: Mapping[str, Any],
+    *,
+    protocol_path: Path,
+    treatment_path: Path,
+    selection_path: Path,
+    authorization_path: Path,
+) -> None:
+    """Require an independently written final authorization before calls."""
+
+    del protocol, treatment
+    if authorization is None:
+        raise ValueError(f"provider authorization is required: {authorization_path}")
+    if authorization.get("status") != "authorized":
+        raise ValueError("provider authorization status must be exactly authorized")
+    expected = {
+        "treatment_freeze_sha256": _sha256(treatment_path),
+        "selection_freeze_sha256": _sha256(selection_path),
+        "protocol_sha256": _sha256(protocol_path),
+        "provider_rows_sha256": provider_rows_sha256(rows),
+    }
+    for field, digest in expected.items():
+        if authorization.get(field) != digest:
+            label = field.replace("_sha256", " hash").replace("provider_rows", "provider rows digest")
+            raise ValueError(f"provider authorization {label} does not match current bytes")
+    manual_audit_sha256 = selection.get("manual_audit_sha256")
+    if not isinstance(manual_audit_sha256, str) or not manual_audit_sha256:
+        raise ValueError("selection freeze must bind manual audit SHA-256")
+    if authorization.get("manual_audit_sha256") != manual_audit_sha256:
+        raise ValueError(
+            "provider authorization manual audit SHA-256 does not match selection"
+        )
+    if authorization.get("promotion_gate") != "PASS":
+        raise ValueError("provider authorization promotion gate must be PASS")
 
 
 def _response_metadata(response: Any, elapsed_seconds: float, raw: str) -> dict[str, Any]:
@@ -575,6 +636,10 @@ def run(
         protocol_root / "selection-freeze.json",
         output_root / "selection-freeze.json",
     )
+    _copy_input_once(
+        protocol_root / "provider-authorization.json",
+        output_root / "provider-authorization.json",
+    )
     provider = call or _call_provider
     for row in rows:
         video_id = row["video_id"]
@@ -665,15 +730,18 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
         rows,
         treatment,
         selection,
+        _load_json(root / "provider-authorization.json"),
         protocol_path=protocol_path,
         treatment_path=treatment_path,
         selection_path=selection_path,
+        authorization_path=root / "provider-authorization.json",
     )
     if freeze.get("protocol_sha256") != _sha256(protocol_path):
         raise ValueError("predictions freeze does not bind current protocol")
     expected_freeze_hashes = {
         "treatment_freeze_sha256": treatment_path,
         "selection_freeze_sha256": selection_path,
+        "provider_authorization_sha256": root / "provider-authorization.json",
     }
     for key, path in expected_freeze_hashes.items():
         if freeze.get(key) != _sha256(path):
@@ -743,9 +811,11 @@ def verify_predictions_freeze(root: Path) -> None:
         rows,
         treatment,
         selection,
+        _load_json(root / "provider-authorization.json"),
         protocol_path=protocol_path,
         treatment_path=treatment_path,
         selection_path=selection_path,
+        authorization_path=root / "provider-authorization.json",
     )
     frozen_rows: list[dict[str, Any]] = []
     passed_count = 0
@@ -801,6 +871,9 @@ def verify_predictions_freeze(root: Path) -> None:
             "protocol_sha256": _sha256(protocol_path),
             "treatment_freeze_sha256": _sha256(treatment_path),
             "selection_freeze_sha256": _sha256(selection_path),
+            "provider_authorization_sha256": _sha256(
+                root / "provider-authorization.json"
+            ),
             "rows": frozen_rows,
         },
     )

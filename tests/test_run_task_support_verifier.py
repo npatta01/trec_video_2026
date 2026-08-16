@@ -78,6 +78,7 @@ def _write_protocol_fixture(tmp_path: Path, row_count: int = 12) -> Path:
             "treatment_freeze_sha256": verifier._sha256(
                 protocol_root / "treatment-freeze.json"
             ),
+            "manual_audit_sha256": "a" * 64,
             "selected_rows": [row["video_id"] for row in rows],
             "provider_rows_sha256": verifier.provider_rows_sha256(rows),
         },
@@ -89,6 +90,23 @@ def _write_protocol_fixture(tmp_path: Path, row_count: int = 12) -> Path:
         protocol_root / "selection-freeze.json"
     )
     _write(protocol_root / "protocol.json", protocol)
+    _write(
+        protocol_root / "provider-authorization.json",
+        {
+            "schema_version": 1,
+            "status": "authorized",
+            "treatment_freeze_sha256": verifier._sha256(
+                protocol_root / "treatment-freeze.json"
+            ),
+            "selection_freeze_sha256": verifier._sha256(
+                protocol_root / "selection-freeze.json"
+            ),
+            "protocol_sha256": verifier._sha256(protocol_root / "protocol.json"),
+            "provider_rows_sha256": verifier.provider_rows_sha256(rows),
+            "manual_audit_sha256": "a" * 64,
+            "promotion_gate": "PASS",
+        },
+    )
     return protocol_root
 
 
@@ -225,6 +243,53 @@ def test_run_rejects_unfrozen_inputs_before_any_call(tmp_path: Path) -> None:
         return json.dumps(_valid_payload()), {}
 
     with pytest.raises(ValueError, match="treatment freeze"):
+        verifier.run(protocol_root, tmp_path / "run", call=should_not_call)
+    assert calls == 0
+
+
+def test_run_requires_final_provider_authorization_before_any_call(tmp_path: Path) -> None:
+    protocol_root = _write_protocol_fixture(tmp_path)
+    (protocol_root / "provider-authorization.json").unlink()
+    calls = 0
+
+    def should_not_call(_prompt: str) -> tuple[str, dict[str, Any]]:
+        nonlocal calls
+        calls += 1
+        return json.dumps(_valid_payload()), {}
+
+    with pytest.raises(ValueError, match="provider authorization"):
+        verifier.run(protocol_root, tmp_path / "run", call=should_not_call)
+    assert calls == 0
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("status", "blocked", "status"),
+        ("treatment_freeze_sha256", "0" * 64, "treatment"),
+        ("selection_freeze_sha256", "0" * 64, "selection"),
+        ("protocol_sha256", "0" * 64, "protocol"),
+        ("provider_rows_sha256", "0" * 64, "provider rows"),
+        ("manual_audit_sha256", "0" * 64, "manual audit"),
+        ("promotion_gate", "FAIL", "promotion gate"),
+    ],
+)
+def test_run_rejects_blocked_or_mismatched_authorization_before_calls(
+    tmp_path: Path, field: str, value: str, message: str
+) -> None:
+    protocol_root = _write_protocol_fixture(tmp_path)
+    authorization_path = protocol_root / "provider-authorization.json"
+    authorization = json.loads(authorization_path.read_text())
+    authorization[field] = value
+    _write(authorization_path, authorization)
+    calls = 0
+
+    def should_not_call(_prompt: str) -> tuple[str, dict[str, Any]]:
+        nonlocal calls
+        calls += 1
+        return json.dumps(_valid_payload()), {}
+
+    with pytest.raises(ValueError, match=message):
         verifier.run(protocol_root, tmp_path / "run", call=should_not_call)
     assert calls == 0
 

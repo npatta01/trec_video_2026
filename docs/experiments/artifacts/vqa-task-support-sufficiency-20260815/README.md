@@ -23,8 +23,20 @@ controls. The corrected v3 role counts were:
 The offline feasibility gate therefore **failed**. Provider authorization was
 blocked, with zero provider/API/native-video calls, no provider cost, and no
 provider metrics. No replacement selection or protocol was created. The
-original v1 selection and protocol remain preserved as historical artifacts but
-are invalid for provider authorization.
+historical label-free v1 protocol and selection remain preserved, but are
+invalidated and are not currently authorized. The current runner also rejects
+the historical treatment because its bound runner bytes predate the final
+authorization check.
+
+### Combined prior-exposure split
+
+Prior exposure is the union of the frozen provenance flags. The sole target was
+previously exposed, so there is no unexposed answer-sufficient target:
+
+| Prior exposure | Target | Safeguard | Control | Reference/question issue |
+|---|---:|---:|---:|---:|
+| Exposed | 1 | 4 | 5 | 0 |
+| Not exposed | 0 | 13 | 3 | 6 |
 
 ## Exposure accounting
 
@@ -49,9 +61,10 @@ were hard audit `30`, grounded v2 `24`, grounded v3 `11`, multi-interpretation
 ## Reproducibility bindings
 
 `summary.json` records the aggregate result, private-artifact SHA-256 values,
-and the no-call boundary. `SHA256SUMS` covers the tracked files in this
-directory. The relevant private benchmark root and source artifacts are bound
-by hashes in the summary; no private row-level material is exposed.
+the combined exposure split, the write-once blocked authorization sidecar, and
+the no-call boundary. `SHA256SUMS` covers the tracked files in this directory.
+The relevant private benchmark root and source artifacts are bound by hashes in
+the summary; no private row-level material is exposed.
 
 ## Limitations
 
