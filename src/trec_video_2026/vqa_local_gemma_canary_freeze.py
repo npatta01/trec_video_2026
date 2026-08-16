@@ -31,16 +31,23 @@ def build_smoke_freeze(
             protocol.get("frames"), list
         ):
             raise TypeError("protocol request frames must be an array")
-        expected_by_video[str(row["video_id"])] = tuple(
+        video_id = str(row["video_id"])
+        if video_id in expected_by_video:
+            raise ValueError("duplicate planned video identity")
+        expected_by_video[video_id] = tuple(
             str(frame["frame_id"]) for frame in protocol["frames"]
         )
     rows: list[dict[str, object]] = []
     completed = 0
+    seen_video_ids: set[str] = set()
     for result in raw_results:
         video_id = str(result.get("video_id"))
         condition_id = str(result.get("condition_id"))
         if video_id not in expected_by_video or condition_id != "primary":
             raise ValueError("smoke result identity is not in the frozen request")
+        if video_id in seen_video_ids:
+            raise ValueError("each planned smoke video must appear exactly once")
+        seen_video_ids.add(video_id)
         try:
             parse_state_batch_result(
                 result, expected_frame_ids=expected_by_video[video_id]
@@ -64,6 +71,8 @@ def build_smoke_freeze(
                     "failure_type": None,
                 }
             )
+    if seen_video_ids != set(expected_by_video):
+        raise ValueError("each planned smoke video must appear exactly once")
     unsigned: dict[str, object] = {
         "schema_version": 1,
         "status": (
