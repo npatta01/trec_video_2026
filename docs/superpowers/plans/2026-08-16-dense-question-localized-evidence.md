@@ -351,6 +351,15 @@ must not be loaded for reference-aware scoring.
 - Treatment SHA `712f7b4945d7da3eda0ab68e196cad3796fac19e75b52c070640b6e8a1951708`; selection SHA `6b56adb585f30b2fec1e5acfe48d4a67f40402df5feb56d817b638358bc09f15`; provider rows SHA `007fd6a66fd403d88782438c655028c0381a714ef84f70a812ed511d44eed293`; media manifest SHA `0b0875fec5c83f5567d0ff3b6d1051a3026b938a0ee5c7dbaa90a07023be5b66`.
 - v2/v3/v4 and superseded v13/v14/v15/v16/v17 recursive pre/post hashes matched. Ruff, compilation, and `git diff --check` passed. Task 4 remains **NOT AUTHORIZED** pending a verified provider continuation freeze.
 
+### Task 3F execution and combined freeze — 2026-08-16
+
+- Status: the single authorized private `run-v22` continuation completed. Preflight passed with the committed v22 ledger, exactly two imported v4 arms, zero new calls or pending artifacts, a present credential, and 88 focused tests green. No labels, references, or scoring inputs were loaded.
+- The amended-validator fresh canary at positions 3–4 passed, so the runner issued exactly 22 new callbacks at positions 3–24. The combined evidence contains 24/24 completed arms: 16 `passed` (2 imported plus 14 new) and 8 new `contract_error`; retries and duplicate attempts were zero.
+- Requested and observed model was `gemini-3.1-pro-preview`. Combined usage was 251,784 prompt tokens, 3,406 candidate tokens, and 266,482 total tokens. Cost metadata was unavailable. Freeze status is `frozen`, `canary_pair_status=passed`, `fresh_canary_pair_status=passed`, and `completed_count=24`.
+- The combined prediction freeze was created and independently verified before any downstream label-aware work. Prediction-freeze SHA-256 is `fb002af0bb8e663e495afcd2b1888dd37d11e0c24ef57d0f14f5ecf65434f758`; execution snapshot and final snapshot SHA-256 values are `4738cec83a4c4764ab8bd3c611808c5252f5ade4fbcdf289cca934643e65b8c3` and `99ed7dc5a79d437fe1e6998369f2c952e7ab524209ab58eb49a6bee19c1c6bf8`.
+- The private evidence root is `data/vqa/benchmarks/dense-question-localized-evidence-issue35-v1/run-v22/`. Its continuation authorization, replay, treatment, selection, provider-row, and media-manifest hashes are respectively `2c4b9e928ba0a3e673695f86a0eab0988d8fd9d3319c6aaf74bb35d805890b45`, `efc872728860af9b20834f8d1f8a55585dc065fd0fc548e0462d64cb34b92045`, `92283d1c6849f696d283a8a8baeb7a426ba3a650f83554925e793f8a9faf8fce`, `acf784afe40e52832a6f9b6728fe8930da7464e1191e4c050b634beccd70eab0`, `007fd6a66fd403d88782438c655028c0381a714ef84f70a812ed511d44eed293`, and `0b0875fec5c83f5567d0ff3b6d1051a3026b938a0ee5c7dbaa90a07023be5b66`. No row-level content is recorded here.
+- Task 3F execution is complete. Reference-aware scoring and manual labels remain a separate downstream step and were not performed in this task.
+
 ### Task 4: Audit paired fact recovery and apply the gate
 
 **Files:**
