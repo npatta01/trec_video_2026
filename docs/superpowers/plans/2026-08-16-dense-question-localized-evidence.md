@@ -360,6 +360,14 @@ must not be loaded for reference-aware scoring.
 - The private evidence root is `data/vqa/benchmarks/dense-question-localized-evidence-issue35-v1/run-v22/`. Its continuation authorization, replay, treatment, selection, provider-row, and media-manifest hashes are respectively `2c4b9e928ba0a3e673695f86a0eab0988d8fd9d3319c6aaf74bb35d805890b45`, `efc872728860af9b20834f8d1f8a55585dc065fd0fc548e0462d64cb34b92045`, `92283d1c6849f696d283a8a8baeb7a426ba3a650f83554925e793f8a9faf8fce`, `acf784afe40e52832a6f9b6728fe8930da7464e1191e4c050b634beccd70eab0`, `007fd6a66fd403d88782438c655028c0381a714ef84f70a812ed511d44eed293`, and `0b0875fec5c83f5567d0ff3b6d1051a3026b938a0ee5c7dbaa90a07023be5b66`. No row-level content is recorded here.
 - Task 3F execution is complete. Reference-aware scoring and manual labels remain a separate downstream step and were not performed in this task.
 
+### Task 3G zero-call encoded-duration correction — 2026-08-16
+
+- Status: complete as an additive, label-free parser correction. No provider calls, references, labels, answers, or scoring inputs were loaded. The historical v22 runner and private source bytes remain unchanged.
+- The corrected rule is symmetric: `abs(encoded_duration - (Decimal(clip_end_seconds) - Decimal(clip_start_seconds))) <= 1/fps`; evidence timestamps remain exactly as emitted and must satisfy `0 <= timestamp <= nominal_duration`. All other strict response fields and cross-field rules remain unchanged. Overruns beyond one requested frame, shortfalls beyond one frame, and timestamps past nominal are rejected.
+- The private correction root is `data/vqa/benchmarks/dense-question-localized-evidence-issue35-v1/run-v22-correction-v1/`. Its frozen aggregate is `24` arms, original `16 passed` plus `8 contract_error`, corrected `24 passed`, `8` acceptance changes, and `provider_calls=0`.
+- The correction freeze SHA-256 is `489a32419f6ae2c5518b435f7ae0c114020f3425727a40b684183d604e655662`. It binds source v22 prediction-freeze SHA `fb002af0bb8e663e495afcd2b1888dd37d11e0c24ef57d0f14f5ecf65434f758`, correction script SHA `32949c9a47b1e4247e7db2ed649de42bde9e2128f2bc5e2bcf2c1b60cc29f98b`, and tested-rule SHA `83b5de725de609292a3eedbb9ba720ce07c6c166496468ee71068366a936002b`.
+- Focused correction tests passed `11`; historical dense runner tests passed `74`; preparation tests passed `14`. Ruff, Python compilation, `git diff --check`, the historical v22 freeze verifier, source/raw/freeze/correction drift tests, ordered-arm/unique-response-ID verification, and additive-output verification all passed. Task 4 remains separate and must consume the corrected artifact only after its own reference/label authorization.
+
 ### Task 4: Audit paired fact recovery and apply the gate
 
 **Files:**
