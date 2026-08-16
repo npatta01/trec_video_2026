@@ -255,6 +255,15 @@ def test_probe_rejects_encoding_shortfall_over_one_frame() -> None:
         runner.validate_probe(payload, 3.8, nominal_duration_seconds=4.0, fps=8.0)
 
 
+def test_probe_accepts_decimal_exact_nominal_endpoint() -> None:
+    payload = _valid_probe()
+    payload["evidence_timestamps"] = [4.1]
+    result = runner.validate_probe(
+        payload, 4.0, nominal_duration_seconds=4.1, fps=4.0
+    )
+    assert result["evidence_timestamps"] == [4.1]
+
+
 def test_prompt_is_question_localized_and_prohibits_label_leakage() -> None:
     prompt = runner.build_prompt(
         "What does the robot do at the end?",

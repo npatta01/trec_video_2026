@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import UTC, datetime
+from decimal import Decimal
 import hashlib
 import inspect
 import json
@@ -405,10 +406,12 @@ def validate_probe(
     if nominal_duration_seconds is not None:
         if fps is None or _number(fps, "fps") <= 0:
             raise ValueError("fps is required for nominal endpoint validation")
-        frame = 1.0 / _number(fps, "fps")
+        frame = Decimal(1) / Decimal(str(_number(fps, "fps")))
+        nominal_decimal = Decimal(str(nominal))
+        duration_decimal = Decimal(str(duration))
         if duration > nominal:
             raise ValueError("encoded duration exceeds nominal duration")
-        shortfall = nominal - duration
+        shortfall = nominal_decimal - duration_decimal
         if shortfall > frame:
             raise ValueError("encoding shortfall exceeds one frame")
     else:
@@ -417,12 +420,13 @@ def validate_probe(
     timestamps: list[float] = []
     for index, value in enumerate(timestamp_payload):
         timestamp = _number(value, f"evidence_timestamps[{index}]")
-        if timestamp < 0 or timestamp > nominal:
+        timestamp_decimal = Decimal(str(timestamp))
+        if timestamp < 0 or timestamp_decimal > Decimal(str(nominal)):
             raise ValueError(f"evidence timestamp is outside nominal duration: {timestamp}")
         if timestamp > duration and (
             nominal_duration_seconds is None
-            or timestamp - duration > shortfall
-            or timestamp - duration > frame
+            or timestamp_decimal - duration_decimal > shortfall
+            or timestamp_decimal - duration_decimal > frame
         ):
             raise ValueError(f"evidence timestamp exceeds encoded duration shortfall: {timestamp}")
         timestamps.append(timestamp)
@@ -1105,6 +1109,16 @@ def run(root: Path, call: CallFunction | None = None) -> None:
     tasks = [(item, fps) for item in rows for fps in EXPECTED_FPS]
     canary_statuses: list[str] = []
     start_index = 2 if continuation else 0
+    response_ids: set[str] = set()
+    if continuation:
+        auth = _load_json(root / "continuation-authorization.json")
+        for item in auth.get("imported_prefix", []):
+            response_id = item.get("source_response_id")
+            if not isinstance(response_id, str) or not response_id.strip():
+                raise ValueError("continuation imported response ID is missing")
+            if response_id in response_ids:
+                raise ValueError("duplicate imported provider response ID")
+            response_ids.add(response_id)
 
     def stop_after_failed_canary(task_index: int) -> bool:
         canary_end = (start_index + 2 - 1) if continuation else (2 * COMPATIBILITY_CANARY_PAIRS - 1)
@@ -1156,6 +1170,13 @@ def run(root: Path, call: CallFunction | None = None) -> None:
         calls += 1
         try:
             raw, metadata = _provider_result(provider(clip_bytes, media["mime_type"], prompt, fps))
+            if continuation:
+                response_id = metadata.get("response_id")
+                if not isinstance(response_id, str) or not response_id.strip():
+                    raise ValueError("continuation provider response ID is required")
+                if response_id in response_ids:
+                    raise ValueError("duplicate continuation provider response ID")
+                response_ids.add(response_id)
         except BaseException as error:
             if isinstance(error, Exception):
                 _write_once(row_root / "metadata.json", {"error_type": type(error).__name__, "error": str(error)})
@@ -1216,7 +1237,7 @@ def run(root: Path, call: CallFunction | None = None) -> None:
         _write_once(row_root / "parsed.json", parsed)
         _write_once(
             row_root / "terminal.json",
-            {"audit_index": audit_index, "role": role, "fps": fps, "status": "passed", "raw_response_sha256": _sha256_bytes(raw.encode())},
+            {"audit_index": audit_index, "role": role, "fps": fps, "status": "passed", "raw_response_sha256": _sha256_bytes(raw.encode()), **({"response_id": metadata.get("response_id")} if continuation else {})},
         )
         if _canary_pair_index(task_index) is not None:
             canary_statuses.append("passed")
