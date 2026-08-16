@@ -14,12 +14,14 @@ from typing import Any
 
 import trec_video_2026.vqa_qwen_aligner_canary as canary_module
 from trec_video_2026.vqa_qwen_aligner_canary import (
+    build_qwen_asr_exposure_index,
     build_podman_command,
     freeze_predictions,
     prepare_canary,
     record_attempt,
     require_quality_scoring_ready,
     score_postfreeze,
+    select_fresh_english_quality_panel,
     select_quality_panel,
     select_panel,
     status_canary,
@@ -55,6 +57,21 @@ def _parser() -> argparse.ArgumentParser:
     quality_select.add_argument("--selected-at")
     quality_select.add_argument("--panel-size", type=int, default=8)
     add_experiment_id(quality_select)
+
+    exposure_index = commands.add_parser("fresh-exposure-index")
+    exposure_index.add_argument("--source", required=True, action="append", type=Path)
+    exposure_index.add_argument("--oracle-manifest", required=True, type=Path)
+    exposure_index.add_argument("--output", required=True, type=Path)
+    exposure_index.add_argument("--built-at")
+    add_experiment_id(exposure_index)
+
+    fresh_select = commands.add_parser("fresh-quality-select")
+    fresh_select.add_argument("--manifest", required=True, type=Path)
+    fresh_select.add_argument("--exposure-index", required=True, type=Path)
+    fresh_select.add_argument("--audio-root", required=True, type=Path)
+    fresh_select.add_argument("--output", required=True, type=Path)
+    fresh_select.add_argument("--selected-at")
+    add_experiment_id(fresh_select)
 
     prepare = commands.add_parser("prepare")
     prepare.add_argument("--root", required=True, type=Path)
@@ -235,6 +252,43 @@ def main(argv: list[str] | None = None) -> int:
             )
             _exclusive_json(args.output, selection)
             _print({"status": "selected", "row_count": len(selection["rows"])})
+            return 0
+        if args.command == "fresh-exposure-index":
+            index = build_qwen_asr_exposure_index(
+                source_paths=args.source,
+                oracle_manifest=args.oracle_manifest,
+                built_at=args.built_at
+                or datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            )
+            _exclusive_json(args.output, index)
+            _print(
+                {
+                    "status": "indexed",
+                    "source_count": len(index["sources"]),
+                    "excluded_video_id_count": len(index["excluded_video_ids"]),
+                }
+            )
+            return 0
+        if args.command == "fresh-quality-select":
+            selection = select_fresh_english_quality_panel(
+                manifest=_load_json(args.manifest),
+                exposure_index=_load_json(args.exposure_index),
+                audio_root=args.audio_root,
+                selected_at=args.selected_at
+                or datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                source_hashes={
+                    "manifest_sha256": _sha256(args.manifest),
+                    "exposure_index_sha256": _sha256(args.exposure_index),
+                },
+            )
+            _exclusive_json(args.output, selection)
+            _print(
+                {
+                    "status": "selected",
+                    "row_count": len(selection["rows"]),
+                    "stratum_counts": selection["stratum_counts"],
+                }
+            )
             return 0
         if args.command == "quality-select":
             manifest = _load_json(args.manifest)

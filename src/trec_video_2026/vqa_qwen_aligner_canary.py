@@ -8,6 +8,7 @@ import math
 import re
 import subprocess
 import time
+import wave
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
@@ -20,8 +21,16 @@ from trec_video_2026.vqa_experiments.temporal_bottleneck import (
 SCHEMA_VERSION = 1
 EXPERIMENT_ID = "qwen-aligner-stage05-20260815-v1"
 QUALITY_SELECTION_KIND = "qwen_aligner_quality_panel"
+FRESH_ENGLISH_SELECTION_KIND = "qwen_aligned_english_fresh_speech_panel"
+FRESH_PANEL_SIZE = 12
+FRESH_STRATUM_QUOTAS = {
+    "reported_speech": 6,
+    "conversation": 3,
+    "vocalization": 3,
+}
 GEMINI_CONDITION = "gemini-3.1-pro-native-av-4fps"
 CONDITION_ID = "qwen3-asr-1.7b-forced-aligner-0.6b"
+ENGLISH_CONDITION_ID = "qwen3-asr-1.7b-forced-aligner-0.6b-english"
 ASR_MODEL_ID = "Qwen/Qwen3-ASR-1.7B"
 ASR_REVISION = "7278e1e70fe206f11671096ffdd38061171dd6e5"
 ALIGNER_MODEL_ID = "Qwen/Qwen3-ForcedAligner-0.6B"
@@ -34,7 +43,38 @@ CANONICAL_DATA_ROOT = Path(
     "/home/npatta01/data/competitions/trec_video_2026/data"
 ).resolve()
 RUNNER_PATH = Path(__file__).with_name("vqa_audio_runner.py").resolve()
+DEDICATED_RUNNER_PATH = Path(__file__).with_name(
+    "vqa_qwen_empty_output_runner.py"
+).resolve()
+CONTROLLER_PATH = Path(__file__).resolve()
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_QWEN_ASR_MARKERS = (
+    "Qwen/Qwen3-ASR-1.7B",
+    "qwen3_asr",
+    "qwen3-asr",
+)
+_VISIBLE_TEXT = re.compile(
+    r"\b(?:sign|caption|subtitle|screen|label|shirt|board|paper|written|writing|text)\b",
+    re.IGNORECASE,
+)
+_SPEECH_PATTERNS = {
+    "reported_speech": re.compile(
+        r"\b(?:say|says|said|saying|tell|tells|told|telling|ask|asks|asked|asking|"
+        r"answer|answers|answered|answering|reply|replies|replied|replying|respond|"
+        r"responds|responded|responding|announce|announces|announced|announcing|"
+        r"mention|mentions|mentioned|mentioning)\b",
+        re.IGNORECASE,
+    ),
+    "conversation": re.compile(
+        r"\b(?:speak|speaks|spoke|spoken|speaking|talk|talks|talked|talking)\b",
+        re.IGNORECASE,
+    ),
+    "vocalization": re.compile(
+        r"\b(?:shout|shouts|shouted|shouting|yell|yells|yelled|yelling|scream|"
+        r"screams|screamed|screaming|sing|sings|sang|sung|singing|song|songs)\b",
+        re.IGNORECASE,
+    ),
+}
 _FORBIDDEN_KEYS = {
     "answer",
     "answers",
@@ -92,6 +132,295 @@ def _has_speech_record(value: Any) -> bool:
     return isinstance(value, str) and any(
         line.startswith("SPEECH |") for line in value.splitlines()
     )
+
+
+def _load_json_or_jsonl(path: Path) -> Any:
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ValueError(f"cannot read exposure source: {path.name}") from exc
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        try:
+            return [json.loads(line) for line in raw.splitlines() if line.strip()]
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"exposure source is not valid JSON/JSONL: {path.name}") from exc
+
+
+def _collect_video_ids(value: Any) -> set[str]:
+    found: set[str] = set()
+
+    def visit(item: Any) -> None:
+        if isinstance(item, Mapping):
+            video_id = item.get("video_id")
+            if isinstance(video_id, str) and video_id:
+                found.add(video_id)
+            for child in item.values():
+                visit(child)
+        elif isinstance(item, list):
+            for child in item:
+                visit(child)
+
+    visit(value)
+    return found
+
+
+def _canonical_private_file(path: Path, *, field: str) -> Path:
+    resolved = path.resolve()
+    if (
+        not resolved.is_relative_to(CANONICAL_DATA_ROOT)
+        or not resolved.is_file()
+    ):
+        raise ValueError(f"{field} must be a file inside the canonical data root")
+    return resolved
+
+
+def build_qwen_asr_exposure_index(
+    *,
+    source_paths: Sequence[Path],
+    oracle_manifest: Path,
+    built_at: str,
+) -> dict[str, Any]:
+    """Freeze identities previously exposed to Qwen3-ASR without output text."""
+
+    if not source_paths:
+        raise ValueError("at least one Qwen3-ASR exposure source is required")
+    if not isinstance(built_at, str) or not built_at:
+        raise ValueError("exposure index timestamp is required")
+    resolved_sources = [
+        _canonical_private_file(path, field="exposure source")
+        for path in source_paths
+    ]
+    if len(set(resolved_sources)) != len(resolved_sources):
+        raise ValueError("exposure source paths must be unique")
+    resolved_oracle = _canonical_private_file(
+        oracle_manifest, field="oracle manifest"
+    )
+
+    excluded: set[str] = set()
+    source_records: list[dict[str, Any]] = []
+    for path in sorted(resolved_sources, key=str):
+        raw = path.read_text(encoding="utf-8")
+        matched = [marker for marker in _QWEN_ASR_MARKERS if marker in raw]
+        if not matched:
+            raise ValueError("exposure source does not contain an exact Qwen3-ASR marker")
+        ids = _collect_video_ids(_load_json_or_jsonl(path))
+        excluded.update(ids)
+        source_records.append(
+            {
+                "path": str(path),
+                "sha256": _sha256_file(path),
+                "matched_markers": matched,
+                "excluded_video_id_count": len(ids),
+            }
+        )
+
+    oracle_ids = _collect_video_ids(_load_json_or_jsonl(resolved_oracle))
+    excluded.update(oracle_ids)
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "index_kind": "qwen3_asr_exposure_index",
+        "built_at": built_at,
+        "markers": list(_QWEN_ASR_MARKERS),
+        "sources": source_records,
+        "oracle_manifest": {
+            "path": str(resolved_oracle),
+            "sha256": _sha256_file(resolved_oracle),
+            "excluded_video_id_count": len(oracle_ids),
+        },
+        "excluded_video_ids": sorted(excluded),
+    }
+
+
+def _verify_qwen_asr_exposure_index(index: Mapping[str, Any]) -> set[str]:
+    if set(index) != {
+        "schema_version",
+        "index_kind",
+        "built_at",
+        "markers",
+        "sources",
+        "oracle_manifest",
+        "excluded_video_ids",
+    }:
+        raise ValueError("Qwen3-ASR exposure index keys are invalid")
+    if (
+        index.get("schema_version") != SCHEMA_VERSION
+        or index.get("index_kind") != "qwen3_asr_exposure_index"
+        or index.get("markers") != list(_QWEN_ASR_MARKERS)
+    ):
+        raise ValueError("Qwen3-ASR exposure index contract is invalid")
+    sources = index.get("sources")
+    if not isinstance(sources, list) or not sources:
+        raise ValueError("Qwen3-ASR exposure index sources are invalid")
+    seen_paths: set[Path] = set()
+    for record in sources:
+        if not isinstance(record, Mapping) or set(record) != {
+            "path",
+            "sha256",
+            "matched_markers",
+            "excluded_video_id_count",
+        }:
+            raise ValueError("Qwen3-ASR exposure source record is invalid")
+        path = _canonical_private_file(Path(str(record["path"])), field="exposure source")
+        if path in seen_paths:
+            raise ValueError("Qwen3-ASR exposure source paths must be unique")
+        seen_paths.add(path)
+        if record.get("sha256") != _sha256_file(path):
+            raise ValueError("Qwen3-ASR exposure source hash does not match")
+        matched = record.get("matched_markers")
+        if (
+            not isinstance(matched, list)
+            or not matched
+            or any(marker not in _QWEN_ASR_MARKERS for marker in matched)
+        ):
+            raise ValueError("Qwen3-ASR exposure source markers are invalid")
+
+    oracle = index.get("oracle_manifest")
+    if not isinstance(oracle, Mapping) or set(oracle) != {
+        "path",
+        "sha256",
+        "excluded_video_id_count",
+    }:
+        raise ValueError("Qwen3-ASR oracle manifest record is invalid")
+    oracle_path = _canonical_private_file(
+        Path(str(oracle["path"])), field="oracle manifest"
+    )
+    if oracle.get("sha256") != _sha256_file(oracle_path):
+        raise ValueError("Qwen3-ASR oracle exposure hash does not match")
+    excluded = index.get("excluded_video_ids")
+    if (
+        not isinstance(excluded, list)
+        or any(not isinstance(video_id, str) or not video_id for video_id in excluded)
+        or excluded != sorted(set(excluded))
+    ):
+        raise ValueError("Qwen3-ASR excluded identities are invalid")
+    return set(excluded)
+
+
+def _wav_duration(path: Path) -> float:
+    try:
+        with wave.open(str(path), "rb") as handle:
+            frame_rate = handle.getframerate()
+            frame_count = handle.getnframes()
+    except (OSError, wave.Error) as exc:
+        raise ValueError(f"cannot read WAV metadata: {path.name}") from exc
+    if frame_rate <= 0 or frame_count <= 0:
+        raise ValueError(f"WAV duration is invalid: {path.name}")
+    return frame_count / frame_rate
+
+
+def _speech_stratum(question: str) -> str | None:
+    if _VISIBLE_TEXT.search(question):
+        return None
+    for stratum in FRESH_STRATUM_QUOTAS:
+        if _SPEECH_PATTERNS[stratum].search(question):
+            return stratum
+    return None
+
+
+def select_fresh_english_quality_panel(
+    *,
+    manifest: Mapping[str, Any],
+    exposure_index: Mapping[str, Any],
+    audio_root: Path,
+    selected_at: str,
+    source_hashes: Mapping[str, str],
+    panel_size: int = FRESH_PANEL_SIZE,
+) -> dict[str, Any]:
+    """Select the fixed question-only fresh 6/3/3 English speech panel."""
+
+    if panel_size != FRESH_PANEL_SIZE or panel_size != sum(FRESH_STRATUM_QUOTAS.values()):
+        raise ValueError("fresh English panel size must match the fixed quota total")
+    audio_root = audio_root.resolve()
+    if (
+        not audio_root.is_relative_to(CANONICAL_DATA_ROOT)
+        or not audio_root.is_dir()
+    ):
+        raise ValueError("audio root must be inside the canonical data root")
+    excluded_ids = _verify_qwen_asr_exposure_index(exposure_index)
+    examples = manifest.get("examples")
+    if not isinstance(examples, list):
+        raise ValueError("manifest examples must be an array")
+    if not isinstance(source_hashes, Mapping) or not source_hashes:
+        raise ValueError("selection source hashes must be nonempty")
+    if any(
+        not isinstance(value, str) or _SHA256.fullmatch(value) is None
+        for value in source_hashes.values()
+    ):
+        raise ValueError("selection source hashes must be lowercase SHA-256 values")
+
+    candidates: dict[str, list[dict[str, Any]]] = {
+        stratum: [] for stratum in FRESH_STRATUM_QUOTAS
+    }
+    seen: set[str] = set()
+    for source_index, example in enumerate(examples):
+        if not isinstance(example, Mapping) or set(example) != {"video_id", "question"}:
+            raise ValueError("manifest rows must contain only video_id and question")
+        video_id = example.get("video_id")
+        question = example.get("question")
+        if (
+            not isinstance(video_id, str)
+            or not video_id
+            or video_id in seen
+            or not isinstance(question, str)
+        ):
+            raise ValueError("manifest rows require unique IDs and string questions")
+        seen.add(video_id)
+        if video_id in excluded_ids:
+            continue
+        stratum = _speech_stratum(question)
+        if stratum is not None:
+            candidates[stratum].append(
+                {
+                    "video_id": video_id,
+                    "speech_stratum": stratum,
+                    "source_order_index": source_index,
+                }
+            )
+
+    chosen: list[dict[str, Any]] = []
+    for stratum, quota in FRESH_STRATUM_QUOTAS.items():
+        rows = candidates[stratum]
+        if len(rows) < quota:
+            raise ValueError(f"fresh English stratum quota is not satisfied: {stratum}")
+        chosen.extend(rows[:quota])
+    chosen.sort(key=lambda row: int(row["source_order_index"]))
+
+    rows = []
+    for candidate in chosen:
+        video_id = str(candidate["video_id"])
+        audio_path = (audio_root / f"{video_id}.wav").resolve()
+        if not audio_path.is_relative_to(audio_root) or not audio_path.is_file():
+            raise ValueError("selected audio is missing or escapes the audio root")
+        rows.append(
+            {
+                "role": "speech_quality",
+                "speech_stratum": candidate["speech_stratum"],
+                "video_id": video_id,
+                "audio_path": str(audio_path),
+                "audio_sha256": _sha256_file(audio_path),
+                "duration_seconds": _wav_duration(audio_path),
+                "source_order_index": candidate["source_order_index"],
+                "selection_provenance": (
+                    "manifest_question_whole_word+fresh_qwen3_asr+fixed_stratum_quota"
+                ),
+            }
+        )
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "experiment_id": EXPERIMENT_ID,
+        "selection_kind": FRESH_ENGLISH_SELECTION_KIND,
+        "panel_size": FRESH_PANEL_SIZE,
+        "selected_at": selected_at,
+        "selection_policy": (
+            "first fresh visible-text-excluded speech rows in fixed 6/3/3 strata, "
+            "restored to manifest order"
+        ),
+        "stratum_counts": dict(FRESH_STRATUM_QUOTAS),
+        "rows": rows,
+        "source_hashes": dict(source_hashes),
+    }
 
 
 def select_panel(
@@ -343,6 +672,15 @@ def _validate_selection(selection: Mapping[str, Any]) -> list[dict[str, Any]]:
     }
     if selection_kind == QUALITY_SELECTION_KIND:
         expected.update({"selection_kind", "panel_size", "selected_at"})
+    elif selection_kind == FRESH_ENGLISH_SELECTION_KIND:
+        expected.update(
+            {
+                "selection_kind",
+                "panel_size",
+                "selected_at",
+                "stratum_counts",
+            }
+        )
     else:
         expected.add("selected_at")
     if set(selection) != expected:
@@ -355,7 +693,7 @@ def _validate_selection(selection: Mapping[str, Any]) -> list[dict[str, Any]]:
     rows = selection["rows"]
     if not isinstance(rows, list):
         raise ValueError("selection rows must be an array")
-    if selection_kind == QUALITY_SELECTION_KIND:
+    if selection_kind in {QUALITY_SELECTION_KIND, FRESH_ENGLISH_SELECTION_KIND}:
         panel_size = selection.get("panel_size")
         if (
             not isinstance(panel_size, int)
@@ -370,6 +708,11 @@ def _validate_selection(selection: Mapping[str, Any]) -> list[dict[str, Any]]:
             for row in rows
         ):
             raise ValueError("quality selection roles are invalid")
+        if selection_kind == FRESH_ENGLISH_SELECTION_KIND:
+            if panel_size != FRESH_PANEL_SIZE:
+                raise ValueError("fresh English panel size is invalid")
+            if selection.get("stratum_counts") != FRESH_STRATUM_QUOTAS:
+                raise ValueError("fresh English stratum counts are invalid")
     else:
         if len(rows) != 2:
             raise ValueError("selection must contain exactly two rows")
@@ -386,6 +729,8 @@ def _validate_selection(selection: Mapping[str, Any]) -> list[dict[str, Any]]:
         "duration_seconds",
         "selection_provenance",
     }
+    if selection_kind == FRESH_ENGLISH_SELECTION_KIND:
+        expected_row_keys.update({"speech_stratum", "source_order_index"})
     normalized: list[dict[str, Any]] = []
     seen: set[str] = set()
     for row in rows:
@@ -415,7 +760,27 @@ def _validate_selection(selection: Mapping[str, Any]) -> list[dict[str, Any]]:
             or duration <= 0
         ):
             raise ValueError("selection duration must be positive")
+        if selection_kind == FRESH_ENGLISH_SELECTION_KIND:
+            if row.get("speech_stratum") not in FRESH_STRATUM_QUOTAS:
+                raise ValueError("fresh English speech stratum is invalid")
+            source_index = row.get("source_order_index")
+            if (
+                isinstance(source_index, bool)
+                or not isinstance(source_index, int)
+                or source_index < 0
+            ):
+                raise ValueError("fresh English source order index is invalid")
         normalized.append(dict(row))
+    if selection_kind == FRESH_ENGLISH_SELECTION_KIND:
+        observed_counts = {
+            stratum: sum(row["speech_stratum"] == stratum for row in normalized)
+            for stratum in FRESH_STRATUM_QUOTAS
+        }
+        source_indexes = [row["source_order_index"] for row in normalized]
+        if observed_counts != FRESH_STRATUM_QUOTAS:
+            raise ValueError("fresh English row strata do not match fixed quotas")
+        if source_indexes != sorted(set(source_indexes)):
+            raise ValueError("fresh English rows are not in unique source order")
     source_hashes = selection["source_hashes"]
     if not isinstance(source_hashes, Mapping) or not source_hashes:
         raise ValueError("selection source hashes must be a nonempty object")
@@ -438,17 +803,25 @@ def prepare_canary(
     if root.exists():
         raise ValueError("refusing to overwrite existing canary root")
     rows = _validate_selection(selection)
-    if runner_path.resolve() != RUNNER_PATH or not RUNNER_PATH.is_file():
+    selection_kind = selection.get("selection_kind")
+    is_fresh_english = selection_kind == FRESH_ENGLISH_SELECTION_KIND
+    expected_runner = DEDICATED_RUNNER_PATH if is_fresh_english else RUNNER_PATH
+    if runner_path.resolve() != expected_runner or not expected_runner.is_file():
         raise ValueError("runner source must be the exact mounted runner")
+    if is_fresh_english and (
+        not RUNNER_PATH.is_file() or not CONTROLLER_PATH.is_file()
+    ):
+        raise ValueError("helper and controller sources must exist")
     root.mkdir(parents=True)
     selection_value = dict(selection)
+    condition_id = ENGLISH_CONDITION_ID if is_fresh_english else CONDITION_ID
     requests = {
         "schema_version": SCHEMA_VERSION,
         "experiment_id": EXPERIMENT_ID,
         "requests": [
             {
                 "run_id": EXPERIMENT_ID,
-                "condition_id": CONDITION_ID,
+                "condition_id": condition_id,
                 "video_id": row["video_id"],
                 "audio_path": row["audio_path"],
                 "mode": "transcription",
@@ -461,7 +834,7 @@ def prepare_canary(
         "schema_version": SCHEMA_VERSION,
         "experiment_id": EXPERIMENT_ID,
         "status": "prepared",
-        "condition_id": CONDITION_ID,
+        "condition_id": condition_id,
         "asr_model_id": ASR_MODEL_ID,
         "asr_revision": ASR_REVISION,
         "forced_aligner_model_id": ALIGNER_MODEL_ID,
@@ -485,10 +858,21 @@ def prepare_canary(
         "row_order": [row["video_id"] for row in rows],
         "audio_sha256": {row["video_id"]: row["audio_sha256"] for row in rows},
         "duration_seconds": {row["video_id"]: row["duration_seconds"] for row in rows},
-        "runner_sha256": _sha256_file(RUNNER_PATH),
+        "runner_sha256": _sha256_file(expected_runner),
         "selection_sha256": canonical_sha256(selection_value),
         "requests_sha256": canonical_sha256(requests),
     }
+    if is_fresh_english:
+        protocol["runtime_contract"]["language"] = "English"
+        protocol.update(
+            {
+                "runner_path": str(DEDICATED_RUNNER_PATH),
+                "helper_path": str(RUNNER_PATH),
+                "helper_sha256": _sha256_file(RUNNER_PATH),
+                "controller_path": str(CONTROLLER_PATH),
+                "controller_sha256": _sha256_file(CONTROLLER_PATH),
+            }
+        )
     _write_json_exclusive(root / "selection.json", selection_value)
     _write_json_exclusive(root / "requests.json", requests)
     _write_json_exclusive(root / "protocol.json", protocol)
@@ -510,24 +894,43 @@ def prepare_canary(
     return freeze
 
 
-def build_podman_command(
-    root: Path,
-    *,
-    hub_cache: Path,
-    data_root: Path,
-) -> list[str]:
-    """Build the sole network-disabled local inference command."""
+def _inference_argv(selection_kind: str) -> list[str]:
+    if selection_kind == FRESH_ENGLISH_SELECTION_KIND:
+        return [
+            "/opt/venv/bin/python",
+            "-m",
+            "trec_video_2026.vqa_qwen_empty_output_runner",
+            "--model-id",
+            ASR_MODEL_ID,
+            "--revision",
+            ASR_REVISION,
+            "--forced-aligner-id",
+            ALIGNER_MODEL_ID,
+            "--forced-aligner-revision",
+            ALIGNER_REVISION,
+            "--language",
+            "English",
+            "--timestamps",
+            "on",
+        ]
+    return [
+        "/opt/venv/bin/python",
+        "-m",
+        "trec_video_2026.vqa_audio_runner",
+        "--kind",
+        "qwen3_asr",
+        "--model-id",
+        ASR_MODEL_ID,
+        "--revision",
+        ASR_REVISION,
+        "--forced-aligner-id",
+        ALIGNER_MODEL_ID,
+        "--forced-aligner-revision",
+        ALIGNER_REVISION,
+    ]
 
-    if not root.is_dir():
-        raise ValueError("canary root is missing")
-    if not hub_cache.is_dir():
-        raise ValueError("Hugging Face cache is missing")
-    resolved_data_root = data_root.resolve()
-    if resolved_data_root != CANONICAL_DATA_ROOT or not resolved_data_root.is_dir():
-        raise ValueError("canonical data root is missing or does not match")
-    if not root.resolve().is_relative_to(resolved_data_root):
-        raise ValueError("canary root must be inside the canonical data root")
-    _verify_runner_binding(root)
+
+def _podman_prefix(*, hub_cache: Path, data_root: Path) -> list[str]:
     repo_root = Path(__file__).resolve().parents[2]
     container_repo = Path("/workspace/trec_video_2026")
     return [
@@ -551,7 +954,7 @@ def build_podman_command(
         "--volume",
         f"{hub_cache.resolve()}:/root/.cache/huggingface/hub:ro",
         "--volume",
-        f"{resolved_data_root}:{resolved_data_root}:ro",
+        f"{data_root.resolve()}:{data_root.resolve()}:ro",
         "--volume",
         f"{repo_root}:{container_repo}:ro",
         "--workdir",
@@ -572,20 +975,33 @@ def build_podman_command(
         "HOME=/tmp/home",
         "--env",
         f"VQA_RUNTIME_IMAGE={RUNTIME_IMAGE}",
+    ]
+
+
+def build_podman_command(
+    root: Path,
+    *,
+    hub_cache: Path,
+    data_root: Path,
+) -> list[str]:
+    """Build the sole network-disabled local inference command."""
+
+    if not root.is_dir():
+        raise ValueError("canary root is missing")
+    if not hub_cache.is_dir():
+        raise ValueError("Hugging Face cache is missing")
+    resolved_data_root = data_root.resolve()
+    if resolved_data_root != CANONICAL_DATA_ROOT or not resolved_data_root.is_dir():
+        raise ValueError("canonical data root is missing or does not match")
+    if not root.resolve().is_relative_to(resolved_data_root):
+        raise ValueError("canary root must be inside the canonical data root")
+    _verify_runner_binding(root)
+    protocol = _read_object(root / "protocol.json")
+    selection_kind = str(protocol.get("selection_kind"))
+    return [
+        *_podman_prefix(hub_cache=hub_cache, data_root=resolved_data_root),
         RUNTIME_IMAGE,
-        "/opt/venv/bin/python",
-        "-m",
-        "trec_video_2026.vqa_audio_runner",
-        "--kind",
-        "qwen3_asr",
-        "--model-id",
-        ASR_MODEL_ID,
-        "--revision",
-        ASR_REVISION,
-        "--forced-aligner-id",
-        ALIGNER_MODEL_ID,
-        "--forced-aligner-revision",
-        ALIGNER_REVISION,
+        *_inference_argv(selection_kind),
     ]
 
 
@@ -744,7 +1160,7 @@ def _verify_frozen_bytes(path: Path, record: Mapping[str, Any]) -> None:
         raise ValueError(f"artifact hash does not match freeze: {path.name}")
 
 
-def _validate_record_command(command: Sequence[str]) -> list[str]:
+def _validate_record_command(root: Path, command: Sequence[str]) -> list[str]:
     normalized = list(command)
     if not normalized or any(not isinstance(value, str) for value in normalized):
         raise ValueError("record command must be a nonempty string array")
@@ -780,11 +1196,51 @@ def _validate_record_command(command: Sequence[str]) -> list[str]:
     rendered = " ".join(normalized).casefold()
     if "hf_token" in rendered or "hugging_face_hub_token" in rendered:
         raise ValueError("record command must not contain credentials")
+    protocol = _read_object(root / "protocol.json")
+    if protocol.get("selection_kind") == FRESH_ENGLISH_SELECTION_KIND:
+        cache_suffix = ":/root/.cache/huggingface/hub:ro"
+        cache_mounts = [
+            value
+            for value in normalized
+            if isinstance(value, str) and value.endswith(cache_suffix)
+        ]
+        if len(cache_mounts) != 1:
+            raise ValueError("fresh English command cache mount is invalid")
+        cache_source = cache_mounts[0][: -len(cache_suffix)]
+        cache_path = Path(cache_source)
+        if not cache_path.is_absolute() or not cache_path.is_dir():
+            raise ValueError("fresh English command cache source is invalid")
+        expected = [
+            *_podman_prefix(
+                hub_cache=cache_path,
+                data_root=CANONICAL_DATA_ROOT,
+            ),
+            RUNTIME_IMAGE,
+            *_inference_argv(FRESH_ENGLISH_SELECTION_KIND),
+        ]
+        if normalized != expected:
+            raise ValueError("record command does not match the exact forced-English contract")
     return normalized
 
 
 def _verify_runner_binding(root: Path) -> None:
     protocol = _read_object(root / "protocol.json")
+    if protocol.get("selection_kind") == FRESH_ENGLISH_SELECTION_KIND:
+        bindings = (
+            ("runner", DEDICATED_RUNNER_PATH),
+            ("helper", RUNNER_PATH),
+            ("controller", CONTROLLER_PATH),
+        )
+        for label, path in bindings:
+            if protocol.get(f"{label}_path") != str(path):
+                raise ValueError(f"mounted {label} path does not match protocol")
+            try:
+                actual_hash = _sha256_file(path)
+            except OSError as exc:
+                raise ValueError(f"mounted {label} source is missing") from exc
+            if protocol.get(f"{label}_sha256") != actual_hash:
+                raise ValueError(f"mounted {label} source hash does not match protocol")
+        return
     expected = protocol.get("runner_sha256")
     if not isinstance(expected, str) or expected != _sha256_file(RUNNER_PATH):
         raise ValueError("mounted runner source hash does not match protocol")
@@ -820,7 +1276,7 @@ def record_attempt(
 
     if status_canary(root)["status"] != "inputs_frozen":
         raise ValueError("canary inputs are not frozen or an attempt already exists")
-    normalized_command = _validate_record_command(command)
+    normalized_command = _validate_record_command(root, command)
     output_names = (
         "command.json",
         "raw-results.json",
@@ -997,6 +1453,21 @@ def require_quality_scoring_ready(root: Path) -> dict[str, Any]:
         raise ValueError("prediction decision does not match validation")
     if freeze.get("decision") != "ready_for_quality_test":
         raise ValueError("predictions are not ready for quality scoring")
+    protocol = _read_object(root / "protocol.json")
+    terminal = _read_object(root / "terminal.json")
+    required_count = protocol.get("row_count")
+    if (
+        terminal.get("status") != "completed"
+        or validation.get("required_count") != required_count
+        or validation.get("completion_count") != required_count
+        or validation.get("valid_alignment_count") != required_count
+    ):
+        raise ValueError("all frozen rows must complete with valid alignment")
+    if (
+        protocol.get("selection_kind") == FRESH_ENGLISH_SELECTION_KIND
+        and required_count != FRESH_PANEL_SIZE
+    ):
+        raise ValueError("fresh English quality scoring requires exactly 12 rows")
     return freeze
 
 
@@ -1023,6 +1494,8 @@ def score_postfreeze(
         raise ValueError("prediction freeze must verify before scoring") from exc
     if (root / "postfreeze-score.json").exists():
         raise ValueError("refusing to overwrite postfreeze score")
+    protocol = _read_object(root / "protocol.json")
+    fresh_english = protocol.get("selection_kind") == FRESH_ENGLISH_SELECTION_KIND
     results = json.loads((root / "raw-results.json").read_text(encoding="utf-8"))
     if not isinstance(results, list):
         raise ValueError("raw results are not scoreable")
@@ -1040,9 +1513,17 @@ def score_postfreeze(
         present = bool(phrase) and phrase in normalized_text
         comparison = whisper.get(video_id, {})
         whisper_text = comparison.get("text")
+        whisper_quality_status = comparison.get("quality_status")
         normalized_whisper = (
             _normalized_phrase(whisper_text)
             if isinstance(whisper_text, str)
+            and (
+                not fresh_english
+                or not (
+                    isinstance(whisper_quality_status, str)
+                    and whisper_quality_status.casefold().startswith("rejected")
+                )
+            )
             else ""
         )
         whisper_present = bool(phrase) and phrase in normalized_whisper
@@ -1056,22 +1537,50 @@ def score_postfreeze(
                     if isinstance(result.get("quality"), Mapping)
                     else None
                 ),
-                "whisper_quality_status": comparison.get("quality_status"),
+                "whisper_quality_status": whisper_quality_status,
                 "valid_alignment": bool(result.get("chunks")),
             }
         )
+    qwen_count = sum(bool(row["official_phrase_present"]) for row in rows)
+    whisper_count = sum(
+        bool(row["whisper_official_phrase_present"]) for row in rows
+    )
+    both_count = sum(
+        bool(row["official_phrase_present"])
+        and bool(row["whisper_official_phrase_present"])
+        for row in rows
+    )
+    qwen_only_count = sum(
+        bool(row["official_phrase_present"])
+        and not bool(row["whisper_official_phrase_present"])
+        for row in rows
+    )
+    whisper_only_count = sum(
+        not bool(row["official_phrase_present"])
+        and bool(row["whisper_official_phrase_present"])
+        for row in rows
+    )
+    neither_count = len(rows) - both_count - qwen_only_count - whisper_only_count
+    directional_decision = (
+        "directional_qwen_signal"
+        if qwen_count > whisper_count
+        else "whisper_directional_signal"
+        if qwen_count < whisper_count
+        else "no_directional_difference"
+    )
     score = {
         "schema_version": SCHEMA_VERSION,
         "experiment_id": EXPERIMENT_ID,
         "status": "scored_postfreeze",
         "prediction_freeze_sha256": _sha256_file(root / "predictions-freeze.json"),
         "operational_decision": prediction_freeze.get("decision"),
-        "official_phrase_present_count": sum(
-            bool(row["official_phrase_present"]) for row in rows
-        ),
-        "whisper_official_phrase_present_count": sum(
-            bool(row["whisper_official_phrase_present"]) for row in rows
-        ),
+        "official_phrase_present_count": qwen_count,
+        "whisper_official_phrase_present_count": whisper_count,
+        "both_present_count": both_count,
+        "qwen_only_present_count": qwen_only_count,
+        "whisper_only_present_count": whisper_only_count,
+        "neither_present_count": neither_count,
+        "directional_decision": directional_decision,
         "rows": rows,
     }
     _write_json_exclusive(root / "postfreeze-score.json", score)
@@ -1132,17 +1641,23 @@ def status_canary(root: Path) -> dict[str, Any]:
 
 
 __all__ = [
+    "DEDICATED_RUNNER_PATH",
     "EXPERIMENT_ID",
+    "FRESH_ENGLISH_SELECTION_KIND",
+    "FRESH_PANEL_SIZE",
+    "FRESH_STRATUM_QUOTAS",
     "GEMINI_CONDITION",
     "QUALITY_SELECTION_KIND",
     "SCHEMA_VERSION",
     "build_podman_command",
+    "build_qwen_asr_exposure_index",
     "configure_experiment_id",
     "freeze_predictions",
     "prepare_canary",
     "record_attempt",
     "require_quality_scoring_ready",
     "score_postfreeze",
+    "select_fresh_english_quality_panel",
     "select_quality_panel",
     "select_panel",
     "status_canary",
