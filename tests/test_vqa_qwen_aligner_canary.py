@@ -538,6 +538,39 @@ def test_nonzero_exit_cannot_freeze_ready_decision(tmp_path: Path) -> None:
     assert not (root / "postfreeze-score.json").exists()
 
 
+def test_scoring_rejects_freeze_validation_decision_mismatch(tmp_path: Path) -> None:
+    root = _prepared_root(tmp_path)
+
+    def failed_run(command, **kwargs):
+        return subprocess.CompletedProcess(
+            command,
+            1,
+            stdout=json.dumps(_passed_results(root)),
+            stderr="terminal failure\n",
+        )
+
+    command = build_podman_command(root, hub_cache=tmp_path, data_root=tmp_path)
+    record_attempt(root, command, runner=failed_run)
+    freeze = freeze_predictions(root)
+    assert freeze["decision"] == "not_ready"
+
+    freeze["decision"] = "ready_for_quality_test"
+    (root / "predictions-freeze.json").write_text(
+        json.dumps(freeze), encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="does not match validation"):
+        score_postfreeze(
+            root,
+            references={"target": "phrase", "control": "phrase"},
+            whisper={
+                "target": {"text": "phrase"},
+                "control": {"text": "phrase"},
+            },
+        )
+    assert not (root / "postfreeze-score.json").exists()
+
+
 def test_launch_exception_is_preserved_as_terminal_failed_attempt(tmp_path: Path) -> None:
     root = _prepared_root(tmp_path)
 
