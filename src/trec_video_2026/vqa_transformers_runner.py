@@ -180,6 +180,12 @@ def select_auto_model_class(
     raise ValueError(f"Unsupported model class: {kind}")
 
 
+def select_attention_implementation(model_id: str) -> str:
+    """Use the pinned Gemma 3n runtime's required eager attention path."""
+
+    return "eager" if "gemma-3n" in model_id.lower() else "sdpa"
+
+
 def _tensor_counts(tensors: list[Any], attribute: str) -> dict[str, int]:
     counts: dict[str, int] = {}
     for tensor in tensors:
@@ -391,7 +397,7 @@ def main(argv: list[str] | None = None) -> int:
             trust_remote_code=True,
             dtype=torch.bfloat16,
             device_map="cuda:0",
-            attn_implementation="sdpa",
+            attn_implementation=select_attention_implementation(model_id),
         )
         device, precision, runtime_attestation = validate_bfloat16_accelerator(
             model, torch
