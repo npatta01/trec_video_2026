@@ -1,0 +1,16 @@
+{
+  "canonical_root": "data/vqa/benchmarks/task-support-sufficiency-audit-issue35-v1",
+  "experiment_id": "dense-question-localized-evidence-issue35-v1",
+  "files": {
+    "correction": "audit-correction-v3.json",
+    "freeze": "corrected-audit-freeze-v3.json",
+    "reference": "manual-audit-corrected-v3.json"
+  },
+  "schema_version": 1,
+  "sha256": {
+    "correction": "4fb41decdca6d2c1df09ac8be2507d28eb02ca5427e607fde2e15ed8e29dcc4a",
+    "freeze": "45e796683c75cc7f698cbac286e0ba32e006aeae55537e33c6ac6e863f9ae55c",
+    "reference": "db68cec9be89f4f89305b70578fbd7cb67893e0196c92f93143b5d154db6d3d2"
+  },
+  "version": "corrected-v3"
+}

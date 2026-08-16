@@ -122,6 +122,7 @@ def full_audit_fixture() -> dict[str, Any]:
         },
         "reference_correction_sha256": "e" * 64,
         "reference_freeze_sha256": "f" * 64,
+        "reference_ledger_sha256": scorer.REFERENCE_LEDGER_SHA256,
         "reference_sha256": "0" * 64,
         "rows": rows,
         "schema_version": scorer.AUDIT_SCHEMA_VERSION,
@@ -207,7 +208,7 @@ def test_canonical_corrected_v3_reference_or_freeze_drift_is_rejected(tmp_path: 
     else:
         payload["provider_calls_made"] = 1
     drift_path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n")
-    with pytest.raises(ValueError, match="canonical corrected-v3|hash|status"):
+    with pytest.raises(ValueError, match="canonical corrected-v3|location|hash|status"):
         scorer.verify_canonical_references(probe)
 
 
@@ -263,18 +264,148 @@ def test_pair_shared_label_flip_is_rejected(field: str) -> None:
         scorer.aggregate(rows)
 
 
-def test_real_frozen_score_rejects_treatment_input_hash_drift(monkeypatch: pytest.MonkeyPatch) -> None:
-    treatment = (PROBE_BENCHMARK / "run-v22" / "treatment-freeze.json").resolve()
-    original_sha256 = scorer._sha256
-
-    def drifted_sha256(path: Path) -> str:
-        if path == treatment:
-            return "0" * 64
-        return original_sha256(path)
-
-    monkeypatch.setattr(scorer, "_sha256", drifted_sha256)
+def test_real_frozen_score_rejects_treatment_input_hash_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    probe = _copy_probe_with_patched_verified_inputs(tmp_path, monkeypatch)
+    treatment = probe / "run-v22" / "treatment-freeze.json"
+    treatment.write_bytes(treatment.read_bytes() + b"\n")
     with pytest.raises(ValueError, match="write-once|drift|hash"):
-        scorer.verify_score(PROBE_BENCHMARK)
+        scorer.verify_score(probe)
+
+
+def _copy_probe_with_patched_verified_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    """Copy the immutable inputs while bypassing path-bound runner verification.
+
+    The freeze mutation tests intentionally exercise audit-only rejection.  The
+    copied probe cannot pass the runner's continuation-path identity checks, so
+    use the already verified real input objects while rebinding all file roots
+    used by the scorer to the isolated copy.
+    """
+
+    benchmarks = tmp_path / "benchmarks"
+    probe = benchmarks / "dense-question-localized-evidence-issue35-v1"
+    shutil.copytree(PROBE_BENCHMARK, probe, symlinks=True)
+    shutil.copytree(CANONICAL_AUDIT, benchmarks / "task-support-sufficiency-audit-issue35-v1")
+
+    verified = scorer._verify_prediction_inputs(PROBE_BENCHMARK, PROBE_BENCHMARK / "run-v22")
+    temp_verified = dict(verified)
+    temp_verified.update(
+        {
+            "run_root": probe / "run-v22",
+            "correction_root": probe / "run-v22-correction-v2",
+            "correction_freeze": scorer._load_json(
+                probe / "run-v22-correction-v2" / "correction-freeze.json"
+            ),
+            "source_freeze": scorer._load_json(probe / "run-v22" / "predictions-freeze.json"),
+            "reference_path": benchmarks
+            / "task-support-sufficiency-audit-issue35-v1"
+            / "manual-audit-corrected-v3.json",
+            "reference_correction_path": benchmarks
+            / "task-support-sufficiency-audit-issue35-v1"
+            / "audit-correction-v3.json",
+            "reference_freeze_path": benchmarks
+            / "task-support-sufficiency-audit-issue35-v1"
+            / "corrected-audit-freeze-v3.json",
+        }
+    )
+    monkeypatch.setattr(scorer, "_verify_prediction_inputs", lambda *args, **kwargs: temp_verified)
+    return probe
+
+
+@pytest.mark.parametrize("entrypoint", ["score", "verify_score"])
+def test_prediction_verification_precedes_manual_or_audit_load(
+    monkeypatch: pytest.MonkeyPatch, entrypoint: str
+) -> None:
+    events: list[str] = []
+    original_verify = scorer._verify_prediction_inputs
+    original_load = scorer._load_json
+
+    def wrapped_verify(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        events.append("prediction-verify")
+        return original_verify(*args, **kwargs)
+
+    def wrapped_load(path: Path, description: str = "JSON file") -> Any:
+        if path.name in {
+            scorer.AUDIT_V2_NAME,
+            scorer.AUDIT_V3_NAME,
+            scorer.AUDIT_FREEZE_V3_NAME,
+            scorer.AUDIT_FREEZE_V4_NAME,
+            scorer.SCORE_V3_NAME,
+            scorer.SCORE_V4_NAME,
+            scorer.SCORE_V5_NAME,
+            scorer.SCORE_INTEGRITY_V3_NAME,
+            scorer.SCORE_INTEGRITY_V4_NAME,
+            scorer.SCORE_INTEGRITY_V5_NAME,
+        }:
+            events.append(f"load:{path.name}")
+        return original_load(path, description)
+
+    monkeypatch.setattr(scorer, "_verify_prediction_inputs", wrapped_verify)
+    monkeypatch.setattr(scorer, "_load_json", wrapped_load)
+    getattr(scorer, entrypoint)(PROBE_BENCHMARK)
+    assert events.index("prediction-verify") < next(
+        index for index, event in enumerate(events) if event.startswith("load:")
+    )
+
+
+def test_reference_ledger_rejects_self_consistent_recomputed_chain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = tmp_path / "benchmarks"
+    shutil.copytree(CANONICAL_AUDIT, root / "task-support-sufficiency-audit-issue35-v1")
+    probe = root / "dense-question-localized-evidence-issue35-v1"
+    probe.mkdir()
+    canonical = scorer._canonical_reference_paths(PROBE_BENCHMARK)
+    replacement = tuple(root / "task-support-sufficiency-audit-issue35-v1" / path.name for path in canonical)
+    monkeypatch.setattr(scorer, "_canonical_reference_paths", lambda _root: replacement)
+    with pytest.raises(ValueError, match="canonical reference location"):
+        scorer.verify_canonical_references(probe)
+
+
+@pytest.mark.parametrize("field", ["ambiguous_reference", "reference_issue", "fact_present_in_clip"])
+def test_freeze_rejects_one_arm_pair_flip_before_writing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    probe = _copy_probe_with_patched_verified_inputs(tmp_path, monkeypatch)
+    scorer.write_audit_v3(probe)
+    freeze = probe / "run-v22" / scorer.AUDIT_FREEZE_V4_NAME
+    freeze.unlink(missing_ok=True)
+    audit_path = probe / "run-v22" / scorer.AUDIT_V3_NAME
+    audit = json.loads(audit_path.read_text())
+    row = audit["rows"][1]
+    if field == "ambiguous_reference":
+        row[field] = True
+    elif field == "fact_present_in_clip":
+        row[field] = not row[field]
+    else:
+        row[field] = "one-arm drift"
+    if field in {"ambiguous_reference", "fact_present_in_clip"}:
+        row["recovered"] = False
+    audit_path.write_text(json.dumps(audit, sort_keys=True, indent=2) + "\n")
+    with pytest.raises(ValueError, match="invariant"):
+        scorer.freeze_audit(probe)
+    assert not freeze.exists()
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["experiment_id", "correction_version", "correction_freeze_sha256", "reference_sha256", "source_prediction_freeze_sha256"],
+)
+def test_freeze_rejects_forged_top_level_lineage_before_writing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    probe = _copy_probe_with_patched_verified_inputs(tmp_path, monkeypatch)
+    scorer.write_audit_v3(probe)
+    freeze = probe / "run-v22" / scorer.AUDIT_FREEZE_V4_NAME
+    freeze.unlink(missing_ok=True)
+    audit_path = probe / "run-v22" / scorer.AUDIT_V3_NAME
+    audit = json.loads(audit_path.read_text())
+    audit[field] = "forged"
+    audit_path.write_text(json.dumps(audit, sort_keys=True, indent=2) + "\n")
+    with pytest.raises(ValueError, match="lineage|binding"):
+        scorer.freeze_audit(probe)
+    assert not freeze.exists()
 
 
 def test_manual_audit_binds_question_to_selection() -> None:
@@ -356,6 +487,7 @@ def test_manual_audit_binds_question_to_selection() -> None:
         },
         "reference_correction_sha256": "e" * 64,
         "reference_freeze_sha256": "f" * 64,
+        "reference_ledger_sha256": scorer.REFERENCE_LEDGER_SHA256,
         "reference_sha256": "0" * 64,
         "rows": audit_rows,
         "schema_version": scorer.AUDIT_SCHEMA_VERSION,

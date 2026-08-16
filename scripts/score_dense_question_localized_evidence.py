@@ -22,10 +22,18 @@ from typing import Any, Mapping, Sequence
 EXPECTED_FPS = (4.0, 12.0)
 EXPECTED_ROLES = ("target", "control")
 CORRECTION_VERSION = "run-v22-correction-v2"
-AUDIT_SCHEMA_VERSION = 2
-AUDIT_FREEZE_VERSION = 3
-SCORE_VERSION = 3
+AUDIT_SCHEMA_VERSION = 3
+AUDIT_FREEZE_VERSION = 4
+SCORE_VERSION = 5
 AUDIT_V2_NAME = "manual-postfreeze-audit-v2.json"
+AUDIT_V3_NAME = "manual-postfreeze-audit-v3.json"
+AUDIT_FREEZE_V4_NAME = "postfreeze-audit-freeze-v4.json"
+SCORE_V4_NAME = "postfreeze-score-v4.json"
+SCORE_INTEGRITY_V4_NAME = "postfreeze-score-integrity-v4.json"
+SCORE_V5_NAME = "postfreeze-score-v5.json"
+SCORE_INTEGRITY_V5_NAME = "postfreeze-score-integrity-v5.json"
+# Prior freeze names remain addressable for verification of the preserved
+# artifacts; new writes always use the additive v4 names above.
 AUDIT_FREEZE_V3_NAME = "postfreeze-audit-freeze-v3.json"
 SCORE_V3_NAME = "postfreeze-score-v3.json"
 SCORE_INTEGRITY_V3_NAME = "postfreeze-score-integrity-v3.json"
@@ -33,6 +41,11 @@ CANONICAL_REFERENCE_DIR = "task-support-sufficiency-audit-issue35-v1"
 CANONICAL_REFERENCE_NAME = "manual-audit-corrected-v3.json"
 CANONICAL_REFERENCE_CORRECTION_NAME = "audit-correction-v3.json"
 CANONICAL_REFERENCE_FREEZE_NAME = "corrected-audit-freeze-v3.json"
+REFERENCE_LEDGER_PATH = Path(__file__).with_name("dense_question_localized_evidence_reference_ledger.json")
+REFERENCE_LEDGER_SHA256 = "6faf3581139a57242e7693f48cbaa9095fdd6c39e349e1ae80df3c8a54e27f94"
+CANONICAL_REFERENCE_SHA256 = "db68cec9be89f4f89305b70578fbd7cb67893e0196c92f93143b5d154db6d3d2"
+CANONICAL_REFERENCE_CORRECTION_SHA256 = "4fb41decdca6d2c1df09ac8be2507d28eb02ca5427e607fde2e15ed8e29dcc4a"
+CANONICAL_REFERENCE_FREEZE_SHA256 = "45e796683c75cc7f698cbac286e0ba32e006aeae55537e33c6ac6e863f9ae55c"
 EXPECTED_AUDIT_TOP_FIELDS = frozenset(
     {
         "completed_at",
@@ -42,6 +55,7 @@ EXPECTED_AUDIT_TOP_FIELDS = frozenset(
         "inspection_scope",
         "reference_correction_sha256",
         "reference_freeze_sha256",
+        "reference_ledger_sha256",
         "reference_sha256",
         "rows",
         "schema_version",
@@ -169,6 +183,44 @@ def _canonical_reference_paths(benchmark_root: Path) -> tuple[Path, Path, Path]:
         root / CANONICAL_REFERENCE_CORRECTION_NAME,
         root / CANONICAL_REFERENCE_FREEZE_NAME,
     )
+
+
+def _load_reference_ledger() -> Mapping[str, Any]:
+    if _sha256(REFERENCE_LEDGER_PATH) != REFERENCE_LEDGER_SHA256:
+        raise ValueError("reference ledger hash drift")
+    ledger = _load_json(REFERENCE_LEDGER_PATH, "reference ledger")
+    if not isinstance(ledger, Mapping):
+        raise ValueError("reference ledger is not an object")
+    _exact_keys(
+        ledger,
+        frozenset({"canonical_root", "experiment_id", "files", "schema_version", "sha256", "version"}),
+        "reference ledger",
+    )
+    if ledger.get("schema_version") != 1 or ledger.get("version") != "corrected-v3":
+        raise ValueError("reference ledger schema/version drift")
+    if ledger.get("experiment_id") != "dense-question-localized-evidence-issue35-v1":
+        raise ValueError("reference ledger experiment drift")
+    files = ledger.get("files")
+    digests = ledger.get("sha256")
+    if not isinstance(files, Mapping) or not isinstance(digests, Mapping):
+        raise ValueError("reference ledger file/digest maps are invalid")
+    _exact_keys(files, frozenset({"correction", "freeze", "reference"}), "reference ledger files")
+    _exact_keys(digests, frozenset({"correction", "freeze", "reference"}), "reference ledger digests")
+    expected_files = {
+        "reference": CANONICAL_REFERENCE_NAME,
+        "correction": CANONICAL_REFERENCE_CORRECTION_NAME,
+        "freeze": CANONICAL_REFERENCE_FREEZE_NAME,
+    }
+    if dict(files) != expected_files:
+        raise ValueError("reference ledger canonical file names drift")
+    expected_digests = {
+        "reference": CANONICAL_REFERENCE_SHA256,
+        "correction": CANONICAL_REFERENCE_CORRECTION_SHA256,
+        "freeze": CANONICAL_REFERENCE_FREEZE_SHA256,
+    }
+    if dict(digests) != expected_digests:
+        raise ValueError("reference ledger canonical digests drift")
+    return ledger
 
 
 def _exact_keys(payload: Mapping[str, Any], expected: frozenset[str], description: str) -> None:
@@ -393,13 +445,30 @@ def _verify_reference_bundle(
 
 
 def verify_canonical_references(benchmark_root: Path, explicit: Path | None = None) -> dict[str, Any]:
+    ledger = _load_reference_ledger()
     canonical_reference, correction_path, freeze_path = _canonical_reference_paths(Path(benchmark_root).resolve())
+    repo_canonical_root = (Path(__file__).parents[1] / ledger["canonical_root"]).resolve()
+    expected_paths = (
+        repo_canonical_root / ledger["files"]["reference"],
+        repo_canonical_root / ledger["files"]["correction"],
+        repo_canonical_root / ledger["files"]["freeze"],
+    )
+    if tuple(path.resolve() for path in (canonical_reference, correction_path, freeze_path)) != expected_paths:
+        raise ValueError("canonical reference location drift")
     for path, description in (
         (canonical_reference, "canonical corrected-v3 references"),
         (correction_path, "canonical corrected-v3 correction"),
         (freeze_path, "canonical corrected-v3 audit freeze"),
     ):
         _regular_file(path, description)
+    expected_digests = ledger["sha256"]
+    actual_digests = {
+        "reference": _sha256(canonical_reference),
+        "correction": _sha256(correction_path),
+        "freeze": _sha256(freeze_path),
+    }
+    if actual_digests != expected_digests:
+        raise ValueError("canonical reference ledger digest drift")
     bundle = _verify_reference_bundle(canonical_reference, correction_path, freeze_path)
     if explicit is not None:
         explicit_path = Path(explicit)
@@ -435,6 +504,7 @@ def _verify_prediction_inputs(benchmark_root: Path, run_root: Path, reference_pa
     treatment = _load_json(run_root / "treatment-freeze.json", "treatment freeze")
     reference_bundle = verify_canonical_references(benchmark_root, reference_path)
     return {
+        "run_root": run_root,
         "correction_root": correction_root,
         "correction_freeze": correction_freeze,
         "source_freeze": source_freeze,
@@ -529,6 +599,22 @@ def _bind_reference_labels(audit: Mapping[str, Any], references: Mapping[int, Ma
                 raise ValueError(f"manual audit corrected reference binding drift: {field}")
 
 
+def _bind_audit_lineage(audit: Mapping[str, Any], verified: Mapping[str, Any]) -> None:
+    expected = {
+        "experiment_id": "dense-question-localized-evidence-issue35-v1",
+        "correction_version": CORRECTION_VERSION,
+        "correction_freeze_sha256": _sha256(verified["correction_root"] / "correction-freeze.json"),
+        "reference_sha256": verified["reference_sha256"],
+        "reference_correction_sha256": verified["reference_correction_sha256"],
+        "reference_freeze_sha256": verified["reference_freeze_sha256"],
+        "reference_ledger_sha256": REFERENCE_LEDGER_SHA256,
+        "source_prediction_freeze_sha256": _sha256(verified["run_root"] / "predictions-freeze.json"),
+    }
+    for field, value in expected.items():
+        if audit.get(field) != value:
+            raise ValueError(f"manual audit lineage binding drift: {field}")
+
+
 def _verify_audit_freeze_bindings(
     audit_freeze: Mapping[str, Any],
     audit_path: Path,
@@ -547,6 +633,7 @@ def _verify_audit_freeze_bindings(
             "provider_rows_sha256",
             "reference_correction_sha256",
             "reference_freeze_sha256",
+            "reference_ledger_sha256",
             "reference_sha256",
             "row_count",
             "schema_version",
@@ -571,6 +658,7 @@ def _verify_audit_freeze_bindings(
         "reference_freeze_sha256": _sha256(
             run_root.parent.parent / CANONICAL_REFERENCE_DIR / CANONICAL_REFERENCE_FREEZE_NAME
         ),
+        "reference_ledger_sha256": REFERENCE_LEDGER_SHA256,
         "selection_sha256": _sha256(run_root / "selection-freeze.json"),
         "media_manifest_sha256": _sha256(run_root / "media-manifest.json"),
         "provider_rows_sha256": _sha256(run_root / "provider-rows.json"),
@@ -973,15 +1061,15 @@ def write_audit_template(root: Path, references_path: Path | None = None) -> Pat
     return path
 
 
-def write_audit_v2(root: Path) -> Path:
-    """Create an additive lineage-bound copy without changing manual labels."""
+def write_audit_v3(root: Path) -> Path:
+    """Create an additive ledger-bound copy without changing manual labels."""
 
     benchmark_root, run_root = _resolve_roots(root)
+    verified = _verify_prediction_inputs(benchmark_root, run_root)
     source_path = run_root / "manual-postfreeze-audit.json"
     source = _load_json(source_path, "manual post-freeze audit")
     if not isinstance(source, Mapping) or source.get("status") != "completed":
         raise ValueError("manual post-freeze audit must be completed before migration")
-    verified = _verify_prediction_inputs(benchmark_root, run_root)
     references = _reference_rows(_load_json(verified["reference_path"], "canonical corrected-v3 references"))
     payload = dict(source)
     payload.update(
@@ -990,26 +1078,28 @@ def write_audit_v2(root: Path) -> Path:
             "reference_sha256": verified["reference_sha256"],
             "reference_correction_sha256": verified["reference_correction_sha256"],
             "reference_freeze_sha256": verified["reference_freeze_sha256"],
+            "reference_ledger_sha256": REFERENCE_LEDGER_SHA256,
             "correction_freeze_sha256": _sha256(verified["correction_root"] / "correction-freeze.json"),
             "source_prediction_freeze_sha256": _sha256(run_root / "predictions-freeze.json"),
         }
     )
     _validate_audit_schema(payload)
     _bind_reference_labels(payload, references)
-    path = run_root / AUDIT_V2_NAME
+    path = run_root / AUDIT_V3_NAME
     _write_once(path, payload)
     return path
 
 
 def freeze_audit(root: Path) -> dict[str, Any]:
     benchmark_root, run_root = _resolve_roots(root)
-    audit_path = run_root / AUDIT_V2_NAME
+    verified = _verify_prediction_inputs(benchmark_root, run_root)
+    audit_path = run_root / AUDIT_V3_NAME
     if not audit_path.exists():
-        write_audit_v2(root)
+        write_audit_v3(root)
     audit = _load_json(audit_path, "manual post-freeze audit")
     if audit.get("status") != "completed":
         raise ValueError("manual post-freeze audit must be completed before freezing")
-    verified = _verify_prediction_inputs(benchmark_root, run_root)
+    _bind_audit_lineage(audit, verified)
     references = _reference_rows(_load_json(verified["reference_path"], "corrected references"))
     _bind_reference_labels(audit, references)
     prediction_map = _prediction_rows(run_root, verified["correction_root"], verified["correction_freeze"])
@@ -1017,6 +1107,7 @@ def freeze_audit(root: Path) -> dict[str, Any]:
         prediction_map, verified["selection"], verified["media"], verified["provider"]
     )
     rows = validate_manual_audit(verified["selection"], prediction_payload, audit)
+    _validate_pair_invariants(_pair_rows(rows))
     frozen = {
         "schema_version": AUDIT_FREEZE_VERSION,
         "status": "frozen",
@@ -1026,6 +1117,7 @@ def freeze_audit(root: Path) -> dict[str, Any]:
         "reference_sha256": verified["reference_sha256"],
         "reference_correction_sha256": verified["reference_correction_sha256"],
         "reference_freeze_sha256": verified["reference_freeze_sha256"],
+        "reference_ledger_sha256": REFERENCE_LEDGER_SHA256,
         "selection_sha256": _sha256(run_root / "selection-freeze.json"),
         "media_manifest_sha256": _sha256(run_root / "media-manifest.json"),
         "provider_rows_sha256": _sha256(run_root / "provider-rows.json"),
@@ -1034,7 +1126,7 @@ def freeze_audit(root: Path) -> dict[str, Any]:
         "row_count": len(rows),
         "frozen_at": datetime.now(UTC).isoformat(),
     }
-    path = run_root / AUDIT_FREEZE_V3_NAME
+    path = run_root / AUDIT_FREEZE_V4_NAME
     _write_once(path, frozen)
     return frozen
 
@@ -1044,11 +1136,12 @@ def score(root: Path, *, references_path: Path | None = None) -> dict[str, Any]:
 
     benchmark_root, run_root = _resolve_roots(root)
     verified = _verify_prediction_inputs(benchmark_root, run_root, references_path)
-    audit_path = run_root / AUDIT_V2_NAME
-    audit_freeze_path = run_root / AUDIT_FREEZE_V3_NAME
+    audit_path = run_root / AUDIT_V3_NAME
+    audit_freeze_path = run_root / AUDIT_FREEZE_V4_NAME
     audit = _load_json(audit_path, "manual post-freeze audit")
     if audit.get("status") != "completed":
         raise ValueError("manual audit is not complete")
+    _bind_audit_lineage(audit, verified)
     audit_freeze = _load_json(audit_freeze_path, "post-freeze audit freeze")
     _verify_audit_freeze_bindings(
         audit_freeze,
@@ -1081,6 +1174,7 @@ def score(root: Path, *, references_path: Path | None = None) -> dict[str, Any]:
         "media_manifest_sha256": _sha256(run_root / "media-manifest.json"),
         "provider_rows_sha256": _sha256(run_root / "provider-rows.json"),
         "treatment_sha256": _sha256(run_root / "treatment-freeze.json"),
+        "reference_ledger_sha256": REFERENCE_LEDGER_SHA256,
         "reference_sha256": verified["reference_sha256"],
         "reference_correction_sha256": verified["reference_correction_sha256"],
         "reference_freeze_sha256": verified["reference_freeze_sha256"],
@@ -1092,7 +1186,7 @@ def score(root: Path, *, references_path: Path | None = None) -> dict[str, Any]:
     metrics["status"] = "frozen"
     metrics["experiment_id"] = "dense-question-localized-evidence-issue35-v1"
     metrics["correction_version"] = CORRECTION_VERSION
-    score_path = run_root / SCORE_V3_NAME
+    score_path = run_root / SCORE_V5_NAME
     _write_once(score_path, metrics)
     integrity = {
         "schema_version": SCORE_VERSION,
@@ -1101,21 +1195,21 @@ def score(root: Path, *, references_path: Path | None = None) -> dict[str, Any]:
         "score_bytes_sha256": _sha256_bytes(score_path.read_bytes()),
         "input_bindings": metrics["input_bindings"],
     }
-    _write_once(run_root / SCORE_INTEGRITY_V3_NAME, integrity)
+    _write_once(run_root / SCORE_INTEGRITY_V5_NAME, integrity)
     return metrics
 
 
 def verify_score(root: Path, *, references_path: Path | None = None) -> None:
     benchmark_root, run_root = _resolve_roots(root)
     verified = _verify_prediction_inputs(benchmark_root, run_root, references_path)
-    score_path = _regular_file(run_root / SCORE_V3_NAME, "post-freeze score")
-    integrity_path = _regular_file(run_root / SCORE_INTEGRITY_V3_NAME, "post-freeze score integrity")
+    score_path = _regular_file(run_root / SCORE_V5_NAME, "post-freeze score")
+    integrity_path = _regular_file(run_root / SCORE_INTEGRITY_V5_NAME, "post-freeze score integrity")
     score_payload = _load_json(score_path, "post-freeze score")
     integrity = _load_json(integrity_path, "post-freeze score integrity")
     if integrity.get("score_sha256") != _sha256(score_path) or integrity.get("score_bytes_sha256") != _sha256_bytes(score_path.read_bytes()):
         raise ValueError("score integrity hash drift")
-    audit_path = _regular_file(run_root / AUDIT_V2_NAME, "manual audit")
-    freeze_path = _regular_file(run_root / AUDIT_FREEZE_V3_NAME, "audit freeze")
+    audit_path = _regular_file(run_root / AUDIT_V3_NAME, "manual audit")
+    freeze_path = _regular_file(run_root / AUDIT_FREEZE_V4_NAME, "audit freeze")
     _verify_audit_freeze_bindings(
         _load_json(freeze_path, "audit freeze"),
         audit_path,
