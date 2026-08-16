@@ -71,6 +71,7 @@ class AtomicInstance:
 class AtomicLedger:
     instances: tuple[AtomicInstance, ...]
     unresolved_observations: tuple[str, ...]
+    reviewed_span: TimeRange
 
 
 @dataclass(frozen=True)
@@ -351,7 +352,7 @@ def parse_atomic_ledger(
             _sequence(root["unresolved_observations"], field="unresolved_observations")
         )
     )
-    return AtomicLedger(instances, unresolved)
+    return AtomicLedger(instances, unresolved, envelope)
 
 
 def parse_challenge(
@@ -500,6 +501,17 @@ def reduce_recovery_result(
     all_instances = [*accepted]
     if additive is not None:
         if any(
+            requested.start_seconds < additive.reviewed_span.start_seconds - 1e-6
+            or requested.end_seconds > additive.reviewed_span.end_seconds + 1e-6
+            for requested in challenge.requested_ranges
+        ):
+            return RecoveryResult(
+                "abstain",
+                None,
+                tuple(instance.instance_id for instance in all_instances),
+                ("incomplete_additive_coverage",),
+            )
+        if any(
             instance.ambiguous or not instance.predicate_supported
             for instance in additive.instances
         ):
@@ -517,9 +529,32 @@ def reduce_recovery_result(
                 tuple(instance.instance_id for instance in all_instances),
                 ("unresolved_additive_verification",),
             )
+        if any(
+            not any(
+                candidate.start_seconds <= proposal.end_seconds + 1e-6
+                and candidate.end_seconds >= proposal.start_seconds - 1e-6
+                for candidate in additive.instances
+            )
+            for proposal in challenge.missed_instances
+        ):
+            return RecoveryResult(
+                "abstain",
+                None,
+                tuple(instance.instance_id for instance in all_instances),
+                ("unconfirmed_challenger_discovery",),
+            )
     ids = tuple(instance.instance_id for instance in all_instances)
     if len(ids) != len(set(ids)):
         return RecoveryResult("abstain", None, ids, ("duplicate_instance_id",))
+    ordered = sorted(
+        all_instances,
+        key=lambda instance: (instance.start_seconds, instance.end_seconds),
+    )
+    if any(
+        right.start_seconds < left.end_seconds - 1e-6
+        for left, right in zip(ordered, ordered[1:], strict=False)
+    ):
+        return RecoveryResult("abstain", None, ids, ("overlapping_instance_intervals",))
     return RecoveryResult("exact", len(all_instances), ids, ())
 
 

@@ -56,11 +56,15 @@ def test_all_response_schemas_are_accepted_by_pinned_sdk() -> None:
 
 def test_paid_stage_claim_is_exclusive(tmp_path: Path) -> None:
     stage_root = tmp_path / "locate"
-    identity = {"stage": "locate", "request_sha256": "abc"}
+    identity = MODULE._self_hashed({"schema_version": 1, "stage": "locate"})
 
     claim = MODULE.reserve_paid_stage(stage_root, identity)
 
     assert claim.is_file()
+    payload = json.loads(claim.read_text())
+    claimed = payload.pop("complete_sha256")
+    assert canonical_sha256(payload) == claimed
+    assert payload["request_complete_sha256"] == identity["complete_sha256"]
     with pytest.raises(FileExistsError, match="paid stage already claimed"):
         MODULE.reserve_paid_stage(stage_root, identity)
 
@@ -188,6 +192,74 @@ def test_upload_is_reused_for_all_row_stages(tmp_path: Path) -> None:
     assert files.upload_calls == 1
     assert first == second
     assert first["file_uri"] == "https://example.invalid/files/v1"
+    claim = json.loads((tmp_path / "row" / "upload-claim.json").read_text())
+    claimed = claim.pop("complete_sha256")
+    assert canonical_sha256(claim) == claimed
+    assert first["upload_claim_complete_sha256"] == claimed
+
+
+def test_upload_claim_prevents_concurrent_duplicate_upload(tmp_path: Path) -> None:
+    media = tmp_path / "v1.webm"
+    media.write_bytes(b"delivery")
+    row = {
+        "video_id": "v1",
+        "delivery_path": str(media),
+        "delivery_sha256": hashlib.sha256(b"delivery").hexdigest(),
+        "delivery_mime_type": "video/webm",
+    }
+    row_root = tmp_path / "row"
+    MODULE.reserve_upload(row_root=row_root, row=row)
+    files = SimpleNamespace(
+        upload=lambda **kwargs: pytest.fail("concurrent upload must not start")
+    )
+
+    with pytest.raises(FileExistsError, match="upload already claimed"):
+        MODULE.ensure_upload(
+            client=SimpleNamespace(files=files), row=row, row_root=row_root
+        )
+
+
+def test_run_row_rejects_unbound_uploaded_media_before_any_paid_call(
+    tmp_path: Path,
+) -> None:
+    row = {
+        "video_id": "v1",
+        "question": "How many passes occur?",
+        "duration_seconds": 8.0,
+        "delivery_sha256": "delivery-sha",
+        "delivery_mime_type": "video/webm",
+    }
+    row_root = tmp_path / "rows" / "v1"
+    claim = json.loads(MODULE.reserve_upload(row_root=row_root, row=row).read_text())
+    upload = MODULE._self_hashed(
+        {
+            "schema_version": 1,
+            "video_id": "v1",
+            "delivery_sha256": "delivery-sha",
+            "delivery_mime_type": "video/webm",
+            "upload_claim_complete_sha256": claim["complete_sha256"],
+            "file_uri": "files/intended",
+            "file_state": "ACTIVE",
+        }
+    )
+    MODULE._write_once_json(row_root / "upload.json", upload)
+    client = SequenceClient([])
+
+    with pytest.raises(ValueError, match="uploaded media binding changed"):
+        MODULE.run_row(
+            client=client,
+            row=row,
+            file_uri="files/unrelated",
+            upload_complete_sha256=upload["complete_sha256"],
+            row_root=row_root,
+            budget_root=tmp_path / "budget",
+            request_manifest_sha256="manifest-sha",
+            pricing=MODULE.fixture_pricing(),
+            cumulative_limit_usd=0.34,
+        )
+
+    assert client.count_calls == []
+    assert client.calls == []
 
 
 class FailingClient:
@@ -267,6 +339,8 @@ def test_provider_failure_is_terminal_and_never_retried(tmp_path: Path) -> None:
             response_schema={"type": "object"},
             prior_complete_sha256=None,
             request_manifest_sha256="manifest-sha",
+            upload_complete_sha256="upload-sha",
+            delivery_sha256="delivery-sha",
             reservation={"reservation_id": "row-1-locate", "reserved_usd": 0.10},
             budget_root=tmp_path / "budget",
             pricing=MODULE.fixture_pricing(),
@@ -291,6 +365,8 @@ def test_provider_failure_is_terminal_and_never_retried(tmp_path: Path) -> None:
             response_schema={"type": "object"},
             prior_complete_sha256=None,
             request_manifest_sha256="manifest-sha",
+            upload_complete_sha256="upload-sha",
+            delivery_sha256="delivery-sha",
             reservation={"reservation_id": "row-1-locate-2", "reserved_usd": 0.10},
             budget_root=tmp_path / "budget",
             pricing=MODULE.fixture_pricing(),
@@ -320,6 +396,8 @@ def test_invalid_paid_response_is_frozen_before_validation_error(
             response_schema={"type": "object"},
             prior_complete_sha256=None,
             request_manifest_sha256="manifest-sha",
+            upload_complete_sha256="upload-sha",
+            delivery_sha256="delivery-sha",
             reservation={"reservation_id": "row-1-locate", "reserved_usd": 0.10},
             budget_root=tmp_path / "budget",
             pricing=MODULE.fixture_pricing(),
@@ -466,12 +544,29 @@ def test_resume_after_alias_correction_skips_paid_locator_call(tmp_path: Path) -
         "question": "How many passes occur?",
         "duration_seconds": 8.0,
         "delivery_mime_type": "video/webm",
+        "delivery_sha256": "delivery-sha",
     }
+    upload_claim = json.loads(
+        MODULE.reserve_upload(row_root=row_root, row=row).read_text()
+    )
+    upload = MODULE._self_hashed(
+        {
+            "schema_version": 1,
+            "video_id": "v1",
+            "delivery_sha256": "delivery-sha",
+            "delivery_mime_type": "video/webm",
+            "upload_claim_complete_sha256": upload_claim["complete_sha256"],
+            "file_uri": "files/v1",
+            "file_state": "ACTIVE",
+        }
+    )
+    MODULE._write_once_json(row_root / "upload.json", upload)
 
     complete = MODULE.resume_row_after_locator_correction(
         client=client,
         row=row,
         file_uri="files/v1",
+        upload_complete_sha256=upload["complete_sha256"],
         row_root=row_root,
         budget_root=tmp_path / "budget",
         request_manifest_sha256="manifest-sha",
@@ -541,13 +636,33 @@ def test_run_row_executes_distinct_three_passes_and_freezes_exact_result(
         "question": "How many passes occur?",
         "duration_seconds": 8.0,
         "delivery_mime_type": "video/webm",
+        "delivery_sha256": "delivery-sha",
     }
+    row_root = tmp_path / "rows" / "v1"
+    upload_claim = json.loads(
+        MODULE.reserve_upload(row_root=row_root, row=row).read_text()
+    )
+    upload = MODULE._self_hashed(
+        {
+            "schema_version": 1,
+            "video_id": "v1",
+            "delivery_sha256": "delivery-sha",
+            "delivery_mime_type": "video/webm",
+            "upload_claim_complete_sha256": upload_claim["complete_sha256"],
+            "file_name": "files/v1",
+            "file_uri": "files/v1",
+            "file_state": "ACTIVE",
+            "expiration_time": "fixture",
+        }
+    )
+    MODULE._write_once_json(row_root / "upload.json", upload)
 
     complete = MODULE.run_row(
         client=client,
         row=row,
         file_uri="files/v1",
-        row_root=tmp_path / "rows" / "v1",
+        upload_complete_sha256=upload["complete_sha256"],
+        row_root=row_root,
         budget_root=tmp_path / "budget",
         request_manifest_sha256="manifest-sha",
         pricing=MODULE.fixture_pricing(),
@@ -565,6 +680,17 @@ def test_run_row_executes_distinct_three_passes_and_freezes_exact_result(
     assert parts[1].video_metadata.start_offset == "0.500s"
     assert parts[1].video_metadata.end_offset == "4.500s"
     assert parts[2].video_metadata.start_offset is None
+    locate_request = json.loads(
+        (tmp_path / "rows" / "v1" / "locate" / "request.json").read_text()
+    )
+    assert locate_request["file_uri"] == "files/v1"
+    assert locate_request["mime_type"] == "video/webm"
+    assert locate_request["upload_complete_sha256"] == upload["complete_sha256"]
+    assert locate_request["delivery_sha256"] == "delivery-sha"
+    assert locate_request["response_schema_sha256"] == canonical_sha256(
+        MODULE.LOCATOR_RESPONSE_SCHEMA
+    )
+    assert locate_request["thinking_level"] == "LOW"
     result = json.loads((tmp_path / "rows" / "v1" / "result.json").read_text())
     assert result["outcome"] == "exact"
     assert result["value"] == 1
@@ -588,3 +714,64 @@ def test_run_row_executes_distinct_three_passes_and_freezes_exact_result(
     freeze = MODULE.freeze_predictions(root=tmp_path, manifest=manifest)
     assert freeze["completion"] == {"completed": 1, "total": 1}
     assert freeze["rows"][0]["result"]["value"] == 1
+
+    challenge_raw = tmp_path / "rows" / "v1" / "challenge" / "raw-response.txt"
+    challenge_raw.write_text("mutated")
+    with pytest.raises(ValueError, match="raw response hash changed"):
+        MODULE.freeze_predictions(root=tmp_path, manifest=manifest)
+
+
+def test_freeze_requires_all_mandatory_stages(tmp_path: Path) -> None:
+    row_root = tmp_path / "rows" / "v1"
+    row_root.mkdir(parents=True)
+    row = {
+        "video_id": "v1",
+        "delivery_sha256": "delivery-sha",
+        "delivery_mime_type": "video/webm",
+    }
+    upload_claim = json.loads(
+        MODULE.reserve_upload(row_root=row_root, row=row).read_text()
+    )
+    upload = MODULE._self_hashed(
+        {
+            "schema_version": 1,
+            "video_id": "v1",
+            "delivery_sha256": "delivery-sha",
+            "delivery_mime_type": "video/webm",
+            "upload_claim_complete_sha256": upload_claim["complete_sha256"],
+            "file_uri": "files/v1",
+        }
+    )
+    MODULE._write_once_json(row_root / "upload.json", upload)
+    result = MODULE._self_hashed(
+        {
+            "schema_version": 1,
+            "outcome": "exact",
+            "value": 1,
+            "accepted_instance_ids": ["I1"],
+            "reason_codes": [],
+        }
+    )
+    MODULE._write_once_json(row_root / "result.json", result)
+    complete = MODULE._self_hashed(
+        {
+            "schema_version": 1,
+            "outcome": "success",
+            "video_id": "v1",
+            "request_manifest_sha256": "manifest-sha",
+            "upload_complete_sha256": upload["complete_sha256"],
+            "delivery_sha256": "delivery-sha",
+            "stage_complete_sha256": {},
+            "result_sha256": MODULE._file_sha256(row_root / "result.json"),
+            "estimated_cost_usd": 0.0,
+        }
+    )
+    MODULE._write_once_json(row_root / "complete.json", complete)
+    manifest = {
+        "schema_version": 1,
+        "rows": [row],
+        "complete_sha256": "manifest-sha",
+    }
+
+    with pytest.raises(ValueError, match="mandatory stages"):
+        MODULE.freeze_predictions(root=tmp_path, manifest=manifest)

@@ -249,12 +249,16 @@ def reserve_paid_stage(
 ) -> Path:
     stage_root.mkdir(parents=True, exist_ok=True)
     claim_path = stage_root / "paid-call-claim.json"
+    request_hash = _verify_self_hash(
+        request_identity, name=f"{request_identity.get('stage', 'paid stage')} request"
+    )
     claim = _self_hashed(
         {
             "schema_version": 1,
             "claimed_at": datetime.now(UTC).isoformat(),
             "pid": os.getpid(),
-            **request_identity,
+            "stage": request_identity.get("stage"),
+            "request_complete_sha256": request_hash,
         }
     )
     rendered = json.dumps(claim, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
@@ -266,6 +270,35 @@ def reserve_paid_stage(
         )
     except FileExistsError:
         raise FileExistsError(f"paid stage already claimed: {claim_path}") from None
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        handle.write(rendered)
+        handle.flush()
+        os.fsync(handle.fileno())
+    return claim_path
+
+
+def reserve_upload(*, row_root: Path, row: Mapping[str, object]) -> Path:
+    row_root.mkdir(parents=True, exist_ok=True)
+    claim_path = row_root / "upload-claim.json"
+    claim = _self_hashed(
+        {
+            "schema_version": 1,
+            "claimed_at": datetime.now(UTC).isoformat(),
+            "pid": os.getpid(),
+            "video_id": row["video_id"],
+            "delivery_sha256": row["delivery_sha256"],
+            "delivery_mime_type": row["delivery_mime_type"],
+        }
+    )
+    rendered = json.dumps(claim, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    try:
+        descriptor = os.open(
+            claim_path,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+        )
+    except FileExistsError:
+        raise FileExistsError(f"upload already claimed: {claim_path}") from None
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         handle.write(rendered)
         handle.flush()
@@ -457,6 +490,9 @@ def ensure_upload(
         if state != "ACTIVE" or str(uploaded.uri) != record["file_uri"]:
             raise RuntimeError("recorded Gemini upload is no longer active")
         return record
+    upload_claim = reserve_upload(row_root=row_root, row=row)
+    upload_claim_payload = _load_mapping(upload_claim)
+    upload_claim_hash = _verify_self_hash(upload_claim_payload, name="upload claim")
     uploaded = client.files.upload(
         file=str(media),
         config={
@@ -474,6 +510,7 @@ def ensure_upload(
                     "video_id": row["video_id"],
                     "delivery_sha256": expected_sha256,
                     "delivery_mime_type": row["delivery_mime_type"],
+                    "upload_claim_complete_sha256": upload_claim_hash,
                     "file_name": uploaded.name,
                     "file_uri": uploaded.uri,
                     "file_state": state,
@@ -638,6 +675,8 @@ def _execute_row_stage(
     validate_response: Callable[[Mapping[str, object]], Mapping[str, object]],
     prior_complete_sha256: str | None,
     request_manifest_sha256: str,
+    upload_complete_sha256: str,
+    delivery_sha256: str,
     pricing: Mapping[str, object],
     cumulative_limit_usd: float,
     source_duration_seconds: float,
@@ -669,6 +708,8 @@ def _execute_row_stage(
         response_schema=response_schema,
         prior_complete_sha256=prior_complete_sha256,
         request_manifest_sha256=request_manifest_sha256,
+        upload_complete_sha256=upload_complete_sha256,
+        delivery_sha256=delivery_sha256,
         reservation={
             "reservation_id": f"{video_id}-{stage}",
             "reserved_usd": reserved,
@@ -702,6 +743,7 @@ def run_row(
     client: Any,
     row: Mapping[str, object],
     file_uri: str,
+    upload_complete_sha256: str,
     row_root: Path,
     budget_root: Path,
     request_manifest_sha256: str,
@@ -712,6 +754,24 @@ def run_row(
     video_id = str(row["video_id"])
     duration = float(row["duration_seconds"])
     mime_type = str(row["delivery_mime_type"])
+    upload = _load_mapping(row_root / "upload.json")
+    upload_hash = _verify_self_hash(upload, name=f"row {video_id} upload")
+    if upload_hash != upload_complete_sha256:
+        raise ValueError("upload record binding changed")
+    upload_claim = _load_mapping(row_root / "upload-claim.json")
+    upload_claim_hash = _verify_self_hash(
+        upload_claim, name=f"row {video_id} upload claim"
+    )
+    if upload.get("upload_claim_complete_sha256") != upload_claim_hash:
+        raise ValueError("upload claim binding changed")
+    if upload.get("file_uri") != file_uri:
+        raise ValueError("uploaded media binding changed")
+    if upload.get("video_id") != video_id:
+        raise ValueError("upload row identity changed")
+    if upload.get("delivery_sha256") != row.get("delivery_sha256"):
+        raise ValueError("upload delivery binding changed")
+    if upload.get("delivery_mime_type") != mime_type:
+        raise ValueError("upload MIME binding changed")
 
     correction_path = row_root / "locate-correction-v2" / "complete.json"
     if correction_path.exists():
@@ -749,6 +809,8 @@ def run_row(
             ),
             prior_complete_sha256=None,
             request_manifest_sha256=request_manifest_sha256,
+            upload_complete_sha256=upload_complete_sha256,
+            delivery_sha256=str(row["delivery_sha256"]),
             pricing=pricing,
             cumulative_limit_usd=cumulative_limit_usd,
             source_duration_seconds=duration,
@@ -778,6 +840,8 @@ def run_row(
         ),
         prior_complete_sha256=str(locate_complete["complete_sha256"]),
         request_manifest_sha256=request_manifest_sha256,
+        upload_complete_sha256=upload_complete_sha256,
+        delivery_sha256=str(row["delivery_sha256"]),
         pricing=pricing,
         cumulative_limit_usd=cumulative_limit_usd,
         source_duration_seconds=duration,
@@ -809,6 +873,8 @@ def run_row(
         ),
         prior_complete_sha256=str(verify_complete["complete_sha256"]),
         request_manifest_sha256=request_manifest_sha256,
+        upload_complete_sha256=upload_complete_sha256,
+        delivery_sha256=str(row["delivery_sha256"]),
         pricing=pricing,
         cumulative_limit_usd=cumulative_limit_usd,
         source_duration_seconds=duration,
@@ -854,6 +920,8 @@ def run_row(
             ),
             prior_complete_sha256=str(challenge_complete["complete_sha256"]),
             request_manifest_sha256=request_manifest_sha256,
+            upload_complete_sha256=upload_complete_sha256,
+            delivery_sha256=str(row["delivery_sha256"]),
             pricing=pricing,
             cumulative_limit_usd=cumulative_limit_usd,
             source_duration_seconds=duration,
@@ -880,6 +948,8 @@ def run_row(
             "outcome": "success",
             "video_id": video_id,
             "request_manifest_sha256": request_manifest_sha256,
+            "upload_complete_sha256": upload_complete_sha256,
+            "delivery_sha256": row["delivery_sha256"],
             "stage_complete_sha256": dict(sorted(stage_completes.items())),
             "result_sha256": _file_sha256(row_root / "result.json"),
             "estimated_cost_usd": total_cost,
@@ -913,9 +983,37 @@ def freeze_predictions(
         row_root = root / "rows" / video_id
         complete = _load_mapping(row_root / "complete.json")
         complete_hash = _verify_self_hash(complete, name=f"row {video_id} complete")
+        if complete.get("outcome") != "success":
+            raise ValueError(f"row {video_id} did not succeed")
+        if complete.get("video_id") != video_id:
+            raise ValueError(f"row {video_id} identity changed")
+        if complete.get("request_manifest_sha256") != manifest.get("complete_sha256"):
+            raise ValueError(f"row {video_id} manifest binding changed")
+        upload = _load_mapping(row_root / "upload.json")
+        upload_hash = _verify_self_hash(upload, name=f"row {video_id} upload")
+        upload_claim = _load_mapping(row_root / "upload-claim.json")
+        upload_claim_hash = _verify_self_hash(
+            upload_claim, name=f"row {video_id} upload claim"
+        )
+        if upload.get("upload_claim_complete_sha256") != upload_claim_hash:
+            raise ValueError(f"row {video_id} upload claim binding changed")
+        if upload_hash != complete.get("upload_complete_sha256"):
+            raise ValueError(f"row {video_id} upload binding changed")
+        if upload.get("video_id") != video_id:
+            raise ValueError(f"row {video_id} upload identity changed")
+        if upload.get("delivery_sha256") != row.get("delivery_sha256"):
+            raise ValueError(f"row {video_id} upload delivery binding changed")
+        if complete.get("delivery_sha256") != row.get("delivery_sha256"):
+            raise ValueError(f"row {video_id} delivery binding changed")
         stage_hashes = complete.get("stage_complete_sha256")
         if not isinstance(stage_hashes, Mapping):
             raise TypeError("row stage hashes must be an object")
+        mandatory = {"locate", "verify", "challenge"}
+        allowed = mandatory | {"locate-correction-v2", "additional-verify"}
+        if not mandatory.issubset(stage_hashes):
+            raise ValueError(f"row {video_id} mandatory stages are missing")
+        if not set(stage_hashes).issubset(allowed):
+            raise ValueError(f"row {video_id} has unknown stages")
         prior: str | None = None
         for stage in (
             "locate",
@@ -932,8 +1030,114 @@ def freeze_predictions(
             )
             if stage_hash != stage_hashes[stage]:
                 raise ValueError(f"row {video_id} {stage} binding changed")
+            if stage_complete.get("stage") != stage:
+                raise ValueError(f"row {video_id} {stage} identity changed")
             if stage_complete.get("prior_complete_sha256") != prior:
                 raise ValueError(f"row {video_id} {stage} prior binding changed")
+            corrected_locator = (
+                stage == "locate" and "locate-correction-v2" in stage_hashes
+            )
+            expected_outcome = "invalid_response" if corrected_locator else "success"
+            if stage_complete.get("outcome") != expected_outcome:
+                raise ValueError(f"row {video_id} {stage} outcome changed")
+            if stage == "locate-correction-v2":
+                referenced = {
+                    "invalid_parsed_sha256": row_root / "locate" / "parsed.json",
+                    "invalid_raw_response_sha256": row_root
+                    / "locate"
+                    / "raw-response.txt",
+                    "validated_sha256": row_root / stage / "validated.json",
+                }
+            else:
+                request = _load_mapping(row_root / stage / "request.json")
+                request_hash = _verify_self_hash(
+                    request, name=f"row {video_id} {stage} request"
+                )
+                if request_hash != stage_complete.get("request_sha256"):
+                    raise ValueError(f"row {video_id} {stage} request binding changed")
+                if request.get("stage") != stage:
+                    raise ValueError(f"row {video_id} {stage} request identity changed")
+                if request.get("prior_complete_sha256") != prior:
+                    raise ValueError(
+                        f"row {video_id} {stage} request prior binding changed"
+                    )
+                if request.get("request_manifest_sha256") != manifest.get(
+                    "complete_sha256"
+                ):
+                    raise ValueError(f"row {video_id} {stage} manifest binding changed")
+                if request.get("upload_complete_sha256") != upload_hash:
+                    raise ValueError(f"row {video_id} {stage} upload binding changed")
+                if request.get("delivery_sha256") != row.get("delivery_sha256"):
+                    raise ValueError(f"row {video_id} {stage} delivery binding changed")
+                if request.get("file_uri") != upload.get("file_uri"):
+                    raise ValueError(
+                        f"row {video_id} {stage} uploaded media binding changed"
+                    )
+                if request.get("mime_type") != row.get("delivery_mime_type"):
+                    raise ValueError(f"row {video_id} {stage} MIME binding changed")
+                expected_schema = {
+                    "locate": LOCATOR_RESPONSE_SCHEMA,
+                    "verify": LEDGER_RESPONSE_SCHEMA,
+                    "challenge": CHALLENGE_RESPONSE_SCHEMA,
+                    "additional-verify": LEDGER_RESPONSE_SCHEMA,
+                }[stage]
+                expected_request_fields = {
+                    "model": MODEL,
+                    "fps": LOCATOR_FPS if stage == "locate" else VERIFY_FPS,
+                    "response_schema_sha256": canonical_sha256(expected_schema),
+                    "temperature": TEMPERATURE,
+                    "seed": SEED,
+                    "max_output_tokens": MAX_OUTPUT_TOKENS,
+                    "response_mime_type": "application/json",
+                    "thinking_level": "LOW",
+                    "media_resolution": "HIGH",
+                }
+                if any(
+                    request.get(field) != value
+                    for field, value in expected_request_fields.items()
+                ):
+                    raise ValueError(
+                        f"row {video_id} {stage} request configuration changed"
+                    )
+                clipped = stage in {"verify", "additional-verify"}
+                offsets = (
+                    request.get("start_offset"),
+                    request.get("end_offset"),
+                )
+                if (
+                    clipped
+                    and not all(isinstance(value, str) and value for value in offsets)
+                ) or (not clipped and offsets != (None, None)):
+                    raise ValueError(f"row {video_id} {stage} request offsets changed")
+                referenced = {
+                    "raw_response_sha256": row_root / stage / "raw-response.txt",
+                    "parsed_sha256": row_root / stage / "parsed.json",
+                    "validated_sha256": row_root / stage / "validated.json",
+                    "provider_metadata_sha256": row_root
+                    / stage
+                    / "provider-metadata.json",
+                }
+                claim = _load_mapping(row_root / stage / "paid-call-claim.json")
+                claim_hash = _verify_self_hash(
+                    claim, name=f"row {video_id} {stage} paid-call claim"
+                )
+                if claim.get("request_complete_sha256") != request_hash:
+                    raise ValueError(
+                        f"row {video_id} {stage} paid-call request binding changed"
+                    )
+                if claim_hash != stage_complete.get("paid_call_claim_sha256"):
+                    raise ValueError(
+                        f"row {video_id} {stage} paid-call claim binding changed"
+                    )
+            for field, path in referenced.items():
+                expected = stage_complete.get(field)
+                if not isinstance(expected, str):
+                    raise ValueError(
+                        f"row {video_id} {stage} {field} binding is missing"
+                    )
+                label = field.removesuffix("_sha256").replace("_", " ")
+                if not path.is_file() or _file_sha256(path) != expected:
+                    raise ValueError(f"row {video_id} {stage} {label} hash changed")
             prior = stage_hash
         result_path = row_root / "result.json"
         if _file_sha256(result_path) != complete.get("result_sha256"):
@@ -1068,6 +1272,7 @@ def run_canary(*, root: Path, pricing_path: Path) -> dict[str, object]:
             client=client,
             row=row,
             file_uri=str(upload["file_uri"]),
+            upload_complete_sha256=str(upload["complete_sha256"]),
             row_root=row_root,
             budget_root=root / "budget",
             request_manifest_sha256=str(manifest["complete_sha256"]),
@@ -1148,6 +1353,8 @@ def execute_paid_stage(
     response_schema: Mapping[str, object],
     prior_complete_sha256: str | None,
     request_manifest_sha256: str,
+    upload_complete_sha256: str,
+    delivery_sha256: str,
     reservation: Mapping[str, object],
     budget_root: Path,
     pricing: Mapping[str, object],
@@ -1160,15 +1367,29 @@ def execute_paid_stage(
             "stage": stage,
             "model": MODEL,
             "request_manifest_sha256": request_manifest_sha256,
+            "upload_complete_sha256": upload_complete_sha256,
+            "delivery_sha256": delivery_sha256,
+            "file_uri": video_part.file_data.file_uri,
+            "mime_type": video_part.file_data.mime_type,
             "prior_complete_sha256": prior_complete_sha256,
             "fps": video_part.video_metadata.fps,
             "start_offset": video_part.video_metadata.start_offset,
             "end_offset": video_part.video_metadata.end_offset,
             "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+            "response_schema_sha256": canonical_sha256(response_schema),
+            "temperature": TEMPERATURE,
+            "seed": SEED,
+            "max_output_tokens": MAX_OUTPUT_TOKENS,
+            "response_mime_type": "application/json",
+            "thinking_level": "LOW",
+            "media_resolution": "HIGH",
         }
     )
     validate_label_blind(request)
-    reserve_paid_stage(stage_root, request)
+    claim_path = reserve_paid_stage(stage_root, request)
+    paid_call_claim_sha256 = _verify_self_hash(
+        _load_mapping(claim_path), name=f"{stage} paid-call claim"
+    )
     reservation_id = str(reservation["reservation_id"])
     reserved_usd = float(reservation["reserved_usd"])
     reserve_budget(
@@ -1192,6 +1413,7 @@ def execute_paid_stage(
                 "outcome": "provider_error",
                 "attempted_provider_calls": 1,
                 "request_sha256": request["complete_sha256"],
+                "paid_call_claim_sha256": paid_call_claim_sha256,
                 "prior_complete_sha256": prior_complete_sha256,
                 "elapsed_seconds": time.monotonic() - started,
                 "error_type": type(error).__name__,
@@ -1249,6 +1471,7 @@ def execute_paid_stage(
                 "outcome": "invalid_response",
                 "attempted_provider_calls": 1,
                 "request_sha256": request["complete_sha256"],
+                "paid_call_claim_sha256": paid_call_claim_sha256,
                 "raw_response_sha256": _file_sha256(stage_root / "raw-response.txt"),
                 "provider_metadata_sha256": _file_sha256(
                     stage_root / "provider-metadata.json"
@@ -1274,6 +1497,7 @@ def execute_paid_stage(
             "outcome": "success",
             "attempted_provider_calls": 1,
             "request_sha256": request["complete_sha256"],
+            "paid_call_claim_sha256": paid_call_claim_sha256,
             "raw_response_sha256": _file_sha256(stage_root / "raw-response.txt"),
             "parsed_sha256": _file_sha256(stage_root / "parsed.json"),
             "validated_sha256": _file_sha256(stage_root / "validated.json"),

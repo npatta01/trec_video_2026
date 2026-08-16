@@ -279,6 +279,71 @@ def test_ambiguous_additive_verification_cannot_authorize_exactness() -> None:
     assert result.reason_codes == ("unresolved_additive_verification",)
 
 
+def test_empty_additive_cannot_confirm_a_challenger_discovery() -> None:
+    ledger = parse_atomic_ledger(
+        ledger_payload(), duration_seconds=7.268, envelope=TimeRange(0.0, 7.268)
+    )
+    payload = challenge_payload()
+    proposal = {
+        **ledger_payload()["instances"][0],
+        "instance_id": "I3",
+        "start_seconds": 3.0,
+        "peak_seconds": 3.2,
+        "end_seconds": 3.4,
+    }
+    payload["missed_instances"] = [proposal]
+    challenge = parse_challenge(payload, ledger=ledger, duration_seconds=7.268)
+    additive = parse_atomic_ledger(
+        {"schema_version": 1, "instances": [], "unresolved_observations": []},
+        duration_seconds=7.268,
+        envelope=TimeRange(1.5, 4.9),
+    )
+
+    result = reduce_recovery_result(ledger, challenge, additive=additive)
+
+    assert result.outcome == "abstain"
+    assert result.reason_codes == ("unconfirmed_challenger_discovery",)
+
+
+def test_additive_envelope_must_cover_every_requested_range() -> None:
+    ledger = parse_atomic_ledger(
+        ledger_payload(), duration_seconds=7.268, envelope=TimeRange(0.0, 7.268)
+    )
+    payload = challenge_payload()
+    payload["requested_ranges"] = [
+        {"start_seconds": 3.0, "end_seconds": 4.0, "reason": "possible episode"}
+    ]
+    challenge = parse_challenge(payload, ledger=ledger, duration_seconds=7.268)
+    additive = parse_atomic_ledger(
+        {"schema_version": 1, "instances": [], "unresolved_observations": []},
+        duration_seconds=7.268,
+        envelope=TimeRange(0.0, 1.0),
+    )
+
+    result = reduce_recovery_result(ledger, challenge, additive=additive)
+
+    assert result.outcome == "abstain"
+    assert result.reason_codes == ("incomplete_additive_coverage",)
+
+
+def test_overlapping_atomic_instances_cannot_authorize_exactness() -> None:
+    payload = ledger_payload()
+    payload["instances"][1]["start_seconds"] = 0.6
+    payload["instances"][1]["peak_seconds"] = 0.7
+    payload["instances"][1]["end_seconds"] = 0.9
+    ledger = parse_atomic_ledger(
+        payload, duration_seconds=7.268, envelope=TimeRange(0.0, 7.268)
+    )
+    challenge = parse_challenge(
+        challenge_payload(), ledger=ledger, duration_seconds=7.268
+    )
+
+    result = reduce_recovery_result(ledger, challenge, additive=None)
+
+    assert result.outcome == "abstain"
+    assert result.reason_codes == ("overlapping_instance_intervals",)
+
+
 def test_prompts_assign_distinct_jobs_without_answer_or_labels() -> None:
     locator = parse_locator(locator_payload(), duration_seconds=7.268)
     ledger = parse_atomic_ledger(

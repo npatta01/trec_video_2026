@@ -20,6 +20,31 @@ from trec_video_2026.vqa_counting_evidence import (
 from trec_video_2026.vqa_submission import canonical_sha256
 
 BUDGET_CEILING_USD = 1.0
+_MODEL = "gemini-3.1-pro-preview"
+_SCHEMA_SHA256 = {
+    "locate": "6350576f6623e3776b913430b3ee28b8816dbafcad187a92069a1eca45ab8218",
+    "verify": "9015bd3b85d05f8fb60f93beab96734598c8216b7567d0bfeafb57c70cf05de9",
+    "challenge": "011940d2a3b054a34f5febda00a5274d7cc94398e4a8498d870ce44c975fbb0e",
+    "additional-verify": "9015bd3b85d05f8fb60f93beab96734598c8216b7567d0bfeafb57c70cf05de9",
+}
+_STAGE_ORDER = (
+    "locate",
+    "locate-correction-v2",
+    "verify",
+    "challenge",
+    "additional-verify",
+)
+_MANDATORY_STAGES = ("locate", "verify", "challenge")
+_STANDARD_TERMINAL_FILE_NAMES = {
+    "raw_response_sha256": "raw-response.txt",
+    "parsed_sha256": "parsed.json",
+    "validated_sha256": "validated.json",
+    "provider_metadata_sha256": "provider-metadata.json",
+}
+_CROSS_STAGE_FILE_NAMES = {
+    "invalid_raw_response_sha256": ("locate", "raw-response.txt"),
+    "invalid_parsed_sha256": ("locate", "parsed.json"),
+}
 
 
 def file_sha256(path: Path) -> str:
@@ -59,6 +84,164 @@ def verify_self_hash(payload: Mapping[str, object], *, name: str) -> str:
     return expected
 
 
+def _verify_terminal_referenced_files(
+    *,
+    row_root: Path,
+    stage: str,
+    terminal: Mapping[str, object],
+    required: set[str],
+) -> None:
+    references = {
+        field: (row_root / stage / filename)
+        for field, filename in _STANDARD_TERMINAL_FILE_NAMES.items()
+        if field in terminal
+    }
+    references.update(
+        {
+            field: (row_root / referenced_stage / filename)
+            for field, (referenced_stage, filename) in _CROSS_STAGE_FILE_NAMES.items()
+            if field in terminal
+        }
+    )
+    missing = required.difference(references)
+    if missing:
+        raise ValueError(
+            f"row {row_root.name} {stage} terminal references missing: "
+            f"{sorted(missing)}"
+        )
+    for field, path in references.items():
+        expected = terminal[field]
+        if not isinstance(expected, str):
+            raise ValueError(f"row {row_root.name} {stage} {field} is not a hash")
+        if not path.is_file():
+            raise ValueError(
+                f"row {row_root.name} {stage} {field.removesuffix('_sha256')} "
+                "file missing"
+            )
+        actual = file_sha256(path)
+        if actual != expected:
+            raise ValueError(
+                f"row {row_root.name} {stage} {field.removesuffix('_sha256')} "
+                "file hash changed"
+            )
+
+
+def _verify_upload_chain(
+    *,
+    row_root: Path,
+    row: Mapping[str, object],
+    complete: Mapping[str, object],
+    video_id: str,
+) -> tuple[str, Mapping[str, object]]:
+    upload = load_json(row_root / "upload.json")
+    upload_hash = verify_self_hash(upload, name=f"row {video_id} upload")
+    upload_claim = load_json(row_root / "upload-claim.json")
+    upload_claim_hash = verify_self_hash(
+        upload_claim, name=f"row {video_id} upload claim"
+    )
+    if upload.get("upload_claim_complete_sha256") != upload_claim_hash:
+        raise ValueError(f"row {video_id} upload claim binding changed")
+    if complete.get("upload_complete_sha256") != upload_hash:
+        raise ValueError(f"row {video_id} upload binding changed")
+    if complete.get("delivery_sha256") != row.get("delivery_sha256"):
+        raise ValueError(f"row {video_id} delivery binding changed")
+    for name, payload in (("upload", upload), ("upload claim", upload_claim)):
+        if payload.get("video_id") != video_id:
+            raise ValueError(f"row {video_id} {name} identity changed")
+        if payload.get("delivery_sha256") != row.get("delivery_sha256"):
+            raise ValueError(f"row {video_id} {name} delivery binding changed")
+        if payload.get("delivery_mime_type") != row.get("delivery_mime_type"):
+            raise ValueError(f"row {video_id} {name} MIME binding changed")
+    if upload.get("file_state") != "ACTIVE":
+        raise ValueError(f"row {video_id} upload is not active")
+    if not isinstance(upload.get("file_uri"), str) or not upload["file_uri"]:
+        raise ValueError(f"row {video_id} upload URI is missing")
+    return upload_hash, upload
+
+
+def _verify_paid_stage_request(
+    *,
+    row_root: Path,
+    stage: str,
+    terminal: Mapping[str, object],
+    row: Mapping[str, object],
+    manifest_hash: str,
+    upload: Mapping[str, object],
+    upload_hash: str,
+    prior: str | None,
+    video_id: str,
+) -> None:
+    request = load_json(row_root / stage / "request.json")
+    request_hash = verify_self_hash(request, name=f"row {video_id} {stage} request")
+    if request.get("stage") != stage:
+        raise ValueError(f"row {video_id} {stage} request stage identity changed")
+    if terminal.get("request_sha256") != request_hash:
+        raise ValueError(f"row {video_id} {stage} request binding changed")
+    if request.get("prior_complete_sha256") != prior:
+        raise ValueError(f"row {video_id} {stage} request prior binding changed")
+    expected_bindings = {
+        "request_manifest_sha256": manifest_hash,
+        "upload_complete_sha256": upload_hash,
+        "delivery_sha256": row.get("delivery_sha256"),
+        "file_uri": upload.get("file_uri"),
+        "mime_type": row.get("delivery_mime_type"),
+    }
+    for field, expected in expected_bindings.items():
+        if request.get(field) != expected:
+            label = field.removesuffix("_sha256").replace("_", " ")
+            raise ValueError(f"row {video_id} {stage} {label} binding changed")
+    expected_config = {
+        "model": _MODEL,
+        "fps": 4.0 if stage == "locate" else 12.0,
+        "response_schema_sha256": _SCHEMA_SHA256[stage],
+        "temperature": 0.0,
+        "seed": 42,
+        "max_output_tokens": 2048,
+        "response_mime_type": "application/json",
+        "thinking_level": "LOW",
+        "media_resolution": "HIGH",
+    }
+    if any(request.get(field) != value for field, value in expected_config.items()):
+        raise ValueError(f"row {video_id} {stage} request configuration changed")
+    clipped = stage in {"verify", "additional-verify"}
+    offsets = (request.get("start_offset"), request.get("end_offset"))
+    if (clipped and not all(isinstance(value, str) and value for value in offsets)) or (
+        not clipped and offsets != (None, None)
+    ):
+        raise ValueError(f"row {video_id} {stage} request offsets changed")
+    claim = load_json(row_root / stage / "paid-call-claim.json")
+    claim_hash = verify_self_hash(claim, name=f"row {video_id} {stage} paid-call claim")
+    if claim.get("stage") != stage:
+        raise ValueError(f"row {video_id} {stage} paid-call claim stage changed")
+    if claim.get("request_complete_sha256") != request_hash:
+        raise ValueError(f"row {video_id} {stage} paid-call request binding changed")
+    if terminal.get("paid_call_claim_sha256") != claim_hash:
+        raise ValueError(f"row {video_id} {stage} paid-call claim binding changed")
+
+
+def _stage_names(stage_hashes: Mapping[str, object], *, video_id: str) -> list[str]:
+    names = set(stage_hashes)
+    unknown = names.difference(_STAGE_ORDER)
+    if unknown:
+        raise ValueError(f"row {video_id} has unexpected stage(s): {sorted(unknown)}")
+    missing = set(_MANDATORY_STAGES).difference(names)
+    if missing:
+        raise ValueError(
+            f"row {video_id} is missing mandatory stage(s): {sorted(missing)}"
+        )
+    correction = "locate-correction-v2" in names
+    additional = "additional-verify" in names
+    ordered = ["locate"]
+    if correction:
+        ordered.append("locate-correction-v2")
+    ordered.extend(("verify", "challenge"))
+    if additional:
+        ordered.append("additional-verify")
+    if names != set(ordered):
+        raise ValueError(f"row {video_id} stage chain is not exact")
+    return ordered
+
+
 def _authenticate(
     *, root: Path, manifest: Mapping[str, object], freeze: Mapping[str, object]
 ) -> dict[str, Mapping[str, object]]:
@@ -71,6 +254,7 @@ def _authenticate(
     if not isinstance(manifest_rows, list) or not isinstance(freeze_rows, list):
         raise TypeError("manifest and freeze rows must be arrays")
     manifest_ids = [str(row["video_id"]) for row in manifest_rows]
+    manifest_by_id = {str(row["video_id"]): row for row in manifest_rows}
     freeze_ids = [str(row["video_id"]) for row in freeze_rows]
     if len(manifest_ids) != 3 or len(set(manifest_ids)) != 3:
         raise ValueError("canary must contain three unique rows")
@@ -92,38 +276,100 @@ def _authenticate(
             raise ValueError(f"row {video_id} complete binding changed")
         if complete.get("request_manifest_sha256") != manifest_hash:
             raise ValueError(f"row {video_id} manifest binding changed")
+        if complete.get("video_id") != video_id:
+            raise ValueError(f"row {video_id} video_id changed")
+        if complete.get("outcome") != "success":
+            raise ValueError(f"row {video_id} complete outcome is not success")
+        manifest_row = manifest_by_id[video_id]
+        if not isinstance(manifest_row, Mapping):
+            raise TypeError(f"row {video_id} manifest row must be an object")
+        upload_hash, upload = _verify_upload_chain(
+            row_root=row_root,
+            row=manifest_row,
+            complete=complete,
+            video_id=video_id,
+        )
         stage_hashes = complete.get("stage_complete_sha256")
         if not isinstance(stage_hashes, Mapping):
             raise TypeError(f"row {video_id} stage bindings must be an object")
+        ordered_stages = _stage_names(stage_hashes, video_id=video_id)
+        correction_present = "locate-correction-v2" in stage_hashes
         prior: str | None = None
-        for stage in (
-            "locate",
-            "locate-correction-v2",
-            "verify",
-            "challenge",
-            "additional-verify",
-        ):
-            if stage not in stage_hashes:
-                continue
+        for stage in ordered_stages:
             terminal = load_json(row_root / stage / "complete.json")
             terminal_hash = verify_self_hash(
                 terminal, name=f"row {video_id} {stage} complete"
             )
-            if terminal_hash != stage_hashes[stage]:
+            if terminal_hash != stage_hashes.get(stage):
                 raise ValueError(f"row {video_id} {stage} binding changed")
+            if terminal.get("stage") != stage:
+                raise ValueError(f"row {video_id} {stage} stage identity changed")
             if terminal.get("prior_complete_sha256") != prior:
                 raise ValueError(f"row {video_id} {stage} prior binding changed")
-            corrected_locator = (
-                stage == "locate" and "locate-correction-v2" in stage_hashes
-            )
-            valid_outcome = (
-                terminal.get("outcome") == "invalid_response"
-                if corrected_locator
-                else terminal.get("outcome") == "success"
-            )
-            if not valid_outcome:
+            if stage == "locate":
+                expected_outcome = (
+                    "invalid_response" if correction_present else "success"
+                )
+                if terminal.get("outcome") != expected_outcome:
+                    if correction_present:
+                        raise ValueError(
+                            f"row {video_id} locate must be invalid_response "
+                            "when correction is present"
+                        )
+                    raise ValueError(
+                        f"row {video_id} locator must succeed without correction"
+                    )
+            elif terminal.get("outcome") != "success":
                 raise ValueError(f"row {video_id} {stage} did not succeed")
+            if stage == "locate-correction-v2":
+                required_files = {
+                    "invalid_raw_response_sha256",
+                    "invalid_parsed_sha256",
+                    "validated_sha256",
+                }
+            else:
+                _verify_paid_stage_request(
+                    row_root=row_root,
+                    stage=stage,
+                    terminal=terminal,
+                    row=manifest_row,
+                    manifest_hash=manifest_hash,
+                    upload=upload,
+                    upload_hash=upload_hash,
+                    prior=prior,
+                    video_id=video_id,
+                )
+                required_files = {
+                    "raw_response_sha256",
+                    "parsed_sha256",
+                    "validated_sha256",
+                    "provider_metadata_sha256",
+                }
+                if terminal.get("outcome") == "invalid_response":
+                    required_files.intersection_update(
+                        {"raw_response_sha256", "provider_metadata_sha256"}
+                    )
+            _verify_terminal_referenced_files(
+                row_root=row_root,
+                stage=stage,
+                terminal=terminal,
+                required=required_files,
+            )
             prior = terminal_hash
+        if "additional-verify" in stage_hashes:
+            challenge_payload = load_json(row_root / "challenge" / "validated.json")
+            requested_ranges = challenge_payload.get("requested_ranges")
+            missed_instances = challenge_payload.get("missed_instances")
+            if not isinstance(requested_ranges, list) or not isinstance(
+                missed_instances, list
+            ):
+                raise ValueError(
+                    f"row {video_id} additional verification lacks challenge requests"
+                )
+            if not requested_ranges and not missed_instances:
+                raise ValueError(
+                    f"row {video_id} additional verification was not requested"
+                )
         result_path = row_root / "result.json"
         if file_sha256(result_path) != complete.get("result_sha256"):
             raise ValueError(f"row {video_id} result hash changed")
