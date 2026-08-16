@@ -1195,6 +1195,25 @@ def test_continuation_startup_rejects_stale_pending_arm_without_callback(
     assert calls == []
 
 
+def test_continuation_pre_callback_rejects_extra_current_arm_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _prepare_continuation_fixture(tmp_path)
+    original = runner._write_request
+
+    def polluted_write_request(*args: Any, **kwargs: Any) -> str:
+        prompt = original(*args, **kwargs)
+        row_root = args[0]
+        (row_root / "metadata.json").write_text("stale metadata")
+        return prompt
+
+    monkeypatch.setattr(runner, "_write_request", polluted_write_request)
+    calls: list[tuple[Any, ...]] = []
+    with pytest.raises(ValueError, match="fresh callback arm"):
+        runner.run(root, call=lambda *args: calls.append(args) or _id_call("unused"))
+    assert calls == []
+
+
 def test_replay_provider_calls_made_must_remain_integer_zero_with_recomputed_auth(
     tmp_path: Path,
 ) -> None:
