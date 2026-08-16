@@ -15,6 +15,7 @@ from trec_video_2026.vqa_bounded_multipass_counting import (
     count_spec_to_dict,
     coverage_review_to_dict,
     evidence_ledger_to_dict,
+    merge_refinement,
     parse_count_spec,
     parse_coverage_review,
     parse_evidence,
@@ -162,6 +163,26 @@ def test_parse_count_spec_rejects_scalar_answer_and_label_leakage() -> None:
     payload = spec_payload()
     payload["answer"] = 2
     with pytest.raises(ValueError, match="answer|field"):
+        parse_count_spec(payload, question=QUESTION, duration_seconds=4.0)
+
+
+def test_parse_count_spec_rejects_temporal_view_coverage_gap() -> None:
+    payload = spec_payload()
+    payload["candidate_views"] = [
+        {
+            "view_id": "W0",
+            "kind": "window",
+            "start_seconds": 0.0,
+            "end_seconds": 1.0,
+        },
+        {
+            "view_id": "W1",
+            "kind": "window",
+            "start_seconds": 2.0,
+            "end_seconds": 4.0,
+        },
+    ]
+    with pytest.raises(ValueError, match="cover the complete scope"):
         parse_count_spec(payload, question=QUESTION, duration_seconds=4.0)
 
 
@@ -454,3 +475,61 @@ def test_serializers_and_prompts_preserve_structured_non_scalar_contract() -> No
         "reference"
         not in " ".join([count_spec_prompt, evidence_prompt, coverage_prompt]).lower()
     )
+
+
+def test_merge_refinement_adds_new_records_and_refuses_duplicate_ids() -> None:
+    spec = parse_count_spec(spec_payload(), question=QUESTION, duration_seconds=4.0)
+    initial = parse_evidence(
+        evidence_payload(), spec=spec, requested_views=spec.candidate_views
+    )
+    refinement_view = (
+        type(spec.candidate_views[0])(
+            "R0", "window", start_seconds=3.0, end_seconds=4.0
+        ),
+    )
+    refinement = parse_evidence(
+        {
+            "schema_version": "bounded-multipass-evidence-v1",
+            "reviewed_view_ids": ["R0"],
+            "records": [
+                {
+                    "record_id": "E2",
+                    "view_ids": ["R0"],
+                    "start_seconds": 3.4,
+                    "peak_seconds": 3.55,
+                    "end_seconds": 3.7,
+                    "target_supported": True,
+                    "ambiguous": False,
+                    "descriptor": "missed complete jump",
+                }
+            ],
+        },
+        spec=spec,
+        requested_views=refinement_view,
+    )
+    merged = merge_refinement(initial, refinement)
+    assert merged.reviewed_view_ids == ("W0", "W1", "R0")
+    assert [record.record_id for record in merged.records] == ["E0", "E1", "E2"]
+
+    duplicate = parse_evidence(
+        {
+            "schema_version": "bounded-multipass-evidence-v1",
+            "reviewed_view_ids": ["R0"],
+            "records": [
+                {
+                    "record_id": "E1",
+                    "view_ids": ["R0"],
+                    "start_seconds": 3.4,
+                    "peak_seconds": 3.55,
+                    "end_seconds": 3.7,
+                    "target_supported": True,
+                    "ambiguous": False,
+                    "descriptor": "duplicate identifier",
+                }
+            ],
+        },
+        spec=spec,
+        requested_views=refinement_view,
+    )
+    with pytest.raises(ValueError, match="duplicate record_id"):
+        merge_refinement(initial, duplicate)

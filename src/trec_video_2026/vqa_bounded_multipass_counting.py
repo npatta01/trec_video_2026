@@ -278,6 +278,24 @@ def parse_count_spec(
         raise ValueError("candidate_views must not be empty")
     if len({item.view_id for item in views}) != len(views):
         raise ValueError("candidate view_id values must be unique")
+    if route == "temporal":
+        windows = sorted(
+            views,
+            key=lambda item: (
+                item.start_seconds if item.start_seconds is not None else math.inf
+            ),
+        )
+        cursor = scope.start_seconds
+        for window in windows:
+            if window.start_seconds is None or window.end_seconds is None:
+                raise AssertionError("temporal view lacks bounds after validation")
+            if window.start_seconds > cursor + 1e-9:
+                raise ValueError(
+                    "temporal candidate views must cover the complete scope"
+                )
+            cursor = max(cursor, window.end_seconds)
+        if cursor < scope.end_seconds - 1e-9:
+            raise ValueError("temporal candidate views must cover the complete scope")
     return CountSpec(
         question_sha256=question_sha256,
         target=_string(value["target"], field="target"),
@@ -547,6 +565,25 @@ def build_refinement_request(
     if review.complete:
         return None
     return review.refinement_request
+
+
+def merge_refinement(
+    initial: EvidenceLedger, refinement: EvidenceLedger
+) -> EvidenceLedger:
+    initial_ids = {record.record_id for record in initial.records}
+    refinement_ids = {record.record_id for record in refinement.records}
+    duplicate_ids = initial_ids & refinement_ids
+    if duplicate_ids:
+        raise ValueError(
+            f"duplicate record_id across refinement: {sorted(duplicate_ids)}"
+        )
+    reviewed = (*initial.reviewed_view_ids, *refinement.reviewed_view_ids)
+    if len(set(reviewed)) != len(reviewed):
+        raise ValueError("duplicate reviewed view ID across refinement")
+    return EvidenceLedger(
+        reviewed_view_ids=reviewed,
+        records=(*initial.records, *refinement.records),
+    )
 
 
 def reduce_count(
