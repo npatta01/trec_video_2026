@@ -20,7 +20,7 @@ from typing import Any, Callable
 
 from google.genai import types
 
-EXPERIMENT_ID = "gemini37-flash-two-video-smoke-v1"
+EXPERIMENT_ID = "gemini37-flash-two-video-smoke-v2"
 DIRECT_ANSWER_PROMPT = (
     "Answer the question using the complete native video and audio. Identify the "
     "requested relationship and inspect all relevant moments. For temporal "
@@ -1314,9 +1314,16 @@ def _provider_digest_hex(value: Any, *, label: str) -> str:
         decoded = base64.b64decode(standard, validate=True)
     except (ValueError, binascii.Error) as error:
         raise ValueError(f"{label} is not valid base64") from error
-    if len(decoded) != hashlib.sha256().digest_size:
-        raise ValueError(f"{label} is not a SHA-256 digest")
-    return decoded.hex()
+    if len(decoded) == hashlib.sha256().digest_size:
+        return decoded.hex()
+    if len(decoded) == hashlib.sha256().digest_size * 2:
+        try:
+            decoded_hex = decoded.decode("ascii")
+        except UnicodeDecodeError as error:
+            raise ValueError(f"{label} is not a SHA-256 digest") from error
+        if re.fullmatch(r"[0-9a-fA-F]{64}", decoded_hex):
+            return decoded_hex.casefold()
+    raise ValueError(f"{label} is not a SHA-256 digest")
 
 
 def _provider_file_metadata(file: Any, *, expected_mime: str) -> dict[str, Any]:

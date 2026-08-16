@@ -294,7 +294,7 @@ def test_prepare_protocol_freezes_schema_and_excludes_historical_private_fields(
     )
 
     assert protocol["schema_version"] == 1
-    assert protocol["experiment_id"] == "gemini37-flash-two-video-smoke-v1"
+    assert protocol["experiment_id"] == "gemini37-flash-two-video-smoke-v2"
     assert protocol["status"] == "inputs_frozen"
     assert set(protocol["rows"][0]) == {
         "row_id",
@@ -1345,6 +1345,57 @@ def test_actual_sdk_file_base64_digest_is_normalized_to_delivery_hex(tmp_path: P
     upload_rows(root, client, sleep=lambda _: None)
     record = json.loads((root / "uploads" / "row-000.json").read_text())
     assert record["provider_snapshot"]["sha256_hash"] == record["delivery_sha256"]
+
+
+def test_actual_sdk_file_base64_ascii_hex_digest_is_normalized_to_delivery_hex(
+    tmp_path: Path,
+) -> None:
+    root = _prepared_provider_root(tmp_path)
+    client = _FakeClient()
+    preflight_models(root, client, "2026-08-16T12:01:00Z")
+    original_upload = client.files.upload
+
+    def upload_as_sdk_file(*, file: Path, config: Any) -> Any:
+        uploaded = original_upload(file=file, config=config)
+        digest_hex = _sha256(file)
+        sdk_file = smoke.types.File(
+            name=uploaded.name,
+            uri=uploaded.uri,
+            mime_type=uploaded.mime_type,
+            state="ACTIVE",
+            size_bytes=file.stat().st_size,
+            sha256_hash=base64.b64encode(digest_hex.encode("ascii")).decode("ascii"),
+        )
+        client.files._files[sdk_file.name] = sdk_file
+        return sdk_file
+
+    client.files.upload = upload_as_sdk_file
+    upload_rows(root, client, sleep=lambda _: None)
+    record = json.loads((root / "uploads" / "row-000.json").read_text())
+    assert record["provider_snapshot"]["sha256_hash"] == record["delivery_sha256"]
+
+
+def test_provider_file_digest_rejects_arbitrary_64_decoded_bytes(tmp_path: Path) -> None:
+    root = _prepared_provider_root(tmp_path)
+    client = _FakeClient()
+    preflight_models(root, client, "2026-08-16T12:01:00Z")
+    original_upload = client.files.upload
+
+    def upload_with_arbitrary_digest(*, file: Path, config: Any) -> Any:
+        uploaded = original_upload(file=file, config=config)
+        return smoke.types.File(
+            name=uploaded.name,
+            uri=uploaded.uri,
+            mime_type=uploaded.mime_type,
+            state="ACTIVE",
+            size_bytes=file.stat().st_size,
+            sha256_hash=base64.b64encode(b"x" * 64).decode("ascii"),
+        )
+
+    client.files.upload = upload_with_arbitrary_digest
+    with pytest.raises(ValueError, match="hash|digest|base64"):
+        upload_rows(root, client, sleep=lambda _: None)
+    assert json.loads((root / "uploads" / "row-000.json").read_text())["status"] == "failed"
 
 
 def test_invalid_provider_file_digest_fails_closed(tmp_path: Path) -> None:
