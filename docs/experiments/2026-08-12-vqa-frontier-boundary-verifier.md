@@ -681,29 +681,33 @@ and 536.224 seconds and producing 2,450 and 4,989 characters. Both
 responses began with a Markdown JSON fence. The frozen strict parser
 rejected both without stripping or repair, so completion was **0/2**.
 The smoke gate stopped the individual-frame challenges and second
-repeat.
+repeat. Post-freeze review then found a material condition deviation:
+the plan allowed at most 11 frames per model call, but preparation sent
+all sheets for each row in one call, requesting 55 and 113 frame states.
+The intended canary condition was not executed.
 
-- **Evidence validity:** Incomplete.
+- **Evidence validity:** Invalid.
 - **Decision disposition:** Not promoted under the tested condition.
 - **Decision code:**
-  `stop_local_gemma_frame_counting_smoke_invalid_json`.
+  `stop_invalid_local_gemma_frame_counting_batching_deviation`.
 - **Metrics:** rescue rate, control preservation, METEOR, BERTScore-F1,
   STS, and semantic composite are unavailable because no row completed
   the frozen protocol.
 
-This establishes a structured-output failure under the tested local
-condition, not a visual-perception failure: the fenced contents were
-intentionally not repaired or scored after the gate failed. The two-row
-eligible panel was also too small to justify changing the primary
-submission even if it had passed. With the deadline imminent, stop this
-counting branch and preserve the already validated fallback submission.
-Do not retry with fence stripping, tune the prompt, run the challenges,
-or start another paid counting canary.
+The fenced outputs remain factual observations of the deviating executed
+condition, but they are unusable as evidence for the planned canary and
+say nothing reliable about visual perception. The two-row eligible panel
+was also too small to justify changing the primary submission even if a
+valid smoke had passed. With the deadline imminent, stop this counting
+branch and preserve the already validated fallback submission. Do not
+retry with fence stripping, tune the prompt, run the challenges, or
+start another paid counting canary.
 
 The sanitized evidence index is
 `docs/experiments/artifacts/vqa-local-gemma-frame-counting-20260816/`.
 Complete private selected frames, contact sheets, requests, raw local
-outputs, freeze, correction record, decision, and inspection remain at
+outputs, freezes, additive validity correction, decisions, and
+inspections remain at
 `data/vqa/benchmarks/local-gemma-frame-counting-canary-v2/` in the
 canonical shared dataset.
 

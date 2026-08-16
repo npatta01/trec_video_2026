@@ -10,6 +10,8 @@ from trec_video_2026.vqa_local_gemma_canary_freeze import build_smoke_freeze
 def test_fenced_smoke_outputs_freeze_as_invalid_without_repair() -> None:
     preparation = {
         "complete_sha256": "a" * 64,
+        "model_id": "google/gemma-3n-E4B-it",
+        "model_revision": "d" * 40,
         "rows": [
             {
                 "video_id": "video-1",
@@ -23,6 +25,12 @@ def test_fenced_smoke_outputs_freeze_as_invalid_without_repair() -> None:
         {
             "video_id": "video-1",
             "condition_id": "primary",
+            "run_id": "smoke-v1",
+            "model_id": (
+                "/cache/models--google--gemma-3n-E4B-it/snapshots/" + "d" * 40
+            ),
+            "model_revision": "d" * 40,
+            "answer_policy": "current",
             "status": "passed",
             "answer": "```json\n"
             + json.dumps(
@@ -40,7 +48,9 @@ def test_fenced_smoke_outputs_freeze_as_invalid_without_repair() -> None:
         raw_results=raw_results,
         request_batch_sha256="b" * 64,
         raw_results_sha256="c" * 64,
-        source_revision="deadbeef",
+        source_revision="e" * 40,
+        expected_run_id="smoke-v1",
+        expected_answer_policy="current",
     )
 
     assert frozen["status"] == "stopped_smoke_gate"
@@ -62,6 +72,10 @@ def _valid_result(video_id: str) -> dict[str, object]:
     return {
         "video_id": video_id,
         "condition_id": "primary",
+        "run_id": "smoke-v1",
+        "model_id": ("/cache/models--google--gemma-3n-E4B-it/snapshots/" + "d" * 40),
+        "model_revision": "d" * 40,
+        "answer_policy": "current",
         "status": "passed",
         "answer": json.dumps(
             [
@@ -75,6 +89,8 @@ def _valid_result(video_id: str) -> dict[str, object]:
 def _two_row_preparation() -> dict[str, object]:
     return {
         "complete_sha256": "a" * 64,
+        "model_id": "google/gemma-3n-E4B-it",
+        "model_revision": "d" * 40,
         "rows": [
             {
                 "video_id": video_id,
@@ -94,7 +110,9 @@ def test_smoke_freeze_requires_one_result_for_each_planned_video() -> None:
             raw_results=[_valid_result("video-1"), _valid_result("video-1")],
             request_batch_sha256="b" * 64,
             raw_results_sha256="c" * 64,
-            source_revision="deadbeef",
+            source_revision="e" * 40,
+            expected_run_id="smoke-v1",
+            expected_answer_policy="current",
         )
 
 
@@ -107,7 +125,9 @@ def test_smoke_freeze_rejects_duplicate_planned_video() -> None:
             raw_results=[_valid_result("video-1"), _valid_result("video-2")],
             request_batch_sha256="b" * 64,
             raw_results_sha256="c" * 64,
-            source_revision="deadbeef",
+            source_revision="e" * 40,
+            expected_run_id="smoke-v1",
+            expected_answer_policy="current",
         )
 
 
@@ -117,8 +137,55 @@ def test_smoke_freeze_passes_only_for_exact_valid_identity_set() -> None:
         raw_results=[_valid_result("video-2"), _valid_result("video-1")],
         request_batch_sha256="b" * 64,
         raw_results_sha256="c" * 64,
-        source_revision="deadbeef",
+        source_revision="e" * 40,
+        expected_run_id="smoke-v1",
+        expected_answer_policy="current",
     )
 
     assert frozen["status"] == "smoke_passed"
     assert frozen["completed_rows"] == 2
+
+
+@pytest.mark.parametrize(
+    ("field", "wrong_value"),
+    [
+        ("run_id", "other-run"),
+        ("model_id", "other/model"),
+        ("model_revision", "f" * 40),
+        ("answer_policy", "other-policy"),
+    ],
+)
+def test_smoke_freeze_rejects_result_from_wrong_condition(
+    field: str, wrong_value: str
+) -> None:
+    result = _valid_result("video-1")
+    result[field] = wrong_value
+    with pytest.raises(ValueError, match="condition provenance"):
+        build_smoke_freeze(
+            preparation={
+                **_two_row_preparation(),
+                "rows": _two_row_preparation()["rows"][:1],  # type: ignore[index]
+            },
+            raw_results=[result],
+            request_batch_sha256="b" * 64,
+            raw_results_sha256="c" * 64,
+            source_revision="e" * 40,
+            expected_run_id="smoke-v1",
+            expected_answer_policy="current",
+        )
+
+
+def test_smoke_freeze_rejects_invalid_hash_or_revision_tokens() -> None:
+    with pytest.raises(ValueError, match="request batch SHA-256"):
+        build_smoke_freeze(
+            preparation={
+                **_two_row_preparation(),
+                "rows": _two_row_preparation()["rows"][:1],  # type: ignore[index]
+            },
+            raw_results=[_valid_result("video-1")],
+            request_batch_sha256="not-a-hash",
+            raw_results_sha256="c" * 64,
+            source_revision="e" * 40,
+            expected_run_id="smoke-v1",
+            expected_answer_policy="current",
+        )

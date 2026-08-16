@@ -273,8 +273,10 @@ by this result.
 That zero-cost blind test is now complete at
 `/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/local-gemma-frame-counting-canary-v2/`.
 The cached local Gemma 3n model completed contact-sheet generations for the
-only eligible failure and control, but both outputs were Markdown-fenced and
-failed the frozen strict JSON gate. Completion was 0/2, so challenges, repeats,
-and quality metrics did not run. Preserve this incomplete negative, do not
-repair or rerun the unchanged condition, and keep the validated competition
+only eligible failure and control, but the executed primary calls violated the
+frozen maximum of 11 frames per call: they requested 55 and 113 frames across
+multiple sheets. Both outputs were also Markdown-fenced. The intended canary is
+therefore invalid, not merely incomplete; challenges, repeats, and quality
+metrics did not run. Preserve the raw attempt and additive validity correction,
+do not repair or rerun the condition, and keep the validated competition
 fallback unchanged. No additional paid counting inference is authorized.

@@ -317,11 +317,11 @@ GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
   feasibility only—not evidence that Gemini, a detector, or a tracker
   can produce the decisions blind.
 - **Local blind model smoke test:** cached Gemma 3n completed
-  contact-sheet generations for one failure and one control, but both
-  responses were Markdown-fenced and failed the predeclared strict JSON
-  gate. Completion was 0/2, so challenges, repeats, and quality metrics
-  did not run. The condition is not promoted; retain the validated
-  deadline fallback.
+  contact-sheet generations for one failure and one control, but each
+  call exceeded the frozen 11-frame maximum (55 and 113 requested
+  states). Both responses were also Markdown-fenced. The intended canary
+  is invalid; challenges, repeats, and quality metrics did not run.
+  Retain the validated deadline fallback.
 - **What it does not rule out:** reusable question-blind scene maps or
   Gemini native video. It isolates the earlier failure to the tested
   route/verifier.

@@ -279,11 +279,12 @@ a prescribed research sequence.
    a one-row post-label human-oracle check showed that endpoint-inclusive
    structured frame-presence decisions plus a deterministic episode reducer
    can represent the intended count. The authorized local blind Gemma smoke
-   then stopped at 0/2 strict completions because both outputs were fenced; its
-   individual-frame challenges and repeats did not run. With only one eligible
-   failure and one control, stop counting work before the competition deadline
-   and retain the validated fallback. Any post-deadline blind variant requires
-   a larger untouched panel and fresh authorization.
+   was invalid because its two primary calls exceeded the frozen 11-frame
+   maximum, requesting 55 and 113 frame states; both outputs were also fenced.
+   Its individual-frame challenges and repeats did not run. With only one
+   eligible failure and one control, stop counting work before the competition
+   deadline and retain the validated fallback. Any post-deadline blind variant
+   requires a larger untouched panel and fresh authorization.
 
 <span id="how-to-interpret-results" class="legacy-fragment-alias" aria-hidden="true"></span>
 
