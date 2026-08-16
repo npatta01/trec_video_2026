@@ -147,15 +147,20 @@ def fill_audit_with_four_per_role(path: Path) -> None:
         "supported_control",
     )
     for index, row in enumerate(payload["rows"]):
+        role = roles[index // 4] if index < 12 else "supported_control"
         row["adjudication"] = {
-            "role": roles[index // 4] if index < 12 else "supported_control",
-            "verdict": roles[index // 4] if index < 12 else "supported_control",
+            "role": role,
+            "verdict": role,
             "requested_entity": "the person",
             "requested_fact": "the event",
             "qualifier": "in the scene",
             "answer_unit": "action",
             "evidence_line_numbers": [1],
-            "conflicts": [],
+            "conflicts": (
+                ["the requested fact is not uniquely supported"]
+                if role == "insufficient_or_ambiguous"
+                else []
+            ),
             "note": "fixture adjudication",
         }
     _write(path, payload)
@@ -262,6 +267,45 @@ def test_selection_rejects_incomplete_completed_audit_rows(
     _write(manual_path, manual)
     with pytest.raises(ValueError, match=message):
         prep.freeze_selection(**fixture)
+
+
+def test_selection_rejects_role_verdict_mismatch_before_authorization(
+    tmp_path: Path,
+) -> None:
+    fixture = write_auditable_fixture(tmp_path)
+    prep.freeze_treatment(**fixture)
+    prep.prepare_candidates(**fixture)
+    manual_path = fixture["output"] / "manual-audit.json"
+    fill_audit_with_four_per_role(manual_path)
+    manual = load(manual_path)
+    manual["rows"][0]["adjudication"]["verdict"] = "supported_control"
+    _write(manual_path, manual)
+
+    with pytest.raises(ValueError, match="role.*verdict"):
+        prep.freeze_selection(**fixture)
+    assert not (fixture["output"] / "provider-authorization.json").exists()
+
+
+@pytest.mark.parametrize("role", ["insufficient_or_ambiguous", "reference_or_question_issue"])
+def test_selection_requires_conflict_for_nonanswerable_roles_before_authorization(
+    tmp_path: Path, role: str
+) -> None:
+    fixture = write_auditable_fixture(tmp_path)
+    prep.freeze_treatment(**fixture)
+    prep.prepare_candidates(**fixture)
+    manual_path = fixture["output"] / "manual-audit.json"
+    fill_audit_with_four_per_role(manual_path)
+    manual = load(manual_path)
+    manual["rows"][0]["adjudication"].update(
+        role=role,
+        verdict=role,
+        conflicts=[],
+    )
+    _write(manual_path, manual)
+
+    with pytest.raises(ValueError, match="conflicts"):
+        prep.freeze_selection(**fixture)
+    assert not (fixture["output"] / "provider-authorization.json").exists()
 
 
 def test_queue_uses_only_gemini_condition_and_thresholds(tmp_path: Path) -> None:
@@ -392,8 +436,15 @@ def test_reference_or_question_issue_is_audited_but_never_selected(tmp_path: Pat
     manual_path = fixture["output"] / "manual-audit.json"
     fill_audit_with_four_per_role(manual_path)
     manual = load(manual_path)
-    manual["rows"][0]["adjudication"]["role"] = "reference_or_question_issue"
-    manual["rows"][12]["adjudication"]["role"] = "answer_sufficient_failure"
+    manual["rows"][0]["adjudication"].update(
+        role="reference_or_question_issue",
+        verdict="reference_or_question_issue",
+        conflicts=["the question premise is not preserved by the map"],
+    )
+    manual["rows"][12]["adjudication"].update(
+        role="answer_sufficient_failure",
+        verdict="answer_sufficient_failure",
+    )
     _write(manual_path, manual)
     prep.freeze_selection(**fixture)
     selection = load(fixture["output"] / "selection-freeze.json")

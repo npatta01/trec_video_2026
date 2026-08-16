@@ -838,6 +838,8 @@ def _selected_protocol_rows(
                 raise ValueError(f"invalid audit verdict: {row.get('video_id')}")
             if verdict_value not in AUDIT_ROLES:
                 raise ValueError(f"invalid audit verdict: {row.get('video_id')}")
+            if verdict_value != role_value:
+                raise ValueError(f"audit role and verdict must match: {row.get('video_id')}")
         role = role_value
         for field in ("requested_entity", "requested_fact", "qualifier", "answer_unit"):
             _nonempty(adjudication.get(field), f"{row.get('video_id')}.{field}")
@@ -846,6 +848,8 @@ def _selected_protocol_rows(
             raise ValueError(f"conflicts must be an explicit list: {row.get('video_id')}")
         if any(not isinstance(conflict, str) or not conflict.strip() for conflict in conflicts):
             raise ValueError(f"conflicts must contain non-empty strings: {row.get('video_id')}")
+        if role in {"insufficient_or_ambiguous", "reference_or_question_issue"} and not conflicts:
+            raise ValueError(f"conflicts are required for nonanswerable role: {row.get('video_id')}")
         _nonempty(adjudication.get("note"), f"{row.get('video_id')}.note")
         if role not in AUDIT_ROLES:
             raise ValueError(f"invalid or incomplete audit role: {row.get('video_id')}")
