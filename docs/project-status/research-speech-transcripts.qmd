@@ -59,6 +59,9 @@ transcriber/reviewer records exist.
 
 - **Selected diagnostic:** accepted Whisper improved 4/10 to 7/10 on ten
   lexical-speech rows; this is not a prevalence estimate.
+- **Qwen quality diagnostic:** a fresh eight-row corrected-harness batch
+  completed `6/8`; two rows returned empty text, so the frozen result is
+  `not_ready` and no Qwen-versus-Whisper score exists.
 - **Failure mechanisms:** text can miss non-lexical events or contain the right
   token without changing the answer.
 - **Blocked:** a human-transcript upper bound lacks independent producer and
@@ -120,6 +123,40 @@ comparison; it does not establish a global Whisper policy or 2026 accuracy.
 See the [automatic-transcript
 report · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md)
 and its [frozen ablation plan · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/plans/issue-7-automatic-transcript-ablation.md).
+</details>
+
+### Qwen ASR plus forced-aligner quality diagnostic {#qwen-aligner-quality-diagnostic}
+
+- **Reason for testing:** determine whether the locally cached Qwen3-ASR plus
+  Qwen3-ForcedAligner path can complete a fresh English exact-speech panel
+  under the corrected offline ROCm contract.
+- **Tested condition and panel:** one label-free batch of eight fresh English
+  WAV rows, excluding prior Qwen rows; the pinned ASR and aligner revisions,
+  audio hashes, order, runner, cache bindings, and one-attempt limit were
+  frozen before execution.
+- **Observed result:** the container exited `0` at `$0.00` paid cost, but only
+  `6/8` rows completed with valid aligned sequences. The remaining `2/8`
+  returned deterministic `Qwen3-ASR returned empty text` failures. The frozen
+  decision is `not_ready`; no annotations or Whisper text were opened.
+- **Current condition-bound status:** **Blocked diagnostic**—this is an
+  incomplete-output result, not a Qwen-versus-Whisper comparison.
+- **What this rules out now:** the claim that the corrected harness itself
+  cannot run a multi-row batch; six rows completed and aligned successfully.
+- **What it does not establish:** transcript fidelity, timestamp accuracy,
+  Whisper replacement, downstream VQA improvement, or a model ranking.
+- **Reconsider when:** the empty-output behavior is resolved in a separately
+  frozen attempt and the full paired panel completes under the same evidence
+  contract; do not retry or relabel this root.
+
+<details>
+<summary>Method, result, validity risks, and evidence</summary>
+
+The private root is preserved under
+`data/vqa/benchmarks/model-verifier-canaries-20260814/stage05d-qwen-aligner-quality-v1/`.
+Maximum allocated device memory was `6,161,528,320` bytes and container
+elapsed time was `64.105` seconds. Because the `8/8` operational gate failed,
+the scorer did not load answer annotations or the frozen Whisper text. The
+result is therefore valid only as a zero-cost incomplete-output diagnostic.
 </details>
 
 ### Matched full-panel frame/audio audit {#matched-full-panel-frame-audio-audit}

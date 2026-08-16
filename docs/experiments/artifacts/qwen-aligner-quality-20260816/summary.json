@@ -1,0 +1,28 @@
+{
+  "candidate_revisions": {
+    "asr": "7278e1e70fe206f11671096ffdd38061171dd6e5",
+    "forced_aligner": "c7cbfc2048c462b0d63a45797104fc9db3ad62b7"
+  },
+  "completed_rows": 6,
+  "container_wall_seconds": 64.10465235899755,
+  "decision": "not_ready",
+  "experiment_id": "qwen-aligner-stage05d-20260816-quality-v1",
+  "failure_boundary": "qwen_asr_empty_text_on_two_rows",
+  "failure_count": 2,
+  "frozen_hashes": {
+    "command_sha256": "6aae335abc712c62187c8a1b80f15803d7c519e0819cb2a70e8ae0dffd0298c7",
+    "inputs_freeze_sha256": "cf67757466c45deb359c433de03df31c4a16d4da7bee344424b774e4038e6838",
+    "predictions_freeze_sha256": "3b59c1e57645c4db687136d99c2a6bf6a0fd60bd251739218a808c01acb7bfe1",
+    "raw_results_sha256": "cdf47ab097a0c61fd90a63d7fa8ee793f6b229f3a2370d9f75f077c8367f0d6b",
+    "stderr_sha256": "015c95db36e518cc0a925791ceb1f6ec993a93eaa1aed4abfee90294bf0928bd",
+    "terminal_sha256": "8d0a6b14c1eb77a34ebc95e76208d5ac6f130c1972a1fb5f8181fe5c27914dbd",
+    "validated_results_sha256": "f06cd4f56d4342551fe4a6b52da163d189dc5bba14f4727df2c50aebc45bcfc1"
+  },
+  "max_peak_memory_bytes": 6161528320,
+  "observed_paid_compute_usd": 0.0,
+  "postfreeze_score_created": false,
+  "private_root": "data/vqa/benchmarks/model-verifier-canaries-20260814/stage05d-qwen-aligner-quality-v1/",
+  "required_rows": 8,
+  "schema_version": 1,
+  "valid_alignment_rows": 6
+}

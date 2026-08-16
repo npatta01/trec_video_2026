@@ -153,6 +153,19 @@ def transcribe_qwen(model: Any, audio_path: str) -> dict[str, Any]:
     return normalize_qwen_asr_result(outputs[0])
 
 
+def transcribe_qwen_aligned(model: Any, audio_path: str) -> dict[str, Any]:
+    """Transcribe one waveform and require the configured forced aligner."""
+
+    outputs = model.transcribe(
+        audio=audio_path,
+        language=None,
+        return_time_stamps=True,
+    )
+    if len(outputs) != 1:
+        raise ValueError("Qwen3-ASR returned an unexpected result count")
+    return normalize_qwen_asr_result(outputs[0])
+
+
 def load_qwen(
     model_class: Any,
     model_id: str,
@@ -170,6 +183,48 @@ def load_qwen(
     snapshot = snapshot_resolver(model_id, revision=revision, local_files_only=True)
     return model_class.from_pretrained(
         str(snapshot),
+        dtype=dtype,
+        device_map="cuda:0",
+        max_inference_batch_size=1,
+        max_new_tokens=256,
+        attn_implementation="sdpa",
+    )
+
+
+def load_qwen_with_aligner(
+    model_class: Any,
+    asr_model_id: str,
+    asr_revision: str,
+    aligner_model_id: str,
+    aligner_revision: str,
+    *,
+    dtype: Any,
+    snapshot_resolver: Any = None,
+) -> Any:
+    """Bind Qwen ASR and its forced aligner to two immutable local snapshots."""
+
+    if snapshot_resolver is None:
+        from huggingface_hub import snapshot_download
+
+        snapshot_resolver = snapshot_download
+    asr_snapshot = snapshot_resolver(
+        asr_model_id,
+        revision=asr_revision,
+        local_files_only=True,
+    )
+    aligner_snapshot = snapshot_resolver(
+        aligner_model_id,
+        revision=aligner_revision,
+        local_files_only=True,
+    )
+    return model_class.from_pretrained(
+        str(asr_snapshot),
+        forced_aligner=str(aligner_snapshot),
+        forced_aligner_kwargs={
+            "dtype": dtype,
+            "device_map": "cuda:0",
+            "attn_implementation": "sdpa",
+        },
         dtype=dtype,
         device_map="cuda:0",
         max_inference_batch_size=1,
@@ -232,10 +287,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--kind", required=True, choices=("voxtral", "qwen3_asr"))
     parser.add_argument("--model-id", required=True)
     parser.add_argument("--revision", required=True)
+    parser.add_argument("--forced-aligner-id")
+    parser.add_argument("--forced-aligner-revision")
     parser.add_argument("--max-new-tokens", type=int, default=256)
     args = parser.parse_args(argv)
     if args.max_new_tokens <= 0:
         parser.error("--max-new-tokens must be positive")
+    has_aligner_id = args.forced_aligner_id is not None
+    has_aligner_revision = args.forced_aligner_revision is not None
+    if has_aligner_id != has_aligner_revision:
+        parser.error("forced aligner ID and revision must be provided together")
+    if has_aligner_id and args.kind != "qwen3_asr":
+        parser.error("forced alignment is supported only for Qwen3-ASR")
     return args
 
 
@@ -296,6 +359,8 @@ def _base_result(
         "elapsed_seconds": time.monotonic() - started,
         "model_id": args.model_id,
         "model_revision": args.revision,
+        "forced_aligner_model_id": args.forced_aligner_id,
+        "forced_aligner_revision": args.forced_aligner_revision,
         "runtime": runtime,
         "runtime_image": os.environ.get("VQA_RUNTIME_IMAGE"),
         "device": device,
@@ -361,12 +426,22 @@ def main(argv: list[str] | None = None) -> int:
         else:
             from qwen_asr import Qwen3ASRModel
 
-            model = load_qwen(
-                Qwen3ASRModel,
-                args.model_id,
-                args.revision,
-                dtype=torch.bfloat16,
-            )
+            if args.forced_aligner_id is not None:
+                model = load_qwen_with_aligner(
+                    Qwen3ASRModel,
+                    args.model_id,
+                    args.revision,
+                    args.forced_aligner_id,
+                    args.forced_aligner_revision,
+                    dtype=torch.bfloat16,
+                )
+            else:
+                model = load_qwen(
+                    Qwen3ASRModel,
+                    args.model_id,
+                    args.revision,
+                    dtype=torch.bfloat16,
+                )
             processor = None
         device, precision = validate_rocm_bfloat16(_model_with_parameters(model), torch)
         torch.cuda.synchronize()
@@ -419,7 +494,11 @@ def main(argv: list[str] | None = None) -> int:
                 source_audio_sha256=audio_hash,
             )
             if args.kind == "qwen3_asr":
-                output = transcribe_qwen(model, str(audio_path))
+                output = (
+                    transcribe_qwen_aligned(model, str(audio_path))
+                    if args.forced_aligner_id is not None
+                    else transcribe_qwen(model, str(audio_path))
+                )
                 result.update(output)
                 result["quality"] = audio_evidence_quality(
                     output["text"], duration_seconds=duration
