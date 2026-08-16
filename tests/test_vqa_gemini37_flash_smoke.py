@@ -1549,3 +1549,61 @@ def test_upload_timeout_is_terminal_and_never_retried(tmp_path: Path) -> None:
     assert (root / "uploads" / "row-000.attempt.json").is_file()
     with pytest.raises(ValueError, match="already|duplicate"):
         upload_rows(root, client, sleep=lambda _: None)
+
+
+def test_submit_exception_terminal_record_is_returned_without_status_retry(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+
+    def fail_create(**_: Any) -> Any:
+        raise RuntimeError("Bearer create-secret")
+
+    client.batches.create = fail_create
+    submitted = submit_arm(root, "control_31pro", client, submitted_at="2026-08-16T12:02:00Z")
+    assert submitted["model"] == ARMS["control_31pro"]["model"]
+    assert submitted["display_name"] == "gemini37-smoke-control-31pro"
+
+    def fail_get(**_: Any) -> Any:
+        raise AssertionError("record_status must not retry a failed create")
+
+    client.batches.get = fail_get
+    status = record_status(root, "control_31pro", client, checked_at="2026-08-16T12:03:00Z")
+    assert status["status"] == "failed"
+    assert status["provider_error"]["type"] == "RuntimeError"
+    assert status["provider_error"]["message"] == "<redacted-secret>"
+
+
+def test_status_upload_attempt_row_set_is_required_for_freeze(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    for arm in ARMS:
+        submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    path = next((root / "status" / "control_31pro").glob("*.json"))
+    status = json.loads(path.read_text())
+    status["upload_attempt_sha256"].pop("row-001")
+    body = dict(status)
+    body.pop("_artifact_sha256", None)
+    status["_artifact_sha256"] = smoke._sha256_bytes(smoke._canonical_json(body))
+    path.write_text(json.dumps(status, indent=2, sort_keys=True) + "\n")
+    freeze = freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")
+    assert freeze["decision"] == "not_ready"
+
+
+def test_upload_lifecycle_revalidates_unsafe_row_id_before_provider_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _prepared_provider_root(tmp_path)
+    client = _FakeClient()
+    preflight_models(root, client, "2026-08-16T12:01:00Z")
+    protocol = smoke._verify_artifact(root / "protocol.json")
+    unsafe_protocol = json.loads(json.dumps(protocol))
+    unsafe_protocol["rows"][0]["row_id"] = "../escaped"
+    protocol_hash = smoke._sha256_file(root / "protocol.json")
+    monkeypatch.setattr(
+        smoke,
+        "_protocol_context",
+        lambda _: (root, unsafe_protocol, protocol_hash),
+    )
+    with pytest.raises(ValueError, match="row_id is unsafe"):
+        upload_rows(root, client, sleep=lambda _: None)
+    assert client.files.upload_calls == []
+    assert not (root.parent / "escaped.attempt.json").exists()

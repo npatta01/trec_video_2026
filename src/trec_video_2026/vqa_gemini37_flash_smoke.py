@@ -1649,6 +1649,8 @@ def submit_arm(root: Path, arm: str, client: Any, *, submitted_at: str) -> dict[
             "arm": arm,
             "submitted_at": submitted_at,
             "protocol_sha256": protocol_hash,
+            "model": ARMS[arm]["model"],
+            "display_name": config.display_name,
             "request_hash": request_hash,
             "request_count": 2,
             "requests": request_records,
@@ -1791,6 +1793,7 @@ def record_status(root: Path, arm: str, client: Any, *, checked_at: str) -> dict
             "status": "failed",
             "arm": arm,
             "provider_error_type": job_record.get("provider_error_type", "submission_failed"),
+            "provider_error": job_record.get("provider_error"),
         }
     job = client.batches.get(name=name)
     snapshot = _job_snapshot(job)
@@ -1852,6 +1855,24 @@ def _latest_status(root: Path, arm: str, protocol_hash: str) -> tuple[dict[str, 
     upload_attempts = snapshot.get("upload_attempt_sha256")
     if not isinstance(upload_attempts, Mapping):
         raise ValueError(f"status upload attempt binding is missing for {arm}")
+    current_upload_attempts: dict[str, str] = {}
+    upload_dir = root / _UPLOADS_DIRNAME
+    _ensure_directory(upload_dir, label="upload records")
+    for upload_path in sorted(upload_dir.glob("*.json")):
+        if upload_path.name.endswith(".attempt.json"):
+            continue
+        upload_record = _verify_artifact(upload_path)
+        row_id = upload_record.get("row_id")
+        if not isinstance(row_id, str) or not _SAFE_CANONICAL_ROW_ID.fullmatch(row_id):
+            raise ValueError(f"upload record row ID is unsafe for {arm}")
+        attempt_sha256 = upload_record.get("attempt_sha256")
+        if not isinstance(attempt_sha256, str):
+            raise ValueError(f"upload record attempt binding is missing for {row_id}")
+        current_upload_attempts[row_id] = attempt_sha256
+    if set(upload_attempts) != set(current_upload_attempts):
+        raise ValueError(f"status upload attempt row set mismatch for {arm}")
+    if dict(upload_attempts) != current_upload_attempts:
+        raise ValueError(f"status upload attempt binding mismatch for {arm}")
     for row_id, expected_hash in upload_attempts.items():
         if not isinstance(row_id, str) or not _SAFE_CANONICAL_ROW_ID.fullmatch(row_id):
             raise ValueError(f"status upload attempt row ID is unsafe for {arm}")
