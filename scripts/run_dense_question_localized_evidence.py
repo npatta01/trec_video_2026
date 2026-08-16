@@ -1606,6 +1606,17 @@ def validate_continuation_authorization(root: Path) -> None:
         raise ValueError("continuation must begin at arm 3")
     if auth.get("canary_replay_freeze_sha256") != _sha256(replay_path):
         raise ValueError("continuation replay hash drift")
+    rows, _provider_by_index, _media_by_index = _validate_inputs(root)
+    if len(rows) != 12 or len(rows) * len(EXPECTED_FPS) != 24:
+        raise ValueError("continuation panel must contain exactly 12 rows and 24 arms")
+    for field, filename in (
+        ("treatment_freeze_sha256", "treatment-freeze.json"),
+        ("selection_freeze_sha256", "selection-freeze.json"),
+        ("provider_rows_sha256", "provider-rows.json"),
+        ("media_manifest_sha256", "media-manifest.json"),
+    ):
+        if auth.get(field) != _sha256(root / filename):
+            raise ValueError(f"continuation {field} drift")
     if replay.get("status") != "frozen" or replay.get("canary_pair_status") != "passed":
         raise ValueError("continuation replay has not passed")
     prefix = auth.get("imported_prefix")
@@ -1619,6 +1630,11 @@ def validate_continuation_authorization(root: Path) -> None:
     if not source_root.is_dir():
         raise ValueError("continuation source root is unavailable")
     source_rows, _provider_by_index, _media_by_index = _source_rows_for_replay(source_root)
+    source_freeze_path = source_root / "predictions-freeze.json"
+    if replay.get("source_predictions_freeze_sha256") != _sha256(source_freeze_path):
+        raise ValueError("continuation source prediction freeze drift")
+    source_freeze = _load_json(source_freeze_path)
+    source_freeze_rows = source_freeze.get("rows", [])
     for item, source_item in zip(prefix, [(source_rows[0], EXPECTED_FPS[0]), (source_rows[0], EXPECTED_FPS[1])], strict=True):
         audit_index = source_item[0]["provider"]["audit_index"]
         role = source_item[0]["media"]["role"]
@@ -1627,6 +1643,9 @@ def validate_continuation_authorization(root: Path) -> None:
             path = arm / name
             if not path.is_file() or _sha256(path) != expected:
                 raise ValueError("continuation imported source artifact drift")
+        expected_row = next((row for row in source_freeze_rows if row.get("audit_index") == audit_index and row.get("fps") == source_item[1]), None)
+        if not isinstance(expected_row, Mapping) or not item.get("source_artifacts") or item["source_artifacts"] != expected_row.get("artifacts"):
+            raise ValueError("continuation imported source artifacts do not bind v4 freeze")
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -264,6 +264,25 @@ def test_probe_accepts_decimal_exact_nominal_endpoint() -> None:
     assert result["evidence_timestamps"] == [4.1]
 
 
+def test_continuation_validator_rejects_empty_imported_source_artifacts(tmp_path: Path) -> None:
+    # A continuation candidate must never authorize a self-consistent but
+    # unauditable imported prefix.
+    root = tmp_path / "continuation"
+    root.mkdir()
+    _write_json(root / "continuation-authorization.json", {
+        "status": "authorized", "authorization_type": "continuation",
+        "provider_calls_made": 0, "prior_provider_calls": 2,
+        "remaining_new_call_maximum": 22, "combined_call_maximum": 24,
+        "next_arm_position": 3, "canary_replay_freeze_sha256": "x",
+        "imported_prefix": [{"fps": 4.0, "role": "target"}, {"fps": 12.0, "role": "target"}],
+    })
+    _write_json(root / "canary-replay-freeze.json", {
+        "status": "frozen", "canary_pair_status": "passed", "imported_prefix": [],
+    })
+    with pytest.raises(ValueError):
+        runner.validate_continuation_authorization(root)
+
+
 def test_prompt_is_question_localized_and_prohibits_label_leakage() -> None:
     prompt = runner.build_prompt(
         "What does the robot do at the end?",
