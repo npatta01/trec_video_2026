@@ -278,6 +278,13 @@ Add exact call count, terminal statuses, cost, prediction-freeze SHA-256, and wh
 - Zero-call boundary: Task 1 real input loading passed; all paired clip hashes, source hashes, selected map projections, windows, role counts, label isolation, and FPS arm bindings passed; no provider rows, terminals, raw responses, or prediction freeze were created and no Gemini/provider call was issued. Task 4 is NOT AUTHORIZED until an explicitly authorized provider execution produces a verified prediction freeze.
 - Round-1 integrity hardening: freeze verification now derives the complete/failed-canary branch from ordered request and terminal artifacts, requiring a passed first pair for complete execution or exactly two completed canary terminals plus 22 incomplete terminals for canary failure; authorization now requires `provider_calls_made` present and exactly zero. The existing zero-call authorization remains preserved and no provider execution was issued during this repair.
 
+#### Task 3A round-2 additive freeze boundary — 2026-08-16
+
+- V3 status: superseded and non-executable under the hardened runner because its immutable treatment freeze binds the pre-hardening runner bytes. Its private bytes and zero-call authorization remain unchanged.
+- V4 status: executable zero-call candidate freshly frozen through the existing preparation pipeline under the hardened runner, using the same frozen upstream panel decisions and media. Aggregate panel is 8 targets and 4 controls, 24 planned arms, 24-call maximum, canary policy `1`, and `provider_calls_made=0`; the existing user authorization covers this same max-24 treatment.
+- V4 hashes: treatment freeze `0e418e8a3f25ae055ba64d865a7eddd4a5912ba0b58a71d63acaf9fbfc2592b5`, selection freeze `05eb1f91c5404a7481875b6c3e29c0a9b5f098d4fd9d1488428eab4a54d713c5`, provider-row artifact `007fd6a66fd403d88782438c655028c0381a714ef84f70a812ed511d44eed293`, media manifest `0b0875fec5c83f5567d0ff3b6d1051a3026b938a0ee5c7dbaa90a07023be5b66`, and authorization `c240010ca312e7b3c86c7eecc0f532ed7e47955209e145e2167cafbc75434c09`.
+- Hardened binding: current runner `a6c0aaecbdd3d4843033f492b2bc593eaa5e2d7782392f181cf5c5fd426eed34`, config `0d6843d51695251c0fdb4cb75483d61cfd20a2e3496eab6c0a06f5b24e51caab`, and provider schema `26322157cd6879c7576b7e1ad0099afbc17be6fa2c024c7fcb18052cb7cf8498` are bound by v4 treatment. Task 1 input validation passes; no provider execution or output artifacts were created.
+
 ### Task 4: Audit paired fact recovery and apply the gate
 
 **Files:**
