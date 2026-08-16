@@ -333,6 +333,8 @@ not performed because publication was not authorized in this session.
     skipped, 29 unrelated baseline/environment failures**; these failures did
     not involve Task 5 files and were not changed.
 - **Step 5 commit/status:** the first verified reporting commit was
-  `9f5c040` (`docs: record task-support sufficiency gate`); the review-fix
-  commit is recorded below after the rerender and narrow recheck. No push or
-  external post was made.
+  `9f5c040` (`docs: record task-support sufficiency gate`), followed by the
+  review-fix reporting commit `303bb5d` (`docs: clarify task-support audit
+  disclosures`). The worktree was clean after that commit except for the
+  ignored task report; this plan-only completion record is the only subsequent
+  tracked update. No push or external post was made.
