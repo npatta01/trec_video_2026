@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 import stat
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -78,6 +79,7 @@ _PROVENANCE_NAMES = (
     "provenance.json",
     "deliveries.json",
 )
+_SAFE_CANONICAL_VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def _canonical_json(value: Mapping[str, Any]) -> bytes:
@@ -278,6 +280,11 @@ def _source_path(row: Mapping[str, Any], *, context: str) -> str:
     return value
 
 
+def _validate_canonical_video_id(video_id: str, *, context: str) -> None:
+    if not _SAFE_CANONICAL_VIDEO_ID.fullmatch(video_id):
+        raise ValueError(f"{context} video ID is unsafe for canonical paths")
+
+
 def _artifact_body(value: Mapping[str, Any]) -> dict[str, Any]:
     body = dict(value)
     body.pop(_ARTIFACT_HASH_KEY, None)
@@ -473,6 +480,9 @@ def _load_canonical_inputs(
     provenance_paths: list[Path] = []
     for source_index, source_row in enumerate(source_rows):
         video_id = _video_id(source_row, context=f"source protocol row {source_index}")
+        _validate_canonical_video_id(
+            video_id, context=f"source protocol row {source_index}"
+        )
         if video_id in seen:
             raise ValueError("source protocol contains duplicate IDs")
         seen.add(video_id)
@@ -517,12 +527,21 @@ def _load_canonical_inputs(
 def _load_and_validate_inputs(
     source_root: Path,
 ) -> tuple[Path, Path, Path, str, str, str, list[dict[str, Any]]]:
-    if not source_root.is_dir() or source_root.is_symlink():
+    source_root = Path(source_root)
+    if source_root.is_symlink() or not source_root.is_dir():
         raise ValueError(f"source_root must be a regular directory: {source_root}")
+    try:
+        source_root = source_root.resolve(strict=True)
+    except OSError as error:
+        raise ValueError(f"source_root cannot be resolved: {source_root}") from error
     source_path = _find_named_file(source_root, _SOURCE_PROTOCOL_NAMES, context="source protocol")
     source = _read_object(source_path)
     _reject_forbidden(source, context="source protocol")
-    if (source_root / "uploads").is_dir() and (source_root / "deliveries").is_dir():
+    uploads_dir = source_root / "uploads"
+    deliveries_dir = source_root / "deliveries"
+    if uploads_dir.is_symlink() or deliveries_dir.is_symlink():
+        raise ValueError("canonical uploads/deliveries directories must not be symlinks")
+    if uploads_dir.is_dir() and deliveries_dir.is_dir():
         return _load_canonical_inputs(source_root, source_path, source)
     if source.get("experiment_id") != "direct-gemini-batch-475-v1":
         raise ValueError("source protocol experiment identity mismatch")
@@ -615,11 +634,12 @@ def prepare_protocol(*, source_root: Path, root: Path, created_at: str) -> dict[
         provenance_hash,
         rows,
     ) = _load_and_validate_inputs(source_root)
-    estimated_cost = round(_EXPECTED_TOTAL_DURATION * _COST_PER_SECOND_USD, 4)
-    if estimated_cost > _MAX_ESTIMATED_COST_USD:
+    estimated_cost_raw = _EXPECTED_TOTAL_DURATION * _COST_PER_SECOND_USD
+    if estimated_cost_raw > _MAX_ESTIMATED_COST_USD:
         raise ValueError(
-            f"estimated cost ${estimated_cost:.4f} exceeds ${_MAX_ESTIMATED_COST_USD:.2f}"
+            f"estimated cost ${estimated_cost_raw:.8f} exceeds ${_MAX_ESTIMATED_COST_USD:.2f}"
         )
+    estimated_cost = round(estimated_cost_raw, 4)
     root.mkdir(parents=True)
     protocol: dict[str, Any] = {
         "schema_version": 1,

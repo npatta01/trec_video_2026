@@ -133,8 +133,13 @@ def canonical_fixture(tmp_path: Path) -> dict[str, Path]:
         video_id = f"video-{index:03d}"
         duration = 18.308 if index == 0 else 21.268 if index == 1 else 1.0
         source_path = sources / f"{video_id}.mkv"
-        source_path.write_bytes(f"canonical source {video_id}".encode())
-        source_sha256 = _sha256(source_path)
+        if index < 2:
+            source_path.write_bytes(f"canonical source {video_id}".encode())
+            source_sha256 = _sha256(source_path)
+            source_size_bytes = source_path.stat().st_size
+        else:
+            source_sha256 = "0" * 64
+            source_size_bytes = 0
         row = {
             "video_id": video_id,
             "question": f"What happens in {video_id}?",
@@ -142,7 +147,7 @@ def canonical_fixture(tmp_path: Path) -> dict[str, Path]:
             "duration_seconds": duration,
             "source_path": str(source_path),
             "source_sha256": source_sha256,
-            "source_size_bytes": source_path.stat().st_size,
+            "source_size_bytes": source_size_bytes,
         }
         rows.append(row)
         if index < 2:
@@ -162,7 +167,7 @@ def canonical_fixture(tmp_path: Path) -> dict[str, Path]:
                     "video_id": video_id,
                     "derived": False,
                     "source_sha256": source_sha256,
-                    "source_size_bytes": source_path.stat().st_size,
+                    "source_size_bytes": source_size_bytes,
                     "delivery_sha256": delivery_sha256,
                     "delivery_size_bytes": delivery_size,
                     "delivery_mime_type": "video/webm",
@@ -318,6 +323,71 @@ def test_prepare_protocol_adapts_canonical_per_video_layout(
     assert all(len(row["source_sha256"]) == 64 for row in protocol["rows"])
 
 
+def test_canonical_scan_reads_only_selected_per_row_records_and_media(
+    canonical_fixture: dict[str, Path], tmp_path: Path
+) -> None:
+    protocol = prepare_protocol(
+        source_root=canonical_fixture["source_root"],
+        root=tmp_path / "smoke",
+        created_at="2026-08-16T12:00:00Z",
+    )
+
+    assert [row["source_order_index"] for row in protocol["rows"]] == [0, 1]
+    assert not (canonical_fixture["uploads"] / "video-002.json").exists()
+    assert not (
+        canonical_fixture["source_root"] / "source-media" / "video-002.mkv"
+    ).exists()
+
+
+@pytest.mark.parametrize("bad_id", ["../escape", "video/escape", "video.json"])
+def test_prepare_protocol_rejects_unsafe_canonical_video_ids(
+    canonical_fixture: dict[str, Path], tmp_path: Path, bad_id: str
+) -> None:
+    path = canonical_fixture["source_protocol"]
+    source = _read_json(path)
+    source["rows"][0]["video_id"] = bad_id
+    _write_json(path, source)
+
+    with pytest.raises(ValueError, match="video ID"):
+        prepare_protocol(
+            source_root=canonical_fixture["source_root"],
+            root=tmp_path / "smoke",
+            created_at="2026-08-16T12:00:00Z",
+        )
+
+
+@pytest.mark.parametrize("directory", ["uploads", "deliveries"])
+def test_prepare_protocol_rejects_symlinked_canonical_directories(
+    canonical_fixture: dict[str, Path], tmp_path: Path, directory: str
+) -> None:
+    original = canonical_fixture[directory]
+    target = canonical_fixture["source_root"] / f"{directory}-real"
+    original.rename(target)
+    original.symlink_to(target, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        prepare_protocol(
+            source_root=canonical_fixture["source_root"],
+            root=tmp_path / "smoke",
+            created_at="2026-08-16T12:00:00Z",
+        )
+
+
+def test_prepare_and_verify_accept_relative_canonical_source_root(
+    canonical_fixture: dict[str, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    relative_source_root = Path("canonical")
+    root = tmp_path / "smoke"
+    prepare_protocol(
+        source_root=relative_source_root,
+        root=root,
+        created_at="2026-08-16T12:00:00Z",
+    )
+
+    assert verify_inputs(root)["status"] == "verified"
+
+
 def test_prepare_protocol_rejects_wrong_canonical_source_identity(
     canonical_fixture: dict[str, Path], tmp_path: Path
 ) -> None:
@@ -416,6 +486,23 @@ def test_prepare_protocol_rejects_cost_estimate_above_boundary(
     historical_fixture: dict[str, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(smoke, "_COST_PER_SECOND_USD", 1.0)
+
+    with pytest.raises(ValueError, match="cost"):
+        prepare_protocol(
+            source_root=historical_fixture["source_root"],
+            root=tmp_path / "smoke",
+            created_at="2026-08-16T12:00:00Z",
+        )
+
+
+def test_prepare_protocol_rejects_raw_cost_just_above_boundary(
+    historical_fixture: dict[str, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        smoke,
+        "_COST_PER_SECOND_USD",
+        (0.15 + 0.0000001) / 39.576,
+    )
 
     with pytest.raises(ValueError, match="cost"):
         prepare_protocol(
