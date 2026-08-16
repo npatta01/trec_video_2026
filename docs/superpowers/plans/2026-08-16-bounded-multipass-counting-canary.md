@@ -4,6 +4,16 @@
 
 **Goal:** Build, execute, authenticate, and score the twelve-row three-arm bounded multi-pass Gemini counting canary under a hard $30 provider-cost ceiling.
 
+**Final status (2026-08-16):** Implementation and the v4 twelve-row execution
+completed, but additive independent review classified the intended comparison
+**Invalid**. Provider inputs were label-free, yet the runner process loaded the
+private panel; the required small-target static crop condition did not execute;
+and per-call returned model revision was not preserved. The observed 1/8
+failure rescues, 1/4 controls preserved, semantic metrics, and `$2.048074` v4
+cost remain factual outputs only. `validity-correction.json` in the tracked and
+private bundles supersedes the original Diagnostic score. Post-run code
+hardening is not experimental evidence, and no unchanged rerun is authorized.
+
 **Architecture:** A small pure contract module owns typed CountSpec, evidence, coverage, refinement, and deterministic reduction. Separate preparation, provider runner, and scorer scripts reuse the repository's existing label firewall, canonical hashing, media binding, exclusive claims, budget reservations, write-once publication, and metric environment. The live runner executes a one-row smoke before the fixed arm and runs the bounded-refinement arm only after the fixed arm freezes.
 
 **Tech Stack:** Python 3.12, frozen dataclasses, standard-library JSON/hash/path/file-lock handling, `google-genai==2.12.1`, ffmpeg/ffprobe, existing counting and submission modules, pytest 9, Ruff, existing metrics extra.
