@@ -1440,6 +1440,19 @@ def verify_predictions_freeze(root: Path) -> None:
     _verify_freeze_contents(root, freeze)
 
 
+def _source_rows_for_replay(source_root: Path) -> tuple[list[dict[str, Any]], dict[int, dict[str, Any]], dict[int, dict[str, Any]]]:
+    provider_payload = _load_json(source_root / "provider-rows.json")
+    media_payload = _load_json(source_root / "media-manifest.json")
+    provider_rows = _provider_projection(_rows_payload(provider_payload, "provider-rows.json"))
+    media_by_index = {
+        row["audit_index"]: _media_row(row, source_root)
+        for row in _rows_payload(media_payload, "media-manifest.json")
+    }
+    provider_by_index = {row["audit_index"]: row for row in provider_rows}
+    rows = [{"provider": row, "media": media_by_index[row["audit_index"]]} for row in provider_rows]
+    return rows, provider_by_index, media_by_index
+
+
 def prepare_continuation(source_root: Path, output_root: Path) -> None:
     """Prepare a zero-call amended-validator replay and continuation candidate.
 
@@ -1456,14 +1469,7 @@ def prepare_continuation(source_root: Path, output_root: Path) -> None:
     source_freeze = _load_json(prediction_path)
     if source_freeze.get("status") != "incomplete" or source_freeze.get("call_count") != 2:
         raise ValueError("source must be the immutable two-call canary freeze")
-    provider_payload = _load_json(source_root / "provider-rows.json")
-    media_payload = _load_json(source_root / "media-manifest.json")
-    provider_rows = _provider_projection(_rows_payload(provider_payload, "provider-rows.json"))
-    media_by_index = {
-        row["audit_index"]: _media_row(row, source_root)
-        for row in _rows_payload(media_payload, "media-manifest.json")
-    }
-    rows = [{"provider": row, "media": media_by_index[row["audit_index"]]} for row in provider_rows]
+    rows, _provider_by_index, _media_by_index = _source_rows_for_replay(source_root)
     tasks = [(item, fps) for item in rows for fps in EXPECTED_FPS]
     imported = tasks[:2]
     output_root.mkdir(parents=True)
@@ -1563,6 +1569,18 @@ def validate_continuation_authorization(root: Path) -> None:
         raise ValueError("continuation imported prefix order is invalid")
     if [item.get("role") for item in prefix] != ["target", "target"]:
         raise ValueError("continuation imported prefix roles are invalid")
+    source_root = Path(str(replay.get("source_root", "")))
+    if not source_root.is_dir():
+        raise ValueError("continuation source root is unavailable")
+    source_rows, _provider_by_index, _media_by_index = _source_rows_for_replay(source_root)
+    for item, source_item in zip(prefix, [(source_rows[0], EXPECTED_FPS[0]), (source_rows[0], EXPECTED_FPS[1])], strict=True):
+        audit_index = source_item[0]["provider"]["audit_index"]
+        role = source_item[0]["media"]["role"]
+        arm = _arm_directory(source_root, audit_index, role, source_item[1])
+        for name, expected in item.get("source_artifacts", {}).items():
+            path = arm / name
+            if not path.is_file() or _sha256(path) != expected:
+                raise ValueError("continuation imported source artifact drift")
 
 
 def build_parser() -> argparse.ArgumentParser:
