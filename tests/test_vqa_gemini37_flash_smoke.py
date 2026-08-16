@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -13,7 +14,12 @@ import trec_video_2026.vqa_gemini37_flash_smoke as smoke
 from trec_video_2026.vqa_gemini37_flash_smoke import (
     ARMS,
     build_inlined_request,
+    freeze_predictions,
     prepare_protocol,
+    preflight_models,
+    record_status,
+    submit_arm,
+    upload_rows,
     verify_inputs,
 )
 
@@ -658,3 +664,286 @@ def test_build_inlined_request_rejects_non_video_upload() -> None:
         build_inlined_request(
             row={"question": "What?"}, upload=upload, arm="candidate_37flash"
         )
+
+
+class _FakeModels:
+    def __init__(self, *, missing: str | None = None) -> None:
+        self.calls: list[str] = []
+        self.missing = missing
+
+    def get(self, *, model: str) -> Any:
+        self.calls.append(model)
+        if model == self.missing:
+            return None
+        return SimpleNamespace(
+            name=f"models/{model}",
+            version=f"{model}-version-20260816",
+            display_name=f"Synthetic {model}",
+            supported_actions=["generateContent"],
+            input_token_limit=1_048_576,
+            output_token_limit=65_536,
+            api_key="must never be serialized",
+        )
+
+
+class _FakeFiles:
+    def __init__(self, *, state: str = "ACTIVE") -> None:
+        self.upload_calls: list[dict[str, Any]] = []
+        self.get_calls: list[str] = []
+        self.state = state
+        self._files: dict[str, Any] = {}
+
+    def upload(self, *, file: Path, config: Any) -> Any:
+        self.upload_calls.append({"file": file, "config": config})
+        row_id = file.stem
+        name = f"files/synthetic-{row_id}"
+        uri = f"https://generativelanguage.googleapis.com/v1beta/{name}"
+        uploaded = SimpleNamespace(
+            name=name,
+            uri=uri,
+            mime_type="video/webm",
+            state="PROCESSING" if self.state == "ACTIVE_AFTER_POLL" else self.state,
+        )
+        self._files[name] = uploaded
+        return uploaded
+
+    def get(self, *, name: str) -> Any:
+        self.get_calls.append(name)
+        uploaded = self._files[name]
+        if self.state == "ACTIVE_AFTER_POLL":
+            uploaded.state = "ACTIVE"
+        return uploaded
+
+
+def _response(*, response_id: str, model_version: str, prompt: int = 20_000) -> dict[str, Any]:
+    return {
+        "response_id": response_id,
+        "model_version": model_version,
+        "finish_reason": "STOP",
+        "text": f"synthetic answer for {response_id}",
+        "usage_metadata": {
+            "prompt_token_count": prompt,
+            "candidates_token_count": 100,
+            "total_token_count": prompt + 100,
+        },
+    }
+
+
+class _FakeBatches:
+    def __init__(self) -> None:
+        self.create_calls: list[dict[str, Any]] = []
+        self.jobs: dict[str, Any] = {}
+        self.next_state = "JOB_STATE_SUCCEEDED"
+        self.responses: list[dict[str, Any]] | None = None
+
+    def create(self, *, model: str, src: Any, config: Any) -> Any:
+        call = {"model": model, "src": src, "config": config}
+        self.create_calls.append(call)
+        name = f"batches/synthetic-{len(self.create_calls)}"
+        version = f"{model}-version-20260816"
+        responses = self.responses or [
+            _response(response_id=f"resp-{index}", model_version=version)
+            for index in range(2)
+        ]
+        job = SimpleNamespace(
+            name=name,
+            display_name=getattr(config, "display_name", None),
+            model=model,
+            state=self.next_state,
+            responses=responses,
+        )
+        self.jobs[name] = job
+        return job
+
+    def get(self, *, name: str) -> Any:
+        return self.jobs[name]
+
+
+class _FakeClient:
+    def __init__(self, *, missing_model: str | None = None, file_state: str = "ACTIVE") -> None:
+        self.models = _FakeModels(missing=missing_model)
+        self.files = _FakeFiles(state=file_state)
+        self.batches = _FakeBatches()
+
+
+def _prepared_provider_root(tmp_path: Path) -> Path:
+    source = tmp_path / "historical"
+    source.mkdir(parents=True)
+    # Keep the provider fixtures independent from the existing protocol fixtures.
+    deliveries = source / "deliveries"
+    deliveries.mkdir()
+    sources = source / "sources"
+    sources.mkdir()
+    source_rows: list[dict[str, Any]] = []
+    upload_rows: list[dict[str, Any]] = []
+    provenance_rows: list[dict[str, Any]] = []
+    for index in range(475):
+        video_id = f"video-{index:03d}"
+        duration = 18.308 if index == 0 else 21.268 if index == 1 else 1.0
+        source_path = sources / f"{video_id}.mkv"
+        source_path.write_bytes(f"provider source {video_id}".encode())
+        source_hash = _sha256(source_path)
+        row: dict[str, Any] = {
+            "row_id": f"row-{index:03d}",
+            "video_id": video_id,
+            "source_order_index": index,
+            "question": f"What happens in {video_id}?",
+            "duration_seconds": duration,
+            "source_path": str(source_path),
+            "source_sha256": source_hash,
+            "source_size_bytes": source_path.stat().st_size,
+        }
+        source_rows.append(row)
+        if index < 2:
+            delivery = deliveries / f"{video_id}.webm"
+            delivery.write_bytes(f"provider delivery {video_id}".encode())
+            delivery_hash = _sha256(delivery)
+            upload_rows.append(
+                {
+                    "row_id": row["row_id"],
+                    "video_id": video_id,
+                    "source_sha256": source_hash,
+                    "source_size_bytes": source_path.stat().st_size,
+                    "file_uri": f"https://old.example/{video_id}",
+                    "delivery_path": str(delivery.relative_to(source)),
+                    "delivery_sha256": delivery_hash,
+                    "delivery_size_bytes": delivery.stat().st_size,
+                    "delivery_mime_type": "video/webm",
+                }
+            )
+            provenance_rows.append(
+                {
+                    "row_id": row["row_id"],
+                    "video_id": video_id,
+                    "delivery_path": str(delivery.relative_to(source)),
+                    "sha256": delivery_hash,
+                    "delivery_size_bytes": delivery.stat().st_size,
+                    "delivery_mime_type": "video/webm",
+                    "source_sha256": source_hash,
+                    "source_size_bytes": source_path.stat().st_size,
+                    "duration_seconds": duration,
+                }
+            )
+    _write_json(source / "source-protocol.json", {"experiment_id": "direct-gemini-batch-475-v1", "rows": source_rows})
+    _write_json(source / "historical-upload.json", {"rows": upload_rows})
+    _write_json(source / "delivery-provenance.json", {"rows": provenance_rows})
+    root = tmp_path / "smoke"
+    prepare_protocol(source_root=source, root=root, created_at="2026-08-16T12:00:00Z")
+    return root
+
+
+def _ready_for_batches(tmp_path: Path) -> tuple[Path, _FakeClient]:
+    root = _prepared_provider_root(tmp_path)
+    client = _FakeClient(file_state="ACTIVE_AFTER_POLL")
+    preflight_models(root, client, "2026-08-16T12:01:00Z")
+    upload_rows(root, client, sleep=lambda _: None)
+    return root, client
+
+
+def test_preflight_models_fetches_exact_models_without_credentials(tmp_path: Path) -> None:
+    root = _prepared_provider_root(tmp_path)
+    client = _FakeClient()
+    result = preflight_models(root, client, "2026-08-16T12:01:00Z")
+    assert client.models.calls == [ARMS["control_31pro"]["model"], ARMS["candidate_37flash"]["model"]]
+    assert [result["models"][arm]["model_id"] for arm in ARMS] == [item["model"] for item in ARMS.values()]
+    serialized = (root / "models.json").read_text()
+    assert "api_key" not in serialized
+    assert "must never be serialized" not in serialized
+
+
+def test_preflight_models_refuses_missing_model(tmp_path: Path) -> None:
+    root = _prepared_provider_root(tmp_path)
+    client = _FakeClient(missing_model=ARMS["candidate_37flash"]["model"])
+    with pytest.raises(ValueError, match="model"):
+        preflight_models(root, client, "2026-08-16T12:01:00Z")
+    assert not (root / "models.json").exists()
+
+
+def test_upload_rows_uploads_each_delivery_once_and_polls_active(tmp_path: Path) -> None:
+    root = _prepared_provider_root(tmp_path)
+    client = _FakeClient(file_state="ACTIVE_AFTER_POLL")
+    preflight_models(root, client, "2026-08-16T12:01:00Z")
+    result = upload_rows(root, client, sleep=lambda _: None)
+    assert result["active_count"] == 2
+    assert len(client.files.upload_calls) == 2
+    assert len(client.files.get_calls) == 2
+    assert sorted((root / "uploads").glob("*.json"))
+    assert all(record["file_state"] == "ACTIVE" for record in result["uploads"])
+
+
+def test_upload_rows_rejects_failed_or_duplicate_upload_records(tmp_path: Path) -> None:
+    root = _prepared_provider_root(tmp_path)
+    client = _FakeClient(file_state="FAILED")
+    preflight_models(root, client, "2026-08-16T12:01:00Z")
+    with pytest.raises(ValueError, match="FAILED"):
+        upload_rows(root, client, sleep=lambda _: None)
+    root, client = _ready_for_batches(tmp_path / "second")
+    with pytest.raises(ValueError, match="already|duplicate"):
+        upload_rows(root, client, sleep=lambda _: None)
+
+
+def test_submit_arm_uses_one_exact_two_request_job_and_shared_bindings(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    result = submit_arm(root, "control_31pro", client, submitted_at="2026-08-16T12:02:00Z")
+    assert len(client.batches.create_calls) == 1
+    call = client.batches.create_calls[0]
+    assert call["model"] == ARMS["control_31pro"]["model"]
+    assert len(call["src"].inlined_requests) == 2
+    assert result["display_name"] == "gemini37-smoke-control-31pro"
+    assert (root / "jobs" / "control_31pro.json").is_file()
+    for request in result["requests"]:
+        assert request["protocol_sha256"] == result["protocol_sha256"]
+        assert request["mime_type"] == "video/webm"
+
+
+def test_submit_arm_rejects_unknown_or_duplicate_arm(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    with pytest.raises(ValueError, match="arm"):
+        submit_arm(root, "unknown", client, submitted_at="2026-08-16T12:02:00Z")
+    submit_arm(root, "candidate_37flash", client, submitted_at="2026-08-16T12:02:00Z")
+    with pytest.raises(ValueError, match="already|duplicate"):
+        submit_arm(root, "candidate_37flash", client, submitted_at="2026-08-16T12:02:01Z")
+
+
+def test_record_status_is_additive_and_freeze_retains_usage_and_cost(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    for arm in ARMS:
+        submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+        record_status(root, arm, client, checked_at="2026-08-16T12:04:00Z")
+    freeze = freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")
+    assert freeze["status"] == "predictions_frozen"
+    assert freeze["decision"] == "quality_ready"
+    assert freeze["arms"]["control_31pro"]["response_count"] == 2
+    assert freeze["arms"]["candidate_37flash"]["prompt_tokens"] == 40_000
+    assert freeze["observed_cost_usd"] > 0
+    assert len(list((root / "status" / "control_31pro").glob("*.json"))) == 2
+    assert "prior" not in (root / "predictions-freeze.json").read_text().lower()
+
+
+@pytest.mark.parametrize("prompt", [34_192, 61_549])
+def test_freeze_predictions_marks_custom_fps_out_of_band(tmp_path: Path, prompt: int) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    for arm in ARMS:
+        client.batches.responses = [
+            _response(response_id="resp-0", model_version=f"{ARMS[arm]['model']}-version-20260816", prompt=prompt // 2),
+            _response(response_id="resp-1", model_version=f"{ARMS[arm]['model']}-version-20260816", prompt=prompt - prompt // 2),
+        ]
+        submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    freeze = freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")
+    assert freeze["decision"] == "custom_fps_not_verified"
+    assert freeze["status"] == "predictions_frozen"
+
+
+def test_freeze_predictions_rejects_missing_usage_and_duplicate_response_ids(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    for arm in ARMS:
+        version = f"{ARMS[arm]['model']}-version-20260816"
+        client.batches.responses = [_response(response_id="same", model_version=version), _response(response_id="same", model_version=version)]
+        client.batches.responses[0].pop("usage_metadata")
+        submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    freeze = freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")
+    assert freeze["decision"] == "custom_fps_not_verified"
+    assert freeze["failure_reasons"]

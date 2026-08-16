@@ -13,7 +13,7 @@ import re
 import stat
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from google.genai import types
 
@@ -799,3 +799,866 @@ def build_inlined_request(
         contents=[types.Content(role="user", parts=[video, prompt])],
         config=types.GenerateContentConfig(**config_values),
     )
+
+
+# Task 2 provider lifecycle constants.  These are deliberately kept here rather
+# than in the CLI so the provider-free contract can be exercised with SDK-shaped
+# fakes and the transition functions remain the only writers of paid evidence.
+_MODELS_FILENAME = "models.json"
+_UPLOADS_DIRNAME = "uploads"
+_JOBS_DIRNAME = "jobs"
+_STATUS_DIRNAME = "status"
+_PREDICTIONS_FILENAME = "predictions-freeze.json"
+_FPS_PROMPT_TOKEN_MIN = 34_193
+_FPS_PROMPT_TOKEN_MAX = 61_548
+_MAX_UPLOAD_POLLS = 30
+_UPLOAD_POLL_SECONDS = 1.0
+_BATCH_RATES_USD_PER_MILLION: dict[str, dict[str, float]] = {
+    # Frozen Batch rates for the authorized comparison window.  The 3.7 rate is
+    # the documented introductory Batch/Flex price; the 3.1 rate is pinned for
+    # this control and is never read from provider/client state.
+    "control_31pro": {"prompt": 1.0, "output": 4.0},
+    "candidate_37flash": {"prompt": 0.375, "output": 1.875},
+}
+
+
+def _attr(value: Any, *names: str, default: Any = None) -> Any:
+    if isinstance(value, Mapping):
+        for name in names:
+            if name in value:
+                return value[name]
+    for name in names:
+        try:
+            result = getattr(value, name)
+        except AttributeError:
+            continue
+        if result is not None:
+            return result
+    return default
+
+
+def _scalar(value: Any) -> Any:
+    enum_value = _attr(value, "value", default=None)
+    if enum_value is not None and isinstance(enum_value, (str, int, float, bool)):
+        return enum_value
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
+def _plain(value: Any, *, depth: int = 0) -> Any:
+    """Convert SDK-shaped values without serializing client/config state."""
+
+    if depth > 8:
+        raise ValueError("provider object is too deeply nested")
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, Mapping):
+        blocked = {
+            "apikey",
+            "api_key",
+            "token",
+            "accesstoken",
+            "access_token",
+            "credential",
+            "credentials",
+            "secret",
+            "authorization",
+            "client",
+            "transport",
+            "environment",
+            "config",
+            "_client",
+        }
+        return {
+            str(key): _plain(child, depth=depth + 1)
+            for key, child in value.items()
+            if str(key).casefold().replace("-", "_") not in blocked
+        }
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [_plain(child, depth=depth + 1) for child in value]
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        try:
+            dumped = model_dump(mode="json", by_alias=True, exclude_none=True)
+        except TypeError:
+            dumped = model_dump()
+        return _plain(dumped, depth=depth + 1)
+    # Small SDK-shaped fakes often expose fields directly instead of providing
+    # Pydantic's model_dump.  Read only response-shaped fields; never walk vars()
+    # on an arbitrary provider object.
+    known_fields = (
+        "response_id",
+        "responseId",
+        "id",
+        "model_version",
+        "modelVersion",
+        "finish_reason",
+        "finishReason",
+        "text",
+        "candidates",
+        "content",
+        "parts",
+        "role",
+        "prompt_token_count",
+        "promptTokenCount",
+        "total_token_count",
+        "totalTokenCount",
+        "candidates_token_count",
+        "candidatesTokenCount",
+        "thoughts_token_count",
+        "thoughtsTokenCount",
+        "usage_metadata",
+        "usageMetadata",
+        "error",
+        "key",
+        "response",
+    )
+    attributes: dict[str, Any] = {}
+    for name in known_fields:
+        try:
+            child = getattr(value, name)
+        except AttributeError:
+            continue
+        attributes[name] = _plain(child, depth=depth + 1)
+    if attributes:
+        return attributes
+    # Do not fall back to vars(value): arbitrary SDK objects may carry a client,
+    # transport, credential, or environment object.  Callers use allowlists for
+    # all provider snapshots instead.
+    return _scalar(value)
+
+
+def _nonempty_string(value: Any, *, label: str) -> str:
+    value = _scalar(value)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} must be a non-empty string")
+    return value.strip()
+
+
+def _model_snapshot(model: Any, *, arm: str) -> dict[str, Any]:
+    requested = ARMS[arm]["model"]
+    if model is None:
+        raise ValueError(f"preflight model is missing for {arm}")
+    name = _nonempty_string(_attr(model, "name", "model", "model_id"), label=f"{arm} model name")
+    model_id = name.removeprefix("models/")
+    if model_id != requested:
+        raise ValueError(f"preflight model identity mismatch for {arm}")
+    version = _nonempty_string(
+        _attr(model, "version", "model_version", "modelVersion"),
+        label=f"{arm} model version",
+    )
+    supported = _attr(model, "supported_actions", "supportedActions", "capabilities", default=[])
+    if isinstance(supported, Mapping):
+        capabilities: Any = _plain(supported)
+    elif isinstance(supported, Sequence) and not isinstance(supported, (str, bytes, bytearray)):
+        capabilities = [_nonempty_string(item, label=f"{arm} capability") for item in supported]
+    else:
+        capabilities = [_nonempty_string(supported, label=f"{arm} capability")]
+    snapshot = {
+        "arm": arm,
+        "requested_model": requested,
+        "model_id": model_id,
+        "name": name,
+        "version": version,
+        "capabilities": capabilities,
+    }
+    for source_name, output_name in (
+        ("display_name", "display_name"),
+        ("input_token_limit", "input_token_limit"),
+        ("output_token_limit", "output_token_limit"),
+    ):
+        value = _attr(model, source_name, output_name, default=None)
+        if isinstance(value, (str, int, float)) and not isinstance(value, bool):
+            snapshot[output_name] = value
+    return snapshot
+
+
+def _protocol_context(root: Path) -> tuple[Path, dict[str, Any], str]:
+    root = Path(root)
+    verification = verify_inputs(root)
+    protocol = _verify_artifact(root / "protocol.json")
+    if protocol.get("status") != "inputs_frozen":
+        raise ValueError("protocol inputs are not frozen")
+    return root, protocol, str(verification["protocol_sha256"])
+
+
+def _models_artifact(root: Path, protocol_hash: str) -> dict[str, Any]:
+    models = _verify_artifact(root / _MODELS_FILENAME)
+    if models.get("protocol_sha256") != protocol_hash:
+        raise ValueError("model preflight is bound to a different protocol")
+    records = models.get("models")
+    if not isinstance(records, Mapping) or set(records) != set(ARMS):
+        raise ValueError("model preflight is incomplete")
+    for arm, expected in ARMS.items():
+        record = records.get(arm)
+        if not isinstance(record, Mapping):
+            raise ValueError(f"model preflight record is missing for {arm}")
+        if record.get("model_id") != expected["model"]:
+            raise ValueError(f"model preflight identity mismatch for {arm}")
+        snapshot_hash = record.get("provider_snapshot_sha256")
+        snapshot_body = dict(record)
+        snapshot_body.pop("provider_snapshot_sha256", None)
+        if snapshot_hash != _sha256_bytes(_canonical_json(snapshot_body)):
+            raise ValueError(f"model preflight snapshot hash mismatch for {arm}")
+    return models
+
+
+def _historical_uris(protocol: Mapping[str, Any]) -> set[str]:
+    metadata = protocol.get("historical_upload")
+    if not isinstance(metadata, Mapping):
+        return set()
+    path = Path(str(metadata.get("path", "")))
+    candidates: list[Path] = []
+    if _is_regular_file(path):
+        candidates = [path]
+    elif path.is_dir() and not path.is_symlink():
+        candidates = sorted(path.glob("*.json"))
+    uris: set[str] = set()
+    for candidate in candidates:
+        try:
+            payload = _read_json(candidate)
+        except ValueError:
+            continue
+        for row in _rows(payload, context=f"historical upload {candidate}") if isinstance(payload, Mapping) else []:
+            uri = _attr(row, "file_uri", "fileUri", "uri", default=None)
+            if isinstance(uri, str) and uri.strip():
+                uris.add(uri.strip())
+    return uris
+
+
+def _protocol_rows(protocol: Mapping[str, Any]) -> list[dict[str, Any]]:
+    rows = protocol.get("rows")
+    if not isinstance(rows, list) or len(rows) != 2 or any(not isinstance(row, dict) for row in rows):
+        raise ValueError("protocol must contain exactly two rows")
+    return rows
+
+
+def _upload_file_path(protocol: Mapping[str, Any], row: Mapping[str, Any]) -> Path:
+    source_meta = protocol.get("source_protocol")
+    if not isinstance(source_meta, Mapping):
+        raise ValueError("protocol source path is missing")
+    source_root = Path(str(source_meta.get("path", ""))).parent
+    delivery = _resolve_delivery(source_root, _provenance_path(row, context="protocol row"), context="protocol row")
+    if _mime_type(row, context="protocol row") != "video/webm":
+        raise ValueError("only video/webm deliveries are accepted")
+    expected_hash = _provenance_hash(row, context="protocol row")
+    expected_size = _size_bytes(row, context="protocol row", delivery=True)
+    if _sha256_file(delivery) != expected_hash or delivery.stat().st_size != expected_size:
+        raise ValueError(f"delivery mutation detected for {row.get('row_id')}")
+    return delivery
+
+
+def _upload_records(root: Path, protocol: Mapping[str, Any], protocol_hash: str) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    rows = _protocol_rows(protocol)
+    upload_dir = root / _UPLOADS_DIRNAME
+    if not upload_dir.is_dir() or upload_dir.is_symlink():
+        raise ValueError("upload records are missing")
+    for row in rows:
+        row_id = _row_id(row, context="protocol row")
+        path = upload_dir / f"{row_id}.json"
+        record = _verify_artifact(path)
+        if record.get("protocol_sha256") != protocol_hash:
+            raise ValueError("upload record protocol binding mismatch")
+        for key in ("row_id", "video_id", "delivery_sha256", "delivery_size_bytes", "mime_type"):
+            expected = {
+                "row_id": row["row_id"],
+                "video_id": row["video_id"],
+                "delivery_sha256": row["delivery_sha256"],
+                "delivery_size_bytes": row["delivery_size_bytes"],
+                "mime_type": row["delivery_mime_type"],
+            }[key]
+            if record.get(key) != expected:
+                raise ValueError(f"upload record binding mismatch for {row_id}")
+        if _upload_file_path(protocol, row).stat().st_size != record.get("delivery_size_bytes"):
+            raise ValueError(f"delivery mutation detected for {row_id}")
+        records.append(record)
+    return records
+
+
+def _state(value: Any) -> str:
+    value = str(_scalar(value) or "").upper()
+    if "SUCCEEDED" in value or "COMPLETED" in value or value == "ACTIVE":
+        return "succeeded" if value != "ACTIVE" else "ACTIVE"
+    if "FAILED" in value or "CANCEL" in value or "ERROR" in value:
+        return "failed"
+    if "EXPIRED" in value or "TIMEOUT" in value:
+        return "failed"
+    return "pending"
+
+
+def _provider_file_metadata(file: Any, *, expected_mime: str) -> dict[str, Any]:
+    name = _nonempty_string(_attr(file, "name", "file_name", "fileName"), label="uploaded file name")
+    uri = _nonempty_string(_attr(file, "uri", "file_uri", "fileUri"), label="uploaded file URI")
+    mime = _nonempty_string(_attr(file, "mime_type", "mimeType"), label="uploaded MIME type")
+    if mime != expected_mime:
+        raise ValueError("provider returned the wrong MIME type")
+    file_state = _state(_attr(file, "state", "file_state", "fileState", default=""))
+    if file_state not in {"ACTIVE", "pending", "failed"}:
+        file_state = str(_scalar(_attr(file, "state", default="")))
+    return {"name": name, "uri": uri, "mime_type": mime, "file_state": file_state}
+
+
+def preflight_models(root: Path, client: Any, checked_at: str) -> dict[str, Any]:
+    """Fetch and freeze both exact model records without an inference call."""
+
+    root, protocol, protocol_hash = _protocol_context(root)
+    path = root / _MODELS_FILENAME
+    if path.exists() or path.is_symlink():
+        raise ValueError("model preflight already exists")
+    records: dict[str, Any] = {}
+    for arm in ARMS:
+        model = client.models.get(model=ARMS[arm]["model"])
+        record = _model_snapshot(model, arm=arm)
+        record["provider_snapshot_sha256"] = _sha256_bytes(_canonical_json(record))
+        records[arm] = record
+    body = {
+        "schema_version": 1,
+        "experiment_id": EXPERIMENT_ID,
+        "status": "models_frozen",
+        "checked_at": checked_at,
+        "protocol_sha256": protocol_hash,
+        "models": records,
+    }
+    _write_json_exclusive(path, body)
+    return _read_object(path)
+
+
+def upload_rows(root: Path, client: Any, *, sleep: Callable[[float], None]) -> dict[str, Any]:
+    """Upload exactly the two frozen deliveries once and wait for ACTIVE."""
+
+    root, protocol, protocol_hash = _protocol_context(root)
+    _models_artifact(root, protocol_hash)
+    upload_dir = root / _UPLOADS_DIRNAME
+    if upload_dir.exists() or upload_dir.is_symlink():
+        raise ValueError("upload records already exist; refusing a duplicate upload")
+    upload_dir.mkdir()
+    old_uris = _historical_uris(protocol)
+    records: list[dict[str, Any]] = []
+    try:
+        for row in _protocol_rows(protocol):
+            delivery = _upload_file_path(protocol, row)
+            before_hash = _sha256_file(delivery)
+            before_size = delivery.stat().st_size
+            uploaded = client.files.upload(
+                file=delivery,
+                config=types.UploadFileConfig(mime_type=row["delivery_mime_type"]),
+            )
+            if _sha256_file(delivery) != before_hash or delivery.stat().st_size != before_size:
+                raise ValueError("delivery mutated during upload")
+            initial = _provider_file_metadata(uploaded, expected_mime=row["delivery_mime_type"])
+            if initial["uri"] in old_uris:
+                raise ValueError("provider reused an expired historical upload URI")
+            current = initial
+            for poll_index in range(_MAX_UPLOAD_POLLS):
+                current_file = client.files.get(name=initial["name"])
+                current = _provider_file_metadata(
+                    current_file, expected_mime=row["delivery_mime_type"]
+                )
+                if current["uri"] != initial["uri"] or current["name"] != initial["name"]:
+                    raise ValueError("provider upload identity changed while polling")
+                if current["file_state"] == "ACTIVE":
+                    break
+                if current["file_state"] == "failed":
+                    raise ValueError("provider upload entered FAILED state")
+                if poll_index == _MAX_UPLOAD_POLLS - 1:
+                    raise ValueError("provider upload timed out before ACTIVE")
+                sleep(_UPLOAD_POLL_SECONDS)
+            if _sha256_file(delivery) != before_hash or delivery.stat().st_size != before_size:
+                raise ValueError("delivery mutated after upload")
+            body = {
+                "schema_version": 1,
+                "experiment_id": EXPERIMENT_ID,
+                "status": "uploaded",
+                "protocol_sha256": protocol_hash,
+                "row_id": row["row_id"],
+                "video_id": row["video_id"],
+                "delivery_sha256": before_hash,
+                "delivery_size_bytes": before_size,
+                "mime_type": row["delivery_mime_type"],
+                "file_name": current["name"],
+                "file_uri": current["uri"],
+                "file_state": "ACTIVE",
+                "provider_snapshot": current,
+            }
+            _write_json_exclusive(upload_dir / f"{row['row_id']}.json", body)
+            records.append(_read_object(upload_dir / f"{row['row_id']}.json"))
+    except Exception:
+        # Keep any partial records and the output directory as terminal evidence:
+        # a later call must fail closed rather than uploading a second time.
+        raise
+    return {
+        "status": "uploaded",
+        "protocol_sha256": protocol_hash,
+        "active_count": len(records),
+        "uploads": records,
+    }
+
+
+def _request_record(
+    *, row: Mapping[str, Any], upload: Mapping[str, Any], arm: str, protocol_hash: str, request: Any
+) -> dict[str, Any]:
+    request_dump = _plain(request.model_dump(mode="json", by_alias=True, exclude_none=True))
+    return {
+        "row_id": row["row_id"],
+        "video_id": row["video_id"],
+        "source_order_index": row["source_order_index"],
+        "question": row["question"],
+        "file_uri": upload["file_uri"],
+        "delivery_sha256": row["delivery_sha256"],
+        "mime_type": row["delivery_mime_type"],
+        "protocol_sha256": protocol_hash,
+        "request_sha256": _sha256_bytes(_canonical_json(request_dump)),
+    }
+
+
+def _expected_request_records(
+    protocol: Mapping[str, Any], uploads: Sequence[Mapping[str, Any]], arm: str, protocol_hash: str
+) -> list[dict[str, Any]]:
+    rows = _protocol_rows(protocol)
+    if len(uploads) != len(rows):
+        raise ValueError("upload and protocol row counts differ")
+    requests = [
+        build_inlined_request(row=row, upload=upload, arm=arm)
+        for row, upload in zip(rows, uploads, strict=True)
+    ]
+    return [
+        _request_record(row=row, upload=upload, arm=arm, protocol_hash=protocol_hash, request=request)
+        for row, upload, request in zip(rows, uploads, requests, strict=True)
+    ]
+
+
+def _validated_job_record(
+    root: Path,
+    protocol: Mapping[str, Any],
+    protocol_hash: str,
+    uploads: Sequence[Mapping[str, Any]],
+    arm: str,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    path = root / _JOBS_DIRNAME / f"{arm}.json"
+    job = _verify_artifact(path)
+    expected_requests = _expected_request_records(protocol, uploads, arm, protocol_hash)
+    if (
+        job.get("protocol_sha256") != protocol_hash
+        or job.get("arm") != arm
+        or job.get("model") != ARMS[arm]["model"]
+        or job.get("request_count") != 2
+        or job.get("requests") != expected_requests
+    ):
+        raise ValueError(f"job request binding mismatch for {arm}")
+    expected_hash = _sha256_bytes(_canonical_json({"arm": arm, "requests": expected_requests}))
+    if job.get("request_hash") != expected_hash:
+        raise ValueError(f"job request hash mismatch for {arm}")
+    snapshot = job.get("provider_snapshot")
+    if isinstance(snapshot, Mapping) and snapshot.get("model") not in {None, ARMS[arm]["model"]}:
+        raise ValueError(f"job provider model mismatch for {arm}")
+    if job.get("provider_snapshot_sha256") != _sha256_bytes(_canonical_json(snapshot or {})):
+        raise ValueError(f"job provider snapshot hash mismatch for {arm}")
+    return job, expected_requests
+
+
+def _job_snapshot(job: Any) -> dict[str, Any]:
+    snapshot: dict[str, Any] = {}
+    for source_name, output_name in (
+        ("name", "name"),
+        ("display_name", "display_name"),
+        ("model", "model"),
+        ("state", "state"),
+        ("create_time", "create_time"),
+        ("update_time", "update_time"),
+    ):
+        value = _attr(job, source_name, output_name, default=None)
+        if value is not None:
+            snapshot[output_name] = _scalar(value)
+    return snapshot
+
+
+def submit_arm(root: Path, arm: str, client: Any, *, submitted_at: str) -> dict[str, Any]:
+    """Submit exactly one two-request inline Batch job for one arm."""
+
+    if arm not in ARMS:
+        raise ValueError(f"unknown arm: {arm}")
+    root, protocol, protocol_hash = _protocol_context(root)
+    _models_artifact(root, protocol_hash)
+    uploads = _upload_records(root, protocol, protocol_hash)
+    jobs_dir = root / _JOBS_DIRNAME
+    jobs_dir.mkdir(exist_ok=True)
+    job_path = jobs_dir / f"{arm}.json"
+    if job_path.exists() or job_path.is_symlink():
+        raise ValueError(f"submission already exists for {arm}")
+    response_path = root / "responses" / f"{arm}.json"
+    if response_path.exists() or response_path.is_symlink():
+        raise ValueError(f"response evidence already exists for {arm}")
+    status_dir = root / _STATUS_DIRNAME / arm
+    if status_dir.exists() and any(status_dir.iterdir()):
+        raise ValueError(f"status evidence already exists for {arm}")
+    rows = _protocol_rows(protocol)
+    requests = [
+        build_inlined_request(row=row, upload=upload, arm=arm)
+        for row, upload in zip(rows, uploads, strict=True)
+    ]
+    if len(requests) != 2:
+        raise ValueError("each Batch job must contain exactly two requests")
+    request_records = [
+        _request_record(row=row, upload=upload, arm=arm, protocol_hash=protocol_hash, request=request)
+        for row, upload, request in zip(rows, uploads, requests, strict=True)
+    ]
+    request_hash = _sha256_bytes(_canonical_json({"arm": arm, "requests": request_records}))
+    config = types.CreateBatchJobConfig(
+        display_name=(
+            "gemini37-smoke-control-31pro"
+            if arm == "control_31pro"
+            else "gemini37-smoke-candidate-37flash"
+        )
+    )
+    try:
+        job = client.batches.create(
+            model=ARMS[arm]["model"],
+            src=types.BatchJobSource(inlined_requests=requests),
+            config=config,
+        )
+    except Exception as error:  # noqa: BLE001 - preserve the sole terminal call
+        body = {
+            "schema_version": 1,
+            "experiment_id": EXPERIMENT_ID,
+            "status": "failed",
+            "arm": arm,
+            "submitted_at": submitted_at,
+            "protocol_sha256": protocol_hash,
+            "request_hash": request_hash,
+            "request_count": 2,
+            "requests": request_records,
+            "provider_error_type": type(error).__name__,
+        }
+        _write_json_exclusive(job_path, body)
+        return _read_object(job_path)
+    snapshot = _job_snapshot(job)
+    name = _nonempty_string(snapshot.get("name"), label="Batch job name")
+    body = {
+        "schema_version": 1,
+        "experiment_id": EXPERIMENT_ID,
+        "status": "submitted",
+        "arm": arm,
+        "submitted_at": submitted_at,
+        "protocol_sha256": protocol_hash,
+        "model": ARMS[arm]["model"],
+        "display_name": config.display_name,
+        "name": name,
+        "request_count": 2,
+        "requests": request_records,
+        "request_hash": request_hash,
+        "provider_snapshot": snapshot,
+        "provider_snapshot_sha256": _sha256_bytes(_canonical_json(snapshot)),
+    }
+    _write_json_exclusive(job_path, body)
+    return _read_object(job_path)
+
+
+def _extract_responses(job: Any) -> list[Any]:
+    for name in ("responses", "inlined_responses", "results"):
+        value = _attr(job, name, default=None)
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            return list(value)
+    destination = _attr(job, "dest", "destination", default=None)
+    for name in ("responses", "inlined_responses", "results"):
+        value = _attr(destination, name, default=None)
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            return list(value)
+    return []
+
+
+def record_status(root: Path, arm: str, client: Any, *, checked_at: str) -> dict[str, Any]:
+    """Append one sanitized provider status snapshot for an already submitted arm."""
+
+    if arm not in ARMS:
+        raise ValueError(f"unknown arm: {arm}")
+    root, protocol, protocol_hash = _protocol_context(root)
+    _models_artifact(root, protocol_hash)
+    _upload_records(root, protocol, protocol_hash)
+    job_record = _verify_artifact(root / _JOBS_DIRNAME / f"{arm}.json")
+    if job_record.get("protocol_sha256") != protocol_hash:
+        raise ValueError("job protocol binding mismatch")
+    name = job_record.get("name")
+    if not isinstance(name, str) or not name.strip():
+        return {
+            "status": "failed",
+            "arm": arm,
+            "provider_error_type": job_record.get("provider_error_type", "submission_failed"),
+        }
+    _validated_job_record(
+        root,
+        protocol,
+        protocol_hash,
+        _upload_records(root, protocol, protocol_hash),
+        arm,
+    )
+    job = client.batches.get(name=name)
+    snapshot = _job_snapshot(job)
+    snapshot["responses"] = _plain(_extract_responses(job))
+    _reject_forbidden(snapshot["responses"], context=f"{arm} provider responses")
+    state = _state(_attr(job, "state", "status", default=snapshot.get("state", "")))
+    status_dir = root / _STATUS_DIRNAME / arm
+    status_dir.mkdir(parents=True, exist_ok=True)
+    sequence = len(list(status_dir.glob("*.json"))) + 1
+    body = {
+        "schema_version": 1,
+        "experiment_id": EXPERIMENT_ID,
+        "status": state,
+        "arm": arm,
+        "checked_at": checked_at,
+        "protocol_sha256": protocol_hash,
+        "job_sha256": _sha256_file(root / _JOBS_DIRNAME / f"{arm}.json"),
+        "job_name": name,
+        "provider_snapshot": snapshot,
+        "provider_snapshot_sha256": _sha256_bytes(_canonical_json(snapshot)),
+        "response_count": len(snapshot["responses"]),
+    }
+    path = status_dir / f"{sequence:04d}.json"
+    _write_json_exclusive(path, body)
+    return _read_object(path)
+
+
+def _latest_status(root: Path, arm: str, protocol_hash: str) -> tuple[dict[str, Any], Path]:
+    status_dir = root / _STATUS_DIRNAME / arm
+    paths = sorted(status_dir.glob("*.json")) if status_dir.is_dir() else []
+    if not paths:
+        raise ValueError(f"no status snapshot exists for {arm}")
+    path = paths[-1]
+    snapshot = _verify_artifact(path)
+    if snapshot.get("protocol_sha256") != protocol_hash or snapshot.get("arm") != arm:
+        raise ValueError(f"status snapshot binding mismatch for {arm}")
+    job_path = root / _JOBS_DIRNAME / f"{arm}.json"
+    if snapshot.get("job_sha256") != _sha256_file(job_path):
+        raise ValueError(f"status job binding mismatch for {arm}")
+    provider_snapshot = snapshot.get("provider_snapshot")
+    if snapshot.get("provider_snapshot_sha256") != _sha256_bytes(
+        _canonical_json(provider_snapshot if isinstance(provider_snapshot, Mapping) else {})
+    ):
+        raise ValueError(f"status provider snapshot hash mismatch for {arm}")
+    return snapshot, path
+
+
+def _response_payload(raw: Any) -> dict[str, Any]:
+    value = _plain(raw)
+    if not isinstance(value, Mapping):
+        return {}
+    nested = value.get("response")
+    if isinstance(nested, Mapping):
+        merged = dict(nested)
+        if "key" in value:
+            merged["key"] = value["key"]
+        return merged
+    return dict(value)
+
+
+def _response_text(response: Mapping[str, Any]) -> str | None:
+    text = response.get("text")
+    if isinstance(text, str):
+        return text
+    candidates = response.get("candidates")
+    if isinstance(candidates, list) and candidates and isinstance(candidates[0], Mapping):
+        content = candidates[0].get("content")
+        if isinstance(content, Mapping):
+            parts = content.get("parts")
+            if isinstance(parts, list):
+                chunks = [part.get("text") for part in parts if isinstance(part, Mapping) and isinstance(part.get("text"), str)]
+                if chunks:
+                    return "".join(chunks)
+    return None
+
+
+def _usage(response: Mapping[str, Any]) -> dict[str, Any] | None:
+    usage = response.get("usage_metadata", response.get("usageMetadata"))
+    if not isinstance(usage, Mapping):
+        return None
+    aliases = {
+        "prompt_tokens": ("prompt_token_count", "promptTokenCount"),
+        "total_tokens": ("total_token_count", "totalTokenCount"),
+        "output_tokens": ("candidates_token_count", "candidatesTokenCount"),
+    }
+    result: dict[str, Any] = {}
+    for output, names in aliases.items():
+        found = next((usage.get(name) for name in names if name in usage), None)
+        if isinstance(found, bool) or not isinstance(found, int) or found < 0:
+            return None
+        result[output] = found
+    if result["total_tokens"] < result["prompt_tokens"]:
+        return None
+    return result
+
+
+def _validated_responses(
+    *,
+    responses: Sequence[Any],
+    rows: Sequence[Mapping[str, Any]],
+    expected_version: str,
+    expected_arm: str,
+) -> tuple[list[dict[str, Any]], list[str], bool]:
+    normalized: list[dict[str, Any]] = []
+    failures: list[str] = []
+    usage_complete = True
+    seen_ids: set[str] = set()
+    for index, raw in enumerate(responses):
+        response = _response_payload(raw)
+        response_id = response.get("response_id", response.get("responseId", response.get("id")))
+        if not isinstance(response_id, str) or not response_id.strip():
+            failures.append(f"response_{index}_missing_id")
+            response_id = ""
+        elif response_id in seen_ids:
+            failures.append("duplicate_response_id")
+        seen_ids.add(response_id)
+        model_version = response.get("model_version", response.get("modelVersion"))
+        if model_version != expected_version:
+            failures.append(f"response_{index}_model_version")
+        if response.get("arm") not in (None, expected_arm):
+            failures.append(f"response_{index}_arm")
+        expected_row = rows[index] if index < len(rows) else {}
+        if response.get("row_id") not in (None, expected_row.get("row_id")):
+            failures.append(f"response_{index}_row_id")
+        if response.get("video_id") not in (None, expected_row.get("video_id")):
+            failures.append(f"response_{index}_video_id")
+        error = response.get("error")
+        if error:
+            failures.append(f"response_{index}_error")
+        text = _response_text(response)
+        if not isinstance(text, str) or not text.strip():
+            failures.append(f"response_{index}_empty_text")
+            text = ""
+        finish = response.get("finish_reason", response.get("finishReason"))
+        if not isinstance(finish, str) or not finish.strip():
+            candidates = response.get("candidates")
+            if isinstance(candidates, list) and candidates and isinstance(candidates[0], Mapping):
+                finish = candidates[0].get("finish_reason", candidates[0].get("finishReason"))
+        if not isinstance(finish, str) or not finish.strip():
+            failures.append(f"response_{index}_missing_finish_reason")
+            finish = ""
+        usage = _usage(response)
+        if usage is None:
+            usage_complete = False
+        normalized.append(
+            {
+                "row_id": rows[index]["row_id"] if index < len(rows) else None,
+                "video_id": rows[index]["video_id"] if index < len(rows) else None,
+                "response_id": response_id,
+                "finish_reason": finish,
+                "model_version": model_version,
+                "text": text,
+                "usage": usage,
+            }
+        )
+    if len(responses) != 2:
+        failures.append("response_count")
+    if len(normalized) == 2 and len({item["response_id"] for item in normalized}) != 2:
+        if "duplicate_response_id" not in failures:
+            failures.append("duplicate_response_id")
+    return normalized, failures, usage_complete
+
+
+def freeze_predictions(root: Path, *, frozen_at: str) -> dict[str, Any]:
+    """Create one immutable prediction freeze from terminal status snapshots."""
+
+    root, protocol, protocol_hash = _protocol_context(root)
+    path = root / _PREDICTIONS_FILENAME
+    if path.exists() or path.is_symlink():
+        raise ValueError("prediction freeze already exists")
+    models = _models_artifact(root, protocol_hash)
+    _upload_records(root, protocol, protocol_hash)
+    rows = _protocol_rows(protocol)
+    arm_results: dict[str, Any] = {}
+    failure_reasons: list[str] = []
+    custom_fps_failure = False
+    observed_cost = 0.0
+    for arm in ARMS:
+        try:
+            job_record, expected_requests = _validated_job_record(
+                root, protocol, protocol_hash, _upload_records(root, protocol, protocol_hash), arm
+            )
+        except ValueError as error:
+            failure_reasons.append(f"{arm}:job_binding:{type(error).__name__}")
+            arm_results[arm] = {"status": "not_ready", "response_count": 0}
+            continue
+        try:
+            status, status_path = _latest_status(root, arm, protocol_hash)
+        except ValueError as error:
+            failure_reasons.append(f"{arm}:{type(error).__name__}")
+            arm_results[arm] = {"status": "not_ready", "response_count": 0}
+            continue
+        state = status.get("status")
+        responses_raw = _attr(status.get("provider_snapshot"), "responses", default=[])
+        if not isinstance(responses_raw, list):
+            responses_raw = []
+        provider_snapshot = status.get("provider_snapshot")
+        model_record = models["models"][arm]
+        expected_version = model_record["version"]
+        normalized, failures, usage_complete = _validated_responses(
+            responses=responses_raw,
+            rows=rows,
+            expected_version=expected_version,
+            expected_arm=arm,
+        )
+        if state != "succeeded":
+            failures.append(f"job_{state}")
+        if isinstance(provider_snapshot, Mapping) and provider_snapshot.get("model") not in {
+            None,
+            ARMS[arm]["model"],
+        }:
+            failures.append("provider_model")
+        if job_record.get("requests") != expected_requests:
+            failures.append("request_binding")
+        if not usage_complete:
+            custom_fps_failure = True
+            failure_reasons.append(f"{arm}:usage_missing")
+        if failures:
+            failure_reasons.extend(f"{arm}:{reason}" for reason in failures)
+        prompt_tokens = sum(
+            item["usage"]["prompt_tokens"] for item in normalized if item["usage"] is not None
+        )
+        output_tokens = sum(
+            item["usage"]["total_tokens"] - item["usage"]["prompt_tokens"]
+            for item in normalized
+            if item["usage"] is not None
+        )
+        fps_ok = usage_complete and _FPS_PROMPT_TOKEN_MIN <= prompt_tokens <= _FPS_PROMPT_TOKEN_MAX
+        if usage_complete and not fps_ok:
+            custom_fps_failure = True
+            failure_reasons.append(f"{arm}:prompt_tokens_out_of_band")
+        rates = _BATCH_RATES_USD_PER_MILLION[arm]
+        arm_cost = prompt_tokens / 1_000_000 * rates["prompt"] + output_tokens / 1_000_000 * rates["output"]
+        observed_cost += arm_cost
+        arm_results[arm] = {
+            "status": "succeeded" if not failures else "not_ready",
+            "status_snapshot_sha256": _sha256_file(status_path),
+            "provider_snapshot_sha256": status.get("provider_snapshot_sha256"),
+            "request_hash": _verify_artifact(root / _JOBS_DIRNAME / f"{arm}.json").get("request_hash"),
+            "model_snapshot_sha256": model_record["provider_snapshot_sha256"],
+            "model_version": expected_version,
+            "response_count": len(normalized),
+            "responses": normalized,
+            "prompt_tokens": prompt_tokens,
+            "output_tokens": output_tokens,
+            "observed_cost_usd": round(arm_cost, 8),
+            "custom_fps_verified": fps_ok,
+        }
+    if failure_reasons and not custom_fps_failure:
+        decision = "not_ready"
+    elif custom_fps_failure:
+        decision = "custom_fps_not_verified"
+    else:
+        decision = "quality_ready"
+    body = {
+        "schema_version": 1,
+        "experiment_id": EXPERIMENT_ID,
+        "status": "predictions_frozen",
+        "decision": decision,
+        "frozen_at": frozen_at,
+        "protocol_sha256": protocol_hash,
+        "inputs_freeze_sha256": _sha256_file(root / "inputs-freeze.json"),
+        "models_sha256": _sha256_file(root / _MODELS_FILENAME),
+        "upload_record_sha256": _hash_paths(sorted((root / _UPLOADS_DIRNAME).glob("*.json"))),
+        "arms": arm_results,
+        "observed_cost_usd": round(observed_cost, 8),
+        "failure_reasons": failure_reasons,
+    }
+    _write_json_exclusive(path, body)
+    return _read_object(path)
