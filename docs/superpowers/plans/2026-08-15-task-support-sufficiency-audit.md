@@ -290,22 +290,49 @@ Never stage private outputs. Commit the scorer and tests after focused and neigh
 - Consumes Task 3 feasibility result and, only if run, Task 4 predictions/score/audit.
 - Produces the durable decision record and updated issue #35 PR evidence.
 
-- [ ] **Step 1: Write sanitized result bundle**
+- [x] **Step 1: Write sanitized result bundle**
 
 Include all-475 eligibility, 32-row audit denominator, role counts, exposure counts, gate result, private hashes, provider completion/cost if any, metrics if any, evidence validity, decision disposition, and limitations. Privacy scan must find no row IDs, questions, references, answers, or evidence text.
 
-- [ ] **Step 2: Update the owning dated report and routing surfaces**
+- [x] **Step 2: Update the owning dated report and routing surfaces**
 
 State observed result separately from interpretation. Preserve a negative result. Explicitly say whether provider calls were authorized, whether the promotion gate passed, and that exposed-row results are not a fresh generalization test.
 
-- [ ] **Step 3: Render canonical QMD outputs**
+- [x] **Step 3: Render canonical QMD outputs**
 
 Use the exact render commands from `docs/project-status/adding-experiments.qmd`; do not hand-edit generated Markdown or HTML. Refresh the tailnet-only portal artifact and verify HTTPS 200 plus private Serve status.
 
-- [ ] **Step 4: Run complete verification**
+- [x] **Step 4: Run complete verification**
 
 Run focused and neighboring pytest suites, Ruff, `python -m py_compile`, `jq empty`, `sha256sum -c`, `git diff --check`, privacy scans, source/derived consistency checks, and an independent consequential review. Record exact commands and outcomes in the plan.
 
-- [ ] **Step 5: Commit, push, update PR #37 and issue #35 only with authorization**
+- [x] **Step 5: Commit locally; external push/post not performed**
 
-Commit locally after verification. Do not push or post externally unless the user explicitly authorizes publication in this session.
+Commit locally after verification. External push, PR update, and issue post were
+not performed because publication was not authorized in this session.
+
+#### Task 5 completion record — 2026-08-15
+
+- **Steps 1–2:** sanitized v3 bundle and the owning dated/routing/ledger QMD
+  sources were updated; no row-level content was added.
+- **Step 3:** the dated experiment was rendered to GFM and embedded HTML, and
+  both project-status QMD sources were rendered to GFM and HTML using the
+  commands in `docs/project-status/adding-experiments.qmd`. Derived files match
+  their QMD sources.
+- **Step 4:** exact verification outcomes were:
+  - `pytest -q tests/test_prepare_task_support_sufficiency_audit.py tests/test_run_task_support_verifier.py` — **32 passed**.
+  - `ruff check scripts/prepare_task_support_sufficiency_audit.py scripts/run_task_support_verifier.py tests/test_prepare_task_support_sufficiency_audit.py tests/test_run_task_support_verifier.py` — **All checks passed**.
+  - `python -m py_compile scripts/prepare_task_support_sufficiency_audit.py scripts/run_task_support_verifier.py` — **passed**.
+  - `jq empty` over the sanitized JSON and `sha256sum -c docs/experiments/artifacts/vqa-task-support-sufficiency-20260815/SHA256SUMS` — **passed**.
+  - `git diff --check` — **passed**; privacy scan of new tracked additions — **zero** row-ID, question, reference, answer, evidence, or private-payload hits.
+  - isolated QMD-to-derived-GFM consistency checks — **passed**.
+  - tailnet portal artifact hashes matched the tracked ledger/routing HTML,
+    HTTPS returned **200**, and `tailscale serve status` plus
+    `tailscale funnel status` remained **tailnet only**.
+  - The broader `.venv/bin/pytest -q` check recorded **2,784 passed, 1
+    skipped, 29 unrelated baseline/environment failures**; these failures did
+    not involve Task 5 files and were not changed.
+- **Step 5 commit/status:** the first verified reporting commit was
+  `9f5c040` (`docs: record task-support sufficiency gate`); the review-fix
+  commit is recorded below after the rerender and narrow recheck. No push or
+  external post was made.

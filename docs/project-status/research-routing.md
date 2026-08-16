@@ -340,6 +340,33 @@ GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
   which an explicit temporal or speech verifier can be tested without
   regressing matched supported controls.
 
+<details>
+
+<summary>
+
+Method, result, validity risks, and evidence
+</summary>
+
+The v5 draft audit froze `revise_contract` before the verifier call.
+Sol, Claude Fable, and Gemini 3.1 Pro High independently recommended the
+one-call verifier gate. The reviewed runner bound the exact prediction
+and audit freezes, content-addressed media identity, provider/model/cost
+evidence, and a one-attempt artifact chain. The final focused/regression
+suite passed 142 tests before the final hardening; the current Phase
+0/verifier suite passes 135 tests and additively freezes both the failed
+terminal result and a raw-response/row-manifest-bound audit. The
+response’s corrected map was locally valid, allowing inspection without
+relabeling the terminal `schema_validation` result.
+
+The complete raw evidence is private; see the [dated
+diagnostic](../experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd),
+the [full-panel sanitized
+index](../experiments/artifacts/vqa-gemini-native-av-full-panel-20260813/README.md),
+and the [grounded-answering sanitized
+index](../experiments/artifacts/vqa-grounded-map-answering-20260814/README.md).
+
+</details>
+
 ### Task-support sufficiency audit (zero provider calls)
 
 - **Reason for testing:** determine whether a treatment-frozen,
@@ -393,23 +420,20 @@ row-level content is not copied into tracked reports.
 Method, result, validity risks, and evidence
 </summary>
 
-The v5 draft audit froze `revise_contract` before the verifier call.
-Sol, Claude Fable, and Gemini 3.1 Pro High independently recommended the
-one-call verifier gate. The reviewed runner bound the exact prediction
-and audit freezes, content-addressed media identity, provider/model/cost
-evidence, and a one-attempt artifact chain. The final focused/regression
-suite passed 142 tests before the final hardening; the current Phase
-0/verifier suite passes 135 tests and additively freezes both the failed
-terminal result and a raw-response/row-manifest-bound audit. The
-response’s corrected map was locally valid, allowing inspection without
-relabeling the terminal `schema_validation` result.
+The treatment was frozen before label-aware material was opened.
+Candidate preparation retained all eligible rows and produced
+deterministic 24-row low-score and 8-row control queues. Independent
+correction v3 re-adjudicated all 32 rows against the predeclared role
+definitions; the sanitized index binds the current correction, freeze,
+and source hashes. Prior exposure is a reporting flag only. Because the
+target quota failed, no provider-safe input or provider call was
+created. This is valid but negative feasibility evidence, not
+provider-quality evidence or a fresh generalization estimate.
 
-The complete raw evidence is private; see the [dated
-diagnostic](../experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd),
-the [full-panel sanitized
-index](../experiments/artifacts/vqa-gemini-native-av-full-panel-20260813/README.md),
-and the [grounded-answering sanitized
-index](../experiments/artifacts/vqa-grounded-map-answering-20260814/README.md).
+The [sanitized evidence
+index](../experiments/artifacts/vqa-task-support-sufficiency-20260815/README.md)
+contains only aggregate counts, exposure counts, hashes, and
+limitations.
 
 </details>
 

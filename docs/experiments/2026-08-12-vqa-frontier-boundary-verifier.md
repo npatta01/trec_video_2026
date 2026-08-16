@@ -575,6 +575,27 @@ hidden from inference. This does not authorize another global prompt
 rewrite, answer ensemble, counting specialist, or shared router
 framework.
 
+The sanitized evidence index is
+`docs/experiments/artifacts/vqa-multi-interpretation-answer-election-20260814/`.
+Complete private protocols, requests, raw responses, metadata, candidate
+traces, freezes, audit, scores, and the exact paper walkthrough are
+retained at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/multi-interpretation-answer-election-issue35-v1/`.
+The original score and additive metric-provenance v2 are preserved; the
+additive v3 score binds the explicit v3 exclusion and corrects
+verification-sentinel handling. V4 and final v5 rebind the same
+numerical calculation to the finalized formatted/refactored scorer
+bytes; v5 also binds the exact BERT model view, upstream snapshot, and
+metric package versions. The private paper-walkthrough SHA-256 is
+`453e0abf54e0bcec58c8b00ebb0e3db458f6a19d67e730617afb8e156bceda29`; the
+tracked bundle contains a sanitized two-mechanism summary.
+
+Evidence validity: **Diagnostic**—valid negative selected-panel
+mechanism evidence for this candidate generator and deterministic
+election rule, with the disclosed treatment-code-after-selection audit
+gap; not a clean fresh-panel or prevalence estimate. Decision
+disposition: **Not promoted under the tested condition**.
+
 ### Task-support sufficiency audit (zero provider calls)
 
 - **Reason for testing:** determine whether a treatment-frozen,
@@ -628,27 +649,6 @@ current v3 correction, freeze, and source bindings are recorded by
 SHA-256 in the sanitized index. This result supersedes the earlier v1/v2
 feasibility wording; those historical private artifacts remain
 unchanged.
-
-The sanitized evidence index is
-`docs/experiments/artifacts/vqa-multi-interpretation-answer-election-20260814/`.
-Complete private protocols, requests, raw responses, metadata, candidate
-traces, freezes, audit, scores, and the exact paper walkthrough are
-retained at
-`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/multi-interpretation-answer-election-issue35-v1/`.
-The original score and additive metric-provenance v2 are preserved; the
-additive v3 score binds the explicit v3 exclusion and corrects
-verification-sentinel handling. V4 and final v5 rebind the same
-numerical calculation to the finalized formatted/refactored scorer
-bytes; v5 also binds the exact BERT model view, upstream snapshot, and
-metric package versions. The private paper-walkthrough SHA-256 is
-`453e0abf54e0bcec58c8b00ebb0e3db458f6a19d67e730617afb8e156bceda29`; the
-tracked bundle contains a sanitized two-mechanism summary.
-
-Evidence validity: **Diagnostic**—valid negative selected-panel
-mechanism evidence for this candidate generator and deterministic
-election rule, with the disclosed treatment-code-after-selection audit
-gap; not a clean fresh-panel or prevalence estimate. Decision
-disposition: **Not promoted under the tested condition**.
 
 ## Cost and completion boundary
 
