@@ -1257,7 +1257,10 @@ def test_continuation_freeze_requires_call_time_snapshot_after_semantic_replay_r
     response_ids = iter(f"snapshot-freeze-{index}" for index in range(22))
     runner.run(root, call=lambda *_args: _id_call(next(response_ids)))
     _rewrite_replay_bytes_and_auth(root)
-    with pytest.raises(ValueError, match="execution snapshot|continuation snapshot"):
+    with pytest.raises(
+        ValueError,
+        match="execution snapshot|continuation snapshot|committed ledger authorization binding",
+    ):
         runner.verify_predictions_freeze(root)
     assert not (root / "predictions-freeze.json").exists()
 
@@ -1268,7 +1271,10 @@ def test_existing_continuation_freeze_rejects_semantic_replay_rewrite(
     root = _prepare_continuation_fixture(tmp_path)
     _run_complete_continuation(root)
     _rewrite_replay_bytes_and_auth(root)
-    with pytest.raises(ValueError, match="execution snapshot|continuation snapshot"):
+    with pytest.raises(
+        ValueError,
+        match="execution snapshot|continuation snapshot|committed ledger authorization binding",
+    ):
         runner.verify_predictions_freeze(root)
 
 
