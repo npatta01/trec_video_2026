@@ -208,9 +208,17 @@ Never stage private artifacts. Record hashes, counts, exposure composition, gate
 - Treatment freeze verified before opening the label-aware template: `treatment-freeze.json` SHA-256 `fc850cc44e4108959d58ff1bf31a6b737d5e1c4b9a37e083a9f050f387d642ce`; declared source hashes and settings matched the committed config.
 - Candidate preparation retained all `475/475` eligible rows and produced the deterministic `24` low-score plus `8` control audit rows. Exposure remained flag-only: hard audit `30`, grounded v2 `24`, grounded v3 `11`, multi-interpretation `12`, seven-row canary `7`, scope control `7`, synthesis follow-up `7`.
 - All `32/32` audit rows were adjudicated from the frozen question/reference/map/direct-answer bundle. Audited role counts: `answer_sufficient_failure=8`, `insufficient_or_ambiguous=9`, `reference_or_question_issue=6` (nonselectable), `supported_control=9`. Manual audit SHA-256: `9ad6cd3e6290df8a5da74ea8bc6c27788e962dbfb8093f5e8010c468fc6858cf`.
-- Offline feasibility gate: **PASS**. Frozen selected roles are exactly `4/4/4`; `selection-freeze.json` SHA-256 `1e8ed1bf26f0b7ebe527fb4bd1bf673a3200e682a532ef1119957471574e8c3e` and `protocol.json` SHA-256 `f456883192cf8a231ef32cfaa988492d8284be32bd5fc4d4ddf711bd2a0fadbf`. Provider-row digest: `43810cbafdae377c3ffcf46de381e1289475b8202e6dbfffa3f51c62efd0a42a`.
+- Offline feasibility gate: **PASS**. Frozen selected roles are exactly `4/4/4`; `selection-freeze.json` SHA-256 `1e8ed1bf26f0b7ebe527fb4bd1bf673a3200e682a532ef1119957471576e8c3e` and `protocol.json` SHA-256 `f456883192cf8a231ef32cfaa988492d8284be32bd5fc4d4ddf711bd2a0fadbf`. Provider-row digest: `43810cbafdae377c3ffcf46de381e1289475b8202e6dbfffa3f51c62efd0a42a`.
 - Selected exposure composition (audited/selected): grounded v2 `5/1`, grounded v3 `3/1`, hard audit `1/0`, multi-interpretation `5/5`, scope control `0/0`, seven-row canary `0/0`, synthesis follow-up `0/0`. These are reporting flags, not exclusions or fresh generalization strata.
 - No provider/API/native-video calls were made. The provider promotion gate is therefore unevaluated; next action is the separately scoped Task 4 run over the frozen 12-row provider-safe protocol.
+
+#### Task 3 correction round 1 status — exact-definition re-adjudication
+
+- The original `manual-audit.json`, `selection-freeze.json`, `protocol.json`, and `selection-integrity.json` remain byte-for-byte unchanged. The original selection is invalid for provider authorization.
+- Additive corrected artifacts: `manual-audit-corrected-v2.json` SHA-256 `d7e092ed4986cc1c63c5ed4cb9be53214268f1cedbb9ed028a4323343672c7a9`, `audit-correction-v2.json` SHA-256 `bf081c0201074b4302c9dde45b24df3f717c84760bc4ad0750b1f29b821e2956`, `corrected-audit-freeze-v2.json` SHA-256 `90d579f77bf153945229cb120300e2260bcab066a1f7e905601323290b2dd473`, and `feasibility-result-v2.json` SHA-256 `b36e8ac1a502bece0dcc1edc37bb64997df555ca7722e44c6ecc99d916ded878`.
+- All `32/32` rows were re-adjudicated against the exact predeclared role definitions. Corrected counts: `answer_sufficient_failure=2`, `insufficient_or_ambiguous=16`, `reference_or_question_issue=6` (nonselectable), `supported_control=8`.
+- Corrected feasibility gate: **FAIL**. Target quota is `2/4` (deficit `2`); safeguard and control quotas pass at `16/4` and `8/4`. No replacement selection or protocol was created.
+- No provider/API/native-video calls were made. Provider authorization is blocked; Task 4 must not run. MM19feoJGmM remains a supported control because Task 1 compares the final answer to a cited model-output claim, not the full input evidence line.
 
 ### Task 4: Provider run, scoring, and changed-row audit (conditional)
 
