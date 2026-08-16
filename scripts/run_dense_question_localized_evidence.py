@@ -670,6 +670,13 @@ def _validate_inputs(root: Path) -> tuple[list[dict[str, Any]], dict[int, dict[s
         raise ValueError("provider authorization planned call count drift")
     if authorization.get("max_calls") != MAX_CALLS:
         raise ValueError("provider authorization call cap drift")
+    provider_calls_made = authorization.get("provider_calls_made")
+    if (
+        isinstance(provider_calls_made, bool)
+        or not isinstance(provider_calls_made, int)
+        or provider_calls_made != 0
+    ):
+        raise ValueError("provider authorization provider_calls_made must be exactly 0")
     rows: list[dict[str, Any]] = []
     for projection_row in projection:
         audit_index = projection_row["audit_index"]
@@ -803,6 +810,107 @@ def _write_request(
     return prompt
 
 
+def _canary_pair_index(task_index: int) -> int | None:
+    canary_tasks = 2 * COMPATIBILITY_CANARY_PAIRS
+    if task_index >= canary_tasks:
+        return None
+    return task_index // len(EXPECTED_FPS) + 1
+
+
+def _ordered_terminal_records(
+    root: Path, rows: Sequence[Mapping[str, Any]]
+) -> list[dict[str, Any]]:
+    """Read ordered request/terminal artifacts and derive their statuses."""
+
+    records: list[dict[str, Any]] = []
+    for task_index, (item, fps) in enumerate(
+        ( (item, fps) for item in rows for fps in EXPECTED_FPS )
+    ):
+        provider = item["provider"]
+        media = item["media"]
+        audit_index = provider["audit_index"]
+        role = media["role"]
+        row_root = _arm_directory(root, audit_index, role, fps)
+        request_path = row_root / "request.json"
+        terminal_path = row_root / "terminal.json"
+        if not request_path.is_file() or not terminal_path.is_file():
+            raise ValueError(f"row request/terminal artifacts are missing: {row_root.name}")
+        request = _load_json(request_path)
+        terminal = _load_json(terminal_path)
+        if not isinstance(request, Mapping):
+            raise ValueError(f"row request is not an object: {row_root.name}")
+        if request.get("fps") != fps:
+            raise ValueError(f"row request FPS ordering mismatch: {row_root.name}")
+        if request.get("compatibility_canary_pairs") != COMPATIBILITY_CANARY_PAIRS:
+            raise ValueError(f"row request canary policy mismatch: {row_root.name}")
+        if request.get("canary_pair_index") != _canary_pair_index(task_index):
+            raise ValueError(f"row request canary ordering mismatch: {row_root.name}")
+        if request.get("response_schema") != PROVIDER_RESPONSE_SCHEMA:
+            raise ValueError(f"row request provider schema mismatch: {row_root.name}")
+        if not isinstance(terminal, Mapping):
+            raise ValueError(f"row terminal is not an object: {row_root.name}")
+        status = terminal.get("status")
+        if terminal.get("audit_index") != audit_index or terminal.get("fps") != fps:
+            raise ValueError(f"terminal row identity mismatch: {row_root.name}")
+        if terminal.get("role") != role:
+            raise ValueError(f"terminal row role mismatch: {row_root.name}")
+        if status not in TERMINAL_STATUSES:
+            raise ValueError(f"unknown terminal status: {row_root.name}")
+        records.append(
+            {
+                "audit_index": audit_index,
+                "role": role,
+                "fps": fps,
+                "status": status,
+                "row_root": row_root,
+            }
+        )
+    return records
+
+
+def _derived_canary_status(records: Sequence[Mapping[str, Any]]) -> str:
+    canary = list(records[: 2 * COMPATIBILITY_CANARY_PAIRS])
+    if len(canary) != 2 * COMPATIBILITY_CANARY_PAIRS:
+        raise ValueError("ordered artifacts do not contain the complete canary pair")
+    statuses = [item["status"] for item in canary]
+    if any(status == "incomplete" for status in statuses):
+        return "not_reached"
+    return "passed" if all(status == "passed" for status in statuses) else "failed"
+
+
+def _validate_execution_branch(
+    records: Sequence[Mapping[str, Any]],
+    *,
+    planned: int,
+    freeze_status: str,
+    stop_reason: Any,
+    call_count: Any,
+    canary_pair_status: Any,
+) -> None:
+    """Validate branch declarations against ordered terminal artifacts."""
+
+    completed = sum(item["status"] != "incomplete" for item in records)
+    derived_canary = _derived_canary_status(records)
+    if canary_pair_status != derived_canary:
+        raise ValueError("predictions freeze canary status is not derived from terminal artifacts")
+    if freeze_status == "frozen":
+        if completed != planned or call_count != planned or derived_canary != "passed":
+            raise ValueError("complete predictions freeze does not match ordered terminal artifacts")
+        return
+    if stop_reason == "canary_failure":
+        if (
+            completed != 2
+            or call_count != 2
+            or derived_canary != "failed"
+            or any(item["status"] == "incomplete" for item in records[:2])
+            or any(item["status"] != "incomplete" for item in records[2:])
+        ):
+            raise ValueError("canary failure freeze does not match exactly two canary terminals")
+        return
+    if call_count != completed:
+        raise ValueError("incomplete predictions freeze call count does not match terminals")
+
+
 def _write_incomplete_freeze(
     root: Path,
     rows: Sequence[Mapping[str, Any]],
@@ -811,11 +919,25 @@ def _write_incomplete_freeze(
     *,
     stop_reason: str = "interrupted",
     interrupted: bool = True,
-    canary_pair_status: str = "not_reached",
 ) -> None:
     """Persist every pending arm after a terminal stop, without retrying."""
 
     planned = len(rows) * len(EXPECTED_FPS)
+    ordered_records = _ordered_terminal_records(root, rows)
+    derived_call_count = sum(item["status"] != "incomplete" for item in ordered_records)
+    if call_count != derived_call_count:
+        raise ValueError("provider call count does not match ordered terminal artifacts")
+    derived_canary_status = _derived_canary_status(ordered_records)
+    _validate_execution_branch(
+        ordered_records,
+        planned=planned,
+        freeze_status="incomplete",
+        stop_reason=stop_reason,
+        call_count=derived_call_count,
+        canary_pair_status=(
+            derived_canary_status if stop_reason != "canary_failure" else "failed"
+        ),
+    )
     frozen_rows: list[dict[str, Any]] = []
     completed = 0
     passed = 0
@@ -865,7 +987,7 @@ def _write_incomplete_freeze(
         "model": MODEL,
         "expected_fps": list(EXPECTED_FPS),
         "compatibility_canary_pairs": COMPATIBILITY_CANARY_PAIRS,
-        "canary_pair_status": canary_pair_status,
+        "canary_pair_status": derived_canary_status,
         "decision_gate": EXPECTED_DECISION_GATE,
         "frozen_at": datetime.now(UTC).isoformat(),
         "row_count": planned,
@@ -885,13 +1007,6 @@ def _write_incomplete_freeze(
     }
     _write_once(root / "predictions-freeze.json", freeze)
     _verify_freeze_contents(root, freeze)
-
-
-def _canary_pair_index(task_index: int) -> int | None:
-    canary_tasks = 2 * COMPATIBILITY_CANARY_PAIRS
-    if task_index >= canary_tasks:
-        return None
-    return task_index // len(EXPECTED_FPS) + 1
 
 
 def _write_pending_incomplete(
@@ -967,7 +1082,6 @@ def run(root: Path, call: CallFunction | None = None) -> None:
             stop_error,
             stop_reason="canary_failure",
             interrupted=False,
-            canary_pair_status="failed",
         )
         return True
 
@@ -1069,6 +1183,7 @@ def _freeze_inputs(root: Path) -> dict[str, Any]:
 
 def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
     rows, _provider_by_index, _media_by_index = _validate_inputs(root)
+    ordered_records = _ordered_terminal_records(root, rows)
     expected_inputs = _freeze_inputs(root)
     for key, value in expected_inputs.items():
         if freeze.get(key) != value:
@@ -1097,6 +1212,17 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
     frozen_rows = freeze.get("rows")
     if not isinstance(frozen_rows, list) or len(frozen_rows) != planned:
         raise ValueError("predictions freeze rows are inconsistent")
+    expected_order = [
+        (item["audit_index"], item["fps"], item["status"])
+        for item in ordered_records
+    ]
+    actual_order = [
+        (item.get("audit_index"), item.get("fps"), item.get("status"))
+        for item in frozen_rows
+        if isinstance(item, Mapping)
+    ]
+    if actual_order != expected_order:
+        raise ValueError("predictions freeze row order does not match ordered artifacts")
     expected_keys: set[tuple[int, float]] = set()
     passed = 0
     completed = 0
@@ -1152,6 +1278,14 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
         raise ValueError("predictions freeze status counts are inconsistent")
     if freeze.get("completed_count") != completed:
         raise ValueError("predictions freeze completed count is inconsistent")
+    _validate_execution_branch(
+        ordered_records,
+        planned=planned,
+        freeze_status=status_value,
+        stop_reason=freeze.get("stop_reason"),
+        call_count=freeze.get("call_count"),
+        canary_pair_status=freeze.get("canary_pair_status"),
+    )
     if status_value == "frozen":
         if completed != planned or freeze.get("call_count") != planned:
             raise ValueError("complete predictions freeze has incomplete call count")
@@ -1177,6 +1311,7 @@ def verify_predictions_freeze(root: Path) -> None:
 
     root = Path(root)
     rows, _provider_by_index, _media_by_index = _validate_inputs(root)
+    ordered_records = _ordered_terminal_records(root, rows)
     planned = len(rows) * len(EXPECTED_FPS)
     frozen_rows: list[dict[str, Any]] = []
     passed = 0
@@ -1251,7 +1386,7 @@ def verify_predictions_freeze(root: Path) -> None:
         "provider_response_schema_sha256": _provider_schema_sha256(),
         "validator_sha256": _validator_sha256(),
         "compatibility_canary_pairs": COMPATIBILITY_CANARY_PAIRS,
-        "canary_pair_status": "passed",
+        "canary_pair_status": _derived_canary_status(ordered_records),
         "rows": frozen_rows,
     }
     _write_once(prediction_path, freeze)

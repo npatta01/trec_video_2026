@@ -155,6 +155,7 @@ def _write_authorized_fixture(
             "media_manifest_sha256": _sha(root / "media-manifest.json"),
             "planned_call_count": rows * 2,
             "max_calls": runner.MAX_CALLS,
+            "provider_calls_made": 0,
             "target_count": target_count,
             "control_count": rows - target_count,
         },
@@ -375,6 +376,25 @@ def test_run_rejects_decision_gate_drift_before_calls(tmp_path: Path) -> None:
     assert calls == []
 
 
+@pytest.mark.parametrize("provider_calls_made", [None, 1])
+def test_run_rejects_missing_or_nonzero_authorization_call_count(
+    tmp_path: Path, provider_calls_made: int | None
+) -> None:
+    root = _write_authorized_fixture(tmp_path)
+    authorization_path = root / "provider-authorization.json"
+    authorization = json.loads(authorization_path.read_text())
+    if provider_calls_made is None:
+        authorization.pop("provider_calls_made")
+    else:
+        authorization["provider_calls_made"] = provider_calls_made
+    _write_json(authorization_path, authorization)
+    calls: list[tuple[Any, ...]] = []
+
+    with pytest.raises(ValueError, match="provider_calls_made"):
+        runner.run(root, call=lambda *args: calls.append(args) or _valid_call())
+    assert calls == []
+
+
 def test_failed_first_compatibility_canary_stops_before_remaining_arms(tmp_path: Path) -> None:
     root = _write_authorized_fixture(tmp_path, rows=12, target_count=8)
     responses = iter([json.dumps({"wrong": True}), json.dumps(_valid_probe())])
@@ -393,6 +413,25 @@ def test_failed_first_compatibility_canary_stops_before_remaining_arms(tmp_path:
     assert freeze["completed_count"] == 2
     assert freeze["compatibility_canary_pairs"] == 1
     runner.verify_predictions_freeze(root)
+
+
+@pytest.mark.parametrize("tamper", ["call_count", "row_order"])
+def test_failed_canary_freeze_derives_branch_from_ordered_artifacts(
+    tmp_path: Path, tamper: str
+) -> None:
+    root = _write_authorized_fixture(tmp_path, rows=12, target_count=8)
+    responses = iter([json.dumps({"wrong": True}), json.dumps(_valid_probe())])
+    runner.run(root, call=lambda *_args: (next(responses), {"provider": "fake"}))
+    freeze_path = root / "predictions-freeze.json"
+    freeze = json.loads(freeze_path.read_text())
+    if tamper == "call_count":
+        freeze["call_count"] = 3
+    else:
+        freeze["rows"] = list(reversed(freeze["rows"]))
+    _write_json(freeze_path, freeze)
+
+    with pytest.raises(ValueError, match="canary|order|call count"):
+        runner.verify_predictions_freeze(root)
 
 
 def test_passed_compatibility_canary_allows_complete_panel_freeze(tmp_path: Path) -> None:
