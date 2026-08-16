@@ -1,8 +1,9 @@
 # Qwen aligner quality diagnostics — sanitized evidence index
 
-This index preserves the original Stage 0.5d quality summary and adds the
-Stage 0.5e empty-output mechanism diagnostic. It contains no row IDs,
-transcripts, questions, answers, or private media.
+This index preserves the original Stage 0.5d quality summary, the Stage 0.5e
+empty-output mechanism diagnostic, and the completed Stage 0.5f fresh
+aligned-English quality test. It contains no row IDs, transcripts, questions,
+answers, row-level scores, or private media.
 
 ## Preserved Stage 0.5d quality summary
 
@@ -36,8 +37,31 @@ failures while each automatic-language explanatory arm remained at 2 successes
 and 2 failures and neither restored all four rows. See
 [`diagnostic-summary.json`](diagnostic-summary.json) for the sanitized,
 hash-bound aggregate record. A fresh label-blind aligned-English quality panel
-using no reused Qwen rows is authorized as the next Qwen action; it has not
-run here.
+using no reused Qwen rows was authorized as the next Qwen action and is now
+recorded below.
+
+## Added Stage 0.5f fresh aligned-English quality test
+
+- Private root:
+  `data/vqa/benchmarks/model-verifier-canaries-20260814/stage05f-qwen-aligned-english-quality-v1/`
+- Experiment ID: `qwen-aligner-stage05f-20260816-aligned-english-12-v1`
+- Evidence validity: **Valid but negative**
+- Decision disposition: **Not promoted under the tested condition**
+- Operational gate: `12/12` completed and `12/12` valid aligned rows
+- Quality result: Qwen `0/12`, frozen Whisper `0/12`, with all `12` rows in
+  the paired neither-present cell
+- Decision: `no_directional_difference`
+- Paid cost: `$0.00`
+
+The sole attempt completed with exit code `0`. The `12/12` prediction freeze
+was verified before annotations or frozen Whisper text were opened. The
+forced-English condition completed this fresh panel without an empty-output
+failure, but the predeclared exact official-answer-phrase containment metric
+was non-discriminating: neither system produced one complete official answer
+phrase. This result does not promote Qwen, measure WER or timestamp accuracy,
+or establish transcript fidelity or downstream VQA value. See
+[`aligned-english-summary.json`](aligned-english-summary.json) for the
+sanitized, hash-bound aggregate record.
 
 ## Post-run protocol correction
 

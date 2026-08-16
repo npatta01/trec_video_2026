@@ -36,7 +36,7 @@
 - Produces `select_fresh_english_quality_panel(manifest, exposure_index, audio_root, selected_at, source_hashes, panel_size=12) -> dict[str, Any]`.
 - Adds CLI commands `fresh-exposure-index` and `fresh-quality-select`.
 
-- [ ] **Step 1: Write failing exposure-index and selection tests**
+- [x] **Step 1: Write failing exposure-index and selection tests**
 
   Add synthetic canonical-data fixtures proving exact marker detection,
   conservative identity union, oracle exclusion, source hash/path binding,
@@ -65,14 +65,14 @@
   }
   ```
 
-- [ ] **Step 2: Run the new tests and confirm RED**
+- [x] **Step 2: Run the new tests and confirm RED**
 
   Run:
   `uv run pytest -q tests/test_vqa_qwen_fresh_quality_panel.py -k 'exposure or select'`
 
   Expected: import/attribute failures because both functions and selection kind are absent.
 
-- [ ] **Step 3: Implement the minimal index and selector**
+- [x] **Step 3: Implement the minimal index and selector**
 
   Add these exact public constants and function interfaces:
 
@@ -98,7 +98,7 @@
   The selector reads only manifest questions, index metadata, WAV bytes, and
   WAV duration; it emits no question or comparator field.
 
-- [ ] **Step 4: Add exclusive CLI output paths and pass focused tests**
+- [x] **Step 4: Add exclusive CLI output paths and pass focused tests**
 
   `fresh-exposure-index` accepts repeated `--source`, one
   `--oracle-manifest`, `--output`, and `--built-at`. `fresh-quality-select`
@@ -121,7 +121,7 @@
 - `build_podman_command()` emits the dedicated module with `--language English --timestamps on` only for the new kind.
 - `_verify_runner_binding()` validates dedicated-runner, helper, and controller hashes for the new kind while retaining the old default behavior.
 
-- [ ] **Step 1: Write failing preparation/command/mutation tests**
+- [x] **Step 1: Write failing preparation/command/mutation tests**
 
   Assert the private request schema remains exactly run/condition/video/audio/
   mode, the protocol condition is
@@ -138,19 +138,19 @@
   record construction. Retain a regression asserting the old command still
   invokes `trec_video_2026.vqa_audio_runner` with no language flag.
 
-- [ ] **Step 2: Run the command tests and confirm RED**
+- [x] **Step 2: Run the command tests and confirm RED**
 
   Run:
   `uv run pytest -q tests/test_vqa_qwen_fresh_quality_panel.py -k 'prepare or command or mutation'`
 
-- [ ] **Step 3: Implement conditional protocol and command binding**
+- [x] **Step 3: Implement conditional protocol and command binding**
 
   Use the frozen selection kind to choose runner/condition/decode controls.
   Record absolute runner/helper/controller paths and SHA-256 values in the new
   protocol. Reject any unexpected module, duplicate decode flag, network mode,
   image, revision, mount, or credential-bearing argument before subprocess.
 
-- [ ] **Step 4: Run old and new focused suites**
+- [x] **Step 4: Run old and new focused suites**
 
   Run:
 
@@ -179,18 +179,18 @@
   `whisper_only_present_count`, `neither_present_count`, and
   `directional_decision`.
 
-- [ ] **Step 1: Write a failing paired-count test**
+- [x] **Step 1: Write a failing paired-count test**
 
   Build a ready synthetic 12-row freeze with both-hit, Qwen-only,
   Whisper-only, and neither-hit examples. Assert the four cells sum to 12 and
   the decision is derived only from the two aggregate containment totals.
 
-- [ ] **Step 2: Run the score test and confirm RED**
+- [x] **Step 2: Run the score test and confirm RED**
 
   Run:
   `uv run pytest -q tests/test_vqa_qwen_fresh_quality_panel.py -k score`
 
-- [ ] **Step 3: Implement additive paired counts and decision**
+- [x] **Step 3: Implement additive paired counts and decision**
 
   ```python
   qwen_total = sum(row["official_phrase_present"] for row in rows)
@@ -205,7 +205,7 @@
   Missing/null Whisper text remains a miss. `require_quality_scoring_ready()`
   must execute before either private scoring source is loaded.
 
-- [ ] **Step 4: Pass the complete focused suite and commit code**
+- [x] **Step 4: Pass the complete focused suite and commit code**
 
   Run the Task 2 focused commands, `git diff --check`, then commit only source,
   tests, this plan, and the design with:
@@ -222,13 +222,13 @@
 - Selection: private `selection.json`.
 - Run root: immutable input, command, terminal, validation, and prediction freezes.
 
-- [ ] **Step 1: Preflight canonical paths and immutable runtime**
+- [x] **Step 1: Preflight canonical paths and immutable runtime**
 
   Verify the physical canonical data root, fresh selection/run roots, exact
   local image digest, both model snapshots, unchanged runner/helper hashes,
   ROCm device access, BF16 smoke, free disk, and `$0.00` external spend.
 
-- [ ] **Step 2: Build the complete exposure census and exact 12-row selection**
+- [x] **Step 2: Build the complete exposure census and exact 12-row selection**
 
   Enumerate every private JSON/JSONL marker match under `data/vqa`; classify
   the two exact, fully inventoried pre-review roots as
@@ -239,7 +239,7 @@
   census/classification/exclusion counts, panel count, stratum counts,
   duplicate count, missing-audio count, and hashes.
 
-- [ ] **Step 3: Prepare and audit the frozen command**
+- [x] **Step 3: Prepare and audit the frozen command**
 
   Run `prepare` with experiment ID
   `qwen-aligner-stage05f-20260816-aligned-english-12-v1` and the unchanged
@@ -247,7 +247,7 @@
   credentials, read-only canonical mounts, network disabled, and one input
   batch. Do not execute the printed command.
 
-- [ ] **Step 4: Record exactly one attempt and freeze predictions**
+- [x] **Step 4: Record exactly one attempt and freeze predictions**
 
   Re-run the complete marker-census delta guard; any unclassified match,
   changed preparation inventory, attempt artifact, or replay mismatch stops
@@ -268,27 +268,27 @@
 - Consumes only aggregate terminal/validation/freeze data before readiness.
 - Produces a private score only for `12/12` ready and a sanitized aggregate record.
 
-- [ ] **Step 1: Apply the all-row gate**
+- [x] **Step 1: Apply the all-row gate**
 
   If status is not `predictions_frozen/ready_for_quality_test`, record the
   completion denominator and stop without running `score`. If ready, invoke
   `score` with the private annotation directory and frozen full-panel
   `whisper.json`.
 
-- [ ] **Step 2: Create a sanitized aggregate evidence record**
+- [x] **Step 2: Create a sanitized aggregate evidence record**
 
   Include only row count, stratum counts, completion/alignment counts, Qwen and
   Whisper containment totals, four paired cells, decision, timing/memory,
   runtime/model bindings, cost, and immutable hashes. Exclude row identities,
   questions, answers, transcripts, raw logs, and media paths.
 
-- [ ] **Step 3: Update QMD sources and regenerate outputs**
+- [x] **Step 3: Update QMD sources and regenerate outputs**
 
   Separate observation from interpretation, state the evidence validity and
   limits, preserve earlier Stage 0.5d/0.5e claims, update the next action, and
   render GFM/HTML only through Quarto.
 
-- [ ] **Step 4: Verify, review, and commit the record**
+- [x] **Step 4: Verify, review, and commit the record**
 
   Run the focused suite, Ruff, JSON parsing, tracked `SHA256SUMS`, link checks,
   privacy/credential scans, both old frozen statuses plus Stage 0.5f status,

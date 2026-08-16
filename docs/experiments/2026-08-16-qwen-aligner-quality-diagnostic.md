@@ -10,6 +10,9 @@ Historical Stage 0.5d disposition: **Not ready for comparison**
 Stage 0.5e mechanism disposition: **Ready for a fresh aligned-English
 quality panel**
 
+Stage 0.5f quality disposition: **Not promoted under the tested
+condition**
+
 ## Plain-English result
 
 The original Stage 0.5d run was one fresh eight-video English speech
@@ -20,6 +23,15 @@ eight rows, that test remains recorded as `not_ready`.
 
 This does **not** show that Qwen is better or worse than Whisper. The
 paired quality score was intentionally not created when two rows failed.
+
+The completed Stage 0.5f follow-up forced English on 12 new
+question-selected speech rows. It passed the operational gate with
+`12/12` completed and `12/12` valid aligned outputs, so the frozen
+quality inputs were opened. The predeclared exact official-answer-phrase
+metric was `0/12` for Qwen and `0/12` for Whisper, with all 12 rows in
+the paired neither-present cell. The forced-English condition completed
+without the observed empty-output problem on this panel, but it produced
+no directional quality signal and does not advance Qwen.
 
 ## Frozen condition
 
@@ -150,13 +162,15 @@ transcript-quality result, Whisper comparison, or downstream VQA result.
 The four rows remain unscored, and the original Stage 0.5d summary
 remains preserved in the evidence bundle.
 
-### Authorized next action
+### Authorized next action, now completed
 
 Run a new label-blind aligned-English Qwen quality panel using no reused
 Qwen rows. Hold the comparator, media, model revisions, prompts,
 decoding, and all-row readiness gate fixed; load labels only after every
-prediction freezes. This is the authorized next action, not a run
-completed by this record.
+prediction freezes. At the Stage 0.5e freeze, this was the authorized
+next action rather than a completed run. It was subsequently completed
+as Stage 0.5f and is recorded below; the historical Stage 0.5e mechanism
+decision remains unchanged.
 
 ### Evidence and immutable bindings
 
@@ -171,6 +185,113 @@ completed by this record.
 - Diagnostic-freeze payload SHA-256:
   `d157e6dc2187ea14d7ead4f42f8ee2d8c14dddc8707acd314d1e7c4a02fe57ec`
 
+## Stage 0.5f fresh aligned-English quality test
+
+Date: 2026-08-16
+
+### Question, hypothesis, and predeclared rule
+
+The completed follow-up asked whether the pinned Qwen3-ASR plus
+forced-aligner path would finish a fresh question-indicated speech panel
+when every request fixed `language="English"`, and whether its
+transcript contained the task’s complete official answer phrase more
+often than the already frozen Whisper comparator. Any operational
+failure would have frozen `not_ready` without opening score inputs.
+After a `12/12` ready freeze, only a strictly higher Qwen containment
+count would have authorized a larger confirmatory or downstream test; a
+tie or lower count would stop this Qwen quality route.
+
+### Frozen method and integrity boundary
+
+- The selector used only the ordered 475-row question/identity manifest,
+  WAV metadata, and a complete private Qwen3-ASR exposure census. It
+  selected the first eligible fresh rows in fixed `6` reported-speech,
+  `3` conversation, and `3` vocalization strata, restored to manifest
+  order. It did not open annotations, answers, Whisper content or
+  status, prior Qwen output content, maps, grades, or scores.
+- The exposure census classified all `57` exact marker-bearing private
+  JSON/JSONL files: `52` genuine exposure sources and five
+  marker-bearing files within two fully inventoried preparation-only
+  roots that had never begun an inference attempt. The ledger bound all
+  six files in those roots, zero attempt artifacts, the preserved
+  selection fingerprint, and `16` excluded prior/oracle identities. The
+  fresh selector replayed the same 12-row private fingerprint before
+  execution.
+- The one attempt bound the Qwen3-ASR and forced-aligner revisions
+  above, the digest-pinned offline ROCm image, BF16/SDPA, forced
+  English, timestamps on, read-only mounts, `--network none`, source
+  audio hashes/durations, committed controller revision
+  `d9e43c94c2e441f5bc85508ed1b41d738e33289f`, and `$0.00` paid compute.
+- Predictions, terminal evidence, validation, and their freeze were
+  written before the scorer opened the canonical annotations and
+  checksum-bound frozen Whisper artifact. Row identities, transcripts,
+  answers, and row-level scores remain private.
+
+### Observed result
+
+| Measure                                  |                      Result |
+|------------------------------------------|----------------------------:|
+| Required rows                            |                          12 |
+| Completed rows                           |                          12 |
+| Valid aligned rows                       |                          12 |
+| Failures                                 |                           0 |
+| Container exit code                      |                           0 |
+| Container wall time                      |             110.416 seconds |
+| Summed row inference time                |             102.241 seconds |
+| Maximum allocated memory                 |         6,162,299,392 bytes |
+| Qwen complete official phrase present    |                        0/12 |
+| Whisper complete official phrase present |                        0/12 |
+| Both present                             |                           0 |
+| Qwen only present                        |                           0 |
+| Whisper only present                     |                           0 |
+| Neither present                          |                          12 |
+| Operational decision                     |    `ready_for_quality_test` |
+| Quality decision                         | `no_directional_difference` |
+
+### Interpretation, validity, and decision
+
+- **Evidence validity:** **Valid but negative.** The sole attempt and
+  all-row gate completed, and scoring occurred only after the verified
+  prediction freeze.
+- **Decision disposition:** **Not promoted under the tested condition.**
+  The forced-English condition completed this fresh panel without an
+  empty-output failure, but Qwen did not exceed Whisper on the
+  predeclared containment metric.
+- **What this rules out now:** the need for another same-condition
+  completion diagnostic, and a claim that this exact test supplies a
+  Qwen quality advantage.
+- **What it does not establish:** WER, transcript fidelity, timestamp
+  accuracy, general English robustness, Whisper replacement value,
+  downstream VQA improvement, or model ranking. A `0`/`0` containment
+  tie is non-discriminating and does not imply that both transcripts
+  were equally accurate or equally inaccurate.
+- **Uncertainty:** official VQA answers are not transcript references.
+  Exact answer-phrase containment can be useful for a decision-bound
+  retrieval signal, but all-neither output supplies no
+  transcript-fidelity measurement.
+- **Reconsider when:** a separately designed experiment has
+  independently grounded transcript references or a frozen downstream
+  VQA decision rule. Do not scale or rerun this same containment
+  comparison.
+- **Supersession:** this result completes the action authorized by Stage
+  0.5e; it does not supersede the valid Stage 0.5d incomplete-output
+  observation or the Stage 0.5e mechanism result.
+
+### Evidence and immutable bindings
+
+- Private run root:
+  `data/vqa/benchmarks/model-verifier-canaries-20260814/stage05f-qwen-aligned-english-quality-v1/`
+- Sanitized aggregate:
+  [`aligned-english-summary.json`](artifacts/qwen-aligner-quality-20260816/aligned-english-summary.json)
+- Exposure-index SHA-256:
+  `5f76a1abb06d5055355abd4350d1dc68b13cf687770dc613400ecead81fb0bf3`
+- Input-freeze SHA-256:
+  `797812494b4f139fd4f57a3ed271de163e92b934745f1977bfd6d59489623475`
+- Prediction-freeze SHA-256:
+  `0851bb9e0e26e22f69e80548b6f0857e033183c8a149fafc9cad062fea3a8c1e`
+- Post-freeze-score SHA-256:
+  `5dfad614628ce57e236793067dfa3a9f2e529bfcd1998304ba29901cffab1a94`
+
 ## Separate proposed Gemini 3.7 Flash native-AV smoke
 
 No Gemini call was issued by this diagnostic. Google documents stable
@@ -184,7 +305,8 @@ changelog](https://ai.google.dev/gemini-api/docs/changelog) records GA
 release on 2026-08-13. The [official pricing
 page](https://ai.google.dev/gemini-api/docs/pricing) lists introductory
 standard paid pricing through 2026-12-31 of `$0.75/M` input and
-`$3.75/M` output, then `$1.50/M` and `$7.50/M`.
+`$3.75/M` output and Batch/Flex pricing of `$0.375/M` input and
+`$1.875/M` output.
 
 This is a separate proposed compatibility smoke, not an arm of the Qwen
 mechanism test and not a superiority claim. If authorized, compare it
@@ -193,8 +315,14 @@ media bytes and media resolution, API route and request surface,
 timestamp and FPS settings, structured-output schema, post-freeze
 evaluation, and declared panel. The [video-understanding
 guide](https://ai.google.dev/gemini-api/docs/video-understanding)
-documents timestamp prompts and default FPS behavior; the [audio
-guide](https://ai.google.dev/gemini-api/docs/audio) documents audio
-input and structured-output use. Any change in media delivery,
-timestamps/FPS, schema, or evaluation would make the smoke a
-compatibility test rather than a fair model comparison.
+documents timestamp prompts and default FPS behavior. Google’s
+[latest-model migration
+guidance](https://ai.google.dev/gemini-api/docs/latest-model) says
+sampling controls including `temperature`, `top_p`, and `top_k` are
+deprecated for Gemini 3.6 and later, so the existing 3.1 Pro request
+cannot be copied unchanged. The smallest valid next action is therefore
+a separate two-video same-media Batch compatibility smoke, direct-answer
+first, with the 3.7 arm omitting deprecated sampling controls. The
+current repository harness is hard-pinned to Gemini 3.1 Pro and exactly
+475 rows, so that smoke requires a new model/panel surface before any
+paid call. No Gemini call was issued here.
