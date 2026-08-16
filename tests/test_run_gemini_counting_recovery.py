@@ -547,6 +547,10 @@ def test_run_row_executes_distinct_three_passes_and_freezes_exact_result(
 
     assert len(client.calls) == 3
     assert len(client.count_calls) == 3
+    assert all(
+        call["config"].thinking_config.thinking_level.value == "LOW"
+        for call in client.calls
+    )
     parts = [call["contents"][0] for call in client.calls]
     assert [part.video_metadata.fps for part in parts] == [4.0, 12.0, 12.0]
     assert parts[1].video_metadata.start_offset == "0.500s"

@@ -143,7 +143,16 @@ CHALLENGE_RESPONSE_SCHEMA = {
                 "required": ["instance_id", "disposition", "reason"],
                 "properties": {
                     "instance_id": {"type": "string"},
-                    "disposition": {"type": "string"},
+                    "disposition": {
+                        "type": "string",
+                        "enum": [
+                            "accept",
+                            "ambiguous",
+                            "duplicate",
+                            "predicate_mismatch",
+                            "split",
+                        ],
+                    },
                     "reason": {"type": "string"},
                 },
             },
@@ -1114,7 +1123,7 @@ def _request_config(
         response_mime_type="application/json",
         response_json_schema=dict(response_schema),
         thinking_config=types.ThinkingConfig(
-            thinking_level=types.ThinkingLevel.HIGH,
+            thinking_level=types.ThinkingLevel.LOW,
             include_thoughts=False,
         ),
     )

@@ -28,6 +28,7 @@ COUNT_UNIT_ALIASES = {
 CHALLENGE_DISPOSITIONS = frozenset(
     {"accept", "duplicate", "split", "predicate_mismatch", "ambiguous"}
 )
+CHALLENGE_DISPOSITION_ALIASES = {"accepted": "accept"}
 
 
 @dataclass(frozen=True)
@@ -392,6 +393,9 @@ def parse_challenge(
             raise ValueError(f"duplicate challenge instance_id: {instance_id}")
         seen.add(instance_id)
         disposition = _string(item["disposition"], field="disposition")
+        disposition = CHALLENGE_DISPOSITION_ALIASES.get(
+            disposition.lower(), disposition
+        )
         if disposition not in CHALLENGE_DISPOSITIONS:
             raise ValueError(f"unknown challenge disposition: {disposition}")
         dispositions.append(
@@ -575,6 +579,7 @@ def build_challenger_prompt(
         "Inspect the complete high-frame-rate native video and seek counterexamples to "
         "the proposed atomic ledger: missed instances, duplicates, splits, predicate "
         "mismatches, clip-edge events, and unresolved intervals. Do not merely agree.\n"
+        "Allowed dispositions: accept, ambiguous, duplicate, predicate_mismatch, split.\n"
         f"Source duration: {duration:.3f} seconds\nQuestion: {question}\n"
         f"Locator: {locator!r}\nAtomic ledger: {ledger!r}"
     )

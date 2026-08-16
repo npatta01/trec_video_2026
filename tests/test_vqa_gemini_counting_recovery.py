@@ -147,6 +147,18 @@ def test_reducer_counts_only_accepted_unambiguous_instances() -> None:
     assert result.reason_codes == ()
 
 
+def test_challenge_normalizes_accepted_disposition() -> None:
+    ledger = parse_atomic_ledger(
+        ledger_payload(), duration_seconds=7.268, envelope=TimeRange(0.0, 7.268)
+    )
+    payload = challenge_payload()
+    payload["instance_dispositions"][0]["disposition"] = "accepted"
+
+    challenge = parse_challenge(payload, ledger=ledger, duration_seconds=7.268)
+
+    assert challenge.dispositions[0].disposition == "accept"
+
+
 def test_reducer_abstains_when_challenge_requests_more_video() -> None:
     ledger = parse_atomic_ledger(
         ledger_payload(), duration_seconds=7.268, envelope=TimeRange(0.0, 7.268)
@@ -286,6 +298,10 @@ def test_prompts_assign_distinct_jobs_without_answer_or_labels() -> None:
     assert "generic_occurrence" in locator_prompt
     assert "absolute source timestamps" in verifier_prompt
     assert "seek counterexamples" in challenger_prompt
+    assert (
+        "Allowed dispositions: accept, ambiguous, duplicate, predicate_mismatch, split"
+        in challenger_prompt
+    )
     combined = locator_prompt + verifier_prompt + challenger_prompt
     assert "reference_answer" not in combined
     assert "panel_role" not in combined
