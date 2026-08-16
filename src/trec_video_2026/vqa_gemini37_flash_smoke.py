@@ -853,6 +853,11 @@ _BATCH_RATES_USD_PER_MILLION: dict[str, dict[str, float]] = {
 }
 
 
+def _arm_observed_cost_usd(arm: str, prompt_tokens: int, output_tokens: int) -> float:
+    rates = _BATCH_RATES_USD_PER_MILLION[arm]
+    return prompt_tokens / 1_000_000 * rates["prompt"] + output_tokens / 1_000_000 * rates["output"]
+
+
 def _attr(value: Any, *names: str, default: Any = None) -> Any:
     if isinstance(value, Mapping):
         for name in names:
@@ -2115,8 +2120,7 @@ def freeze_predictions(root: Path, *, frozen_at: str) -> dict[str, Any]:
             failure_reasons.append(f"{arm}:prompt_tokens_out_of_band")
         if failures:
             hard_failure = True
-        rates = _BATCH_RATES_USD_PER_MILLION[arm]
-        arm_cost = prompt_tokens / 1_000_000 * rates["prompt"] + output_tokens / 1_000_000 * rates["output"]
+        arm_cost = _arm_observed_cost_usd(arm, prompt_tokens, output_tokens)
         observed_cost += arm_cost
         arm_results[arm] = {
             "status": "succeeded" if response_valid and fps_ok else "not_ready",
@@ -2391,8 +2395,7 @@ def _derived_arm_freeze_summary(
     )
     if failures or not usage_complete or len(normalized) != 2 or not fps_verified:
         raise ValueError(f"prediction freeze responses are incomplete for {arm}")
-    rates = _BATCH_RATES_USD_PER_MILLION[arm]
-    arm_cost = prompt_tokens / 1_000_000 * rates["prompt"] + output_tokens / 1_000_000 * rates["output"]
+    arm_cost = _arm_observed_cost_usd(arm, prompt_tokens, output_tokens)
     return {
         "status": "succeeded",
         "status_snapshot_sha256": _sha256_file(status_path),
@@ -2455,11 +2458,146 @@ def _verify_prediction_freeze_for_score(root: Path) -> tuple[dict[str, Any], dic
         )
         if dict(result) != expected:
             raise ValueError(f"prediction freeze arm summary mismatch for {arm}")
-        expected_cost += expected["observed_cost_usd"]
+        expected_cost += _arm_observed_cost_usd(
+            arm, expected["prompt_tokens"], expected["output_tokens"]
+        )
     if freeze.get("observed_cost_usd") != round(expected_cost, 8):
         raise ValueError("prediction freeze observed cost mismatch")
     if freeze.get("decision") != "quality_ready":
         raise ValueError("prediction freeze decision mismatch")
+    return freeze, protocol, protocol_hash
+
+
+def _verify_prediction_freeze_terminal(
+    root: Path,
+) -> tuple[dict[str, Any], dict[str, Any], str]:
+    """Re-derive any terminal prediction decision, including non-quality outcomes."""
+
+    freeze_path = Path(root) / _PREDICTIONS_FILENAME
+    if not _is_regular_file(freeze_path):
+        raise ValueError("prediction freeze is missing")
+    freeze = _verify_artifact(freeze_path)
+    if freeze.get("status") != "predictions_frozen":
+        raise ValueError("prediction freeze is incomplete")
+    decision = freeze.get("decision")
+    if decision not in {"quality_ready", "custom_fps_not_verified", "not_ready"}:
+        raise ValueError("prediction freeze decision is invalid")
+    root, protocol, protocol_hash = _protocol_context(Path(root))
+    if freeze.get("protocol_sha256") != protocol_hash:
+        raise ValueError("prediction freeze protocol hash mismatch")
+    if freeze.get("inputs_freeze_sha256") != _sha256_file(root / "inputs-freeze.json"):
+        raise ValueError("prediction freeze inputs hash mismatch")
+    if freeze.get("models_sha256") != _sha256_file(root / _MODELS_FILENAME):
+        raise ValueError("prediction freeze models hash mismatch")
+    models = _models_artifact(root, protocol_hash)
+    uploads = _upload_records(root, protocol, protocol_hash)
+    if freeze.get("upload_record_sha256") != _hash_paths(
+        sorted((root / _UPLOADS_DIRNAME).glob("*.json"))
+    ):
+        raise ValueError("prediction freeze upload record hash mismatch")
+    expected_upload_attempts = {
+        record["row_id"]: record["attempt_sha256"] for record in uploads
+    }
+    if freeze.get("upload_attempt_sha256") != expected_upload_attempts:
+        raise ValueError("prediction freeze upload attempt binding mismatch")
+    rows = _protocol_rows(protocol)
+    arm_results: dict[str, Any] = {}
+    failure_reasons: list[str] = []
+    hard_failure = False
+    custom_fps_candidate = False
+    observed_cost = 0.0
+    for arm in ARMS:
+        try:
+            job_record, expected_requests = _validated_job_record(
+                root, protocol, protocol_hash, uploads, arm
+            )
+        except ValueError as error:
+            failure_reasons.append(f"{arm}:job_binding:{type(error).__name__}")
+            arm_results[arm] = {"status": "not_ready", "response_count": 0}
+            hard_failure = True
+            continue
+        try:
+            status, status_path = _latest_status(root, arm, protocol_hash)
+        except ValueError as error:
+            failure_reasons.append(f"{arm}:{type(error).__name__}")
+            arm_results[arm] = {"status": "not_ready", "response_count": 0}
+            hard_failure = True
+            continue
+        state = status.get("status")
+        provider_snapshot = status.get("provider_snapshot")
+        responses_raw = _attr(provider_snapshot, "responses", default=[])
+        if not isinstance(responses_raw, list):
+            responses_raw = []
+        model_record = models["models"][arm]
+        normalized, failures, usage_complete = _validated_responses(
+            responses=responses_raw,
+            rows=rows,
+            expected_version=model_record["version"],
+            expected_model=ARMS[arm]["model"],
+            expected_arm=arm,
+            expected_requests=expected_requests,
+        )
+        if state != "succeeded":
+            failures.append(f"job_{state}")
+        if isinstance(provider_snapshot, Mapping) and provider_snapshot.get("model") not in {
+            None,
+            ARMS[arm]["model"],
+        }:
+            failures.append("provider_model")
+        if job_record.get("requests") != expected_requests:
+            failures.append("request_binding")
+        if failures:
+            failure_reasons.extend(f"{arm}:{reason}" for reason in failures)
+        prompt_tokens = sum(
+            item["usage"]["prompt_tokens"] for item in normalized if item["usage"] is not None
+        )
+        output_tokens = sum(
+            item["usage"]["total_tokens"] - item["usage"]["prompt_tokens"]
+            for item in normalized
+            if item["usage"] is not None
+        )
+        fps_ok = usage_complete and _FPS_PROMPT_TOKEN_MIN <= prompt_tokens <= _FPS_PROMPT_TOKEN_MAX
+        response_valid = not failures and state == "succeeded" and len(normalized) == 2
+        if response_valid and not usage_complete:
+            custom_fps_candidate = True
+            failure_reasons.append(f"{arm}:usage_missing")
+        if response_valid and usage_complete and not fps_ok:
+            custom_fps_candidate = True
+            failure_reasons.append(f"{arm}:prompt_tokens_out_of_band")
+        if failures:
+            hard_failure = True
+        arm_cost = _arm_observed_cost_usd(arm, prompt_tokens, output_tokens)
+        observed_cost += arm_cost
+        arm_results[arm] = {
+            "status": "succeeded" if response_valid and fps_ok else "not_ready",
+            "status_snapshot_sha256": _sha256_file(status_path),
+            "provider_snapshot_sha256": status.get("provider_snapshot_sha256"),
+            "request_hash": job_record.get("request_hash"),
+            "job_attempt_sha256": job_record["attempt_sha256"],
+            "model_snapshot_sha256": model_record["provider_snapshot_sha256"],
+            "model_version": model_record["version"],
+            "response_count": len(normalized),
+            "responses": normalized,
+            "prompt_tokens": prompt_tokens,
+            "output_tokens": output_tokens,
+            "observed_cost_usd": round(arm_cost, 8),
+            "custom_fps_verified": fps_ok,
+        }
+    expected_decision = (
+        "not_ready"
+        if hard_failure
+        else "custom_fps_not_verified"
+        if custom_fps_candidate
+        else "quality_ready"
+    )
+    if decision != expected_decision:
+        raise ValueError("prediction freeze decision precedence mismatch")
+    if freeze.get("arms") != arm_results:
+        raise ValueError("prediction freeze arm summary mismatch")
+    if freeze.get("failure_reasons") != failure_reasons:
+        raise ValueError("prediction freeze failure summary mismatch")
+    if freeze.get("observed_cost_usd") != round(observed_cost, 8):
+        raise ValueError("prediction freeze observed cost mismatch")
     return freeze, protocol, protocol_hash
 
 
@@ -2615,11 +2753,11 @@ def show_status(root: Path) -> dict[str, Any]:
     root = Path(root)
     prediction_path = root / _PREDICTIONS_FILENAME
     if prediction_path.exists() or prediction_path.is_symlink():
-        prediction, _, _ = _verify_prediction_freeze_for_score(root)
+        prediction, _, _ = _verify_prediction_freeze_terminal(root)
         arms = prediction.get("arms")
         return {
-            "status": "predictions_frozen",
-            "decision": "quality_ready",
+            "status": prediction.get("status"),
+            "decision": prediction.get("decision"),
             "arms": arms if isinstance(arms, Mapping) else {},
             "observed_cost_usd": prediction.get("observed_cost_usd"),
         }

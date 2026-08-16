@@ -1846,6 +1846,15 @@ def test_exact_normalization_preserves_token_boundaries() -> None:
     assert smoke._normalized_answer("ab c") != smoke._normalized_answer("a bc")
 
 
+def test_observed_cost_uses_raw_tokens_before_final_rounding() -> None:
+    raw = sum(
+        smoke._arm_observed_cost_usd(arm, 34_193, output)
+        for arm, output in (("control_31pro", 2), ("candidate_37flash", 12))
+    )
+    assert raw == pytest.approx(0.047049875)
+    assert round(raw, 8) == 0.04704987
+
+
 def test_show_status_rejects_self_rehashed_prediction_private_string(
     tmp_path: Path,
 ) -> None:
@@ -1859,3 +1868,39 @@ def test_show_status_rejects_self_rehashed_prediction_private_string(
     prediction.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     with pytest.raises(ValueError, match="quality-ready|decision"):
         show_status(root)
+
+
+def test_show_status_semantically_verifies_legitimate_not_ready_terminal_freeze(
+    tmp_path: Path,
+) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    client.batches.next_state = "JOB_STATE_FAILED"
+    for arm in ARMS:
+        submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    freeze = freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")
+    assert freeze["decision"] == "not_ready"
+    status = show_status(root)
+    assert status["status"] == "predictions_frozen"
+    assert status["decision"] == "not_ready"
+    assert status["observed_cost_usd"] == freeze["observed_cost_usd"]
+
+
+def test_show_status_semantically_verifies_legitimate_custom_fps_terminal_freeze(
+    tmp_path: Path,
+) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    for arm in ARMS:
+        version = f"{ARMS[arm]['model']}-version-20260816"
+        client.batches.responses = [
+            _response(response_id=f"{arm}-0", model_version=version, prompt=100),
+            _response(response_id=f"{arm}-1", model_version=version, prompt=100),
+        ]
+        submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    freeze = freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")
+    assert freeze["decision"] == "custom_fps_not_verified"
+    status = show_status(root)
+    assert status["status"] == "predictions_frozen"
+    assert status["decision"] == "custom_fps_not_verified"
+    assert status["observed_cost_usd"] == freeze["observed_cost_usd"]
