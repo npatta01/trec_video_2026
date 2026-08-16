@@ -255,6 +255,16 @@ def parse_visible_episode_count_spec(
             r"(?: in (?:the )?video)?\?$",
             re.IGNORECASE,
         ),
+        re.compile(
+            r"^How many times (?P<target>.+?) appear"
+            r"(?: in (?:the )?video)?\?$",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"^How many times (?:do )?we see (?P<target>.+?)"
+            r"(?: in (?:the )?video)?\?$",
+            re.IGNORECASE,
+        ),
     )
     matched = next(
         (

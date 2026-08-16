@@ -55,6 +55,28 @@ def test_count_spec_derives_opaque_identity_and_target_from_question() -> None:
     assert parsed.target == "ball"
 
 
+@pytest.mark.parametrize(
+    ("question", "target"),
+    [
+        ("How many times balls appear in the video?", "balls"),
+        (
+            "how many times we see a colorful screen with lines in the video?",
+            "a colorful screen with lines",
+        ),
+    ],
+)
+def test_count_spec_supports_exact_appearance_phrasings_from_frozen_census(
+    question: str, target: str
+) -> None:
+    payload = visible_episode_spec()
+    payload["question"] = question
+
+    parsed = parse_visible_episode_count_spec(payload)
+
+    assert isinstance(parsed, VisibleEpisodeCountSpec)
+    assert parsed.target == target
+
+
 def test_count_spec_rejects_question_text_that_can_encode_a_label() -> None:
     payload = visible_episode_spec()
     payload["question"] = (
