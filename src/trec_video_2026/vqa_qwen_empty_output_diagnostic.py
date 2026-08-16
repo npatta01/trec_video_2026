@@ -27,6 +27,11 @@ PRIVATE_ROOT = CANONICAL_DATA_ROOT / (
     "vqa/benchmarks/model-verifier-canaries-20260814/"
     "stage05e-qwen-empty-output-diagnostic-v1"
 )
+EXPECTED_SOURCE_ROOT = CANONICAL_DATA_ROOT / (
+    "vqa/benchmarks/model-verifier-canaries-20260814/"
+    "stage05d-qwen-aligner-quality-v1"
+)
+EXPECTED_SOURCE_EXPERIMENT_ID = "qwen-aligner-stage05d-20260816-quality-v1"
 
 ASR_MODEL_ID = "Qwen/Qwen3-ASR-1.7B"
 ASR_REVISION = "7278e1e70fe206f11671096ffdd38061171dd6e5"
@@ -223,7 +228,15 @@ def _walk_forbidden_keys(value: Any, *, allow_null_values: bool = False) -> None
             if not isinstance(key, str):
                 raise ValueError("artifact keys must be strings")
             normalized = re.sub(r"[^a-z]", "", key.casefold())
-            if normalized in _FORBIDDEN_KEY_TOKENS and not (allow_null_values and child is None):
+            tokens = {
+                token.casefold()
+                for token in re.split(r"[^A-Za-z0-9]+|(?<=[a-z])(?=[A-Z])", key)
+                if token
+            }
+            if (
+                (normalized in _FORBIDDEN_KEY_TOKENS or tokens & _FORBIDDEN_KEY_TOKENS)
+                and not (allow_null_values and child is None)
+            ):
                 raise ValueError("label-bearing fields are forbidden")
             _walk_forbidden_keys(child, allow_null_values=allow_null_values)
     elif isinstance(value, list):
@@ -251,6 +264,8 @@ def _verify_source_freeze(source_root: Path) -> tuple[dict[str, Any], dict[str, 
     prediction_path = source_root / "predictions-freeze.json"
     input_path = source_root / "inputs-freeze.json"
     prediction = _read_object(prediction_path)
+    if prediction.get("experiment_id") != EXPECTED_SOURCE_EXPERIMENT_ID:
+        raise ValueError("Stage 0.5d source experiment identity is invalid")
     if prediction.get("status") != "predictions_frozen":
         raise ValueError("Stage 0.5d source is not predictions_frozen")
     if prediction.get("decision") != "not_ready":
@@ -294,6 +309,12 @@ def _verify_source_freeze(source_root: Path) -> tuple[dict[str, Any], dict[str, 
     validation = _read_object(source_root / "validated-results.json")
     terminal = _read_object(source_root / "terminal.json")
     _walk_forbidden_keys(requests)
+    if protocol.get("experiment_id") != EXPECTED_SOURCE_EXPERIMENT_ID:
+        raise ValueError("Stage 0.5d protocol experiment identity is invalid")
+    if requests.get("experiment_id") != EXPECTED_SOURCE_EXPERIMENT_ID:
+        raise ValueError("Stage 0.5d requests experiment identity is invalid")
+    if protocol.get("condition_id") != CONDITION_ID:
+        raise ValueError("Stage 0.5d condition identity is invalid")
     if protocol.get("runner_sha256") != _sha256_file(HELPER_SOURCE_PATH):
         raise ValueError("Stage 0.5d runner source hash does not match helper source")
     if terminal.get("status") != "completed" or terminal.get("exit_code") != 0:
@@ -327,6 +348,15 @@ def _verify_source_freeze(source_root: Path) -> tuple[dict[str, Any], dict[str, 
         video_id = request.get("video_id")
         if not isinstance(video_id, str) or result.get("video_id") != video_id:
             raise ValueError("Stage 0.5d request/result identity mismatch")
+        if (
+            request.get("run_id") != EXPECTED_SOURCE_EXPERIMENT_ID
+            or request.get("condition_id") != CONDITION_ID
+            or request.get("mode") != "transcription"
+            or result.get("run_id") != EXPECTED_SOURCE_EXPERIMENT_ID
+            or result.get("condition_id") != CONDITION_ID
+            or result.get("mode") != "transcription"
+        ):
+            raise ValueError("Stage 0.5d row identity is invalid")
         audio_path_value = request.get("audio_path")
         if not isinstance(audio_path_value, str):
             raise ValueError("Stage 0.5d audio path is missing")
@@ -378,7 +408,13 @@ def _verify_source_freeze(source_root: Path) -> tuple[dict[str, Any], dict[str, 
                         valid_chunks = False
                         break
                     previous_end = end
-            if isinstance(result.get("text"), str) and bool(result["text"].strip()) and valid_chunks:
+            if (
+                isinstance(result.get("text"), str)
+                and bool(result["text"].strip())
+                and isinstance(result.get("language"), str)
+                and bool(result["language"].strip())
+                and valid_chunks
+            ):
                 successes.append(metadata)
     if len(failures) != 2:
         raise ValueError("Stage 0.5d source must contain exactly two empty-output failures")
@@ -398,6 +434,8 @@ def _verify_live_bindings(root: Path) -> dict[str, Any]:
     if not isinstance(runner_path_value, str):
         raise ValueError("diagnostic runner path is missing")
     runner_path = Path(runner_path_value)
+    if runner_path.resolve() != DIAGNOSTIC_RUNNER_PATH.resolve():
+        raise ValueError("diagnostic runner path is not the executed module")
     if not runner_path.is_file():
         raise ValueError("diagnostic runner source is missing")
     if protocol.get("diagnostic_runner_sha256") != _sha256_file(runner_path):
@@ -414,13 +452,17 @@ def _verify_live_bindings(root: Path) -> dict[str, Any]:
 
 
 def _verify_inputs(root: Path) -> dict[str, Any]:
+    if Path(root).resolve() != PRIVATE_ROOT.resolve():
+        raise ValueError("diagnostic root is not the declared private root")
     protocol = _verify_live_bindings(root)
     source_root_value = protocol.get("source_root")
     if not isinstance(source_root_value, str):
         raise ValueError("source root is missing")
     source_root = Path(source_root_value)
+    if source_root.resolve() != EXPECTED_SOURCE_ROOT.resolve():
+        raise ValueError("source root is not the declared Stage 0.5d root")
     _ensure_inside(source_root, CANONICAL_DATA_ROOT, label="source root")
-    prediction, source_protocol, _selected, _requests = _verify_source_freeze(source_root)
+    prediction, source_protocol, selected, _requests = _verify_source_freeze(source_root)
     if protocol.get("source_prediction_freeze_sha256") != _sha256_file(source_root / "predictions-freeze.json"):
         raise ValueError("source prediction freeze hash does not match protocol")
     if protocol.get("source_freeze_sha256") != protocol.get("source_prediction_freeze_sha256"):
@@ -429,6 +471,28 @@ def _verify_inputs(root: Path) -> dict[str, Any]:
         raise ValueError("source runner evidence does not match protocol")
     if prediction.get("decision") != "not_ready":
         raise ValueError("source prediction decision changed")
+    selection = _read_object(root / "selection.json")
+    if selection.get("experiment_id") != EXPERIMENT_ID or selection.get("source_root") != str(source_root.resolve()):
+        raise ValueError("diagnostic selection identity is invalid")
+    if selection.get("source_prediction_freeze_sha256") != protocol.get("source_prediction_freeze_sha256"):
+        raise ValueError("diagnostic selection source binding is invalid")
+    if selection.get("rows") != selected:
+        raise ValueError("diagnostic selection is not the deterministic source selection")
+    if protocol.get("row_order") != [row["video_id"] for row in selected]:
+        raise ValueError("diagnostic protocol row order is invalid")
+    if (
+        protocol.get("condition_id") != CONDITION_ID
+        or protocol.get("row_count") != 4
+        or protocol.get("asr_model_id") != ASR_MODEL_ID
+        or protocol.get("asr_revision") != ASR_REVISION
+        or protocol.get("forced_aligner_model_id") != ALIGNER_MODEL_ID
+        or protocol.get("forced_aligner_revision") != ALIGNER_REVISION
+        or protocol.get("runtime_image") != RUNTIME_IMAGE
+        or protocol.get("one_attempt_only") is not True
+        or protocol.get("paid_compute_usd") != 0.0
+        or protocol.get("arms") != ARMS
+    ):
+        raise ValueError("diagnostic protocol contract is invalid")
     input_freeze = _read_object(root / "inputs-freeze.json")
     if input_freeze.get("status") != "inputs_frozen":
         raise ValueError("diagnostic inputs are not frozen")
@@ -442,6 +506,8 @@ def _verify_inputs(root: Path) -> dict[str, Any]:
         raise ValueError("diagnostic request freeze is invalid")
     for arm_id in ARM_ORDER:
         _verify_json_freeze(root / "requests" / f"{arm_id}.json", request_artifacts[arm_id])
+        requests = _read_object(root / "requests" / f"{arm_id}.json")
+        _validate_prepared_requests(protocol, requests, arm_id)
     return protocol
 
 
@@ -450,6 +516,10 @@ def prepare_diagnostic(root: Path, source_root: Path, *, runner_path: Path) -> d
 
     root = Path(root)
     source_root = Path(source_root)
+    if root.resolve() != PRIVATE_ROOT.resolve():
+        raise ValueError("diagnostic root must equal the declared private root")
+    if source_root.resolve() != EXPECTED_SOURCE_ROOT.resolve():
+        raise ValueError("source root must equal the declared Stage 0.5d root")
     _ensure_inside(root, CANONICAL_DATA_ROOT, label="diagnostic root")
     _ensure_inside(source_root, CANONICAL_DATA_ROOT, label="source root")
     if root.exists() and any(root.iterdir()):
@@ -457,8 +527,8 @@ def prepare_diagnostic(root: Path, source_root: Path, *, runner_path: Path) -> d
     if not runner_path.is_file():
         raise ValueError("diagnostic runner source is missing")
     runner_path = runner_path.resolve()
-    if runner_path.name != "vqa_qwen_empty_output_runner.py":
-        raise ValueError("runner path must be the dedicated Qwen runner")
+    if runner_path.resolve() != DIAGNOSTIC_RUNNER_PATH.resolve():
+        raise ValueError("runner path must equal the executed dedicated Qwen runner")
     if root.exists() and not root.is_dir():
         raise ValueError("diagnostic root must be a directory")
     root.mkdir(parents=True, exist_ok=True)
@@ -482,6 +552,7 @@ def prepare_diagnostic(root: Path, source_root: Path, *, runner_path: Path) -> d
         "condition_id": CONDITION_ID,
         "row_count": 4,
         "row_order": [row["video_id"] for row in selected],
+        "audio_path": {row["video_id"]: row["audio_path"] for row in selected},
         "audio_sha256": {row["video_id"]: row["audio_sha256"] for row in selected},
         "duration_seconds": {row["video_id"]: row["duration_seconds"] for row in selected},
         "source_root": str(source_root.resolve()),
@@ -556,6 +627,44 @@ def _validate_arm_id(arm_id: str) -> dict[str, Any]:
     if arm_id not in ARMS:
         raise ValueError(f"unknown diagnostic arm: {arm_id}")
     return ARMS[arm_id]
+
+
+def _validate_prepared_requests(
+    protocol: Mapping[str, Any], requests: Mapping[str, Any], arm_id: str
+) -> list[dict[str, Any]]:
+    """Validate the semantic request identity in addition to its byte freeze."""
+
+    if protocol.get("experiment_id") != EXPERIMENT_ID:
+        raise ValueError("diagnostic protocol experiment identity is invalid")
+    if requests.get("experiment_id") != EXPERIMENT_ID or requests.get("arm_id") != arm_id:
+        raise ValueError("diagnostic request identity is invalid")
+    rows = requests.get("requests")
+    if not isinstance(rows, list) or len(rows) != 4:
+        raise ValueError("diagnostic request count is invalid")
+    if protocol.get("row_order") != [row.get("video_id") for row in rows]:
+        raise ValueError("diagnostic request order is invalid")
+    audio_paths = protocol.get("audio_path")
+    audio_hashes = protocol.get("audio_sha256")
+    if not isinstance(audio_paths, Mapping) or not isinstance(audio_hashes, Mapping):
+        raise ValueError("diagnostic audio bindings are invalid")
+    normalized: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise ValueError("diagnostic request row must be an object")
+        if (
+            row.get("run_id") != EXPERIMENT_ID
+            or row.get("condition_id") != CONDITION_ID
+            or row.get("mode") != "transcription"
+            or not isinstance(row.get("video_id"), str)
+            or not isinstance(row.get("audio_path"), str)
+            or row.get("audio_path") != audio_paths.get(row.get("video_id"))
+        ):
+            raise ValueError("diagnostic request row identity is invalid")
+        audio_path = _ensure_inside(Path(row["audio_path"]), CANONICAL_DATA_ROOT, label="audio path")
+        if not audio_path.is_file() or _sha256_file(audio_path) != audio_hashes.get(row["video_id"]):
+            raise ValueError("diagnostic audio binding is invalid")
+        normalized.append(dict(row))
+    return normalized
 
 
 def build_arm_command(
@@ -662,6 +771,26 @@ def _validate_command(command: Sequence[str], arm_id: str, protocol: Mapping[str
         raise ValueError("interactive stdin must precede the pinned image")
     if RUNTIME_IMAGE not in normalized or expected_module not in normalized:
         raise ValueError("arm command is not pinned to the dedicated runner")
+    allowed_options = {
+        "--rm",
+        "--network",
+        "--read-only",
+        "--device",
+        "--group-add",
+        "--security-opt",
+        "--tmpfs",
+        "--volume",
+        "--workdir",
+        "--env",
+        "--model-id",
+        "--revision",
+        "--forced-aligner-id",
+        "--forced-aligner-revision",
+        "--language",
+        "--timestamps",
+    }
+    if any(token.startswith("--") and token not in allowed_options for token in normalized):
+        raise ValueError("arm command contains an unexpected option")
     if ASR_REVISION not in normalized:
         raise ValueError("arm command is not pinned to the ASR revision")
     rendered = " ".join(normalized)
@@ -719,9 +848,7 @@ def _validate_results(
     arm_id: str,
     results: Any,
 ) -> dict[str, Any]:
-    request_rows = requests.get("requests")
-    if not isinstance(request_rows, list) or len(request_rows) != 4:
-        raise ValueError("arm requests must contain exactly four rows")
+    request_rows = _validate_prepared_requests(protocol, requests, arm_id)
     if not isinstance(results, list) or len(results) != len(request_rows):
         raise ValueError("runner output must contain exactly four rows")
     expected_order = protocol.get("row_order")
@@ -774,7 +901,13 @@ def _validate_results(
         "schema_version": SCHEMA_VERSION,
         "experiment_id": EXPERIMENT_ID,
         "arm_id": arm_id,
-        "status": "ready" if success_count == 4 and (not ARMS[arm_id]["aligner_loaded"] or aligned_success_count == 4) else "not_ready",
+        "status": "ready"
+        if success_count == 4
+        and (
+            ARMS[arm_id]["timestamps"] != "on" or aligned_success_count == 4
+        )
+        else "not_ready",
+        "contract_valid": True,
         "completion_count": success_count,
         "required_count": 4,
         "success_count": success_count,
@@ -849,12 +982,14 @@ def record_arm(
             "experiment_id": EXPERIMENT_ID,
             "arm_id": arm_id,
             "status": "not_ready",
+            "contract_valid": False,
             "completion_count": 0,
             "required_count": 4,
             "success_count": 0,
             "failure_count": 4,
             "aligned_success_count": 0,
             "failure_types": [type(exc).__name__],
+            "validation_error_type": type(exc).__name__,
             "results_sha256": hashlib.sha256(stdout.encode("utf-8")).hexdigest(),
             "paid_compute_usd": 0.0,
         }
@@ -885,7 +1020,26 @@ def record_arm(
     return terminal
 
 
+def _recompute_arm_validation(
+    root: Path, arm_id: str, protocol: Mapping[str, Any]
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Recompute the contract result from immutable raw stdout."""
+
+    arm_root = root / "arms" / arm_id
+    try:
+        parsed = json.loads((arm_root / "raw-results.json").read_text(encoding="utf-8"))
+        return _validate_results(
+            protocol,
+            _read_object(root / "requests" / f"{arm_id}.json"),
+            arm_id,
+            parsed,
+        ), None
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        return None, type(exc).__name__
+
+
 def _verify_arm(root: Path, arm_id: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    protocol = _verify_live_bindings(root)
     arm_root = root / "arms" / arm_id
     command = _read_object(arm_root / "command.json")
     terminal = _read_object(arm_root / "terminal.json")
@@ -895,7 +1049,7 @@ def _verify_arm(root: Path, arm_id: str) -> tuple[dict[str, Any], dict[str, Any]
     argv = command.get("argv")
     if not isinstance(argv, list):
         raise ValueError(f"{arm_id} command argv is invalid")
-    _validate_command(argv, arm_id, _verify_live_bindings(root))
+    _validate_command(argv, arm_id, protocol)
     if command.get("command_sha256") != canonical_sha256(argv):
         raise ValueError(f"{arm_id} command hash does not match command")
     if terminal.get("command_sha256") != command.get("command_sha256"):
@@ -908,6 +1062,35 @@ def _verify_arm(root: Path, arm_id: str) -> tuple[dict[str, Any], dict[str, Any]
         raise ValueError(f"{arm_id} completed terminal has nonzero exit")
     if terminal.get("status") not in {"completed", "failed"}:
         raise ValueError(f"{arm_id} terminal status is invalid")
+    recomputed, error_type = _recompute_arm_validation(root, arm_id, protocol)
+    saved_contract_valid = validation.get("contract_valid") is True
+    if recomputed is None:
+        if saved_contract_valid or validation.get("validation_error_type") != error_type:
+            raise ValueError(f"{arm_id} validation artifact does not describe invalid raw output")
+    else:
+        if not saved_contract_valid:
+            raise ValueError(f"{arm_id} validation artifact hides a valid raw output")
+        expected_validation = dict(recomputed)
+        if terminal.get("exit_code") != 0:
+            expected_validation["status"] = "not_ready"
+            failure_types = list(expected_validation.get("failure_types", []))
+            if "NonzeroExitCode" not in failure_types:
+                failure_types.append("NonzeroExitCode")
+            expected_validation["failure_types"] = failure_types
+        compare_fields = (
+            "status",
+            "completion_count",
+            "required_count",
+            "success_count",
+            "failure_count",
+            "aligned_success_count",
+            "failure_types",
+            "results_sha256",
+            "paid_compute_usd",
+        )
+        for field in compare_fields:
+            if validation.get(field) != expected_validation.get(field):
+                raise ValueError(f"{arm_id} validation does not match raw output")
     return command, terminal, validation
 
 
@@ -939,6 +1122,7 @@ def freeze_diagnostic(root: Path) -> dict[str, Any]:
         aggregate[arm_id] = {
             "terminal_status": terminal.get("status"),
             "exit_code": terminal.get("exit_code"),
+            "contract_valid": validation.get("contract_valid") is True,
             "success_count": validation.get("success_count", 0),
             "failure_count": validation.get("failure_count", 4),
             "aligned_success_count": validation.get("aligned_success_count", 0),
@@ -952,7 +1136,11 @@ def freeze_diagnostic(root: Path) -> dict[str, Any]:
     role_by_id = {row.get("video_id"): row.get("role") for row in selected_rows if isinstance(row, Mapping)}
     baseline_reproducible = True
     baseline_validation = arm_records["aligned_auto"][2]
-    if arm_records["aligned_auto"][1].get("status") != "completed" or baseline_validation.get("status") not in {"ready", "not_ready"}:
+    if (
+        arm_records["aligned_auto"][1].get("status") != "completed"
+        or baseline_validation.get("contract_valid") is not True
+        or baseline_validation.get("status") not in {"ready", "not_ready"}
+    ):
         baseline_reproducible = False
     try:
         baseline_results = json.loads((root / "arms" / "aligned_auto" / "raw-results.json").read_text(encoding="utf-8"))
@@ -970,10 +1158,25 @@ def freeze_diagnostic(root: Path) -> dict[str, Any]:
                 if result.get("status") != "failed" or result.get("error_type") != EMPTY_ERROR_TYPE or result.get("error_message") != EMPTY_ERROR_MESSAGE:
                     baseline_reproducible = False
             elif role == "control":
-                if result.get("status") != "passed" or not isinstance(result.get("text"), str) or not result["text"].strip():
+                if (
+                    result.get("status") != "passed"
+                    or not isinstance(result.get("text"), str)
+                    or not result["text"].strip()
+                    or not isinstance(result.get("language"), str)
+                    or not result["language"].strip()
+                ):
                     baseline_reproducible = False
                 chunks = result.get("chunks")
-                if not isinstance(chunks, list) or not chunks:
+                if (
+                    not isinstance(chunks, list)
+                    or not chunks
+                    or any(
+                        not isinstance(chunk, Mapping)
+                        or not isinstance(chunk.get("text"), str)
+                        or not chunk["text"].strip()
+                        for chunk in chunks
+                    )
+                ):
                     baseline_reproducible = False
             else:
                 baseline_reproducible = False
@@ -986,10 +1189,14 @@ def freeze_diagnostic(root: Path) -> dict[str, Any]:
         arm_records["aligned_english"][1].get("status") == "completed"
         and arm_records["aligned_english"][1].get("exit_code") == 0
         and arm_records["aligned_english"][2].get("status") == "ready"
+        and arm_records["aligned_english"][2].get("contract_valid") is True
         and arm_records["aligned_english"][2].get("success_count") == 4
         and arm_records["aligned_english"][2].get("aligned_success_count") == 4
     )
-    if any_terminal_invalid:
+    all_contract_valid = all(
+        record[2].get("contract_valid") is True for record in arm_records.values()
+    )
+    if any_terminal_invalid or not all_contract_valid:
         decision = "not_ready"
     elif not baseline_reproducible:
         decision = "unstable_baseline"
@@ -1028,6 +1235,7 @@ def freeze_diagnostic(root: Path) -> dict[str, Any]:
         "baseline_reproducible": baseline_reproducible,
         "advancing_arm": payload["advancing_arm"],
         "aggregate": aggregate,
+        "explanatory_localization": explanatory,
         "paid_compute_usd": 0.0,
     }
 
@@ -1079,6 +1287,7 @@ def status_diagnostic(root: Path) -> dict[str, Any]:
             "baseline_reproducible": payload["baseline_reproducible"],
             "advancing_arm": payload["advancing_arm"],
             "aggregate": payload["aggregate"],
+            "explanatory_localization": payload["explanatory_localization"],
             "paid_compute_usd": 0.0,
         }
     attempted: list[str] = []
@@ -1115,6 +1324,8 @@ __all__ = [
     "CONDITION_ID",
     "DIAGNOSTIC_RUNNER_PATH",
     "EXPERIMENT_ID",
+    "EXPECTED_SOURCE_EXPERIMENT_ID",
+    "EXPECTED_SOURCE_ROOT",
     "HELPER_SOURCE_PATH",
     "PRIVATE_ROOT",
     "RUNTIME_IMAGE",

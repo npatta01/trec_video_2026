@@ -43,6 +43,7 @@ def _emit(payload: dict[str, Any]) -> None:
         "arm_count",
         "paid_compute_usd",
         "aggregate",
+        "explanatory_localization",
     ):
         if key in payload:
             safe[key] = payload[key]

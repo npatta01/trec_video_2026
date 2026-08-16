@@ -37,6 +37,8 @@ def source_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Pat
     audio_root = data_root / "audio"
     audio_root.mkdir(parents=True)
     monkeypatch.setattr(diagnostic, "CANONICAL_DATA_ROOT", data_root.resolve())
+    monkeypatch.setattr(diagnostic, "PRIVATE_ROOT", diagnostic_root.resolve())
+    monkeypatch.setattr(diagnostic, "EXPECTED_SOURCE_ROOT", source_root.resolve())
 
     rows = []
     results = []
@@ -149,7 +151,11 @@ def test_prepare_selects_failures_and_first_two_successes_without_labels(source_
     assert set(prepared["arms"]) == {"aligned_auto", "base_auto", "aligner_plain_auto", "aligned_english"}
     for arm_id in prepared["arms"]:
         assert (root / "requests" / f"{arm_id}.json").exists()
-    assert "private transcript" not in root.read_text() if False else True
+    for path in root.rglob("*"):
+        if path.is_file():
+            payload = path.read_text(errors="replace")
+            assert "private transcript" not in payload
+            assert "answer" not in payload.casefold()
 
 
 def test_prepare_rejects_ready_source(source_fixture) -> None:
@@ -158,6 +164,73 @@ def test_prepare_rejects_ready_source(source_fixture) -> None:
     prediction["decision"] = "ready_for_quality_test"
     (source_root / "predictions-freeze.json").write_text(json.dumps(prediction))
     with pytest.raises(ValueError, match="not_ready"):
+        diagnostic.prepare_diagnostic(root, source_root, runner_path=Path(diagnostic.DIAGNOSTIC_RUNNER_PATH))
+
+
+def test_prepare_rejects_wrong_runner_copy(source_fixture, tmp_path: Path) -> None:
+    root, source_root, _ = source_fixture
+    copy = tmp_path / "vqa_qwen_empty_output_runner.py"
+    copy.write_bytes(Path(diagnostic.DIAGNOSTIC_RUNNER_PATH).read_bytes())
+    with pytest.raises(ValueError, match="executed dedicated"):
+        diagnostic.prepare_diagnostic(root, source_root, runner_path=copy)
+
+
+def test_prepare_rejects_wrong_private_or_source_root(source_fixture, tmp_path: Path) -> None:
+    root, source_root, _ = source_fixture
+    with pytest.raises(ValueError, match="private root"):
+        diagnostic.prepare_diagnostic(
+            tmp_path / "other-root",
+            source_root,
+            runner_path=Path(diagnostic.DIAGNOSTIC_RUNNER_PATH),
+        )
+    with pytest.raises(ValueError, match="Stage 0.5d root"):
+        diagnostic.prepare_diagnostic(
+            root,
+            tmp_path / "other-source",
+            runner_path=Path(diagnostic.DIAGNOSTIC_RUNNER_PATH),
+        )
+
+
+def test_prepare_rejects_noncanonical_audio_and_forbidden_nested_source_key(source_fixture) -> None:
+    root, source_root, _ = source_fixture
+    requests = json.loads((source_root / "requests.json").read_text())
+    requests["requests"][0]["metadata"] = {"nested": [{"answer": "private"}]}
+    (source_root / "requests.json").write_text(json.dumps(requests))
+    with pytest.raises(ValueError):
+        diagnostic.prepare_diagnostic(root, source_root, runner_path=Path(diagnostic.DIAGNOSTIC_RUNNER_PATH))
+    with pytest.raises(ValueError, match="label-bearing"):
+        diagnostic._walk_forbidden_keys({"outer": [{"nested": {"reference_answer": "private"}}]})
+
+
+def test_prepare_rejects_wrong_failure_count_missing_audio_and_wrong_source_identity(source_fixture) -> None:
+    root, source_root, audio_root = source_fixture
+    raw_path = source_root / "raw-results.json"
+    raw = json.loads(raw_path.read_text())
+    raw[4]["status"] = "failed"
+    raw[4]["error_type"] = "ValueError"
+    raw[4]["error_message"] = "Qwen3-ASR returned empty text"
+    raw_path.write_text(json.dumps(raw))
+    prediction = json.loads((source_root / "predictions-freeze.json").read_text())
+    prediction["artifacts"]["raw-results"]["artifact_sha256"] = _sha256(raw_path)
+    prediction["artifacts_sha256"] = diagnostic.canonical_sha256(prediction["artifacts"])
+    (source_root / "predictions-freeze.json").write_text(json.dumps(prediction))
+    with pytest.raises(ValueError, match="exactly two"):
+        diagnostic.prepare_diagnostic(root, source_root, runner_path=Path(diagnostic.DIAGNOSTIC_RUNNER_PATH))
+
+    # A fresh fixture is not needed: missing bytes are independently rejected.
+    missing = audio_root / "video-0.wav"
+    missing.unlink()
+    with pytest.raises(ValueError, match="missing"):
+        diagnostic.prepare_diagnostic(root, source_root, runner_path=Path(diagnostic.DIAGNOSTIC_RUNNER_PATH))
+
+
+def test_prepare_rejects_self_consistent_wrong_source_experiment(source_fixture) -> None:
+    root, source_root, _ = source_fixture
+    prediction_path = source_root / "predictions-freeze.json"
+    prediction = json.loads(prediction_path.read_text())
+    prediction["experiment_id"] = "qwen-aligner-stage05d-wrong"
+    prediction_path.write_text(json.dumps(prediction))
+    with pytest.raises(ValueError, match="experiment identity"):
         diagnostic.prepare_diagnostic(root, source_root, runner_path=Path(diagnostic.DIAGNOSTIC_RUNNER_PATH))
 
 
@@ -175,6 +248,15 @@ def test_commands_have_pinned_offline_contract(source_fixture, tmp_path: Path) -
         command = diagnostic.build_arm_command(root, arm_id, hub_cache=cache, data_root=source_fixture[2].parent)
         assert "-i" in command and "--network" in command and "none" in command
         assert "--read-only" in command
+        assert diagnostic.RUNTIME_IMAGE in command
+        assert diagnostic.ASR_REVISION in command
+        assert diagnostic.ALIGNER_REVISION in command or arm_id == "base_auto"
+        volume_values = [command[i + 1] for i, value in enumerate(command[:-1]) if value == "--volume"]
+        assert any(value.endswith(":/root/.cache/huggingface/hub:ro") for value in volume_values)
+        assert any(value.endswith(f":{diagnostic.CANONICAL_DATA_ROOT}:ro") for value in volume_values)
+        assert "HF_TOKEN" not in " ".join(command)
+        assert "HUGGINGFACE_HUB_TOKEN" not in " ".join(command)
+        assert "--foo" not in command
         assert "trec_video_2026.vqa_qwen_empty_output_runner" in command
         assert command[command.index("--language") + 1] == language
         assert command[command.index("--timestamps") + 1] == timestamps
@@ -182,6 +264,21 @@ def test_commands_have_pinned_offline_contract(source_fixture, tmp_path: Path) -
             assert "--forced-aligner-id" not in command
         else:
             assert "--forced-aligner-id" in command
+
+
+def test_post_prepare_runner_mutation_blocks_command_construction(source_fixture, tmp_path: Path) -> None:
+    root, source_root, _ = source_fixture
+    diagnostic.prepare_diagnostic(root, source_root, runner_path=Path(diagnostic.DIAGNOSTIC_RUNNER_PATH))
+    runner_path = Path(diagnostic.DIAGNOSTIC_RUNNER_PATH)
+    original = runner_path.read_bytes()
+    try:
+        runner_path.write_bytes(original + b"\n")
+        cache = tmp_path / "cache"
+        cache.mkdir()
+        with pytest.raises(ValueError, match="runner source hash"):
+            diagnostic.build_arm_command(root, "aligned_auto", hub_cache=cache, data_root=source_fixture[2].parent)
+    finally:
+        runner_path.write_bytes(original)
 
 
 class _Completed:
@@ -248,6 +345,89 @@ def _results_for(root: Path, arm_id: str, *, baseline: bool = False, all_pass: b
             )
         results.append(result)
     return results
+
+
+def _record_all_arms(root: Path, commands: dict[str, list[str]], overrides: dict[str, object] | None = None) -> None:
+    overrides = overrides or {}
+    for arm_id in diagnostic.ARM_ORDER:
+        results = overrides.get(
+            arm_id,
+            _results_for(root, arm_id, baseline=arm_id == "aligned_auto"),
+        )
+        stdout = results if isinstance(results, str) else json.dumps(results)
+        diagnostic.record_arm(
+            root,
+            arm_id,
+            commands[arm_id],
+            runner=lambda *args, _stdout=stdout, **kwargs: subprocess.CompletedProcess(
+                args[0], 0, stdout=_stdout, stderr=""
+            ),
+        )
+
+
+@pytest.mark.parametrize("corruption", ["malformed", "count", "order", "condition", "hash", "language", "chunk"])
+def test_exit_zero_invalid_result_bundle_cannot_advance(source_fixture, tmp_path: Path, corruption: str) -> None:
+    root, commands = _prepared_with_commands(source_fixture, tmp_path)
+    results = _results_for(root, "aligned_auto", baseline=True)
+    if corruption == "malformed":
+        bad: object = "not-json"
+    else:
+        bad_rows = json.loads(json.dumps(results))
+        if corruption == "count":
+            bad_rows.pop()
+        elif corruption == "order":
+            bad_rows[0], bad_rows[1] = bad_rows[1], bad_rows[0]
+        elif corruption == "condition":
+            bad_rows[0]["condition_id"] = "wrong-condition"
+        elif corruption == "hash":
+            bad_rows[0]["source_audio_sha256"] = "0" * 64
+        elif corruption == "language":
+            bad_rows[0]["language"] = ""
+        else:
+            bad_rows[0]["chunks"][0]["end"] = 99.0
+        bad = bad_rows
+    _record_all_arms(root, commands, {"aligned_auto": bad})
+    assert diagnostic.freeze_diagnostic(root)["decision"] == "not_ready"
+    assert json.loads((root / "arms" / "aligned_auto" / "validated-results.json").read_text())["contract_valid"] is False
+
+
+def test_a_invalid_control_blocks_advance_even_with_other_arms_pass(source_fixture, tmp_path: Path) -> None:
+    root, commands = _prepared_with_commands(source_fixture, tmp_path)
+    results = _results_for(root, "aligned_auto", baseline=True)
+    control = next(row for row in results if row["status"] == "passed")
+    control["chunks"][0]["end"] = 99.0
+    _record_all_arms(root, commands, {"aligned_auto": results})
+    frozen = diagnostic.freeze_diagnostic(root)
+    assert frozen["decision"] == "not_ready"
+    assert frozen["baseline_reproducible"] is False
+
+
+def test_a_reproduces_bc_pass_d_fails_is_not_ready(source_fixture, tmp_path: Path) -> None:
+    root, commands = _prepared_with_commands(source_fixture, tmp_path)
+    d_results = _results_for(root, "aligned_english", all_pass=True)
+    d_results[0]["status"] = "failed"
+    d_results[0].pop("text", None)
+    d_results[0].pop("language", None)
+    d_results[0].pop("chunks", None)
+    d_results[0]["error_type"] = "RuntimeError"
+    d_results[0]["error_message"] = "synthetic failure"
+    _record_all_arms(root, commands, {"aligned_english": d_results})
+    frozen = diagnostic.freeze_diagnostic(root)
+    assert frozen["decision"] == "not_ready"
+    assert frozen["advancing_arm"] is None
+
+
+def test_c_plain_auto_all_passes_and_is_explanatory(source_fixture, tmp_path: Path) -> None:
+    root, commands = _prepared_with_commands(source_fixture, tmp_path)
+    _record_all_arms(root, commands)
+    # aligned_auto reproduces; B, C, and D pass under their declared surfaces.
+    frozen = diagnostic.freeze_diagnostic(root)
+    assert frozen["decision"] == "ready_for_fresh_aligned_quality_panel"
+    assert frozen["aggregate"]["aligner_plain_auto"]["success_count"] == 4
+    assert frozen["aggregate"]["aligner_plain_auto"]["contract_valid"] is True
+    assert frozen["explanatory_localization"]["timestamp_path_localization"] is True
+    status = diagnostic.status_diagnostic(root)
+    assert status["explanatory_localization"]["timestamp_path_localization"] is True
 
 
 def test_freeze_decision_ready_when_a_reproduces_and_d_passes(source_fixture, tmp_path: Path) -> None:
