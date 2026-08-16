@@ -141,7 +141,12 @@ def _read_object(path: Path) -> dict[str, Any]:
 def _reject_forbidden(value: Any, *, context: str) -> None:
     if isinstance(value, Mapping):
         for key, child in value.items():
-            if str(key).lower() in _FORBIDDEN_KEYS:
+            normalized_key = re.sub(r"[^a-z0-9]", "", str(key).casefold())
+            forbidden = {
+                re.sub(r"[^a-z0-9]", "", forbidden_key.casefold())
+                for forbidden_key in _FORBIDDEN_KEYS
+            }
+            if normalized_key in forbidden:
                 raise ValueError(f"forbidden private key {key!r} in {context}")
             _reject_forbidden(child, context=context)
     elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
@@ -783,6 +788,16 @@ def build_inlined_request(
         ),
     )
     prompt = types.Part(text=f"{DIRECT_ANSWER_PROMPT}\n\nQuestion: {question.strip()}")
+    metadata = {
+        "arm": arm,
+        "row_id": str(row.get("row_id", row.get("video_id", ""))),
+        "video_id": str(row.get("video_id", "")),
+        "question": question.strip(),
+        "file_uri": file_uri,
+        "delivery_sha256": str(row.get("delivery_sha256", "")),
+        "mime_type": mime_type,
+        "protocol_sha256": str(row.get("protocol_sha256", "")),
+    }
     config_values: dict[str, Any] = {
         "max_output_tokens": 2048,
         "response_mime_type": "text/plain",
@@ -797,6 +812,7 @@ def build_inlined_request(
     return types.InlinedRequest(
         model=ARMS[arm]["model"],
         contents=[types.Content(role="user", parts=[video, prompt])],
+        metadata=metadata,
         config=types.GenerateContentConfig(**config_values),
     )
 
@@ -817,7 +833,7 @@ _BATCH_RATES_USD_PER_MILLION: dict[str, dict[str, float]] = {
     # Frozen Batch rates for the authorized comparison window.  The 3.7 rate is
     # the documented introductory Batch/Flex price; the 3.1 rate is pinned for
     # this control and is never read from provider/client state.
-    "control_31pro": {"prompt": 1.0, "output": 4.0},
+    "control_31pro": {"prompt": 1.0, "output": 6.0},
     "candidate_37flash": {"prompt": 0.375, "output": 1.875},
 }
 
@@ -867,7 +883,7 @@ def _plain(value: Any, *, depth: int = 0) -> Any:
             "client",
             "transport",
             "environment",
-            "config",
+            "client_config",
             "_client",
         }
         return {
@@ -955,6 +971,23 @@ def _model_snapshot(model: Any, *, arm: str) -> dict[str, Any]:
         capabilities = [_nonempty_string(item, label=f"{arm} capability") for item in supported]
     else:
         capabilities = [_nonempty_string(supported, label=f"{arm} capability")]
+    capability_names = (
+        {
+            str(item).casefold().replace("_", "").replace("-", "")
+            for item in capabilities
+            if isinstance(item, str)
+        }
+        if isinstance(capabilities, Sequence) and not isinstance(capabilities, (str, bytes, bytearray))
+        else {
+            str(item).casefold().replace("_", "").replace("-", "")
+            for item in capabilities
+            if isinstance(item, str)
+        }
+        if isinstance(capabilities, Mapping)
+        else set()
+    )
+    if "generatecontent" not in capability_names:
+        raise ValueError(f"{arm} model lacks generateContent capability")
     snapshot = {
         "arm": arm,
         "requested_model": requested,
@@ -996,6 +1029,23 @@ def _models_artifact(root: Path, protocol_hash: str) -> dict[str, Any]:
             raise ValueError(f"model preflight record is missing for {arm}")
         if record.get("model_id") != expected["model"]:
             raise ValueError(f"model preflight identity mismatch for {arm}")
+        capabilities = record.get("capabilities")
+        if isinstance(capabilities, Mapping):
+            capability_names = {
+                str(item).casefold().replace("_", "").replace("-", "")
+                for item in capabilities
+                if isinstance(item, str)
+            }
+        elif isinstance(capabilities, Sequence) and not isinstance(capabilities, (str, bytes, bytearray)):
+            capability_names = {
+                str(item).casefold().replace("_", "").replace("-", "")
+                for item in capabilities
+                if isinstance(item, str)
+            }
+        else:
+            capability_names = set()
+        if "generatecontent" not in capability_names:
+            raise ValueError(f"{arm} model lacks generateContent capability")
         snapshot_hash = record.get("provider_snapshot_sha256")
         snapshot_body = dict(record)
         snapshot_body.pop("provider_snapshot_sha256", None)
@@ -1020,7 +1070,16 @@ def _historical_uris(protocol: Mapping[str, Any]) -> set[str]:
             payload = _read_json(candidate)
         except ValueError:
             continue
-        for row in _rows(payload, context=f"historical upload {candidate}") if isinstance(payload, Mapping) else []:
+        if isinstance(payload, Mapping):
+            if any(isinstance(payload.get(key), list) for key in ("rows", "records", "uploads", "deliveries", "items")):
+                rows = _rows(payload, context=f"historical upload {candidate}")
+            elif any(key in payload for key in ("file_uri", "fileUri", "uri")):
+                rows = [dict(payload)]
+            else:
+                rows = []
+        else:
+            rows = []
+        for row in rows:
             uri = _attr(row, "file_uri", "fileUri", "uri", default=None)
             if isinstance(uri, str) and uri.strip():
                 uris.add(uri.strip())
@@ -1071,21 +1130,99 @@ def _upload_records(root: Path, protocol: Mapping[str, Any], protocol_hash: str)
             }[key]
             if record.get(key) != expected:
                 raise ValueError(f"upload record binding mismatch for {row_id}")
-        if _upload_file_path(protocol, row).stat().st_size != record.get("delivery_size_bytes"):
+        delivery = _upload_file_path(protocol, row)
+        if delivery.stat().st_size != record.get("delivery_size_bytes"):
             raise ValueError(f"delivery mutation detected for {row_id}")
+        provider = record.get("provider_snapshot")
+        if not isinstance(provider, Mapping):
+            raise ValueError(f"upload provider snapshot is missing for {row_id}")
+        if (
+            provider.get("file_state") != "ACTIVE"
+            or provider.get("name") != record.get("file_name")
+            or provider.get("uri") != record.get("file_uri")
+            or provider.get("mime_type") != record.get("mime_type")
+        ):
+            raise ValueError(f"upload provider identity/state drift for {row_id}")
+        if provider.get("size_bytes") is not None and provider.get("size_bytes") != delivery.stat().st_size:
+            raise ValueError(f"upload provider size drift for {row_id}")
+        if provider.get("sha256_hash") is not None and provider.get("sha256_hash") != record.get("delivery_sha256"):
+            raise ValueError(f"upload provider hash drift for {row_id}")
         records.append(record)
     return records
 
 
 def _state(value: Any) -> str:
-    value = str(_scalar(value) or "").upper()
-    if "SUCCEEDED" in value or "COMPLETED" in value or value == "ACTIVE":
-        return "succeeded" if value != "ACTIVE" else "ACTIVE"
-    if "FAILED" in value or "CANCEL" in value or "ERROR" in value:
-        return "failed"
-    if "EXPIRED" in value or "TIMEOUT" in value:
+    value = str(_scalar(value) or "").upper().strip()
+    if value == "ACTIVE":
+        return "ACTIVE"
+    if value in {"SUCCEEDED", "COMPLETED", "JOB_STATE_SUCCEEDED", "JOB_STATE_COMPLETED"}:
+        return "succeeded"
+    if value in {
+        "FAILED",
+        "CANCELLED",
+        "CANCELED",
+        "EXPIRED",
+        "TIMEOUT",
+        "JOB_STATE_FAILED",
+        "JOB_STATE_CANCELLED",
+        "JOB_STATE_CANCELED",
+        "JOB_STATE_EXPIRED",
+    } or "PARTIALLY_SUCCEEDED" in value:
         return "failed"
     return "pending"
+
+
+def _ensure_directory(path: Path, *, label: str, create: bool = False) -> None:
+    if path.is_symlink():
+        raise ValueError(f"{label} must not be a symlink")
+    if path.exists():
+        if not path.is_dir():
+            raise ValueError(f"{label} must be a regular directory")
+        return
+    if create:
+        path.mkdir()
+        return
+    raise ValueError(f"{label} is missing")
+
+
+def _safe_error(value: Any) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    def sanitize_text(text: str) -> str:
+        result = text[:512]
+        for pattern in (r"AIza[0-9A-Za-z_-]{20,}", r"sk-[A-Za-z0-9_-]{20,}", r"Bearer\s+\S+"):
+            result = re.sub(pattern, "<redacted-secret>", result)
+        return result
+
+    def safe_value(child: Any) -> Any:
+        if isinstance(child, Mapping):
+            return {
+                str(key): safe_value(value)
+                for key, value in child.items()
+                if str(key).casefold().replace("_", "")
+                not in {"sdkhttpresponse", "rawhttp", "client", "transport", "authorization"}
+            }
+        if isinstance(child, Sequence) and not isinstance(child, (str, bytes, bytearray)):
+            return [safe_value(item) for item in child]
+        return _plain(child)
+
+    if isinstance(value, BaseException):
+        return {"type": type(value).__name__, "message": sanitize_text(str(value))}
+    if isinstance(value, Mapping):
+        allowed = {"code", "status", "message", "details", "reason", "type"}
+        return {
+            str(key): sanitize_text(str(child)) if str(key) == "message" else safe_value(child)
+            for key, child in value.items()
+            if str(key) in allowed
+        }
+    result: dict[str, Any] = {}
+    for name in ("code", "status", "message", "details", "reason", "type"):
+        child = _attr(value, name, default=None)
+        if child is not None:
+            result[name] = sanitize_text(str(child)) if name == "message" else safe_value(child)
+    if result:
+        return result
+    return {"type": type(value).__name__}
 
 
 def _provider_file_metadata(file: Any, *, expected_mime: str) -> dict[str, Any]:
@@ -1097,7 +1234,14 @@ def _provider_file_metadata(file: Any, *, expected_mime: str) -> dict[str, Any]:
     file_state = _state(_attr(file, "state", "file_state", "fileState", default=""))
     if file_state not in {"ACTIVE", "pending", "failed"}:
         file_state = str(_scalar(_attr(file, "state", default="")))
-    return {"name": name, "uri": uri, "mime_type": mime, "file_state": file_state}
+    metadata = {"name": name, "uri": uri, "mime_type": mime, "file_state": file_state}
+    size = _attr(file, "size_bytes", "sizeBytes", default=None)
+    if isinstance(size, int) and not isinstance(size, bool) and size >= 0:
+        metadata["size_bytes"] = size
+    digest = _attr(file, "sha256_hash", "sha256Hash", default=None)
+    if isinstance(digest, str) and digest:
+        metadata["sha256_hash"] = digest
+    return metadata
 
 
 def preflight_models(root: Path, client: Any, checked_at: str) -> dict[str, Any]:
@@ -1133,14 +1277,30 @@ def upload_rows(root: Path, client: Any, *, sleep: Callable[[float], None]) -> d
     upload_dir = root / _UPLOADS_DIRNAME
     if upload_dir.exists() or upload_dir.is_symlink():
         raise ValueError("upload records already exist; refusing a duplicate upload")
-    upload_dir.mkdir()
+    _ensure_directory(upload_dir, label="upload records", create=True)
     old_uris = _historical_uris(protocol)
     records: list[dict[str, Any]] = []
-    try:
-        for row in _protocol_rows(protocol):
-            delivery = _upload_file_path(protocol, row)
-            before_hash = _sha256_file(delivery)
-            before_size = delivery.stat().st_size
+    for row in _protocol_rows(protocol):
+        row_id = row["row_id"]
+        attempt_path = upload_dir / f"{row_id}.attempt.json"
+        record_path = upload_dir / f"{row_id}.json"
+        delivery = _upload_file_path(protocol, row)
+        before_hash = _sha256_file(delivery)
+        before_size = delivery.stat().st_size
+        attempt = {
+            "schema_version": 1,
+            "experiment_id": EXPERIMENT_ID,
+            "status": "upload_attempt_reserved",
+            "protocol_sha256": protocol_hash,
+            "row_id": row_id,
+            "video_id": row["video_id"],
+            "delivery_sha256": before_hash,
+            "delivery_size_bytes": before_size,
+            "mime_type": row["delivery_mime_type"],
+        }
+        _write_json_exclusive(attempt_path, attempt)
+        provider_identity: dict[str, Any] | None = None
+        try:
             uploaded = client.files.upload(
                 file=delivery,
                 config=types.UploadFileConfig(mime_type=row["delivery_mime_type"]),
@@ -1148,16 +1308,26 @@ def upload_rows(root: Path, client: Any, *, sleep: Callable[[float], None]) -> d
             if _sha256_file(delivery) != before_hash or delivery.stat().st_size != before_size:
                 raise ValueError("delivery mutated during upload")
             initial = _provider_file_metadata(uploaded, expected_mime=row["delivery_mime_type"])
+            provider_identity = initial
             if initial["uri"] in old_uris:
                 raise ValueError("provider reused an expired historical upload URI")
+            if initial.get("size_bytes") is not None and initial["size_bytes"] != before_size:
+                raise ValueError("provider upload size does not match delivery")
+            if initial.get("sha256_hash") is not None and initial["sha256_hash"] != before_hash:
+                raise ValueError("provider upload hash does not match delivery")
             current = initial
             for poll_index in range(_MAX_UPLOAD_POLLS):
                 current_file = client.files.get(name=initial["name"])
                 current = _provider_file_metadata(
                     current_file, expected_mime=row["delivery_mime_type"]
                 )
+                provider_identity = current
                 if current["uri"] != initial["uri"] or current["name"] != initial["name"]:
                     raise ValueError("provider upload identity changed while polling")
+                if current.get("size_bytes") is not None and current["size_bytes"] != before_size:
+                    raise ValueError("provider upload size changed while polling")
+                if current.get("sha256_hash") is not None and current["sha256_hash"] != before_hash:
+                    raise ValueError("provider upload hash changed while polling")
                 if current["file_state"] == "ACTIVE":
                     break
                 if current["file_state"] == "failed":
@@ -1182,12 +1352,25 @@ def upload_rows(root: Path, client: Any, *, sleep: Callable[[float], None]) -> d
                 "file_state": "ACTIVE",
                 "provider_snapshot": current,
             }
-            _write_json_exclusive(upload_dir / f"{row['row_id']}.json", body)
-            records.append(_read_object(upload_dir / f"{row['row_id']}.json"))
-    except Exception:
-        # Keep any partial records and the output directory as terminal evidence:
-        # a later call must fail closed rather than uploading a second time.
-        raise
+            _write_json_exclusive(record_path, body)
+            records.append(_read_object(record_path))
+        except Exception as error:  # noqa: BLE001 - preserve one terminal attempt
+            failure = {
+                "schema_version": 1,
+                "experiment_id": EXPERIMENT_ID,
+                "status": "failed",
+                "protocol_sha256": protocol_hash,
+                "row_id": row_id,
+                "video_id": row["video_id"],
+                "delivery_sha256": before_hash,
+                "delivery_size_bytes": before_size,
+                "mime_type": row["delivery_mime_type"],
+                "provider_snapshot": provider_identity,
+                "provider_error": _safe_error(error),
+            }
+            if not record_path.exists() and not record_path.is_symlink():
+                _write_json_exclusive(record_path, failure)
+            raise
     return {
         "status": "uploaded",
         "protocol_sha256": protocol_hash,
@@ -1209,8 +1392,15 @@ def _request_record(
         "delivery_sha256": row["delivery_sha256"],
         "mime_type": row["delivery_mime_type"],
         "protocol_sha256": protocol_hash,
+        "request_metadata": _plain(request.metadata),
         "request_sha256": _sha256_bytes(_canonical_json(request_dump)),
     }
+
+
+def _bind_request_row(row: Mapping[str, Any], protocol_hash: str) -> dict[str, Any]:
+    bound = dict(row)
+    bound["protocol_sha256"] = protocol_hash
+    return bound
 
 
 def _expected_request_records(
@@ -1220,7 +1410,7 @@ def _expected_request_records(
     if len(uploads) != len(rows):
         raise ValueError("upload and protocol row counts differ")
     requests = [
-        build_inlined_request(row=row, upload=upload, arm=arm)
+        build_inlined_request(row=_bind_request_row(row, protocol_hash), upload=upload, arm=arm)
         for row, upload in zip(rows, uploads, strict=True)
     ]
     return [
@@ -1236,6 +1426,7 @@ def _validated_job_record(
     uploads: Sequence[Mapping[str, Any]],
     arm: str,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    _ensure_directory(root / _JOBS_DIRNAME, label="jobs")
     path = root / _JOBS_DIRNAME / f"{arm}.json"
     job = _verify_artifact(path)
     expected_requests = _expected_request_records(protocol, uploads, arm, protocol_hash)
@@ -1271,6 +1462,11 @@ def _job_snapshot(job: Any) -> dict[str, Any]:
         value = _attr(job, source_name, output_name, default=None)
         if value is not None:
             snapshot[output_name] = _scalar(value)
+    for name in ("error", "failure", "status_error"):
+        error = _safe_error(_attr(job, name, default=None))
+        if error is not None:
+            snapshot["error"] = error
+            break
     return snapshot
 
 
@@ -1283,10 +1479,13 @@ def submit_arm(root: Path, arm: str, client: Any, *, submitted_at: str) -> dict[
     _models_artifact(root, protocol_hash)
     uploads = _upload_records(root, protocol, protocol_hash)
     jobs_dir = root / _JOBS_DIRNAME
-    jobs_dir.mkdir(exist_ok=True)
+    _ensure_directory(jobs_dir, label="jobs", create=True)
     job_path = jobs_dir / f"{arm}.json"
     if job_path.exists() or job_path.is_symlink():
         raise ValueError(f"submission already exists for {arm}")
+    attempt_path = jobs_dir / f"{arm}.attempt.json"
+    if attempt_path.exists() or attempt_path.is_symlink():
+        raise ValueError(f"submission attempt already exists for {arm}")
     response_path = root / "responses" / f"{arm}.json"
     if response_path.exists() or response_path.is_symlink():
         raise ValueError(f"response evidence already exists for {arm}")
@@ -1295,7 +1494,7 @@ def submit_arm(root: Path, arm: str, client: Any, *, submitted_at: str) -> dict[
         raise ValueError(f"status evidence already exists for {arm}")
     rows = _protocol_rows(protocol)
     requests = [
-        build_inlined_request(row=row, upload=upload, arm=arm)
+        build_inlined_request(row=_bind_request_row(row, protocol_hash), upload=upload, arm=arm)
         for row, upload in zip(rows, uploads, strict=True)
     ]
     if len(requests) != 2:
@@ -1312,6 +1511,20 @@ def submit_arm(root: Path, arm: str, client: Any, *, submitted_at: str) -> dict[
             else "gemini37-smoke-candidate-37flash"
         )
     )
+    reservation = {
+        "schema_version": 1,
+        "experiment_id": EXPERIMENT_ID,
+        "status": "attempt_reserved",
+        "arm": arm,
+        "submitted_at": submitted_at,
+        "protocol_sha256": protocol_hash,
+        "model": ARMS[arm]["model"],
+        "display_name": config.display_name,
+        "request_count": 2,
+        "requests": request_records,
+        "request_hash": request_hash,
+    }
+    _write_json_exclusive(attempt_path, reservation)
     try:
         job = client.batches.create(
             model=ARMS[arm]["model"],
@@ -1329,30 +1542,48 @@ def submit_arm(root: Path, arm: str, client: Any, *, submitted_at: str) -> dict[
             "request_hash": request_hash,
             "request_count": 2,
             "requests": request_records,
-            "provider_error_type": type(error).__name__,
+            "provider_error": _safe_error(error),
         }
         _write_json_exclusive(job_path, body)
         return _read_object(job_path)
-    snapshot = _job_snapshot(job)
-    name = _nonempty_string(snapshot.get("name"), label="Batch job name")
-    body = {
-        "schema_version": 1,
-        "experiment_id": EXPERIMENT_ID,
-        "status": "submitted",
-        "arm": arm,
-        "submitted_at": submitted_at,
-        "protocol_sha256": protocol_hash,
-        "model": ARMS[arm]["model"],
-        "display_name": config.display_name,
-        "name": name,
-        "request_count": 2,
-        "requests": request_records,
-        "request_hash": request_hash,
-        "provider_snapshot": snapshot,
-        "provider_snapshot_sha256": _sha256_bytes(_canonical_json(snapshot)),
-    }
-    _write_json_exclusive(job_path, body)
-    return _read_object(job_path)
+    try:
+        snapshot = _job_snapshot(job)
+        name = _nonempty_string(snapshot.get("name"), label="Batch job name")
+        body = {
+            "schema_version": 1,
+            "experiment_id": EXPERIMENT_ID,
+            "status": "submitted",
+            "arm": arm,
+            "submitted_at": submitted_at,
+            "protocol_sha256": protocol_hash,
+            "model": ARMS[arm]["model"],
+            "display_name": config.display_name,
+            "name": name,
+            "request_count": 2,
+            "requests": request_records,
+            "request_hash": request_hash,
+            "provider_snapshot": snapshot,
+            "provider_snapshot_sha256": _sha256_bytes(_canonical_json(snapshot)),
+        }
+        _write_json_exclusive(job_path, body)
+        return _read_object(job_path)
+    except Exception as error:  # noqa: BLE001 - terminalize malformed post-call result
+        body = {
+            "schema_version": 1,
+            "experiment_id": EXPERIMENT_ID,
+            "status": "failed",
+            "arm": arm,
+            "submitted_at": submitted_at,
+            "protocol_sha256": protocol_hash,
+            "model": ARMS[arm]["model"],
+            "display_name": config.display_name,
+            "request_count": 2,
+            "requests": request_records,
+            "request_hash": request_hash,
+            "provider_error": _safe_error(error),
+        }
+        _write_json_exclusive(job_path, body)
+        return _read_object(job_path)
 
 
 def _extract_responses(job: Any) -> list[Any]:
@@ -1368,12 +1599,69 @@ def _extract_responses(job: Any) -> list[Any]:
     return []
 
 
+_RESPONSE_KEYS = frozenset(
+    {
+        "response",
+        "key",
+        "metadata",
+        "error",
+        "response_id",
+        "responseId",
+        "id",
+        "model_version",
+        "modelVersion",
+        "candidates",
+        "text",
+        "finish_reason",
+        "finishReason",
+        "usage_metadata",
+        "usageMetadata",
+        "arm",
+        "row_id",
+        "video_id",
+    }
+)
+
+
+def _safe_response_object(raw: Any) -> dict[str, Any]:
+    if isinstance(raw, Mapping):
+        source = raw
+    else:
+        model_dump = getattr(raw, "model_dump", None)
+        if callable(model_dump):
+            try:
+                source = model_dump(mode="json", by_alias=True, exclude_none=True)
+            except TypeError:
+                source = model_dump()
+        else:
+            source = {
+                name: getattr(raw, name)
+                for name in _RESPONSE_KEYS
+                if hasattr(raw, name)
+            }
+    if not isinstance(source, Mapping):
+        return {}
+    safe: dict[str, Any] = {}
+    for key, value in source.items():
+        if str(key) not in _RESPONSE_KEYS:
+            continue
+        if str(key) == "response" and value is not raw:
+            safe[str(key)] = _safe_response_object(value)
+        elif str(key) == "error":
+            safe[str(key)] = _safe_error(value)
+        else:
+            safe[str(key)] = _plain(value)
+    return safe
+
+
 def record_status(root: Path, arm: str, client: Any, *, checked_at: str) -> dict[str, Any]:
     """Append one sanitized provider status snapshot for an already submitted arm."""
 
     if arm not in ARMS:
         raise ValueError(f"unknown arm: {arm}")
     root, protocol, protocol_hash = _protocol_context(root)
+    if (root / _PREDICTIONS_FILENAME).exists() or (root / _PREDICTIONS_FILENAME).is_symlink():
+        raise ValueError("prediction freeze is terminal; status cannot be appended")
     _models_artifact(root, protocol_hash)
     _upload_records(root, protocol, protocol_hash)
     job_record = _verify_artifact(root / _JOBS_DIRNAME / f"{arm}.json")
@@ -1395,11 +1683,15 @@ def record_status(root: Path, arm: str, client: Any, *, checked_at: str) -> dict
     )
     job = client.batches.get(name=name)
     snapshot = _job_snapshot(job)
-    snapshot["responses"] = _plain(_extract_responses(job))
-    _reject_forbidden(snapshot["responses"], context=f"{arm} provider responses")
+    raw_responses = _extract_responses(job)
+    for raw_response in raw_responses:
+        _reject_forbidden(_plain(raw_response), context=f"{arm} provider responses")
+    snapshot["responses"] = [_safe_response_object(raw) for raw in raw_responses]
     state = _state(_attr(job, "state", "status", default=snapshot.get("state", "")))
-    status_dir = root / _STATUS_DIRNAME / arm
-    status_dir.mkdir(parents=True, exist_ok=True)
+    status_root = root / _STATUS_DIRNAME
+    _ensure_directory(status_root, label="status", create=True)
+    status_dir = status_root / arm
+    _ensure_directory(status_dir, label=f"status/{arm}", create=True)
     sequence = len(list(status_dir.glob("*.json"))) + 1
     body = {
         "schema_version": 1,
@@ -1421,6 +1713,8 @@ def record_status(root: Path, arm: str, client: Any, *, checked_at: str) -> dict
 
 def _latest_status(root: Path, arm: str, protocol_hash: str) -> tuple[dict[str, Any], Path]:
     status_dir = root / _STATUS_DIRNAME / arm
+    _ensure_directory(root / _STATUS_DIRNAME, label="status")
+    _ensure_directory(status_dir, label=f"status/{arm}")
     paths = sorted(status_dir.glob("*.json")) if status_dir.is_dir() else []
     if not paths:
         raise ValueError(f"no status snapshot exists for {arm}")
@@ -1440,14 +1734,15 @@ def _latest_status(root: Path, arm: str, protocol_hash: str) -> tuple[dict[str, 
 
 
 def _response_payload(raw: Any) -> dict[str, Any]:
-    value = _plain(raw)
+    value = _safe_response_object(raw)
     if not isinstance(value, Mapping):
         return {}
     nested = value.get("response")
     if isinstance(nested, Mapping):
         merged = dict(nested)
-        if "key" in value:
-            merged["key"] = value["key"]
+        for key, child in value.items():
+            if key != "response":
+                merged[key] = child
         return merged
     return dict(value)
 
@@ -1485,7 +1780,23 @@ def _usage(response: Mapping[str, Any]) -> dict[str, Any] | None:
         result[output] = found
     if result["total_tokens"] < result["prompt_tokens"]:
         return None
+    metadata = {
+        str(key): _plain(value)
+        for key, value in usage.items()
+        if str(key).casefold().replace("-", "_")
+        not in {"sdk_http_response", "sdkhttpresponse", "client", "transport", "authorization"}
+    }
+    result["metadata"] = metadata
     return result
+
+
+def _model_versions_match(model_id: str, expected: str, observed: Any) -> bool:
+    if not isinstance(observed, str) or not observed.strip():
+        return False
+    observed = observed.strip()
+    if observed == expected:
+        return True
+    return observed == f"{model_id}-{expected}"
 
 
 def _validated_responses(
@@ -1493,7 +1804,9 @@ def _validated_responses(
     responses: Sequence[Any],
     rows: Sequence[Mapping[str, Any]],
     expected_version: str,
+    expected_model: str,
     expected_arm: str,
+    expected_requests: Sequence[Mapping[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[str], bool]:
     normalized: list[dict[str, Any]] = []
     failures: list[str] = []
@@ -1509,11 +1822,19 @@ def _validated_responses(
             failures.append("duplicate_response_id")
         seen_ids.add(response_id)
         model_version = response.get("model_version", response.get("modelVersion"))
-        if model_version != expected_version:
+        if not _model_versions_match(expected_model, expected_version, model_version):
             failures.append(f"response_{index}_model_version")
         if response.get("arm") not in (None, expected_arm):
             failures.append(f"response_{index}_arm")
         expected_row = rows[index] if index < len(rows) else {}
+        expected_metadata = (
+            expected_requests[index].get("request_metadata")
+            if index < len(expected_requests)
+            else None
+        )
+        response_metadata = response.get("metadata")
+        if not isinstance(response_metadata, Mapping) or dict(response_metadata) != expected_metadata:
+            failures.append(f"response_{index}_metadata")
         if response.get("row_id") not in (None, expected_row.get("row_id")):
             failures.append(f"response_{index}_row_id")
         if response.get("video_id") not in (None, expected_row.get("video_id")):
@@ -1543,7 +1864,10 @@ def _validated_responses(
                 "response_id": response_id,
                 "finish_reason": finish,
                 "model_version": model_version,
+                "metadata": dict(response_metadata) if isinstance(response_metadata, Mapping) else None,
+                "error": _safe_error(response.get("error")),
                 "text": text,
+                "usage_metadata": usage.get("metadata") if usage is not None else None,
                 "usage": usage,
             }
         )
@@ -1567,7 +1891,8 @@ def freeze_predictions(root: Path, *, frozen_at: str) -> dict[str, Any]:
     rows = _protocol_rows(protocol)
     arm_results: dict[str, Any] = {}
     failure_reasons: list[str] = []
-    custom_fps_failure = False
+    hard_failure = False
+    custom_fps_candidate = False
     observed_cost = 0.0
     for arm in ARMS:
         try:
@@ -1577,12 +1902,14 @@ def freeze_predictions(root: Path, *, frozen_at: str) -> dict[str, Any]:
         except ValueError as error:
             failure_reasons.append(f"{arm}:job_binding:{type(error).__name__}")
             arm_results[arm] = {"status": "not_ready", "response_count": 0}
+            hard_failure = True
             continue
         try:
             status, status_path = _latest_status(root, arm, protocol_hash)
         except ValueError as error:
             failure_reasons.append(f"{arm}:{type(error).__name__}")
             arm_results[arm] = {"status": "not_ready", "response_count": 0}
+            hard_failure = True
             continue
         state = status.get("status")
         responses_raw = _attr(status.get("provider_snapshot"), "responses", default=[])
@@ -1595,7 +1922,9 @@ def freeze_predictions(root: Path, *, frozen_at: str) -> dict[str, Any]:
             responses=responses_raw,
             rows=rows,
             expected_version=expected_version,
+            expected_model=ARMS[arm]["model"],
             expected_arm=arm,
+            expected_requests=expected_requests,
         )
         if state != "succeeded":
             failures.append(f"job_{state}")
@@ -1606,9 +1935,6 @@ def freeze_predictions(root: Path, *, frozen_at: str) -> dict[str, Any]:
             failures.append("provider_model")
         if job_record.get("requests") != expected_requests:
             failures.append("request_binding")
-        if not usage_complete:
-            custom_fps_failure = True
-            failure_reasons.append(f"{arm}:usage_missing")
         if failures:
             failure_reasons.extend(f"{arm}:{reason}" for reason in failures)
         prompt_tokens = sum(
@@ -1620,14 +1946,20 @@ def freeze_predictions(root: Path, *, frozen_at: str) -> dict[str, Any]:
             if item["usage"] is not None
         )
         fps_ok = usage_complete and _FPS_PROMPT_TOKEN_MIN <= prompt_tokens <= _FPS_PROMPT_TOKEN_MAX
-        if usage_complete and not fps_ok:
-            custom_fps_failure = True
+        response_valid = not failures and state == "succeeded" and len(normalized) == 2
+        if response_valid and not usage_complete:
+            custom_fps_candidate = True
+            failure_reasons.append(f"{arm}:usage_missing")
+        if response_valid and usage_complete and not fps_ok:
+            custom_fps_candidate = True
             failure_reasons.append(f"{arm}:prompt_tokens_out_of_band")
+        if failures:
+            hard_failure = True
         rates = _BATCH_RATES_USD_PER_MILLION[arm]
         arm_cost = prompt_tokens / 1_000_000 * rates["prompt"] + output_tokens / 1_000_000 * rates["output"]
         observed_cost += arm_cost
         arm_results[arm] = {
-            "status": "succeeded" if not failures else "not_ready",
+            "status": "succeeded" if response_valid and fps_ok else "not_ready",
             "status_snapshot_sha256": _sha256_file(status_path),
             "provider_snapshot_sha256": status.get("provider_snapshot_sha256"),
             "request_hash": _verify_artifact(root / _JOBS_DIRNAME / f"{arm}.json").get("request_hash"),
@@ -1640,9 +1972,9 @@ def freeze_predictions(root: Path, *, frozen_at: str) -> dict[str, Any]:
             "observed_cost_usd": round(arm_cost, 8),
             "custom_fps_verified": fps_ok,
         }
-    if failure_reasons and not custom_fps_failure:
+    if hard_failure:
         decision = "not_ready"
-    elif custom_fps_failure:
+    elif custom_fps_candidate:
         decision = "custom_fps_not_verified"
     else:
         decision = "quality_ready"

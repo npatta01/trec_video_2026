@@ -745,6 +745,15 @@ class _FakeBatches:
             _response(response_id=f"resp-{index}", model_version=version)
             for index in range(2)
         ]
+        responses = [
+            item
+            if isinstance(item, dict) and "metadata" in item
+            else {
+                "metadata": src.inlined_requests[index].metadata,
+                "response": item,
+            }
+            for index, item in enumerate(responses)
+        ]
         job = SimpleNamespace(
             name=name,
             display_name=getattr(config, "display_name", None),
@@ -916,7 +925,7 @@ def test_record_status_is_additive_and_freeze_retains_usage_and_cost(tmp_path: P
     assert freeze["decision"] == "quality_ready"
     assert freeze["arms"]["control_31pro"]["response_count"] == 2
     assert freeze["arms"]["candidate_37flash"]["prompt_tokens"] == 40_000
-    assert freeze["observed_cost_usd"] > 0
+    assert freeze["observed_cost_usd"] == 0.056575
     assert len(list((root / "status" / "control_31pro").glob("*.json"))) == 2
     assert "prior" not in (root / "predictions-freeze.json").read_text().lower()
 
@@ -945,5 +954,365 @@ def test_freeze_predictions_rejects_missing_usage_and_duplicate_response_ids(tmp
         submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
         record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
     freeze = freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")
-    assert freeze["decision"] == "custom_fps_not_verified"
+    assert freeze["decision"] == "not_ready"
     assert freeze["failure_reasons"]
+
+
+def test_submit_requests_carry_exact_binding_metadata(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    result = submit_arm(root, "control_31pro", client, submitted_at="2026-08-16T12:02:00Z")
+    requests = client.batches.create_calls[0]["src"].inlined_requests
+    assert len(requests) == 2
+    for index, request in enumerate(requests):
+        assert request.metadata == {
+            "arm": "control_31pro",
+            "row_id": result["requests"][index]["row_id"],
+            "video_id": result["requests"][index]["video_id"],
+            "question": result["requests"][index]["question"],
+            "file_uri": result["requests"][index]["file_uri"],
+            "delivery_sha256": result["requests"][index]["delivery_sha256"],
+            "mime_type": result["requests"][index]["mime_type"],
+            "protocol_sha256": result["requests"][index]["protocol_sha256"],
+        }
+
+
+def test_freeze_merges_top_level_response_metadata_and_error(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    for arm in ARMS:
+        result = submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        requests = client.batches.create_calls[-1]["src"].inlined_requests
+        version = f"{ARMS[arm]['model']}-version-20260816"
+        client.batches.jobs[result["name"]].responses = [
+            {
+                "metadata": request.metadata,
+                "response": _response(response_id=f"resp-{index}", model_version=version),
+            }
+            for index, request in enumerate(requests)
+        ]
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    freeze = freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")
+    assert freeze["decision"] == "quality_ready"
+    assert freeze["arms"]["control_31pro"]["responses"][0]["metadata"]["arm"] == "control_31pro"
+
+
+def test_freeze_rejects_top_level_response_error(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    for arm in ARMS:
+        result = submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        requests = client.batches.create_calls[-1]["src"].inlined_requests
+        version = f"{ARMS[arm]['model']}-version-20260816"
+        client.batches.jobs[result["name"]].responses = [
+            {
+                "metadata": request.metadata,
+                "response": _response(response_id=f"resp-{index}", model_version=version),
+                "error": {"code": 400, "message": "provider row error", "details": []},
+            }
+            if index == 0
+            else {
+                "metadata": request.metadata,
+                "response": _response(response_id=f"resp-{index}", model_version=version),
+            }
+            for index, request in enumerate(requests)
+        ]
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    assert freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")["decision"] == "not_ready"
+
+
+def test_submit_reserves_paid_attempt_before_malformed_provider_result(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    client.batches.create = lambda **_: SimpleNamespace(state="JOB_STATE_SUCCEEDED")
+    result = submit_arm(root, "control_31pro", client, submitted_at="2026-08-16T12:02:00Z")
+    assert result["status"] == "failed"
+    assert (root / "jobs" / "control_31pro.attempt.json").is_file()
+    with pytest.raises(ValueError, match="attempt|submission"):
+        submit_arm(root, "control_31pro", client, submitted_at="2026-08-16T12:02:01Z")
+
+
+def test_submit_reserves_paid_attempt_when_provider_raises(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+
+    def fail_create(**_: Any) -> Any:
+        raise RuntimeError("provider failure")
+
+    client.batches.create = fail_create
+    result = submit_arm(root, "candidate_37flash", client, submitted_at="2026-08-16T12:02:00Z")
+    assert result["status"] == "failed"
+    assert (root / "jobs" / "candidate_37flash.attempt.json").is_file()
+
+
+def test_upload_writes_terminal_attempt_and_failure_evidence(tmp_path: Path) -> None:
+    root = _prepared_provider_root(tmp_path)
+    client = _FakeClient(file_state="FAILED")
+    preflight_models(root, client, "2026-08-16T12:01:00Z")
+    with pytest.raises(ValueError, match="FAILED"):
+        upload_rows(root, client, sleep=lambda _: None)
+    assert (root / "uploads" / "row-000.attempt.json").is_file()
+    failure = json.loads((root / "uploads" / "row-000.json").read_text())
+    assert failure["status"] == "failed"
+    with pytest.raises(ValueError, match="duplicate|already"):
+        upload_rows(root, client, sleep=lambda _: None)
+
+
+def test_historical_single_mapping_upload_uri_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "upload.json"
+    _write_json(path, {"video_id": "video-000", "file_uri": "https://old.example/video-000"})
+    assert smoke._historical_uris({"historical_upload": {"path": str(path)}}) == {
+        "https://old.example/video-000"
+    }
+
+
+def test_partial_job_state_is_not_success() -> None:
+    assert smoke._state("JOB_STATE_PARTIALLY_SUCCEEDED") == "failed"
+
+
+def test_pending_with_missing_usage_is_not_ready_not_custom_fps(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    client.batches.next_state = "JOB_STATE_PENDING"
+    client.batches.responses = [
+        {"response_id": "resp-0", "model_version": "v", "text": ""},
+        {"response_id": "resp-1", "model_version": "v", "text": ""},
+    ]
+    for arm in ARMS:
+        submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    assert freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")["decision"] == "not_ready"
+
+
+def test_usage_metadata_is_preserved_and_control_rate_is_frozen() -> None:
+    assert smoke._BATCH_RATES_USD_PER_MILLION["control_31pro"]["output"] == 6.0
+
+
+def test_record_status_rejects_after_prediction_freeze(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    for arm in ARMS:
+        submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")
+    with pytest.raises(ValueError, match="freeze|terminal"):
+        record_status(root, "control_31pro", client, checked_at="2026-08-16T12:06:00Z")
+
+
+def test_preflight_requires_generate_content_capability(tmp_path: Path) -> None:
+    root = _prepared_provider_root(tmp_path)
+    client = _FakeClient()
+    client.models._models = None
+    original_get = client.models.get
+
+    def get_without_generate(*, model: str) -> Any:
+        result = original_get(model=model)
+        result.supported_actions = ["embedContent"]
+        return result
+
+    client.models.get = get_without_generate
+    with pytest.raises(ValueError, match="generateContent"):
+        preflight_models(root, client, "2026-08-16T12:01:00Z")
+
+
+def test_failed_batch_error_is_preserved_safely(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    client.batches.next_state = "JOB_STATE_FAILED"
+    for arm in ARMS:
+        result = submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        client.batches.jobs[result["name"]].error = {
+            "code": 429,
+            "message": "quota exhausted",
+            "details": [{"reason": "rateLimit"}],
+        }
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    status = json.loads(next((root / "status" / "control_31pro").glob("*.json")).read_text())
+    assert status["provider_snapshot"]["error"]["code"] == 429
+    assert status["provider_snapshot"]["error"]["details"][0]["reason"] == "rateLimit"
+    assert freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")["decision"] == "not_ready"
+
+
+def test_mixed_hard_failure_precedes_custom_fps_candidate(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    for arm in ARMS:
+        version = f"{ARMS[arm]['model']}-version-20260816"
+        if arm == "control_31pro":
+            client.batches.responses = [
+                _response(response_id="empty-0", model_version=version),
+                _response(response_id="empty-1", model_version=version),
+            ]
+            client.batches.responses[0]["text"] = ""
+        else:
+            client.batches.responses = [
+                _response(response_id="fps-0", model_version=version, prompt=17_096),
+                _response(response_id="fps-1", model_version=version, prompt=17_097),
+            ]
+        submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    assert freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")["decision"] == "not_ready"
+
+
+def test_submit_rejects_symlinked_jobs_parent(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    target = tmp_path / "jobs-target"
+    target.mkdir()
+    (root / "jobs").symlink_to(target, target_is_directory=True)
+    with pytest.raises(ValueError, match="symlink|regular"):
+        submit_arm(root, "control_31pro", client, submitted_at="2026-08-16T12:02:00Z")
+
+
+def test_status_rejects_symlinked_status_parent(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    submit_arm(root, "control_31pro", client, submitted_at="2026-08-16T12:02:00Z")
+    target = tmp_path / "status-target"
+    target.mkdir()
+    (root / "status").symlink_to(target, target_is_directory=True)
+    with pytest.raises(ValueError, match="symlink|regular"):
+        record_status(root, "control_31pro", client, checked_at="2026-08-16T12:03:00Z")
+
+
+def test_response_privacy_keys_and_raw_http_are_rejected(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    result = submit_arm(root, "control_31pro", client, submitted_at="2026-08-16T12:02:00Z")
+    client.batches.jobs[result["name"]].responses = [
+        {
+            "metadata": request.metadata,
+            "response": {
+                "priorOutput": "private",
+                "sdkHttpResponse": {"raw": "must not be persisted"},
+            },
+        }
+        for request in client.batches.create_calls[-1]["src"].inlined_requests
+    ]
+    with pytest.raises(ValueError, match="forbidden"):
+        record_status(root, "control_31pro", client, checked_at="2026-08-16T12:03:00Z")
+
+
+def test_provider_raw_http_field_is_not_serialized(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    result = submit_arm(root, "control_31pro", client, submitted_at="2026-08-16T12:02:00Z")
+    requests = client.batches.create_calls[-1]["src"].inlined_requests
+    version = f"{ARMS['control_31pro']['model']}-version-20260816"
+    client.batches.jobs[result["name"]].responses = [
+        {
+            "metadata": request.metadata,
+            "response": _response(response_id=f"raw-{index}", model_version=version),
+            "sdkHttpResponse": {"headers": {"authorization": "private"}},
+        }
+        for index, request in enumerate(requests)
+    ]
+    record_status(root, "control_31pro", client, checked_at="2026-08-16T12:03:00Z")
+    serialized = next((root / "status" / "control_31pro").glob("*.json")).read_text()
+    assert "sdkHttpResponse" not in serialized
+    assert "authorization" not in serialized
+
+
+def test_provider_upload_bytes_are_retained_for_drift_checks(tmp_path: Path) -> None:
+    root = _prepared_provider_root(tmp_path)
+    client = _FakeClient()
+    preflight_models(root, client, "2026-08-16T12:01:00Z")
+    original_upload = client.files.upload
+
+    def upload_with_provider_bytes(*, file: Path, config: Any) -> Any:
+        value = original_upload(file=file, config=config)
+        value.size_bytes = file.stat().st_size
+        value.sha256_hash = _sha256(file)
+        return value
+
+    client.files.upload = upload_with_provider_bytes
+    upload_rows(root, client, sleep=lambda _: None)
+    records = json.loads((root / "uploads" / "row-000.json").read_text())
+    assert records["provider_snapshot"]["size_bytes"] > 0
+    assert records["provider_snapshot"]["sha256_hash"] == records["delivery_sha256"]
+
+
+@pytest.mark.parametrize("field", ["uri", "file_state", "size_bytes", "sha256_hash"])
+def test_upload_record_rejects_provider_identity_or_bytes_drift(tmp_path: Path, field: str) -> None:
+    root = _prepared_provider_root(tmp_path)
+    client = _FakeClient()
+    preflight_models(root, client, "2026-08-16T12:01:00Z")
+    upload_rows(root, client, sleep=lambda _: None)
+    path = root / "uploads" / "row-000.json"
+    record = json.loads(path.read_text())
+    if field == "uri":
+        record["provider_snapshot"][field] = "https://different.example/file"
+    elif field == "file_state":
+        record["provider_snapshot"][field] = "FAILED"
+    elif field == "size_bytes":
+        record["provider_snapshot"][field] = record["delivery_size_bytes"] + 1
+    else:
+        record["provider_snapshot"][field] = "f" * 64
+    body = dict(record)
+    body.pop("_artifact_sha256", None)
+    record["_artifact_sha256"] = smoke._sha256_bytes(smoke._canonical_json(body))
+    path.write_text(json.dumps(record, sort_keys=True))
+    with pytest.raises(ValueError, match="provider|drift|identity|hash|size"):
+        smoke._upload_records(root, smoke._verify_artifact(root / "protocol.json"), smoke._sha256_file(root / "protocol.json"))
+
+
+def test_actual_sdk_response_preserves_complete_usage_metadata(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    for arm in ARMS:
+        result = submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        requests = client.batches.create_calls[-1]["src"].inlined_requests
+        version = f"{ARMS[arm]['model']}-version-20260816"
+        client.batches.jobs[result["name"]].responses = [
+            smoke.types.InlinedResponse(
+                metadata=request.metadata,
+                response=smoke.types.GenerateContentResponse(
+                    response_id=f"sdk-{index}",
+                    model_version=version,
+                    candidates=[
+                        smoke.types.Candidate(
+                            content=smoke.types.Content(
+                                role="model",
+                                parts=[smoke.types.Part(text="sdk-shaped answer")],
+                            ),
+                            finish_reason="STOP",
+                        )
+                    ],
+                    usage_metadata=smoke.types.GenerateContentResponseUsageMetadata(
+                        prompt_token_count=20_000,
+                        candidates_token_count=100,
+                        total_token_count=20_100,
+                        thoughts_token_count=7,
+                        cached_content_token_count=3,
+                        traffic_type="ON_DEMAND",
+                    ),
+                ),
+            )
+            for index, request in enumerate(requests)
+        ]
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    freeze = freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")
+    assert freeze["decision"] == "quality_ready"
+    usage = freeze["arms"]["control_31pro"]["responses"][0]["usage_metadata"]
+    assert usage["thoughtsTokenCount"] == 7
+    assert usage["cachedContentTokenCount"] == 3
+    assert usage["trafficType"] == "ON_DEMAND"
+    assert freeze["arms"]["control_31pro"]["responses"][0]["model_version"] == "gemini-3.1-pro-preview-version-20260816"
+
+
+def test_model_short_version_binds_to_full_response_version(tmp_path: Path) -> None:
+    root = _prepared_provider_root(tmp_path)
+    client = _FakeClient()
+    original_get = client.models.get
+
+    def short_version_model(*, model: str) -> Any:
+        value = original_get(model=model)
+        value.version = "001"
+        return value
+
+    client.models.get = short_version_model
+    preflight_models(root, client, "2026-08-16T12:01:00Z")
+    upload_rows(root, client, sleep=lambda _: None)
+    for arm in ARMS:
+        result = submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        requests = client.batches.create_calls[-1]["src"].inlined_requests
+        client.batches.jobs[result["name"]].responses = [
+            {
+                "metadata": request.metadata,
+                "response": _response(
+                    response_id=f"full-{index}",
+                    model_version=f"{ARMS[arm]['model']}-001",
+                ),
+            }
+            for index, request in enumerate(requests)
+        ]
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    freeze = freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")
+    assert freeze["decision"] == "quality_ready"
+    assert freeze["arms"]["candidate_37flash"]["model_version"] == "001"
