@@ -937,6 +937,15 @@ def _validate_execution_branch(
         ):
             raise ValueError("canary failure freeze does not match exactly two canary terminals")
         return
+    if stop_reason == "continuation_canary_failure":
+        if (
+            completed != 4
+            or call_count != 4
+            or any(item["status"] == "incomplete" for item in records[:4])
+            or any(item["status"] != "incomplete" for item in records[4:])
+        ):
+            raise ValueError("continuation canary freeze does not match four combined terminals")
+        return
     if call_count != completed:
         raise ValueError("incomplete predictions freeze call count does not match terminals")
 
@@ -1082,26 +1091,33 @@ def run(root: Path, call: CallFunction | None = None) -> None:
     root = Path(root)
     if not root.is_dir():
         raise ValueError(f"run root does not exist: {root}")
-    if (root / "continuation-authorization.json").exists():
+    continuation = (root / "continuation-authorization.json").exists()
+    if continuation:
         validate_continuation_authorization(root)
-        raise ValueError(
-            "continuation root is preparation-only until its fresh amended-validator canary is executed"
-        )
-    if (root / "predictions-freeze.json").exists() or (root / "rows").exists():
+    if (root / "predictions-freeze.json").exists() or ((root / "rows").exists() and not continuation):
         raise ValueError("output already has artifacts; refusing to overwrite")
     rows, _provider_by_index, _media_by_index = _validate_inputs(root)
     provider = call or _call_provider
     planned = len(rows) * len(EXPECTED_FPS)
     if planned > MAX_CALLS:
         raise ValueError("planned call count exceeds MAX_CALLS")
-    calls = 0
+    calls = 2 if continuation else 0
     tasks = [(item, fps) for item in rows for fps in EXPECTED_FPS]
     canary_statuses: list[str] = []
+    start_index = 2 if continuation else 0
 
     def stop_after_failed_canary(task_index: int) -> bool:
-        if task_index != 2 * COMPATIBILITY_CANARY_PAIRS - 1:
+        canary_end = (start_index + 2 - 1) if continuation else (2 * COMPATIBILITY_CANARY_PAIRS - 1)
+        if task_index != canary_end:
             return False
-        if all(status == "passed" for status in canary_statuses):
+        if continuation:
+            fresh = []
+            for pending_item, pending_fps in tasks[start_index : start_index + 2]:
+                pending_root = _arm_directory(root, pending_item["provider"]["audit_index"], pending_item["media"]["role"], pending_fps)
+                fresh.append(_load_json(pending_root / "terminal.json").get("status"))
+            if all(status == "passed" for status in fresh):
+                return False
+        elif all(status == "passed" for status in canary_statuses):
             return False
         stop_error = RuntimeError("compatibility canary pair did not pass")
         _write_pending_incomplete(
@@ -1115,12 +1131,12 @@ def run(root: Path, call: CallFunction | None = None) -> None:
             rows,
             calls,
             stop_error,
-            stop_reason="canary_failure",
+            stop_reason="continuation_canary_failure" if continuation else "canary_failure",
             interrupted=False,
         )
         return True
 
-    for task_index, (item, fps) in enumerate(tasks):
+    for task_index, (item, fps) in enumerate(tasks[start_index:], start=start_index):
         provider_row = item["provider"]
         media = item["media"]
         audit_index = provider_row["audit_index"]
@@ -1347,6 +1363,9 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
         if freeze.get("stop_reason") == "canary_failure":
             if freeze.get("interrupted") or interrupted or freeze.get("canary_pair_status") != "failed":
                 raise ValueError("canary failure freeze has invalid interruption binding")
+        elif freeze.get("stop_reason") == "continuation_canary_failure":
+            if freeze.get("interrupted") or interrupted or freeze.get("canary_pair_status") not in {"passed", "failed"}:
+                raise ValueError("continuation canary freeze has invalid interruption binding")
         elif not freeze.get("interrupted") or not interrupted:
             raise ValueError("incomplete predictions freeze must bind an interruption")
         if not isinstance(freeze.get("call_count"), int) or not 0 < freeze["call_count"] < planned:
@@ -1395,6 +1414,8 @@ def verify_predictions_freeze(root: Path) -> None:
                 validate_probe(
                     _load_json(row_root / "parsed.json"),
                     item["media"]["clip_duration_seconds"],
+                    nominal_duration_seconds=item["media"]["clip_end_seconds"] - item["media"]["clip_start_seconds"],
+                    fps=fps,
                 )
             frozen_rows.append(
                 {
@@ -1473,6 +1494,10 @@ def prepare_continuation(source_root: Path, output_root: Path) -> None:
     tasks = [(item, fps) for item in rows for fps in EXPECTED_FPS]
     imported = tasks[:2]
     output_root.mkdir(parents=True)
+    source_clips = source_root / "clips"
+    if not source_clips.is_dir():
+        raise ValueError("source clip bundle is unavailable")
+    os.symlink(source_clips.resolve(), output_root / "clips", target_is_directory=True)
     for name in ("provider-rows.json", "media-manifest.json"):
         shutil.copy2(source_root / name, output_root / name)
     treatment = _load_json(source_root / "treatment-freeze.json")
