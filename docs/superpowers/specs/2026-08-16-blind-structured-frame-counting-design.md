@@ -155,12 +155,17 @@ The certificate binds canonical hashes for:
 - exact request and response;
 - challenger selection and response;
 - final reconciled ledger;
-- reducer source revision and result.
+- interface and reducer source hashes, source revision, and result.
 
 It verifies endpoint inclusion, the maximum PTS gap, one-to-one decision
 coverage, all mandatory challenge records, and abstention on unresolved states.
 It proves delivery and structural completeness only. It does not claim that a
 model perceived the target correctly.
+
+The dry-run freeze preserves the normalized CountSpec, request, primary
+response, challenge response, reconciled ledger, reducer result, and
+certificate as separate write-once JSON files so every certificate binding can
+be reconstructed locally.
 
 ## Public interfaces and agreed test seams
 
@@ -170,10 +175,11 @@ Tests exercise public behavior at these seams:
 2. `build_frame_decision_request(spec, inventory, presentations) -> FrameDecisionRequest`
 3. `parse_frame_decisions(request, payload, *, required_frame_ids=None) -> FrameDecisionSet`; the default requires every request frame, while a large-request challenge passes the exact deterministic selector output.
 4. `select_challenge_frames(request, decisions) -> tuple[str, ...]`
-5. `reconcile_frame_decisions(primary, challenge) -> FramePresenceLedger`
+5. `reconcile_frame_decisions(request, primary, challenge) -> FramePresenceLedger`
 6. `certify_frame_presence_result(...) -> FramePresenceCoverageCertificate`
-7. A zero-network CLI that reads synthetic JSON files and freezes a canonical
-   request, reconciled ledger, reducer result, and certificate.
+7. A zero-network CLI that reads synthetic JSON files and freezes the canonical
+   CountSpec, request, both response passes, reconciled ledger, reducer result,
+   and certificate.
 
 Tests assert observable return values and reason codes rather than private
 helpers. Each production behavior is added through a red-green test cycle.

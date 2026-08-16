@@ -12,6 +12,8 @@ from trec_video_2026.vqa_count_frame_presence import (
     TARGET_STATES,
     FrameObservation,
     FramePresenceLedger,
+    PresenceCountResult,
+    reduce_presence_episodes,
 )
 from trec_video_2026.vqa_counting_evidence import validate_label_blind
 from trec_video_2026.vqa_submission import canonical_sha256
@@ -89,6 +91,23 @@ class FrameDecisionSet:
     request_complete_sha256: str
     presentation_mode: str
     decisions: tuple[FrameDecision, ...]
+    complete_sha256: str
+
+
+@dataclass(frozen=True)
+class FramePresenceCoverageCertificate:
+    outcome: str
+    value: int | None
+    reason_codes: tuple[str, ...]
+    spec_complete_sha256: str
+    request_complete_sha256: str
+    primary_complete_sha256: str
+    challenge_complete_sha256: str
+    ledger_sha256: str
+    result_sha256: str
+    interface_source_sha256: str
+    reducer_source_sha256: str
+    source_revision: str
     complete_sha256: str
 
 
@@ -600,4 +619,188 @@ def reconcile_frame_decisions(
         decoded_frame_count=request.decoded_frame_count,
         maximum_sample_gap_seconds=request.spec.maximum_sample_gap_seconds,
         frames=observations,
+    )
+
+
+def visible_episode_count_spec_to_dict(
+    spec: VisibleEpisodeCountSpec,
+) -> dict[str, object]:
+    """Serialize a supported CountSpec in its canonical schema."""
+
+    return {
+        "schema_version": 1,
+        "spec_id": spec.spec_id,
+        "target": spec.target,
+        "unit": spec.unit,
+        "scope": spec.scope,
+        "episode_rule": spec.episode_rule,
+        "maximum_sample_gap_seconds": spec.maximum_sample_gap_seconds,
+        "every_decoded_frame": spec.every_decoded_frame,
+        "cut_policy": spec.cut_policy,
+        "occluded_identity": spec.occluded_identity,
+        "complete_sha256": spec.complete_sha256,
+    }
+
+
+def frame_decision_request_to_dict(
+    request: FrameDecisionRequest,
+) -> dict[str, object]:
+    """Serialize an authenticated frame request."""
+
+    return {
+        "schema_version": 1,
+        "spec": asdict(request.spec),
+        "video_id": request.video_id,
+        "source_sha256": request.source_sha256,
+        "duration_seconds": request.duration_seconds,
+        "decoded_frame_count": request.decoded_frame_count,
+        "frames": [asdict(frame) for frame in request.frames],
+        "presentations": [asdict(binding) for binding in request.presentations],
+        "maximum_observed_gap_seconds": request.maximum_observed_gap_seconds,
+        "complete_sha256": request.complete_sha256,
+    }
+
+
+def frame_decision_set_to_dict(decisions: FrameDecisionSet) -> dict[str, object]:
+    """Serialize an authenticated model decision set."""
+
+    return {
+        "schema_version": 1,
+        "pass_id": decisions.pass_id,
+        "request_complete_sha256": decisions.request_complete_sha256,
+        "presentation_mode": decisions.presentation_mode,
+        "decisions": [asdict(decision) for decision in decisions.decisions],
+        "complete_sha256": decisions.complete_sha256,
+    }
+
+
+def frame_presence_ledger_to_dict(
+    ledger: FramePresenceLedger,
+) -> dict[str, object]:
+    """Serialize the reconciled ledger accepted by the existing reducer."""
+
+    return {
+        "schema_version": 1,
+        "video_id": ledger.video_id,
+        "source_sha256": ledger.source_sha256,
+        "target": ledger.target,
+        "episode_rule": ledger.episode_rule,
+        "duration_seconds": ledger.duration_seconds,
+        "decoded_frame_count": ledger.decoded_frame_count,
+        "maximum_sample_gap_seconds": ledger.maximum_sample_gap_seconds,
+        "frames": [asdict(frame) for frame in ledger.frames],
+    }
+
+
+def presence_count_result_to_dict(result: PresenceCountResult) -> dict[str, object]:
+    """Serialize a deterministic reducer result."""
+
+    return {
+        "schema_version": 1,
+        "outcome": result.outcome,
+        "value": result.value,
+        "episodes": [asdict(episode) for episode in result.episodes],
+        "reason_codes": list(result.reason_codes),
+    }
+
+
+def frame_presence_certificate_to_dict(
+    certificate: FramePresenceCoverageCertificate,
+) -> dict[str, object]:
+    """Serialize a coverage certificate."""
+
+    payload = asdict(certificate)
+    payload["schema_version"] = 1
+    return {"schema_version": payload.pop("schema_version"), **payload}
+
+
+def _verify_self_hash(payload: Mapping[str, object], *, name: str) -> str:
+    embedded = payload.get("complete_sha256")
+    if not isinstance(embedded, str):
+        raise TypeError(f"{name} lacks complete_sha256")
+    unsigned = {
+        key: value for key, value in payload.items() if key != "complete_sha256"
+    }
+    if canonical_sha256(unsigned) != embedded:
+        raise ValueError(f"{name} complete_sha256 changed")
+    return embedded
+
+
+def certify_frame_presence_result(
+    *,
+    spec: VisibleEpisodeCountSpec,
+    request: FrameDecisionRequest,
+    primary: FrameDecisionSet,
+    challenge: FrameDecisionSet,
+    ledger: FramePresenceLedger,
+    result: PresenceCountResult,
+    interface_source_sha256: str,
+    reducer_source_sha256: str,
+    source_revision: str,
+) -> FramePresenceCoverageCertificate:
+    """Authenticate a complete frame-decision chain and certify its result."""
+
+    spec_hash = _verify_self_hash(
+        visible_episode_count_spec_to_dict(spec), name="CountSpec"
+    )
+    request_hash = _verify_self_hash(
+        frame_decision_request_to_dict(request), name="frame request"
+    )
+    primary_hash = _verify_self_hash(
+        frame_decision_set_to_dict(primary), name="primary decisions"
+    )
+    challenge_hash = _verify_self_hash(
+        frame_decision_set_to_dict(challenge), name="challenge decisions"
+    )
+    if request.spec != spec or request.spec.complete_sha256 != spec_hash:
+        raise ValueError("request CountSpec binding changed")
+    expected_ledger = reconcile_frame_decisions(request, primary, challenge)
+    if frame_presence_ledger_to_dict(expected_ledger) != frame_presence_ledger_to_dict(
+        ledger
+    ):
+        raise ValueError("reconciled frame ledger changed")
+    expected_result = reduce_presence_episodes(ledger)
+    if presence_count_result_to_dict(expected_result) != presence_count_result_to_dict(
+        result
+    ):
+        raise ValueError("presence count result changed")
+    interface_hash = _sha256(interface_source_sha256, field="interface_source_sha256")
+    reducer_hash = _sha256(reducer_source_sha256, field="reducer_source_sha256")
+    revision = _nonempty_string(source_revision, field="source_revision")
+    ledger_hash = canonical_sha256(frame_presence_ledger_to_dict(ledger))
+    result_hash = canonical_sha256(presence_count_result_to_dict(result))
+    reason_codes = list(result.reason_codes)
+    if spec.cut_policy == "split_at_cuts":
+        reason_codes.insert(0, "unsupported_cut_policy")
+    outcome = "exact" if result.outcome == "exact" and not reason_codes else "abstain"
+    value = result.value if outcome == "exact" else None
+    unsigned = {
+        "schema_version": 1,
+        "outcome": outcome,
+        "value": value,
+        "reason_codes": reason_codes,
+        "spec_complete_sha256": spec_hash,
+        "request_complete_sha256": request_hash,
+        "primary_complete_sha256": primary_hash,
+        "challenge_complete_sha256": challenge_hash,
+        "ledger_sha256": ledger_hash,
+        "result_sha256": result_hash,
+        "interface_source_sha256": interface_hash,
+        "reducer_source_sha256": reducer_hash,
+        "source_revision": revision,
+    }
+    return FramePresenceCoverageCertificate(
+        outcome=outcome,
+        value=value,
+        reason_codes=tuple(reason_codes),
+        spec_complete_sha256=spec_hash,
+        request_complete_sha256=request_hash,
+        primary_complete_sha256=primary_hash,
+        challenge_complete_sha256=challenge_hash,
+        ledger_sha256=ledger_hash,
+        result_sha256=result_hash,
+        interface_source_sha256=interface_hash,
+        reducer_source_sha256=reducer_hash,
+        source_revision=revision,
+        complete_sha256=canonical_sha256(unsigned),
     )

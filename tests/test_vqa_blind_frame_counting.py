@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import replace
 
 import pytest
 
@@ -8,9 +9,11 @@ from trec_video_2026.vqa_count_frame_presence import reduce_presence_episodes
 from trec_video_2026.vqa_blind_frame_counting import (
     FrameDecisionRequest,
     FrameDecisionSet,
+    FramePresenceCoverageCertificate,
     UnsupportedCountSpec,
     VisibleEpisodeCountSpec,
     build_frame_decision_request,
+    certify_frame_presence_result,
     parse_frame_decisions,
     parse_visible_episode_count_spec,
     reconcile_frame_decisions,
@@ -559,3 +562,119 @@ def test_split_at_cuts_abstains_until_cut_boundaries_are_bound() -> None:
 
     assert {frame.target_state for frame in ledger.frames} == {"uncertain"}
     assert result.outcome == "abstain"
+
+
+def test_certificate_binds_complete_chain_and_exact_result() -> None:
+    request = valid_request()
+    primary = decisions_for(
+        request,
+        ["present", "absent", "present"],
+        pass_id="primary",
+        mode="numbered_contact_sheet",
+    )
+    challenge = decisions_for(
+        request,
+        ["present", "absent", "present"],
+        pass_id="challenge",
+        mode="individual_frame",
+    )
+    ledger = reconcile_frame_decisions(request, primary, challenge)
+    result = reduce_presence_episodes(ledger)
+
+    certificate = certify_frame_presence_result(
+        spec=request.spec,
+        request=request,
+        primary=primary,
+        challenge=challenge,
+        ledger=ledger,
+        result=result,
+        interface_source_sha256="e" * 64,
+        reducer_source_sha256="f" * 64,
+        source_revision="abc1234",
+    )
+
+    assert isinstance(certificate, FramePresenceCoverageCertificate)
+    assert certificate.outcome == "exact"
+    assert certificate.value == 2
+    assert certificate.reason_codes == ()
+    assert certificate.interface_source_sha256 == "e" * 64
+    assert len(certificate.complete_sha256) == 64
+
+
+@pytest.mark.parametrize("case", ["request", "primary", "ledger", "result"])
+def test_certificate_rejects_mutated_authenticated_chain(case: str) -> None:
+    request = valid_request()
+    primary = decisions_for(
+        request,
+        ["present", "absent", "present"],
+        pass_id="primary",
+        mode="numbered_contact_sheet",
+    )
+    challenge = decisions_for(
+        request,
+        ["present", "absent", "present"],
+        pass_id="challenge",
+        mode="individual_frame",
+    )
+    ledger = reconcile_frame_decisions(request, primary, challenge)
+    result = reduce_presence_episodes(ledger)
+
+    if case == "request":
+        request = replace(request, video_id="mutated")
+    elif case == "primary":
+        primary = replace(
+            primary,
+            decisions=(replace(primary.decisions[0], target_state="absent"),)
+            + primary.decisions[1:],
+        )
+    elif case == "ledger":
+        ledger = replace(ledger, target="mutated")
+    elif case == "result":
+        result = replace(result, value=99)
+
+    with pytest.raises(ValueError, match="changed"):
+        certify_frame_presence_result(
+            spec=request.spec,
+            request=request,
+            primary=primary,
+            challenge=challenge,
+            ledger=ledger,
+            result=result,
+            interface_source_sha256="e" * 64,
+            reducer_source_sha256="f" * 64,
+            source_revision="abc1234",
+        )
+
+
+def test_certificate_preserves_valid_disagreement_as_abstention() -> None:
+    request = valid_request()
+    primary = decisions_for(
+        request,
+        ["present", "absent", "present"],
+        pass_id="primary",
+        mode="numbered_contact_sheet",
+    )
+    challenge = decisions_for(
+        request,
+        ["present", "present", "present"],
+        pass_id="challenge",
+        mode="individual_frame",
+    )
+    ledger = reconcile_frame_decisions(request, primary, challenge)
+    result = reduce_presence_episodes(ledger)
+
+    certificate = certify_frame_presence_result(
+        spec=request.spec,
+        request=request,
+        primary=primary,
+        challenge=challenge,
+        ledger=ledger,
+        result=result,
+        interface_source_sha256="e" * 64,
+        reducer_source_sha256="f" * 64,
+        source_revision="abc1234",
+    )
+
+    assert certificate.outcome == "abstain"
+    assert certificate.value is None
+    assert certificate.reason_codes == ("non_binary_frame_decision",)

@@ -314,7 +314,7 @@ git commit -m "feat: reconcile blind frame decisions"
 
 **Interfaces:**
 - Consumes: authenticated spec/request/primary/challenge/ledger plus `PresenceCountResult`.
-- Produces: `certify_frame_presence_result(...) -> FramePresenceCoverageCertificate` and CLI files `request.freeze.json`, `ledger.freeze.json`, `result.freeze.json`, and `certificate.freeze.json`.
+- Produces: `certify_frame_presence_result(...) -> FramePresenceCoverageCertificate` and CLI files `spec.freeze.json`, `request.freeze.json`, `primary.freeze.json`, `challenge.freeze.json`, `ledger.freeze.json`, `result.freeze.json`, and `certificate.freeze.json`.
 
 - [ ] **Step 1: Write and run a failing certificate test**
 
@@ -344,10 +344,11 @@ Expected: failure because the certificate function does not exist.
 
 Add a frozen `FramePresenceCoverageCertificate` binding the canonical hashes
 of the spec, request, both decision passes, serialized ledger, serialized
-reducer result, reducer source, and source revision. Recompute all hashes from
-the supplied objects. Emit exact only when the reducer is exact and all chain
-bindings validate; otherwise emit abstain with stable reason codes. Integrity
-mutation raises rather than becoming an ordinary abstention.
+reducer result, model-interface source, reducer source, and source revision.
+Recompute all hashes from the supplied objects. Emit exact only when the
+reducer is exact and all chain bindings validate; otherwise emit abstain with
+stable reason codes. Integrity mutation raises rather than becoming an
+ordinary abstention.
 
 - [ ] **Step 3: Add red-green mutation and abstention tests**
 
@@ -386,10 +387,11 @@ The CLI accepts exactly:
 
 It performs no imports from `google`, no network access, and no environment
 credential reads. It calls only the public module interfaces, serializes
-dataclasses with explicit `*_to_dict()` functions, hashes the current reducer
-source, records `git rev-parse HEAD`, and writes each canonical artifact with a
-temporary file plus `os.replace`. Existing identical files are accepted;
-conflicting files raise `FileExistsError`.
+dataclasses with explicit `*_to_dict()` functions, preserves both normalized
+decision passes, hashes the current reducer source, records
+`git rev-parse HEAD`, and writes each canonical artifact with a temporary file
+plus `os.replace`. Existing identical files are accepted; conflicting files
+raise `FileExistsError`.
 
 - [ ] **Step 6: Add CLI failure tests**
 
