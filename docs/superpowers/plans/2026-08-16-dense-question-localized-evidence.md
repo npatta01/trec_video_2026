@@ -379,7 +379,7 @@ must not be loaded for reference-aware scoring.
 - Produces `validate_manual_audit(selection: Mapping[str, Any], predictions: Mapping[str, Any], audit: Mapping[str, Any]) -> list[dict[str, Any]]`, `score(root: Path) -> dict[str, Any]`, and `verify_score(root: Path) -> None`.
 - Consumes only a verified prediction freeze, the frozen selection/media chain, corrected references, and a complete manual audit.
 
-- [ ] **Step 1: Write failing audit-consistency and metric tests**
+- [x] **Step 1: Write failing audit-consistency and metric tests**
 
 ```python
 def test_incremental_recovery_requires_4fps_false_and_12fps_true():
@@ -398,25 +398,25 @@ def test_gate_rejects_unsupported_observation_even_with_two_recoveries():
 
 Cover incomplete pairs, uninspected rows, ambiguous references excluded from the auditable-target denominator but retained in completion, control regressions, timestamp support, exposure splits, and score-input hash drift.
 
-- [ ] **Step 2: Run the score tests and confirm red**
+- [x] **Step 2: Run the score tests and confirm red**
 
 Run: `pytest -q tests/test_score_dense_question_localized_evidence.py`
 
 Expected: import or collection failure because the scorer does not exist.
 
-- [ ] **Step 3: Implement post-freeze audit generation and validation**
+- [x] **Step 3: Implement post-freeze audit generation and validation**
 
 Each row-arm audit records clip fact presence, model fact support, recovery, timestamp support, unsupported observation, ambiguity, and reviewer note. Require every selected row and both arms exactly once. Reject a claimed recovery without a supported observed fact and timestamp.
 
-- [ ] **Step 4: Inspect every real pair and freeze the audit**
+- [x] **Step 4: Inspect every real pair and freeze the audit**
 
 Use the private clips, raw responses, parsed probes, question, and reference. Preserve disagreements and questionable references explicitly. Freeze the completed audit before aggregating results.
 
-- [ ] **Step 5: Compute the predeclared gate**
+- [x] **Step 5: Compute the predeclared gate**
 
 Pass only with complete terminal pairs and inspection, at least two supported `4 FPS false -> 12 FPS true` target recoveries, 12-FPS recovery on at least half of auditable targets, zero unsupported observations in either arm, and zero 12-FPS control regressions. Report 4-FPS and 12-FPS recovery, incremental recoveries, controls, completion, exposure splits, and cost. Do not compute answer metrics.
 
-- [ ] **Step 6: Verify and commit the scorer**
+- [x] **Step 6: Verify and commit the scorer**
 
 Run:
 
@@ -435,6 +435,15 @@ Commit:
 git add scripts/score_dense_question_localized_evidence.py tests/test_score_dense_question_localized_evidence.py
 git commit -m "feat: score dense localized evidence recovery"
 ```
+
+#### Task 4 execution boundary — 2026-08-16
+
+- Correction-v2 verification and the immutable v22 prediction-freeze verification passed before corrected references or manual labels were loaded. The scorer consumed the corrected v2 parsed observations only; no provider call, answer generation, counting specialist, router work, or new evidence was used.
+- The private audit inspected all 12 clips and 24 arms, including all 8 correction-v2 acceptance changes. The audit was frozen before aggregation. Completion was 24/24 arms and 12/12 terminal pairs; manual inspection was complete. Two target rows remained explicitly ambiguous and were retained in completion while excluded only from the auditable-target denominator.
+- Aggregate recovery: 0/6 auditable targets at 4 FPS; 0/6 at 12 FPS; 0 paired incremental recoveries. Controls: 3/4 recovered at each FPS; 0 12-FPS regressions. Unsupported observations were 0 at both FPS. The 12-FPS auditable-target recovery fraction was 0.0. Exposure splits were reported without exclusion. Provider usage was 24 calls, 251,784 prompt tokens, 3,406 candidate tokens, and 266,482 total tokens; cost was unavailable.
+- Predeclared gate: **FAIL**. It failed the minimum two incremental recoveries and the half-target recovery condition; completion, inspection, zero unsupported observations, and zero control regressions passed. No answer metrics were computed.
+- Private score bindings: correction freeze `5f9ea80c9d3af75820c14eadbdadc1e49197479132104517970c65462519f087`; source prediction freeze `fb002af0bb8e663e495afcd2b1888dd37d11e0c24ef57d0f14f5ecf65434f758`; lineage-bound manual audit v2 `d7400e869394180e6b6620d099022559733d6e7f91406c987cf3601fc3b08a55`; versioned audit freeze v3 `fec963f90b8b03dc949c6427ba846d4859dc91399f04f756370b4e40a92d6df0`; versioned score v3 `88fb1f725eb4f0c7dd4188fa6fd91bec193ff71172dedd0967bac6535759265c`; score integrity v3 `bcafe1a908aac8fbbef8084cf33c67070df4a8033a3b5a72bfcf5f3acc3039b2`. Canonical corrected-v3 reference/correction/freeze hashes are `db68cec9be89f4f89305b70578fbd7cb67893e0196c92f93143b5d154db6d3d2`, `4fb41decdca6d2c1df09ac8be2507d28eb02ca5427e607fde2e15ed8e29dcc4a`, and `45e796683c75cc7f698cbac286e0ba32e006aeae55537e33c6ac6e863f9ae55c`; scorer SHA is `b5fb3bafe5ccd17b629a7780b60850c98b4058aed460ecadab483b8b8a1788aa`. The score and integrity bindings include all selection/media/provider/treatment/reference-lineage/audit/source bytes.
+- Reviewer fix round: canonical corrected-v3 reference, correction, and freeze schemas/lineage are verified before labels; run-local reference shadows and noncanonical explicit references are rejected unless exact canonical bytes match. The manual audit has exact top-level/row/exposure schemas, binds correction-v2 acceptance status per arm, and enforces paired identity/reference/ambiguity/fact/exposure invariants. The prior audit/score artifacts remain preserved; the v2 audit and v3 freeze/score/integrity artifacts are additive.
 
 ### Task 5: Publish the durable negative-or-positive result privately and verify
 
