@@ -47,6 +47,42 @@ paths, source SHA-256 values, the exact markers, and excluded video identities.
 It must not contain questions, answers, transcripts, labels, grades, or model
 outputs. The selector consumes that index and binds its SHA-256.
 
+### Pre-inference freshness-proxy erratum (2026-08-16)
+
+Actual submission of a row's audio to Qwen3-ASR remains the authoritative
+freshness event. Exact-marker scanning is a conservative discovery proxy, and
+every discovered marker-bearing JSON/JSONL file is exposure-bearing by
+default. During pre-inference review, the controller created but did not
+execute two preparation bundles, preserved at:
+
+- `data/vqa/benchmarks/model-verifier-canaries-20260814/stage05f-qwen-aligned-english-selection-v1-pre-review-455e7ac/`; and
+- `data/vqa/benchmarks/model-verifier-canaries-20260814/stage05f-qwen-aligned-english-quality-v1-pre-review-455e7ac/`.
+
+These exact roots are the sole `preparation_only_never_submitted`
+disposition. They remain visible in the complete marker census. A private
+ledger must bind both root paths, every file path and SHA-256, the prepared
+identity set and fingerprint, the controller revision, and an explicit
+operator attestation that neither the controller record transition nor an
+out-of-band Qwen3-ASR invocation occurred. The disposition is valid only when
+the inventories contain input/preparation artifacts and no command, raw
+result, stderr, terminal, validation, prediction-freeze, or score artifact.
+
+The exposure index must prove the disjoint and exhaustive classification:
+every marker match is either a genuine exposure source or belongs to the
+exact preparation-only roots. Any changed inventory, unexpected file,
+attempt/output artifact, symlink escape, unclassified marker match, or
+prepared identity also found in a genuine exposure source invalidates the
+disposition and stops the experiment. The canonical selector must replay to
+the same private ordered identity/stratum/source-index/audio-hash/duration
+fingerprint as the preserved pre-review selection; mismatch stops without
+inspection, replacement, or reselection. A complete marker-census delta guard
+runs again immediately before the sole record transition, treating only the
+current canonical index/selection/input-freeze files as active preparation.
+
+This erratum changes only the proxy treatment of self-generated,
+never-submitted preparation metadata. It does not change quotas, panel order,
+the model condition, scoring, attempts, or decision rules.
+
 ## Label-blind panel selection
 
 The sole source pool is the ordered 475-row manifest at:

@@ -17,6 +17,10 @@
 - Never open annotations or Whisper content before a verified `12/12` prediction freeze.
 - Never stage `data/` or the unrelated `.claude/` directory.
 - Gemini is independently planned and executed; it cannot share this run or decision.
+- Apply the approved design's dated pre-inference freshness-proxy erratum:
+  census every marker match, hash-bind the two exact pre-review preparation
+  roots, require their attempt/output absence, replay the preserved selection
+  fingerprint, and run the census delta guard immediately before record.
 
 ---
 
@@ -224,13 +228,16 @@
   local image digest, both model snapshots, unchanged runner/helper hashes,
   ROCm device access, BF16 smoke, free disk, and `$0.00` external spend.
 
-- [ ] **Step 2: Build the conservative exposure index and exact 12-row selection**
+- [ ] **Step 2: Build the complete exposure census and exact 12-row selection**
 
-  Enumerate private JSON/JSONL sources under `data/vqa` that contain an exact
-  Qwen3-ASR marker, pass every resolved source explicitly to
-  `fresh-exposure-index`, then run `fresh-quality-select`. Inspect only
-  aggregate source/exclusion counts, panel count, stratum counts, duplicate
-  count, missing-audio count, and hashes.
+  Enumerate every private JSON/JSONL marker match under `data/vqa`; classify
+  the two exact, fully inventoried pre-review roots as
+  `preparation_only_never_submitted` and all remaining matches as exposure
+  sources. Freeze the exhaustive census, disposition ledger, operator
+  attestation, and preserved-selection fingerprint, then run
+  `fresh-quality-select`. Require fingerprint equality. Inspect only aggregate
+  census/classification/exclusion counts, panel count, stratum counts,
+  duplicate count, missing-audio count, and hashes.
 
 - [ ] **Step 3: Prepare and audit the frozen command**
 
@@ -242,8 +249,11 @@
 
 - [ ] **Step 4: Record exactly one attempt and freeze predictions**
 
-  Invoke the `record` subcommand once, then `freeze` and `status`. Never invoke
-  the raw Podman command, never replace a failed row, and never retry.
+  Re-run the complete marker-census delta guard; any unclassified match,
+  changed preparation inventory, attempt artifact, or replay mismatch stops
+  the experiment. If clean, invoke the `record` subcommand once, then `freeze`
+  and `status`. Never invoke the raw Podman command, never replace a failed
+  row, and never retry.
 
 ### Task 5: Score only after readiness and record the result
 

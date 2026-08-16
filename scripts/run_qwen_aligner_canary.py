@@ -167,13 +167,33 @@ def _exclusive_json(path: Path, value: Any) -> None:
 
 def _score_inputs(
     root: Path, annotations_dir: Path, whisper_path: Path
-) -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
+) -> tuple[
+    dict[str, str],
+    dict[str, dict[str, Any]],
+    dict[str, Any] | None,
+]:
     status = status_canary(root)
     if status["status"] != "predictions_frozen":
         raise ValueError("prediction freeze must verify before reading score inputs")
     if status.get("decision") != "ready_for_quality_test":
         raise ValueError("predictions are not ready for quality scoring")
     require_quality_scoring_ready(root)
+    protocol = _load_json(root / "protocol.json")
+    fresh_english = (
+        isinstance(protocol, dict)
+        and protocol.get("selection_kind")
+        == canary_module.FRESH_ENGLISH_SELECTION_KIND
+    )
+    if fresh_english and (
+        annotations_dir.resolve() != canary_module.FRESH_ANNOTATIONS_DIR.resolve()
+        or whisper_path.resolve() != canary_module.FRESH_WHISPER_PATH.resolve()
+    ):
+        raise ValueError("fresh English scoring requires canonical scoring sources")
+    if fresh_english and not canary_module._checksum_binds_file(
+        canary_module.FRESH_WHISPER_CHECKSUM_PATH,
+        canary_module.FRESH_WHISPER_PATH,
+    ):
+        raise ValueError("frozen checksum manifest does not bind Whisper source")
     results = _load_json(root / "raw-results.json")
     if not isinstance(results, list):
         raise ValueError("raw results are not an array")
@@ -183,12 +203,15 @@ def _score_inputs(
     ):
         raise ValueError("raw result IDs are invalid")
     references: dict[str, str] = {}
+    annotation_hashes: dict[str, str] = {}
     for video_id in ids:
-        annotation = _load_json(annotations_dir / f"{video_id}.json")
+        annotation_path = annotations_dir / f"{video_id}.json"
+        annotation = _load_json(annotation_path)
         answer = annotation.get("correct_answer") if isinstance(annotation, dict) else None
         if not isinstance(answer, str) or not answer.strip():
             raise ValueError("annotation answer is invalid")
         references[video_id] = answer
+        annotation_hashes[video_id] = _sha256(annotation_path)
     whisper_payload = _load_json(whisper_path)
     if isinstance(whisper_payload, dict):
         whisper_rows = whisper_payload.get("results")
@@ -198,29 +221,51 @@ def _score_inputs(
         whisper_rows = None
     if not isinstance(whisper_rows, list):
         raise ValueError("Whisper results are missing")
-    by_id = {
-        row.get("video_id"): row
-        for row in whisper_rows
-        if isinstance(row, dict) and isinstance(row.get("video_id"), str)
-    }
-    comparison = {}
-    for video_id in ids:
-        row = by_id.get(video_id)
-        if isinstance(row, dict):
-            quality = row.get("original_quality") or row.get("quality")
-            text = row.get("text")
-            if not isinstance(text, str):
-                original = row.get("original_language_transcript")
-                if isinstance(original, dict):
-                    text = original.get("text")
-        else:
-            quality = None
-            text = None
-        comparison[video_id] = {
-            "quality_status": quality.get("status") if isinstance(quality, dict) else None,
-            "text": text,
+    if fresh_english:
+        comparison = canary_module._fresh_whisper_comparison(whisper_payload, ids)
+        relative = canary_module.FRESH_WHISPER_PATH.relative_to(
+            canary_module.FRESH_WHISPER_CHECKSUM_PATH.parent
+        ).as_posix()
+        source_bindings: dict[str, Any] | None = {
+            "annotations_dir": str(canary_module.FRESH_ANNOTATIONS_DIR.resolve()),
+            "annotation_files_sha256": annotation_hashes,
+            "whisper_path": str(canary_module.FRESH_WHISPER_PATH.resolve()),
+            "whisper_sha256": _sha256(canary_module.FRESH_WHISPER_PATH),
+            "whisper_checksum_path": str(
+                canary_module.FRESH_WHISPER_CHECKSUM_PATH.resolve()
+            ),
+            "whisper_checksum_sha256": _sha256(
+                canary_module.FRESH_WHISPER_CHECKSUM_PATH
+            ),
+            "whisper_checksum_relative_path": relative,
         }
-    return references, comparison
+    else:
+        by_id = {
+            row.get("video_id"): row
+            for row in whisper_rows
+            if isinstance(row, dict) and isinstance(row.get("video_id"), str)
+        }
+        comparison = {}
+        for video_id in ids:
+            row = by_id.get(video_id)
+            if isinstance(row, dict):
+                quality = row.get("original_quality") or row.get("quality")
+                text = row.get("text")
+                if not isinstance(text, str):
+                    original = row.get("original_language_transcript")
+                    if isinstance(original, dict):
+                        text = original.get("text")
+            else:
+                quality = None
+                text = None
+            comparison[video_id] = {
+                "quality_status": (
+                    quality.get("status") if isinstance(quality, dict) else None
+                ),
+                "text": text,
+            }
+        source_bindings = None
+    return references, comparison, source_bindings
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -254,6 +299,10 @@ def main(argv: list[str] | None = None) -> int:
             _print({"status": "selected", "row_count": len(selection["rows"])})
             return 0
         if args.command == "fresh-exposure-index":
+            if args.oracle_manifest.resolve() != canary_module.FRESH_ORACLE_MANIFEST_PATH.resolve():
+                raise ValueError("fresh exposure index requires the canonical oracle manifest")
+            if args.output.resolve() != canary_module.FRESH_EXPOSURE_INDEX_PATH.resolve():
+                raise ValueError("fresh exposure index output path is not canonical")
             index = build_qwen_asr_exposure_index(
                 source_paths=args.source,
                 oracle_manifest=args.oracle_manifest,
@@ -270,6 +319,26 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         if args.command == "fresh-quality-select":
+            required_paths = {
+                "manifest": (
+                    args.manifest.resolve(),
+                    canary_module.FRESH_MANIFEST_PATH.resolve(),
+                ),
+                "exposure index": (
+                    args.exposure_index.resolve(),
+                    canary_module.FRESH_EXPOSURE_INDEX_PATH.resolve(),
+                ),
+                "audio root": (
+                    args.audio_root.resolve(),
+                    canary_module.FRESH_AUDIO_ROOT.resolve(),
+                ),
+                "selection output": (
+                    args.output.resolve(),
+                    canary_module.FRESH_SELECTION_PATH.resolve(),
+                ),
+            }
+            if any(actual != expected for actual, expected in required_paths.values()):
+                raise ValueError("fresh quality selection paths are not canonical")
             selection = select_fresh_english_quality_panel(
                 manifest=_load_json(args.manifest),
                 exposure_index=_load_json(args.exposure_index),
@@ -368,11 +437,14 @@ def main(argv: list[str] | None = None) -> int:
             _print({"status": freeze["status"], "decision": freeze["decision"]})
             return 0
         if args.command == "score":
-            references, whisper = _score_inputs(
+            references, whisper, source_bindings = _score_inputs(
                 args.root, args.annotations_dir, args.whisper
             )
             score = score_postfreeze(
-                args.root, references=references, whisper=whisper
+                args.root,
+                references=references,
+                whisper=whisper,
+                source_bindings=source_bindings,
             )
             _print(
                 {

@@ -42,6 +42,67 @@ RUNTIME_IMAGE = (
 CANONICAL_DATA_ROOT = Path(
     "/home/npatta01/data/competitions/trec_video_2026/data"
 ).resolve()
+FRESH_MANIFEST_PATH = (
+    CANONICAL_DATA_ROOT
+    / "vqa/benchmarks/vqa-factorial-full-evidence-20260809-f1/payload/evidence/manifest.json"
+)
+FRESH_AUDIO_ROOT = (
+    CANONICAL_DATA_ROOT
+    / "vqa/benchmarks/vqa-factorial-full-evidence-20260809-f1/payload/evidence/audio"
+)
+FRESH_ORACLE_MANIFEST_PATH = (
+    CANONICAL_DATA_ROOT / "vqa/benchmarks/oracle-speech-10/manifest.json"
+)
+FRESH_SELECTION_ROOT = (
+    CANONICAL_DATA_ROOT
+    / "vqa/benchmarks/model-verifier-canaries-20260814/"
+    "stage05f-qwen-aligned-english-selection-v1"
+)
+FRESH_EXPOSURE_INDEX_PATH = FRESH_SELECTION_ROOT / "exposure-index.json"
+FRESH_SELECTION_PATH = FRESH_SELECTION_ROOT / "selection.json"
+FRESH_ANNOTATIONS_DIR = CANONICAL_DATA_ROOT / "vqa/2025/training/annotations"
+FRESH_WHISPER_PATH = (
+    CANONICAL_DATA_ROOT
+    / "vqa/benchmarks/vqa-factorial-full-evidence-20260809-f1/payload/evidence/whisper.json"
+)
+FRESH_WHISPER_CHECKSUM_PATH = (
+    CANONICAL_DATA_ROOT
+    / "vqa/benchmarks/vqa-factorial-full-evidence-20260809-f1/payload/SHA256SUMS"
+)
+FRESH_MANIFEST_ROW_COUNT = 475
+FRESH_SCAN_ROOT = CANONICAL_DATA_ROOT / "vqa"
+FRESH_PREPARATION_ONLY_ROOTS = (
+    CANONICAL_DATA_ROOT
+    / "vqa/benchmarks/model-verifier-canaries-20260814/"
+    "stage05f-qwen-aligned-english-selection-v1-pre-review-455e7ac",
+    CANONICAL_DATA_ROOT
+    / "vqa/benchmarks/model-verifier-canaries-20260814/"
+    "stage05f-qwen-aligned-english-quality-v1-pre-review-455e7ac",
+)
+PRE_REVIEW_CONTROLLER_REVISION = "455e7acb6ad70e7014143077117bc0274c72b3c7"
+_PREPARATION_DISPOSITION_ID = "stage05f-pre-review-455e7ac"
+_NON_SUBMISSION_ATTESTATION = (
+    "controller record transition was not invoked and no out-of-band "
+    "Qwen3-ASR invocation occurred for the prepared rows"
+)
+_PREPARATION_ALLOWED_BASENAMES = (
+    frozenset({"exposure-index.json", "selection.json"}),
+    frozenset(
+        {"inputs-freeze.json", "protocol.json", "requests.json", "selection.json"}
+    ),
+)
+_ATTEMPT_ARTIFACT_BASENAMES = frozenset(
+    {
+        "command.json",
+        "raw-results.json",
+        "stderr.txt",
+        "terminal.json",
+        "validated-results.json",
+        "predictions-freeze.json",
+        "postfreeze-score.json",
+        "postfreeze-score-freeze.json",
+    }
+)
 RUNNER_PATH = Path(__file__).with_name("vqa_audio_runner.py").resolve()
 DEDICATED_RUNNER_PATH = Path(__file__).with_name(
     "vqa_qwen_empty_output_runner.py"
@@ -176,84 +237,315 @@ def _canonical_private_file(path: Path, *, field: str) -> Path:
     return resolved
 
 
+def _exact_marker_matches(path: Path) -> list[str]:
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ValueError(f"cannot scan marker source: {path.name}") from exc
+    return [marker for marker in _QWEN_ASR_MARKERS if marker in raw]
+
+
+def _is_inside(path: Path, root: Path) -> bool:
+    return path == root or path.is_relative_to(root)
+
+
+def _marker_census(
+    *,
+    ignore_active_selection: bool,
+    ignored_roots: Sequence[Path] = (),
+) -> list[dict[str, Any]]:
+    scan_root = FRESH_SCAN_ROOT.resolve()
+    if not scan_root.is_dir() or not scan_root.is_relative_to(CANONICAL_DATA_ROOT):
+        raise ValueError("fresh exposure scan root is not canonical")
+    # Derive this from the bound artifact path so tests and alternate private
+    # roots cannot leave the census exclusion pointing at a stale constant.
+    active_root = FRESH_EXPOSURE_INDEX_PATH.resolve().parent
+    excluded_roots = tuple(path.resolve() for path in ignored_roots)
+    records: list[dict[str, Any]] = []
+    for path in sorted(scan_root.rglob("*"), key=str):
+        if path.suffix.casefold() not in {".json", ".jsonl"}:
+            continue
+        if not path.is_file():
+            continue
+        is_symlink = path.is_symlink()
+        resolved = path.resolve()
+        if ignore_active_selection and _is_inside(resolved, active_root):
+            continue
+        if any(_is_inside(resolved, root) for root in excluded_roots):
+            continue
+        matched = _exact_marker_matches(resolved)
+        if is_symlink:
+            if matched:
+                raise ValueError("marker census refuses a marker-bearing symlink")
+            continue
+        if matched:
+            records.append(
+                {
+                    "path": str(resolved),
+                    "sha256": _sha256_file(resolved),
+                    "matched_markers": matched,
+                }
+            )
+    return records
+
+
+def _selection_replay_fingerprint(rows: Any) -> str:
+    if not isinstance(rows, list) or len(rows) != FRESH_PANEL_SIZE:
+        raise ValueError("prepared selection must contain exactly 12 rows")
+    fingerprint_rows = []
+    seen: set[str] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise ValueError("prepared selection rows must be objects")
+        video_id = row.get("video_id")
+        if not isinstance(video_id, str) or not video_id or video_id in seen:
+            raise ValueError("prepared selection identities must be unique")
+        seen.add(video_id)
+        fingerprint_rows.append(
+            {
+                "video_id": video_id,
+                "speech_stratum": row.get("speech_stratum"),
+                "source_order_index": row.get("source_order_index"),
+                "audio_sha256": row.get("audio_sha256"),
+                "duration_seconds": row.get("duration_seconds"),
+            }
+        )
+    return canonical_sha256(fingerprint_rows)
+
+
+def _derive_preparation_disposition() -> dict[str, Any]:
+    roots = tuple(path.resolve() for path in FRESH_PREPARATION_ONLY_ROOTS)
+    if len(roots) != 2 or len(set(roots)) != 2:
+        raise ValueError("preparation-only roots are invalid")
+    complete_inventory: list[dict[str, Any]] = []
+    attempt_artifacts: list[str] = []
+    for root, allowed in zip(
+        roots, _PREPARATION_ALLOWED_BASENAMES, strict=True
+    ):
+        if not root.is_dir() or not root.is_relative_to(CANONICAL_DATA_ROOT):
+            raise ValueError("preparation-only root is not canonical")
+        files = []
+        for path in sorted(root.rglob("*"), key=str):
+            if path.is_symlink():
+                raise ValueError("preparation-only inventory refuses symlinks")
+            if path.is_file():
+                files.append(path.resolve())
+        relative_paths = {
+            path.relative_to(root).as_posix() for path in files
+        }
+        if len(files) != len(allowed) or relative_paths != set(allowed):
+            raise ValueError("preparation-only inventory is incomplete or unexpected")
+        attempt_artifacts.extend(
+            str(path) for path in files if path.name in _ATTEMPT_ARTIFACT_BASENAMES
+        )
+        complete_inventory.extend(
+            {
+                "path": str(path),
+                "sha256": _sha256_file(path),
+                "size_bytes": path.stat().st_size,
+            }
+            for path in files
+        )
+    if attempt_artifacts:
+        raise ValueError("preparation-only root contains an attempt artifact")
+
+    selection_payloads = [
+        _read_object(roots[0] / "selection.json"),
+        _read_object(roots[1] / "selection.json"),
+    ]
+    fingerprints = [
+        _selection_replay_fingerprint(payload.get("rows"))
+        for payload in selection_payloads
+    ]
+    if len(set(fingerprints)) != 1:
+        raise ValueError("preparation-only selection fingerprints do not match")
+    prepared_ids = sorted(
+        _collect_video_ids(selection_payloads[0])
+    )
+    requests = _read_object(roots[1] / "requests.json")
+    if sorted(_collect_video_ids(requests)) != prepared_ids:
+        raise ValueError("preparation-only requests do not match prepared identities")
+    return {
+        "disposition_id": _PREPARATION_DISPOSITION_ID,
+        "disposition": "preparation_only_never_submitted",
+        "roots": [str(root) for root in roots],
+        "complete_file_inventory": complete_inventory,
+        "inventory_sha256": canonical_sha256(complete_inventory),
+        "allowed_basenames": [
+            sorted(allowed) for allowed in _PREPARATION_ALLOWED_BASENAMES
+        ],
+        "attempt_artifacts_present": [],
+        "prepared_video_ids": prepared_ids,
+        "prepared_video_ids_sha256": canonical_sha256(prepared_ids),
+        "prepared_selection_fingerprint": fingerprints[0],
+        "controller_revision": PRE_REVIEW_CONTROLLER_REVISION,
+        "non_submission_evidence": {
+            "kind": "operator_attestation_plus_attempt_artifact_absence",
+            "attestation": _NON_SUBMISSION_ATTESTATION,
+        },
+    }
+
+
+def _is_preparation_marker(path: Path) -> bool:
+    return any(
+        _is_inside(path, root.resolve()) for root in FRESH_PREPARATION_ONLY_ROOTS
+    )
+
+
+def _marker_match_records(
+    census: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    records = []
+    for record in census:
+        path = Path(str(record["path"])).resolve()
+        value = dict(record)
+        if _is_preparation_marker(path):
+            value.update(
+                disposition="preparation_only_never_submitted",
+                disposition_id=_PREPARATION_DISPOSITION_ID,
+            )
+        else:
+            value["disposition"] = "exposure_source"
+        records.append(value)
+    return records
+
+
 def build_qwen_asr_exposure_index(
     *,
     source_paths: Sequence[Path],
     oracle_manifest: Path,
     built_at: str,
 ) -> dict[str, Any]:
-    """Freeze identities previously exposed to Qwen3-ASR without output text."""
+    """Freeze a complete Qwen3-ASR marker census and exposure union."""
 
     if not source_paths:
         raise ValueError("at least one Qwen3-ASR exposure source is required")
     if not isinstance(built_at, str) or not built_at:
         raise ValueError("exposure index timestamp is required")
+    disposition = _derive_preparation_disposition()
+    census = _marker_census(ignore_active_selection=True)
+    census_paths = {Path(str(record["path"])).resolve() for record in census}
+    preparation_paths = {path for path in census_paths if _is_preparation_marker(path)}
+    exposure_paths = census_paths - preparation_paths
     resolved_sources = [
         _canonical_private_file(path, field="exposure source")
         for path in source_paths
     ]
     if len(set(resolved_sources)) != len(resolved_sources):
         raise ValueError("exposure source paths must be unique")
+    if set(resolved_sources) != exposure_paths:
+        raise ValueError("complete marker census contains an unclassified marker source")
     resolved_oracle = _canonical_private_file(
         oracle_manifest, field="oracle manifest"
     )
+    if resolved_oracle != FRESH_ORACLE_MANIFEST_PATH.resolve():
+        raise ValueError("exposure index requires the exact canonical oracle manifest")
 
+    census_by_path = {
+        Path(str(record["path"])).resolve(): record for record in census
+    }
     excluded: set[str] = set()
     source_records: list[dict[str, Any]] = []
     for path in sorted(resolved_sources, key=str):
-        raw = path.read_text(encoding="utf-8")
-        matched = [marker for marker in _QWEN_ASR_MARKERS if marker in raw]
-        if not matched:
-            raise ValueError("exposure source does not contain an exact Qwen3-ASR marker")
         ids = _collect_video_ids(_load_json_or_jsonl(path))
         excluded.update(ids)
         source_records.append(
             {
-                "path": str(path),
-                "sha256": _sha256_file(path),
-                "matched_markers": matched,
+                **dict(census_by_path[path]),
                 "excluded_video_id_count": len(ids),
             }
         )
 
     oracle_ids = _collect_video_ids(_load_json_or_jsonl(resolved_oracle))
     excluded.update(oracle_ids)
+    prepared_ids = set(disposition["prepared_video_ids"])
+    if prepared_ids.intersection(excluded):
+        raise ValueError("prepared identity is also present in a real exposure source")
+    marker_matches = _marker_match_records(census)
+    excluded_rows = sorted(excluded)
     return {
-        "schema_version": SCHEMA_VERSION,
-        "index_kind": "qwen3_asr_exposure_index",
+        "schema_version": 2,
+        "index_kind": "qwen3_asr_exposure_census",
+        "freshness_definition": "never_previously_submitted_to_qwen3_asr",
         "built_at": built_at,
+        "scan_root": str(FRESH_SCAN_ROOT.resolve()),
+        "scan_cutoff": built_at,
         "markers": list(_QWEN_ASR_MARKERS),
+        "marker_matches": marker_matches,
+        "classified_marker_paths_sha256": canonical_sha256(
+            sorted(record["path"] for record in marker_matches)
+        ),
         "sources": source_records,
+        "preparation_only_dispositions": [disposition],
         "oracle_manifest": {
             "path": str(resolved_oracle),
             "sha256": _sha256_file(resolved_oracle),
             "excluded_video_id_count": len(oracle_ids),
         },
-        "excluded_video_ids": sorted(excluded),
+        "excluded_video_ids": excluded_rows,
+        "excluded_video_ids_sha256": canonical_sha256(excluded_rows),
     }
 
 
-def _verify_qwen_asr_exposure_index(index: Mapping[str, Any]) -> set[str]:
-    if set(index) != {
+def _verify_qwen_asr_exposure_index(
+    index: Mapping[str, Any],
+    *,
+    active_run_root: Path | None = None,
+) -> set[str]:
+    expected_keys = {
         "schema_version",
         "index_kind",
+        "freshness_definition",
         "built_at",
+        "scan_root",
+        "scan_cutoff",
         "markers",
+        "marker_matches",
+        "classified_marker_paths_sha256",
         "sources",
+        "preparation_only_dispositions",
         "oracle_manifest",
         "excluded_video_ids",
-    }:
-        raise ValueError("Qwen3-ASR exposure index keys are invalid")
+        "excluded_video_ids_sha256",
+    }
+    if set(index) != expected_keys:
+        raise ValueError("Qwen3-ASR exposure census keys are invalid")
     if (
-        index.get("schema_version") != SCHEMA_VERSION
-        or index.get("index_kind") != "qwen3_asr_exposure_index"
+        index.get("schema_version") != 2
+        or index.get("index_kind") != "qwen3_asr_exposure_census"
+        or index.get("freshness_definition")
+        != "never_previously_submitted_to_qwen3_asr"
+        or index.get("scan_root") != str(FRESH_SCAN_ROOT.resolve())
         or index.get("markers") != list(_QWEN_ASR_MARKERS)
     ):
-        raise ValueError("Qwen3-ASR exposure index contract is invalid")
+        raise ValueError("Qwen3-ASR exposure census contract is invalid")
+    disposition = _derive_preparation_disposition()
+    if index.get("preparation_only_dispositions") != [disposition]:
+        raise ValueError("preparation-only disposition inventory does not verify")
+    ignored_roots = () if active_run_root is None else (active_run_root,)
+    census = _marker_census(
+        ignore_active_selection=True,
+        ignored_roots=ignored_roots,
+    )
+    marker_matches = _marker_match_records(census)
+    if index.get("marker_matches") != marker_matches:
+        raise ValueError(
+            "complete marker census has changed or contains an unclassified marker"
+        )
+    marker_paths = sorted(record["path"] for record in marker_matches)
+    if index.get("classified_marker_paths_sha256") != canonical_sha256(marker_paths):
+        raise ValueError("classified marker path hash is invalid")
+
     sources = index.get("sources")
     if not isinstance(sources, list) or not sources:
-        raise ValueError("Qwen3-ASR exposure index sources are invalid")
+        raise ValueError("Qwen3-ASR exposure census sources are invalid")
+    expected_exposure_paths = {
+        Path(record["path"]).resolve()
+        for record in marker_matches
+        if record["disposition"] == "exposure_source"
+    }
     seen_paths: set[Path] = set()
+    derived_excluded: set[str] = set()
     for record in sources:
         if not isinstance(record, Mapping) or set(record) != {
             "path",
@@ -268,13 +560,15 @@ def _verify_qwen_asr_exposure_index(index: Mapping[str, Any]) -> set[str]:
         seen_paths.add(path)
         if record.get("sha256") != _sha256_file(path):
             raise ValueError("Qwen3-ASR exposure source hash does not match")
-        matched = record.get("matched_markers")
-        if (
-            not isinstance(matched, list)
-            or not matched
-            or any(marker not in _QWEN_ASR_MARKERS for marker in matched)
-        ):
-            raise ValueError("Qwen3-ASR exposure source markers are invalid")
+        derived_markers = _exact_marker_matches(path)
+        if not derived_markers or record.get("matched_markers") != derived_markers:
+            raise ValueError("Qwen3-ASR exposure source marker derivation is invalid")
+        derived_ids = _collect_video_ids(_load_json_or_jsonl(path))
+        if record.get("excluded_video_id_count") != len(derived_ids):
+            raise ValueError("Qwen3-ASR exposure source identity count is invalid")
+        derived_excluded.update(derived_ids)
+    if seen_paths != expected_exposure_paths:
+        raise ValueError("exposure sources do not exhaust the marker census")
 
     oracle = index.get("oracle_manifest")
     if not isinstance(oracle, Mapping) or set(oracle) != {
@@ -286,15 +580,23 @@ def _verify_qwen_asr_exposure_index(index: Mapping[str, Any]) -> set[str]:
     oracle_path = _canonical_private_file(
         Path(str(oracle["path"])), field="oracle manifest"
     )
+    if oracle_path != FRESH_ORACLE_MANIFEST_PATH.resolve():
+        raise ValueError("exposure index requires the exact canonical oracle manifest")
     if oracle.get("sha256") != _sha256_file(oracle_path):
         raise ValueError("Qwen3-ASR oracle exposure hash does not match")
+    oracle_ids = _collect_video_ids(_load_json_or_jsonl(oracle_path))
+    if oracle.get("excluded_video_id_count") != len(oracle_ids):
+        raise ValueError("Qwen3-ASR oracle identity count is invalid")
+    derived_excluded.update(oracle_ids)
+    if set(disposition["prepared_video_ids"]).intersection(derived_excluded):
+        raise ValueError("prepared identity is also present in a real exposure source")
     excluded = index.get("excluded_video_ids")
     if (
         not isinstance(excluded, list)
-        or any(not isinstance(video_id, str) or not video_id for video_id in excluded)
-        or excluded != sorted(set(excluded))
+        or excluded != sorted(derived_excluded)
+        or index.get("excluded_video_ids_sha256") != canonical_sha256(excluded)
     ):
-        raise ValueError("Qwen3-ASR excluded identities are invalid")
+        raise ValueError("Qwen3-ASR excluded identity union is invalid")
     return set(excluded)
 
 
@@ -334,21 +636,43 @@ def select_fresh_english_quality_panel(
         raise ValueError("fresh English panel size must match the fixed quota total")
     audio_root = audio_root.resolve()
     if (
-        not audio_root.is_relative_to(CANONICAL_DATA_ROOT)
+        audio_root != FRESH_AUDIO_ROOT.resolve()
+        or not audio_root.is_relative_to(CANONICAL_DATA_ROOT)
         or not audio_root.is_dir()
     ):
-        raise ValueError("audio root must be inside the canonical data root")
+        raise ValueError("audio root must be the canonical fresh-panel audio root")
     excluded_ids = _verify_qwen_asr_exposure_index(exposure_index)
     examples = manifest.get("examples")
     if not isinstance(examples, list):
         raise ValueError("manifest examples must be an array")
-    if not isinstance(source_hashes, Mapping) or not source_hashes:
-        raise ValueError("selection source hashes must be nonempty")
+    if len(examples) != FRESH_MANIFEST_ROW_COUNT:
+        raise ValueError("fresh English manifest must contain exactly 475 rows")
+    if not isinstance(source_hashes, Mapping) or set(source_hashes) != {
+        "manifest_sha256",
+        "exposure_index_sha256",
+    }:
+        raise ValueError("fresh English source bindings are incomplete")
     if any(
         not isinstance(value, str) or _SHA256.fullmatch(value) is None
         for value in source_hashes.values()
     ):
         raise ValueError("selection source hashes must be lowercase SHA-256 values")
+    canonical_manifest = _canonical_private_file(
+        FRESH_MANIFEST_PATH, field="fresh English manifest"
+    )
+    canonical_index = _canonical_private_file(
+        FRESH_EXPOSURE_INDEX_PATH, field="Qwen3-ASR exposure index"
+    )
+    if source_hashes.get("manifest_sha256") != _sha256_file(canonical_manifest):
+        raise ValueError("fresh English manifest hash does not match canonical source")
+    if source_hashes.get("exposure_index_sha256") != _sha256_file(canonical_index):
+        raise ValueError("fresh English exposure index hash does not match canonical source")
+    loaded_manifest = _load_json_or_jsonl(canonical_manifest)
+    loaded_index = _load_json_or_jsonl(canonical_index)
+    if canonical_sha256(manifest) != canonical_sha256(loaded_manifest):
+        raise ValueError("fresh English manifest content is not canonical")
+    if canonical_sha256(exposure_index) != canonical_sha256(loaded_index):
+        raise ValueError("fresh English exposure index content is not canonical")
 
     candidates: dict[str, list[dict[str, Any]]] = {
         stratum: [] for stratum in FRESH_STRATUM_QUOTAS
@@ -407,6 +731,13 @@ def select_fresh_english_quality_panel(
                 ),
             }
         )
+    disposition = exposure_index["preparation_only_dispositions"][0]
+    if (
+        not isinstance(disposition, Mapping)
+        or _selection_replay_fingerprint(rows)
+        != disposition.get("prepared_selection_fingerprint")
+    ):
+        raise ValueError("canonical selection replay fingerprint does not match")
     return {
         "schema_version": SCHEMA_VERSION,
         "experiment_id": EXPERIMENT_ID,
@@ -789,6 +1120,16 @@ def _validate_selection(selection: Mapping[str, Any]) -> list[dict[str, Any]]:
         for value in source_hashes.values()
     ):
         raise ValueError("selection source hashes must be lowercase SHA-256 values")
+    if selection_kind == FRESH_ENGLISH_SELECTION_KIND:
+        derived = select_fresh_english_quality_panel(
+            manifest=_read_object(FRESH_MANIFEST_PATH),
+            exposure_index=_read_object(FRESH_EXPOSURE_INDEX_PATH),
+            audio_root=FRESH_AUDIO_ROOT,
+            selected_at=str(selection.get("selected_at")),
+            source_hashes=dict(source_hashes),
+        )
+        if canonical_sha256(dict(selection)) != canonical_sha256(derived):
+            raise ValueError("fresh English selection is not the canonical derived selection")
     return normalized
 
 
@@ -978,6 +1319,126 @@ def _podman_prefix(*, hub_cache: Path, data_root: Path) -> list[str]:
     ]
 
 
+def _exact_direct_file_inventory(
+    root: Path,
+    *,
+    expected_names: set[str],
+    label: str,
+) -> list[Path]:
+    if root.is_symlink():
+        raise ValueError(f"{label} inventory refuses a symlinked root")
+    resolved_root = root.resolve()
+    if (
+        not resolved_root.is_dir()
+        or not resolved_root.is_relative_to(CANONICAL_DATA_ROOT)
+    ):
+        raise ValueError(f"{label} root is not canonical")
+    files: list[Path] = []
+    for path in sorted(resolved_root.rglob("*"), key=str):
+        if path.is_symlink():
+            raise ValueError(f"{label} inventory refuses symlinks")
+        if path.is_file():
+            files.append(path.resolve())
+    relative_names = {
+        path.relative_to(resolved_root).as_posix() for path in files
+    }
+    if relative_names != expected_names:
+        raise ValueError(f"{label} inventory is incomplete or unexpected")
+    return files
+
+
+def _verify_pre_record_census(root: Path) -> None:
+    """Fail closed if the fresh marker census changed before execution."""
+
+    resolved_root = root.resolve()
+    selection_root = FRESH_EXPOSURE_INDEX_PATH.resolve().parent
+    if resolved_root == selection_root:
+        raise ValueError("active selection and run roots must be distinct")
+    selection_files = _exact_direct_file_inventory(
+        selection_root,
+        expected_names={"exposure-index.json", "selection.json"},
+        label="active selection",
+    )
+    run_files = _exact_direct_file_inventory(
+        resolved_root,
+        expected_names={
+            "inputs-freeze.json",
+            "protocol.json",
+            "requests.json",
+            "selection.json",
+        },
+        label="active run input",
+    )
+    if status_canary(resolved_root)["status"] != "inputs_frozen":
+        raise ValueError("active run inputs do not verify before record")
+
+    index = _read_object(FRESH_EXPOSURE_INDEX_PATH)
+    _verify_qwen_asr_exposure_index(index, active_run_root=resolved_root)
+    dispositions = index["preparation_only_dispositions"]
+    disposition = dispositions[0]
+    canonical_selection = _read_object(FRESH_SELECTION_PATH)
+    run_selection = _read_object(resolved_root / "selection.json")
+    if canonical_sha256(canonical_selection) != canonical_sha256(run_selection):
+        raise ValueError("active run selection does not match canonical selection")
+    source_hashes = canonical_selection.get("source_hashes")
+    if not isinstance(source_hashes, Mapping) or set(source_hashes) != {
+        "manifest_sha256",
+        "exposure_index_sha256",
+    }:
+        raise ValueError("active selection source hashes are incomplete")
+    if source_hashes.get("manifest_sha256") != _sha256_file(FRESH_MANIFEST_PATH):
+        raise ValueError("active selection manifest source hash does not match")
+    if source_hashes.get("exposure_index_sha256") != _sha256_file(
+        FRESH_EXPOSURE_INDEX_PATH
+    ):
+        raise ValueError("active selection exposure index source hash does not match")
+    rows = canonical_selection.get("rows")
+    if not isinstance(rows, list) or len(rows) != FRESH_PANEL_SIZE:
+        raise ValueError("active selection rows are invalid")
+    audio_root = FRESH_AUDIO_ROOT.resolve()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise ValueError("active selection row is invalid")
+        video_id = row.get("video_id")
+        if not isinstance(video_id, str) or not video_id:
+            raise ValueError("active selection video identity is invalid")
+        audio_path = Path(str(row.get("audio_path"))).resolve()
+        if audio_path != (audio_root / f"{video_id}.wav").resolve():
+            raise ValueError("active selection audio path is not canonical")
+        if row.get("audio_sha256") != _sha256_file(audio_path):
+            raise ValueError("active selection audio SHA-256 does not match")
+        duration = row.get("duration_seconds")
+        if (
+            isinstance(duration, bool)
+            or not isinstance(duration, (int, float))
+            or not math.isclose(
+                float(duration),
+                _wav_duration(audio_path),
+                rel_tol=0.0,
+                abs_tol=1e-9,
+            )
+        ):
+            raise ValueError("active selection audio duration does not match")
+    if (
+        _selection_replay_fingerprint(rows)
+        != disposition.get("prepared_selection_fingerprint")
+    ):
+        raise ValueError("active selection replay fingerprint does not match")
+
+    census = _marker_census(ignore_active_selection=False)
+    observed_paths = {Path(str(record["path"])).resolve() for record in census}
+    historical_paths = {
+        Path(str(record["path"])).resolve()
+        for record in index["marker_matches"]
+    }
+    active_paths = {*selection_files, *run_files}
+    active_marker_paths = observed_paths.intersection(active_paths)
+    if historical_paths.intersection(active_paths):
+        raise ValueError("active preparation overlaps the historical marker census")
+    if observed_paths != historical_paths.union(active_marker_paths):
+        raise ValueError("marker census delta contains an unclassified marker")
+
+
 def build_podman_command(
     root: Path,
     *,
@@ -998,6 +1459,8 @@ def build_podman_command(
     _verify_runner_binding(root)
     protocol = _read_object(root / "protocol.json")
     selection_kind = str(protocol.get("selection_kind"))
+    if selection_kind == FRESH_ENGLISH_SELECTION_KIND:
+        _verify_pre_record_census(root)
     return [
         *_podman_prefix(hub_cache=hub_cache, data_root=resolved_data_root),
         RUNTIME_IMAGE,
@@ -1299,6 +1762,8 @@ def record_attempt(
             len(request_rows) if isinstance(request_rows, list) and request_rows else 2
         )
     _verify_runner_binding(root)
+    if protocol.get("selection_kind") == FRESH_ENGLISH_SELECTION_KIND:
+        _verify_pre_record_census(root)
     payload = json.dumps(requests["requests"], ensure_ascii=False, separators=(",", ":"))
     command_hash = canonical_sha256(normalized_command)
     _write_json_exclusive(
@@ -1475,11 +1940,129 @@ def _normalized_phrase(value: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", value.casefold()))
 
 
+def _normalized_phrase_present(reference: str, transcript: str) -> bool:
+    phrase_tokens = re.findall(r"[a-z0-9]+", reference.casefold())
+    transcript_tokens = re.findall(r"[a-z0-9]+", transcript.casefold())
+    if not phrase_tokens or len(phrase_tokens) > len(transcript_tokens):
+        return False
+    width = len(phrase_tokens)
+    return any(
+        transcript_tokens[index : index + width] == phrase_tokens
+        for index in range(len(transcript_tokens) - width + 1)
+    )
+
+
+def _checksum_binds_file(checksum_path: Path, artifact_path: Path) -> bool:
+    expected_relative = artifact_path.relative_to(checksum_path.parent).as_posix()
+    actual_hash = _sha256_file(artifact_path)
+    for line in checksum_path.read_text(encoding="utf-8").splitlines():
+        fields = line.strip().split(maxsplit=1)
+        if len(fields) != 2:
+            continue
+        recorded_path = Path(fields[1].lstrip("*")).as_posix()
+        if fields[0] == actual_hash and recorded_path == expected_relative:
+            return True
+    return False
+
+
+def _fresh_whisper_comparison(
+    payload: Any, video_ids: Sequence[str]
+) -> dict[str, dict[str, Any]]:
+    rows = payload.get("results") if isinstance(payload, Mapping) else None
+    if not isinstance(rows, list):
+        raise ValueError("frozen Whisper results are missing")
+    by_id = {
+        row.get("video_id"): row
+        for row in rows
+        if isinstance(row, Mapping) and isinstance(row.get("video_id"), str)
+    }
+    comparison: dict[str, dict[str, Any]] = {}
+    for video_id in video_ids:
+        row = by_id.get(video_id)
+        if isinstance(row, Mapping):
+            quality = row.get("original_quality") or row.get("quality")
+            text = row.get("text")
+            if not isinstance(text, str):
+                original = row.get("original_language_transcript")
+                if isinstance(original, Mapping):
+                    text = original.get("text")
+        else:
+            quality = None
+            text = None
+        comparison[video_id] = {
+            "quality_status": (
+                quality.get("status") if isinstance(quality, Mapping) else None
+            ),
+            "text": text,
+        }
+    return comparison
+
+
+def _validate_fresh_score_bindings(
+    *,
+    references: Mapping[str, str],
+    whisper: Mapping[str, Mapping[str, Any]],
+    source_bindings: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    expected_keys = {
+        "annotations_dir",
+        "annotation_files_sha256",
+        "whisper_path",
+        "whisper_sha256",
+        "whisper_checksum_path",
+        "whisper_checksum_sha256",
+        "whisper_checksum_relative_path",
+    }
+    if not isinstance(source_bindings, Mapping) or set(source_bindings) != expected_keys:
+        raise ValueError("fresh English score source bindings are incomplete")
+    if source_bindings.get("annotations_dir") != str(FRESH_ANNOTATIONS_DIR.resolve()):
+        raise ValueError("fresh English annotations path is not canonical")
+    if source_bindings.get("whisper_path") != str(FRESH_WHISPER_PATH.resolve()):
+        raise ValueError("fresh English Whisper path is not canonical")
+    if source_bindings.get("whisper_checksum_path") != str(
+        FRESH_WHISPER_CHECKSUM_PATH.resolve()
+    ):
+        raise ValueError("fresh English Whisper checksum path is not canonical")
+    if source_bindings.get("whisper_sha256") != _sha256_file(FRESH_WHISPER_PATH):
+        raise ValueError("fresh English Whisper hash does not match")
+    if source_bindings.get("whisper_checksum_sha256") != _sha256_file(
+        FRESH_WHISPER_CHECKSUM_PATH
+    ):
+        raise ValueError("fresh English Whisper checksum hash does not match")
+    relative = FRESH_WHISPER_PATH.relative_to(
+        FRESH_WHISPER_CHECKSUM_PATH.parent
+    ).as_posix()
+    if source_bindings.get("whisper_checksum_relative_path") != relative:
+        raise ValueError("fresh English Whisper checksum entry path is invalid")
+    if not _checksum_binds_file(FRESH_WHISPER_CHECKSUM_PATH, FRESH_WHISPER_PATH):
+        raise ValueError("frozen checksum manifest does not bind Whisper source")
+
+    annotation_hashes = source_bindings.get("annotation_files_sha256")
+    if not isinstance(annotation_hashes, Mapping) or set(annotation_hashes) != set(
+        references
+    ):
+        raise ValueError("fresh English annotation file bindings are incomplete")
+    for video_id, reference in references.items():
+        annotation_path = FRESH_ANNOTATIONS_DIR / f"{video_id}.json"
+        if annotation_hashes.get(video_id) != _sha256_file(annotation_path):
+            raise ValueError("fresh English annotation hash does not match")
+        annotation = _read_object(annotation_path)
+        if annotation.get("correct_answer") != reference:
+            raise ValueError("fresh English reference does not match bound annotation")
+
+    whisper_payload = json.loads(FRESH_WHISPER_PATH.read_text(encoding="utf-8"))
+    expected_whisper = _fresh_whisper_comparison(whisper_payload, list(references))
+    if canonical_sha256(whisper) != canonical_sha256(expected_whisper):
+        raise ValueError("Whisper comparator does not match the bound frozen source")
+    return dict(source_bindings)
+
+
 def score_postfreeze(
     root: Path,
     *,
     references: Mapping[str, str],
     whisper: Mapping[str, Mapping[str, Any]],
+    source_bindings: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Score lexical/timestamp diagnostics only after verifying prediction bytes."""
 
@@ -1496,6 +2079,15 @@ def score_postfreeze(
         raise ValueError("refusing to overwrite postfreeze score")
     protocol = _read_object(root / "protocol.json")
     fresh_english = protocol.get("selection_kind") == FRESH_ENGLISH_SELECTION_KIND
+    validated_source_bindings = (
+        _validate_fresh_score_bindings(
+            references=references,
+            whisper=whisper,
+            source_bindings=source_bindings,
+        )
+        if fresh_english
+        else None
+    )
     results = json.loads((root / "raw-results.json").read_text(encoding="utf-8"))
     if not isinstance(results, list):
         raise ValueError("raw results are not scoreable")
@@ -1508,9 +2100,9 @@ def score_postfreeze(
         if not isinstance(reference, str) or not reference.strip():
             raise ValueError("official phrase must be nonempty")
         transcript = result.get("text")
-        phrase = _normalized_phrase(reference)
-        normalized_text = _normalized_phrase(transcript) if isinstance(transcript, str) else ""
-        present = bool(phrase) and phrase in normalized_text
+        present = isinstance(transcript, str) and _normalized_phrase_present(
+            reference, transcript
+        )
         comparison = whisper.get(video_id, {})
         whisper_text = comparison.get("text")
         whisper_quality_status = comparison.get("quality_status")
@@ -1526,7 +2118,9 @@ def score_postfreeze(
             )
             else ""
         )
-        whisper_present = bool(phrase) and phrase in normalized_whisper
+        whisper_present = bool(normalized_whisper) and _normalized_phrase_present(
+            reference, normalized_whisper
+        )
         rows.append(
             {
                 "video_id": video_id,
@@ -1583,6 +2177,8 @@ def score_postfreeze(
         "directional_decision": directional_decision,
         "rows": rows,
     }
+    if validated_source_bindings is not None:
+        score["scoring_source_bindings"] = validated_source_bindings
     _write_json_exclusive(root / "postfreeze-score.json", score)
     score_record = freeze_json_artifact(
         root / "postfreeze-score.json", bindings={"experiment_id": EXPERIMENT_ID}
