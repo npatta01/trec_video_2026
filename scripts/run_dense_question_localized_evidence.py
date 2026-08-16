@@ -464,6 +464,14 @@ def validate_probe(
     }
 
 
+def _nominal_duration(media: Mapping[str, Any]) -> float:
+    """Derive the requested window without binary float subtraction drift."""
+    return float(
+        Decimal(str(media["clip_end_seconds"]))
+        - Decimal(str(media["clip_start_seconds"]))
+    )
+
+
 def _rows_payload(payload: Any, filename: str) -> list[dict[str, Any]]:
     if isinstance(payload, Mapping):
         rows = payload.get("rows")
@@ -947,9 +955,13 @@ def _validate_execution_branch(
             or call_count != 4
             or any(item["status"] == "incomplete" for item in records[:4])
             or any(item["status"] != "incomplete" for item in records[4:])
+            or all(item["status"] == "passed" for item in records[2:4])
         ):
             raise ValueError("continuation canary freeze does not match four combined terminals")
         return
+    if freeze_status == "frozen" and len(records) == 24:
+        if any(item["status"] != "passed" for item in records[2:4]):
+            raise ValueError("complete continuation freeze requires both fresh canary arms")
     if call_count != completed:
         raise ValueError("incomplete predictions freeze call count does not match terminals")
 
@@ -1221,7 +1233,7 @@ def run(root: Path, call: CallFunction | None = None) -> None:
             parsed = validate_probe(
                 payload,
                 media["clip_duration_seconds"],
-                nominal_duration_seconds=media["clip_end_seconds"] - media["clip_start_seconds"],
+                nominal_duration_seconds=_nominal_duration(media),
                 fps=fps,
             )
         except ValueError as error:
@@ -1249,13 +1261,34 @@ def run(root: Path, call: CallFunction | None = None) -> None:
 
 def _freeze_inputs(root: Path) -> dict[str, Any]:
     _validate_inputs(root)
-    return {
+    result = {
         "treatment_freeze_sha256": _sha256(root / "treatment-freeze.json"),
         "selection_freeze_sha256": _sha256(root / "selection-freeze.json"),
         "provider_rows_sha256": _sha256(root / "provider-rows.json"),
         "media_manifest_sha256": _sha256(root / "media-manifest.json"),
         "provider_authorization_sha256": _sha256(root / "provider-authorization.json"),
     }
+    continuation = root / "continuation-authorization.json"
+    replay = root / "canary-replay-freeze.json"
+    if continuation.is_file() or replay.is_file():
+        if not continuation.is_file() or not replay.is_file():
+            raise ValueError("continuation freeze inputs are incomplete")
+        auth = _load_json(continuation)
+        replay_payload = _load_json(replay)
+        source_root = Path(str(replay_payload.get("source_root", "")))
+        source_freeze = source_root / "predictions-freeze.json"
+        if not source_freeze.is_file():
+            raise ValueError("continuation source freeze is missing")
+        result.update({
+            "continuation_authorization_sha256": _sha256(continuation),
+            "canary_replay_freeze_sha256": _sha256(replay),
+            "source_predictions_freeze_sha256": _sha256(source_freeze),
+            "prior_provider_calls": auth.get("prior_provider_calls"),
+            "combined_call_maximum": auth.get("combined_call_maximum"),
+            "remaining_new_call_maximum": auth.get("remaining_new_call_maximum"),
+            "fresh_canary_positions": [3, 4],
+        })
+    return result
 
 
 def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
@@ -1333,7 +1366,7 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
                 validate_probe(
                     _load_json(row_root / "parsed.json"),
                     item["media"]["clip_duration_seconds"],
-                    nominal_duration_seconds=item["media"]["clip_end_seconds"] - item["media"]["clip_start_seconds"],
+                    nominal_duration_seconds=_nominal_duration(item["media"]),
                     fps=fps,
                 )
             entries = {path.name for path in row_root.iterdir()}
@@ -1344,7 +1377,7 @@ def _verify_freeze_contents(root: Path, freeze: Mapping[str, Any]) -> None:
                 validate_probe(
                     _load_json(row_root / "parsed.json"),
                     item["media"]["clip_duration_seconds"],
-                    nominal_duration_seconds=item["media"]["clip_end_seconds"] - item["media"]["clip_start_seconds"],
+                    nominal_duration_seconds=_nominal_duration(item["media"]),
                     fps=fps,
                 )
             frozen = next((value for value in frozen_rows if isinstance(value, Mapping) and value.get("audit_index") == audit_index and value.get("fps") == fps), None)
@@ -1435,7 +1468,7 @@ def verify_predictions_freeze(root: Path) -> None:
                 validate_probe(
                     _load_json(row_root / "parsed.json"),
                     item["media"]["clip_duration_seconds"],
-                    nominal_duration_seconds=item["media"]["clip_end_seconds"] - item["media"]["clip_start_seconds"],
+                    nominal_duration_seconds=_nominal_duration(item["media"]),
                     fps=fps,
                 )
             frozen_rows.append(
@@ -1545,7 +1578,7 @@ def prepare_continuation(source_root: Path, output_root: Path) -> None:
         parsed = validate_probe(
             json.loads(raw),
             item["media"]["clip_duration_seconds"],
-            nominal_duration_seconds=item["media"]["clip_end_seconds"] - item["media"]["clip_start_seconds"],
+            nominal_duration_seconds=_nominal_duration(item["media"]),
             fps=fps,
         )
         _write_once(target_arm / "parsed.json", parsed)
