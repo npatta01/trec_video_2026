@@ -18,6 +18,7 @@ from trec_video_2026.vqa_qwen_aligner_canary import (
     freeze_predictions,
     prepare_canary,
     record_attempt,
+    require_quality_scoring_ready,
     score_postfreeze,
     select_quality_panel,
     select_panel,
@@ -150,8 +151,12 @@ def _exclusive_json(path: Path, value: Any) -> None:
 def _score_inputs(
     root: Path, annotations_dir: Path, whisper_path: Path
 ) -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
-    if status_canary(root)["status"] != "predictions_frozen":
+    status = status_canary(root)
+    if status["status"] != "predictions_frozen":
         raise ValueError("prediction freeze must verify before reading score inputs")
+    if status.get("decision") != "ready_for_quality_test":
+        raise ValueError("predictions are not ready for quality scoring")
+    require_quality_scoring_ready(root)
     results = _load_json(root / "raw-results.json")
     if not isinstance(results, list):
         raise ValueError("raw results are not an array")

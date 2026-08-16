@@ -526,6 +526,16 @@ def test_nonzero_exit_cannot_freeze_ready_decision(tmp_path: Path) -> None:
     assert validation["status"] == "not_ready"
     assert "NonzeroExitCode" in validation["failure_types"]
     assert freeze_predictions(root)["decision"] == "not_ready"
+    with pytest.raises(ValueError, match="not ready|ready_for_quality_test"):
+        score_postfreeze(
+            root,
+            references={"target": "phrase", "control": "phrase"},
+            whisper={
+                "target": {"text": "phrase"},
+                "control": {"text": "phrase"},
+            },
+        )
+    assert not (root / "postfreeze-score.json").exists()
 
 
 def test_launch_exception_is_preserved_as_terminal_failed_attempt(tmp_path: Path) -> None:

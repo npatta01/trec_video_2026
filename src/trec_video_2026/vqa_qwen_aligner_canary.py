@@ -988,6 +988,18 @@ def _verify_prediction_freeze(root: Path) -> dict[str, Any]:
     return freeze
 
 
+def require_quality_scoring_ready(root: Path) -> dict[str, Any]:
+    """Require a verified, all-row-ready prediction freeze before scoring."""
+
+    freeze = _verify_prediction_freeze(root)
+    validation = _read_object(root / "validated-results.json")
+    if freeze.get("decision") != validation.get("status"):
+        raise ValueError("prediction decision does not match validation")
+    if freeze.get("decision") != "ready_for_quality_test":
+        raise ValueError("predictions are not ready for quality scoring")
+    return freeze
+
+
 def _normalized_phrase(value: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", value.casefold()))
 
@@ -1001,8 +1013,13 @@ def score_postfreeze(
     """Score lexical/timestamp diagnostics only after verifying prediction bytes."""
 
     try:
-        prediction_freeze = _verify_prediction_freeze(root)
+        prediction_freeze = require_quality_scoring_ready(root)
     except ValueError as exc:
+        if str(exc) in {
+            "prediction decision does not match validation",
+            "predictions are not ready for quality scoring",
+        }:
+            raise
         raise ValueError("prediction freeze must verify before scoring") from exc
     if (root / "postfreeze-score.json").exists():
         raise ValueError("refusing to overwrite postfreeze score")
@@ -1124,6 +1141,7 @@ __all__ = [
     "freeze_predictions",
     "prepare_canary",
     "record_attempt",
+    "require_quality_scoring_ready",
     "score_postfreeze",
     "select_quality_panel",
     "select_panel",
