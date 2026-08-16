@@ -14,6 +14,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import run_gemini37_flash_smoke as cli  # noqa: E402
 
 
+def test_canonical_private_root_matches_v2_experiment_identity() -> None:
+    assert cli.PRIVATE_RUN_ROOT.name == cli.smoke.EXPERIMENT_ID
+
+
 def test_help_exposes_only_fixed_commands_and_no_unsafe_controls() -> None:
     help_text = cli._parser().format_help()
     for command in (

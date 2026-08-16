@@ -19,7 +19,7 @@ import trec_video_2026.vqa_gemini37_flash_smoke as smoke
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 CANONICAL_SOURCE_ROOT = _REPO_ROOT / "data/vqa/benchmarks/direct-gemini-batch-475-v1"
-PRIVATE_RUN_ROOT = _REPO_ROOT / "data/vqa/benchmarks/gemini37-flash-two-video-smoke-v1"
+PRIVATE_RUN_ROOT = _REPO_ROOT / "data/vqa/benchmarks/gemini37-flash-two-video-smoke-v2"
 CANONICAL_ANNOTATIONS_ROOT = _REPO_ROOT / "data/vqa/2025/training/annotations"
 _ALLOWED_STATUSES = frozenset(
     {
