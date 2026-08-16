@@ -316,6 +316,12 @@ GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
   recovered the known four episodes. This is diagnostic representational
   feasibility only—not evidence that Gemini, a detector, or a tracker
   can produce the decisions blind.
+- **Local blind model smoke test:** cached Gemma 3n completed
+  contact-sheet generations for one failure and one control, but both
+  responses were Markdown-fenced and failed the predeclared strict JSON
+  gate. Completion was 0/2, so challenges, repeats, and quality metrics
+  did not run. The condition is not promoted; retain the validated
+  deadline fallback.
 - **What it does not rule out:** reusable question-blind scene maps or
   Gemini native video. It isolates the earlier failure to the tested
   route/verifier.
@@ -328,8 +334,10 @@ GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
   answering repairs its predeclared share without regressing supported
   controls. For counting, require a fresh label-blind panel with
   model-generated structured frame decisions, endpoint and sampling
-  checks, explicit abstention, and controls. Do not rerun the unchanged
-  generic atomic enumerator or Gemini recovery condition.
+  checks, explicit abstention, and controls. The current two-row
+  eligibility pool is too small for submission promotion. Do not rerun
+  the unchanged generic atomic enumerator, Gemini recovery, or local
+  Gemma smoke condition before the deadline.
 
 <details>
 
@@ -361,8 +369,10 @@ The [hardened Gemini
 negative](../experiments/artifacts/vqa-gemini-counting-recovery-hardened-v2-20260815/README.md)
 and [structured frame-presence
 feasibility](../experiments/artifacts/vqa-counting-frame-presence-feasibility-20260816/README.md)
-preserve the latest counting result and additive interpretation
-correction.
+preserve the prior counting result and additive interpretation
+correction. The [local Gemma smoke
+test](../experiments/artifacts/vqa-local-gemma-frame-counting-20260816/README.md)
+records the final deadline stop decision.
 
 </details>
 

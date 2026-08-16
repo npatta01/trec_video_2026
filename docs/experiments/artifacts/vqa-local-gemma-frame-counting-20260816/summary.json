@@ -1,0 +1,52 @@
+{
+  "complete_sha256": "10e9cec5a501502a0925cd9582bfafc54ca9938d40075bbd03d91c1d6cb3dee4",
+  "completion": {
+    "attempted_rows": 2,
+    "completed_rows": 0,
+    "planned_rows": 2
+  },
+  "condition": "local-gemma-blind-frame-counting-v2",
+  "decision_code": "stop_local_gemma_frame_counting_smoke_invalid_json",
+  "decision_disposition": "Not promoted under the tested condition",
+  "evidence_validity": "Incomplete",
+  "fallback_submission_changed": false,
+  "metrics": {
+    "bertscore_f1": null,
+    "control_preservation_rate": null,
+    "meteor": null,
+    "reason": "No row completed the frozen smoke protocol",
+    "rescue_rate": null,
+    "semantic_composite": null,
+    "sts": null
+  },
+  "observed": {
+    "challenges_run": 0,
+    "elapsed_seconds_total": 789.1775510540028,
+    "local_model_generations": 2,
+    "provider_calls": 0,
+    "provider_cost_usd": 0.0,
+    "repeat_2_run": false,
+    "strict_invalid_json": 2
+  },
+  "panel": {
+    "controls": 1,
+    "failures": 1,
+    "labels_available_during_inference": false
+  },
+  "private_evidence_binding": {
+    "decision_complete_sha256": "c218120b7ac6559b8b1659e3b2988d851e0471f27f5174f31d5a44ad95aa6b1f",
+    "decision_file_sha256": "70d42c4227f54831f37afd5ed780f0d2c364e3411fe861f89d875cbe73bbbbb5",
+    "freeze_correction_file_sha256": "01e9da1a552bb045c66e238a63bae9546e03e40e8fe457d1aab80a1a1bdbfb85",
+    "inspection_file_sha256": "9787ab135fec24b57cd4531f7305c4ae441d43a8375686f68b78f0c04e31e6b5",
+    "smoke_freeze_complete_sha256": "547608a6d733abbdd4d964b1638f7edc09a04397f0393cb6ac9f8d1659cf06ed",
+    "smoke_freeze_file_sha256": "3812e6ce338b2c67d8681b139cc3080fa9507ec7e587a05a5fbfd6638696f766"
+  },
+  "reason_codes": [
+    "both_primary_generations_completed",
+    "both_outputs_markdown_fenced",
+    "strict_parser_rejected_without_repair",
+    "smoke_gate_stopped_challenges_and_repeats",
+    "eligible_panel_too_small_for_primary_promotion"
+  ],
+  "schema_version": 1
+}

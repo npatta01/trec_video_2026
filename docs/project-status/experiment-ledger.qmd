@@ -140,8 +140,9 @@ Gemini native AV is a frontier baseline, not a decisive winner.
 atomic counting canary, and typed count-query oracle
 slice](research-routing.{{< meta report-ext >}}#frontier-boundary-verifier).
 
-**Open question:** is each failure missing evidence, unused evidence, or wrong
-answer selection—and can a router abstain without regressions?
+**Open question:** outside the deadline-critical counting branch, is each
+failure missing evidence, unused evidence, or wrong answer selection—and can a
+router abstain without regressions?
 :::
 ::::
 
@@ -159,7 +160,7 @@ link opens the visible theme record with the tested condition and limits.
 | [Speech](research-speech-transcripts.{{< meta report-ext >}}#current-working-answer) | Adds spoken words with explicit provenance | [Whisper ablation](research-speech-transcripts.{{< meta report-ext >}}#automatic-transcript-ablation) | **Use selectively:** accepted Whisper | **Blocked:** human tier; **Possible:** alternate ASR | [Selective Whisper route](research-speech-transcripts.{{< meta report-ext >}}#distribution-level-selective-whisper) |
 | [Native audio](research-native-audio.{{< meta report-ext >}}#current-working-answer) | Preserves prosody and non-speech sound | [Audio on/off](research-native-audio.{{< meta report-ext >}}#minicpm-audio-on-off) | **Do not default:** global audio on | **Possible:** routed sound/prosody | [Specialist panel](research-native-audio.{{< meta report-ext >}}#matched-native-audio-specialist-panel) |
 | [Models](research-models.{{< meta report-ext >}}#current-working-answer) | Separates compatibility, quality, and adaptation | [Candidate screens](research-models.{{< meta report-ext >}}#failure-panel) | **Use:** Qwen3.5-4B; **Fast:** MiniCPM-o | **Possible:** repaired/specialist model or adaptation | [Bottleneck-first decision](research-models.{{< meta report-ext >}}#bottleneck-first-adaptation-decision) |
-| [Routing](research-routing.{{< meta report-ext >}}#current-working-answer) | Chooses evidence and separates retrieval from answering | [Full-panel Gemini, hard-row audit, atomic canary, and typed count-query slice](research-routing.{{< meta report-ext >}}#frontier-boundary-verifier) | **Use:** direct Gemini native AV as frontier baseline; map as optional retrieval index | **Do not promote:** direct Gemini as a winner, self-verifier, fixed derived answer path, unchanged atomic enumeration, or manually certified typed counting | [Representative 60-row audit; counting first needs mechanically verified coverage](research-routing.{{< meta report-ext >}}#frontier-boundary-verifier) |
+| [Routing](research-routing.{{< meta report-ext >}}#current-working-answer) | Chooses evidence and separates retrieval from answering | [Full-panel Gemini, hard-row audit, atomic canary, typed count-query slice, and local blind frame smoke](research-routing.{{< meta report-ext >}}#frontier-boundary-verifier) | **Use:** direct Gemini native AV as frontier baseline; map as optional retrieval index | **Do not promote:** direct Gemini as a winner, self-verifier, fixed derived answer path, unchanged atomic enumeration, manually certified typed counting, or local Gemma frame counting | [After the deadline: representative 60-row audit; stop counting experiments now](research-routing.{{< meta report-ext >}}#frontier-boundary-verifier) |
 :::
 
 ## Experiment index
@@ -277,10 +278,12 @@ a prescribed research sequence.
    The unchanged generic atomic counting enumerator is now a stopped branch;
    a one-row post-label human-oracle check showed that endpoint-inclusive
    structured frame-presence decisions plus a deterministic episode reducer
-   can represent the intended count. Any blind counting variant must still
-   predeclare unit, temporal boundary, sampling, inclusion, and abstention
-   rules, include controls, and receive fresh authorization before using a new
-   panel.
+   can represent the intended count. The authorized local blind Gemma smoke
+   then stopped at 0/2 strict completions because both outputs were fenced; its
+   individual-frame challenges and repeats did not run. With only one eligible
+   failure and one control, stop counting work before the competition deadline
+   and retain the validated fallback. Any post-deadline blind variant requires
+   a larger untouched panel and fresh authorization.
 
 <span id="how-to-interpret-results" class="legacy-fragment-alias" aria-hidden="true"></span>
 

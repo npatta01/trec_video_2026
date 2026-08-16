@@ -614,6 +614,54 @@ additive hardened-v2 interpretation correction remain at
 `data/vqa/benchmarks/direct-gemini-counting-recovery-hardened-v2/` in the
 canonical shared dataset.
 
+## Local Gemma blind frame-presence smoke test
+
+**Reason for testing.** The human-oracle feasibility result showed that dense,
+endpoint-complete frame states can represent repeated appearances, but it did
+not test whether a model can author those states without labels. With the
+competition deadline one day away, this zero-provider-cost test used the
+already cached Gemma 3n checkpoint as the cheapest representative automation
+check. The predeclared plan prohibited prompt repair and required both primary
+contact-sheet outputs to parse strictly before challenges or repeats.
+
+**Tested condition and panel.** A narrow label-independent router found only
+two eligible untouched rows: one confirmed failure and one correct control.
+Code selected endpoint-inclusive decoded PNG frames at a fixed stride: 55 for
+`RZrkA52TGBA` and 113 for `PgKOzRgYMAI`. Numbered contact sheets were passed to
+the locally cached `google/gemma-3n-E4B-it` revision
+`c1221e9c62e34a43ab7ffacd1be0ea71f126ef10` on ROCm. The model had to emit an
+unfenced JSON array containing exactly one structured presence decision per
+frame. Labels and references were unavailable through inference. There were
+no provider calls and cost was `$0.00`.
+
+**Observed result.** Both model generations completed, taking 252.954 and
+536.224 seconds and producing 2,450 and 4,989 characters. Both responses began
+with a Markdown JSON fence. The frozen strict parser rejected both without
+stripping or repair, so completion was **0/2**. The smoke gate stopped the
+individual-frame challenges and second repeat.
+
+- **Evidence validity:** Incomplete.
+- **Decision disposition:** Not promoted under the tested condition.
+- **Decision code:** `stop_local_gemma_frame_counting_smoke_invalid_json`.
+- **Metrics:** rescue rate, control preservation, METEOR, BERTScore-F1, STS,
+  and semantic composite are unavailable because no row completed the frozen
+  protocol.
+
+This establishes a structured-output failure under the tested local condition,
+not a visual-perception failure: the fenced contents were intentionally not
+repaired or scored after the gate failed. The two-row eligible panel was also
+too small to justify changing the primary submission even if it had passed.
+With the deadline imminent, stop this counting branch and preserve the already
+validated fallback submission. Do not retry with fence stripping, tune the
+prompt, run the challenges, or start another paid counting canary.
+
+The sanitized evidence index is
+`docs/experiments/artifacts/vqa-local-gemma-frame-counting-20260816/`. Complete
+private selected frames, contact sheets, requests, raw local outputs, freeze,
+correction record, decision, and inspection remain at
+`data/vqa/benchmarks/local-gemma-frame-counting-canary-v2/` in the canonical
+shared dataset.
+
 ## Cost and completion boundary
 
 The final v5 pilot plus verifier cost `$0.102772`. Including all preserved

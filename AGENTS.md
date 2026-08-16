@@ -269,3 +269,12 @@ correction to the hardened-v2 interpretation. Do not rerun it. A future blind
 test requires new authorization, a frozen sampling and abstention rule,
 model-generated structured decisions, and controls; no paid inference is authorized
 by this result.
+
+That zero-cost blind test is now complete at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/local-gemma-frame-counting-canary-v2/`.
+The cached local Gemma 3n model completed contact-sheet generations for the
+only eligible failure and control, but both outputs were Markdown-fenced and
+failed the frozen strict JSON gate. Completion was 0/2, so challenges, repeats,
+and quality metrics did not run. Preserve this incomplete negative, do not
+repair or rerun the unchanged condition, and keep the validated competition
+fallback unchanged. No additional paid counting inference is authorized.
