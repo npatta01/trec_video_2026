@@ -237,6 +237,19 @@ Private root:
 The terminal setup-only v1 incident remains preserved separately at
 `data/vqa/benchmarks/gemini37-flash-two-video-smoke-v1/`.
 
+### Post-freeze erratum: provider model alias
+
+V2 returned all four non-empty responses and verified the custom-FPS token
+band, but the immutable strict freeze is `not_ready` solely because Batch
+responses reported each exact requested model alias instead of the catalog's
+separate dated version string. Preserve that freeze unchanged. Under the user's
+deadline-driven request for the smallest decision check, one no-new-inference
+post-hoc diagnostic may hash-bind the frozen responses and two canonical
+annotations, verify that all four observed aliases equal their requested arm
+models and that no other freeze failure exists, and calculate the already
+specified exact-match/token-F1 comparison. Report it as post-hoc diagnostic
+evidence only; it cannot make the run `quality_ready` or trigger scale-up.
+
 Tracked sanitized evidence, if the run reaches a terminal freeze:
 
 `docs/experiments/artifacts/gemini37-flash-two-video-smoke-20260816/`

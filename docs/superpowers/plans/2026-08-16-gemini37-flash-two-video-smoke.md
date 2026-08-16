@@ -340,7 +340,7 @@
   parser rejected its base64-wrapped ASCII-hex digest. Preserve its exclusive
   attempt and failed record; row two and both inference arms remain untouched.
 
-- [ ] **Step 4b: Run one clean v2 replacement after the parser fix**
+- [x] **Step 4b: Run one clean v2 replacement after the parser fix**
 
   Preserve v1 unchanged. Add a focused regression for Google's live
   base64-of-ASCII-hex digest, fix only that normalizer, and bump the private
@@ -348,24 +348,27 @@
   each; require 2/2 verified `ACTIVE` records. Do not add a recovery framework
   or delete/reuse the v1 provider resource.
 
-- [ ] **Step 5: Submit exactly one Batch job per arm**
+- [x] **Step 5: Submit exactly one Batch job per arm**
 
   Invoke `submit --arm control_31pro` once and
   `submit --arm candidate_37flash` once. Preserve any provider rejection as the
   sole terminal attempt; never retry or replace a row.
 
-- [ ] **Step 6: Monitor to terminal and freeze**
+- [x] **Step 6: Monitor to terminal and freeze**
 
   Poll both job records with `status` at outcome-driven intervals, appending
   snapshots. When both are terminal, run `freeze` once. If either is failed or
   incomplete, preserve `not_ready` and stop before score inputs.
 
-- [ ] **Step 7: Bind and score only after a ready freeze**
+- [ ] **Step 7: Run the bounded post-hoc alias diagnostic**
 
-  Run `bind-annotations` only if `show-status` reports a complete prediction
-  freeze with custom FPS verified. Require its two-row hash-only manifest, then
-  run `score`. Inspect row-level answers privately, then expose only aggregate
-  completion, usage, cost, paired diagnostic counts, and decision.
+  Preserve the strict `not_ready` freeze. Verify privately that all four
+  responses are present, custom FPS passed, every failure is only the exact
+  requested-model alias versus catalog-version mismatch, and no other failure
+  exists. Hash-bind the freeze and two canonical annotations, calculate the
+  same normalized exact-match/token-F1 comparison without another provider
+  call, and expose only aggregate diagnostic counts and the immutable strict
+  decision.
 
 ---
 
