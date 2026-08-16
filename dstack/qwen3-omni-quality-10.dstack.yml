@@ -23,7 +23,13 @@ env:
 
 files:
   - ../scripts/run-qwen3-omni-quality-dstack.sh:/dstack/run/scripts/run-qwen3-omni-quality-dstack.sh
-  - ../src/trec_video_2026:/dstack/run/src/trec_video_2026
+  - ../src/trec_video_2026/__init__.py:/dstack/run/src/trec_video_2026/__init__.py
+  - ../src/trec_video_2026/vqa_experiments/__init__.py:/dstack/run/src/trec_video_2026/vqa_experiments/__init__.py
+  - ../src/trec_video_2026/vqa_experiments/omni_contract.py:/dstack/run/src/trec_video_2026/vqa_experiments/omni_contract.py
+  - ../src/trec_video_2026/vqa_experiments/omni_runtime.py:/dstack/run/src/trec_video_2026/vqa_experiments/omni_runtime.py
+  - ../src/trec_video_2026/vqa_experiments/qwen3_omni_dstack.py:/dstack/run/src/trec_video_2026/vqa_experiments/qwen3_omni_dstack.py
+  - ../src/trec_video_2026/vqa_experiments/qwen3_omni_quality_contract.py:/dstack/run/src/trec_video_2026/vqa_experiments/qwen3_omni_quality_contract.py
+  - ../src/trec_video_2026/vqa_experiments/qwen3_omni_quality_dstack.py:/dstack/run/src/trec_video_2026/vqa_experiments/qwen3_omni_quality_dstack.py
   - ../data/vqa/benchmarks/qwen3-omni-quality-10/contract.json:/dstack/input/contract.json
   - ../data/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-01.png:/dstack/input/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-01.png
   - ../data/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-02.png:/dstack/input/vqa/benchmarks/evidence/9b0dab575b1169f72752f4e9da715e8bdbcb501eb6e62f3d8d80cfaf9f0afa0e/frame-02.png

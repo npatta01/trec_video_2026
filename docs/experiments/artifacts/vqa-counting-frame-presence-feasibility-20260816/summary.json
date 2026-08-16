@@ -1,0 +1,73 @@
+{
+  "complete_sha256": "c90c1f8faa657af809ce03f4fd62417a4c7f86faeec5381fd4309c658d3daa79",
+  "condition": "decoded-frame-presence-feasibility-v1",
+  "corrected_prior_interpretation": {
+    "corrected_claim": "the first model range collapsed two separate appearances; the last appearance near 6.5 seconds was omitted",
+    "previous_claim": "the model found two middle appearances and missed both temporal edges",
+    "prior_decision_changed": false,
+    "private_correction_complete_sha256": "5f1ac5b45ff0190aade168bf552f5b599879c50ee4456b1dad09bcd3ef1e3e2c",
+    "private_correction_file_sha256": "1db5e32026ccc52488ad3fb15ff3abc672e69878db8e7e4d04e25ea3924f8718"
+  },
+  "decision_code": "proceed_to_blind_structured_frame_presence_canary_if_authorized",
+  "decision_disposition": "Diagnostic signal",
+  "episodes": [
+    {
+      "end_frame_id": "F010",
+      "end_seconds": 1.333,
+      "start_frame_id": "F007",
+      "start_seconds": 0.933
+    },
+    {
+      "end_frame_id": "F016",
+      "end_seconds": 2.133,
+      "start_frame_id": "F014",
+      "start_seconds": 1.867
+    },
+    {
+      "end_frame_id": "F033",
+      "end_seconds": 4.4,
+      "start_frame_id": "F030",
+      "start_seconds": 4
+    },
+    {
+      "end_frame_id": "F050",
+      "end_seconds": 6.666,
+      "start_frame_id": "F049",
+      "start_seconds": 6.533
+    }
+  ],
+  "evidence_validity": "Diagnostic",
+  "experimental_role": "post-label human-oracle feasibility; not promotion evidence",
+  "limitations": [
+    "The only row was already unblinded and a human authored the frame decisions.",
+    "The result establishes representational feasibility, not model accuracy or generalization.",
+    "An appearance shorter than the frozen sampling gap can still be missed.",
+    "Ambiguous or unobservable frames force abstention; identity through occlusion is not resolved."
+  ],
+  "observed": {
+    "abstentions": 0,
+    "effective_fps": 7.5,
+    "exact_results": 1,
+    "maximum_sample_gap_seconds": 0.134,
+    "paid_provider_calls": 0,
+    "provider_cost_usd": 0,
+    "reference_value": 4,
+    "selected_frames": 55,
+    "value": 4
+  },
+  "panel": {
+    "controls": 0,
+    "failures": 1,
+    "labels_available_during_review": true,
+    "rows": 1
+  },
+  "private_evidence_binding": {
+    "inspection_file_sha256": "d768b4c5f0b8dd2b876ecc6fbe528353d79f60420c7e866b7a6b32c20f16daf5",
+    "ledger_file_sha256": "4128344c2dac1119e706eb0099f6aafa92a269f03cc15aef4b9924a3e59b9d62",
+    "provenance_complete_sha256": "e9e3d08dda6841ef8942c7d8a5b519d39478c907ce2a3c0b28065ce3b06e04aa",
+    "provenance_file_sha256": "c495059ef62b3220de58bf5169efa4781dcdddcd7a2487d00a1eed8053423c2d",
+    "result_complete_sha256": "e38c8f14507871841d5e4d1d7727a5c0beb89fe8015ad42e2f9b30dc57dab55f",
+    "result_file_sha256": "eee58f0dcf048d2b4b9a4e106df01315e6f34abd04fb1e9a28d9e0a716aee512"
+  },
+  "schema_version": 1
+}

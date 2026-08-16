@@ -180,6 +180,18 @@ def select_auto_model_class(
     raise ValueError(f"Unsupported model class: {kind}")
 
 
+def select_attention_implementation(model_id: str) -> str:
+    """Use the pinned Gemma 3n runtime's required eager attention path."""
+
+    return "eager" if "gemma-3n" in model_id.lower() else "sdpa"
+
+
+def model_image_field(model_type: str | None) -> str:
+    """Use Gemma 3n's proven native image message field."""
+
+    return "image" if model_type == "gemma3n" else "url"
+
+
 def _tensor_counts(tensors: list[Any], attribute: str) -> dict[str, int]:
     counts: dict[str, int] = {}
     for tensor in tensors:
@@ -276,6 +288,9 @@ def generate_answer(
         frame_descriptions=frame_descriptions,
         transcript=transcript,
         answer_policy=answer_policy,
+        image_field=model_image_field(
+            getattr(getattr(model, "config", None), "model_type", None)
+        ),
     )
     inputs = processor.apply_chat_template(
         messages,
@@ -391,7 +406,7 @@ def main(argv: list[str] | None = None) -> int:
             trust_remote_code=True,
             dtype=torch.bfloat16,
             device_map="cuda:0",
-            attn_implementation="sdpa",
+            attn_implementation=select_attention_implementation(model_id),
         )
         device, precision, runtime_attestation = validate_bfloat16_accelerator(
             model, torch

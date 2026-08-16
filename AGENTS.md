@@ -199,4 +199,105 @@ rescued 1/5 failures and preserved 1/1 control at `$0.253924`; it failed the
 3/5 gate, and projected scale also exceeded the `$3` ceiling. Do not rerun or
 scale the unchanged generic atomic enumerator. The zero-cost next seam is a
 frozen CountSpec plus typed deterministic reducers over already-purchased
-records; any new paid micro-canary requires separate authorization.
+records; that seam has now been tested below. Any new paid micro-canary requires
+separate authorization.
+
+## Typed video count-query engine artifact reference
+
+The completed 2026-08-14 zero-provider-cost typed count-query oracle slice is
+documented in the counting section of
+[`docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd`](docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd).
+Its sanitized index is under
+[`docs/experiments/artifacts/vqa-count-query-engine-20260814/`](docs/experiments/artifacts/vqa-count-query-engine-20260814/).
+
+The complete private evidence is at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-count-query-engine-v1/`.
+Start with `inspection.md`. The frozen engine expressed 12/12 held-out
+questions and returned 10 exact proofs plus two bounded abstentions, but four
+exact answers were wrong. It rescued 3/8 failures and preserved 3/4 controls,
+so the gate failed. Preserve the immutable v1 proof and score. A completed
+label-independent post-unblinding v2 audit hardened general identity,
+boundary, coverage, grounding, and proof-trace semantics; its replay over the
+unchanged authored inputs preserved every row decision and aggregate metric.
+`experiment-provenance-v2.json` binds both source revisions and artifact
+chains. Do not run another replay or add row-specific reducers. If counting
+work continues, the next zero-cost seam is a mechanically checkable coverage
+certificate bound to reviewed timestamps, regions, and sampling density. No
+paid microcanary is authorized.
+
+## Gemini native-video counting recovery artifact reference
+
+The incomplete 2026-08-15 multi-pass Gemini native-video counting recovery
+canary is documented in the counting section of
+[`docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd`](docs/experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd).
+Its sanitized index is under
+[`docs/experiments/artifacts/vqa-gemini-counting-recovery-20260815/`](docs/experiments/artifacts/vqa-gemini-counting-recovery-20260815/).
+
+The complete private evidence is at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-counting-recovery-v1/`.
+Start with `inspection.md`. The first of three rows was attempted: the locator
+and verifier completed after an additive label-independent locator alias
+correction, but the mandatory challenger returned truncated JSON. Completion
+is therefore 0/3, no quality or rescue/control metrics were computed, and the
+remaining rows were not started. Three paid calls cost `$0.156048`. Preserve
+the incomplete decision and do not rerun it. No additional paid counting
+canary is authorized. `provenance-audit-v1.json` preserves the legacy
+paid-claim self-hash and indirect media-binding gaps; filesystem exclusivity
+still prevented duplicate stage calls. Post-run interface and provenance
+hardening is not experimental evidence.
+
+A separately authorized hardened one-row repeat is complete at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-counting-recovery-hardened-v2/`.
+It completed and froze the first failure row only, returned exact count 2
+against reference 4, rescued 0/1, ran no control, and cost `$0.111700`. Start
+with `inspection.md`. Its original post-freeze interpretation said the model
+missed appearances at both temporal edges. An additive endpoint-complete
+decoded-frame audit corrected that interpretation: the first
+Gemini range collapsed two separate appearances into one atomic instance, and
+the final appearance near 6.5 seconds was omitted. The frozen negative result,
+metrics, and stop decision are unchanged. Preserve this valid negative result;
+do not rerun or scale the unchanged condition. No further paid counting run is
+authorized.
+
+The completed zero-cost structured frame-presence feasibility check is at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-counting-frame-presence-feasibility-v1/`.
+It used 55 endpoint-inclusive decoded frames at 7.5 fps and a deterministic
+presence-run reducer. Human-authored post-label decisions recovered the known
+four appearances, establishing representational feasibility only; this is not
+model-quality or promotion evidence. The result also preserves the additive
+correction to the hardened-v2 interpretation. Do not rerun it. A future blind
+test requires new authorization, a frozen sampling and abstention rule,
+model-generated structured decisions, and controls; no paid inference is authorized
+by this result.
+
+That zero-cost blind test is now complete at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/local-gemma-frame-counting-canary-v2/`.
+The cached local Gemma 3n model completed contact-sheet generations for the
+only eligible failure and control, but the executed primary calls violated the
+frozen maximum of 11 frames per call: they requested 55 and 113 frames across
+multiple sheets. Both outputs were also Markdown-fenced. The intended canary is
+therefore invalid, not merely incomplete; challenges, repeats, and quality
+metrics did not run. Preserve the raw attempt and additive validity correction,
+do not repair or rerun the condition, and keep the validated competition
+fallback unchanged. No additional paid counting inference is authorized.
+
+The separately authorized bounded multi-pass Gemini counting canary is complete
+at
+`/home/npatta01/data/competitions/trec_video_2026/data/vqa/benchmarks/direct-gemini-bounded-multipass-counting-v4/`.
+Start with `inspection.md`. Its frozen twelve-row replicate used label-free
+provider requests plus a
+typed CountSpec, code-scheduled endpoint-complete overlapping windows, atomic
+evidence, a same-model coverage audit, deterministic reduction, and at most one
+targeted refinement. It observed 1/8 confirmed failures rescued and only 1/4
+controls preserved; all coverage responses encoded no dispute, so the
+refinement arm made no calls and was identical. Additive review classified the
+intended comparison Invalid: the runner process could read the private panel,
+the frozen small-target static crop condition did not execute, and per-call
+returned model revisions were not preserved. The v4 provider cost was
+`$2.048074`, and cumulative v1-v4 exposure was `$3.358862`. Preserve v1-v3 as incomplete
+development/transport attempts, including v3's response-free HTTP 503. Do not
+rerun or scale the same-model CountSpec/evidence/self-audit condition and do not
+derive row-specific rules from the post-label inspection. The frozen outputs
+and metrics are factual observations only, not evidence for the intended
+promotion comparison. No additional paid counting inference is authorized by
+this result.

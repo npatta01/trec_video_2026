@@ -294,6 +294,43 @@ GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
   and scope-boundary overcount. The tested OpenRouter-delivered atomic
   enumerator is not promoted, and the projected 39-row cost also
   exceeded the `$3` ceiling.
+- **Typed counting follow-up:** a zero-provider-cost held-out slice
+  separated question semantics, timestamped evidence, and deterministic
+  arithmetic. All 12/12 questions were expressible without row-specific
+  operators, but four of ten exact proofs were wrong because spatial
+  coverage and fine-grained event segmentation were overclaimed. It
+  rescued 3/8 failures and preserved 3/4 controls; the typed engine is
+  not promoted under this manual-evidence condition.
+- **Gemini counting-recovery follow-up:** the first three-row multi-pass
+  canary stopped incomplete when its mandatory challenger returned
+  truncated JSON. A separately authorized hardened one-row repeat
+  completed at `$0.111700`, but returned exact count 2 against reference
+  4 and rescued 0/1 failures. An additive decoded-frame audit corrected
+  the original failure interpretation: the first Gemini range collapsed
+  two appearances into one atomic instance, and the final appearance
+  near 6.5 seconds was omitted. The frozen negative result and stop
+  decision are unchanged.
+- **Structured frame-presence feasibility:** a zero-cost, post-label
+  human-oracle review assigned strict presence decisions to 55
+  endpoint-inclusive decoded frames at 7.5 fps. A deterministic reducer
+  recovered the known four episodes. This is diagnostic representational
+  feasibility only—not evidence that Gemini, a detector, or a tracker
+  can produce the decisions blind.
+- **Local blind model smoke test:** cached Gemma 3n completed
+  contact-sheet generations for one failure and one control, but each
+  call exceeded the frozen 11-frame maximum (55 and 113 requested
+  states). Both responses were also Markdown-fenced. The intended canary
+  is invalid; challenges, repeats, and quality metrics did not run.
+  Retain the validated deadline fallback.
+- **Bounded multi-pass Gemini canary:** a fresh twelve-row replicate
+  with label-free provider requests observed 1/8 failures rescued and
+  1/4 controls preserved; every coverage response encoded no eligible
+  dispute, so the refinement arm made no calls. Additive review
+  classified the intended comparison Invalid because labels were
+  runner-process-accessible, required small-target static crops did not
+  execute, and returned model revisions were not preserved per call. The
+  observed outputs are factual only; the same-model agent is not
+  promoted.
 - **What it does not rule out:** reusable question-blind scene maps or
   Gemini native video. It isolates the earlier failure to the tested
   route/verifier.
@@ -304,9 +341,11 @@ GitHub](https://github.com/npatta01/trec_video_2026/issues/4).
 - **Reconsider when:** a representative 60-row audit confirms enough
   clean evidence-present and map-omission failures, then map-grounded
   answering repairs its predeclared share without regressing supported
-  controls. For counting, require a new deterministic unit/boundary
-  convention rather than rerunning the unchanged generic atomic
-  enumerator.
+  controls. For counting, require a materially different frame-state or
+  transition detector with mechanically triggered challenges, endpoint
+  and sampling checks, explicit abstention, and fresh controls. Do not
+  rerun the unchanged generic atomic enumerator, Gemini recovery, local
+  Gemma smoke, or bounded same-model self-audit condition.
 
 <details>
 
@@ -331,7 +370,19 @@ diagnostic](../experiments/2026-08-12-vqa-frontier-boundary-verifier.qmd)
 and the [full-panel sanitized
 index](../experiments/artifacts/vqa-gemini-native-av-full-panel-20260813/README.md).
 The counting follow-up has a separate [sanitized
-index](../experiments/artifacts/vqa-gemini-counting-evidence-20260814/README.md).
+index](../experiments/artifacts/vqa-gemini-counting-evidence-20260814/README.md),
+and the typed-engine follow-up is indexed
+[separately](../experiments/artifacts/vqa-count-query-engine-20260814/README.md).
+The [hardened Gemini
+negative](../experiments/artifacts/vqa-gemini-counting-recovery-hardened-v2-20260815/README.md)
+and [structured frame-presence
+feasibility](../experiments/artifacts/vqa-counting-frame-presence-feasibility-20260816/README.md)
+preserve the prior counting result and additive interpretation
+correction. The [local Gemma smoke
+test](../experiments/artifacts/vqa-local-gemma-frame-counting-20260816/README.md)
+records its invalid stop decision, and the [bounded multi-pass Gemini
+canary](../experiments/artifacts/vqa-bounded-multipass-counting-20260816/README.md)
+records the completed same-model negative.
 
 </details>
 
@@ -434,15 +485,15 @@ class="legacy-fragment-alias" aria-hidden="true"></span>
 
 ## Cheapest valid next experiments
 
-The 2026-08-14 counting canary rules out scaling its unchanged generic
-atomic enumerator: only 1/5 failures were rescued. A later
-counting-specific variant must declare the requested count unit,
-temporal boundary, and inclusion rule before evidence extraction and
-then test that new mechanism against the frozen panel and controls. The
-cheapest next seam is zero-cost re-reduction of existing atomic records
-with frozen max-concurrency and onset-in-scope operators; only the
-predeclared flips and stable controls would warrant a new paid
-micro-canary.
+The generic atomic enumerator, typed re-reduction, and unchanged Gemini
+multi-pass recovery branches are complete and not promoted. The
+post-label frame-presence result establishes only that a fixed
+structured ledger can represent the intended episodes. Any next counting
+test must use a fresh label-blind panel with controls, freeze the count
+unit and inclusion rule, mechanically bind decoded endpoints and
+sampling gaps, require structured model decisions, and abstain on
+missing or ambiguous evidence. It also needs fresh authorization; no
+paid micro-canary is currently authorized.
 
 ### Independent scene-boundary verifier
 

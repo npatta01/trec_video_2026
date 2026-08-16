@@ -1,0 +1,45 @@
+{
+  "complete_sha256": "1a73a284b476f96f728970dd2c5a2cbc8021f8b24df66c06899df8f77033667d",
+  "audit_gaps": [
+    "invalid_response_provider_id_and_returned_model_version_not_preserved",
+    "paid_call_claim_serialized_self_hash_invalid",
+    "paid_call_claim_not_bound_by_terminal",
+    "stage_media_binding_indirect_via_manifest_and_upload"
+  ],
+  "completion": {
+    "attempted_rows": 1,
+    "completed_rows": 0,
+    "total_rows": 3
+  },
+  "condition": "gemini-native-counting-recovery-v1",
+  "decision_code": "stop_gemini_counting_recovery_incomplete_v1",
+  "decision_disposition": "Not promoted under the tested condition",
+  "evidence_validity": "Incomplete",
+  "metrics": {
+    "bertscore_f1": null,
+    "control_preservation_rate": null,
+    "meteor": null,
+    "reason": "No completed prediction freeze",
+    "rescue_rate": null,
+    "semantic_composite": null,
+    "sts": null
+  },
+  "observed": {
+    "paid_provider_calls": 3,
+    "total_estimated_cost_usd": 0.156048
+  },
+  "private_evidence_binding": {
+    "incomplete_decision_complete_sha256": "88640be466507c0a70dc747d822a2fd203189ec950a9231b241b129ef3892ad7",
+    "incomplete_decision_file_sha256": "1c9936cf61d4265728e744e8975aedcbd59c02f2f3f8849d812f4feb793a6ce3",
+    "provenance_audit_complete_sha256": "feb4574a95225424e45103280296d480cbdd2fe0b3cc15fadc97dc3f434857b3",
+    "provenance_audit_file_sha256": "8a258e8bd6345589c73e8bf80a525e4e7dfc234f1e213cfa96ecbb67f13d21cb"
+  },
+  "reason_codes": [
+    "locator_count_unit_alias_corrected_without_retry",
+    "verification_pass_completed",
+    "challenge_response_truncated_invalid_json",
+    "first_row_gate_incomplete",
+    "remaining_rows_not_started"
+  ],
+  "schema_version": 1
+}

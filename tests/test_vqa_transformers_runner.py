@@ -18,10 +18,25 @@ from trec_video_2026.vqa_transformers_runner import (
     generation_compat_kwargs,
     load_legacy_optional_processor,
     load_processor,
+    model_image_field,
     parse_args,
     register_legacy_default_rope,
+    select_attention_implementation,
     select_auto_model_class,
 )
+
+
+def test_gemma3n_uses_its_proven_eager_attention_runtime() -> None:
+    assert select_attention_implementation("google/gemma-3n-E4B-it") == "eager"
+    assert (
+        select_attention_implementation(
+            "/cache/models--google--gemma-3n-E4B-it/snapshots/pinned"
+        )
+        == "eager"
+    )
+    assert select_attention_implementation("Qwen/example") == "sdpa"
+    assert model_image_field("gemma3n") == "image"
+    assert model_image_field("qwen2_5_vl") == "url"
 
 
 class FakeBatch(dict):
@@ -116,9 +131,7 @@ def _install_fake_main_runtime(
     monkeypatch.setattr(transformers_runner, "generate_answer", fake_generate_answer)
 
 
-def _main_request(
-    video_id: str, question: str | None = None
-) -> dict[str, object]:
+def _main_request(video_id: str, question: str | None = None) -> dict[str, object]:
     request: dict[str, object] = {
         "run_id": "run-1",
         "condition_id": "condition-1",
@@ -144,6 +157,7 @@ def _invoke_main(
     generation_calls: list[dict[str, object]] = []
     _install_fake_main_runtime(monkeypatch, processor_calls, generation_calls)
     if setup_error is not None:
+
         def failing_load_processor(*args, **kwargs):
             raise RuntimeError(setup_error)
 
