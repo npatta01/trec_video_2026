@@ -758,64 +758,62 @@ def _validate_command(command: Sequence[str], arm_id: str, protocol: Mapping[str
     normalized = list(command)
     if not normalized or any(not isinstance(item, str) for item in normalized):
         raise ValueError("arm command must be a nonempty string array")
-    expected_module = "trec_video_2026.vqa_qwen_empty_output_runner"
-    if normalized[:2] != ["podman", "run"] or "-i" not in normalized:
-        raise ValueError("arm command must be an interactive podman run")
-    if "--network" not in normalized or normalized[normalized.index("--network") + 1] != "none":
-        raise ValueError("arm command must disable the network")
-    if "--read-only" not in normalized:
-        raise ValueError("arm command must be read-only")
-    if "-i" not in normalized or RUNTIME_IMAGE not in normalized:
-        raise ValueError("interactive stdin and pinned image are required")
-    if normalized.index("-i") > normalized.index(RUNTIME_IMAGE):
-        raise ValueError("interactive stdin must precede the pinned image")
-    if RUNTIME_IMAGE not in normalized or expected_module not in normalized:
-        raise ValueError("arm command is not pinned to the dedicated runner")
-    allowed_options = {
-        "--rm",
-        "--network",
-        "--read-only",
-        "--device",
-        "--group-add",
-        "--security-opt",
-        "--tmpfs",
-        "--volume",
-        "--workdir",
-        "--env",
+    config = _validate_arm_id(arm_id)
+    repo_root = Path(__file__).resolve().parents[2]
+    container_repo = Path("/workspace/trec_video_2026")
+    cursor = 0
+
+    def expect(*values: str) -> None:
+        nonlocal cursor
+        if normalized[cursor : cursor + len(values)] != list(values):
+            raise ValueError("arm command does not match the immutable argv contract")
+        cursor += len(values)
+
+    expect("podman", "run", "--rm", "-i", "--network", "none", "--read-only")
+    expect("--device", "/dev/kfd", "--device", "/dev/dri")
+    expect("--group-add", "keep-groups", "--security-opt", "label=disable")
+    expect("--tmpfs", "/tmp:rw,size=4g", "--volume")
+    if cursor >= len(normalized):
+        raise ValueError("arm command is missing the Hugging Face cache mount")
+    hub_mount = normalized[cursor]
+    cursor += 1
+    if not hub_mount.endswith(":/root/.cache/huggingface/hub:ro"):
+        raise ValueError("arm command must mount the read-only Hugging Face cache")
+    hub_source = hub_mount[: -len(":/root/.cache/huggingface/hub:ro")]
+    if not Path(hub_source).is_absolute() or not Path(hub_source).is_dir():
+        raise ValueError("arm command Hugging Face cache source is invalid")
+    expect("--volume")
+    expected_data_mount = f"{CANONICAL_DATA_ROOT}:{CANONICAL_DATA_ROOT}:ro"
+    expect(expected_data_mount, "--volume", f"{repo_root}:{container_repo}:ro")
+    expect("--workdir", str(container_repo))
+    expect(
+        "--env", f"PYTHONPATH={container_repo / 'src'}",
+        "--env", "PYTHONDONTWRITEBYTECODE=1",
+        "--env", "HF_HUB_OFFLINE=1",
+        "--env", "TRANSFORMERS_OFFLINE=1",
+        "--env", "HF_HOME=/root/.cache/huggingface",
+        "--env", "HUGGINGFACE_HUB_CACHE=/root/.cache/huggingface/hub",
+        "--env", "HOME=/tmp/home",
+        "--env", f"VQA_RUNTIME_IMAGE={RUNTIME_IMAGE}",
+    )
+    expect(
+        RUNTIME_IMAGE,
+        "/opt/venv/bin/python",
+        "-m",
+        "trec_video_2026.vqa_qwen_empty_output_runner",
         "--model-id",
+        ASR_MODEL_ID,
         "--revision",
-        "--forced-aligner-id",
-        "--forced-aligner-revision",
-        "--language",
-        "--timestamps",
-    }
-    if any(token.startswith("--") and token not in allowed_options for token in normalized):
-        raise ValueError("arm command contains an unexpected option")
-    if ASR_REVISION not in normalized:
-        raise ValueError("arm command is not pinned to the ASR revision")
+        ASR_REVISION,
+    )
+    if config["aligner_loaded"]:
+        expect("--forced-aligner-id", ALIGNER_MODEL_ID, "--forced-aligner-revision", ALIGNER_REVISION)
+    expect("--language", config["language"], "--timestamps", config["timestamps"])
+    if cursor != len(normalized):
+        raise ValueError("arm command contains duplicate or unexpected arguments")
     rendered = " ".join(normalized)
     if any(token in rendered for token in ("HF_TOKEN", "HUGGINGFACE_HUB_TOKEN", "HF_API_TOKEN", "OPENAI_API_KEY")):
         raise ValueError("arm command must not contain credentials")
-    if "--env" not in normalized or "HF_HUB_OFFLINE=1" not in normalized or "TRANSFORMERS_OFFLINE=1" not in normalized:
-        raise ValueError("arm command must enforce offline model loading")
-    volumes = [normalized[index + 1] for index, item in enumerate(normalized[:-1]) if item == "--volume"]
-    if not any(value.endswith(":/root/.cache/huggingface/hub:ro") for value in volumes):
-        raise ValueError("arm command must mount the read-only Hugging Face cache")
-    if not any(value.endswith(f":{CANONICAL_DATA_ROOT}:ro") for value in volumes):
-        raise ValueError("arm command must mount the canonical data root read-only")
-    config = _validate_arm_id(arm_id)
-    if "--language" not in normalized or normalized[normalized.index("--language") + 1] != config["language"]:
-        raise ValueError("arm command language does not match frozen arm")
-    if "--timestamps" not in normalized or normalized[normalized.index("--timestamps") + 1] != config["timestamps"]:
-        raise ValueError("arm command timestamps do not match frozen arm")
-    has_aligner = "--forced-aligner-id" in normalized and "--forced-aligner-revision" in normalized
-    if has_aligner != bool(config["aligner_loaded"]):
-        raise ValueError("arm command aligner mode does not match frozen arm")
-    if has_aligner and ALIGNER_REVISION not in normalized:
-        raise ValueError("arm command is not pinned to the aligner revision")
-    root_value = protocol.get("source_root")
-    if not isinstance(root_value, str):
-        raise ValueError("protocol source root is missing")
     return normalized
 
 
@@ -870,8 +868,20 @@ def _validate_results(
                 raise ValueError(f"result {field} does not match frozen request")
         if result.get("source_audio_sha256") != expected_hashes.get(video_id):
             raise ValueError("result audio hash does not match frozen audio")
-        if result.get("status") != "passed":
-            failure_types.append(str(result.get("error_type") or result.get("status") or "unknown"))
+        status = result.get("status")
+        if status != "passed":
+            if status not in {"failed", "unsupported"}:
+                raise ValueError("result failure status is not emitted by the runner")
+            error_type = result.get("error_type")
+            error_message = result.get("error_message")
+            if (
+                not isinstance(error_type, str)
+                or not error_type.strip()
+                or not isinstance(error_message, str)
+                or not error_message.strip()
+            ):
+                raise ValueError("failed result must preserve error evidence")
+            failure_types.append(error_type)
             continue
         text = result.get("text")
         language = result.get("language")

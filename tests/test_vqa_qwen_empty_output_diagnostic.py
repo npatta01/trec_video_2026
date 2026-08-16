@@ -29,6 +29,20 @@ def _freeze(path: Path, *, bindings: dict[str, object] | None = None) -> dict[st
     }
 
 
+def _refresh_source_request_freeze(source_root: Path) -> None:
+    inputs_path = source_root / "inputs-freeze.json"
+    inputs = json.loads(inputs_path.read_text())
+    record = inputs["artifacts"]["requests"]
+    record["artifact_sha256"] = _sha256(source_root / "requests.json")
+    inputs["artifacts_sha256"] = diagnostic.canonical_sha256(inputs["artifacts"])
+    inputs_path.write_text(json.dumps(inputs))
+    prediction_path = source_root / "predictions-freeze.json"
+    prediction = json.loads(prediction_path.read_text())
+    prediction["input_freeze_sha256"] = _sha256(inputs_path)
+    prediction["artifacts_sha256"] = diagnostic.canonical_sha256(prediction["artifacts"])
+    prediction_path.write_text(json.dumps(prediction))
+
+
 @pytest.fixture
 def source_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path, Path]:
     data_root = tmp_path / "data"
@@ -191,13 +205,28 @@ def test_prepare_rejects_wrong_private_or_source_root(source_fixture, tmp_path: 
         )
 
 
-def test_prepare_rejects_noncanonical_audio_and_forbidden_nested_source_key(source_fixture) -> None:
+def test_prepare_rejects_forbidden_nested_source_key(source_fixture) -> None:
     root, source_root, _ = source_fixture
     requests = json.loads((source_root / "requests.json").read_text())
     requests["requests"][0]["metadata"] = {"nested": [{"answer": "private"}]}
     (source_root / "requests.json").write_text(json.dumps(requests))
-    with pytest.raises(ValueError):
+    _refresh_source_request_freeze(source_root)
+    with pytest.raises(ValueError, match="label-bearing"):
         diagnostic.prepare_diagnostic(root, source_root, runner_path=Path(diagnostic.DIAGNOSTIC_RUNNER_PATH))
+
+
+def test_prepare_rejects_noncanonical_audio_path(source_fixture, tmp_path: Path) -> None:
+    root, source_root, _ = source_fixture
+    requests = json.loads((source_root / "requests.json").read_text())
+    requests["requests"][0]["audio_path"] = str(tmp_path / "outside.wav")
+    (tmp_path / "outside.wav").write_bytes(b"outside")
+    (source_root / "requests.json").write_text(json.dumps(requests))
+    _refresh_source_request_freeze(source_root)
+    with pytest.raises(ValueError, match="canonical data root"):
+        diagnostic.prepare_diagnostic(root, source_root, runner_path=Path(diagnostic.DIAGNOSTIC_RUNNER_PATH))
+
+
+def test_forbidden_recursive_key_boundary_is_enforced() -> None:
     with pytest.raises(ValueError, match="label-bearing"):
         diagnostic._walk_forbidden_keys({"outer": [{"nested": {"reference_answer": "private"}}]})
 
@@ -281,10 +310,45 @@ def test_post_prepare_runner_mutation_blocks_command_construction(source_fixture
         runner_path.write_bytes(original)
 
 
+@pytest.mark.parametrize("mutation", ["duplicate-network", "duplicate-language", "extra-option", "wrong-mount", "wrong-image", "wrong-revision"])
+def test_record_rejects_noncanonical_argv_before_subprocess(
+    source_fixture, tmp_path: Path, mutation: str
+) -> None:
+    root, source_root, _ = source_fixture
+    diagnostic.prepare_diagnostic(root, source_root, runner_path=Path(diagnostic.DIAGNOSTIC_RUNNER_PATH))
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    command = diagnostic.build_arm_command(root, "aligned_auto", hub_cache=cache, data_root=source_fixture[2].parent)
+    bad = list(command)
+    if mutation == "duplicate-network":
+        index = bad.index("--network")
+        bad[index:index] = ["--network", "host"]
+    elif mutation == "duplicate-language":
+        bad.extend(["--language", "English"])
+    elif mutation == "extra-option":
+        bad.insert(bad.index("--language"), "--extra-option")
+    elif mutation == "wrong-mount":
+        volume_indexes = [index for index, value in enumerate(bad) if value == "--volume"]
+        bad[volume_indexes[1] + 1] = f"{tmp_path}:{tmp_path}:ro"
+    elif mutation == "wrong-image":
+        bad[bad.index(diagnostic.RUNTIME_IMAGE)] = "localhost/wrong@sha256:" + "0" * 64
+    else:
+        bad[bad.index(diagnostic.ASR_REVISION)] = "0" * 40
+    calls: list[object] = []
+    with pytest.raises(ValueError):
+        diagnostic.record_arm(
+            root,
+            "aligned_auto",
+            bad,
+            runner=lambda *args, **kwargs: calls.append(args),
+        )
+    assert calls == []
+
+
 class _Completed:
-    returncode = 0
+    returncode = 7
     stdout = "[]"
-    stderr = ""
+    stderr = "synthetic nonzero failure"
 
 
 def test_record_preserves_nonzero_attempt_and_refuses_second_call(source_fixture, tmp_path: Path) -> None:
@@ -301,6 +365,12 @@ def test_record_preserves_nonzero_attempt_and_refuses_second_call(source_fixture
 
     diagnostic.record_arm(root, "aligned_auto", command, runner=runner)
     assert len(calls) == 1
+    terminal = json.loads((root / "arms" / "aligned_auto" / "terminal.json").read_text())
+    assert terminal["status"] == "failed"
+    assert terminal["exit_code"] == 7
+    validation = json.loads((root / "arms" / "aligned_auto" / "validated-results.json").read_text())
+    assert validation["status"] == "not_ready"
+    assert validation["contract_valid"] is False
     for name in ("command.json", "raw-results.json", "stderr.txt", "terminal.json", "validated-results.json"):
         assert (root / "arms" / "aligned_auto" / name).exists()
     with pytest.raises(ValueError, match="second|attempt"):
@@ -389,6 +459,34 @@ def test_exit_zero_invalid_result_bundle_cannot_advance(source_fixture, tmp_path
     _record_all_arms(root, commands, {"aligned_auto": bad})
     assert diagnostic.freeze_diagnostic(root)["decision"] == "not_ready"
     assert json.loads((root / "arms" / "aligned_auto" / "validated-results.json").read_text())["contract_valid"] is False
+
+
+@pytest.mark.parametrize("bad_status", ["bogus", None])
+@pytest.mark.parametrize("bad_arm", ["base_auto", "aligner_plain_auto"])
+def test_b_or_c_unknown_status_cannot_advance(
+    source_fixture, tmp_path: Path, bad_arm: str, bad_status: str | None
+) -> None:
+    root, commands = _prepared_with_commands(source_fixture, tmp_path)
+    bad_rows = _results_for(root, bad_arm)
+    bad_rows[0]["status"] = bad_status
+    bad_rows[0].pop("error_type", None)
+    bad_rows[0].pop("error_message", None)
+    _record_all_arms(root, commands, {bad_arm: bad_rows})
+    frozen = diagnostic.freeze_diagnostic(root)
+    assert frozen["decision"] == "not_ready"
+    assert frozen["aggregate"][bad_arm]["contract_valid"] is False
+
+
+def test_b_or_c_failure_without_error_evidence_cannot_advance(source_fixture, tmp_path: Path) -> None:
+    root, commands = _prepared_with_commands(source_fixture, tmp_path)
+    bad_rows = _results_for(root, "base_auto")
+    bad_rows[0]["status"] = "failed"
+    bad_rows[0].pop("error_type", None)
+    bad_rows[0].pop("error_message", None)
+    _record_all_arms(root, commands, {"base_auto": bad_rows})
+    frozen = diagnostic.freeze_diagnostic(root)
+    assert frozen["decision"] == "not_ready"
+    assert frozen["aggregate"]["base_auto"]["contract_valid"] is False
 
 
 def test_a_invalid_control_blocks_advance_even_with_other_arms_pass(source_fixture, tmp_path: Path) -> None:
