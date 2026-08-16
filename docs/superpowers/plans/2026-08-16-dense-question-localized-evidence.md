@@ -269,6 +269,14 @@ Add exact call count, terminal statuses, cost, prediction-freeze SHA-256, and wh
 - Prediction freeze: `status=frozen`, `row_count=24`, `completed_count=24`, `call_count=24`, `passed_count=0`, `failed_count=24`, terminal status counts `provider_error=24`; SHA-256 `feaf6f1fab8925e798b647b2a5926a0c3026057ed85a1eb31ec494ea0ffe3528`. `freeze` and `verify-freeze` both passed; no references or score outputs were loaded.
 - Task 4 authorization: NOT AUTHORIZED. The frozen prediction set is complete but unusable for the recovery gate because no provider arm produced a parsed observation; Task 4 must not load references or score this run.
 
+#### Task 3A schema-compatibility repair and additive v3 boundary — 2026-08-16
+
+- Status: treatment repair and zero-call additive v3 preparation complete. The v2 evidence remains immutable and independently verifies with its original runner/config bytes.
+- Aggregate v2 failure fact: 24/24 authorized attempts terminated `provider_error` before a model response with uniform HTTP 400 `INVALID_ARGUMENT`; prediction freeze SHA-256 remains `feaf6f1fab8925e798b647b2a5926a0c3026057ed85a1eb31ec494ea0ffe3528`.
+- Repair: the strict local response contract remains unchanged for `validate_probe`; provider requests recursively omit only `additionalProperties`. The committed provider-schema SHA-256 is `26322157cd6879c7576b7e1ad0099afbc17be6fa2c024c7fcb18052cb7cf8498`; compatibility canary policy is exactly `1` pair.
+- Additive v3 authorization: panel aggregate is 8 target rows and 4 control rows, 24 planned arms, 24-call maximum, 4-FPS then 12-FPS pair ordering, first pair as the compatibility canary, no retries, and `provider_calls_made=0`. The provider authorization SHA-256 is `eecb3bc5bc9b5c41a36076f06215d07eee816cd363bcb527c2f9510672874a43`; treatment, selection, provider-row, and media-manifest SHA-256 values are `116732c004cd385947d255c28c9749b56c0366a4b5c5c9fa59b0cd1695f8589a`, `f004ea05bfcbfea2fcfd17021b69ffc188c36fbfc8d4600ff619ed0fc1896f29`, `007fd6a66fd403d88782438c655028c0381a714ef84f70a812ed511d44eed293`, and `00dc65c6d9e96d564ebfbfae056ddcc57ce50b3c1da021514f269d68635d7b6b` respectively.
+- Zero-call boundary: Task 1 real input loading passed; all paired clip hashes, source hashes, selected map projections, windows, role counts, label isolation, and FPS arm bindings passed; no provider rows, terminals, raw responses, or prediction freeze were created and no Gemini/provider call was issued. Task 4 is NOT AUTHORIZED until an explicitly authorized provider execution produces a verified prediction freeze.
+
 ### Task 4: Audit paired fact recovery and apply the gate
 
 **Files:**
