@@ -485,8 +485,18 @@ def reduce_recovery_result(
             tuple(instance.instance_id for instance in accepted),
             ("identity_or_predicate_conflict",),
         )
-    all_instances = [*accepted, *challenge.missed_instances]
+    all_instances = [*accepted]
     if additive is not None:
+        if any(
+            instance.ambiguous or not instance.predicate_supported
+            for instance in additive.instances
+        ):
+            return RecoveryResult(
+                "abstain",
+                None,
+                tuple(instance.instance_id for instance in all_instances),
+                ("unresolved_additive_verification",),
+            )
         all_instances.extend(additive.instances)
         if additive.unresolved_observations:
             return RecoveryResult(

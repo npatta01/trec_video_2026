@@ -185,6 +185,79 @@ def test_reducer_does_not_count_challenger_discovery_without_additive_verificati
     assert result.reason_codes == ("additional_verification_required",)
 
 
+def test_additive_verification_replaces_challenger_proposal_without_double_counting() -> (
+    None
+):
+    ledger = parse_atomic_ledger(
+        ledger_payload(), duration_seconds=7.268, envelope=TimeRange(0.0, 7.268)
+    )
+    payload = challenge_payload()
+    proposal = {
+        "instance_id": "I3",
+        "start_seconds": 3.0,
+        "peak_seconds": 3.2,
+        "end_seconds": 3.4,
+        "before_state": "no ball visible",
+        "during_state": "ball visible",
+        "after_state": "ball absent",
+        "separation_evidence": "challenger saw a possible episode",
+        "predicate_supported": True,
+        "ambiguous": False,
+    }
+    payload["missed_instances"] = [proposal]
+    challenge = parse_challenge(payload, ledger=ledger, duration_seconds=7.268)
+    additive = parse_atomic_ledger(
+        {
+            "schema_version": 1,
+            "instances": [{**proposal, "instance_id": "A1"}],
+            "unresolved_observations": [],
+        },
+        duration_seconds=7.268,
+        envelope=TimeRange(1.5, 4.9),
+    )
+
+    result = reduce_recovery_result(ledger, challenge, additive=additive)
+
+    assert result.outcome == "exact"
+    assert result.value == 3
+    assert result.accepted_instance_ids == ("I1", "I2", "A1")
+
+
+def test_ambiguous_additive_verification_cannot_authorize_exactness() -> None:
+    ledger = parse_atomic_ledger(
+        ledger_payload(), duration_seconds=7.268, envelope=TimeRange(0.0, 7.268)
+    )
+    payload = challenge_payload()
+    payload["requested_ranges"] = [
+        {"start_seconds": 3.0, "end_seconds": 4.0, "reason": "possible episode"}
+    ]
+    challenge = parse_challenge(payload, ledger=ledger, duration_seconds=7.268)
+    instance = ledger_payload()["instances"][0]
+    additive = parse_atomic_ledger(
+        {
+            "schema_version": 1,
+            "instances": [
+                {
+                    **instance,
+                    "instance_id": "A1",
+                    "start_seconds": 3.1,
+                    "peak_seconds": 3.3,
+                    "end_seconds": 3.5,
+                    "ambiguous": True,
+                }
+            ],
+            "unresolved_observations": [],
+        },
+        duration_seconds=7.268,
+        envelope=TimeRange(1.5, 5.5),
+    )
+
+    result = reduce_recovery_result(ledger, challenge, additive=additive)
+
+    assert result.outcome == "abstain"
+    assert result.reason_codes == ("unresolved_additive_verification",)
+
+
 def test_prompts_assign_distinct_jobs_without_answer_or_labels() -> None:
     locator = parse_locator(locator_payload(), duration_seconds=7.268)
     ledger = parse_atomic_ledger(
