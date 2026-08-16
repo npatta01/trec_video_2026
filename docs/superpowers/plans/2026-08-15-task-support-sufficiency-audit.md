@@ -335,6 +335,7 @@ not performed because publication was not authorized in this session.
 - **Step 5 commit/status:** the first verified reporting commit was
   `9f5c040` (`docs: record task-support sufficiency gate`), followed by the
   review-fix reporting commit `303bb5d` (`docs: clarify task-support audit
-  disclosures`). The worktree was clean after that commit except for the
-  ignored task report; this plan-only completion record is the only subsequent
-  tracked update. No push or external post was made.
+  disclosures`) and the round2 portal-link/verification commit `cf635dd`
+  (`docs: fix task support portal link`). The worktree was clean after that
+  commit except for the ignored task report; this plan-only completion record
+  is the only subsequent tracked update. No push or external post was made.
