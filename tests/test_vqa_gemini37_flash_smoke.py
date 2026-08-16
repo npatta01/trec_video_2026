@@ -1569,6 +1569,22 @@ def test_actual_sdk_batch_destination_and_inlined_error_are_supported(tmp_path: 
     assert freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")["decision"] == "quality_ready"
 
 
+def test_provider_batch_model_resource_prefix_is_normalized(tmp_path: Path) -> None:
+    root, client = _ready_for_batches(tmp_path)
+    original_create = client.batches.create
+
+    def create_with_resource_model(**kwargs: Any) -> Any:
+        job = original_create(**kwargs)
+        job.model = f"models/{job.model}"
+        return job
+
+    client.batches.create = create_with_resource_model
+    for arm in ARMS:
+        submit_arm(root, arm, client, submitted_at="2026-08-16T12:02:00Z")
+        record_status(root, arm, client, checked_at="2026-08-16T12:03:00Z")
+    assert freeze_predictions(root, frozen_at="2026-08-16T12:05:00Z")["decision"] == "quality_ready"
+
+
 def test_actual_sdk_inlined_error_is_not_ready(tmp_path: Path) -> None:
     root, client = _ready_for_batches(tmp_path)
     for arm in ARMS:

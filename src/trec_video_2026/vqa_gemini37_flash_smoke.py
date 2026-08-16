@@ -1528,6 +1528,12 @@ def _expected_request_records(
     ]
 
 
+def _provider_model_matches(observed: Any, expected: str) -> bool:
+    """Accept the documented model ID and the live API resource-name form."""
+
+    return observed is None or observed in {expected, f"models/{expected}"}
+
+
 def _validated_job_record(
     root: Path,
     protocol: Mapping[str, Any],
@@ -1562,7 +1568,9 @@ def _validated_job_record(
     if job.get("request_hash") != expected_hash:
         raise ValueError(f"job request hash mismatch for {arm}")
     snapshot = job.get("provider_snapshot")
-    if isinstance(snapshot, Mapping) and snapshot.get("model") not in {None, ARMS[arm]["model"]}:
+    if isinstance(snapshot, Mapping) and not _provider_model_matches(
+        snapshot.get("model"), ARMS[arm]["model"]
+    ):
         raise ValueError(f"job provider model mismatch for {arm}")
     if job.get("provider_snapshot_sha256") != _sha256_bytes(_canonical_json(snapshot or {})):
         raise ValueError(f"job provider snapshot hash mismatch for {arm}")
@@ -2100,10 +2108,9 @@ def freeze_predictions(root: Path, *, frozen_at: str) -> dict[str, Any]:
         )
         if state != "succeeded":
             failures.append(f"job_{state}")
-        if isinstance(provider_snapshot, Mapping) and provider_snapshot.get("model") not in {
-            None,
-            ARMS[arm]["model"],
-        }:
+        if isinstance(provider_snapshot, Mapping) and not _provider_model_matches(
+            provider_snapshot.get("model"), ARMS[arm]["model"]
+        ):
             failures.append("provider_model")
         if job_record.get("requests") != expected_requests:
             failures.append("request_binding")
@@ -2375,7 +2382,7 @@ def _derived_arm_freeze_summary(
     provider_snapshot = status.get("provider_snapshot")
     if not isinstance(provider_snapshot, Mapping):
         raise ValueError(f"prediction freeze provider snapshot is missing for {arm}")
-    if provider_snapshot.get("model") not in {None, ARMS[arm]["model"]}:
+    if not _provider_model_matches(provider_snapshot.get("model"), ARMS[arm]["model"]):
         raise ValueError(f"prediction freeze provider model mismatch for {arm}")
     responses_raw = provider_snapshot.get("responses")
     if not isinstance(responses_raw, list):
@@ -2546,10 +2553,9 @@ def _verify_prediction_freeze_terminal(
         )
         if state != "succeeded":
             failures.append(f"job_{state}")
-        if isinstance(provider_snapshot, Mapping) and provider_snapshot.get("model") not in {
-            None,
-            ARMS[arm]["model"],
-        }:
+        if isinstance(provider_snapshot, Mapping) and not _provider_model_matches(
+            provider_snapshot.get("model"), ARMS[arm]["model"]
+        ):
             failures.append("provider_model")
         if job_record.get("requests") != expected_requests:
             failures.append("request_binding")
