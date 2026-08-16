@@ -73,6 +73,13 @@ transcriber/reviewer records exist.
   post-hoc audit found the panel construct-invalid for ASR quality: only one
   task directly requested a recoverable literal phrase or name, while ten did
   not support exact transcript containment. Qwen is not promoted.
+- **Transcript-to-answer correction:** one fixed no-frame answer model completed
+  both frozen transcript arms (`24/24`). Blinded review found Qwen-transcript
+  answers `1` correct, `1` ambiguous, and `10` incorrect versus Whisper-
+  transcript answers `2` correct and `10` incorrect. This confirms that answer
+  formulation bridges some wording, but this fixed answer stage did not repair
+  `10/12` rows in either arm. Their failure cause remains unresolved, and the
+  result does not rank the two ASR systems.
 - **Failure mechanisms:** text can miss non-lexical events or contain the right
   token without changing the answer.
 - **Blocked:** a human-transcript upper bound lacks independent producer and
@@ -311,6 +318,61 @@ The sanitized correction is
 [`aligned-english-metric-audit.json`](../../docs/experiments/artifacts/qwen-aligner-quality-20260816/aligned-english-metric-audit.json).
 </details>
 
+### Frozen transcript-to-answer diagnostic {#qwen-transcript-answer-diagnostic}
+
+- **Reason for testing:** check the concrete alternative that Stage 0.5f's
+  transcript evidence was useful but merely needed to be expressed as a short
+  VQA answer.
+- **Tested condition and panel:** the exact 12 frozen Stage 0.5f identities and
+  Qwen/Whisper transcript bytes, with no ASR rerun. One pinned
+  `Qwen/Qwen3.5-4B` answer model received the original question plus one
+  transcript and no frames. All 24 answers froze before annotations opened.
+- **Observed result:** `24/24` answers completed at `$0.00`. One arm-blinded
+  reviewer judged the Qwen-transcript arm `1/12` correct, `1/12` ambiguous,
+  and `10/12` incorrect; the Whisper-transcript arm was `2/12` correct and
+  `10/12` incorrect. Paired outcomes were one both-correct, one Whisper-only,
+  no Qwen-only, and ten neither-correct rows.
+- **Current condition-bound status:** **Valid downstream mechanism diagnostic;
+  formulation bridge observed; no ASR ranking.** The decision rule was fixed
+  before annotation access, but the small selected panel and single reviewer
+  limit generalization.
+- **What this rules out now:** interpreting the historical raw-transcript
+  `0/12` containment count as 12 bad transcriptions, or treating one generic
+  answer stage as automatic validation of the original metric.
+- **What it does not rule out:** a better full-evidence VQA answerer, different
+  speech strata, independently measured transcript fidelity, or a Qwen-versus-
+  Whisper quality difference.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the ten shared
+  failures could reflect transcript omission, evidence available only in the
+  video, or prompt/model answer-stage error. Review used one blinded reviewer.
+- **Reconsider when:** a category-balanced matched full-evidence test or
+  independently grounded verbatim transcript references are available. Do not
+  reuse the Stage 0.5f question-keyword panel as an ASR benchmark.
+
+<details>
+<summary>Method, result, validity risks, and evidence</summary>
+
+The answer model revision, current answer policy, greedy decoding, 32-token
+limit, request order, offline digest-pinned ROCm runtime, and no-frame input
+were identical across both arms. Prediction freeze preceded annotation binding
+and creation of an arm-hidden review packet. Post-run review found that the
+original scorer did not rederive the private arm key before unblinding. The
+corrected verifier accepted the preserved deterministic key and reproduced the
+private score artifacts byte for byte in a copied root; the counts did not
+change, and a key-swap regression now fails closed. The controller also rejects
+fresh attempts to score official VQA answers as transcript references. Row
+identities, questions, transcripts, references, generated answers, and row-
+level judgments remain private.
+
+The canonical dated claim is
+[`Stage 0.5g transcript-to-answer diagnostic`](../../docs/experiments/2026-08-16-qwen-aligner-quality-diagnostic.qmd#stage-05g-transcript-to-answer-diagnostic).
+The sanitized aggregate and immutable private hashes are in
+[`transcript-answer-summary.json`](../../docs/experiments/artifacts/qwen-aligner-quality-20260816/transcript-answer-summary.json).
+The evidence is valid for the bounded formulation question and does not
+supersede Stage 0.5f's construct-invalid ASR score; it corrects how that score
+may be interpreted.
+</details>
+
 ### Completed Gemini 3.7 Flash native-AV compatibility smoke {#gemini-37-flash-native-av-smoke}
 
 This is a separate two-video diagnostic, not an arm of the Qwen experiment.
@@ -529,6 +591,11 @@ cite.
   versus `0/12` phrase result is construct-invalid for ASR quality because the
   selector admitted mostly tasks without a literal spoken answer; Qwen was
   not promoted.
+- On that same frozen panel, a fixed transcript-only answer stage produced at
+  least one semantically correct answer from each transcript arm, confirming a
+  bounded wording bridge. Both arms still failed the same `10/12` rows, with
+  cause unresolved, so the old panel cannot answer either ASR fidelity or
+  full-evidence VQA quality.
 - Fluent or mechanically accepted translation is not by itself faithful audio
   evidence; the Seamless diagnostic shows this distinction.
 - Dataset recording-prompt references can be a separately labeled control, not
@@ -550,6 +617,9 @@ cite.
   fidelity, WER, timestamp accuracy, or downstream VQA value; its post-hoc
   audit confirms that official VQA answers and the selected tasks did not form
   a valid transcript-quality reference panel.
+- The `1/12` versus `2/12` transcript-conditioned answer counts do not rank
+  Qwen and Whisper; they come from a small selected panel, a no-frame answer
+  stage, and one blinded reviewer.
 
 <span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span>
 

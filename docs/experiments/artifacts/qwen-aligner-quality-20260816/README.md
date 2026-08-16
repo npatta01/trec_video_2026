@@ -74,6 +74,40 @@ excluded; and mean unordered official-answer token recall was `0.035` Qwen
 and `0.212` Whisper. The token-recall check is descriptive and
 non-promotional because official VQA answers are not transcript references.
 
+## Added Stage 0.5g transcript-to-answer diagnostic
+
+- Private root:
+  `data/vqa/benchmarks/model-verifier-canaries-20260814/stage05g-qwen-transcript-answer-v1/`
+- Experiment ID: `qwen-transcript-answer-stage05g-v1`
+- Frozen input: the same 12 Stage 0.5f Qwen and Whisper transcripts; no ASR
+  rerun
+- Answer stage: pinned `Qwen/Qwen3.5-4B`, transcript plus question, no frames
+- Completion: `24/24` answers in one local attempt
+- Paid cost: `$0.00`
+- Decision: `formulation_bridge_observed`
+
+After all answers froze, one arm-blinded semantic review found `1/12` correct,
+one ambiguous, and `10/12` incorrect in the Qwen-transcript arm, versus `2/12`
+correct and `10/12` incorrect in the Whisper-transcript arm. The paired result
+was one both-correct row, one Whisper-only correct row, no Qwen-only correct
+row, and ten neither-correct rows.
+
+This establishes that a normal answer step can bridge some answer-wording gaps,
+so the historical `0/12` containment result is not evidence of twelve bad
+transcriptions. This fixed answer stage did not repair the same ten rows in
+either arm, but the diagnostic does not identify whether that came from
+transcript omission, evidence available only in the video, or prompt/model
+answer-stage error. The tiny single-reviewer result does not rank Qwen ASR
+against Whisper. See
+[`transcript-answer-summary.json`](transcript-answer-summary.json) for the
+sanitized aggregate and immutable private hashes.
+
+Independent review found that the original scorer did not rederive the private
+arm key before unblinding. The corrected verifier accepted the preserved key
+and reproduced the judgments, score, and score-freeze artifacts byte for byte
+in a copied root; the aggregate result did not change. A key-swap regression
+now fails closed.
+
 ## Post-run protocol correction
 
 Independent review found that the original Stage 0.5e host selector

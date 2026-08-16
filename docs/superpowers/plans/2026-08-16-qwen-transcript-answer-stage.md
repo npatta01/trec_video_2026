@@ -33,7 +33,7 @@
 - `score_postfreeze(...)` continues to support the original two-row literal-phrase mechanism diagnostic.
 - A protocol whose `selection_kind` is `qwen_aligner_fresh_english_quality_panel` is rejected with `VQA answers are not transcript references` before a new score artifact can be written.
 
-- [ ] **Step 1: Write the failing direct-scorer regression**
+- [x] **Step 1: Write the failing direct-scorer regression**
 
   Build a ready synthetic fresh-English root and call:
 
@@ -48,7 +48,7 @@
   assert not (root / "postfreeze-score.json").exists()
   ```
 
-- [ ] **Step 2: Run the direct regression and verify RED**
+- [x] **Step 2: Run the direct regression and verify RED**
 
   Run:
 
@@ -56,7 +56,7 @@
 
   Expected: FAIL because the current scorer still computes exact answer containment.
 
-- [ ] **Step 3: Add the minimal fail-closed guard**
+- [x] **Step 3: Add the minimal fail-closed guard**
 
   Immediately after reading the verified protocol in `score_postfreeze`, add:
 
@@ -71,7 +71,7 @@
   Add the same protocol check in the CLI before `_score_inputs` opens annotation
   JSON so future invocations fail without reading answer text.
 
-- [ ] **Step 4: Run focused scorer and CLI tests**
+- [x] **Step 4: Run focused scorer and CLI tests**
 
   Run:
 
@@ -92,7 +92,7 @@
 - `prepare_answer_test(root: Path, *, prepared_at: str) -> dict[str, Any]`
 - `verify_answer_inputs(root: Path) -> dict[str, Any]`
 
-- [ ] **Step 1: Write failing pure request-builder tests**
+- [x] **Step 1: Write failing pure request-builder tests**
 
   The happy-path assertion is:
 
@@ -117,7 +117,7 @@
   transcripts, audio-hash drift, question drift, forbidden answer/reference
   keys, and unequal arm coverage.
 
-- [ ] **Step 2: Run builder tests and verify RED**
+- [x] **Step 2: Run builder tests and verify RED**
 
   Run:
 
@@ -125,7 +125,7 @@
 
   Expected: collection fails because the module does not exist.
 
-- [ ] **Step 3: Implement the minimal pure builder**
+- [x] **Step 3: Implement the minimal pure builder**
 
   Emit each request with these exact live fields before its canonical hash:
 
@@ -143,20 +143,20 @@
 
   Sort by frozen selection order, with Qwen then Whisper for each identity.
 
-- [ ] **Step 4: Write failing preparation/binding tests**
+- [x] **Step 4: Write failing preparation/binding tests**
 
   Synthetic files must prove that preparation exclusively writes
   `protocol.json`, `requests.json`, and `inputs-freeze.json`; hashes every source
   and output; records the runner/model/runtime pins; and refuses an existing
   root or any post-prepare source mutation.
 
-- [ ] **Step 5: Run preparation tests and verify RED**
+- [x] **Step 5: Run preparation tests and verify RED**
 
   Run:
 
   `uv run pytest -q tests/test_vqa_qwen_transcript_answer.py -k 'prepare or verify'`
 
-- [ ] **Step 6: Implement preparation and pass Task 2**
+- [x] **Step 6: Implement preparation and pass Task 2**
 
   The production source paths are the canonical constants already used by the
   Qwen aligner harness. `prepare_answer_test` must call the verified Stage 0.5f
@@ -176,7 +176,7 @@
 - `record_answer_attempt(root: Path, *, runner: Callable[..., CompletedProcess[str]] = subprocess.run) -> dict[str, Any]`
 - `freeze_answer_predictions(root: Path) -> dict[str, Any]`
 
-- [ ] **Step 1: Write failing command and lifecycle tests**
+- [x] **Step 1: Write failing command and lifecycle tests**
 
   Assert the command uses `podman run --rm -i --network none --read-only`, the
   digest-pinned ROCm image, read-only repository/data/model-cache mounts,
@@ -184,26 +184,26 @@
   `--answer-policy current`. Reject a TTY, network access, mutable model pins,
   a second attempt, source drift, or a partial/mutated result set.
 
-- [ ] **Step 2: Run lifecycle tests and verify RED**
+- [x] **Step 2: Run lifecycle tests and verify RED**
 
   Run:
 
   `uv run pytest -q tests/test_vqa_qwen_transcript_answer.py -k 'command or attempt or freeze'`
 
-- [ ] **Step 3: Implement exclusive command/terminal evidence**
+- [x] **Step 3: Implement exclusive command/terminal evidence**
 
   Write `command.json` before launch. On either a returned failure or launch
   exception, preserve sanitized `stderr.txt`, `terminal.json`, and
   `validated-results.json`. Never expose transcript text through stderr.
 
-- [ ] **Step 4: Implement and test the 24-answer freeze**
+- [x] **Step 4: Implement and test the 24-answer freeze**
 
   Require exactly 24 unique `(condition_id, video_id)` results, the exact model
   and revision, `status=passed`, and one non-empty answer each. Freeze the raw
   result, terminal, validation, command, and stderr hashes in
   `predictions-freeze.json`; otherwise freeze `not_ready` without annotations.
 
-- [ ] **Step 5: Run Task 3 verification**
+- [x] **Step 5: Run Task 3 verification**
 
   Run the complete new test file and:
 
@@ -229,7 +229,7 @@
 - `build_blind_review_packet(root: Path) -> dict[str, Any]`
 - `score_answer_review(root: Path, judgments: Mapping[str, Any], *, scored_at: str) -> dict[str, Any]`
 
-- [ ] **Step 1: Write failing post-freeze/CLI tests**
+- [x] **Step 1: Write failing post-freeze/CLI tests**
 
   Assert annotation binding refuses to open files before a ready prediction
   freeze; hashes exactly the 12 canonical annotation files before parsing; and
@@ -239,7 +239,7 @@
   answer, reports arm totals plus normalized exact match/token F1, and writes
   no tracked artifact itself.
 
-- [ ] **Step 2: Run post-freeze/CLI tests and verify RED**
+- [x] **Step 2: Run post-freeze/CLI tests and verify RED**
 
   Run:
 
@@ -247,12 +247,12 @@
 
   Expected: fail until the post-freeze transitions and CLI exist.
 
-- [ ] **Step 3: Implement the thin CLI and post-freeze transitions**
+- [x] **Step 3: Implement the thin CLI and post-freeze transitions**
 
   CLI stdout is restricted to status, counts, and decision. It exposes no
   model override, arbitrary source path, retry, delete, or credential option.
 
-- [ ] **Step 4: Run the sole local attempt**
+- [x] **Step 4: Run the sole local attempt**
 
   Execute in order against the fixed private root:
 
@@ -267,7 +267,7 @@
   Complete the blinded 24-row review once, then run `score`. Preserve failures;
   do not retry inference.
 
-- [ ] **Step 5: Record only the sanitized aggregate**
+- [x] **Step 5: Record only the sanitized aggregate**
 
   The tracked JSON contains row count, completion count, per-arm
   correct/incorrect/ambiguous totals, paired totals, exact-match/token-F1 means,
@@ -275,13 +275,13 @@
   It contains no IDs, questions, transcripts, references, answers, or row-level
   judgments.
 
-- [ ] **Step 6: Regenerate and verify the report**
+- [x] **Step 6: Regenerate and verify the report**
 
   Run focused pytest, Ruff, `git diff --check`, JSON parsing, tracked checksum
   verification, privacy/credential scans, and the repository's QMD render
   command. Confirm the generated Markdown is newer than its QMD source.
 
-- [ ] **Step 7: Commit the verified implementation and result**
+- [x] **Step 7: Commit the verified implementation and result**
 
   Stage only the plan, module, CLI, tests, QMD/generated Markdown, and sanitized
   artifact files. Never stage `.claude/` or `data/`.

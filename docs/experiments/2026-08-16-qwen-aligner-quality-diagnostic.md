@@ -13,6 +13,9 @@ quality panel**
 Stage 0.5f quality disposition: **Construct-invalid for ASR quality; not
 promoted**
 
+Stage 0.5g downstream disposition: **Formulation bridge observed; no ASR
+ranking**
+
 ## Plain-English result
 
 The original Stage 0.5d run was one fresh eight-video English speech
@@ -36,6 +39,18 @@ recoverable literal phrase or name, while ten rows did not support exact
 transcript containment. The forced-English condition therefore supplies
 valid `12/12` operational evidence, but the `0`/`0` result is
 construct-invalid for comparing ASR quality and does not advance Qwen.
+
+A matched transcript-to-answer follow-up then held one answer model
+fixed and gave it either the frozen Qwen or frozen Whisper transcript
+plus the original question, with no frames. It completed `24/24`
+answers. Blinded semantic review found `1/12` correct and one ambiguous
+answer from the Qwen-transcript arm, versus `2/12` correct from the
+Whisper-transcript arm; both were incorrect on the same ten rows. Answer
+formulation can bridge some wording gaps, including the motivating
+causal-answer type, but this fixed answer stage did not repair the other
+ten rows. This test does not identify why: possible causes include
+missing or omitted transcript evidence, the no-frame input, or
+prompt/model answer-stage error.
 
 ## Frozen condition
 
@@ -319,6 +334,91 @@ questions, answers, transcripts, or row-level scores are published.
   `5dfad614628ce57e236793067dfa3a9f2e529bfcd1998304ba29901cffab1a94`
 - Sanitized post-hoc audit:
   [`aligned-english-metric-audit.json`](artifacts/qwen-aligner-quality-20260816/aligned-english-metric-audit.json)
+
+## Stage 0.5g transcript-to-answer diagnostic
+
+Date: 2026-08-16
+
+### Question and fixed test
+
+This follow-up tested the concrete alternative explanation raised after
+the metric audit: perhaps Stage 0.5f’s raw transcripts contained useful
+evidence but needed an answer-generation step to express that evidence
+in the official answer’s wording.
+
+The test reused the exact 12 frozen Stage 0.5f identities and transcript
+bytes. It did not rerun Qwen ASR or Whisper. For each row, one fixed
+`Qwen/Qwen3.5-4B` answer model received the original question and either
+the Qwen transcript or the Whisper transcript, with no frames. Model
+revision, prompt policy, greedy decoding, 32-token cap, runtime image,
+and request order were held fixed across the 24 requests. All generated
+answers froze before the canonical annotations were opened. Paid compute
+remained `$0.00`.
+
+The no-frame condition is intentional: it isolates whether transcript
+evidence alone can be reformulated into an answer. It is not a
+replacement VQA system.
+
+### Observed result
+
+| Measure                | Qwen transcript | Whisper transcript |
+|------------------------|----------------:|-------------------:|
+| Completed answers      |           12/12 |              12/12 |
+| Blinded correct        |            1/12 |               2/12 |
+| Blinded ambiguous      |            1/12 |               0/12 |
+| Blinded incorrect      |           10/12 |              10/12 |
+| Normalized exact match |           0.000 |              0.083 |
+| Mean token F1          |           0.012 |              0.116 |
+
+Paired semantic review recorded one row correct in both arms, one
+additional row correct only in the Whisper-transcript arm, no Qwen-only
+correct row, and ten rows incorrect in both arms. One Qwen-conditioned
+answer was ambiguous. The single blinded reviewer saw the question,
+official reference, and two arm-hidden generated answers, but no
+transcript or arm identity.
+
+### Interpretation and decision
+
+- **Formulation bridge observed:** at least one answer from each
+  transcript arm was semantically correct even though the historical
+  raw-transcript exact- containment metric was `0/12`. The old `0/12`
+  therefore cannot be read as twelve bad transcriptions.
+- **Limited bridge under this fixed answerer:** both arms remained
+  incorrect on `10/12` rows. The experiment does not distinguish
+  transcript omission, evidence available only in the video, or
+  prompt/model answer-stage error, so the cause of those failures
+  remains unresolved.
+- **No ASR ranking:** the `1/12` versus `2/12` counts are a tiny
+  downstream interaction diagnostic with one reviewer, not WER/CER
+  evidence and not a reliable Qwen-versus-Whisper quality comparison.
+- **Code correction:** future Stage 0.5f-style score attempts now fail
+  before opening annotations with
+  `VQA answers are not transcript references`.
+- **Post-run arm-key correction:** independent review found that the
+  original scorer hashed the blinded packet rows but did not rederive
+  the private arm key before unblinding. The corrected verifier
+  rederived the complete packet and key from frozen sources, accepted
+  the preserved key, and reproduced all three private score artifacts
+  byte for byte in a copied root. The reported counts did not change; a
+  key-swap regression now fails closed.
+- **Next decision:** stop testing this invalid question-keyword panel as
+  an ASR benchmark. If transcript fidelity itself matters, use
+  independently grounded verbatim references. If VQA value matters, use
+  a category-balanced matched full-evidence test rather than
+  transcript-only answer containment.
+
+### Evidence and immutable bindings
+
+- Private run root:
+  `data/vqa/benchmarks/model-verifier-canaries-20260814/stage05g-qwen-transcript-answer-v1/`
+- Sanitized aggregate:
+  [`transcript-answer-summary.json`](artifacts/qwen-aligner-quality-20260816/transcript-answer-summary.json)
+- Input-freeze SHA-256:
+  `95023834e88247f5bfcfc6c30e3f2fb8e32dbe5f040f9ed8e5d27e50f5eb4fa8`
+- Prediction-freeze SHA-256:
+  `62467ec8f76a4819442a249bc016d190d548e09a86c9d610e7b297d8e7aee2ab`
+- Post-freeze-score SHA-256:
+  `47900415fc02016169ba999c49c7e8319292388238873ea14ccde9acb58ebd7d`
 
 ## Separate completed Gemini 3.7 Flash native-AV smoke
 

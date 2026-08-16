@@ -1,0 +1,98 @@
+{
+  "schema_version": "qwen-transcript-answer-summary.v1",
+  "experiment_id": "qwen-transcript-answer-stage05g-v1",
+  "status": "complete",
+  "date": "2026-08-16",
+  "question": "Can one fixed answer-generation step turn the frozen Stage 0.5f Qwen and Whisper transcripts into answers compatible with the official VQA references?",
+  "source": {
+    "panel": "frozen Stage 0.5f aligned-English panel",
+    "row_count": 12,
+    "transcript_arms": [
+      "qwen_transcript",
+      "whisper_transcript"
+    ],
+    "asr_rerun": false,
+    "labels_opened_before_prediction_freeze": false
+  },
+  "answer_stage": {
+    "model_id": "Qwen/Qwen3.5-4B",
+    "model_revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+    "runtime_image": "localhost/trec-vqa-gate-rocm@sha256:510e4ca0a165b60a50abf3a1f24545b8f4bd561f9643f0295e7d82212fe801d5",
+    "answer_policy": "current",
+    "frame_count": 0,
+    "request_count": 24,
+    "completed_count": 24,
+    "failure_count": 0,
+    "container_exit_code": 0,
+    "container_wall_seconds": 38.33220746299776,
+    "summed_inference_seconds": 30.66566982900258,
+    "max_peak_memory_bytes": 9264427520,
+    "paid_compute_usd": 0.0
+  },
+  "blinded_semantic_review": {
+    "reviewer_count": 1,
+    "reviewed_answer_count": 24,
+    "decision": "formulation_bridge_observed",
+    "conditions": {
+      "qwen_transcript": {
+        "correct": 1,
+        "incorrect": 10,
+        "ambiguous": 1,
+        "mean_normalized_exact_match": 0.0,
+        "mean_token_f1": 0.012454710144927536
+      },
+      "whisper_transcript": {
+        "correct": 2,
+        "incorrect": 10,
+        "ambiguous": 0,
+        "mean_normalized_exact_match": 0.08333333333333333,
+        "mean_token_f1": 0.11579335016835017
+      }
+    },
+    "paired": {
+      "both_correct": 1,
+      "qwen_only_correct": 0,
+      "whisper_only_correct": 1,
+      "neither_correct": 10,
+      "rows_with_ambiguous_verdict": 1
+    }
+  },
+  "interpretation": {
+    "answer_formulation_can_bridge_some_rows": true,
+    "fixed_answer_stage_repaired_all_rows": false,
+    "entire_gap_is_just_rewording": "unresolved",
+    "failure_cause": "unresolved",
+    "reason": "The fixed answer stage produced at least one semantically correct answer from each transcript arm, but neither arm produced a correct answer on 10 of 12 rows. This test cannot distinguish transcript omission, evidence available only in the video, or prompt/model answer-stage error.",
+    "asr_quality_ranking_supported": false,
+    "historical_zero_of_twelve_asr_interpretation": "construct_invalid"
+  },
+  "postrun_integrity_audit": {
+    "original_scorer_rederived_blinded_arm_key": false,
+    "preserved_arm_key_matches_deterministic_derivation": true,
+    "copied_root_score_reproduction": "byte_exact",
+    "reported_result_changed": false,
+    "key_swap_regression_added": true,
+    "corrected_verifier_sha256": "e1cbd20c985c35a157c6eb07045fe4ba1b08a423e6b0491e0ee206342b27febd"
+  },
+  "immutable_private_hashes": {
+    "inputs_freeze_sha256": "95023834e88247f5bfcfc6c30e3f2fb8e32dbe5f040f9ed8e5d27e50f5eb4fa8",
+    "predictions_freeze_sha256": "62467ec8f76a4819442a249bc016d190d548e09a86c9d610e7b297d8e7aee2ab",
+    "review_packet_sha256": "2844199fd759de0f1714d426d5989c9313e8ee6e827032a0ced6f0a246887de5",
+    "review_judgments_sha256": "6c937a17396a29441f2e0645613033066060de7ad9970679ef4c07012ad56737",
+    "postfreeze_score_sha256": "47900415fc02016169ba999c49c7e8319292388238873ea14ccde9acb58ebd7d",
+    "postfreeze_score_freeze_sha256": "58bf99411d0ebe58c6ae1e1f10bca65748efec55039005f1d151301ae826b411"
+  },
+  "original_run_implementation_hashes": {
+    "controller_sha256": "a143d8e9a5a1e584e20fdf20f326f9a45a10b401984e57d16f13fee434c03752",
+    "answer_runner_sha256": "fea075c5ca53b45ec19c68eab13590337c3af5b476a0313c52a3073afdc30831",
+    "cli_sha256": "1da9693466a1e62049e8dea19507b3f4b9b080dd096efd72d0234f4f9e416a2f"
+  },
+  "privacy": {
+    "contains_row_ids": false,
+    "contains_questions": false,
+    "contains_transcripts": false,
+    "contains_references": false,
+    "contains_generated_answers": false,
+    "contains_row_level_judgments": false
+  }
+}
