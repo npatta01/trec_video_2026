@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "experiment_id": "dense-question-localized-evidence-issue35-v1",
+  "report_date": "2026-08-16",
+  "primary_theme": "routing-fusion-answer-selection",
+  "evidence_validity": "Diagnostic",
+  "decision_disposition": "Not promoted under the tested condition",
+  "reason": "Test whether denser visual sampling inside a frozen question-relevant local window recovers brief visual facts omitted from a question-blind map.",
+  "condition": {
+    "provider": "Google direct Developer API",
+    "model": "gemini-3.1-pro-preview",
+    "native_audio_video": true,
+    "requested_fps": [4.0, 12.0],
+    "arm_difference": "requested FPS only; each pair used one byte-identical local clip",
+    "temperature": 0.0,
+    "seed": 42,
+    "thinking_level": "HIGH",
+    "media_resolution": "HIGH",
+    "max_output_tokens": 2048,
+    "retry_count": 0,
+    "answer_metrics_computed": false
+  },
+  "panel": {
+    "eligible_source_rows": 475,
+    "selected_targets": 8,
+    "ambiguous_targets": 2,
+    "auditable_targets": 6,
+    "supported_controls": 4,
+    "selection_boundary": "selected, oracle-screened mechanism diagnostic; prior exposure was a reporting flag, not an exclusion",
+    "exposure_split": {
+      "targets": {
+        "exposed": {"all": 3, "auditable": 3},
+        "not_exposed": {"all": 5, "auditable": 3, "ambiguous": 2}
+      },
+      "controls": {
+        "exposed": 3,
+        "not_exposed": 1
+      }
+    }
+  },
+  "completion": {
+    "planned_arms": 24,
+    "completed_arms": 24,
+    "completed_pairs": 12,
+    "clips_inspected": 12,
+    "arms_inspected": 24,
+    "provider_calls": 24,
+    "retries": 0,
+    "duplicate_attempts": 0,
+    "complete_terminal_pairs": true,
+    "manual_inspection_complete": true
+  },
+  "observed_result": {
+    "target_recovery": {
+      "4fps": {"recovered": 0, "denominator": 6},
+      "12fps": {"recovered": 0, "denominator": 6}
+    },
+    "incremental_12fps_recoveries": 0,
+    "control_recovery": {
+      "4fps": {"recovered": 3, "denominator": 4},
+      "12fps": {"recovered": 3, "denominator": 4}
+    },
+    "control_regressions_12fps": 0,
+    "unsupported_observations": {"4fps": 0, "12fps": 0},
+    "gate": "FAIL",
+    "gate_failures": [
+      "fewer than two incremental target recoveries",
+      "12-FPS recovery below one half of the auditable-target denominator"
+    ],
+    "gate_conditions_passed": [
+      "complete terminal pairs",
+      "complete manual inspection",
+      "zero unsupported observations",
+      "zero 12-FPS control regressions"
+    ]
+  },
+  "correction": {
+    "version": "run-v22-correction-v2",
+    "provider_calls": 0,
+    "original_passed_arms": 16,
+    "original_contract_errors": 8,
+    "corrected_passed_arms": 24,
+    "corrected_contract_errors": 0,
+    "acceptance_repairs": 8
+  },
+  "provider_usage": {
+    "calls": 24,
+    "prompt_tokens": 251784,
+    "candidate_tokens": 3406,
+    "total_tokens": 266482,
+    "observed_cost_usd": null,
+    "cost_note": "Provider billing cost was not exposed in the frozen metadata."
+  },
+  "integrity": {
+    "correction_freeze_sha256": "5f9ea80c9d3af75820c14eadbdadc1e49197479132104517970c65462519f087",
+    "source_prediction_freeze_sha256": "fb002af0bb8e663e495afcd2b1888dd37d11e0c24ef57d0f14f5ecf65434f758",
+    "manual_audit_sha256": "9af8eab244d67f10468d7ffd99b0ee99823b7be8cf62916401bfe9925257bef0",
+    "audit_freeze_sha256": "73f6b115a1a44c9781f0faf388e33f30530dd8cc5ef62727b7613c3dcbad5784",
+    "score_sha256": "3365a8bf4e8f1e215104a4da45cacf761dc5189af1f49617da2cdb5cc26d3685",
+    "score_integrity_sha256": "203e68f9f587db63441456afe5239fa2f5e90d6002c63032d53dc9b7706c0b32",
+    "reference_sha256": "db68cec9be89f4f89305b70578fbd7cb67893e0196c92f93143b5d154db6d3d2",
+    "reference_correction_sha256": "4fb41decdca6d2c1df09ac8be2507d28eb02ca5427e607fde2e15ed8e29dcc4a",
+    "reference_freeze_sha256": "45e796683c75cc7f698cbac286e0ba32e006aeae55537e33c6ac6e863f9ae55c",
+    "reference_ledger_sha256": "6faf3581139a57242e7693f48cbaa9095fdd6c39e349e1ae80df3c8a54e27f94",
+    "selection_sha256": "acf784afe40e52832a6f9b6728fe8930da7464e1191e4c050b634beccd70eab0",
+    "media_manifest_sha256": "0b0875fec5c83f5567d0ff3b6d1051a3026b938a0ee5c7dbaa90a07023be5b66",
+    "provider_rows_sha256": "007fd6a66fd403d88782438c655028c0381a714ef84f70a812ed511d44eed293",
+    "treatment_sha256": "92283d1c6849f696d283a8a8baeb7a426ba3a650f83554925e793f8a9faf8fce",
+    "scorer_sha256": "2fdbce190990d8464e64a033a79292b2c279992c7be73dd63b74f814f37f2748"
+  },
+  "interpretation": {
+    "observed": "Denser frames inside the oracle-screened localized windows did not recover the auditable target facts.",
+    "rules_out_now": [
+      "the tested 4-FPS-to-12-FPS dense local sampling mechanism under this provider and selected-window condition",
+      "another FPS increase as the next test for these failure categories",
+      "interpreting this selected result as router performance or prevalence"
+    ],
+    "does_not_rule_out": [
+      "question-conditioned evidence selection or targeted verification under a newly frozen condition",
+      "modality-specific acquisition for speech, text, spatial detail, or other non-visual mechanisms",
+      "a future router after its evidence paths and route-level safeguards are independently measured"
+    ],
+    "next_action": "Use a small question-driven evidence-selection/verification or modality-specific acquisition test; do not scale this FPS treatment."
+  },
+  "reconsider_when": "A newly frozen, explicitly authorized panel demonstrates that the proposed evidence path addresses the inspected failure category and includes matched supported controls with route-level non-regression safeguards."
+}

@@ -146,11 +146,15 @@ winner.
 **Strongest evidence:** [completed Gemini full-panel and hard-row
 mechanism audit](research-routing.md#frontier-boundary-verifier),
 followed by the [zero-call task-support sufficiency
-audit](research-routing.md#task-support-sufficiency-audit-20260815).
+audit](research-routing.md#task-support-sufficiency-audit-20260815) and
+the [dense localized-evidence recovery
+diagnostic](research-routing.md#dense-question-localized-evidence-20260816),
+which recovered `0/6` auditable targets at both 4 FPS and 12 FPS.
 
-**Open question:** can a newly reviewed panel supply enough uniquely
-supported targets, safeguards, and controls for an explicitly authorized
-verifier test?
+**Open question:** can a small question-conditioned evidence-selection/
+verification or modality-specific acquisition test address the inspected
+failure category while preserving matched controls and route-level
+non-regression?
 
 </div>
 
@@ -173,7 +177,7 @@ aria-label="Scrollable research theme status matrix" tabindex="0">
 | [Speech](research-speech-transcripts.md#current-working-answer) | Adds spoken words with explicit provenance | [Whisper ablation](research-speech-transcripts.md#automatic-transcript-ablation) | **Use selectively:** accepted Whisper | **Blocked:** human tier; **Possible:** alternate ASR | [Selective Whisper route](research-speech-transcripts.md#distribution-level-selective-whisper) |
 | [Native audio](research-native-audio.md#current-working-answer) | Preserves prosody and non-speech sound | [Audio on/off](research-native-audio.md#minicpm-audio-on-off) | **Do not default:** global audio on | **Possible:** routed sound/prosody | [Specialist panel](research-native-audio.md#matched-native-audio-specialist-panel) |
 | [Models](research-models.md#current-working-answer) | Separates compatibility, quality, and adaptation | [Candidate screens](research-models.md#failure-panel) | **Use:** Qwen3.5-4B; **Fast:** MiniCPM-o | **Possible:** repaired/specialist model or adaptation | [Bottleneck-first decision](research-models.md#bottleneck-first-adaptation-decision) |
-| [Routing](research-routing.md#current-working-answer) | Chooses evidence and separates retrieval from answering | [Full-panel Gemini and grounded-answering tests](research-routing.md#frontier-boundary-verifier); [multi-interpretation election](research-routing.md#answer-election); [zero-call sufficiency audit](research-routing.md#task-support-sufficiency-audit-20260815) | **Use:** direct Gemini native AV as frontier baseline; map as optional retrieval index | **Do not promote:** self-verifier, generic derived answer path, or tested election rule; zero-call gate failed | [Fresh sufficiency panel after failed gate](research-routing.md#task-support-sufficiency-audit-20260815) |
+| [Routing](research-routing.md#current-working-answer) | Chooses evidence and separates retrieval from answering | [Full-panel Gemini and grounded-answering tests](research-routing.md#frontier-boundary-verifier); [multi-interpretation election](research-routing.md#answer-election); [dense localized-evidence recovery](research-routing.md#dense-question-localized-evidence-20260816) | **Use:** direct Gemini native AV as frontier baseline; map as optional retrieval index | **Do not promote:** self-verifier, generic derived answer path, tested election rule, or dense 4→12-FPS recovery under this condition | [Question-conditioned evidence selection/verification](research-routing.md#cheapest-valid-next-experiments) |
 
 </div>
 
@@ -266,6 +270,8 @@ Expand named experiments by theme
 - [Evidence-aware answer election](research-routing.md#answer-election)
 - [Task-support sufficiency audit (corrected v3; zero provider
   calls)](research-routing.md#task-support-sufficiency-audit-20260815)
+- [Dense question-localized evidence recovery (4 versus 12
+  FPS)](research-routing.md#dense-question-localized-evidence-20260816)
 
 </details>
 
@@ -338,19 +344,19 @@ reference, not a prescribed research sequence.
     adapting](research-models.md#bottleneck-first-adaptation-decision).
 6.  **Routing, fusion, and answer election:** the 475-row panel,
     hard-row audit, 24-row generic grounded-answering test, 11-row
-    premise-tolerant follow-up, and fresh 12-row multi-interpretation
-    election now supersede the earlier 60-row-audit-first queue item. Do
-    not spend these panels on another global answer-policy rewrite or
-    repeat the failed ensemble. The `0/2` paper walkthrough blocked an
-    immediate verifier run. The treatment-frozen, 32-row sufficiency
-    audit then failed its target quota (`1/4`, deficit `3`), while
-    safeguards and controls passed; the sole target was previously
-    exposed, leaving no unexposed answer-sufficient target. No provider
-    calls were made; the historical label-free selection/protocol exist
-    but are invalidated and not currently authorized. Prepare a newly
-    reviewed panel with explicit reauthorization before any paid
-    temporal or speech verification. Do not introduce a shared router
-    framework or counting specialist in that test.
+    premise-tolerant follow-up, fresh 12-row multi-interpretation
+    election, and dense localized-evidence diagnostic now supersede the
+    earlier 60-row-audit-first queue item. Do not spend these panels on
+    another global answer-policy rewrite, another FPS increase, or the
+    failed ensemble. The `0/2` paper walkthrough blocked an immediate
+    verifier run. The treatment-frozen 32-row sufficiency audit failed
+    its target quota (`1/4`, deficit `3`), and the dense 4-versus-12-FPS
+    diagnostic recovered `0/6` auditable targets in either arm; both
+    results are preserved as negative diagnostics. The next bounded test
+    is question-conditioned evidence selection/verification or
+    modality-specific acquisition with matched supported controls and
+    explicit reauthorization. Do not introduce a shared router framework
+    or counting specialist in that test.
 
 <span id="how-to-interpret-results" class="legacy-fragment-alias"
 aria-hidden="true"></span>

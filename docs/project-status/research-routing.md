@@ -63,7 +63,15 @@ treatment did not validate the last step as a generic answer path: it
 repaired 5/12 targets under the frozen gate, regressed two controls, and
 abstained unnecessarily on seven evidence-present rows. Post-freeze
 review confirmed that only 10/12 targets contained the reference-level
-fact.
+fact. The subsequent paired dense-local-evidence diagnostic tested a
+byte-identical local clip at 4 FPS versus 12 FPS on eight selected
+visual targets and four controls. It recovered `0/6` auditable targets
+in either arm, produced `0` incremental rescues, and preserved `3/4`
+controls at both FPS with no regressions or unsupported observations.
+Denser frames inside an oracle-screened localized window therefore did
+not recover the tested target facts; the gate failed. The next route
+test should be question-conditioned evidence selection/verification or
+modality-specific acquisition, not another FPS increase.
 
 <div class="theme-decision-strip" aria-label="Routing decisions">
 
@@ -75,10 +83,10 @@ fact.
   self-verification.
 - **Still possible:** abstaining multi-label routing, grounded fusion,
   and evidence-aware answer election.
-- **Next test:** the zero-call sufficiency audit is complete but failed
-  its target quota (`1/4`, deficit `3`); prepare a newly reviewed panel
-  before any temporal or speech verifier call, with explicit
-  reauthorization.
+- **Next test:** the dense-FPS recovery gate also failed (`0/6` at both
+  FPS); prepare a small question-conditioned
+  evidence-selection/verification or modality-specific acquisition test
+  with matched controls and explicit reauthorization.
 
 </div>
 
@@ -443,6 +451,68 @@ limitations.
 
 </details>
 
+### Dense question-localized evidence recovery
+
+- **Reason for testing:** test whether increasing visual sampling from 4
+  FPS to 12 FPS inside a frozen question-relevant local window recovers
+  brief visual facts omitted by the question-blind map.
+- **Tested condition and panel:** eight selected visual targets and four
+  supported controls, each receiving one byte-identical local clip at 4
+  FPS and 12 FPS. Two targets remained ambiguous and were retained in
+  completion but excluded only from the auditable-target denominator,
+  leaving six auditable targets. Prior exposure was a reporting flag,
+  not an exclusion.
+- **Observed result:** `24/24` arms completed; `12/12` clips and `24/24`
+  arms were inspected. Target recovery was `0/6` at both FPS, with `0`
+  incremental 12-FPS rescues. Controls recovered `3/4` at both FPS;
+  control regressions and unsupported observations were both `0`.
+  Correction-v2 used zero provider calls to repair eight parser
+  acceptances before scoring; the final execution used `24` unique calls
+  and no retries. Cost was unavailable and answer metrics were not
+  computed.
+- **Current condition-bound status:** **Diagnostic**; **Not promoted
+  under the tested condition**. The predeclared gate failed on both the
+  incremental recovery minimum and the half-target 12-FPS recovery
+  requirement, while completion, inspection, unsupported-observation,
+  and control-regression safeguards passed.
+- **What this rules out now:** denser frames inside these
+  oracle-screened local windows as a recovery mechanism under the tested
+  provider condition. This selected panel does not measure router
+  performance or prevalence.
+- **What it does not rule out:** question-conditioned evidence
+  selection/verification, modality-specific acquisition, or a future
+  router whose evidence paths and route-level safeguards are
+  independently measured.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—the
+  panel is selected and oracle-screened, and the exposure split is
+  descriptive only.
+- **Reconsider when:** a newly frozen, explicitly authorized panel shows
+  that the proposed evidence path addresses an inspected failure
+  category and preserves matched supported controls without route-level
+  regression.
+
+<details>
+
+<summary>
+
+Method, result, validity risks, and evidence
+</summary>
+
+This was a native audio/video Gemini diagnostic with high resolution,
+high thinking, temperature `0`, seed `42`, one attempt per arm, and
+maximum output `2,048`. Requested FPS was the only arm difference. The
+provider-safe request excluded references, predictions, scores, audit
+verdicts, and raw label material. The sanitized aggregate index is the
+[dense localized-evidence artifact
+bundle](../experiments/artifacts/vqa-dense-localized-evidence-20260816/README.md);
+it contains counts and immutable hashes only. The complete score chain
+was verified before interpretation. Do not use this negative result to
+justify another FPS increase, global prompt rewrite, full-panel rerun,
+counting specialist, or shared router framework. The next bounded idea
+is question-conditioned evidence selection/verification or
+modality-specific acquisition.
+</details>
+
 <a name="answer-election"></a>
 
 ### Evidence-aware answer election
@@ -517,6 +587,10 @@ index](../experiments/artifacts/vqa-multi-interpretation-answer-election-2026081
   guarantee the VLM will ground the final answer in those words.
 - Specialist policies need abstention, a baseline fallback, and
   route-level non-regression—not just a target-slice improvement.
+- The dense localized-evidence diagnostic recovered `0/6` auditable
+  targets at both 4 FPS and 12 FPS inside oracle-screened windows, so
+  denser visual sampling did not recover the tested target facts under
+  that condition.
 - The 11-row premise-tolerant issue \#35 follow-up did not repair
   generic answer use: it rescued 1/5 false abstentions, completed 1/2
   evidence-insufficiency routes, and preserved 1/3 controls. More
@@ -649,6 +723,33 @@ class="legacy-fragment-alias" aria-hidden="true"></span>
 - **Boundary on what a positive result would establish:** feasibility of
   a clean verifier experiment, not verifier quality, a shared router, or
   a generic answer ensemble.
+
+### Question-conditioned evidence selection or modality-specific acquisition
+
+- **Hypothesis:** selecting evidence from the question’s requested
+  entity, fact, and temporal/modality requirement—or acquiring the
+  missing modality directly—can recover a fact that denser visual
+  sampling inside the same oracle-screened local window did not expose.
+- **Smallest valid panel or work item:** a newly frozen,
+  category-balanced sample drawn from inspected failure categories, with
+  each proposed evidence path assigned its own local target and a
+  matched supported control. Keep the question, map context, and direct
+  evidence boundary explicit; do not reuse this dense-FPS panel as a
+  prevalence sample.
+- **Matched controls and integrity safeguards:** freeze the treatment
+  before label-aware sufficiency review; keep references, prior answers,
+  and audit verdicts out of inference; record the selected evidence and
+  route; include modality-appropriate controls; and inspect every
+  changed target/control pair before scoring.
+- **Decision or promotion rule:** advance only if the proposed path
+  produces supported target recoveries under its declared modality, has
+  no unsupported observations, and preserves controls without
+  route-level regression. A failed gate stops that path rather than
+  triggering another FPS increase.
+- **Boundary on what a positive result would establish:** viability of
+  the question-conditioned evidence path on the selected diagnostic, not
+  router prevalence, universal localization quality, or a full-panel
+  answer gain.
 
 ## Method, result, validity risks, and evidence
 

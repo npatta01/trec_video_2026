@@ -657,6 +657,89 @@ SHA-256 in the sanitized index. This result supersedes the earlier v1/v2
 feasibility wording; those historical private artifacts remain
 unchanged.
 
+### Dense question-localized evidence recovery
+
+- **Primary theme:** routing, fusion, and answer selection.
+- **Related theme:** visual and temporal evidence.
+- **Reason for testing:** determine whether denser visual sampling can
+  recover brief target facts that the existing question-blind map
+  omitted, when the question has already selected a short local window.
+- **Tested condition and panel:** one byte-identical local clip per
+  selected row, requested at 4 FPS and 12 FPS; eight selected visual
+  targets and four supported controls. Two targets remained explicitly
+  ambiguous and stayed in completion but were excluded only from the
+  auditable-target denominator, leaving six auditable targets. Prior
+  exposure was retained as a reporting flag, never as an exclusion. All
+  475 eligible source rows remained in the eligibility boundary.
+- **Observed result:** all `24/24` arms and `12/12` target/control pairs
+  completed, and all `12` clips plus `24` arms were manually inspected.
+  Target recovery was `0/6` at both 4 FPS and 12 FPS, with `0` paired
+  incremental rescues. Controls recovered `3/4` at each FPS, with `0`
+  12-FPS control regressions and `0` unsupported observations in either
+  arm. The correction-v2 replay made no provider calls and repaired
+  eight parser acceptances before this reference-aware score; the final
+  execution used `24` unique provider calls, with no retries. Provider
+  cost was unavailable in the frozen metadata, and no answer metrics
+  were computed.
+- **Current condition-bound status:** **Diagnostic negative result**;
+  **Not promoted under the tested condition**. The predeclared gate
+  failed because there were fewer than two incremental recoveries and
+  12-FPS recovery was below one half of the auditable-target
+  denominator. Completion, inspection, zero unsupported observations,
+  and zero control regressions passed.
+- **What this rules out now:** denser frames inside these
+  oracle-screened localized windows as a recovery mechanism under the
+  tested provider condition; another FPS increase as the next test for
+  the inspected failure categories; and any claim that this selected
+  panel measures router performance or prevalence.
+- **What it does not rule out:** question-conditioned evidence
+  selection/verification, modality-specific acquisition for speech,
+  text, or fine detail, or a future router whose evidence paths and
+  route-level safeguards are measured independently.
+- **Possible defect, audit gap, or uncertainty:** **Uncertainty**—this
+  is a selected, oracle-screened mechanism diagnostic. The two ambiguous
+  targets are retained in completion, and the exposure split is
+  descriptive only; the result is not a prevalence estimate or a
+  deployable localization evaluation.
+- **Reconsider when:** a newly frozen and explicitly authorized panel
+  shows that the proposed evidence path addresses the inspected failure
+  category and includes matched supported controls with route-level
+  non-regression safeguards.
+
+<details>
+
+<summary>
+
+Method, result, validity risks, and evidence
+</summary>
+
+The treatment used `gemini-3.1-pro-preview`, native audio/video, high
+media resolution, high thinking, temperature `0`, seed `42`, one attempt
+per arm, and maximum output `2,048`. The only arm difference was the
+requested FPS; each pair reused the same local clip bytes. The
+provider-safe request omitted references, predictions, scores, audit
+verdicts, and raw label material. Correction-v2 was an additive
+zero-call repair over the frozen responses: it changed eight endpoint
+acceptances from contract error to parsed success and did not alter the
+source prediction freeze. The final score consumed the corrected
+observations only after the prediction and audit freezes were verified.
+
+The complete sanitized aggregate index is [the dense localized-evidence
+artifact
+bundle](artifacts/vqa-dense-localized-evidence-20260816/README.md).
+
+It contains counts and immutable hashes only; row identifiers,
+questions, references, evidence text, predictions, raw responses, media,
+credentials, and private filesystem paths are excluded. The full score
+chain records the correction, source prediction freeze, manual audit,
+audit freeze, score, and score-integrity bindings.
+
+The next bounded idea is question-conditioned evidence
+selection/verification or modality-specific acquisition. Do not spend
+this negative result on another FPS increase, global prompt rewrite,
+full-panel rerun, counting specialist, or shared router framework.
+</details>
+
 ## Cost and completion boundary
 
 The final v5 pilot plus verifier cost `$0.102772`. Including all

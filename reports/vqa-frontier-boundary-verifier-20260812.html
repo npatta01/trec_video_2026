@@ -2168,7 +2168,7 @@ vertical-align: -.125em;
 
 <div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
 <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="vqa-frontier-boundary-verifier-20260812.html"><i class="bi bi-file-code"></i>Github (GFM)</a></li></ul></div></div>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="2026-08-12-vqa-frontier-boundary-verifier.md"><i class="bi bi-file-code"></i>Github (GFM)</a></li></ul></div></div>
 <main class="content" id="quarto-document-content">
 
 <header id="title-block-header" class="quarto-title-block default">
@@ -2180,11 +2180,11 @@ vertical-align: -.125em;
 
 <div class="quarto-title-meta">
 
-
-
-
+    
+  
+    
   </div>
-
+  
 
 
 </header>
@@ -2612,6 +2612,30 @@ vertical-align: -.125em;
 </ul>
 <p>The sanitized evidence index is <code>docs/experiments/artifacts/vqa-task-support-sufficiency-20260815/</code>. The complete private evidence remains under the approved benchmark root <code>data/vqa/benchmarks/task-support-sufficiency-audit-issue35-v1/</code>; its current v3 correction, freeze, and source bindings are recorded by SHA-256 in the sanitized index. This result supersedes the earlier v1/v2 feasibility wording; those historical private artifacts remain unchanged.</p>
 </section>
+<section id="dense-question-localized-evidence-20260816" class="level3">
+<h3 class="anchored" data-anchor-id="dense-question-localized-evidence-20260816">Dense question-localized evidence recovery</h3>
+<ul>
+<li><strong>Primary theme:</strong> routing, fusion, and answer selection.</li>
+<li><strong>Related theme:</strong> visual and temporal evidence.</li>
+<li><strong>Reason for testing:</strong> determine whether denser visual sampling can recover brief target facts that the existing question-blind map omitted, when the question has already selected a short local window.</li>
+<li><strong>Tested condition and panel:</strong> one byte-identical local clip per selected row, requested at 4 FPS and 12 FPS; eight selected visual targets and four supported controls. Two targets remained explicitly ambiguous and stayed in completion but were excluded only from the auditable-target denominator, leaving six auditable targets. Prior exposure was retained as a reporting flag, never as an exclusion. All 475 eligible source rows remained in the eligibility boundary.</li>
+<li><strong>Observed result:</strong> all <code>24/24</code> arms and <code>12/12</code> target/control pairs completed, and all <code>12</code> clips plus <code>24</code> arms were manually inspected. Target recovery was <code>0/6</code> at both 4 FPS and 12 FPS, with <code>0</code> paired incremental rescues. Controls recovered <code>3/4</code> at each FPS, with <code>0</code> 12-FPS control regressions and <code>0</code> unsupported observations in either arm. The correction-v2 replay made no provider calls and repaired eight parser acceptances before this reference-aware score; the final execution used <code>24</code> unique provider calls, with no retries. Provider cost was unavailable in the frozen metadata, and no answer metrics were computed.</li>
+<li><strong>Current condition-bound status:</strong> <strong>Diagnostic negative result</strong>; <strong>Not promoted under the tested condition</strong>. The predeclared gate failed because there were fewer than two incremental recoveries and 12-FPS recovery was below one half of the auditable-target denominator. Completion, inspection, zero unsupported observations, and zero control regressions passed.</li>
+<li><strong>What this rules out now:</strong> denser frames inside these oracle-screened localized windows as a recovery mechanism under the tested provider condition; another FPS increase as the next test for the inspected failure categories; and any claim that this selected panel measures router performance or prevalence.</li>
+<li><strong>What it does not rule out:</strong> question-conditioned evidence selection/verification, modality-specific acquisition for speech, text, or fine detail, or a future router whose evidence paths and route-level safeguards are measured independently.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—this is a selected, oracle-screened mechanism diagnostic. The two ambiguous targets are retained in completion, and the exposure split is descriptive only; the result is not a prevalence estimate or a deployable localization evaluation.</li>
+<li><strong>Reconsider when:</strong> a newly frozen and explicitly authorized panel shows that the proposed evidence path addresses the inspected failure category and includes matched supported controls with route-level non-regression safeguards.</li>
+</ul>
+<details>
+<summary>
+Method, result, validity risks, and evidence
+</summary>
+<p>The treatment used <code>gemini-3.1-pro-preview</code>, native audio/video, high media resolution, high thinking, temperature <code>0</code>, seed <code>42</code>, one attempt per arm, and maximum output <code>2,048</code>. The only arm difference was the requested FPS; each pair reused the same local clip bytes. The provider-safe request omitted references, predictions, scores, audit verdicts, and raw label material. Correction-v2 was an additive zero-call repair over the frozen responses: it changed eight endpoint acceptances from contract error to parsed success and did not alter the source prediction freeze. The final score consumed the corrected observations only after the prediction and audit freezes were verified.</p>
+<p>The complete sanitized aggregate index is <a href="../docs/experiments/artifacts/vqa-dense-localized-evidence-20260816/README.md">the dense localized-evidence artifact bundle</a>.</p>
+<p>It contains counts and immutable hashes only; row identifiers, questions, references, evidence text, predictions, raw responses, media, credentials, and private filesystem paths are excluded. The full score chain records the correction, source prediction freeze, manual audit, audit freeze, score, and score-integrity bindings.</p>
+The next bounded idea is question-conditioned evidence selection/verification or modality-specific acquisition. Do not spend this negative result on another FPS increase, global prompt rewrite, full-panel rerun, counting specialist, or shared router framework.
+</details>
+</section>
 </section>
 <section id="cost-and-completion-boundary" class="level2">
 <h2 class="anchored" data-anchor-id="cost-and-completion-boundary">Cost and completion boundary</h2>
@@ -2678,7 +2702,7 @@ vertical-align: -.125em;
     anchorJS.add('.anchored');
     const isCodeAnnotation = (el) => {
       for (const clz of el.classList) {
-        if (clz.startsWith('code-annotation-')) {
+        if (clz.startsWith('code-annotation-')) {                     
           return true;
         }
       }
@@ -2698,11 +2722,11 @@ vertical-align: -.125em;
         button.setAttribute("data-bs-toggle", "tooltip");
         button.setAttribute("data-bs-placement", "left");
         button.setAttribute("data-bs-title", "Copied!");
-        tooltip = new bootstrap.Tooltip(button,
-          { trigger: "manual",
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
             customClass: "code-copy-button-tooltip",
             offset: [0, -8]});
-        tooltip.show();
+        tooltip.show();    
       }
       setTimeout(function() {
         if (tooltip) {
@@ -2779,7 +2803,7 @@ vertical-align: -.125em;
       if (onUntriggerFn) {
         config.onUntrigger = onUntriggerFn;
       }
-      window.tippy(el, config);
+      window.tippy(el, config); 
     }
     const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
     for (var i=0; i<noterefs.length; i++) {
@@ -2854,7 +2878,7 @@ vertical-align: -.125em;
       tippyHover(xref, undefined, function(instance) {
         instance.disable();
         let url = xref.getAttribute('href');
-        let hash = undefined;
+        let hash = undefined; 
         if (url.startsWith('#')) {
           hash = url;
         } else {
@@ -2882,7 +2906,7 @@ vertical-align: -.125em;
               if (note !== null) {
                 const html = processXRef(id, note);
                 instance.setContent(html);
-              }
+              } 
             }).finally(() => {
               instance.enable();
               instance.show();
@@ -2906,7 +2930,7 @@ vertical-align: -.125em;
               }
               const html = processXRef(null, note);
               instance.setContent(html);
-            }
+            } 
           }).finally(() => {
             instance.enable();
             instance.show();
@@ -2946,7 +2970,7 @@ vertical-align: -.125em;
               height = bottom - top;
             }
             if (top !== null && height !== null && parent !== null) {
-              // cook up a div (if necessary) and position it
+              // cook up a div (if necessary) and position it 
               let div = window.document.getElementById("code-annotation-line-highlight");
               if (div === null) {
                 div = window.document.createElement("div");
