@@ -74,10 +74,10 @@ CAPTURE_ARTIFACT_NAMES = (
     "terminal.json",
 )
 LEDGER_RELATIVE_PATH = Path(
-    "docs/superpowers/ledgers/2026-08-16-dense-question-localized-evidence-task3d-v20.json"
+    "docs/superpowers/ledgers/2026-08-16-dense-question-localized-evidence-task3d-v21.json"
 )
 REPO_ROOT = SCRIPT_PATH.parents[1]
-LEDGER_CANDIDATE_VERSION = "run-v20"
+LEDGER_CANDIDATE_VERSION = "run-v21"
 EXECUTION_SNAPSHOT_NAME = "execution-snapshot.json"
 EXECUTION_SNAPSHOT_FINAL_NAME = "execution-snapshot-final.json"
 TERMINAL_STATUSES = {
@@ -1510,6 +1510,7 @@ def _snapshot_digest(snapshot: tuple[tuple[str, str], ...]) -> str:
 
 
 def _ledger_snapshot_digest(root: Path) -> str:
+    root = root.resolve()
     snapshot = _continuation_snapshot(root)
     root_prefix = str(root.resolve())
     normalized: list[tuple[str, str]] = []
