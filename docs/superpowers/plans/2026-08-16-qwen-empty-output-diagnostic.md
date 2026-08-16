@@ -180,7 +180,7 @@
 - Produce: `freeze_diagnostic(root: Path) -> dict[str, Any]`
 - Produce: `status_diagnostic(root: Path) -> dict[str, Any]`
 
-- [ ] **Step 1: Write failing preparation tests**
+- [x] **Step 1: Write failing preparation tests**
 
   Build a synthetic verified Stage 0.5d source with two exact empty failures
   and at least two successes. Assert preparation selects the two failures plus
@@ -190,12 +190,12 @@
   label-bearing keys, a ready source,
   wrong failure count, missing audio, or a noncanonical data root.
 
-- [ ] **Step 2: Run preparation tests and verify RED**
+- [x] **Step 2: Run preparation tests and verify RED**
 
   Run `uv run pytest -q tests/test_vqa_qwen_empty_output_diagnostic.py -k prepare`.
   Expected: import failure because the harness does not exist.
 
-- [ ] **Step 3: Implement exclusive preparation and freeze verification**
+- [x] **Step 3: Implement exclusive preparation and freeze verification**
 
   Use schema version `qwen-empty-output-diagnostic.v1`, experiment ID
   `qwen-aligner-stage05e-20260816-empty-output-v1`, and the private root from
@@ -205,7 +205,7 @@
   cost. Re-verify both executed source hashes before command construction,
   recording, freezing, and status. Write with exclusive creation only.
 
-- [ ] **Step 4: Write failing command and one-attempt tests**
+- [x] **Step 4: Write failing command and one-attempt tests**
 
   Assert each arm's command contains `-i`, `--network none`, `--read-only`,
   read-only canonical data/cache mounts, pinned image/revisions, no credential
@@ -220,14 +220,14 @@
 
   A second record for the same arm must fail before subprocess execution.
 
-- [ ] **Step 5: Implement arm recording and deterministic validation**
+- [x] **Step 5: Implement arm recording and deterministic validation**
 
   Preserve `command.json`, `raw-results.json`, sanitized `stderr.txt`,
   `terminal.json`, and `validated-results.json` under `arms/<arm_id>/` even on
   nonzero exit or launch exception. Validate count, order, condition ID, audio
   hash, success fields, and aligned chunk bounds exactly as declared.
 
-- [ ] **Step 6: Write failing decision-matrix and mutation tests**
+- [x] **Step 6: Write failing decision-matrix and mutation tests**
 
   Cover at least these literal outcomes:
 
@@ -241,7 +241,7 @@
   Mutating the runner, requests, raw output, terminal record, validation, or
   top-level decision after freezing must make status verification fail.
 
-- [ ] **Step 7: Implement diagnostic freeze, decision, status, and CLI**
+- [x] **Step 7: Implement diagnostic freeze, decision, status, and CLI**
 
   CLI subcommands are `prepare`, `command --arm`, `record --arm`, `freeze`, and
   `status`. `freeze` requires all four arm attempts, freezes their artifacts,
@@ -249,7 +249,7 @@
   explanatory localization, advancing arm or null, and the predeclared final
   decision. It must never expose row IDs or transcript text in CLI output.
 
-- [ ] **Step 8: Verify GREEN and commit the harness**
+- [x] **Step 8: Verify GREEN and commit the harness**
 
   Run:
 
