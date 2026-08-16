@@ -258,6 +258,17 @@ Run the runner's `freeze` and `verify-freeze` phases. Confirm the exact completi
 
 Add exact call count, terminal statuses, cost, prediction-freeze SHA-256, and whether Task 4 is authorized to this plan. Commit only the plan update; never stage private rows or clips.
 
+#### Task 3 execution boundary — 2026-08-16
+
+- Status: execution complete with a frozen provider failure; the only execution root was `data/vqa/benchmarks/dense-question-localized-evidence-issue35-v1/run-v2`.
+- Pre-call validation: PASS. The dataset symlink resolved to `/home/npatta01/data/competitions/trec_video_2026/data`; Task 1 input validation passed for 12 rows (8 targets, 4 controls); all 12 source hashes and 12 clip hashes matched; all 12 pairs bound the same clip hash; selected row order was `1, 2, 3, 10, 13, 15, 16, 19, 24, 25, 26, 29`; selected map-line projections matched the frozen audit for 12/12 rows; provider-safe request structure was label-free for 24/24 planned arms with video first and prompt second; planned calls were 24/24 under the cap; `GEMINI_API_KEY` was present without being printed; existing attempts and provider calls were zero.
+- Mocked end-to-end validation: PASS. A temporary-root run exercised all 24 arms in exact 4-FPS/12-FPS pair order, preserved one malformed response raw-first, produced complete terminal chains, and passed prediction-freeze verification (mock freeze SHA-256 `3dab5531dd0ba873e8d12dee25b8c1f7117ab446d6bcd35dd492d659e84d7b05`).
+- Authorized provider execution: exactly 24 terminal calls, one per arm, with no retry; terminal statuses were `provider_error=24`.
+- Provider boundary concern: all calls returned HTTP 400 `INVALID_ARGUMENT` before a model response because Gemini rejected `additional_properties` in the submitted response schema. No row content was inspected or recorded, and no retry was made.
+- Model/settings: requested model `gemini-3.1-pro-preview`; requested FPS values `[4.0, 12.0]`; frozen settings were temperature `0.0`, seed `42`, HIGH thinking, HIGH media resolution, candidate count `1`, maximum output tokens `2048`, retry count `0`. Provider model version and usage metadata were unavailable because every call failed at request validation; cost was unavailable.
+- Prediction freeze: `status=frozen`, `row_count=24`, `completed_count=24`, `call_count=24`, `passed_count=0`, `failed_count=24`, terminal status counts `provider_error=24`; SHA-256 `feaf6f1fab8925e798b647b2a5926a0c3026057ed85a1eb31ec494ea0ffe3528`. `freeze` and `verify-freeze` both passed; no references or score outputs were loaded.
+- Task 4 authorization: NOT AUTHORIZED. The frozen prediction set is complete but unusable for the recovery gate because no provider arm produced a parsed observation; Task 4 must not load references or score this run.
+
 ### Task 4: Audit paired fact recovery and apply the gate
 
 **Files:**
