@@ -1,0 +1,90 @@
+type: task
+name: qwen36-whisper-full-20260816-a2
+
+# Reuse the pinned CUDA/L40S image from the completed full Whisper evidence run.
+image: docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
+entrypoint: /bin/bash -c
+shell: bash
+working_dir: /dstack/run
+
+env:
+  - HF_TOKEN=${{ secrets.hf_token }}
+  - HF_HUB_DISABLE_TELEMETRY=1
+  - HF_INPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/deadline-qwen36-full-inputs-20260816-a2/input
+  - HF_OUTPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/deadline-qwen36-whisper-full-20260816-a2/output
+  - EXPERIMENT_RUN_NAME=qwen36-whisper-full-20260816-a2
+  - PYTHON_BIN=/opt/conda/bin/python
+  - PYTHONPATH=/dstack/run/src
+  - INPUT_DIR=/dstack/input
+  - OUTPUT_DIR=/dstack/output
+  - WORK_DIR=/dstack/work
+  - WHISPER_LIMIT
+  - WHISPER_MODEL_ID=openai/whisper-large-v3
+  - WHISPER_MODEL_REVISION=06f233fe06e710322aca913c1bc4249a0d71fce1
+  - TRANSFORMERS_REVISION=cbf4d720ec734edb77d25452b2790c7e4be2f8d7
+  - VQA_RUNTIME_IMAGE=docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
+
+files:
+  - ../scripts/run_vqa_deadline_whisper_full.py:/dstack/run/scripts/run_vqa_deadline_whisper_full.py
+  - ../src/trec_video_2026/__init__.py:/dstack/run/src/trec_video_2026/__init__.py
+  - ../src/trec_video_2026/vqa_whisper.py:/dstack/run/src/trec_video_2026/vqa_whisper.py
+
+commands:
+  - |
+    set -euo pipefail
+    mkdir -p "$INPUT_DIR" "$OUTPUT_DIR" "$WORK_DIR"
+    finalize() {
+      workload_rc=$?
+      trap - EXIT
+      set +e
+      hf buckets sync "$OUTPUT_DIR" "$HF_OUTPUT_URI"
+      sync_rc=$?
+      set -e
+      if (( workload_rc != 0 )); then
+        exit "$workload_rc"
+      fi
+      exit "$sync_rc"
+    }
+    trap finalize EXIT
+    "$PYTHON_BIN" -m pip install --no-cache-dir "huggingface_hub==1.26.0" \
+      "av==16.0.1" "imageio-ffmpeg==0.6.0" "soundfile==0.13.1" "accelerate==1.12.0"
+    "$PYTHON_BIN" -m pip install --no-cache-dir \
+      "transformers @ https://github.com/huggingface/transformers/archive/${TRANSFORMERS_REVISION}.tar.gz"
+    command -v hf >/dev/null || { echo 'hf executable is missing' >&2; exit 127; }
+    "$PYTHON_BIN" -c 'import av, imageio_ffmpeg, soundfile, torch, transformers; print({"av": av.__version__, "torch": torch.__version__, "transformers": transformers.__version__, "ffmpeg": imageio_ffmpeg.get_ffmpeg_version()})'
+    hf buckets sync "$HF_INPUT_URI" "$INPUT_DIR"
+    set +e
+    hf buckets sync "$HF_OUTPUT_URI" "$OUTPUT_DIR"
+    restore_rc=$?
+    set -e
+    if (( restore_rc != 0 )); then
+      echo 'no prior Whisper output was restored; starting a fresh resumable JSONL' >&2
+    fi
+    "$PYTHON_BIN" /dstack/run/scripts/run_vqa_deadline_whisper_full.py \
+      --input-root "$INPUT_DIR" --output "$OUTPUT_DIR" --work-dir "$WORK_DIR" \
+      --output-uri "$HF_OUTPUT_URI" --preflight
+    run_args=(
+      --input-root "$INPUT_DIR"
+      --output "$OUTPUT_DIR"
+      --work-dir "$WORK_DIR"
+      --output-uri "$HF_OUTPUT_URI"
+      --verify-input-hashes
+    )
+    if [[ -n "${WHISPER_LIMIT:-}" ]]; then
+      run_args+=(--limit "$WHISPER_LIMIT")
+    fi
+    "$PYTHON_BIN" /dstack/run/scripts/run_vqa_deadline_whisper_full.py "${run_args[@]}"
+
+resources:
+  gpu: L40S:1:48GB..
+  cpu: 8..
+  memory: 32GB..
+  disk: 100GB..
+
+backends: [vastai]
+spot_policy: on-demand
+max_price: 1.00
+max_duration: 8h
+retry:
+  on_events: [no-capacity]
+  duration: 20m

@@ -1,0 +1,99 @@
+type: task
+name: qwen36-27b-deadline-full-20260816-a2-s1
+
+image: docker.io/vllm/vllm-openai:v0.20.0@sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc
+entrypoint: /bin/bash -c
+shell: bash
+working_dir: /dstack/run
+
+env:
+  - HF_TOKEN=${{ secrets.hf_token }}
+  - HF_HUB_DISABLE_TELEMETRY=1
+  - HF_CLI_MODE=direct
+  - HF_CLI_VERSION=1.27.0
+  - PYTHON_BIN=/usr/bin/python3
+  - PYTHONPATH=/dstack/run
+  - MODEL_ID=Qwen/Qwen3.6-27B
+  - MODEL_REVISION=6a9e13bd6fc8f0983b9b99948120bc37f49c13e9
+  - RUNTIME_IMAGE=docker.io/vllm/vllm-openai:v0.20.0@sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc
+  - EXPERIMENT_RUN_NAME=qwen36-27b-deadline-full-20260816-a2-s1
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen36-27b-deadline-full-20260816-a2
+  - HF_INPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/deadline-qwen36-full-inputs-20260816-a2/input
+  - HF_WHISPER_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/deadline-qwen36-whisper-full-20260816-a2/output
+  - INPUT_DIR=/dstack/input
+  - OUTPUT_DIR=/dstack/output
+  - SHARD_COUNT=4
+  - SHARD_INDEX=1
+
+files:
+  - ../scripts/run_vqa_deadline_qwen36_full.py:/dstack/run/scripts/run_vqa_deadline_qwen36_full.py
+
+commands:
+  - |
+    set -euo pipefail
+    mkdir -p "$INPUT_DIR" "$OUTPUT_DIR"
+    server_pid=''
+    shard_index="$SHARD_INDEX"
+    mkdir -p "$OUTPUT_DIR/shard-$shard_index"
+    [[ "$shard_index" =~ ^[0-3]$ ]] || { echo 'configured shard index must be 0..3' >&2; exit 78; }
+    finalize() {
+      workload_rc=$?
+      trap - EXIT
+      if [[ -n "$server_pid" ]]; then kill "$server_pid" 2>/dev/null || true; fi
+      sync_rc=0
+      set +e
+      hf buckets sync "$OUTPUT_DIR/shard-$shard_index" "$HF_REMOTE_URI/shards/$shard_index"
+      sync_rc=$?
+      set -e
+      if (( workload_rc != 0 )); then exit "$workload_rc"; fi
+      exit "$sync_rc"
+    }
+    trap finalize EXIT
+    "$PYTHON_BIN" -m pip install --no-cache-dir "huggingface_hub==$HF_CLI_VERSION"
+    "$PYTHON_BIN" -m pip install --no-cache-dir "av==16.0.1"
+    command -v hf >/dev/null || { echo 'hf executable is missing in pinned image' >&2; exit 127; }
+    [[ "$(hf --version)" == "$HF_CLI_VERSION" ]] || { echo 'pinned hf CLI version mismatch' >&2; exit 78; }
+    "$PYTHON_BIN" -c 'import av; print(av.__version__)'
+    hf auth whoami >/dev/null
+    hf buckets sync "$HF_INPUT_URI" "$INPUT_DIR"
+    hf buckets cp "$HF_WHISPER_URI/summary.json" "$INPUT_DIR/whisper-summary.json"
+    hf buckets cp "$HF_WHISPER_URI/requests.accepted-whisper.json" "$INPUT_DIR/requests.accepted-whisper.json"
+    [[ -s "$INPUT_DIR/requests.accepted-whisper.json" ]] || { echo 'frozen Whisper adapter is missing' >&2; exit 78; }
+    "$PYTHON_BIN" -c 'import json,sys; summary=json.load(open(sys.argv[1], encoding="utf-8")); model=summary.get("model", {}); assert summary["media_count"] == 1946; assert summary["target_count"] == 1946; assert summary["completed_count"] == 1946; assert model.get("model_id") == "openai/whisper-large-v3"; assert model.get("model_revision") == "06f233fe06e710322aca913c1bc4249a0d71fce1"' "$INPUT_DIR/whisper-summary.json"
+    set +e
+    hf buckets sync "$HF_REMOTE_URI/shards/$shard_index" "$OUTPUT_DIR/shard-$shard_index"
+    set -e
+    "$PYTHON_BIN" /dstack/run/scripts/run_vqa_deadline_qwen36_full.py --preflight --requests "$INPUT_DIR/requests.json" --whisper "$INPUT_DIR/requests.accepted-whisper.json" --media-root "$INPUT_DIR" --output "$OUTPUT_DIR/preflight-$shard_index.json"
+    command -v vllm >/dev/null || { echo 'vllm executable is missing' >&2; exit 127; }
+    command -v curl >/dev/null || { echo 'curl executable is missing' >&2; exit 127; }
+    vllm serve "$MODEL_ID" --revision "$MODEL_REVISION" --host 127.0.0.1 --port 8000 --dtype bfloat16 --max-model-len 32768 --max-num-seqs 1 --gpu-memory-utilization 0.95 --media-io-kwargs '{"video": {"backend": "pyav"}}' >"$OUTPUT_DIR/shard-$shard_index/vllm-server.log" 2>&1 &
+    server_pid=$!
+    ready=0
+    for _ in $(seq 1 120); do
+      if curl --fail --silent http://127.0.0.1:8000/v1/models >/dev/null; then ready=1; break; fi
+      if ! kill -0 "$server_pid" 2>/dev/null; then echo 'vLLM server exited during startup' >&2; exit 78; fi
+      sleep 5
+    done
+    (( ready == 1 )) || { echo 'vLLM server readiness timeout' >&2; exit 78; }
+    "$PYTHON_BIN" /dstack/run/scripts/run_vqa_deadline_qwen36_full.py --run --requests "$INPUT_DIR/requests.json" --whisper "$INPUT_DIR/requests.accepted-whisper.json" --media-root "$INPUT_DIR" --output "$OUTPUT_DIR/shard-$shard_index" --shard-index "$shard_index" --shard-count "$SHARD_COUNT" --server-url http://127.0.0.1:8000/v1/chat/completions
+    hf buckets sync "$OUTPUT_DIR/shard-$shard_index" "$HF_REMOTE_URI/shards/$shard_index"
+    exit 0
+
+resources:
+  gpu:
+    vendor: nvidia
+    name: H100
+    count: 1
+    memory: 80GB..
+  cpu: 16..
+  memory: 128GB..
+  disk: 120GB
+
+fleets: [gpu-marketplace]
+backends: [runpod, vastai]
+spot_policy: on-demand
+max_price: 4.00
+max_duration: 2h
+retry:
+  on_events: [no-capacity]
+  duration: 30m

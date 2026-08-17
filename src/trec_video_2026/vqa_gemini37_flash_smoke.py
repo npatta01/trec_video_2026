@@ -1951,7 +1951,16 @@ def _usage(response: Mapping[str, Any]) -> dict[str, Any] | None:
     }
     result: dict[str, Any] = {}
     for output, names in aliases.items():
-        found = next((usage.get(name) for name in names if name in usage), None)
+        found_name = next((name for name in names if name in usage), None)
+        if found_name is None:
+            # Gemini omits candidatesTokenCount for some terminal safety
+            # responses.  Keep the response billable: total-prompt includes
+            # hidden thinking tokens even when no candidate text was emitted.
+            if output != "output_tokens":
+                return None
+            result[output] = 0
+            continue
+        found = usage[found_name]
         if isinstance(found, bool) or not isinstance(found, int) or found < 0:
             return None
         result[output] = found
@@ -1963,6 +1972,9 @@ def _usage(response: Mapping[str, Any]) -> dict[str, Any] | None:
         if str(key).casefold().replace("-", "_")
         not in {"sdk_http_response", "sdkhttpresponse", "client", "transport", "authorization"}
     }
+    if not any(name in usage for name in aliases["output_tokens"]):
+        metadata["output_tokens_derived"] = True
+        metadata["output_tokens_derivation"] = "total_tokens_minus_prompt_tokens"
     result["metadata"] = metadata
     return result
 
