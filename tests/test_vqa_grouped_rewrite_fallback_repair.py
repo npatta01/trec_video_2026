@@ -271,9 +271,9 @@ def test_finalize_real_panel_merges_fresh_deterministic_and_existing(
 
     assert result["status"] == "complete"
     assert result["status_counts"] == {
-        "deterministic_repaired": 320,
+        "deterministic_repaired": 319,
         "existing_grouped": 1_833,
-        "fallback_fusion": 289,
+        "fallback_fusion": 290,
         "fresh_repaired": 1,
     }
     final_rows = json.loads((output_root / "final-organizer.json").read_text(encoding="utf-8"))
@@ -286,11 +286,38 @@ def test_finalize_completed_repair_recovers_every_fresh_raw_query(tmp_path: Path
 
     result = finalize.finalize_repair(output_root=output_root)
 
-    assert result["fallback_query_count"] == 0
+    assert result["fallback_query_count"] == 1
+    assert result["strict_redundant_answer_slots"] == 585
     assert result["status_counts"] == {
-        "deterministic_repaired": 320,
+        "deterministic_repaired": 319,
         "existing_grouped": 1_833,
+        "fallback_fusion": 1,
         "fresh_raw_repaired": 30,
         "fresh_raw_salvaged": 75,
         "fresh_repaired": 185,
     }
+
+
+def test_strict_postprocess_removes_punctuation_duplicates_with_fusion_fill() -> None:
+    canonical = _row()
+    repaired = {**canonical["fallback"], "Answers": [dict(answer) for answer in canonical["fallback"]["Answers"]]}
+    repaired["Answers"][2]["Answer"] = "Someone waves"
+    provenance = [
+        {
+            "Q_ID": 307,
+            "Video_ID": "video.webm",
+            "status": "deterministic_repaired",
+            "answer_sha256": [],
+        }
+    ]
+
+    rows, updated = finalize.strict_postprocess_repaired_rows(
+        [repaired],
+        provenance,
+        existing_by_qid={307: canonical["fallback"]},
+    )
+
+    assert updated[0]["status"] == "deterministic_repaired"
+    assert updated[0]["strict_deduplicated"] is True
+    assert updated[0]["strict_fusion_fill_count"] == 1
+    assert len({finalize.strict_answer_key(answer["Answer"]) for answer in rows[0]["Answers"]}) == 10

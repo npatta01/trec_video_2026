@@ -22,10 +22,21 @@ facts and every semantic group had to retain an exact source answer.
 
 Strict local checks rejected any question with invalid grouping, duplicate
 answers, missing source coverage, a changed rank-one answer, or an unsupported
-conflict merge. The final offline salvage accepted independently valid
-rewrites for 1,833 questions and copied the already validated
-`g37_q36_fusion` row unchanged for the remaining 610 questions. No second LLM
-verifier call was used.
+conflict merge. The original freeze retained 1,833 grouped rows and used the
+validated `g37_q36_fusion` row for 610 questions. A label-free repair then
+recovered 609 of those 610: 319 by deterministic cleanup, 185 from accepted
+fresh responses, 75 from independently valid query objects inside rejected
+batches, and 30 by removing duplicates and filling only with existing fusion
+answers. One question (`Q_ID` 673) still uses its original fusion row because
+the union of available answers contains only nine punctuation-insensitive
+unique formulations; no new wording was invented to force a tenth.
+
+The final file preserves all 2,443 rank-one answers exactly. It has 585
+redundant answer slots across 442 rows under the stricter
+case-and-punctuation-insensitive token audit, improving on the original
+grouped file's 620 slots across 477 rows. The official organizer normalization
+reports ten distinct answers for every query. No second LLM verifier call was
+used.
 
 No reference answers, evaluation labels, annotations, video, audio, or
 transcripts entered the rewrite calls. This record establishes preparation and
@@ -36,17 +47,17 @@ format validity, not answer quality or organizer acceptance.
 - **Tracked upload file:**
   [Download `submission.json`](../../submissions/trecvid-2026/vqa-ag/g37_grouped_unique/submission.json)
 - **Private source path:**
-  `data/vqa/benchmarks/grouped-rewrite-full-20260817-grouped_unique_generator_only-a3-salvage-final/final-organizer.json`
-- **Size:** 3,225,489 bytes
+  `data/vqa/benchmarks/grouped-rewrite-fallback-repair-20260817/final-v2/final-organizer.json`
+- **Size:** 3,180,520 bytes
 - **SHA-256:**
-  `fe35de8c45806f97382bc93fa6be1c73521a7f596cd9221517483c44d1d8e711`
+  `e60c05933290f4f6644e8f574bd5f8e42bbb01935e893038c678fdfcdc25160b`
 - **Provenance SHA-256:**
-  `201f4225127ae3e1c294b5024482a2da62494f4e73bcb396e04cc6cdc08756b0`
-- **Salvage manifest SHA-256:**
-  `fc0be6932aa0cae6cd19675583bb34b49a2153be87aae220169682cd524b2c98`
+  `5638a0993af18eb4ca85a911532701951c9e3d10b201cf81e5c5ad42dda07c7f`
+- **Repair manifest SHA-256:**
+  `d16a9da0f216040abeba9f9abeb6bb21986242cf0eca74bb93e15b2e927267fd`
 - **Validator report SHA-256:**
   `b9754a26b559b2edfdaa86ec9eef15d5e31d2794c8bc9c8bb154617fcdadd2a6`
-- **Total conservative accounted API cost:** $11.27937675
+- **Total accounted API cost:** $12.50898375
 
 After Evalbase accepts the run, append the submission timestamp, run URL or
 confirmation identifier, server-side validation result, and uploaded-file

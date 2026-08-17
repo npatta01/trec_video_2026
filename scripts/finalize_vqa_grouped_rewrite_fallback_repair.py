@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
+import unicodedata
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -28,6 +30,95 @@ def _sha_text(value: str) -> str:
 
 def _copy(value: Any) -> Any:
     return json.loads(json.dumps(value, ensure_ascii=False))
+
+
+def strict_answer_key(value: str) -> tuple[str, ...]:
+    """Normalize case and punctuation so cosmetic variants share one key."""
+    normalized = unicodedata.normalize("NFKC", value).casefold()
+    return tuple(re.findall(r"[^\W_]+", normalized, flags=re.UNICODE))
+
+
+def strict_postprocess_repaired_rows(
+    rows: Sequence[Mapping[str, Any]],
+    provenance: Sequence[Mapping[str, Any]],
+    *,
+    existing_by_qid: Mapping[int, Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Remove cosmetic duplicates without generating any additional text."""
+    if len(rows) != len(provenance):
+        raise ValueError("strict postprocess row/provenance coverage drift")
+    final_rows: list[dict[str, Any]] = []
+    final_provenance: list[dict[str, Any]] = []
+    for row, item in zip(rows, provenance, strict=True):
+        query_id = int(row["Q_ID"])
+        if item.get("Q_ID") != query_id:
+            raise ValueError(f"strict postprocess provenance binding drift: {query_id}")
+        if item.get("status") == "existing_grouped":
+            final_rows.append(_copy(row))
+            final_provenance.append(_copy(item))
+            continue
+
+        source_answers = row.get("Answers")
+        existing = existing_by_qid.get(query_id)
+        existing_answers = existing.get("Answers") if isinstance(existing, Mapping) else None
+        if not isinstance(source_answers, list) or not isinstance(existing_answers, list):
+            raise ValueError(f"strict postprocess answer evidence is invalid: {query_id}")
+
+        selected: list[dict[str, Any]] = []
+        seen: set[tuple[str, ...]] = set()
+        duplicate_count = 0
+        for answer in source_answers:
+            key = strict_answer_key(str(answer["Answer"]))
+            if key in seen:
+                duplicate_count += 1
+                continue
+            seen.add(key)
+            selected.append(_copy(answer))
+
+        fusion_fill_count = 0
+        for answer in existing_answers:
+            if len(selected) == 10:
+                break
+            key = strict_answer_key(str(answer["Answer"]))
+            if key in seen:
+                continue
+            seen.add(key)
+            selected.append(_copy(answer))
+            fusion_fill_count += 1
+
+        updated_item = _copy(item)
+        updated_item["strict_deduplicated"] = duplicate_count > 0
+        updated_item["strict_fusion_fill_count"] = fusion_fill_count
+        if len(selected) < 10:
+            final = _copy(existing)
+            updated_item["status"] = "fallback_fusion"
+            updated_item["strict_fallback_reason"] = "fewer_than_10_token_distinct_answers"
+            updated_item["strict_fusion_fill_count"] = 0
+        else:
+            final = _copy(row)
+            final["Answers"] = [
+                {**answer, "Rank": rank}
+                for rank, answer in enumerate(selected, 1)
+            ]
+        if final["Answers"][0]["Answer"] != row["Answers"][0]["Answer"]:
+            raise ValueError(f"strict postprocess changed rank one: {query_id}")
+        updated_item["answer_sha256"] = [
+            _sha_text(str(answer["Answer"])) for answer in final["Answers"]
+        ]
+        final_rows.append(final)
+        final_provenance.append(updated_item)
+    return final_rows, final_provenance
+
+
+def _strict_duplicate_counts(rows: Sequence[Mapping[str, Any]]) -> tuple[int, int]:
+    redundant_slots = 0
+    affected_queries = 0
+    for row in rows:
+        keys = [strict_answer_key(str(answer["Answer"])) for answer in row["Answers"]]
+        redundant = len(keys) - len(set(keys))
+        redundant_slots += redundant
+        affected_queries += int(redundant > 0)
+    return redundant_slots, affected_queries
 
 
 def _deterministic_row(row: Mapping[str, Any], repair: Mapping[str, Any]) -> dict[str, Any]:
@@ -282,8 +373,14 @@ def finalize_repair(
         fresh_by_qid=fresh_generated,
         fresh_status_by_qid=final_fresh_status,
     )
+    final_rows, provenance = strict_postprocess_repaired_rows(
+        final_rows,
+        provenance,
+        existing_by_qid=existing_by_qid,
+    )
     validate_ranked_submission(final_rows, expected_query_ids=expected_ids)
     status_counts = dict(sorted(Counter(item["status"] for item in provenance).items()))
+    strict_redundant_answer_slots, strict_affected_query_count = _strict_duplicate_counts(final_rows)
     historical_cost = float(prep_manifest.get("a3_accounted_cost_usd", 0.0))
     fresh_cost = float(fresh_summary.get("accounted_cost_usd", 0.0))
     manifest = {
@@ -300,6 +397,8 @@ def finalize_repair(
         "canonical_source_artifacts": frozen.source_artifacts(**paths),
         "canonical_source_artifacts_sha256": frozen._sha_bytes(frozen._canonical(frozen.source_artifacts(**paths))),
         "status_counts": status_counts,
+        "strict_redundant_answer_slots": strict_redundant_answer_slots,
+        "strict_affected_query_count": strict_affected_query_count,
         "historical_accounted_cost_usd": historical_cost,
         "fresh_accounted_cost_usd": fresh_cost,
         "cumulative_accounted_cost_usd": round(historical_cost + fresh_cost, 8),
@@ -316,6 +415,8 @@ def finalize_repair(
         "query_count": len(final_rows),
         "status_counts": status_counts,
         "fallback_query_count": status_counts.get("fallback_fusion", 0),
+        "strict_redundant_answer_slots": strict_redundant_answer_slots,
+        "strict_affected_query_count": strict_affected_query_count,
         "historical_accounted_cost_usd": historical_cost,
         "fresh_accounted_cost_usd": fresh_cost,
         "cumulative_accounted_cost_usd": round(historical_cost + fresh_cost, 8),
