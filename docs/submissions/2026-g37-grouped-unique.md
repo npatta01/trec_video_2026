@@ -4,26 +4,44 @@
 
 - **Task:** TRECVID 2026 Video Question Answering, Answer Generation
 - **Run tag:** `g37_grouped_unique`
-- **State:** Release candidate `g37_grouped_unique-rc1` tracked and locally
-  validated; not uploaded
+- **State:** Compact release candidate `g37_grouped_unique-rc2` tracked and
+  locally validated; RC1 upload failed because the selected local copy was
+  truncated; RC2 not uploaded
 - **Submission rows:** 2,443 of 2,443 official test queries
 - **Answers per query:** 10
 - **Local validator:** Passed with zero errors and zero warnings
 
 ## Release candidate designation
 
-`g37_grouped_unique-rc1` is the selected organizer-upload candidate as of
-2026-08-17. The designation binds the tracked upload file to SHA-256
-`e60c05933290f4f6644e8f574bd5f8e42bbb01935e893038c678fdfcdc25160b`.
+`g37_grouped_unique-rc2` is the selected organizer-upload candidate as of
+2026-08-17. It is a compact, single-line serialization of the exact RC1 JSON
+value: all 2,443 query objects and 24,430 answer objects compare equal after
+parsing. The designation binds the tracked upload file to SHA-256
+`d6e3731f19e4dca575815afcd4ed1b163126936b8bb1bbacfd8c675e4473741d`.
 It passed the official local validator with 2,443 of 2,443 queries, ten answers
 per query, zero errors, and zero warnings. All rank-one answers are unchanged
 from the validated fusion source, 1,833 previously accepted grouped rows remain
-byte-exact, and the repair introduced no new answer strings.
+byte-exact as parsed objects, and the repair introduced no new answer strings.
 
 Release-candidate status means the file is ready for manual Evalbase upload;
 it does not claim organizer submission or acceptance. Any content change must
 receive a new release-candidate identifier and repeat the hash and validator
 gates.
+
+### RC1 validation failure and RC2 correction
+
+The file selected for the RC1 Evalbase upload was not the complete tracked RC1
+artifact. The submitted copy had SHA-256
+`f0381ffb4c95ce4dc5e64d1194a7f6244bfb083cf32662c09b83318228dcd24e`,
+size 3,080,192 bytes, and ended mid-object at line 132,557. The intended RC1
+artifact had SHA-256
+`e60c05933290f4f6644e8f574bd5f8e42bbb01935e893038c678fdfcdc25160b`
+and size 3,180,520 bytes. Evalbase therefore correctly reported invalid JSON.
+
+RC2 changes only JSON whitespace and is 2,034,752 bytes. Download the tracked
+file directly and verify its SHA-256 before upload; do not copy its contents
+from a rendered or truncated file preview. Delete the failed Evalbase run
+before resubmitting because Evalbase requires unique run tags.
 
 ## Method summary
 
@@ -64,9 +82,9 @@ format validity, not answer quality or organizer acceptance.
   [Download `submission.json`](../../submissions/trecvid-2026/vqa-ag/g37_grouped_unique/submission.json)
 - **Private source path:**
   `data/vqa/benchmarks/grouped-rewrite-fallback-repair-20260817/final-v2/final-organizer.json`
-- **Size:** 3,180,520 bytes
+- **Size:** 2,034,752 bytes
 - **SHA-256:**
-  `e60c05933290f4f6644e8f574bd5f8e42bbb01935e893038c678fdfcdc25160b`
+  `d6e3731f19e4dca575815afcd4ed1b163126936b8bb1bbacfd8c675e4473741d`
 - **Provenance SHA-256:**
   `5638a0993af18eb4ca85a911532701951c9e3d10b201cf81e5c5ad42dda07c7f`
 - **Repair manifest SHA-256:**
