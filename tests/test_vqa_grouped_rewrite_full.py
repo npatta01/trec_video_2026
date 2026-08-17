@@ -232,6 +232,18 @@ def test_invalid_custom_cost_caps_fail_closed(inputs: dict[str, Path], invalid_c
         runner.run_full(**_run_kwargs(inputs), max_cost_usd=invalid_cap)
 
 
+def test_private_api_key_uses_approved_0600_env_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    private_env = tmp_path / "gemini.env"
+    private_env.write_text("GEMINI_API_KEY='private-test-key'\n", encoding="utf-8")
+    private_env.chmod(0o600)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr(runner, "PRIVATE_ENV_FILE", private_env)
+
+    assert runner._private_api_key() == "private-test-key"
+
+
 def test_fallback_preserves_existing_objects(inputs: dict[str, Path]) -> None:
     rows = _rows(inputs)
     organized = runner._organize(rows, {}, {})

@@ -13,6 +13,7 @@ import hashlib
 import json
 import math
 import os
+import shlex
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -46,6 +47,7 @@ DEFAULT_PROVENANCE = _ROOT / "data/vqa/submissions/deadline-20260817-ready/05-ge
 DEFAULT_PRIOR_ROOT = _ROOT / "data/vqa/benchmarks/grouped-rewrite-full-20260817-grouped_unique_generator_only-a2"
 DEFAULT_OUTPUT_ROOT = _ROOT / "data/vqa/benchmarks/grouped-rewrite-full-20260817-grouped_unique_generator_only-a3"
 DEFAULT_EXPOSED_BATCH_COUNT = 58
+PRIVATE_ENV_FILE = Path("/home/npatta01/.config/trec_video_2026/gemini.env")
 
 SUCCESS = frozenset({"succeeded", "success", "passed", "complete"})
 SOURCE_IDS = (
@@ -1106,6 +1108,32 @@ def run_full(
     return summary
 
 
+def _private_api_key() -> str:
+    value = os.environ.get("GEMINI_API_KEY", "").strip()
+    if value:
+        return value
+    try:
+        mode = PRIVATE_ENV_FILE.stat().st_mode & 0o777
+    except OSError as error:
+        raise ValueError("approved Gemini credential file is unavailable") from error
+    if mode != 0o600:
+        raise ValueError("approved Gemini credential file permissions are not 0600")
+    try:
+        lines = PRIVATE_ENV_FILE.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError) as error:
+        raise ValueError("approved Gemini credential file cannot be read") from error
+    for line in lines:
+        if not line.strip() or line.lstrip().startswith("#") or "=" not in line:
+            continue
+        key, raw_value = line.split("=", 1)
+        if key.strip() != "GEMINI_API_KEY":
+            continue
+        parsed = shlex.split(raw_value.strip(), comments=True)
+        if parsed and parsed[0].strip():
+            return parsed[0].strip()
+    raise ValueError("GEMINI_API_KEY is not configured")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="run_vqa_grouped_rewrite_full")
     parser.add_argument("--run", action="store_true")
@@ -1125,10 +1153,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     client = None
     if args.run:
         from google import genai
-        key = os.environ.get("GEMINI_API_KEY", "").strip()
-        if not key:
-            raise ValueError("GEMINI_API_KEY is not configured")
-        client = genai.Client(api_key=key)
+        client = genai.Client(api_key=_private_api_key())
     print(json.dumps(run_full(questions=args.questions, gemini=args.gemini, qwen=args.qwen, control=args.control, fusion=args.fusion, provenance=args.provenance, prior_root=args.prior_root, output_root=args.output_root, exposed_batch_count=args.exposed_batch_count, stop_after_fresh_batches=args.stop_after_fresh_batches, expected_query_count=args.expected_query_count, max_cost_usd=args.max_cost_usd, run=args.run, client=client), sort_keys=True))
     return 0
 
