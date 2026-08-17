@@ -4,10 +4,26 @@
 
 - **Task:** TRECVID 2026 Video Question Answering, Answer Generation
 - **Run tag:** `g37_grouped_unique`
-- **State:** Upload artifact tracked and locally validated; not uploaded
+- **State:** Release candidate `g37_grouped_unique-rc1` tracked and locally
+  validated; not uploaded
 - **Submission rows:** 2,443 of 2,443 official test queries
 - **Answers per query:** 10
 - **Local validator:** Passed with zero errors and zero warnings
+
+## Release candidate designation
+
+`g37_grouped_unique-rc1` is the selected organizer-upload candidate as of
+2026-08-17. The designation binds the tracked upload file to SHA-256
+`e60c05933290f4f6644e8f574bd5f8e42bbb01935e893038c678fdfcdc25160b`.
+It passed the official local validator with 2,443 of 2,443 queries, ten answers
+per query, zero errors, and zero warnings. All rank-one answers are unchanged
+from the validated fusion source, 1,833 previously accepted grouped rows remain
+byte-exact, and the repair introduced no new answer strings.
+
+Release-candidate status means the file is ready for manual Evalbase upload;
+it does not claim organizer submission or acceptance. Any content change must
+receive a new release-candidate identifier and repeat the hash and validator
+gates.
 
 ## Method summary
 
