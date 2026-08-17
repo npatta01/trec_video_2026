@@ -73,8 +73,9 @@ reports ten distinct answers for every query. No second LLM verifier call was
 used.
 
 No reference answers, evaluation labels, annotations, video, audio, or
-transcripts entered the rewrite calls. This record establishes preparation and
-format validity, not answer quality or organizer acceptance.
+transcripts entered the rewrite calls. This method summary describes
+construction and does not establish answer quality; organizer validation is
+recorded separately in the current state and upload sections.
 
 ## Upload artifact
 
