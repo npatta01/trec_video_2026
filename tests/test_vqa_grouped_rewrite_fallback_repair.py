@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import prepare_vqa_grouped_rewrite_fallback_repair as prepare  # noqa: E402
+import finalize_vqa_grouped_rewrite_fallback_repair as finalize  # noqa: E402
+import run_vqa_grouped_rewrite_full as runner  # noqa: E402
 
 
 def _row() -> dict[str, Any]:
@@ -165,3 +168,114 @@ def test_real_panel_preparation_freezes_once_into_complete_root(tmp_path: Path) 
     ]
     with pytest.raises(FileExistsError, match="preparation root must be absent"):
         prepare.prepare_repair(output_root=output_root, run=True)
+
+
+def test_merge_precedence_preserves_existing_and_uses_fallback_last() -> None:
+    rows = []
+    existing = {}
+    existing_status = {}
+    deterministic = {}
+    fresh = {}
+    for query_id in range(1, 5):
+        row = _row()
+        row["query_id"] = query_id
+        row["video_id"] = f"v{query_id}"
+        row["fallback"]["Q_ID"] = query_id
+        row["fallback"]["Video_ID"] = f"v{query_id}"
+        rows.append(row)
+        existing[query_id] = row["fallback"]
+        existing_status[query_id] = "fallback_fusion"
+    grouped = {**existing[3], "Answers": [dict(answer) for answer in existing[3]["Answers"]]}
+    grouped["Answers"][1]["Answer"] = "existing grouped answer"
+    existing[3] = grouped
+    existing_status[3] = "raw_salvaged"
+    deterministic[1] = prepare.repair_current_query(_duplicate_query(), _row())
+    deterministic[2] = prepare.repair_current_query(_duplicate_query(), _row())
+    assert deterministic[1] is not None and deterministic[2] is not None
+    fresh[1] = {**existing[1], "Answers": [dict(answer) for answer in existing[1]["Answers"]]}
+    fresh[1]["Answers"][1]["Answer"] = "fresh grouped answer"
+
+    merged, provenance = finalize.merge_rows(
+        rows,
+        existing_by_qid=existing,
+        existing_status_by_qid=existing_status,
+        deterministic_by_qid=deterministic,
+        fresh_by_qid=fresh,
+    )
+
+    assert merged[0]["Answers"][1]["Answer"] == "fresh grouped answer"
+    assert merged[1]["Answers"][1]["Answer"] == "Someone waves."
+    assert merged[2]["Answers"][1]["Answer"] == "existing grouped answer"
+    assert merged[3] == rows[3]["fallback"]
+    assert [item["status"] for item in provenance] == [
+        "fresh_repaired",
+        "deterministic_repaired",
+        "existing_grouped",
+        "fallback_fusion",
+    ]
+
+
+def test_finalize_real_panel_merges_fresh_deterministic_and_existing(
+    tmp_path: Path,
+) -> None:
+    preparation_root = tmp_path / "preparation"
+    prepare.prepare_repair(output_root=preparation_root, run=True)
+    input_paths = {
+        name: preparation_root / "inputs" / f"{name}.json"
+        for name in ("questions", "gemini", "qwen", "control", "fusion", "provenance")
+    }
+    fresh_root = tmp_path / "fresh"
+    fresh_rows = json.loads(input_paths["fusion"].read_text(encoding="utf-8"))
+    first_qid = fresh_rows[0]["Q_ID"]
+    fresh_rows[0]["Answers"][1]["Answer"] = "Fresh repaired wording."
+    fresh_provenance = [
+        {
+            "Q_ID": row["Q_ID"],
+            "Video_ID": row["Video_ID"],
+            "status": "generated" if row["Q_ID"] == first_qid else "fallback_fusion",
+            "answer_sha256": [runner._sha_bytes(answer["Answer"].encode()) for answer in row["Answers"]],
+        }
+        for row in fresh_rows
+    ]
+    fresh_root.mkdir()
+    final_path = prepare._write(fresh_root / "final-organizer.json", fresh_rows)
+    provenance_path = prepare._write(fresh_root / "final-provenance.json", fresh_provenance)
+    artifacts = runner.source_artifacts(**input_paths)
+    prepare._write(
+        fresh_root / "manifest.json",
+        {
+            "query_count": 290,
+            "global_max_cost_usd": 5.0,
+            "source_artifacts": artifacts,
+            "source_artifacts_sha256": runner._sha_bytes(runner._canonical(artifacts)),
+        },
+    )
+    prepare._write(
+        fresh_root / "summary.json",
+        {
+            "status": "complete",
+            "query_count": 290,
+            "accounted_cost_usd": 0.5,
+            "final_sha256": final_path,
+            "provenance_sha256": provenance_path,
+            "source_artifacts_sha256": runner._sha_bytes(runner._canonical(artifacts)),
+        },
+    )
+
+    output_root = tmp_path / "final"
+    result = finalize.finalize_repair(
+        preparation_root=preparation_root,
+        fresh_root=fresh_root,
+        output_root=output_root,
+    )
+
+    assert result["status"] == "complete"
+    assert result["status_counts"] == {
+        "deterministic_repaired": 320,
+        "existing_grouped": 1_833,
+        "fallback_fusion": 289,
+        "fresh_repaired": 1,
+    }
+    final_rows = json.loads((output_root / "final-organizer.json").read_text(encoding="utf-8"))
+    assert len(final_rows) == 2_443
+    assert final_rows[0]["Answers"][1]["Answer"] == "Fresh repaired wording."
