@@ -14,3 +14,22 @@ outside Git.
 
 An upload is recorded as accepted only after Evalbase returns its own validator
 result. Local validation alone does not change a run to submitted.
+
+## 2026 Answer Generation closure
+
+All four Answer Generation runs are submitted and organizer-validated. PR
+[#43](https://github.com/npatta01/trec_video_2026/pull/43) is the integration
+record for the deadline Qwen3.6, Gemini 3.7 Flash, fusion, rescue, grouped
+rewrite, validation, and submission work. The selected integration method is a
+squash merge.
+
+The experiment records intentionally retain historical executed-source commit
+hashes from PR #43. Those hashes identify the code that actually produced
+frozen evidence and must not be rewritten to the eventual squash-merge commit.
+The PR remains the reviewable history that connects those source identities to
+the integrated repository state; tracked submission hashes and the individual
+run records remain the upload identities.
+
+Nonessential refactoring, retirement of deadline-only runners/configurations,
+and unrelated repository-wide test-environment repairs are follow-up work and
+are not part of the submission closure gate.
