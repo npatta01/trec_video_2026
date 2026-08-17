@@ -43,7 +43,9 @@ DEFAULT_QWEN = _ROOT / (
 DEFAULT_CONTROL = _ROOT / "data/vqa/submissions/deadline-20260817-ready/03-qwen35-baseline-control-top10.json"
 DEFAULT_FUSION = _ROOT / "data/vqa/submissions/deadline-20260817-ready/05-gemini37-qwen36-fusion-top10.json"
 DEFAULT_PROVENANCE = _ROOT / "data/vqa/submissions/deadline-20260817-ready/05-gemini37-qwen36-fusion-top10.provenance.json"
-DEFAULT_OUTPUT_ROOT = _ROOT / "data/vqa/benchmarks/grouped-rewrite-full-20260817-grouped_unique_generator_only"
+DEFAULT_PRIOR_ROOT = _ROOT / "data/vqa/benchmarks/grouped-rewrite-full-20260817-grouped_unique_generator_only"
+DEFAULT_OUTPUT_ROOT = _ROOT / "data/vqa/benchmarks/grouped-rewrite-full-20260817-grouped_unique_generator_only-a2"
+DEFAULT_EXPOSED_BATCH_COUNT = 28
 
 SUCCESS = frozenset({"succeeded", "success", "passed", "complete"})
 SOURCE_IDS = (
@@ -64,13 +66,44 @@ GENERATOR_SCHEMA = {
     "properties": {
         "queries": {
             "type": "array",
+            "minItems": 1,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
                     "query_id": {"type": "integer"},
-                    "groups": {"type": "array"},
-                    "answers": {"type": "array", "minItems": 10, "maxItems": 10},
+                    "groups": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "group_id": {"type": "string"},
+                                "source_ids": {
+                                    "type": "array",
+                                    "minItems": 1,
+                                    "items": {"type": "string"},
+                                },
+                            },
+                            "required": ["group_id", "source_ids"],
+                        },
+                    },
+                    "answers": {
+                        "type": "array",
+                        "minItems": ANSWERS_PER_QUERY,
+                        "maxItems": ANSWERS_PER_QUERY,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "rank": {"type": "integer"},
+                                "answer": {"type": "string"},
+                                "source_group": {"type": "string"},
+                            },
+                            "required": ["rank", "answer", "source_group"],
+                        },
+                    },
                 },
                 "required": ["query_id", "groups", "answers"],
             },
@@ -78,6 +111,16 @@ GENERATOR_SCHEMA = {
     },
     "required": ["queries"],
 }
+
+
+def _generator_response_schema(query_count: int) -> dict[str, Any]:
+    if query_count <= 0:
+        raise ValueError("generator schema query count must be positive")
+    schema = json.loads(json.dumps(GENERATOR_SCHEMA))
+    queries = schema["properties"]["queries"]
+    queries["minItems"] = query_count
+    queries["maxItems"] = query_count
+    return schema
 def _json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -142,6 +185,68 @@ def source_artifacts(
             raise ValueError(f"source artifact is not a file: {path}")
         result.append({"name": name, "path": str(path), "sha256": _sha_file(path)})
     return result
+
+
+def prior_root_inventory(prior_root: Path = DEFAULT_PRIOR_ROOT) -> list[dict[str, str]]:
+    root = Path(prior_root).resolve()
+    if not root.is_dir():
+        raise ValueError(f"prior run root is not a directory: {root}")
+    inventory = []
+    for path in sorted(root.rglob("*"), key=lambda item: str(item.relative_to(root))):
+        if path.is_file() or path.is_symlink():
+            inventory.append({"path": str(path.relative_to(root)), "sha256": _sha_file(path)})
+    return inventory
+
+
+def _usage_cost_mapping(value: Any) -> float:
+    if not isinstance(value, Mapping):
+        return 0.0
+    usage = value.get("usage") or value.get("usage_metadata") or value.get("usageMetadata")
+    if not isinstance(usage, Mapping):
+        return 0.0
+    prompt = usage.get("prompt_tokens", usage.get("prompt_token_count", usage.get("promptTokenCount")))
+    output = usage.get(
+        "output_tokens",
+        usage.get(
+            "response_token_count",
+            usage.get("responseTokenCount", usage.get("candidates_token_count", usage.get("candidatesTokenCount"))),
+        ),
+    )
+    total = usage.get("total_tokens", usage.get("total_token_count", usage.get("totalTokenCount")))
+    if not isinstance(prompt, int) or not isinstance(output, int):
+        return 0.0
+    if isinstance(total, int):
+        output = max(output, total - prompt)
+    return round(prompt / 1_000_000 * INPUT_USD_PER_MILLION + output / 1_000_000 * OUTPUT_USD_PER_MILLION, 8)
+
+
+def prior_root_accounting(prior_root: Path = DEFAULT_PRIOR_ROOT) -> dict[str, Any]:
+    root = Path(prior_root).resolve()
+    if not root.is_dir():
+        raise ValueError(f"prior run root is not a directory: {root}")
+    declared = 0.0
+    actual_raw_only = 0.0
+    for batch_root in sorted(root.glob("batch-*")):
+        if not batch_root.is_dir():
+            continue
+        marker = next(
+            (batch_root / name for name in ("accepted.json", "rejected.json", "failed.json") if (batch_root / name).exists()),
+            None,
+        )
+        if marker is not None:
+            payload = _json(marker)
+            declared += float(payload.get("accounted_cost_usd", 0.0))
+            continue
+        for raw_path in sorted(batch_root.glob("attempt-*/raw-response.json")):
+            raw = _json(raw_path)
+            actual_raw_only += _usage_cost_mapping(raw.get("provider_response"))
+    declared = round(declared, 8)
+    actual_raw_only = round(actual_raw_only, 8)
+    return {
+        "declared_terminal_cost_usd": declared,
+        "actual_unterminal_raw_cost_usd": actual_raw_only,
+        "cumulative_prior_cost_usd": round(declared + actual_raw_only, 8),
+    }
 
 
 def _by_qid(rows: Sequence[Mapping[str, Any]], path: Path) -> dict[int, dict[str, Any]]:
@@ -276,7 +381,7 @@ def build_generator_request(batch: Sequence[Mapping[str, Any]], batch_id: int) -
         "seed": SEED,
         "max_output_tokens": GENERATOR_MAX_OUTPUT_TOKENS,
         "response_mime_type": "application/json",
-        "response_json_schema": GENERATOR_SCHEMA,
+        "response_json_schema": _generator_response_schema(len(batch)),
         "instructions": "Group every source exactly once, preserve conflicts, preserve rank 1 byte-for-byte, and produce ten distinct grounded answers per query. Every group needs an exact source answer; do not add facts.",
         "queries": queries,
     }
@@ -378,11 +483,11 @@ def _cost(payload: Mapping[str, Any]) -> float:
 
 def _normalized_usage(raw: Any) -> dict[str, int]:
     if isinstance(raw, Mapping):
-        usage = raw.get("usage") or raw.get("usage_metadata")
+        usage = raw.get("usage") or raw.get("usage_metadata") or raw.get("usageMetadata")
         if isinstance(usage, Mapping):
-            prompt = usage.get("prompt_tokens", usage.get("prompt_token_count"))
-            output = usage.get("output_tokens", usage.get("response_token_count", usage.get("candidates_token_count")))
-            total = usage.get("total_tokens", usage.get("total_token_count"))
+            prompt = usage.get("prompt_tokens", usage.get("prompt_token_count", usage.get("promptTokenCount")))
+            output = usage.get("output_tokens", usage.get("response_token_count", usage.get("responseTokenCount", usage.get("candidates_token_count", usage.get("candidatesTokenCount")))))
+            total = usage.get("total_tokens", usage.get("total_token_count", usage.get("totalTokenCount")))
         else:
             return {}
     else:
@@ -451,7 +556,7 @@ def _call(client: Any, request: Mapping[str, Any]) -> Any:
 def _text_payload(raw: Any) -> dict[str, Any]:
     if isinstance(raw, Mapping):
         text = raw.get("text")
-        usage = raw.get("usage") or raw.get("usage_metadata")
+        usage = raw.get("usage") or raw.get("usage_metadata") or raw.get("usageMetadata")
     else:
         text = getattr(raw, "text", None)
         usage = getattr(raw, "usage_metadata", None)
@@ -463,10 +568,18 @@ def _text_payload(raw: Any) -> dict[str, Any]:
     if usage is not None:
         if isinstance(usage, Mapping):
             normalized = dict(usage)
+            if "promptTokenCount" in normalized and "prompt_tokens" not in normalized:
+                normalized["prompt_tokens"] = normalized["promptTokenCount"]
+            if "responseTokenCount" in normalized and "output_tokens" not in normalized:
+                normalized["output_tokens"] = normalized["responseTokenCount"]
             if "response_tokens" in normalized and "output_tokens" not in normalized:
                 normalized["output_tokens"] = normalized["response_tokens"]
             if "candidates_token_count" in normalized and "output_tokens" not in normalized:
                 normalized["output_tokens"] = normalized["candidates_token_count"]
+            if "candidatesTokenCount" in normalized and "output_tokens" not in normalized:
+                normalized["output_tokens"] = normalized["candidatesTokenCount"]
+            if "totalTokenCount" in normalized and "total_tokens" not in normalized:
+                normalized["total_tokens"] = normalized["totalTokenCount"]
         else:
             prompt = getattr(usage, "prompt_token_count", None)
             output = getattr(usage, "response_token_count", None)
@@ -525,9 +638,35 @@ def _accounted_markers(root: Path, batch_count: int, reservations: Sequence[floa
         if marker is None:
             continue
         marker_payload = _json(marker)
-        accounted += float(marker_payload.get("accounted_cost_usd", reservations[index]))
+        if marker.name != "exposed-fallback.json":
+            accounted += float(marker_payload.get("accounted_cost_usd", reservations[index]))
         accepted += int(marker.name == "accepted.json")
     return round(accounted, 8), accepted
+
+
+def _expose_prior_batches(
+    root: Path,
+    count: int,
+    prior_root: Path,
+    prior_inventory_sha256: str,
+    prior_accounting: Mapping[str, Any],
+    prior_accounting_sha256: str,
+) -> None:
+    for batch_id in range(1, count + 1):
+        path = root / f"batch-{batch_id:04d}" / "exposed-fallback.json"
+        payload = {
+            "status": "exposed_fallback",
+            "source_root": str(prior_root),
+            "source_batch_id": batch_id,
+            "prior_root_inventory_sha256": prior_inventory_sha256,
+            "prior_accounting": dict(prior_accounting),
+            "prior_accounting_sha256": prior_accounting_sha256,
+        }
+        if path.exists():
+            if _json(path) != payload:
+                raise ValueError(f"exposed fallback drift for batch {batch_id}")
+        else:
+            _write(path, payload)
 
 
 def _recover_final(
@@ -536,6 +675,7 @@ def _recover_final(
     batch_list: Sequence[Sequence[Mapping[str, Any]]],
     reservations: Sequence[float],
     artifacts: Sequence[Mapping[str, Any]],
+    prior_accounting: Mapping[str, Any],
     *,
     write_summary: bool,
 ) -> dict[str, Any] | None:
@@ -561,6 +701,8 @@ def _recover_final(
             raise ValueError("summary hash mismatch for final provenance")
         if summary.get("source_artifacts_sha256") != _sha_bytes(_canonical(artifacts)):
             raise ValueError("summary source hash mismatch")
+        if summary.get("prior_accounting_sha256") != _sha_bytes(_canonical(prior_accounting)):
+            raise ValueError("summary prior accounting hash mismatch")
         return summary
     if not write_summary:
         return None
@@ -571,17 +713,23 @@ def _recover_final(
         _write(provenance_path, provenance)
     provenance_hash = _sha_file(provenance_path)
     accounted, accepted_batch_count = _accounted_markers(root, len(batch_list), reservations)
+    cumulative = round(float(prior_accounting["cumulative_prior_cost_usd"]) + accounted, 8)
     summary = {
         "status": "complete",
         "query_count": len(rows),
         "batch_count": len(batch_list),
         "accepted_batch_count": accepted_batch_count,
         "fallback_query_count": sum(item.get("status") == "fallback_fusion" for item in provenance),
-        "accounted_cost_usd": accounted,
+        "prior_accounted_cost_usd": float(prior_accounting["cumulative_prior_cost_usd"]),
+        "new_accounted_cost_usd": accounted,
+        "cumulative_accounted_cost_usd": cumulative,
+        "accounted_cost_usd": cumulative,
         "final_sha256": final_hash,
         "provenance_sha256": provenance_hash,
         "source_artifacts": list(artifacts),
         "source_artifacts_sha256": _sha_bytes(_canonical(artifacts)),
+        "prior_accounting": dict(prior_accounting),
+        "prior_accounting_sha256": _sha_bytes(_canonical(prior_accounting)),
         "recovered_finalization": True,
     }
     _write(summary_path, summary)
@@ -596,18 +744,31 @@ def run_full(
     control: Path = DEFAULT_CONTROL,
     fusion: Path = DEFAULT_FUSION,
     provenance: Path = DEFAULT_PROVENANCE,
+    prior_root: Path = DEFAULT_PRIOR_ROOT,
     output_root: Path = DEFAULT_OUTPUT_ROOT,
     run: bool = False,
     client: Any | None = None,
     expected_query_count: int = EXPECTED_QUERY_COUNT,
+    exposed_batch_count: int = DEFAULT_EXPOSED_BATCH_COUNT,
+    stop_after_fresh_batches: int | None = None,
 ) -> dict[str, Any]:
+    if exposed_batch_count < 0:
+        raise ValueError("exposed batch count must be non-negative")
+    if stop_after_fresh_batches is not None and stop_after_fresh_batches <= 0:
+        raise ValueError("stop-after-fresh-batches must be positive")
     artifacts = source_artifacts(questions, gemini, qwen, control, fusion, provenance)
+    prior_root = Path(prior_root).resolve()
+    prior_inventory = prior_root_inventory(prior_root)
+    prior_inventory_sha256 = _sha_bytes(_canonical(prior_inventory))
+    prior_accounting = prior_root_accounting(prior_root)
+    prior_accounting_sha256 = _sha_bytes(_canonical(prior_accounting))
     rows = load_rows(questions, gemini, qwen, control, fusion, provenance, expected_query_count=expected_query_count)
     batch_list = batches(rows)
+    exposed_batch_count = min(exposed_batch_count, len(batch_list))
     requests = [build_generator_request(batch, index + 1) for index, batch in enumerate(batch_list)]
     reservations = [_batch_reservation(batch, index + 1) for index, batch in enumerate(batch_list)]
     estimated = sum(reservations)
-    if estimated > GLOBAL_MAX_COST_USD:
+    if prior_accounting["cumulative_prior_cost_usd"] + estimated > GLOBAL_MAX_COST_USD:
         raise ValueError("estimated full-panel cost exceeds global cap")
     manifest = {
         "schema_version": 1,
@@ -621,6 +782,13 @@ def run_full(
         "generator_max_output_tokens": GENERATOR_MAX_OUTPUT_TOKENS,
         "max_concurrency": MAX_BATCH_CONCURRENCY,
         "global_max_cost_usd": GLOBAL_MAX_COST_USD,
+        "prior_root": str(prior_root),
+        "prior_root_inventory": prior_inventory,
+        "prior_root_inventory_sha256": prior_inventory_sha256,
+        "prior_accounting": prior_accounting,
+        "prior_accounting_sha256": prior_accounting_sha256,
+        "exposed_batch_count": exposed_batch_count,
+        "exposed_batch_ids": list(range(1, exposed_batch_count + 1)),
         "source_artifacts": artifacts,
         "source_artifacts_sha256": _sha_bytes(_canonical(artifacts)),
     }
@@ -628,12 +796,12 @@ def run_full(
     if existing_manifest.exists() and _json(existing_manifest) != manifest:
         raise ValueError("full-run manifest/config/source hash drift")
     recovered = _recover_final(
-        Path(output_root), rows, batch_list, reservations, artifacts, write_summary=run
+        Path(output_root), rows, batch_list, reservations, artifacts, prior_accounting, write_summary=run
     )
     if recovered is not None:
         return recovered
     if not run:
-        return {"status": "dry_run", "query_count": len(rows), "batch_count": len(batch_list), "batch_size": BATCH_SIZE, "request_count": len(batch_list), "estimated_cost_usd": round(estimated, 8), "max_concurrency": MAX_BATCH_CONCURRENCY, "source_artifacts": artifacts, "source_artifacts_sha256": _sha_bytes(_canonical(artifacts)), "output_root_created": False}
+        return {"status": "dry_run", "strategy_id": STRATEGY, "query_count": len(rows), "batch_count": len(batch_list), "batch_size": BATCH_SIZE, "request_count": len(batch_list), "fresh_call_count": len(batch_list) - exposed_batch_count, "estimated_cost_usd": round(estimated, 8), "prior_accounted_cost_usd": float(prior_accounting["cumulative_prior_cost_usd"]), "cumulative_upper_bound_usd": round(float(prior_accounting["cumulative_prior_cost_usd"]) + estimated, 8), "max_concurrency": MAX_BATCH_CONCURRENCY, "prior_root": str(prior_root), "prior_root_inventory_sha256": prior_inventory_sha256, "prior_accounting": prior_accounting, "prior_accounting_sha256": prior_accounting_sha256, "exposed_batch_count": exposed_batch_count, "source_artifacts": artifacts, "source_artifacts_sha256": _sha_bytes(_canonical(artifacts)), "output_root_created": False}
     if client is None:
         raise ValueError("client is required only with --run")
     from trec_video_2026.vqa_deadline_canary import validate_ranked_submission
@@ -645,6 +813,14 @@ def run_full(
             raise ValueError("full-run manifest/config/source hash drift")
     else:
         _write(root / "manifest.json", manifest)
+    _expose_prior_batches(
+        root,
+        exposed_batch_count,
+        prior_root,
+        prior_inventory_sha256,
+        prior_accounting,
+        prior_accounting_sha256,
+    )
     completed: dict[int, Mapping[str, Any]] = {}
     elapsed: dict[int, float] = {}
     terminal_present: list[bool] = []
@@ -652,15 +828,15 @@ def run_full(
     for index in range(len(batch_list)):
         batch_root = root / f"batch-{index + 1:04d}"
         marker = next(
-            (batch_root / name for name in ("accepted.json", "rejected.json", "failed.json") if (batch_root / name).exists()),
+            (batch_root / name for name in ("accepted.json", "rejected.json", "failed.json", "exposed-fallback.json") if (batch_root / name).exists()),
             None,
         )
         terminal_present.append(marker is not None)
-        if marker is not None:
+        if marker is not None and marker.name != "exposed-fallback.json":
             marker_payload = _json(marker)
             prior_accounted += float(marker_payload.get("accounted_cost_usd", reservations[index]))
-    if prior_accounted > GLOBAL_MAX_COST_USD:
-        raise ValueError("prior accounted cost exceeds global cap")
+    if float(prior_accounting["cumulative_prior_cost_usd"]) + prior_accounted > GLOBAL_MAX_COST_USD:
+        raise ValueError("cumulative accounted cost exceeds global cap")
     # Live execution is intentionally explicit and resumable.  Each worker owns
     # one batch directory, so no batch can be called twice by this process.
     def process(index: int) -> tuple[int, Mapping[str, Any] | None, float, float]:
@@ -676,6 +852,8 @@ def run_full(
         if (batch_root / "failed.json").exists():
             failed = _json(batch_root / "failed.json")
             return batch_id, None, float(failed.get("elapsed_seconds", 0.0)), 0.0
+        if (batch_root / "exposed-fallback.json").exists():
+            return batch_id, None, 0.0, 0.0
         attempt = batch_root / "attempt-0001"
         if attempt.exists():
             _write(
@@ -706,21 +884,41 @@ def run_full(
         _write(batch_root / "accepted.json", accepted)
         return batch_id, accepted, elapsed_seconds, accounted_cost
     total_accounted = prior_accounted
+    fresh_dispatched = 0
+    stopped_after_smoke = False
+    interrupted_run = False
     for wave_start in range(0, len(batch_list), MAX_BATCH_CONCURRENCY):
         wave_indices = list(range(wave_start, min(wave_start + MAX_BATCH_CONCURRENCY, len(batch_list))))
-        if total_accounted + sum(reservations[index] for index in wave_indices if not terminal_present[index]) > GLOBAL_MAX_COST_USD:
-            for index in wave_indices:
+        fresh_indices = [index for index in wave_indices if not terminal_present[index]]
+        if stop_after_fresh_batches is not None:
+            remaining = stop_after_fresh_batches - fresh_dispatched
+            if remaining <= 0:
+                stopped_after_smoke = True
+                break
+            fresh_indices = fresh_indices[:remaining]
+        dispatch_indices = [index for index in wave_indices if terminal_present[index]] + fresh_indices
+        if float(prior_accounting["cumulative_prior_cost_usd"]) + total_accounted + sum(reservations[index] for index in fresh_indices) > GLOBAL_MAX_COST_USD:
+            for index in fresh_indices:
                 batch_root = root / f"batch-{index + 1:04d}"
                 if not any((batch_root / marker).exists() for marker in ("accepted.json", "rejected.json", "failed.json")):
                     _write(batch_root / "failed.json", {"status": "budget_gate", "elapsed_seconds": 0.0, "accounted_cost_usd": 0.0})
+            if stop_after_fresh_batches is not None and fresh_indices:
+                stopped_after_smoke = True
             continue
+        fresh_dispatched += len(fresh_indices)
+        interrupted = False
+        recorded: set[Any] = set()
         with ThreadPoolExecutor(max_workers=MAX_BATCH_CONCURRENCY) as pool:
-            future_indices = {pool.submit(process, index): index for index in wave_indices}
-            for future in as_completed(future_indices):
+            future_indices = {pool.submit(process, index): index for index in dispatch_indices}
+            def record_future(future: Any) -> None:
+                nonlocal total_accounted
+                if future in recorded:
+                    return
+                recorded.add(future)
                 index = future_indices[future]
                 try:
                     batch_id, accepted, elapsed_seconds, accounted = future.result()
-                except Exception as error:  # preserve fallback, evidence, and reservation
+                except BaseException as error:  # preserve fallback, evidence, and reservation
                     batch_id = index + 1
                     batch_root = root / f"batch-{batch_id:04d}"
                     attempt = batch_root / "attempt-0001"
@@ -732,12 +930,39 @@ def run_full(
                     )
                     elapsed_seconds, accepted, accounted = 0.0, None, reservations[index]
                 total_accounted += accounted
-                if total_accounted > GLOBAL_MAX_COST_USD:
-                    raise ValueError("accounted full-panel cost exceeds global cap")
+                if float(prior_accounting["cumulative_prior_cost_usd"]) + total_accounted > GLOBAL_MAX_COST_USD:
+                    raise ValueError("cumulative accounted cost exceeds global cap")
                 elapsed.update({int(row["query_id"]): elapsed_seconds for row in batch_list[batch_id - 1]})
                 if accepted:
                     for query in accepted["queries"]:
                         completed[int(query["query_id"])] = query
+            try:
+                for future in as_completed(future_indices):
+                    record_future(future)
+            except KeyboardInterrupt:
+                interrupted = True
+                for future in future_indices:
+                    record_future(future)
+        if interrupted:
+            stopped_after_smoke = True
+            interrupted_run = True
+            break
+        if stop_after_fresh_batches is not None and fresh_dispatched >= stop_after_fresh_batches:
+            stopped_after_smoke = True
+            break
+    if stopped_after_smoke:
+        return {
+            "status": "interrupted" if interrupted_run else "stopped",
+            "query_count": len(rows),
+            "batch_count": len(batch_list),
+            "fresh_batches_processed": fresh_dispatched,
+            "prior_accounted_cost_usd": float(prior_accounting["cumulative_prior_cost_usd"]),
+            "new_accounted_cost_usd": round(total_accounted, 8),
+            "cumulative_accounted_cost_usd": round(float(prior_accounting["cumulative_prior_cost_usd"]) + total_accounted, 8),
+            "prior_accounting_sha256": prior_accounting_sha256,
+            "prior_root_inventory_sha256": prior_inventory_sha256,
+            "output_root_created": True,
+        }
     organized = _organize(rows, completed, elapsed)
     validate_ranked_submission(organized, expected_query_ids={int(row["query_id"]) for row in rows})
     final_hash = _write(root / "final-organizer.json", organized)
@@ -746,7 +971,8 @@ def run_full(
     accepted_batch_count = sum(
         all(int(row["query_id"]) in completed for row in batch) for batch in batch_list
     )
-    summary = {"status": "complete", "query_count": len(rows), "batch_count": len(batch_list), "accepted_batch_count": accepted_batch_count, "fallback_query_count": len(rows) - len(completed), "accounted_cost_usd": round(total_accounted, 8), "final_sha256": final_hash, "provenance_sha256": provenance_hash, "source_artifacts": artifacts, "source_artifacts_sha256": _sha_bytes(_canonical(artifacts))}
+    cumulative_accounted = round(float(prior_accounting["cumulative_prior_cost_usd"]) + total_accounted, 8)
+    summary = {"status": "complete", "query_count": len(rows), "batch_count": len(batch_list), "accepted_batch_count": accepted_batch_count, "fallback_query_count": len(rows) - len(completed), "prior_accounted_cost_usd": float(prior_accounting["cumulative_prior_cost_usd"]), "new_accounted_cost_usd": round(total_accounted, 8), "cumulative_accounted_cost_usd": cumulative_accounted, "accounted_cost_usd": cumulative_accounted, "final_sha256": final_hash, "provenance_sha256": provenance_hash, "source_artifacts": artifacts, "source_artifacts_sha256": _sha_bytes(_canonical(artifacts)), "prior_accounting": dict(prior_accounting), "prior_accounting_sha256": prior_accounting_sha256}
     _write(root / "summary.json", summary)
     return summary
 
@@ -761,6 +987,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--control", type=Path, default=DEFAULT_CONTROL)
     parser.add_argument("--fusion", type=Path, default=DEFAULT_FUSION)
     parser.add_argument("--provenance", type=Path, default=DEFAULT_PROVENANCE)
+    parser.add_argument("--prior-root", type=Path, default=DEFAULT_PRIOR_ROOT)
+    parser.add_argument("--exposed-batch-count", type=int, default=DEFAULT_EXPOSED_BATCH_COUNT)
+    parser.add_argument("--stop-after-fresh-batches", type=int)
     args = parser.parse_args(argv)
     client = None
     if args.run:
@@ -769,7 +998,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not key:
             raise ValueError("GEMINI_API_KEY is not configured")
         client = genai.Client(api_key=key)
-    print(json.dumps(run_full(questions=args.questions, gemini=args.gemini, qwen=args.qwen, control=args.control, fusion=args.fusion, provenance=args.provenance, output_root=args.output_root, run=args.run, client=client), sort_keys=True))
+    print(json.dumps(run_full(questions=args.questions, gemini=args.gemini, qwen=args.qwen, control=args.control, fusion=args.fusion, provenance=args.provenance, prior_root=args.prior_root, output_root=args.output_root, exposed_batch_count=args.exposed_batch_count, stop_after_fresh_batches=args.stop_after_fresh_batches, run=args.run, client=client), sort_keys=True))
     return 0
 
 

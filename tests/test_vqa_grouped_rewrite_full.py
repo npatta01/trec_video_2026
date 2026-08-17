@@ -60,6 +60,7 @@ def inputs(tmp_path: Path) -> dict[str, Path]:
         "control": _write(tmp_path / "control.json", control),
         "fusion": _write(tmp_path / "fusion.json", fusion),
         "provenance": _write(tmp_path / "provenance.json", provenance),
+        "prior_root": tmp_path / "prior-root",
     }
 
 
@@ -76,6 +77,16 @@ def _kwargs(paths: dict[str, Path]) -> dict[str, Path]:
 
 def _rows(paths: dict[str, Path]) -> list[dict[str, Any]]:
     return runner.load_rows(**_kwargs(paths), expected_query_count=12)
+
+
+def _run_kwargs(paths: dict[str, Path], *, expected_query_count: int = 12) -> dict[str, Any]:
+    paths["prior_root"].mkdir(parents=True, exist_ok=True)
+    return {
+        **_kwargs(paths),
+        "prior_root": paths["prior_root"],
+        "exposed_batch_count": 0,
+        "expected_query_count": expected_query_count,
+    }
 
 
 def _generated(batch: list[dict[str, Any]]) -> dict[str, Any]:
@@ -113,11 +124,35 @@ def test_generator_only_contract(inputs: dict[str, Path]) -> None:
     assert request["strategy_id"] == "grouped_unique_generator_only"
     assert request["stage"] == "generator"
     assert "verifier" not in json.dumps(request).lower()
+    query_schema = request["response_json_schema"]["properties"]["queries"]
+    group_schema = query_schema["items"]["properties"]["groups"]["items"]
+    answer_schema = query_schema["items"]["properties"]["answers"]["items"]
+    assert query_schema["minItems"] == query_schema["maxItems"] == 10
+    assert group_schema["additionalProperties"] is False
+    assert set(group_schema["properties"]) == {"group_id", "source_ids"}
+    assert answer_schema["additionalProperties"] is False
+    assert set(answer_schema["properties"]) == {"rank", "answer", "source_group"}
     assert generated["answer_count"] == 100
 
 
+def test_provider_config_receives_exact_generator_schema(inputs: dict[str, Path]) -> None:
+    batch = runner.batches(_rows(inputs))[0]
+    request = runner.build_generator_request(batch, 1)
+
+    class Models:
+        def generate_content(self, **kwargs: Any) -> dict[str, Any]:
+            self.kwargs = kwargs
+            return {"text": "{}"}
+
+    models = Models()
+    runner._call(SimpleNamespace(models=models), request)
+    schema = models.kwargs["config"].response_json_schema
+    assert schema == request["response_json_schema"]
+    assert schema["properties"]["queries"]["minItems"] == 10
+
+
 def test_full_dry_run_is_provider_free_and_under_global_cap(inputs: dict[str, Path], tmp_path: Path) -> None:
-    result = runner.run_full(**_kwargs(inputs), output_root=tmp_path / "full", expected_query_count=12)
+    result = runner.run_full(**_run_kwargs(inputs), output_root=tmp_path / "full")
     assert result["status"] == "dry_run"
     assert result["query_count"] == 12
     assert result["batch_count"] == 2
@@ -160,6 +195,73 @@ def test_generator_rejects_duplicate_sources_and_bool_identity(inputs: dict[str,
         runner.validate_generator(payload, batch)
 
 
+def test_prior_root_exposure_and_one_batch_smoke_resume(
+    inputs: dict[str, Path], tmp_path: Path
+) -> None:
+    prior = inputs["prior_root"]
+    prior.mkdir(parents=True)
+    (prior / "batch-0001").mkdir()
+    _write(prior / "batch-0001" / "failed.json", {"status": "failed", "accounted_cost_usd": 1.25})
+
+    class Models:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def generate_content(self, **kwargs: Any) -> dict[str, Any]:
+            self.calls += 1
+            body = json.loads(kwargs["contents"])
+            queries = []
+            for query in body["queries"]:
+                groups = [
+                    {"group_id": f"{query['query_id']}-g{index}", "source_ids": [candidate["source_id"]]}
+                    for index, candidate in enumerate(query["source_candidates"], start=1)
+                ]
+                answers = [
+                    {"rank": index, "answer": candidate["answer"], "source_group": groups[index - 1]["group_id"]}
+                    for index, candidate in enumerate(query["source_candidates"], start=1)
+                ]
+                first = query["source_candidates"][0]["answer"]
+                for suffix in ("the", "a", "in", "with", "for", "to"):
+                    answers.append({"rank": len(answers) + 1, "answer": f"{suffix} {first}", "source_group": groups[0]["group_id"]})
+                queries.append({"query_id": query["query_id"], "groups": groups, "answers": answers})
+            return {"text": json.dumps({"queries": queries}), "usage": {"prompt_tokens": 100, "output_tokens": 100}}
+
+    root = tmp_path / "a2"
+    smoke_models = Models()
+    smoke = runner.run_full(
+        **_kwargs(inputs),
+        prior_root=prior,
+        exposed_batch_count=1,
+        stop_after_fresh_batches=1,
+        output_root=root,
+        run=True,
+        client=SimpleNamespace(models=smoke_models),
+        expected_query_count=12,
+    )
+    assert smoke["status"] == "stopped"
+    assert smoke_models.calls == 1
+    assert (root / "manifest.json").exists()
+    assert (root / "batch-0001" / "exposed-fallback.json").exists()
+    exposed = json.loads((root / "batch-0001" / "exposed-fallback.json").read_text(encoding="utf-8"))
+    assert exposed["source_root"] == str(prior.resolve())
+    assert exposed["prior_root_inventory_sha256"] == runner._sha_bytes(runner._canonical(runner.prior_root_inventory(prior)))
+    assert exposed["prior_accounting"]["declared_terminal_cost_usd"] == 1.25
+    assert not (root / "final-organizer.json").exists()
+
+    resume_models = Models()
+    completed = runner.run_full(
+        **_kwargs(inputs),
+        prior_root=prior,
+        exposed_batch_count=1,
+        output_root=root,
+        run=True,
+        client=SimpleNamespace(models=resume_models),
+        expected_query_count=12,
+    )
+    assert completed["status"] == "complete"
+    assert resume_models.calls == 0
+
+
 def test_paid_malformed_response_falls_back_and_persists_reservation(
     inputs: dict[str, Path], tmp_path: Path
 ) -> None:
@@ -174,11 +276,10 @@ def test_paid_malformed_response_falls_back_and_persists_reservation(
     models = Models()
     root = tmp_path / "full"
     result = runner.run_full(
-        **_kwargs(inputs),
+        **_run_kwargs(inputs),
         output_root=root,
         run=True,
         client=SimpleNamespace(models=models),
-        expected_query_count=12,
     )
     assert result["status"] == "complete"
     assert result["fallback_query_count"] == 12
@@ -190,11 +291,10 @@ def test_paid_malformed_response_falls_back_and_persists_reservation(
 
     resumed = Models()
     resumed_result = runner.run_full(
-        **_kwargs(inputs),
+        **_run_kwargs(inputs),
         output_root=root,
         run=True,
         client=SimpleNamespace(models=resumed),
-        expected_query_count=12,
     )
     assert resumed.calls == 0
     assert resumed_result["status"] == "complete"
@@ -217,11 +317,10 @@ def test_manifest_drift_is_rejected_before_provider_dispatch(
     models = Models()
     with pytest.raises(ValueError, match="manifest/config/source hash drift"):
         runner.run_full(
-            **_kwargs(inputs),
+            **_run_kwargs(inputs),
             output_root=root,
             run=True,
             client=SimpleNamespace(models=models),
-            expected_query_count=12,
         )
     assert models.calls == 0
 
@@ -229,7 +328,10 @@ def test_manifest_drift_is_rejected_before_provider_dispatch(
 def test_interrupted_attempt_becomes_fallback_without_provider_repeat(
     inputs: dict[str, Path], tmp_path: Path
 ) -> None:
+    inputs["prior_root"].mkdir(parents=True, exist_ok=True)
     artifacts = runner.source_artifacts(**_kwargs(inputs))
+    prior_inventory = runner.prior_root_inventory(inputs["prior_root"])
+    prior_accounting = runner.prior_root_accounting(inputs["prior_root"])
     manifest = {
         "schema_version": 1,
         "status": "inputs_frozen",
@@ -242,6 +344,13 @@ def test_interrupted_attempt_becomes_fallback_without_provider_repeat(
         "generator_max_output_tokens": runner.GENERATOR_MAX_OUTPUT_TOKENS,
         "max_concurrency": runner.MAX_BATCH_CONCURRENCY,
         "global_max_cost_usd": runner.GLOBAL_MAX_COST_USD,
+        "prior_root": str(inputs["prior_root"].resolve()),
+        "prior_root_inventory": prior_inventory,
+        "prior_root_inventory_sha256": runner._sha_bytes(runner._canonical(prior_inventory)),
+        "prior_accounting": prior_accounting,
+        "prior_accounting_sha256": runner._sha_bytes(runner._canonical(prior_accounting)),
+        "exposed_batch_count": 0,
+        "exposed_batch_ids": [],
         "source_artifacts": artifacts,
         "source_artifacts_sha256": runner._sha_bytes(runner._canonical(artifacts)),
     }
@@ -262,11 +371,10 @@ def test_interrupted_attempt_becomes_fallback_without_provider_repeat(
 
     models = Models()
     result = runner.run_full(
-        **_kwargs(inputs),
+        **_run_kwargs(inputs),
         output_root=root,
         run=True,
         client=SimpleNamespace(models=models),
-        expected_query_count=12,
     )
     assert models.calls == 0
     assert result["fallback_query_count"] == 12
@@ -305,11 +413,10 @@ def test_partial_finalization_reuses_valid_final_without_provider_call(
     root = tmp_path / "partial"
     first_models = Models()
     first = runner.run_full(
-        **_kwargs(inputs),
+        **_run_kwargs(inputs),
         output_root=root,
         run=True,
         client=SimpleNamespace(models=first_models),
-        expected_query_count=12,
     )
     assert first["status"] == "complete"
     assert first_models.calls == 2
@@ -317,11 +424,10 @@ def test_partial_finalization_reuses_valid_final_without_provider_call(
 
     resumed_models = Models()
     recovered = runner.run_full(
-        **_kwargs(inputs),
+        **_run_kwargs(inputs),
         output_root=root,
         run=True,
         client=SimpleNamespace(models=resumed_models),
-        expected_query_count=12,
     )
     assert resumed_models.calls == 0
     assert recovered["status"] == "complete"
@@ -341,7 +447,10 @@ def test_complete_summary_hashes_are_verified_before_reuse(
             raise AssertionError("corrupt complete root must not dispatch")
 
     root = tmp_path / "corrupt"
+    inputs["prior_root"].mkdir(parents=True, exist_ok=True)
     artifacts = runner.source_artifacts(**_kwargs(inputs))
+    prior_inventory = runner.prior_root_inventory(inputs["prior_root"])
+    prior_accounting = runner.prior_root_accounting(inputs["prior_root"])
     manifest = {
         "schema_version": 1,
         "status": "inputs_frozen",
@@ -354,6 +463,13 @@ def test_complete_summary_hashes_are_verified_before_reuse(
         "generator_max_output_tokens": runner.GENERATOR_MAX_OUTPUT_TOKENS,
         "max_concurrency": runner.MAX_BATCH_CONCURRENCY,
         "global_max_cost_usd": runner.GLOBAL_MAX_COST_USD,
+        "prior_root": str(inputs["prior_root"].resolve()),
+        "prior_root_inventory": prior_inventory,
+        "prior_root_inventory_sha256": runner._sha_bytes(runner._canonical(prior_inventory)),
+        "prior_accounting": prior_accounting,
+        "prior_accounting_sha256": runner._sha_bytes(runner._canonical(prior_accounting)),
+        "exposed_batch_count": 0,
+        "exposed_batch_ids": [],
         "source_artifacts": artifacts,
         "source_artifacts_sha256": runner._sha_bytes(runner._canonical(artifacts)),
     }
@@ -373,10 +489,9 @@ def test_complete_summary_hashes_are_verified_before_reuse(
     models = Models()
     with pytest.raises(ValueError, match="summary hash"):
         runner.run_full(
-            **_kwargs(inputs),
+            **_run_kwargs(inputs),
             output_root=root,
             run=True,
             client=SimpleNamespace(models=models),
-            expected_query_count=12,
         )
     assert models.calls == 0
