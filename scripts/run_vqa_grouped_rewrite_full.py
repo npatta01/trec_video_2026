@@ -865,11 +865,21 @@ def run_full(
     expected_query_count: int = EXPECTED_QUERY_COUNT,
     exposed_batch_count: int = DEFAULT_EXPOSED_BATCH_COUNT,
     stop_after_fresh_batches: int | None = None,
+    max_cost_usd: float = GLOBAL_MAX_COST_USD,
 ) -> dict[str, Any]:
     if exposed_batch_count < 0:
         raise ValueError("exposed batch count must be non-negative")
     if stop_after_fresh_batches is not None and stop_after_fresh_batches <= 0:
         raise ValueError("stop-after-fresh-batches must be positive")
+    if (
+        isinstance(max_cost_usd, bool)
+        or not isinstance(max_cost_usd, (int, float))
+        or not math.isfinite(float(max_cost_usd))
+        or float(max_cost_usd) <= 0
+        or float(max_cost_usd) > GLOBAL_MAX_COST_USD
+    ):
+        raise ValueError(f"max-cost-usd must be finite, positive, and at most {GLOBAL_MAX_COST_USD}")
+    max_cost_usd = float(max_cost_usd)
     artifacts = source_artifacts(questions, gemini, qwen, control, fusion, provenance)
     prior_root = Path(prior_root).resolve()
     prior_inventory = prior_root_inventory(prior_root)
@@ -885,8 +895,8 @@ def run_full(
     exposed_bindings = exposed_batch_bindings(rows, exposed_batch_count, prior_root)
     reservations = [_batch_reservation(batch, index + 1) for index, batch in enumerate(batch_list)]
     estimated = sum(reservations)
-    if prior_accounting["cumulative_prior_cost_usd"] + estimated > GLOBAL_MAX_COST_USD:
-        raise ValueError("estimated full-panel cost exceeds global cap")
+    if prior_accounting["cumulative_prior_cost_usd"] + estimated > max_cost_usd:
+        raise ValueError("estimated full-panel cost exceeds run cap")
     manifest = {
         "schema_version": 1,
         "status": "inputs_frozen",
@@ -898,7 +908,7 @@ def run_full(
         "seed": SEED,
         "generator_max_output_tokens": GENERATOR_MAX_OUTPUT_TOKENS,
         "max_concurrency": MAX_BATCH_CONCURRENCY,
-        "global_max_cost_usd": GLOBAL_MAX_COST_USD,
+        "global_max_cost_usd": max_cost_usd,
         "prior_root": str(prior_root),
         "prior_root_inventory": prior_inventory,
         "prior_root_inventory_sha256": prior_inventory_sha256,
@@ -921,7 +931,7 @@ def run_full(
     if recovered is not None:
         return recovered
     if not run:
-        return {"status": "dry_run", "strategy_id": STRATEGY, "query_count": len(rows), "batch_count": len(batch_list), "batch_size": BATCH_SIZE, "request_count": len(batch_list), "fresh_call_count": len(batch_list) - exposed_batch_count, "estimated_cost_usd": round(estimated, 8), "prior_accounted_cost_usd": float(prior_accounting["cumulative_prior_cost_usd"]), "cumulative_upper_bound_usd": round(float(prior_accounting["cumulative_prior_cost_usd"]) + estimated, 8), "max_concurrency": MAX_BATCH_CONCURRENCY, "prior_root": str(prior_root), "prior_root_inventory_sha256": prior_inventory_sha256, "prior_accounting": prior_accounting, "prior_accounting_sha256": prior_accounting_sha256, "exposed_batch_count": exposed_batch_count, "source_artifacts": artifacts, "source_artifacts_sha256": _sha_bytes(_canonical(artifacts)), "output_root_created": False}
+        return {"status": "dry_run", "strategy_id": STRATEGY, "query_count": len(rows), "batch_count": len(batch_list), "batch_size": BATCH_SIZE, "request_count": len(batch_list), "fresh_call_count": len(batch_list) - exposed_batch_count, "estimated_cost_usd": round(estimated, 8), "prior_accounted_cost_usd": float(prior_accounting["cumulative_prior_cost_usd"]), "cumulative_upper_bound_usd": round(float(prior_accounting["cumulative_prior_cost_usd"]) + estimated, 8), "max_cost_usd": max_cost_usd, "max_concurrency": MAX_BATCH_CONCURRENCY, "prior_root": str(prior_root), "prior_root_inventory_sha256": prior_inventory_sha256, "prior_accounting": prior_accounting, "prior_accounting_sha256": prior_accounting_sha256, "exposed_batch_count": exposed_batch_count, "source_artifacts": artifacts, "source_artifacts_sha256": _sha_bytes(_canonical(artifacts)), "output_root_created": False}
     if client is None:
         raise ValueError("client is required only with --run")
     from trec_video_2026.vqa_deadline_canary import validate_ranked_submission
@@ -954,7 +964,7 @@ def run_full(
         if marker is not None and marker.name != "exposed-fallback.json":
             marker_payload = _json(marker)
             prior_accounted += float(marker_payload.get("accounted_cost_usd", reservations[index]))
-    if float(prior_accounting["cumulative_prior_cost_usd"]) + prior_accounted > GLOBAL_MAX_COST_USD:
+    if float(prior_accounting["cumulative_prior_cost_usd"]) + prior_accounted > max_cost_usd:
         raise ValueError("cumulative accounted cost exceeds global cap")
     # Live execution is intentionally explicit and resumable.  Each worker owns
     # one batch directory, so no batch can be called twice by this process.
@@ -1016,7 +1026,7 @@ def run_full(
                 break
             fresh_indices = fresh_indices[:remaining]
         dispatch_indices = [index for index in wave_indices if terminal_present[index]] + fresh_indices
-        if float(prior_accounting["cumulative_prior_cost_usd"]) + total_accounted + sum(reservations[index] for index in fresh_indices) > GLOBAL_MAX_COST_USD:
+        if float(prior_accounting["cumulative_prior_cost_usd"]) + total_accounted + sum(reservations[index] for index in fresh_indices) > max_cost_usd:
             for index in fresh_indices:
                 batch_root = root / f"batch-{index + 1:04d}"
                 if not any((batch_root / marker).exists() for marker in ("accepted.json", "rejected.json", "failed.json")):
@@ -1049,7 +1059,7 @@ def run_full(
                     )
                     elapsed_seconds, accepted, accounted = 0.0, None, reservations[index]
                 total_accounted += accounted
-                if float(prior_accounting["cumulative_prior_cost_usd"]) + total_accounted > GLOBAL_MAX_COST_USD:
+                if float(prior_accounting["cumulative_prior_cost_usd"]) + total_accounted > max_cost_usd:
                     raise ValueError("cumulative accounted cost exceeds global cap")
                 elapsed.update({int(row["query_id"]): elapsed_seconds for row in batch_list[batch_id - 1]})
                 if accepted:
@@ -1109,6 +1119,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--prior-root", type=Path, default=DEFAULT_PRIOR_ROOT)
     parser.add_argument("--exposed-batch-count", type=int, default=DEFAULT_EXPOSED_BATCH_COUNT)
     parser.add_argument("--stop-after-fresh-batches", type=int)
+    parser.add_argument("--expected-query-count", type=int, default=EXPECTED_QUERY_COUNT)
+    parser.add_argument("--max-cost-usd", type=float, default=GLOBAL_MAX_COST_USD)
     args = parser.parse_args(argv)
     client = None
     if args.run:
@@ -1117,7 +1129,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not key:
             raise ValueError("GEMINI_API_KEY is not configured")
         client = genai.Client(api_key=key)
-    print(json.dumps(run_full(questions=args.questions, gemini=args.gemini, qwen=args.qwen, control=args.control, fusion=args.fusion, provenance=args.provenance, prior_root=args.prior_root, output_root=args.output_root, exposed_batch_count=args.exposed_batch_count, stop_after_fresh_batches=args.stop_after_fresh_batches, run=args.run, client=client), sort_keys=True))
+    print(json.dumps(run_full(questions=args.questions, gemini=args.gemini, qwen=args.qwen, control=args.control, fusion=args.fusion, provenance=args.provenance, prior_root=args.prior_root, output_root=args.output_root, exposed_batch_count=args.exposed_batch_count, stop_after_fresh_batches=args.stop_after_fresh_batches, expected_query_count=args.expected_query_count, max_cost_usd=args.max_cost_usd, run=args.run, client=client), sort_keys=True))
     return 0
 
 

@@ -161,6 +161,77 @@ def test_full_dry_run_is_provider_free_and_under_global_cap(inputs: dict[str, Pa
     assert not (tmp_path / "full").exists()
 
 
+def test_custom_cost_cap_is_bound_and_gates_before_provider_dispatch(
+    inputs: dict[str, Path], tmp_path: Path
+) -> None:
+    dry = runner.run_full(
+        **_run_kwargs(inputs),
+        output_root=tmp_path / "dry",
+        max_cost_usd=5.0,
+    )
+    assert dry["max_cost_usd"] == 5.0
+    assert dry["estimated_cost_usd"] < dry["max_cost_usd"]
+
+    class Models:
+        calls = 0
+
+        def generate_content(self, **_: Any) -> dict[str, Any]:
+            self.calls += 1
+            raise AssertionError("cost cap must gate before provider dispatch")
+
+    models = Models()
+    with pytest.raises(ValueError, match="estimated full-panel cost exceeds run cap"):
+        runner.run_full(
+            **_run_kwargs(inputs),
+            output_root=tmp_path / "blocked",
+            max_cost_usd=0.000001,
+            run=True,
+            client=SimpleNamespace(models=models),
+        )
+    assert models.calls == 0
+
+
+def test_subset_and_cost_cap_are_available_through_cli(
+    inputs: dict[str, Path], capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    args = [
+        "--questions",
+        str(inputs["questions"]),
+        "--gemini",
+        str(inputs["gemini"]),
+        "--qwen",
+        str(inputs["qwen"]),
+        "--control",
+        str(inputs["control"]),
+        "--fusion",
+        str(inputs["fusion"]),
+        "--provenance",
+        str(inputs["provenance"]),
+        "--prior-root",
+        str(inputs["prior_root"]),
+        "--output-root",
+        str(tmp_path / "cli"),
+        "--exposed-batch-count",
+        "0",
+        "--expected-query-count",
+        "12",
+        "--max-cost-usd",
+        "5",
+    ]
+    inputs["prior_root"].mkdir()
+
+    assert runner.main(args) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["query_count"] == 12
+    assert result["max_cost_usd"] == 5.0
+
+
+@pytest.mark.parametrize("invalid_cap", [True, 0.0, -1.0, float("nan"), float("inf"), 50.01])
+def test_invalid_custom_cost_caps_fail_closed(inputs: dict[str, Path], invalid_cap: float) -> None:
+    with pytest.raises(ValueError, match="max-cost-usd must be finite"):
+        runner.run_full(**_run_kwargs(inputs), max_cost_usd=invalid_cap)
+
+
 def test_fallback_preserves_existing_objects(inputs: dict[str, Path]) -> None:
     rows = _rows(inputs)
     organized = runner._organize(rows, {}, {})
