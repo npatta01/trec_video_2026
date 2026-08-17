@@ -19,15 +19,15 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 EXPECTED_QUERY_COUNT = 2_443
-BATCH_SIZE = 10
+BATCH_SIZE = 5
 MAX_BATCH_CONCURRENCY = 4
 ANSWERS_PER_QUERY = 10
 MODEL = "gemini-3.7-flash"
 SEED = 42
-GENERATOR_MAX_OUTPUT_TOKENS = 16_384
+GENERATOR_MAX_OUTPUT_TOKENS = 8_192
 INPUT_USD_PER_MILLION = 0.75
 OUTPUT_USD_PER_MILLION = 3.75
-GLOBAL_MAX_COST_USD = 25.0
+GLOBAL_MAX_COST_USD = 50.0
 STRATEGY = "grouped_unique_generator_only"
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -43,9 +43,9 @@ DEFAULT_QWEN = _ROOT / (
 DEFAULT_CONTROL = _ROOT / "data/vqa/submissions/deadline-20260817-ready/03-qwen35-baseline-control-top10.json"
 DEFAULT_FUSION = _ROOT / "data/vqa/submissions/deadline-20260817-ready/05-gemini37-qwen36-fusion-top10.json"
 DEFAULT_PROVENANCE = _ROOT / "data/vqa/submissions/deadline-20260817-ready/05-gemini37-qwen36-fusion-top10.provenance.json"
-DEFAULT_PRIOR_ROOT = _ROOT / "data/vqa/benchmarks/grouped-rewrite-full-20260817-grouped_unique_generator_only"
-DEFAULT_OUTPUT_ROOT = _ROOT / "data/vqa/benchmarks/grouped-rewrite-full-20260817-grouped_unique_generator_only-a2"
-DEFAULT_EXPOSED_BATCH_COUNT = 28
+DEFAULT_PRIOR_ROOT = _ROOT / "data/vqa/benchmarks/grouped-rewrite-full-20260817-grouped_unique_generator_only-a2"
+DEFAULT_OUTPUT_ROOT = _ROOT / "data/vqa/benchmarks/grouped-rewrite-full-20260817-grouped_unique_generator_only-a3"
+DEFAULT_EXPOSED_BATCH_COUNT = 58
 
 SUCCESS = frozenset({"succeeded", "success", "passed", "complete"})
 SOURCE_IDS = (
@@ -66,7 +66,6 @@ GENERATOR_SCHEMA = {
     "properties": {
         "queries": {
             "type": "array",
-            "minItems": 1,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
@@ -121,6 +120,8 @@ def _generator_response_schema(query_count: int) -> dict[str, Any]:
     queries["minItems"] = query_count
     queries["maxItems"] = query_count
     return schema
+
+
 def _json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -224,10 +225,23 @@ def prior_root_accounting(prior_root: Path = DEFAULT_PRIOR_ROOT) -> dict[str, An
     root = Path(prior_root).resolve()
     if not root.is_dir():
         raise ValueError(f"prior run root is not a directory: {root}")
+    inherited: Mapping[str, Any] | None = None
+    manifest_path = root / "manifest.json"
+    if manifest_path.exists():
+        manifest = _json(manifest_path)
+        if isinstance(manifest.get("prior_accounting"), Mapping):
+            inherited = manifest["prior_accounting"]
+    exposed_count = int(manifest.get("exposed_batch_count", 0)) if manifest_path.exists() else 0
     declared = 0.0
     actual_raw_only = 0.0
     for batch_root in sorted(root.glob("batch-*")):
         if not batch_root.is_dir():
+            continue
+        try:
+            batch_id = int(batch_root.name.split("-")[-1])
+        except ValueError:
+            continue
+        if batch_id <= exposed_count:
             continue
         marker = next(
             (batch_root / name for name in ("accepted.json", "rejected.json", "failed.json") if (batch_root / name).exists()),
@@ -242,11 +256,106 @@ def prior_root_accounting(prior_root: Path = DEFAULT_PRIOR_ROOT) -> dict[str, An
             actual_raw_only += _usage_cost_mapping(raw.get("provider_response"))
     declared = round(declared, 8)
     actual_raw_only = round(actual_raw_only, 8)
+    base_declared = float(inherited.get("declared_terminal_cost_usd", 0.0)) if inherited else 0.0
+    base_raw = float(inherited.get("actual_unterminal_raw_cost_usd", 0.0)) if inherited else 0.0
+    base_cumulative = float(inherited.get("cumulative_prior_cost_usd", 0.0)) if inherited else 0.0
     return {
-        "declared_terminal_cost_usd": declared,
-        "actual_unterminal_raw_cost_usd": actual_raw_only,
-        "cumulative_prior_cost_usd": round(declared + actual_raw_only, 8),
+        "declared_terminal_cost_usd": round(base_declared + declared, 8),
+        "actual_unterminal_raw_cost_usd": round(base_raw + actual_raw_only, 8),
+        "cumulative_prior_cost_usd": round(base_cumulative + declared + actual_raw_only, 8),
     }
+
+
+def _query_binding(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "query_id": int(row["query_id"]),
+        "question": str(row.get("question", "")),
+        "rank1_source": row.get("rank1_source"),
+        "rank1_answer": row.get("rank1_answer"),
+        "source_candidates": [
+            {"source_id": item["source_id"], "original_rank": 1, "answer": item["answer"]}
+            for item in row.get("source_candidates", [])
+        ],
+    }
+
+
+def _request_query_binding(query: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "query_id": query.get("query_id"),
+        "question": query.get("question", ""),
+        "rank1_source": query.get("rank1_source"),
+        "rank1_answer": query.get("rank1_answer"),
+        "source_candidates": query.get("source_candidates", []),
+    }
+
+
+def _prior_request_path(root: Path, batch_id: int) -> Path | None:
+    batch_root = root / f"batch-{batch_id:04d}"
+    direct = batch_root / "request.json"
+    if direct.exists():
+        return direct
+    requests = sorted(batch_root.glob("attempt-*/request.json"))
+    return requests[0] if requests else None
+
+
+def exposed_batch_bindings(
+    rows: Sequence[Mapping[str, Any]],
+    exposed_count: int,
+    prior_root: Path,
+) -> list[dict[str, Any]]:
+    if exposed_count <= 0:
+        return []
+    root = Path(prior_root).resolve()
+    prior_manifest_path = root / "manifest.json"
+    prior_manifest = _json(prior_manifest_path) if prior_manifest_path.exists() else {}
+    inherited_root = prior_manifest.get("prior_root") if isinstance(prior_manifest, Mapping) else None
+    inherited_root_path = Path(inherited_root).resolve() if isinstance(inherited_root, str) else root
+    bindings = []
+    inventory_hashes: dict[Path, str] = {}
+    current_batches = batches(rows)
+    for batch_id, current_batch in enumerate(current_batches[:exposed_count], start=1):
+        if batch_id <= 56 and inherited_root:
+            source_root = inherited_root_path
+            source_batch_id = (batch_id + 1) // 2
+            source_offset = 0 if batch_id % 2 else BATCH_SIZE
+        elif batch_id <= 58:
+            source_root = root
+            source_batch_id = 29
+            source_offset = 0 if batch_id == 57 else BATCH_SIZE
+        else:
+            raise ValueError(f"no immutable prior source mapping for exposed batch {batch_id}")
+        request_path = _prior_request_path(source_root, source_batch_id)
+        source_query_ids: list[int] | None = None
+        source_query_hashes: list[str] | None = None
+        request_hash: str | None = None
+        if request_path is not None:
+            request_payload = _json(request_path)
+            source_queries = request_payload.get("queries") if isinstance(request_payload, Mapping) else None
+            if not isinstance(source_queries, list) or len(source_queries) < source_offset + len(current_batch):
+                raise ValueError(f"prior request coverage is incomplete for exposed batch {batch_id}")
+            selected = source_queries[source_offset:source_offset + len(current_batch)]
+            source_query_ids = [int(query.get("query_id")) for query in selected]
+            source_query_hashes = [_sha_bytes(_canonical(_request_query_binding(query))) for query in selected]
+            current_ids = [int(row["query_id"]) for row in current_batch]
+            current_hashes = [_sha_bytes(_canonical(_query_binding(row))) for row in current_batch]
+            if source_query_ids != current_ids or source_query_hashes != current_hashes:
+                raise ValueError(f"exposed query binding drift for batch {batch_id}")
+            request_hash = _sha_file(request_path)
+        if source_root not in inventory_hashes:
+            inventory_hashes[source_root] = _sha_bytes(_canonical(prior_root_inventory(source_root)))
+        bindings.append(
+            {
+                "a3_batch_id": batch_id,
+                "source_root": str(source_root),
+                "source_batch_id": source_batch_id,
+                "source_offset": source_offset,
+                "source_request_sha256": request_hash,
+                "source_query_ids": [int(row["query_id"]) for row in current_batch],
+                "source_query_hashes": [_sha_bytes(_canonical(_query_binding(row))) for row in current_batch],
+                "source_root_inventory_sha256": inventory_hashes[source_root],
+            }
+        )
+    return bindings
 
 
 def _by_qid(rows: Sequence[Mapping[str, Any]], path: Path) -> dict[int, dict[str, Any]]:
@@ -373,6 +482,7 @@ def build_generator_request(batch: Sequence[Mapping[str, Any]], batch_id: int) -
             ],
             "requested_answer_count": ANSWERS_PER_QUERY,
         })
+    response_schema = _generator_response_schema(len(batch))
     request = {
         "strategy_id": STRATEGY,
         "stage": "generator",
@@ -381,7 +491,8 @@ def build_generator_request(batch: Sequence[Mapping[str, Any]], batch_id: int) -
         "seed": SEED,
         "max_output_tokens": GENERATOR_MAX_OUTPUT_TOKENS,
         "response_mime_type": "application/json",
-        "response_json_schema": _generator_response_schema(len(batch)),
+        "response_json_schema": response_schema,
+        "response_json_schema_sha256": _sha_bytes(_canonical(response_schema)),
         "instructions": "Group every source exactly once, preserve conflicts, preserve rank 1 byte-for-byte, and produce ten distinct grounded answers per query. Every group needs an exact source answer; do not add facts.",
         "queries": queries,
     }
@@ -646,19 +757,22 @@ def _accounted_markers(root: Path, batch_count: int, reservations: Sequence[floa
 
 def _expose_prior_batches(
     root: Path,
-    count: int,
+    bindings: Sequence[Mapping[str, Any]],
     prior_root: Path,
-    prior_inventory_sha256: str,
     prior_accounting: Mapping[str, Any],
     prior_accounting_sha256: str,
 ) -> None:
-    for batch_id in range(1, count + 1):
+    for binding in bindings:
+        batch_id = int(binding["a3_batch_id"])
         path = root / f"batch-{batch_id:04d}" / "exposed-fallback.json"
         payload = {
             "status": "exposed_fallback",
-            "source_root": str(prior_root),
-            "source_batch_id": batch_id,
-            "prior_root_inventory_sha256": prior_inventory_sha256,
+            "source_root": binding["source_root"],
+            "source_batch_id": binding["source_batch_id"],
+            "source_query_ids": binding["source_query_ids"],
+            "source_query_hashes": binding["source_query_hashes"],
+            "prior_root_inventory_sha256": binding["source_root_inventory_sha256"],
+            "binding": dict(binding),
             "prior_accounting": dict(prior_accounting),
             "prior_accounting_sha256": prior_accounting_sha256,
         }
@@ -766,6 +880,9 @@ def run_full(
     batch_list = batches(rows)
     exposed_batch_count = min(exposed_batch_count, len(batch_list))
     requests = [build_generator_request(batch, index + 1) for index, batch in enumerate(batch_list)]
+    request_bundle_sha256 = _sha_bytes(_canonical(requests))
+    response_schema_sha256 = _sha_bytes(_canonical(_generator_response_schema(BATCH_SIZE)))
+    exposed_bindings = exposed_batch_bindings(rows, exposed_batch_count, prior_root)
     reservations = [_batch_reservation(batch, index + 1) for index, batch in enumerate(batch_list)]
     estimated = sum(reservations)
     if prior_accounting["cumulative_prior_cost_usd"] + estimated > GLOBAL_MAX_COST_USD:
@@ -789,6 +906,9 @@ def run_full(
         "prior_accounting_sha256": prior_accounting_sha256,
         "exposed_batch_count": exposed_batch_count,
         "exposed_batch_ids": list(range(1, exposed_batch_count + 1)),
+        "exposed_batch_bindings": exposed_bindings,
+        "generator_response_schema_sha256": response_schema_sha256,
+        "request_bundle_sha256": request_bundle_sha256,
         "source_artifacts": artifacts,
         "source_artifacts_sha256": _sha_bytes(_canonical(artifacts)),
     }
@@ -815,9 +935,8 @@ def run_full(
         _write(root / "manifest.json", manifest)
     _expose_prior_batches(
         root,
-        exposed_batch_count,
+        exposed_bindings,
         prior_root,
-        prior_inventory_sha256,
         prior_accounting,
         prior_accounting_sha256,
     )

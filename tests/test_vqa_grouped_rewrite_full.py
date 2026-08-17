@@ -111,7 +111,7 @@ def test_loads_full_panel_and_batches_resumably(inputs: dict[str, Path]) -> None
     assert len(rows) == 12
     assert all(len(row["source_candidates"]) == 4 for row in rows)
     grouped = runner.batches(rows)
-    assert [len(batch) for batch in grouped] == [10, 2]
+    assert [len(batch) for batch in grouped] == [5, 5, 2]
     assert runner.source_artifacts(**_kwargs(inputs))[0]["name"] == "questions"
 
 
@@ -120,19 +120,19 @@ def test_generator_only_contract(inputs: dict[str, Path]) -> None:
     batch = runner.batches(rows)[0]
     request = runner.build_generator_request(batch, 1)
     generated = runner.validate_generator(_generated(batch), batch)
-    assert request["max_output_tokens"] == 16_384
+    assert request["max_output_tokens"] == 8_192
     assert request["strategy_id"] == "grouped_unique_generator_only"
     assert request["stage"] == "generator"
     assert "verifier" not in json.dumps(request).lower()
     query_schema = request["response_json_schema"]["properties"]["queries"]
     group_schema = query_schema["items"]["properties"]["groups"]["items"]
     answer_schema = query_schema["items"]["properties"]["answers"]["items"]
-    assert query_schema["minItems"] == query_schema["maxItems"] == 10
+    assert query_schema["minItems"] == query_schema["maxItems"] == 5
     assert group_schema["additionalProperties"] is False
     assert set(group_schema["properties"]) == {"group_id", "source_ids"}
     assert answer_schema["additionalProperties"] is False
     assert set(answer_schema["properties"]) == {"rank", "answer", "source_group"}
-    assert generated["answer_count"] == 100
+    assert generated["answer_count"] == 50
 
 
 def test_provider_config_receives_exact_generator_schema(inputs: dict[str, Path]) -> None:
@@ -148,15 +148,15 @@ def test_provider_config_receives_exact_generator_schema(inputs: dict[str, Path]
     runner._call(SimpleNamespace(models=models), request)
     schema = models.kwargs["config"].response_json_schema
     assert schema == request["response_json_schema"]
-    assert schema["properties"]["queries"]["minItems"] == 10
+    assert schema["properties"]["queries"]["minItems"] == 5
 
 
 def test_full_dry_run_is_provider_free_and_under_global_cap(inputs: dict[str, Path], tmp_path: Path) -> None:
     result = runner.run_full(**_run_kwargs(inputs), output_root=tmp_path / "full")
     assert result["status"] == "dry_run"
     assert result["query_count"] == 12
-    assert result["batch_count"] == 2
-    assert result["request_count"] == 2
+    assert result["batch_count"] == 3
+    assert result["request_count"] == 3
     assert result["estimated_cost_usd"] < 25
     assert not (tmp_path / "full").exists()
 
@@ -192,6 +192,21 @@ def test_generator_rejects_duplicate_sources_and_bool_identity(inputs: dict[str,
     payload = _generated(batch)
     payload["queries"][0]["answers"][0]["rank"] = True
     with pytest.raises(ValueError, match="answer fields"):
+        runner.validate_generator(payload, batch)
+
+    payload = _generated(batch)
+    payload["queries"][0]["groups"][0]["answer"] = "legacy extra field"
+    with pytest.raises(ValueError, match="group schema"):
+        runner.validate_generator(payload, batch)
+
+    payload = _generated(batch)
+    payload["queries"][0]["groups"][0]["group_id"] = 1
+    with pytest.raises(ValueError, match="group identity"):
+        runner.validate_generator(payload, batch)
+
+    payload = _generated(batch)
+    payload["queries"][0]["answers"][0] = "legacy answer string"
+    with pytest.raises(ValueError, match="answer schema"):
         runner.validate_generator(payload, batch)
 
 
@@ -259,7 +274,7 @@ def test_prior_root_exposure_and_one_batch_smoke_resume(
         expected_query_count=12,
     )
     assert completed["status"] == "complete"
-    assert resume_models.calls == 0
+    assert resume_models.calls == 1
 
 
 def test_paid_malformed_response_falls_back_and_persists_reservation(
@@ -284,7 +299,7 @@ def test_paid_malformed_response_falls_back_and_persists_reservation(
     assert result["status"] == "complete"
     assert result["fallback_query_count"] == 12
     assert result["accounted_cost_usd"] > 0
-    assert models.calls == 2
+    assert models.calls == 3
     assert (root / "batch-0001" / "attempt-0001" / "raw-response.json").exists()
     assert (root / "batch-0001" / "attempt-0001" / "error.json").exists()
     assert (root / "batch-0001" / "failed.json").exists()
@@ -332,12 +347,14 @@ def test_interrupted_attempt_becomes_fallback_without_provider_repeat(
     artifacts = runner.source_artifacts(**_kwargs(inputs))
     prior_inventory = runner.prior_root_inventory(inputs["prior_root"])
     prior_accounting = runner.prior_root_accounting(inputs["prior_root"])
+    rows_for_manifest = _rows(inputs)
+    requests_for_manifest = [runner.build_generator_request(batch, index + 1) for index, batch in enumerate(runner.batches(rows_for_manifest))]
     manifest = {
         "schema_version": 1,
         "status": "inputs_frozen",
         "strategy_id": runner.STRATEGY,
         "query_count": 12,
-        "batch_count": 2,
+        "batch_count": 3,
         "batch_size": runner.BATCH_SIZE,
         "model": runner.MODEL,
         "seed": runner.SEED,
@@ -351,15 +368,18 @@ def test_interrupted_attempt_becomes_fallback_without_provider_repeat(
         "prior_accounting_sha256": runner._sha_bytes(runner._canonical(prior_accounting)),
         "exposed_batch_count": 0,
         "exposed_batch_ids": [],
+        "exposed_batch_bindings": [],
+        "generator_response_schema_sha256": runner._sha_bytes(runner._canonical(runner._generator_response_schema(runner.BATCH_SIZE))),
+        "request_bundle_sha256": runner._sha_bytes(runner._canonical(requests_for_manifest)),
         "source_artifacts": artifacts,
         "source_artifacts_sha256": runner._sha_bytes(runner._canonical(artifacts)),
     }
     root = tmp_path / "interrupted"
-    for batch_id in (1, 2):
+    for batch_id in (1, 2, 3):
         (root / f"batch-{batch_id:04d}" / "attempt-0001").mkdir(parents=True)
     (root / "manifest.json").parent.mkdir(parents=True, exist_ok=True)
     (root / "manifest.json").write_text(json.dumps(manifest) + "\n", encoding="utf-8")
-    for batch_id in (1, 2):
+    for batch_id in (1, 2, 3):
         (root / f"batch-{batch_id:04d}" / "attempt-0001" / "request.json").write_text("{}\n", encoding="utf-8")
 
     class Models:
@@ -419,7 +439,7 @@ def test_partial_finalization_reuses_valid_final_without_provider_call(
         client=SimpleNamespace(models=first_models),
     )
     assert first["status"] == "complete"
-    assert first_models.calls == 2
+    assert first_models.calls == 3
     (root / "summary.json").unlink()
 
     resumed_models = Models()
@@ -451,12 +471,14 @@ def test_complete_summary_hashes_are_verified_before_reuse(
     artifacts = runner.source_artifacts(**_kwargs(inputs))
     prior_inventory = runner.prior_root_inventory(inputs["prior_root"])
     prior_accounting = runner.prior_root_accounting(inputs["prior_root"])
+    rows_for_manifest = _rows(inputs)
+    requests_for_manifest = [runner.build_generator_request(batch, index + 1) for index, batch in enumerate(runner.batches(rows_for_manifest))]
     manifest = {
         "schema_version": 1,
         "status": "inputs_frozen",
         "strategy_id": runner.STRATEGY,
         "query_count": 12,
-        "batch_count": 2,
+        "batch_count": 3,
         "batch_size": runner.BATCH_SIZE,
         "model": runner.MODEL,
         "seed": runner.SEED,
@@ -470,6 +492,9 @@ def test_complete_summary_hashes_are_verified_before_reuse(
         "prior_accounting_sha256": runner._sha_bytes(runner._canonical(prior_accounting)),
         "exposed_batch_count": 0,
         "exposed_batch_ids": [],
+        "exposed_batch_bindings": [],
+        "generator_response_schema_sha256": runner._sha_bytes(runner._canonical(runner._generator_response_schema(runner.BATCH_SIZE))),
+        "request_bundle_sha256": runner._sha_bytes(runner._canonical(requests_for_manifest)),
         "source_artifacts": artifacts,
         "source_artifacts_sha256": runner._sha_bytes(runner._canonical(artifacts)),
     }
