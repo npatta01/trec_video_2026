@@ -19,8 +19,9 @@ native-video and frozen control alternatives provide visual and failure-mode
 coverage below it after normalized deduplication.
 
 No reference answers, evaluation labels, or annotations entered inference or
-fusion. This record establishes preparation and format validity, not answer
-quality or organizer acceptance.
+fusion. This method summary describes construction and does not establish
+answer quality; organizer validation is recorded separately in the current
+state and upload sections.
 
 ## Upload artifact
 

@@ -38,8 +38,9 @@ Choose the path that matches your goal:
 3. **Add an experiment or result:** follow the
    [experiment and result guide](docs/project-status/adding-experiments.md).
 4. **Review prepared or submitted organizer runs:** use the
-   [submission ledger](docs/submissions/README.md). Private run files remain
-   local and are identified there by SHA-256.
+   [submission ledger](docs/submissions/README.md), then the
+   [post-deadline maintenance boundary](docs/submissions/2026-vqa-post-deadline-maintenance.md).
+   Private run files remain local and are identified there by SHA-256.
 5. **Understand historical context:** use the [report index](reports/trecvid_vqa_2026/README.md)
    and the [execution-plan index](plans/README.md). Historical checklists and
    earlier conclusions are records, not live work queues.
