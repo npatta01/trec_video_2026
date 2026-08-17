@@ -1,0 +1,90 @@
+{
+  "schema_version": "qwen-aligned-english-quality.v1",
+  "experiment_id": "qwen-aligner-stage05f-20260816-aligned-english-12-v1",
+  "status": "scored_postfreeze",
+  "evidence_validity": "valid_but_negative",
+  "decision_disposition": "not_promoted_under_tested_condition",
+  "decision_rule_predeclared": true,
+  "operational_decision": "ready_for_quality_test",
+  "quality_decision": "no_directional_difference",
+  "panel": {
+    "required_rows": 12,
+    "selection_pool_rows": 475,
+    "selection_policy": "question-only fixed-order fresh Qwen3-ASR panel with visible-text exclusions and 6/3/3 speech strata",
+    "stratum_counts": {
+      "reported_speech": 6,
+      "conversation": 3,
+      "vocalization": 3
+    },
+    "duplicate_count": 0,
+    "marker_match_count": 57,
+    "exposure_source_count": 52,
+    "preparation_only_root_count": 2,
+    "preparation_only_file_count": 6,
+    "prepared_identity_count": 12,
+    "excluded_identity_count": 16
+  },
+  "models": {
+    "asr": "Qwen/Qwen3-ASR-1.7B",
+    "asr_revision": "7278e1e70fe206f11671096ffdd38061171dd6e5",
+    "forced_aligner": "Qwen/Qwen3-ForcedAligner-0.6B",
+    "forced_aligner_revision": "c7cbfc2048c462b0d63a45797104fc9db3ad62b7"
+  },
+  "runtime": {
+    "image": "localhost/trec-vqa-audio-rocm@sha256:faa70fc2896401f863fc1be1a83581585bba3bd9784cf4cf3b672d7815b6c234",
+    "accelerator": "rocm",
+    "device": "cuda:0",
+    "precision": "bfloat16",
+    "attention": "sdpa",
+    "language": "English",
+    "timestamps": true,
+    "network": "none",
+    "one_attempt_only": true,
+    "attempt_index": 1,
+    "exit_code": 0,
+    "wall_seconds": 110.41560545899847,
+    "total_row_elapsed_seconds": 102.2407651490139,
+    "max_peak_memory_bytes": 6162299392,
+    "paid_compute_usd": 0.0
+  },
+  "operational_result": {
+    "completed_rows": 12,
+    "valid_alignment_rows": 12,
+    "failure_count": 0
+  },
+  "quality_result": {
+    "metric": "exact_contiguous_normalized_official_answer_phrase_containment",
+    "qwen_present_count": 0,
+    "whisper_present_count": 0,
+    "both_present_count": 0,
+    "qwen_only_present_count": 0,
+    "whisper_only_present_count": 0,
+    "neither_present_count": 12
+  },
+  "interpretation": {
+    "operational": "Forced English completed the fresh 12-row aligned panel under the pinned condition.",
+    "quality": "The predeclared containment metric was non-discriminating because neither Qwen nor Whisper contained a complete official answer phrase on any row.",
+    "next_action": "Do not scale this same Qwen quality comparison; use a separately designed transcript-fidelity or downstream-decision test only if it answers a new project question."
+  },
+  "controller_revision": "d9e43c94c2e441f5bc85508ed1b41d738e33289f",
+  "immutable_hashes": {
+    "exposure_index_sha256": "5f76a1abb06d5055355abd4350d1dc68b13cf687770dc613400ecead81fb0bf3",
+    "selection_file_sha256": "beb6f95aa3ceafeeece63bfd568b2c15172cabb120ff73558bc5d30bc17ce8f8",
+    "requests_file_sha256": "e797ac968555e3db5fd6616be945a239100a1188eeeb3ef16b557b70252182d0",
+    "protocol_file_sha256": "e27e39917d9b9cd87b8ab10b2a14a700fcd1832081bbc33e4f57e6a00b959220",
+    "inputs_freeze_sha256": "797812494b4f139fd4f57a3ed271de163e92b934745f1977bfd6d59489623475",
+    "command_sha256": "8741f952a9c62d47038022ca301240f4cdf50e75a21b278ed2c5b3d1eb5f3589",
+    "raw_results_sha256": "d5c009f50b27b28c5fc53772135704b700721d794d44152e1d6b76515c9b3c6f",
+    "stderr_sha256": "a54f64329b569e2965d265639b39a39b07d0cacf1b4448a03a8ce2b0e15493dd",
+    "terminal_sha256": "c7a4739a1ea69bc7180203ec64d96ff0edfe56ab82bd4cd46d6e50131bab1d04",
+    "validated_results_sha256": "421a98279028de5b0f3bd3374035bca82fe9b4a67ef7a71f6aa50ccf6978d759",
+    "predictions_freeze_sha256": "0851bb9e0e26e22f69e80548b6f0857e033183c8a149fafc9cad062fea3a8c1e",
+    "postfreeze_score_sha256": "5dfad614628ce57e236793067dfa3a9f2e529bfcd1998304ba29901cffab1a94",
+    "postfreeze_score_freeze_sha256": "a86029ac381b56cfd49c5d0d5f2d229c702362be2f2c1d1fa268a0a626c2db62",
+    "runner_sha256": "ce2c73d768878bf9c9f186855b5bf4dc6194860b04c129ccf8cbac834c4a8ef7",
+    "helper_sha256": "9bd1c3f5da184c3e257fa04500d3eaeb3cf56de8c5c4f7c6cb0c97fcfdbd6ff8",
+    "controller_sha256": "b993d8e088502cc6214f77e09c5797279e01d25d536822f28e69101474157582"
+  },
+  "supersedes": "stage05e_authorized_fresh_aligned_english_quality_action",
+  "private_root": "data/vqa/benchmarks/model-verifier-canaries-20260814/stage05f-qwen-aligned-english-quality-v1/"
+}

@@ -3311,6 +3311,7 @@ break-inside: avoid;
 <section id="current-working-answer" class="level2">
 <h2 class="anchored" data-anchor-id="current-working-answer">Current working answer</h2>
 <p>Use uniform-12 as the current default: it takes midpoint frames from 12 equal time bins. Uniform-24 applies the same whole-video coverage with twice the frame proxy. Do not make the tested directed-12 or dense-burst-12 diagnostic a default; each is <strong>Not promoted under the tested condition</strong>. A clean r4 Stage 1 audit found the frozen preferred evidence represented in oracle-hybrid-12 for <code>10/10</code> selected rows. The completed matched Stage 2 test did not turn that stronger representation into better answers: treatment scored <code>1C/5P/4W</code> versus control at <code>2C/4P/4W</code>, with one improvement, two regressions, seven ties, and ordinal gain <code>-1</code>. The answer gate failed, so uniform-12 remains the operational default. A post-result frozen-timestamp audit then found that uniform-12 already covered every required interval in <code>6/10</code> rows and at least one interval in <code>9/10</code>. The matched test therefore had limited selection headroom and does not by itself isolate downstream evidence use as the failure mechanism.</p>
+<p>A separate same-media two-video native-AV smoke confirms that stable Gemini 3.7 Flash can complete the tested direct-answer path, but it does not show a quality advantage over Gemini 3.1 Pro: both were semantically correct on both rows in an unblinded post-hoc check.</p>
 <div class="theme-decision-strip" aria-label="Visual-evidence decisions">
 <ul>
 <li><strong>Use now:</strong> Qwen3.5-4B with 12 uniformly sampled frames.</li>
@@ -3329,11 +3330,26 @@ break-inside: avoid;
 <li><strong>Selection-headroom audit:</strong> uniform-12 covered all required intervals in <code>6/10</code> rows, some but not all in <code>3/10</code>, and none in <code>1/10</code>; it covered <code>12/17</code> required intervals overall.</li>
 <li><strong>Audit gaps:</strong> no tracked general-workflow caller for directed-12; the exact dense-burst implementation is absent.</li>
 <li><strong>Condition boundary:</strong> none of these results rejects smarter visual sampling or retrieval as a research branch.</li>
+<li><strong>Frontier-model smoke:</strong> Gemini 3.7 Flash and the 3.1 Pro control both completed <code>2/2</code> native-AV rows; the diagnostic found no quality separation.</li>
 </ul>
 </section>
 <section id="what-has-been-tried" class="level2">
 <h2 class="anchored" data-anchor-id="what-has-been-tried">What has been tried</h2>
 <p>The <a href="../experiments/2026-08-10-vqa-plaintext-full-panel.qmd">2026-08-10 full-panel AV timeline and scene-selection diagnostic</a> is the canonical dated record for the complete 475-video event-map pass. It completed 474/475 maps and 462/475 selector answers, but was <strong>Not promoted under the tested condition</strong>: the failed rows had answer-relevant evidence, which shifts the next test toward multi-scene context and downstream answer use rather than another one-shot selector.</p>
+<section id="gemini-37-flash-two-video-smoke" class="level3">
+<h3 class="anchored" data-anchor-id="gemini-37-flash-two-video-smoke">Gemini 3.7 Flash two-video native-AV smoke</h3>
+<ul>
+<li><strong>Reason for testing:</strong> quickly rule out the idea that the new stable Flash model is an obvious native-AV upgrade over the pinned Gemini 3.1 Pro path.</li>
+<li><strong>Tested condition and panel:</strong> the same two frozen WebM deliveries and direct-answer prompt, four FPS and high media resolution, one two-request Batch job per arm.</li>
+<li><strong>Observed result:</strong> both arms returned <code>2/2</code> non-empty answers, used <code>42,842</code> prompt tokens inside the custom-FPS band, and were semantically correct on both rows in an unblinded post-hoc check. Exact match was <code>0/2</code> for both. Flash won one token-F1 comparison and lost one; mean token F1 was <code>0.2496</code> Flash versus <code>0.4365</code> control. Observed total cost was <code>$0.067445</code>.</li>
+<li><strong>Current condition-bound status:</strong> <strong>Diagnostic capability observed; no quality separation.</strong> The immutable strict freeze remains <code>not_ready</code> because response aliases did not equal separate catalog version strings.</li>
+<li><strong>What this rules out now:</strong> treating Gemini 3.7 Flash as an obvious upgrade on the strength of model recency alone, or scaling this two-row result.</li>
+<li><strong>What it does not rule out:</strong> a Flash advantage on a larger or targeted panel, latency/cost advantages, or differences on temporal, speech, and fine-counting strata.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> two rows, verbosity-sensitive lexical metrics, and a post-hoc unblinded semantic check.</li>
+<li><strong>Reconsider when:</strong> a targeted panel is justified by a specific unresolved hypothesis rather than a broad model-ranking question.</li>
+</ul>
+<p>The sanitized, hash-bound aggregate is <a href="../../docs/experiments/artifacts/gemini37-flash-two-video-smoke-20260816/summary.json"><code>summary.json</code></a>.</p>
+</section>
 <section id="frozen-30-protocol-v2" class="level3">
 <h3 class="anchored" data-anchor-id="frozen-30-protocol-v2">Frozen-30 protocol v2: global frame budget</h3>
 <ul>

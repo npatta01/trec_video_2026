@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "experiment_id": "gemini37-flash-two-video-smoke-v2",
+  "date": "2026-08-16",
+  "status": "diagnostic_complete_strict_not_ready",
+  "protocol": {
+    "row_count": 2,
+    "duration_seconds": 39.576,
+    "same_media_and_prompt_across_arms": true,
+    "custom_fps": 4.0,
+    "cost_ceiling_usd": 0.15
+  },
+  "models": {
+    "control_31pro": {
+      "requested_model": "gemini-3.1-pro-preview",
+      "catalog_version": "3.1-pro-preview-01-2026"
+    },
+    "candidate_37flash": {
+      "requested_model": "gemini-3.7-flash",
+      "catalog_version": "3.7-flash-08-2026"
+    }
+  },
+  "strict_freeze": {
+    "decision": "not_ready",
+    "responses_expected": 4,
+    "responses_received": 4,
+    "failure_category": "response_model_alias_did_not_equal_catalog_version",
+    "failure_count": 4,
+    "all_response_aliases_equal_requested_model": true,
+    "custom_fps_verified_for_both_arms": true
+  },
+  "usage": {
+    "control_31pro": {
+      "prompt_tokens": 42842,
+      "output_tokens": 1201
+    },
+    "candidate_37flash": {
+      "prompt_tokens": 42842,
+      "output_tokens": 710
+    },
+    "observed_cost_usd": 0.067445
+  },
+  "posthoc_lexical_diagnostic": {
+    "row_count": 2,
+    "exact_match": {
+      "control_31pro": 0,
+      "candidate_37flash": 0
+    },
+    "mean_token_f1": {
+      "control_31pro": 0.4365079365079365,
+      "candidate_37flash": 0.24964131994261118
+    },
+    "paired": {
+      "candidate_wins": 1,
+      "ties": 0,
+      "candidate_losses": 1
+    },
+    "decision": "no_directional_difference"
+  },
+  "posthoc_manual_diagnostic": {
+    "blinded": false,
+    "independent": false,
+    "semantically_correct": {
+      "control_31pro": 2,
+      "candidate_37flash": 2
+    },
+    "paired": {
+      "candidate_wins": 0,
+      "ties": 2,
+      "candidate_losses": 0
+    },
+    "decision": "no_quality_separation"
+  },
+  "decision": {
+    "gemini_37_flash_native_av_capability_observed": true,
+    "evidence_candidate_is_better_than_control": false,
+    "scale_up_triggered": false
+  },
+  "v1_setup_incident": {
+    "preserved": true,
+    "provider_uploads_accepted": 1,
+    "batch_jobs_submitted": 0,
+    "inference_responses": 0,
+    "cause": "local_parser_rejected_live_base64_wrapped_ascii_hex_digest"
+  },
+  "private_evidence_sha256": {
+    "protocol.json": "70e4f09d9182e21fee75b68de2609e984b733c9ea65948f8bfa94daa13b3535d",
+    "inputs-freeze.json": "a042986492e45a0d8710a5574af3064c5eec5fd8cbc96e5b9a5e01e24c2d21b4",
+    "models.json": "08b98637805f586f1b7f6d510b4c80ad3389c89a97b4a22dec63c1ab648de565",
+    "predictions-freeze.json": "fc2a9ddf2a9d9263eed2b269d3525332e15ff2ae96e626f10182df582db8bcc0",
+    "posthoc-model-alias-diagnostic.json": "f2f89a1395235745022f306ed9bcab50bae489cfc560dd980624c085c6937bee",
+    "posthoc-manual-audit.json": "c50f921f897a6a3aee3dd0375c9bdfddf3854e112f4b0128115f04cac38865fe"
+  },
+  "limitations": [
+    "Only two videos were tested.",
+    "The immutable strict freeze is not_ready because the provider response alias did not equal the separate catalog version string.",
+    "The lexical comparison is sensitive to answer verbosity.",
+    "The manual semantic check was post-hoc, unblinded, and not independent.",
+    "This diagnostic cannot support a quality promotion or full-panel scale-up."
+  ]
+}

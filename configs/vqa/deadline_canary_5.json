@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "panel_id": "deadline-submission-canary-5-20260816",
+  "source_split": "vqa/2025/training",
+  "rows": [
+    {
+      "video_id": "BDKkVYmWqdM",
+      "stratum": "temporal",
+      "question": "What does a bicyclist do before landing his bike on a tennis court?",
+      "duration_seconds": 21.268,
+      "source_path": "vqa/2025/training/videos_original/BDKkVYmWqdM.mkv",
+      "source_sha256": "7ae4937b33b0caedbe30f6b2790c06affea52f5fb5f9666bb052424cda49a323"
+    },
+    {
+      "video_id": "Bvv6lMUTlEw",
+      "stratum": "causal",
+      "question": "Why is the dog being offered a cupcake or cake.",
+      "duration_seconds": 19.188,
+      "source_path": "vqa/2025/training/videos_original/Bvv6lMUTlEw.mkv",
+      "source_sha256": "6d31f1c71e5a674e900d9b75abe8d193f8c2b22a1c541f4c04af4e35074d80db"
+    },
+    {
+      "video_id": "DC4FE3hI67U",
+      "stratum": "ocr_detail",
+      "question": "What is a person doing with a red and white large sign near a car?",
+      "duration_seconds": 13.788,
+      "source_path": "vqa/2025/training/videos_original/DC4FE3hI67U.mkv",
+      "source_sha256": "357910640e1b8934ae1648e3895093df21f51e9788ae0e95c716a06bf36f3158"
+    },
+    {
+      "video_id": "G5AgzHKJINU",
+      "stratum": "counting",
+      "question": "How many times does the man actually shoot the ball?",
+      "duration_seconds": 28.828,
+      "source_path": "vqa/2025/training/videos_original/G5AgzHKJINU.mkv",
+      "source_sha256": "8f67518ed5aaa5def7e28cb1222f229387b3c825c624af048547981c1f349968"
+    },
+    {
+      "video_id": "G6zu9D0j8hk",
+      "stratum": "speech",
+      "question": "How can you tell that a child's room is being designed?",
+      "duration_seconds": 24.588,
+      "source_path": "vqa/2025/training/videos_original/G6zu9D0j8hk.mkv",
+      "source_sha256": "e29f366e9a4122d461e561efa6dbb049a44fe9085b180566c581184316406244"
+    }
+  ]
+}

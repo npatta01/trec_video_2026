@@ -13,10 +13,13 @@ from trec_video_2026.vqa_audio_runner import (
     decode_voxtral,
     finalize_result_metrics,
     load_qwen,
+    load_qwen_with_aligner,
     normalize_qwen_asr_result,
+    parse_args,
     prepare_voxtral_inputs,
     request_identity,
     transcribe_qwen,
+    transcribe_qwen_aligned,
     validate_request,
     validate_rocm_bfloat16,
 )
@@ -279,6 +282,24 @@ def test_qwen_transcription_uses_auto_language_and_no_sampling_surface(
     }
 
 
+def test_qwen_aligned_transcription_requests_and_retains_timestamps(
+    tmp_path: Path,
+) -> None:
+    model = FakeQwenModel()
+
+    result = transcribe_qwen_aligned(model, str(tmp_path / "audio.wav"))
+
+    assert result["chunks"] == [
+        {"start": 0.0, "end": 1.25, "text": "Bonjour"},
+        {"start": 1.25, "end": 2.0, "text": "le monde"},
+    ]
+    assert model.transcribe_kwargs == {
+        "audio": str(tmp_path / "audio.wav"),
+        "language": None,
+        "return_time_stamps": True,
+    }
+
+
 class FakeQwenLoader:
     calls: ClassVar[list] = []
 
@@ -317,6 +338,109 @@ def test_qwen_loader_binds_model_and_processor_to_one_immutable_snapshot() -> No
             },
         )
     ]
+
+
+def test_qwen_aligner_loader_binds_both_immutable_snapshots() -> None:
+    FakeQwenLoader.calls.clear()
+    resolver_calls = []
+
+    def resolver(model_id, *, revision, local_files_only):
+        resolver_calls.append((model_id, revision, local_files_only))
+        return "/cache/asr" if model_id.endswith("ASR-1.7B") else "/cache/aligner"
+
+    model = load_qwen_with_aligner(
+        FakeQwenLoader,
+        "Qwen/Qwen3-ASR-1.7B",
+        "7" * 40,
+        "Qwen/Qwen3-ForcedAligner-0.6B",
+        "c" * 40,
+        dtype="bf16",
+        snapshot_resolver=resolver,
+    )
+
+    assert model == "qwen-model"
+    assert resolver_calls == [
+        ("Qwen/Qwen3-ASR-1.7B", "7" * 40, True),
+        ("Qwen/Qwen3-ForcedAligner-0.6B", "c" * 40, True),
+    ]
+    assert FakeQwenLoader.calls == [
+        (
+            "/cache/asr",
+            {
+                "forced_aligner": "/cache/aligner",
+                "forced_aligner_kwargs": {
+                    "dtype": "bf16",
+                    "device_map": "cuda:0",
+                    "attn_implementation": "sdpa",
+                },
+                "dtype": "bf16",
+                "device_map": "cuda:0",
+                "max_inference_batch_size": 1,
+                "max_new_tokens": 256,
+                "attn_implementation": "sdpa",
+            },
+        )
+    ]
+
+
+def test_qwen_cli_accepts_only_a_complete_aligner_identity() -> None:
+    args = parse_args(
+        [
+            "--kind",
+            "qwen3_asr",
+            "--model-id",
+            "Qwen/Qwen3-ASR-1.7B",
+            "--revision",
+            "7" * 40,
+            "--forced-aligner-id",
+            "Qwen/Qwen3-ForcedAligner-0.6B",
+            "--forced-aligner-revision",
+            "c" * 40,
+        ]
+    )
+
+    assert args.forced_aligner_id == "Qwen/Qwen3-ForcedAligner-0.6B"
+    assert args.forced_aligner_revision == "c" * 40
+
+
+@pytest.mark.parametrize(
+    "aligner_args",
+    [
+        ["--forced-aligner-id", "Qwen/Qwen3-ForcedAligner-0.6B"],
+        ["--forced-aligner-revision", "c" * 40],
+    ],
+)
+def test_qwen_cli_rejects_partial_aligner_identity(aligner_args: list[str]) -> None:
+    with pytest.raises(SystemExit):
+        parse_args(
+            [
+                "--kind",
+                "qwen3_asr",
+                "--model-id",
+                "Qwen/Qwen3-ASR-1.7B",
+                "--revision",
+                "7" * 40,
+                *aligner_args,
+            ]
+        )
+
+
+def test_voxtral_cli_rejects_qwen_forced_aligner() -> None:
+    with pytest.raises(SystemExit):
+        parse_args(
+            [
+                "--kind",
+                "voxtral",
+                "--model-id",
+                "mistralai/Voxtral-Mini-3B-2507",
+                "--revision",
+                "3" * 40,
+                "--forced-aligner-id",
+                "Qwen/Qwen3-ForcedAligner-0.6B",
+                "--forced-aligner-revision",
+                "c" * 40,
+            ]
+        )
 
 
 def test_result_metrics_synchronize_before_capturing_time_and_peak_memory() -> None:

@@ -3316,7 +3316,7 @@ break-inside: avoid;
 <li><strong>Use now:</strong> quality-accepted Whisper only for declared lexical-speech work, with a frame-only control.</li>
 <li><strong>Do not default:</strong> transcripts on every question or mechanical acceptance as proof of fidelity.</li>
 <li><strong>Still possible:</strong> alternative ASR, grounded spans, dataset-reference controls, and a valid human upper bound.</li>
-<li><strong>Next test:</strong> a distribution-level selective-Whisper route with deterministic fallback and an independently frozen transcript/grounding comparison.</li>
+<li><strong>Next tests:</strong> the distribution-level selective-Whisper route with deterministic fallback and an independently frozen comparison. Do not scale the completed two-video Gemini 3.7 smoke; revisit Gemini only for a targeted unresolved temporal or speech hypothesis with a matched control.</li>
 </ul>
 </div>
 </section>
@@ -3324,6 +3324,10 @@ break-inside: avoid;
 <h2 class="anchored" data-anchor-id="evidence-at-a-glance">Evidence at a glance</h2>
 <ul>
 <li><strong>Selected diagnostic:</strong> accepted Whisper improved 4/10 to 7/10 on ten lexical-speech rows; this is not a prevalence estimate.</li>
+<li><strong>Qwen quality diagnostic:</strong> a fresh eight-row corrected-harness batch completed <code>6/8</code>; two rows returned empty text, so the frozen result is <code>not_ready</code> and no Qwen-versus-Whisper score exists.</li>
+<li><strong>Qwen mechanism diagnostic:</strong> a separate four-row frozen test reproduced both baseline empty outputs under automatic language and completed <code>4/4</code> with forced English; its authorized fresh-panel action is now complete.</li>
+<li><strong>Fresh Qwen aligned-English result:</strong> forced English completed and aligned <code>12/12</code> new rows, but exact official-answer-phrase containment was <code>0/12</code> for both Qwen and frozen Whisper. The frozen calculation reproduces, but a post-hoc audit found the panel construct-invalid for ASR quality: only one task directly requested a recoverable literal phrase or name, while ten did not support exact transcript containment. Qwen is not promoted.</li>
+<li><strong>Transcript-to-answer correction:</strong> one fixed no-frame answer model completed both frozen transcript arms (<code>24/24</code>). Blinded review found Qwen-transcript answers <code>1</code> correct, <code>1</code> ambiguous, and <code>10</code> incorrect versus Whisper- transcript answers <code>2</code> correct and <code>10</code> incorrect. This confirms that answer formulation bridges some wording, but this fixed answer stage did not repair <code>10/12</code> rows in either arm. Their failure cause remains unresolved, and the result does not rank the two ASR systems.</li>
 <li><strong>Failure mechanisms:</strong> text can miss non-lexical events or contain the right token without changing the answer.</li>
 <li><strong>Blocked:</strong> a human-transcript upper bound lacks independent producer and reviewer provenance.</li>
 <li><strong>Condition boundary:</strong> a one-row Seamless result does not reject alternative or multilingual ASR families.</li>
@@ -3360,6 +3364,89 @@ Method, result, validity risks, and evidence
 </summary>
 The selected ten-row diagnostic does not estimate routing prevalence, global transcript value, non-lexical vocalization performance, or 2026 accuracy. Transcript acceptance was mechanically label-blind; its validity is separate from transcript fidelity. Separately, in frozen-30 protocol v2, the Qwen12+Whisper arm led exact match at <code>11/30</code> and token F1 at <code>0.506795</code> across the 30-row panel. That result supports reporting the transcript arm as a route comparison; it does not establish a global Whisper policy or 2026 accuracy. See the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md">automatic-transcript report · Evidence of record · Evidence report · GitHub</a> and its <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/plans/issue-7-automatic-transcript-ablation.md">frozen ablation plan · Evidence of record · Evidence report · GitHub</a>.
 </details>
+</section>
+<section id="qwen-aligner-quality-diagnostic" class="level3">
+<h3 class="anchored" data-anchor-id="qwen-aligner-quality-diagnostic">Qwen ASR plus forced-aligner quality diagnostic</h3>
+<ul>
+<li><strong>Reason for testing:</strong> determine whether the locally cached Qwen3-ASR plus Qwen3-ForcedAligner path can complete a fresh English exact-speech panel under the corrected offline ROCm contract.</li>
+<li><strong>Tested condition and panel:</strong> one label-free batch of eight fresh English WAV rows, excluding prior Qwen rows; the pinned ASR and aligner revisions, audio hashes, order, runner, cache bindings, and one-attempt limit were frozen before execution.</li>
+<li><strong>Observed result:</strong> the container exited <code>0</code> at <code>$0.00</code> paid cost, but only <code>6/8</code> rows completed with valid aligned sequences. The remaining <code>2/8</code> returned deterministic <code>Qwen3-ASR returned empty text</code> failures. The frozen decision is <code>not_ready</code>; no annotations or Whisper text were opened.</li>
+<li><strong>Current condition-bound status:</strong> <strong>Blocked diagnostic</strong>—this is an incomplete-output result, not a Qwen-versus-Whisper comparison.</li>
+<li><strong>What this rules out now:</strong> the claim that the corrected harness itself cannot run a multi-row batch; six rows completed and aligned successfully.</li>
+<li><strong>What it does not establish:</strong> transcript fidelity, timestamp accuracy, Whisper replacement, downstream VQA improvement, or a model ranking.</li>
+<li><strong>Reconsider when:</strong> the empty-output behavior is resolved in a separately frozen attempt and the full paired panel completes under the same evidence contract; do not retry or relabel this root.</li>
+</ul>
+<details>
+<summary>
+Method, result, validity risks, and evidence
+</summary>
+The private root is preserved under <code>data/vqa/benchmarks/model-verifier-canaries-20260814/stage05d-qwen-aligner-quality-v1/</code>. Maximum allocated device memory was <code>6,161,528,320</code> bytes and container elapsed time was <code>64.105</code> seconds. Because the <code>8/8</code> operational gate failed, the scorer did not load answer annotations or the frozen Whisper text. The result is therefore valid only as a zero-cost incomplete-output diagnostic.
+</details>
+</section>
+<section id="qwen-empty-output-mechanism-diagnostic" class="level3">
+<h3 class="anchored" data-anchor-id="qwen-empty-output-mechanism-diagnostic">Qwen empty-output mechanism diagnostic</h3>
+<ul>
+<li><strong>Reason for testing:</strong> localize the preserved empty-output behavior before authorizing another quality comparison, while keeping the original Stage 0.5d attempt immutable.</li>
+<li><strong>Tested condition and panel:</strong> four rows selected from frozen Stage 0.5d results in request order—two preserved empty failures and the first two passing controls—then run once through four process-isolated arms. Arms held the pinned Qwen revisions, audio bytes, ROCm runtime, read-only mounts, <code>--network none</code>, and <code>$0.00</code> paid compute fixed.</li>
+<li><strong>Observed result:</strong> the aligned automatic-language baseline A reproduced <code>2</code> failures and <code>2</code> valid aligned successes. The no-aligner B and aligner-without-timestamps C explanatory arms also each had <code>2</code> failures and <code>2</code> successes. The aligned-English treatment D completed <code>4/4</code> with valid alignment. All arm terminals exited <code>0</code> and were contract-valid.</li>
+<li><strong>Current condition-bound status:</strong> <strong>Mechanism result retained; authorized follow-up completed.</strong> The four diagnostic rows remain unscored, and the separate fresh aligned-English result is recorded below.</li>
+<li><strong>What this rules out now:</strong> on this frozen four-row panel, the failures were not localized to merely loading the aligner or requesting timestamps; each automatic-language explanatory arm remained at <code>2</code> successes and <code>2</code> failures, and neither restored all four rows. This supports a bounded automatic-language path association, not an internal causal bug claim.</li>
+<li><strong>What it does not establish:</strong> a general Qwen model defect, transcript quality, Whisper replacement value, downstream VQA improvement, or a model ranking. The result is not a quality comparison.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—the evidence is a four-row outcome-selected mechanism diagnostic and identifies an automatic-language path association only under this pinned condition. <strong>Confirmed protocol deviation, corrected after the run:</strong> the original selector redundantly read private transcript/alignment fields on rows already marked passed, contrary to the metadata-only design. It copied none of those values, and no labels or scoring inputs were opened. The frozen Stage 0.5d aggregate had already certified all six passed rows as completed and alignment-valid, so metadata-only reselection yields the same first two controls and does not change this aggregate mechanism result.</li>
+<li><strong>Reconsider when:</strong> resolved by the separately frozen Stage 0.5f panel below. Do not reuse these four rows or reopen this frozen root.</li>
+</ul>
+<details>
+<summary>
+Method, result, validity risks, and evidence
+</summary>
+The frozen diagnostic is <code>qwen-aligner-stage05e-20260816-empty-output-v1</code> with schema <code>qwen-empty-output-diagnostic.v1</code>. Arm wall times were 46.722, 46.691, 46.294, and 47.787 seconds for A through D; maximum peak memory was 6,175,102,976, 4,331,441,664, 6,175,102,464, and 6,174,173,184 bytes. The input-freeze SHA-256 is <code>aed463e5c6f206e346c29b41b56b7199f07874981ffadc908d41974cf0466083</code> and the freeze-payload SHA-256 is <code>d157e6dc2187ea14d7ead4f42f8ee2d8c14dddc8707acd314d1e7c4a02fe57ec</code>. The sanitized aggregate is in <a href="../../docs/experiments/artifacts/qwen-aligner-quality-20260816/"><code>qwen-aligner-quality-20260816/</code></a>, with the additive Stage 0.5e record in <a href="../../docs/experiments/artifacts/qwen-aligner-quality-20260816/diagnostic-summary.json"><code>diagnostic-summary.json</code></a>. No labels, annotations, Whisper text, or scoring inputs were opened. Row-level Qwen outputs remained private and were never manually inspected or scored. Post-run review found that deterministic validation and the original host selector did programmatically read transcript/alignment fields; the selector’s access was a protocol deviation because the design required metadata-only selection. It copied none of those values. Stage 0.5d’s frozen aggregate certified all six passed rows as completed and alignment-valid, so the corrected metadata-only selector yields the same first two controls. Neither frozen experiment was rerun, and the earlier Stage 0.5d <code>summary.json</code> remains unchanged.
+</details>
+</section>
+<section id="fresh-aligned-english-qwen-quality-panel" class="level3">
+<h3 class="anchored" data-anchor-id="fresh-aligned-english-qwen-quality-panel">Fresh aligned-English Qwen quality panel</h3>
+<ul>
+<li><strong>Reason for testing:</strong> complete the Stage 0.5e authorized action and test whether forced English both removes empty output on new Qwen3-ASR rows and yields more complete official answer phrases than frozen Whisper.</li>
+<li><strong>Tested condition and panel:</strong> one fresh 12-row panel selected label-blind from the ordered 475-row question/identity manifest with fixed <code>6</code> reported-speech, <code>3</code> conversation, and <code>3</code> vocalization quotas. A complete private marker census excluded prior Qwen3-ASR and oracle identities and hash-bound two preserved preparation-only roots that never began inference. The one local attempt fixed the pinned ASR/aligner revisions, forced English, timestamps, ROCm BF16/SDPA runtime, media hashes/order, read-only mounts, <code>--network none</code>, and <code>$0.00</code> paid compute.</li>
+<li><strong>Observed result:</strong> the sole process exited <code>0</code>; <code>12/12</code> rows completed and <code>12/12</code> had valid bounded alignments. Only after that freeze, exact contiguous normalized official-answer-phrase containment scored Qwen <code>0/12</code> and frozen Whisper <code>0/12</code>: both present <code>0</code>, Qwen only <code>0</code>, Whisper only <code>0</code>, and neither present <code>12</code>.</li>
+<li><strong>Current condition-bound status:</strong> <strong>Operationally complete; construct-invalid for ASR quality; not promoted.</strong> The historical frozen fields remain <code>ready_for_quality_test</code> and <code>no_directional_difference</code>, but the post-hoc validity audit supersedes that quality interpretation without changing the score.</li>
+<li><strong>What this rules out now:</strong> another same-condition completion diagnostic, promotion from this exact phrase-containment comparison, and scaling the same selector/metric combination. Forced English completed this fresh panel without an empty-output failure.</li>
+<li><strong>What it does not establish:</strong> WER, transcript fidelity, timestamp accuracy, general English robustness, Whisper replacement, downstream VQA value, or a model ranking. The all-neither tie does not imply equal transcript quality.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Confirmed construct defect</strong>—official VQA answers are not transcript references, and the question-keyword selector did not ensure literal spoken-answer tasks. A private read-only audit classified one direct literal-phrase/name request, one semantic conversation request, and ten tasks that did not support exact transcript containment.</li>
+<li><strong>Reconsider when:</strong> a separately designed test has independently grounded transcript references or a frozen downstream VQA decision rule. Do not scale or rerun this same containment comparison.</li>
+</ul>
+<details>
+<summary>
+Method, result, validity risks, and evidence
+</summary>
+<p>The private exposure census classified all <code>57</code> Qwen3-ASR marker matches as <code>52</code> genuine exposure files plus five marker-bearing files in two exact preparation-only roots. The ledger bound all six files in those roots, zero attempt artifacts, 12 prepared identities, a replay fingerprint, and <code>16</code> excluded prior/oracle identities. Immediately before the sole record transition, the controller reverified that census, the canonical manifest and index byte hashes, the selection replay, every WAV hash and duration, the committed controller, runner/helper, model snapshots, image, and command.</p>
+<p>The run used controller revision <code>d9e43c94c2e441f5bc85508ed1b41d738e33289f</code>, took <code>110.416</code> seconds wall time, summed <code>102.241</code> row-inference seconds, and recorded maximum allocated memory of <code>6,162,299,392</code> bytes. Predictions froze before the scorer opened canonical annotations and checksum-bound frozen Whisper. Row identities, questions, answers, transcripts, and row-level scores remain private. A later read-only audit reproduced every source binding and stored boolean. All 12 Qwen outputs were non-empty; the quality gates accepted <code>8/12</code> Qwen and <code>10/12</code> Whisper outputs; and raw Whisper had one exact hit that the frozen timestamp gate excluded. Mean unordered official-answer token recall was <code>0.035</code> Qwen and <code>0.212</code> Whisper, post-hoc and non-promotional. Evidence validity is therefore <strong>operationally valid but construct-invalid for ASR quality</strong>. This result completes the action authorized by Stage 0.5e without superseding the Stage 0.5d incomplete-output observation or Stage 0.5e mechanism result.</p>
+The private root is <code>data/vqa/benchmarks/model-verifier-canaries-20260814/stage05f-qwen-aligned-english-quality-v1/</code>. The sanitized, hash-bound aggregate is <a href="../../docs/experiments/artifacts/qwen-aligner-quality-20260816/aligned-english-summary.json"><code>aligned-english-summary.json</code></a>. The sanitized correction is <a href="../../docs/experiments/artifacts/qwen-aligner-quality-20260816/aligned-english-metric-audit.json"><code>aligned-english-metric-audit.json</code></a>.
+</details>
+</section>
+<section id="qwen-transcript-answer-diagnostic" class="level3">
+<h3 class="anchored" data-anchor-id="qwen-transcript-answer-diagnostic">Frozen transcript-to-answer diagnostic</h3>
+<ul>
+<li><strong>Reason for testing:</strong> check the concrete alternative that Stage 0.5f’s transcript evidence was useful but merely needed to be expressed as a short VQA answer.</li>
+<li><strong>Tested condition and panel:</strong> the exact 12 frozen Stage 0.5f identities and Qwen/Whisper transcript bytes, with no ASR rerun. One pinned <code>Qwen/Qwen3.5-4B</code> answer model received the original question plus one transcript and no frames. All 24 answers froze before annotations opened.</li>
+<li><strong>Observed result:</strong> <code>24/24</code> answers completed at <code>$0.00</code>. One arm-blinded reviewer judged the Qwen-transcript arm <code>1/12</code> correct, <code>1/12</code> ambiguous, and <code>10/12</code> incorrect; the Whisper-transcript arm was <code>2/12</code> correct and <code>10/12</code> incorrect. Paired outcomes were one both-correct, one Whisper-only, no Qwen-only, and ten neither-correct rows.</li>
+<li><strong>Current condition-bound status:</strong> <strong>Valid downstream mechanism diagnostic; formulation bridge observed; no ASR ranking.</strong> The decision rule was fixed before annotation access, but the small selected panel and single reviewer limit generalization.</li>
+<li><strong>What this rules out now:</strong> interpreting the historical raw-transcript <code>0/12</code> containment count as 12 bad transcriptions, or treating one generic answer stage as automatic validation of the original metric.</li>
+<li><strong>What it does not rule out:</strong> a better full-evidence VQA answerer, different speech strata, independently measured transcript fidelity, or a Qwen-versus- Whisper quality difference.</li>
+<li><strong>Possible defect, audit gap, or uncertainty:</strong> <strong>Uncertainty</strong>—the ten shared failures could reflect transcript omission, evidence available only in the video, or prompt/model answer-stage error. Review used one blinded reviewer.</li>
+<li><strong>Reconsider when:</strong> a category-balanced matched full-evidence test or independently grounded verbatim transcript references are available. Do not reuse the Stage 0.5f question-keyword panel as an ASR benchmark.</li>
+</ul>
+<details>
+<summary>
+Method, result, validity risks, and evidence
+</summary>
+<p>The answer model revision, current answer policy, greedy decoding, 32-token limit, request order, offline digest-pinned ROCm runtime, and no-frame input were identical across both arms. Prediction freeze preceded annotation binding and creation of an arm-hidden review packet. Post-run review found that the original scorer did not rederive the private arm key before unblinding. The corrected verifier accepted the preserved deterministic key and reproduced the private score artifacts byte for byte in a copied root; the counts did not change, and a key-swap regression now fails closed. The controller also rejects fresh attempts to score official VQA answers as transcript references. Row identities, questions, transcripts, references, generated answers, and row- level judgments remain private.</p>
+The canonical dated claim is <a href="../../docs/experiments/2026-08-16-qwen-aligner-quality-diagnostic.qmd#stage-05g-transcript-to-answer-diagnostic"><code>Stage 0.5g transcript-to-answer diagnostic</code></a>. The sanitized aggregate and immutable private hashes are in <a href="../../docs/experiments/artifacts/qwen-aligner-quality-20260816/transcript-answer-summary.json"><code>transcript-answer-summary.json</code></a>. The evidence is valid for the bounded formulation question and does not supersede Stage 0.5f’s construct-invalid ASR score; it corrects how that score may be interpreted.
+</details>
+</section>
+<section id="gemini-37-flash-native-av-smoke" class="level3">
+<h3 class="anchored" data-anchor-id="gemini-37-flash-native-av-smoke">Completed Gemini 3.7 Flash native-AV compatibility smoke</h3>
+<p>This is a separate two-video diagnostic, not an arm of the Qwen experiment. Stable <code>gemini-3.7-flash</code> and <code>gemini-3.1-pro-preview</code> received the same WebM bytes and direct-answer prompt at four FPS. Both returned <code>2/2</code> non-empty answers and both arms had <code>42,842</code> prompt tokens inside the frozen custom-FPS band; observed cost was <code>$0.067445</code>.</p>
+<p>The immutable strict freeze is <code>not_ready</code> only because Batch reported the exact requested model aliases instead of the catalog’s separate dated version strings. A bounded no-new-inference diagnostic preserved that decision and found both arms semantically correct on both rows in an unblinded manual check. Exact match was <code>0/2</code> for both; Flash won one token-F1 comparison and lost one, averaging <code>0.2496</code> versus <code>0.4365</code> for 3.1 Pro. Flash was more verbose, and the two-row result supplies no quality separation or scale-up signal. See the <a href="../../docs/experiments/artifacts/gemini37-flash-two-video-smoke-20260816/summary.json">sanitized aggregate</a>.</p>
 </section>
 <section id="matched-full-panel-frame-audio-audit" class="level3">
 <h3 class="anchored" data-anchor-id="matched-full-panel-frame-audio-audit">Matched full-panel frame/audio audit</h3>
@@ -3468,6 +3555,9 @@ Uploader captions, ASR ensembles, and dataset references cannot substitute for t
 <ul>
 <li>On the selected ten lexical-speech rows, accepted Whisper changed manual accuracy from 4/10 to 7/10, with three rescues and no observed degradation.</li>
 <li>Transcript output can be included in a label-isolated request path while a rejected output becomes null.</li>
+<li>On the frozen four-row Qwen mechanism panel, forced English completed all rows while each automatic-language explanatory arm remained at <code>2</code> successes and <code>2</code> failures and neither restored all four rows; this was valid bounded mechanism evidence, not a quality result.</li>
+<li>On the subsequent fresh 12-row panel, forced English produced <code>12/12</code> valid aligned outputs without an empty-output failure. The preserved <code>0/12</code> versus <code>0/12</code> phrase result is construct-invalid for ASR quality because the selector admitted mostly tasks without a literal spoken answer; Qwen was not promoted.</li>
+<li>On that same frozen panel, a fixed transcript-only answer stage produced at least one semantically correct answer from each transcript arm, confirming a bounded wording bridge. Both arms still failed the same <code>10/12</code> rows, with cause unresolved, so the old panel cannot answer either ASR fidelity or full-evidence VQA quality.</li>
 <li>Fluent or mechanically accepted translation is not by itself faithful audio evidence; the Seamless diagnostic shows this distinction.</li>
 <li>Dataset recording-prompt references can be a separately labeled control, not a TRECVID human-oracle result.</li>
 </ul>
@@ -3479,6 +3569,9 @@ Uploader captions, ASR ensembles, and dataset references cannot substitute for t
 <li>The multilingual follow-up does not identify source languages or translation fidelity in frozen-30.</li>
 <li>The one-row Seamless result does not reject all alternative or multilingual ASR systems.</li>
 <li>The blocked human tier does not imply a zero upper bound; it means no valid upper-bound evidence exists yet.</li>
+<li>The four-row Qwen mechanism diagnostic does not establish a general model defect, transcript quality, downstream VQA value, or a Whisper comparison.</li>
+<li>The fresh Qwen <code>0</code>/<code>0</code> containment tie does not establish equal transcript fidelity, WER, timestamp accuracy, or downstream VQA value; its post-hoc audit confirms that official VQA answers and the selected tasks did not form a valid transcript-quality reference panel.</li>
+<li>The <code>1/12</code> versus <code>2/12</code> transcript-conditioned answer counts do not rank Qwen and Whisper; they come from a small selected panel, a no-frame answer stage, and one blinded reviewer.</li>
 </ul>
 <p><span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span></p>
 </section>
@@ -3488,6 +3581,7 @@ Uploader captions, ASR ensembles, and dataset references cannot substitute for t
 <li><strong>Uncertainty:</strong> selected lexical-speech rows are diagnostic rather than a prevalence or global-accuracy sample.</li>
 <li><strong>Uncertainty:</strong> the rate/Latin-script acceptance policy is not a language detector, an accuracy measure, or a human transcript review.</li>
 <li><strong>Audit gap:</strong> no human source-language transcript or faithful translation reference is available for the completed multilingual route.</li>
+<li><strong>Confirmed construct defect:</strong> the fresh Qwen aligned-English selector used speech-related question keywords, but ten of 12 selected tasks did not support exact transcript containment. Preserve the operational result and frozen score; do not reuse this selector/metric as an ASR quality test.</li>
 <li><strong>Blocked prerequisite:</strong> the strict human tier lacks independent transcriber/reviewer provenance records; other text tiers must not fill that gap by renaming.</li>
 </ul>
 </section>

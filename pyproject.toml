@@ -17,6 +17,9 @@ vqa-frozen30 = "trec_video_2026.vqa_frozen30_workflow:main"
 vqa-gate = "trec_video_2026.vqa_gate:main"
 youtube-dataset-download = "trec_video_2026.youtube_dataset:main"
 
+[project.optional-dependencies]
+gemini = ["google-genai>=2.0.0,<3"]
+
 [build-system]
 requires = ["uv_build>=0.11.28,<0.12.0"]
 build-backend = "uv_build"
