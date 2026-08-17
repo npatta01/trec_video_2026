@@ -279,3 +279,18 @@ def test_finalize_real_panel_merges_fresh_deterministic_and_existing(
     final_rows = json.loads((output_root / "final-organizer.json").read_text(encoding="utf-8"))
     assert len(final_rows) == 2_443
     assert final_rows[0]["Answers"][1]["Answer"] == "Fresh repaired wording."
+
+
+def test_finalize_completed_repair_recovers_every_fresh_raw_query(tmp_path: Path) -> None:
+    output_root = tmp_path / "completed-final"
+
+    result = finalize.finalize_repair(output_root=output_root)
+
+    assert result["fallback_query_count"] == 0
+    assert result["status_counts"] == {
+        "deterministic_repaired": 320,
+        "existing_grouped": 1_833,
+        "fresh_raw_repaired": 30,
+        "fresh_raw_salvaged": 75,
+        "fresh_repaired": 185,
+    }

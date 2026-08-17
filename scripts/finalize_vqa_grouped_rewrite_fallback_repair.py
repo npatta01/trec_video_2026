@@ -49,6 +49,7 @@ def merge_rows(
     existing_status_by_qid: Mapping[int, str],
     deterministic_by_qid: Mapping[int, Mapping[str, Any]],
     fresh_by_qid: Mapping[int, Mapping[str, Any]],
+    fresh_status_by_qid: Mapping[int, str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Apply fresh > deterministic > existing grouped > fusion precedence."""
     final_rows: list[dict[str, Any]] = []
@@ -57,7 +58,7 @@ def merge_rows(
         query_id = int(row["query_id"])
         if query_id in fresh_by_qid:
             final = _copy(fresh_by_qid[query_id])
-            status = "fresh_repaired"
+            status = (fresh_status_by_qid or {}).get(query_id, "fresh_repaired")
         elif query_id in deterministic_by_qid:
             final = _deterministic_row(row, deterministic_by_qid[query_id])
             status = "deterministic_repaired"
@@ -81,6 +82,64 @@ def merge_rows(
             }
         )
     return final_rows, provenance
+
+
+def _recover_fresh_failed_raw(
+    *,
+    fresh_root: Path,
+    fresh_rows: Sequence[Mapping[str, Any]],
+    fresh_status: Mapping[int, str],
+    expected_requests: Sequence[Mapping[str, Any]],
+    source_artifacts: Sequence[Mapping[str, Any]],
+) -> tuple[dict[int, dict[str, Any]], dict[int, str]]:
+    rows_by_qid = {int(row["query_id"]): row for row in fresh_rows}
+    batches = frozen.batches(fresh_rows)
+    recovered: dict[int, dict[str, Any]] = {}
+    statuses: dict[int, str] = {}
+    for batch_id, batch in enumerate(batches, 1):
+        batch_root = fresh_root / f"batch-{batch_id:04d}"
+        failed_path = batch_root / "failed.json"
+        if not failed_path.is_file():
+            continue
+        marker = frozen._json(failed_path)
+        attempt = salvage._attempt_path(batch_root)
+        if not isinstance(marker, Mapping) or marker.get("status") != "failed" or attempt is None:
+            raise ValueError(f"fresh failed batch evidence is incomplete: {batch_id}")
+        request_path = attempt / "request.json"
+        raw_path = attempt / "raw-response.json"
+        if not request_path.is_file() or not raw_path.is_file():
+            raise ValueError(f"fresh failed batch request/raw evidence is incomplete: {batch_id}")
+        expected_request = dict(expected_requests[batch_id - 1])
+        expected_request["source_artifacts"] = list(source_artifacts)
+        expected_request["source_artifacts_sha256"] = frozen._sha_bytes(frozen._canonical(source_artifacts))
+        if frozen._json(request_path) != expected_request:
+            raise ValueError(f"fresh failed batch request binding drift: {batch_id}")
+        batch_ids = {int(row["query_id"]) for row in batch}
+        seen: set[int] = set()
+        for query in salvage._parse_raw_queries(raw_path):
+            query_id = query.get("query_id")
+            if (
+                isinstance(query_id, bool)
+                or not isinstance(query_id, int)
+                or query_id not in batch_ids
+                or query_id in seen
+                or fresh_status.get(query_id) != "fallback_fusion"
+            ):
+                continue
+            seen.add(query_id)
+            row = rows_by_qid[query_id]
+            try:
+                normalized = frozen.validate_generator({"queries": [dict(query)]}, [row])["queries"][0]
+            except (TypeError, ValueError, KeyError):
+                normalized = prepare.repair_current_query(query, row)
+                status = "fresh_raw_repaired"
+            else:
+                status = "fresh_raw_salvaged"
+            if normalized is None:
+                continue
+            recovered[query_id] = _deterministic_row(row, normalized)
+            statuses[query_id] = status
+    return recovered, statuses
 
 
 def _validated_terminal_root(root: Path) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -176,6 +235,21 @@ def finalize_repair(
     from trec_video_2026.vqa_deadline_canary import validate_ranked_submission
 
     validate_ranked_submission(fresh_rows, expected_query_ids=legacy_set)
+    fresh_canonical_rows = frozen.load_rows(**input_paths, expected_query_count=len(legacy_ids))
+    expected_requests = [
+        frozen.build_generator_request(batch, index + 1)
+        for index, batch in enumerate(frozen.batches(fresh_canonical_rows))
+    ]
+    request_bundle_sha256 = frozen._sha_bytes(frozen._canonical(expected_requests))
+    if "request_bundle_sha256" in fresh_manifest and fresh_manifest.get("request_bundle_sha256") != request_bundle_sha256:
+        raise ValueError("fresh repair request bundle drift")
+    raw_recovered, raw_statuses = _recover_fresh_failed_raw(
+        fresh_root=fresh_root,
+        fresh_rows=fresh_canonical_rows,
+        fresh_status=fresh_status,
+        expected_requests=expected_requests,
+        source_artifacts=expected_fresh_artifacts,
+    )
     existing_summary, existing_rows, existing_provenance = _validated_terminal_root(existing_root)
     paths = prepare._source_paths(source_paths)
     canonical_rows = frozen.load_rows(**paths, expected_query_count=frozen.EXPECTED_QUERY_COUNT)
@@ -195,12 +269,18 @@ def finalize_repair(
     if len(deterministic_by_qid) != 320 or set(deterministic_by_qid) & legacy_set:
         raise ValueError("deterministic and fresh repair selections overlap or are incomplete")
     fresh_generated = {query_id: fresh_by_all[query_id] for query_id, status in fresh_status.items() if status == "generated"}
+    if set(fresh_generated) & set(raw_recovered):
+        raise ValueError("fresh accepted and raw-recovered selections overlap")
+    fresh_generated.update(raw_recovered)
+    final_fresh_status = {query_id: "fresh_repaired" for query_id in fresh_generated}
+    final_fresh_status.update(raw_statuses)
     final_rows, provenance = merge_rows(
         canonical_rows,
         existing_by_qid=existing_by_qid,
         existing_status_by_qid=existing_status,
         deterministic_by_qid=deterministic_by_qid,
         fresh_by_qid=fresh_generated,
+        fresh_status_by_qid=final_fresh_status,
     )
     validate_ranked_submission(final_rows, expected_query_ids=expected_ids)
     status_counts = dict(sorted(Counter(item["status"] for item in provenance).items()))
