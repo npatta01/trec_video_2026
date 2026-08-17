@@ -4,7 +4,8 @@
 
 - **Task:** TRECVID 2026 Video Question Answering, Answer Generation
 - **Run tag:** `q36_dualview`
-- **State:** Upload artifact tracked and locally validated; not uploaded
+- **State:** Uploaded to Evalbase on 2026-08-17; server-side validation
+  succeeded
 - **Submission rows:** 2,443 of 2,443 official test queries
 - **Answers per query:** 10
 - **Local validator:** Passed with zero errors and zero warnings
@@ -35,9 +36,10 @@ quality or organizer acceptance.
 - **Validator report SHA-256:**
   `b9754a26b559b2edfdaa86ec9eef15d5e31d2794c8bc9c8bb154617fcdadd2a6`
 
-After Evalbase accepts the run, append the submission timestamp, run URL or
-confirmation identifier, server-side validation result, and uploaded-file
-hash. Do not change this state based on local validation alone.
+The selected local upload artifact had SHA-256
+`d8ccd445dd1cb3dd7cbd54454c012184f9fe1a21d3187fb7b068e09c90fc6a1a`.
+Evalbase reported server-side validation success for run tag `q36_dualview`;
+its interface did not expose a server-side stored-file hash.
 
 ## Evalbase copy-paste answers
 

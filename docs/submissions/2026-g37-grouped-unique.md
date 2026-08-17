@@ -4,9 +4,9 @@
 
 - **Task:** TRECVID 2026 Video Question Answering, Answer Generation
 - **Run tag:** `g37_grouped_unique`
-- **State:** Compact release candidate `g37_grouped_unique-rc2` tracked and
-  locally validated; RC1 upload failed because the selected local copy was
-  truncated; RC2 not uploaded
+- **State:** Compact release candidate `g37_grouped_unique-rc2` uploaded to
+  Evalbase on 2026-08-17; server-side validation succeeded after the truncated
+  RC1 upload was replaced
 - **Submission rows:** 2,443 of 2,443 official test queries
 - **Answers per query:** 10
 - **Local validator:** Passed with zero errors and zero warnings
@@ -23,10 +23,9 @@ per query, zero errors, and zero warnings. All rank-one answers are unchanged
 from the validated fusion source, 1,833 previously accepted grouped rows remain
 byte-exact as parsed objects, and the repair introduced no new answer strings.
 
-Release-candidate status means the file is ready for manual Evalbase upload;
-it does not claim organizer submission or acceptance. Any content change must
-receive a new release-candidate identifier and repeat the hash and validator
-gates.
+RC2 is now the submitted and organizer-validated artifact. Any later content
+change must receive a new release-candidate identifier and repeat the local and
+server-side validator gates.
 
 ### RC1 validation failure and RC2 correction
 
@@ -38,10 +37,11 @@ artifact had SHA-256
 `e60c05933290f4f6644e8f574bd5f8e42bbb01935e893038c678fdfcdc25160b`
 and size 3,180,520 bytes. Evalbase therefore correctly reported invalid JSON.
 
-RC2 changes only JSON whitespace and is 2,034,752 bytes. Download the tracked
-file directly and verify its SHA-256 before upload; do not copy its contents
-from a rendered or truncated file preview. Delete the failed Evalbase run
-before resubmitting because Evalbase requires unique run tags.
+RC2 changes only JSON whitespace and is 2,034,752 bytes. It replaced the failed
+RC1 run under the same run tag and Evalbase reported validation success. The
+selected local upload file had SHA-256
+`d6e3731f19e4dca575815afcd4ed1b163126936b8bb1bbacfd8c675e4473741d`;
+the interface did not expose a server-side stored-file hash.
 
 ## Method summary
 
@@ -93,9 +93,9 @@ format validity, not answer quality or organizer acceptance.
   `b9754a26b559b2edfdaa86ec9eef15d5e31d2794c8bc9c8bb154617fcdadd2a6`
 - **Total accounted API cost:** $12.50898375
 
-After Evalbase accepts the run, append the submission timestamp, run URL or
-confirmation identifier, server-side validation result, and uploaded-file
-hash. Do not change this state based on local validation alone.
+Evalbase reported server-side validation success for run tag
+`g37_grouped_unique` on 2026-08-17. The exact submission time and server-side
+stored-file hash were not exposed in the available confirmation view.
 
 ## Evalbase copy-paste answers
 
