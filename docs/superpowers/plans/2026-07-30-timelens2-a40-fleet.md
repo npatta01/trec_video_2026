@@ -142,7 +142,7 @@ caps. Require at least two physically distinct eligible offers when practical.
 **Files:**
 - Input: `dstack/timelens2-runner-canary.dstack.yml`
 - Private output: `.timelens2-private/timelens2-selector-pilot-20260730-a2/canary-preview.txt`
-- Remote output: `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/timelens2-runner-canary-20260730-a2/`
+- Remote output: `hf://buckets/Npatta01/trec_video_2026/experiments/timelens2-runner-canary-20260730-a2/`
 
 **Interfaces:**
 - Consumes: corrected fleet and exact pinned image.
@@ -186,7 +186,7 @@ Require a successful terminal status and canary payload before Task 4.
 **Files:**
 - Input: `dstack/timelens2-selector-pilot.dstack.yml`
 - Private input: `.timelens2-private/timelens2-selector-pilot-20260730-a2/compatibility-requests.json`
-- Remote output: `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/timelens2-selector-pilot-20260730-a2/`
+- Remote output: `hf://buckets/Npatta01/trec_video_2026/experiments/timelens2-selector-pilot-20260730-a2/`
 
 **Interfaces:**
 - Consumes: passing canary and exact frozen three-video manifest.

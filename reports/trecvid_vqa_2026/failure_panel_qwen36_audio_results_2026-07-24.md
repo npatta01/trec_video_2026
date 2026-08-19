@@ -217,7 +217,7 @@ METEOR, but promote only when blinded semantic review agrees.
   `3a475b88f95b1fa5b6b73265bd92d40b3288e06a7a898d88dfa53a362c4ee4a3`
   (`data/vqa/benchmarks/followups/failure-panel-2026-07-24/native-audio-diagnostic/scored-minicpmo45-audio-on-failure-panel-20260724-a2.json`)
 - Qwen3.6 private artifact prefix:
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen36-failure-panel-20260724-a10`
+  `hf://buckets/Npatta01/trec_video_2026/experiments/qwen36-failure-panel-20260724-a10`
 
 The scorer boundary, hashes, label isolation, order, runtime pinning, and metric
 parity were independently reviewed before evaluation. A second independent

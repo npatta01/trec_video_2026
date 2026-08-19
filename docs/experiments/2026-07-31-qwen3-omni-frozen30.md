@@ -174,4 +174,4 @@ evidence.
 [`summary.json`](../../data/vqa/benchmarks/qwen3-omni-frozen30/qwen3-omni-f30-calibrated-20260801-s5-seed42/summary.json),
 [`predictions.jsonl`](../../data/vqa/benchmarks/qwen3-omni-frozen30/qwen3-omni-f30-calibrated-20260801-s5-seed42/predictions.jsonl),
 and the private HF prefix
-`hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen3-omni-f30-calibrated-20260801-s5-seed42`.
+`hf://buckets/Npatta01/trec_video_2026/experiments/qwen3-omni-f30-calibrated-20260801-s5-seed42`.

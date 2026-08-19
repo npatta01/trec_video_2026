@@ -169,11 +169,11 @@ def _run(
         "VQA_MODE": "canary",
         "EXPERIMENT_RUN_NAME": "vqa-factorial-canary-20260809-e2",
         "HF_INPUT_URI": (
-            "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+            "hf://buckets/Npatta01/trec_video_2026/"
             "experiments/qwen35-4b-12f-full-20260803-b1-inputs/inputs"
         ),
         "HF_REMOTE_URI": (
-            "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+            "hf://buckets/Npatta01/trec_video_2026/"
             "experiments/vqa-factorial-canary-20260809-e2"
         ),
         "VQA_RUNTIME_IMAGE": IMAGE,
@@ -265,11 +265,11 @@ def _run_full_condition_with_input_retry(
             "CONDITION_ID": "4b-question-aware",
             "EXPERIMENT_RUN_NAME": "vqa-factorial-full-20260809-f1-4b-question-aware",
             "HF_INPUT_URI": (
-                "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+                "hf://buckets/Npatta01/trec_video_2026/"
                 "experiments/vqa-factorial-full-evidence-20260809-f1"
             ),
             "HF_REMOTE_URI": (
-                "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+                "hf://buckets/Npatta01/trec_video_2026/"
                 "experiments/vqa-factorial-full-20260809-f1/conditions/4b-question-aware"
             ),
             "FAKE_INPUT_ROOT": str(fake_input),

@@ -26,7 +26,7 @@ DATA_LINK="$REPO_ROOT/data"
 [[ "$(readlink -f "$DATA_LINK")" == "$EXPECTED_DATA_TARGET" ]] \
   || { echo "error: data symlink target mismatch" >&2; exit 2; }
 
-REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/$RUN_ID"
+REMOTE_URI="hf://buckets/Npatta01/trec_video_2026/experiments/$RUN_ID"
 media_specs=(
   "IRTTtnSRTyY.mkv:vqa/2025/training/videos_original/IRTTtnSRTyY.mkv"
   "IWSPAfCKtV8.mkv:vqa/2025/training/videos_original/IWSPAfCKtV8.mkv"

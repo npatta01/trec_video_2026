@@ -19,7 +19,7 @@ Decision disposition: **Not promoted under the tested condition**
   meet the preregistered semantic and operational gates to replace the current
   Qwen3.5-4B 12-frame VQA baseline?
 - **Shared evidence bundle:**
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-frozen30-20260801-a1/`
+  `hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-frozen30-20260801-a1/`
   (private; workload, sanitized audit, input, and grading prefixes).
 - **Supersedes / superseded by:** supersedes the pending preregistration in
   this file; not superseded. The current Qwen baseline remains unchanged.

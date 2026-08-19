@@ -34,11 +34,11 @@ EXPECTED_RUNTIME_IMAGE = (
 )
 EXPECTED_RUNTIME_IMAGE_DIGEST = EXPECTED_RUNTIME_IMAGE.rsplit("@", 1)[1]
 EXPECTED_MEDIA_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/artifacts/"
+    "hf://buckets/Npatta01/trec_video_2026/artifacts/"
     "vqa2025-training-media-475-20260809-a1/media"
 )
 EXPECTED_OUTPUT_BASE = (
-    f"hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/{EXPECTED_RUN_ID}"
+    f"hf://buckets/Npatta01/trec_video_2026/experiments/{EXPECTED_RUN_ID}"
 )
 EXPECTED_CONTROLLER_URI = f"{EXPECTED_OUTPUT_BASE}/input-controller"
 EXPECTED_COMMAND = (

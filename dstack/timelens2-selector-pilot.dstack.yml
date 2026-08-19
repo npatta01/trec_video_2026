@@ -14,7 +14,7 @@ env:
   - PYTHONPATH=/dstack/run/src
   - RUN_MODE=compatibility
   - EXPERIMENT_RUN_ID=timelens2-selector-pilot-20260730-a1
-  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/timelens2-selector-pilot-20260730-a1
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_video_2026/experiments/timelens2-selector-pilot-20260730-a1
   - RUNTIME_IMAGE=docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
   - RUNTIME_IMAGE_DIGEST=sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
   - MODEL_ID=MCG-NJU/TimeLens2-2B

@@ -99,25 +99,25 @@ abstention/fallback policy; it cannot be retrofitted onto this result.
 ## Private artifact verification
 
 - **Frozen input:**
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/timelens2-three-condition-frozen30-20260801-a1/input`.
+  `hf://buckets/Npatta01/trec_video_2026/experiments/timelens2-three-condition-frozen30-20260801-a1/input`.
   All 31 payloads verified after fresh download. `SHA256SUMS` SHA-256:
   `1e03593461416c2141045523ae82cf2c40de1a97f0eba1ca0290323fb9df656a`.
 - **Canary A3 output:**
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/timelens2-three-condition-canary-20260801-a3/output`.
+  `hf://buckets/Npatta01/trec_video_2026/experiments/timelens2-three-condition-canary-20260801-a3/output`.
   All 22 payloads verified; manifest SHA-256
   `df5e7f85976e5a64a52121b5167c559690f80613cc368e8ea0f8ec1667359eae`.
 - **Canary A3 audit:** same A3 run identity under `/audit`. All five payloads
   verified; audit manifest SHA-256
   `f435a800331f061e2a0b7ab38d27695711ffe4bd24244844e6671679410ea457`.
 - **Frozen A1 output:**
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/timelens2-three-condition-frozen30-20260801-a1/output`.
+  `hf://buckets/Npatta01/trec_video_2026/experiments/timelens2-three-condition-frozen30-20260801-a1/output`.
   All eight payloads verified; manifest SHA-256
   `f525b5de47cd7d944b38143178546d4fac0b762b4a1de6d24236d25dc27d02e2`.
 - **Frozen A1 audit:** same A1 run identity under `/audit`. All five payloads
   verified; audit manifest SHA-256
   `1c012f77ab6e3def33cce2f313fb6e5d72b484e846fd1c8833b8b51f62a73ee7`.
 - **Frozen A2 output:**
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/timelens2-three-condition-frozen30-20260801-a2/output`.
+  `hf://buckets/Npatta01/trec_video_2026/experiments/timelens2-three-condition-frozen30-20260801-a2/output`.
   All eight payloads verified; manifest SHA-256
   `c846857e7267fbe571c85189a5ac84953e9676ef6372b1cc919ce1917066ffb4`.
 - **Frozen A2 audit:** same A2 run identity under `/audit`. All five payloads

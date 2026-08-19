@@ -116,7 +116,7 @@ gate.
 - Private paired run and scheduler ID:
   `nemotron3-omni-frozen30-20260801-a1`.
 - Both store under
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/<run-id>/`.
+  `hf://buckets/Npatta01/trec_video_2026/experiments/<run-id>/`.
 
 The public canary must run the exact image, actual foreground wrapper and
 native audio-video request seam on three synthetic H.264/AAC videos and pass

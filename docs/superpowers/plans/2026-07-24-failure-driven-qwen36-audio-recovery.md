@@ -98,7 +98,7 @@ Panel roles are 2 multilingual dialogue, 4 non-speech/music, 4 temporal/action, 
 
 - [x] Pin an image containing an exact Python/uv runtime and the Qwen3.6-compatible inference dependencies.
 - [x] Add a wrapper test that exercises the real nested child argv, validates the label-free manifest/hash, preserves workload and artifact-sync return codes, and rejects an existing immutable run prefix.
-- [x] Use the private path `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/<immutable-run-name>/`.
+- [x] Use the private path `hf://buckets/Npatta01/trec_video_2026/experiments/<immutable-run-name>/`.
 - [x] Query a closed compatible GPU/provider pool with a hard hourly price cap and bounded native no-capacity retry. Nine main-run offers and twelve preflight offers were available.
 - [x] Preview with `echo "n" | dstack apply -f dstack/qwen36-failure-panel.dstack.yml` and preserve the plan output.
 - [x] Run bounded preflights through A10. A10 completed with exit code zero

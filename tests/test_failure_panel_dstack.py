@@ -113,8 +113,7 @@ def _run_wrapper(
         "EXPECTED_PANEL_SHA256": EXPECTED_PANEL_SHA256,
         "MODEL_ID": "Qwen/Qwen3.6-35B-A3B",
         "MODEL_REVISION": EXPECTED_MODEL_REVISION,
-        "HF_REMOTE_ROOT": "hf://buckets/Npatta01/trec_mlm_2026/"
-        "trec_video_2026/experiments",
+        "HF_REMOTE_ROOT": "hf://buckets/Npatta01/trec_video_2026/experiments",
         "EXPECTED_EVIDENCE_ROOT": str(tmp_path / "evidence"),
         **extra_env,
     }
@@ -133,11 +132,11 @@ def test_dstack_config_is_bounded_digest_pinned_and_label_free() -> None:
     assert EXPECTED_IMAGE in text
     assert "HF_TOKEN=${{ secrets.hf_token }}" in text
     assert (
-        "HF_REMOTE_ROOT=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments"
+        "HF_REMOTE_ROOT=hf://buckets/Npatta01/trec_video_2026/experiments"
     ) in text
     assert (
-        "EVIDENCE_ARTIFACT_URI=hf://buckets/Npatta01/trec_mlm_2026/"
-        "trec_video_2026/artifacts/failure-panel-12-frames-d2c5515b8c73"
+        "EVIDENCE_ARTIFACT_URI=hf://buckets/Npatta01/trec_video_2026/"
+        "artifacts/failure-panel-12-frames-d2c5515b8c73"
     ) in text
     assert "../data/vqa/benchmarks/evidence/" not in text
     assert "backends: [runpod, vastai]" in text
@@ -505,8 +504,8 @@ def test_local_upload_preflight_rejects_existing_immutable_prefix(
         extra_env={
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
             "STAGED_EVIDENCE_ROOT": str(staged),
-            "EVIDENCE_ARTIFACT_URI": "hf://buckets/Npatta01/trec_mlm_2026/"
-            "trec_video_2026/artifacts/failure-panel-12-frames-d2c5515b8c73",
+            "EVIDENCE_ARTIFACT_URI": "hf://buckets/Npatta01/trec_video_2026/"
+            "artifacts/failure-panel-12-frames-d2c5515b8c73",
         },
     )
 

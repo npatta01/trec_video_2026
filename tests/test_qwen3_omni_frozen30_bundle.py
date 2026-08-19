@@ -37,7 +37,7 @@ from trec_video_2026.vqa_experiments.qwen3_omni_frozen30_profiles import (
 )
 
 REUSED_ARCHIVE_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/inputs/"
+    "hf://buckets/Npatta01/trec_video_2026/inputs/"
     "qwen3-omni-frozen30-audio-20260731-a4/evidence.tar"
 )
 REUSED_ARCHIVE_SIZE = 318177280
@@ -405,8 +405,8 @@ def test_reuse_binds_stage1_to_the_exact_existing_a4_archive(
 @pytest.mark.parametrize(
     "archive_uri",
     (
-        "https://buckets/Npatta01/trec_mlm_2026/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4/evidence.tar",
-        "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/inputs/latest/evidence.tar",
+        "https://buckets/Npatta01/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4/evidence.tar",
+        "hf://buckets/Npatta01/trec_video_2026/inputs/latest/evidence.tar",
     ),
 )
 def test_reuse_rejects_any_non_pinned_archive_uri(

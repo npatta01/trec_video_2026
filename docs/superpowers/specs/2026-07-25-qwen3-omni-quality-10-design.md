@@ -121,7 +121,7 @@ credentials, or reference text may be committed.
 - Prior Qwen spend: `$2.6269`.
 - Worst cumulative spend: `$7.1269`, below the authorized `$10` hard cap.
 - Remote prefix:
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen3-omni-quality-10-20260725-a1`.
+  `hf://buckets/Npatta01/trec_video_2026/experiments/qwen3-omni-quality-10-20260725-a1`.
 
 The run prefix is immutable and must be empty before submission. The task
 syncs a manifest, preflight, incremental predictions, summary, terminal

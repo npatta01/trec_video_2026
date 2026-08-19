@@ -22,11 +22,11 @@ MODEL_ID = "openai/whisper-large-v3"
 MODEL_REVISION = "06f233fe06e710322aca913c1bc4249a0d71fce1"
 TRANSFORMERS_REVISION = "cbf4d720ec734edb77d25452b2790c7e4be2f8d7"
 INPUT_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+    "hf://buckets/Npatta01/trec_video_2026/"
     "experiments/deadline-qwen36-full-inputs-20260816-a2/input"
 )
 DEFAULT_OUTPUT_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+    "hf://buckets/Npatta01/trec_video_2026/"
     "experiments/deadline-qwen36-whisper-full-20260816-a2/output"
 )
 EXPECTED_MEDIA_COUNT = 1_946

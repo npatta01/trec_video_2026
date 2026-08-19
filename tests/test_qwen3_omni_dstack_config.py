@@ -122,7 +122,7 @@ def test_dstack_task_uploads_only_frozen_inputs_and_syncs_private_results():
     assert 'chmod -R a-w "$DATA_ROOT"' in combined
     assert "HF_TOKEN=${{ secrets.hf_token }}" in text
     assert (
-        "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+        "hf://buckets/Npatta01/trec_video_2026/"
         "experiments/qwen3-omni-compatibility-3-20260724-a4"
     ) in combined
     assert "name: qwen3-omni-compatibility-3-20260724-a4" in text

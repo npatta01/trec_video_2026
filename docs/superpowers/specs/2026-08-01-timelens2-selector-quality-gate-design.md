@@ -74,7 +74,7 @@ refuse incomplete, mutable, hash-mismatched, or wrong-revision inputs.
 - The exact-image canary and three-video model compatibility gate are already
   valid and must not be repeated for quality reasons.
 - Use a new immutable run name and an empty durable prefix below
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/<run-name>/`.
+  `hf://buckets/Npatta01/trec_video_2026/experiments/<run-name>/`.
 - Keep `HF_TOKEN` only in dstack secrets. Never print it or use secret-bearing
   diagnose output.
 - Set hard `max_price` and `max_duration`; total TimeLens-track spend must stay

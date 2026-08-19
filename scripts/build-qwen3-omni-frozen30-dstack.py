@@ -23,8 +23,8 @@ RUNTIME_IMAGE = (
     "docker.io/qwenllm/qwen3-omni@"
     "sha256:71896cf6533abc610ac298f26289ff3a4ea4bd1fc835f370ece9e5c31e3181d8"
 )
-OUTPUT_URI = "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/" + RUN_ID
-INPUT_URI = "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/inputs/" + RUN_ID
+OUTPUT_URI = "hf://buckets/Npatta01/trec_video_2026/experiments/" + RUN_ID
+INPUT_URI = "hf://buckets/Npatta01/trec_video_2026/inputs/" + RUN_ID
 CANONICAL_CONTRACT = Path("data/vqa/benchmarks/qwen3-omni-frozen30/contract-a4.json")
 CANONICAL_BUNDLE_MANIFEST = Path(
     "data/vqa/benchmarks/qwen3-omni-frozen30/bundle-a4/manifest.json"
@@ -33,11 +33,11 @@ STAGE1_RUN_ID = "qwen3-omni-f30-calibrated-20260801-s1"
 STAGE1_CANARY_RUN_ID = "qwen3-omni-f30-s1-canary"
 STAGE1_DEV_RUN_ID = "qwen3-omni-f30-s1-dev"
 STAGE1_OUTPUT_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/"
+    "hf://buckets/Npatta01/trec_video_2026/experiments/"
     f"{STAGE1_RUN_ID}"
 )
 STAGE1_ARCHIVE_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/inputs/"
+    "hf://buckets/Npatta01/trec_video_2026/inputs/"
     "qwen3-omni-frozen30-audio-20260731-a4/evidence.tar"
 )
 STAGE1_ARCHIVE_SIZE = 318177280
@@ -54,7 +54,7 @@ STAGE1_REPAIR_RUN_ID = "qwen3-omni-f30-calibrated-20260801-s2-nothink"
 STAGE1_REPAIR_CANARY_RUN_ID = "qwen3-omni-f30-s2-nothink-canary"
 STAGE1_REPAIR_DEV_RUN_ID = "qwen3-omni-f30-s2-nothink-dev"
 STAGE1_REPAIR_OUTPUT_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/"
+    "hf://buckets/Npatta01/trec_video_2026/experiments/"
     f"{STAGE1_REPAIR_RUN_ID}"
 )
 STAGE1_REPAIR_CONTRACT = Path(
@@ -67,7 +67,7 @@ STAGE1_SAMPLED_RUN_ID = "qwen3-omni-f30-calibrated-20260801-s3-sampled"
 STAGE1_SAMPLED_CANARY_RUN_ID = "qwen3-omni-f30-s3-sampled-canary"
 STAGE1_SAMPLED_DEV_RUN_ID = "qwen3-omni-f30-s3-sampled-dev"
 STAGE1_SAMPLED_OUTPUT_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/"
+    "hf://buckets/Npatta01/trec_video_2026/experiments/"
     f"{STAGE1_SAMPLED_RUN_ID}"
 )
 STAGE1_SAMPLED_CONTRACT = Path(
@@ -86,7 +86,7 @@ STAGE1_EXPLICIT_SAMPLING_DEV_RUN_ID = (
     "qwen3-omni-f30-s4-exp-dev"
 )
 STAGE1_EXPLICIT_SAMPLING_OUTPUT_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/"
+    "hf://buckets/Npatta01/trec_video_2026/experiments/"
     f"{STAGE1_EXPLICIT_SAMPLING_RUN_ID}"
 )
 STAGE1_EXPLICIT_SAMPLING_CONTRACT = Path(
@@ -99,7 +99,7 @@ STAGE1_SEED42_RUN_ID = "qwen3-omni-f30-calibrated-20260801-s5-seed42"
 STAGE1_SEED42_CANARY_RUN_ID = "qwen3-omni-f30-s5-seed42-canary"
 STAGE1_SEED42_DEV_RUN_ID = "qwen3-omni-f30-s5-seed42-dev"
 STAGE1_SEED42_OUTPUT_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/"
+    "hf://buckets/Npatta01/trec_video_2026/experiments/"
     f"{STAGE1_SEED42_RUN_ID}"
 )
 STAGE1_SEED42_CONTRACT = Path(

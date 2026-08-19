@@ -49,7 +49,7 @@ DATA_LINK="$REPO_ROOT/data"
 [[ -z "${HF_TOKEN:-}" ]] \
   || { echo "error: HF_TOKEN must remain unset outside dstack secrets" >&2; exit 2; }
 
-REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/$RUN_ID"
+REMOTE_URI="hf://buckets/Npatta01/trec_video_2026/experiments/$RUN_ID"
 OUTPUT_DIR="$DATA_LINK/vqa/benchmarks/nemotron3-omni/$RUN_ID"
 AUDIT_DIR="$DATA_LINK/vqa/benchmarks/nemotron3-omni/$RUN_ID-audit"
 TRUST_ROOT_INPUTS_PATH=""

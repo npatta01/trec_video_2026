@@ -35,7 +35,7 @@ case "$MODEL_KEY" in
     exit 2
     ;;
 esac
-readonly EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/${EXPECTED_RUN_ID}"
+readonly EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_video_2026/experiments/${EXPECTED_RUN_ID}"
 
 HF_ACCESS_TOKEN="${HF_TOKEN:-}"
 readonly HF_ACCESS_TOKEN

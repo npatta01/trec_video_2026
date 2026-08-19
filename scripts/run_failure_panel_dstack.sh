@@ -4,7 +4,7 @@ set -euo pipefail
 readonly DEFAULT_MODEL_ID="Qwen/Qwen3.6-35B-A3B"
 readonly DEFAULT_MODEL_REVISION="995ad96eacd98c81ed38be0c5b274b04031597b0"
 readonly DEFAULT_PANEL_SHA256="d2c5515b8c7398f326931e2f993f3fd6eac8e70d9ef01d1a1bd4afcf3f6792e8"
-readonly DEFAULT_REMOTE_ROOT="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments"
+readonly DEFAULT_REMOTE_ROOT="hf://buckets/Npatta01/trec_video_2026/experiments"
 readonly DEFAULT_RUNTIME_IMAGE="docker.io/pytorch/pytorch@sha256:b85566342b86d13a67712e9315d40cdc2dad7f8d86df1aff3831f80835edbcca"
 readonly TRANSFORMERS_REVISION="cbf4d720ec734edb77d25452b2790c7e4be2f8d7"
 readonly TRANSFORMERS_VERSION="5.15.0.dev0"
@@ -43,7 +43,7 @@ validate_static_inputs() {
   [[ "$EXPERIMENT_RUN_NAME" =~ ^[a-z0-9][a-z0-9-]*-[0-9]{8}T?[0-9]{0,6}-[a-z0-9]+$ ]] \
     || die "immutable experiment run name required (dated name plus unique suffix)"
   [[ "$EXPERIMENT_RUN_NAME" != *latest* ]] || die "immutable experiment run name cannot contain latest"
-  [[ "$HF_REMOTE_ROOT" == hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments ]] \
+  [[ "$HF_REMOTE_ROOT" == hf://buckets/Npatta01/trec_video_2026/experiments ]] \
     || die "unexpected Hugging Face Bucket root"
   mkdir -p "$OUTPUT_DIR"
 
@@ -341,7 +341,7 @@ PY
 fetch_evidence() {
   command -v uvx >/dev/null || die "uvx is unavailable in the pinned image"
   [[ "$EVIDENCE_ARTIFACT_URI" == \
-    hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/artifacts/failure-panel-12-frames-d2c5515b8c73 ]] \
+    hf://buckets/Npatta01/trec_video_2026/artifacts/failure-panel-12-frames-d2c5515b8c73 ]] \
     || die "unexpected immutable evidence artifact URI"
   mkdir -p "$EXPECTED_EVIDENCE_ROOT"
   uvx hf buckets sync "$EVIDENCE_ARTIFACT_URI" "$EXPECTED_EVIDENCE_ROOT"
@@ -522,7 +522,7 @@ remote_prefix_is_empty() {
 preflight_local_evidence_upload() {
   command -v uvx >/dev/null || die "uvx is unavailable"
   [[ "$EVIDENCE_ARTIFACT_URI" == \
-    hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/artifacts/failure-panel-12-frames-d2c5515b8c73 ]] \
+    hf://buckets/Npatta01/trec_video_2026/artifacts/failure-panel-12-frames-d2c5515b8c73 ]] \
     || die "unexpected immutable evidence artifact URI"
   mkdir -p "$OUTPUT_DIR"
   remote_prefix_is_empty "$EVIDENCE_ARTIFACT_URI" \

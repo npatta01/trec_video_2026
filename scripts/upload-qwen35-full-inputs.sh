@@ -6,7 +6,7 @@ readonly RUN_ID="qwen35-4b-12f-full-20260803-b1"
 readonly DATA_ROOT="/home/npatta01/data/competitions/trec_video_2026/data"
 readonly MEDIA_ROOT="$DATA_ROOT/vqa/2025/training/videos_original"
 readonly MANIFEST="configs/vqa/qwen35_vqa2025_475_label_free.json"
-readonly REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/$RUN_ID-inputs"
+readonly REMOTE_URI="hf://buckets/Npatta01/trec_video_2026/experiments/$RUN_ID-inputs"
 readonly HF_CLI_VERSION="1.26.0"
 
 die() {

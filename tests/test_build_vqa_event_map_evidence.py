@@ -824,6 +824,22 @@ def test_frozen_baseline_authenticates_whisper_and_exact_f0_sources(
     assert len(authenticated["f0_rows"][0]["frames"]) == 12
 
 
+def test_frozen_baseline_allows_current_locator_to_replace_terminal_locator(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture(tmp_path)
+    root, contract = _write_frozen_baseline_bundle(tmp_path, fixture)
+    contract["payload_uri"] = (
+        "hf://buckets/Npatta01/trec_video_2026/experiments/frozen-fixture/payload"
+    )
+
+    authenticated = load_builder().validate_frozen_baseline_bundle(
+        root, contract=contract
+    )
+
+    assert authenticated["whisper_rows"] == fixture["whisper"]
+
+
 def test_frozen_baseline_rejects_tampered_f0_frame(tmp_path: Path) -> None:
     fixture = _fixture(tmp_path)
     root, contract = _write_frozen_baseline_bundle(tmp_path, fixture)

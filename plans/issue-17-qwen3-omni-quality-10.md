@@ -41,7 +41,7 @@ Face Bucket artifacts, pytest, Ruff, Bash, GitHub draft PR.
   weights, credentials, or reference text.
 - Use immutable run `qwen3-omni-quality-10-20260725-a1` and private remote
   prefix
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen3-omni-quality-10-20260725-a1`.
+  `hf://buckets/Npatta01/trec_video_2026/experiments/qwen3-omni-quality-10-20260725-a1`.
 - Keep dstack at `$4.50/hour` for at most one hour; cumulative worst case is
   `$7.1269`, below the approved `$10` hard cap.
 - Do not submit while the dstack server is unreachable.
@@ -467,7 +467,7 @@ runtime, decoding, or scoring.
 
 - Run ID: `qwen3-omni-quality-10-neutral-20260725-a2`
 - Private prefix:
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen3-omni-quality-10-neutral-20260725-a2`
+  `hf://buckets/Npatta01/trec_video_2026/experiments/qwen3-omni-quality-10-neutral-20260725-a2`
 - Incremental worst-case spend: `$4.50`
 - Cumulative worst case: `$4.5878 + $4.50 = $9.0878`, below the approved
   `$10` cap.

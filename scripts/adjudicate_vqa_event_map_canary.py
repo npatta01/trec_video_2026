@@ -34,7 +34,7 @@ RUN_ID = "vqa-event-map-canary-a2"
 INPUT_RUN_ID = "vqa-event-map-inputs-20260809-a3"
 ATTEMPT_UUID = "d6d3a33e-84c5-4067-bcea-fe82cdd10e2f"
 OUTPUT_IDENTITY = (
-    "hf://buckets/Npatta01/trec-video-2026-event-map-20260809-vqa-event-map-canary-a2"
+    "hf://buckets/Npatta01/trec_video_2026/experiments/vqa-event-map-canary-a2"
 )
 # The original a1 attempt is retained only as rejected/superseded provenance.
 SUPERSEDED_RUN_ID = "vqa-event-map-canary"
@@ -394,7 +394,7 @@ def _expected_config() -> dict[str, Any]:
             f"EXPERIMENT_RUN_ID={RUN_ID}",
             "EVENT_MAP_CONDITIONS=v-map,av-map",
             "EVENT_MAP_SLICE=",
-            "HF_INPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-event-map-inputs-20260809-a3/inputs",
+            "HF_INPUT_URI=hf://buckets/Npatta01/trec_video_2026/experiments/vqa-event-map-inputs-20260809-a3/inputs",
             f"HF_REMOTE_URI={OUTPUT_IDENTITY}",
             f"RUNTIME_IMAGE={RUNTIME_IMAGE}",
             f"RUNTIME_IMAGE_DIGEST={RUNTIME_IMAGE_DIGEST}",
