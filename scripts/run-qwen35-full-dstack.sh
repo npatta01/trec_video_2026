@@ -2,8 +2,8 @@
 set -euo pipefail
 
 readonly EXPECTED_RUN_NAME="qwen35-4b-12f-full-20260803-c1"
-readonly EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen35-4b-12f-full-20260803-b1-inputs/inputs"
-readonly EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/$EXPECTED_RUN_NAME-output"
+readonly EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_video_2026/experiments/qwen35-4b-12f-full-20260803-b1-inputs/inputs"
+readonly EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_video_2026/experiments/$EXPECTED_RUN_NAME-output"
 readonly EXPECTED_RUNTIME_IMAGE="docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755"
 readonly MODEL_ID="Qwen/Qwen3.5-4B"
 readonly MODEL_REVISION="851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"

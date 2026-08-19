@@ -12,7 +12,7 @@ from pathlib import Path
 RUN_ID = "qwen3-omni-quality-10-20260725-a1"
 NEUTRAL_RUN_ID = "qwen3-omni-quality-10-neutral-20260725-a2"
 REMOTE_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/" + RUN_ID
+    "hf://buckets/Npatta01/trec_video_2026/experiments/" + RUN_ID
 )
 IMAGE = (
     "docker.io/qwenllm/qwen3-omni@"
@@ -339,7 +339,7 @@ def test_neutral_a2_scaffolding_keeps_a1_immutable_and_binds_no_repo_submission(
     a1_config = CONFIG.read_text(encoding="utf-8")
 
     neutral_uri = (
-        "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/"
+        "hf://buckets/Npatta01/trec_video_2026/experiments/"
         + NEUTRAL_RUN_ID
     )
     assert f"name: {NEUTRAL_RUN_ID}" in neutral_config

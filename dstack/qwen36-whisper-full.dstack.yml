@@ -10,8 +10,8 @@ working_dir: /dstack/run
 env:
   - HF_TOKEN=${{ secrets.hf_token }}
   - HF_HUB_DISABLE_TELEMETRY=1
-  - HF_INPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/deadline-qwen36-full-inputs-20260816-a2/input
-  - HF_OUTPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/deadline-qwen36-whisper-full-20260816-a2/output
+  - HF_INPUT_URI=hf://buckets/Npatta01/trec_video_2026/experiments/deadline-qwen36-full-inputs-20260816-a2/input
+  - HF_OUTPUT_URI=hf://buckets/Npatta01/trec_video_2026/experiments/deadline-qwen36-whisper-full-20260816-a2/output
   - EXPERIMENT_RUN_NAME=qwen36-whisper-full-20260816-a2
   - PYTHON_BIN=/opt/conda/bin/python
   - PYTHONPATH=/dstack/run/src

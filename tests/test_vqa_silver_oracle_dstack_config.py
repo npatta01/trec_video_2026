@@ -26,11 +26,11 @@ CONFIGS = {
 }
 RUNNER = Path("scripts/run-vqa-silver-oracle-selector-dstack.sh")
 MEDIA_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/artifacts/"
+    "hf://buckets/Npatta01/trec_video_2026/artifacts/"
     "vqa2025-training-media-475-20260809-a1/media"
 )
 CONTROLLER_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/"
+    "hf://buckets/Npatta01/trec_video_2026/experiments/"
     f"{RUN_ID}/input-controller"
 )
 B4_SOURCE_BUNDLE_SHA256 = (

@@ -277,11 +277,11 @@ def test_config_pins_runtime_and_syncs_each_shard() -> None:
         assert "6a9e13bd6fc8f0983b9b99948120bc37f49c13e9" in text
         assert "docker.io/vllm/vllm-openai:v0.20.0@sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc" in text
         assert (
-            "HF_INPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+            "HF_INPUT_URI=hf://buckets/Npatta01/trec_video_2026/"
             "experiments/deadline-qwen36-full-inputs-20260816-a2/input"
         ) in text
         assert (
-            "HF_WHISPER_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+            "HF_WHISPER_URI=hf://buckets/Npatta01/trec_video_2026/"
             "experiments/deadline-qwen36-whisper-full-20260816-a2/output"
         ) in text
         assert (
@@ -330,14 +330,14 @@ def test_smoke_config_is_distinct_limited_and_whisper_gated() -> None:
 
     assert "name: qwen36-full-smoke-20260816-a2-s0" in text
     assert (
-        "HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+        "HF_REMOTE_URI=hf://buckets/Npatta01/trec_video_2026/"
         "experiments/qwen36-full-smoke-20260816-a2-s0"
     ) in text
     assert (
-        "HF_INPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+        "HF_INPUT_URI=hf://buckets/Npatta01/trec_video_2026/"
         "experiments/deadline-qwen36-full-inputs-20260816-a2/input"
     ) in text
-    assert 'HF_WHISPER_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/' in text
+    assert 'HF_WHISPER_URI=hf://buckets/Npatta01/trec_video_2026/' in text
     assert "SHARD_COUNT=4" in text
     assert "SHARD_INDEX=0" in text
     assert "--limit 5" in text

@@ -157,7 +157,7 @@ def test_wrapper_pins_runtime_and_preserves_failure_and_artifact_contracts() -> 
     assert "diagnose" not in text
     assert "timelens2-runner-canary-20260730-a1" in text
     assert "timelens2-selector-pilot-20260730-a1" in text
-    assert "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/" in text
+    assert "hf://buckets/Npatta01/trec_video_2026/experiments/" in text
     assert (
         'exec "$PYTHON_BIN" -m trec_video_2026.vqa_experiments.timelens2_selector'
         in text
@@ -192,7 +192,7 @@ def test_wrapper_accepts_only_authorized_compatibility_identities(
             "RUN_MODE": "compatibility",
             "EXPERIMENT_RUN_ID": run_id,
             "HF_REMOTE_URI": (
-                "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+                "hf://buckets/Npatta01/trec_video_2026/"
                 f"experiments/{run_id}"
             ),
             "RUNTIME_IMAGE": IMAGE,

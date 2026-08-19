@@ -17,9 +17,9 @@ env:
   - MODEL_REVISION=6a9e13bd6fc8f0983b9b99948120bc37f49c13e9
   - RUNTIME_IMAGE=docker.io/vllm/vllm-openai:v0.20.0@sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc
   - EXPERIMENT_RUN_NAME=qwen36-27b-deadline-full-20260816-a2-s1
-  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen36-27b-deadline-full-20260816-a2
-  - HF_INPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/deadline-qwen36-full-inputs-20260816-a2/input
-  - HF_WHISPER_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/deadline-qwen36-whisper-full-20260816-a2/output
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_video_2026/experiments/qwen36-27b-deadline-full-20260816-a2
+  - HF_INPUT_URI=hf://buckets/Npatta01/trec_video_2026/experiments/deadline-qwen36-full-inputs-20260816-a2/input
+  - HF_WHISPER_URI=hf://buckets/Npatta01/trec_video_2026/experiments/deadline-qwen36-whisper-full-20260816-a2/output
   - INPUT_DIR=/dstack/input
   - OUTPUT_DIR=/dstack/output
   - SHARD_COUNT=4

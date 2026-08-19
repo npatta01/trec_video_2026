@@ -16,7 +16,7 @@ DATA_LINK="$REPO_ROOT/data"
   || { echo "error: data symlink does not resolve to the canonical dataset" >&2; exit 2; }
 
 OUTPUT_DIR="$REPO_ROOT/data/vqa/benchmarks/qwen3-omni-compatibility-3/$RUN_ID"
-REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/$RUN_ID"
+REMOTE_URI="hf://buckets/Npatta01/trec_video_2026/experiments/$RUN_ID"
 [[ ! -e "$OUTPUT_DIR" ]] || { echo "error: refusing to overwrite $OUTPUT_DIR" >&2; exit 2; }
 mkdir -p "$OUTPUT_DIR"
 

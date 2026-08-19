@@ -49,11 +49,11 @@ def _run_shell(
     vqa_mode: str = "canary",
     experiment_run_name: str = "vqa-factorial-canary-20260809-e2",
     input_uri: str = (
-        "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+        "hf://buckets/Npatta01/trec_video_2026/"
         "experiments/qwen35-4b-12f-full-20260803-b1-inputs/inputs"
     ),
     remote_uri: str = (
-        "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+        "hf://buckets/Npatta01/trec_video_2026/"
         "experiments/vqa-factorial-canary-20260809-e2"
     ),
     extra_env: dict[str, str] | None = None,
@@ -350,7 +350,7 @@ def test_f2_retry_topology_preserves_f1_and_uses_a_fresh_remote_identity() -> No
     builder.validate_full_condition_profiles(profile)
     assert profile["run_name"] == "vqa-factorial-full-20260809-f2"
     assert profile["remote_uri"] == (
-        "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+        "hf://buckets/Npatta01/trec_video_2026/"
         "experiments/vqa-factorial-full-20260809-f2/conditions"
     )
     for condition_id in (
@@ -368,7 +368,7 @@ def test_f2_retry_topology_preserves_f1_and_uses_a_fresh_remote_identity() -> No
         assert payload["resources"]["gpu"] == "L40S:1:48GB.."
         assert f"EXPERIMENT_RUN_NAME=vqa-factorial-full-20260809-f2-{condition_id}" in env
         assert (
-            "HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+            "HF_REMOTE_URI=hf://buckets/Npatta01/trec_video_2026/"
             f"experiments/vqa-factorial-full-20260809-f2/conditions/{condition_id}"
         ) in env
         assert "PROFILE=/dstack/run/configs/vqa/vqa_factorial_full_condition_profiles_f2.json" in env
@@ -592,8 +592,8 @@ def test_shell_rejects_ocr_only_full_condition_binding(tmp_path: Path) -> None:
         profile=path,
         vqa_mode="condition",
         experiment_run_name="vqa-factorial-full-20260809-f1-4b-current",
-        input_uri="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-factorial-full-evidence-20260809-f1",
-        remote_uri="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-factorial-full-20260809-f1/conditions/4b-current",
+        input_uri="hf://buckets/Npatta01/trec_video_2026/experiments/vqa-factorial-full-evidence-20260809-f1",
+        remote_uri="hf://buckets/Npatta01/trec_video_2026/experiments/vqa-factorial-full-20260809-f1/conditions/4b-current",
         extra_env={
             "CONDITION_ID": "4b-current",
             "VQA_DRY_RUN": "1",

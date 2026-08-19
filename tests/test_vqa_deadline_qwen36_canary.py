@@ -128,7 +128,7 @@ def test_dstack_config_pins_runtime_budget_and_foreground_sync() -> None:
     assert "max_price: 4.00" in text
     assert "H100" in text
     assert "--max-model-len 32768" in text
-    assert "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/" in text
+    assert "hf://buckets/Npatta01/trec_video_2026/experiments/" in text
     assert "hf buckets sync" in text
     assert re.search(r"hf buckets sync[^\n&]+&", text) is None
     assert "--delete" not in text

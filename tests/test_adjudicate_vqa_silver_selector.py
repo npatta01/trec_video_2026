@@ -33,11 +33,11 @@ RUNTIME_IMAGE = (
 )
 RUNTIME_IMAGE_DIGEST = RUNTIME_IMAGE.rsplit("@", 1)[1]
 OUTPUT_BASE = (
-    f"hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/{RUN_ID}"
+    f"hf://buckets/Npatta01/trec_video_2026/experiments/{RUN_ID}"
 )
 REMOTE_OUTPUT_URI = f"{OUTPUT_BASE}/selector/{SLICE_ID}/{EXECUTION_ATTEMPT_ID}"
 MEDIA_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/artifacts/"
+    "hf://buckets/Npatta01/trec_video_2026/artifacts/"
     "vqa2025-training-media-475-20260809-a1/media"
 )
 CONTROLLER_URI = f"{OUTPUT_BASE}/input-controller"

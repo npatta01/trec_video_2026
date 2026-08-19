@@ -137,7 +137,7 @@ def test_phi4mm_token_is_scoped_away_from_remote_model_code():
 def test_phi4mm_results_use_an_immutable_private_bucket_prefix():
     combined = CONFIG.read_text(encoding="utf-8") + RUNNER.read_text(encoding="utf-8")
     expected = (
-        f"hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/{RUN_ID}"
+        f"hf://buckets/Npatta01/trec_video_2026/experiments/{RUN_ID}"
     )
 
     assert expected in combined

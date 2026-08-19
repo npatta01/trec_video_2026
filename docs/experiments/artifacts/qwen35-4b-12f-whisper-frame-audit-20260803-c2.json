@@ -106,7 +106,7 @@
     "inference_rows": 475,
     "local_media_rows": 475
   },
-  "remote_output_uri": "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/q35-12f-wa-20260803-c2-output/output",
+  "remote_output_uri": "hf://buckets/Npatta01/trec_video_2026/experiments/q35-12f-wa-20260803-c2-output/output",
   "run_id": "q35-12f-wa-20260803-c2",
   "schema_version": 1,
   "transition_counts": {

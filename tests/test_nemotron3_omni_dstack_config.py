@@ -37,7 +37,7 @@ EXPANDED12_D1_ID = "nemotron3-omni-expanded12-20260731-d1"
 FROZEN30_CANARY_ID = "nemotron3-omni-frozen30-canary-20260801-a1"
 FROZEN30_CANARY_SCHEDULER_ID = "nemotron3-f30-canary-20260801-a1"
 FROZEN30_ID = "nemotron3-omni-frozen30-20260801-a1"
-REMOTE_ROOT = "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments"
+REMOTE_ROOT = "hf://buckets/Npatta01/trec_video_2026/experiments"
 CANARY_CONFIG = Path("dstack/nemotron3-omni-runner-canary-a2.dstack.yml")
 FAILED_CANARY_CONFIG = Path("dstack/nemotron3-omni-runner-canary.dstack.yml")
 PILOT_CONFIG = Path("dstack/nemotron3-omni-pilot.dstack.yml")
@@ -131,7 +131,7 @@ printf '\n' >>"$FAKE_CALL_LOG"
 command="$2"
 shift 2
 remote_path() {
-  printf '%s/%s' "$FAKE_HF_ROOT" "${1#hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/}"
+  printf '%s/%s' "$FAKE_HF_ROOT" "${1#hf://buckets/Npatta01/trec_video_2026/experiments/}"
 }
 case "$command" in
   list)
@@ -577,7 +577,7 @@ printf '\\n' >>\"$FAKE_HF_LOG\"
 command=\"$2\"
 shift 2
 remote_path() {
-  printf '%s/%s' \"$FAKE_HF_ROOT\" \"${1#hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/}\"
+  printf '%s/%s' \"$FAKE_HF_ROOT\" \"${1#hf://buckets/Npatta01/trec_video_2026/experiments/}\"
 }
 case \"$command\" in
   list)

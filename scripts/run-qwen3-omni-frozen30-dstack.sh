@@ -21,9 +21,9 @@ DOWNLOAD_REMOTE_MANIFEST=""
 case "$EXPERIMENT_PROFILE" in
   a4)
     EXPECTED_RUN_ID="qwen3-omni-frozen30-audio-20260731-a4"
-    EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4"
+    EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4"
     EXPECTED_ARCHIVE_URI="$EXPECTED_INPUT_URI/evidence.tar"
-    EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen3-omni-frozen30-audio-20260731-a4"
+    EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_video_2026/experiments/qwen3-omni-frozen30-audio-20260731-a4"
     PINNED_CONTRACT_SHA256="9cfa26eacecde5bd8c916823ce2a59e74ded7f71ae978b973e306a0525b24bb5"
     PINNED_BUNDLE_MANIFEST_SHA256="3f88bb004c9d95c433e544ddf0cf6b314deffd0d5a22e5adb2d3e1d09613ca74"
     EXPECTED_BUNDLE_ARCHIVE_SHA256="9f94a991ecdf5a4722aabb6e2a8f62a761ffdca34bc3ec08724b509668ed5943"
@@ -32,45 +32,45 @@ case "$EXPERIMENT_PROFILE" in
     ;;
   stage1)
     EXPECTED_RUN_ID="qwen3-omni-f30-calibrated-20260801-s1"
-    EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4"
+    EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4"
     EXPECTED_ARCHIVE_URI="$EXPECTED_INPUT_URI/evidence.tar"
-    EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen3-omni-f30-calibrated-20260801-s1"
+    EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_video_2026/experiments/qwen3-omni-f30-calibrated-20260801-s1"
     EXPECTED_BUNDLE_ARCHIVE_SHA256="9f94a991ecdf5a4722aabb6e2a8f62a761ffdca34bc3ec08724b509668ed5943"
     EXPECTED_BUNDLE_ARCHIVE_SIZE="318177280"
     DOWNLOAD_REMOTE_MANIFEST="false"
     ;;
   stage1_repair)
     EXPECTED_RUN_ID="qwen3-omni-f30-calibrated-20260801-s2-nothink"
-    EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4"
+    EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4"
     EXPECTED_ARCHIVE_URI="$EXPECTED_INPUT_URI/evidence.tar"
-    EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen3-omni-f30-calibrated-20260801-s2-nothink"
+    EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_video_2026/experiments/qwen3-omni-f30-calibrated-20260801-s2-nothink"
     EXPECTED_BUNDLE_ARCHIVE_SHA256="9f94a991ecdf5a4722aabb6e2a8f62a761ffdca34bc3ec08724b509668ed5943"
     EXPECTED_BUNDLE_ARCHIVE_SIZE="318177280"
     DOWNLOAD_REMOTE_MANIFEST="false"
     ;;
   stage1_sampled)
     EXPECTED_RUN_ID="qwen3-omni-f30-calibrated-20260801-s3-sampled"
-    EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4"
+    EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4"
     EXPECTED_ARCHIVE_URI="$EXPECTED_INPUT_URI/evidence.tar"
-    EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen3-omni-f30-calibrated-20260801-s3-sampled"
+    EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_video_2026/experiments/qwen3-omni-f30-calibrated-20260801-s3-sampled"
     EXPECTED_BUNDLE_ARCHIVE_SHA256="9f94a991ecdf5a4722aabb6e2a8f62a761ffdca34bc3ec08724b509668ed5943"
     EXPECTED_BUNDLE_ARCHIVE_SIZE="318177280"
     DOWNLOAD_REMOTE_MANIFEST="false"
     ;;
   stage1_explicit_sampling)
     EXPECTED_RUN_ID="qwen3-omni-f30-calibrated-20260801-s4-explicit-sampling"
-    EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4"
+    EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4"
     EXPECTED_ARCHIVE_URI="$EXPECTED_INPUT_URI/evidence.tar"
-    EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen3-omni-f30-calibrated-20260801-s4-explicit-sampling"
+    EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_video_2026/experiments/qwen3-omni-f30-calibrated-20260801-s4-explicit-sampling"
     EXPECTED_BUNDLE_ARCHIVE_SHA256="9f94a991ecdf5a4722aabb6e2a8f62a761ffdca34bc3ec08724b509668ed5943"
     EXPECTED_BUNDLE_ARCHIVE_SIZE="318177280"
     DOWNLOAD_REMOTE_MANIFEST="false"
     ;;
   stage1_seed42)
     EXPECTED_RUN_ID="qwen3-omni-f30-calibrated-20260801-s5-seed42"
-    EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4"
+    EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4"
     EXPECTED_ARCHIVE_URI="$EXPECTED_INPUT_URI/evidence.tar"
-    EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen3-omni-f30-calibrated-20260801-s5-seed42"
+    EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_video_2026/experiments/qwen3-omni-f30-calibrated-20260801-s5-seed42"
     EXPECTED_BUNDLE_ARCHIVE_SHA256="9f94a991ecdf5a4722aabb6e2a8f62a761ffdca34bc3ec08724b509668ed5943"
     EXPECTED_BUNDLE_ARCHIVE_SIZE="318177280"
     DOWNLOAD_REMOTE_MANIFEST="false"

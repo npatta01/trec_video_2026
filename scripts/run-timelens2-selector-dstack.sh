@@ -57,7 +57,7 @@ validate_environment() {
     *) die "RUN_MODE must be canary or compatibility" ;;
   esac
   local expected_remote
-  expected_remote="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/${EXPERIMENT_RUN_ID}"
+  expected_remote="hf://buckets/Npatta01/trec_video_2026/experiments/${EXPERIMENT_RUN_ID}"
   [[ "$HF_REMOTE_URI" == "$expected_remote" ]] || die "remote URI mismatch"
   [[ "$MODEL_DIR" == /dstack/model ]] || die "model directory mismatch"
   [[ "$OUTPUT_DIR" == /dstack/output ]] || die "output directory mismatch"

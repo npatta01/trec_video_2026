@@ -19,7 +19,7 @@
 - Sampling: no padding; uniform-12 versus six global plus six normalized-interval midpoint frames using Hamilton allocation.
 - Freeze selector recipes and all twenty answers before label access.
 - Base allocation is $4; $0.6580 was already spent, leaving $3.3420. Do not use the central reserve.
-- Private files stay ignored and durable artifacts stay under `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/<run-name>/`.
+- Private files stay ignored and durable artifacts stay under `hf://buckets/Npatta01/trec_video_2026/experiments/<run-name>/`.
 - Do not edit shared project-status QMD or generated Markdown/HTML.
 
 ---

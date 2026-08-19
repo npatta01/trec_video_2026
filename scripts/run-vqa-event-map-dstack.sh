@@ -5,8 +5,8 @@ readonly EXPECTED_RUNTIME_IMAGE="docker.io/vllm/vllm-openai:v0.20.0@sha256:77797
 readonly EXPECTED_RUNTIME_IMAGE_DIGEST="sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc"
 readonly EXPECTED_MODEL_ID="nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4"
 readonly EXPECTED_MODEL_REVISION="dc5f0b0bfddf8b6e0f5891475be9af05b80126fe"
-readonly EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-event-map-inputs-20260809-a3/inputs"
-readonly EXPECTED_REMOTE_ROOT="hf://buckets/Npatta01/trec-video-2026-event-map-20260809"
+readonly EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_video_2026/experiments/vqa-event-map-inputs-20260809-a3/inputs"
+readonly EXPECTED_REMOTE_ROOT="hf://buckets/Npatta01/trec_video_2026/experiments"
 readonly PYTHON_BIN="/usr/bin/python3"
 readonly INPUT_DIR="/dstack/input"
 readonly OUTPUT_DIR="/dstack/output"
@@ -88,7 +88,7 @@ validate_identity() {
     *) die "unexpected immutable event-map identity" ;;
   esac
   [[ "$HF_INPUT_URI" == "$EXPECTED_INPUT_URI" ]] || die "unexpected immutable input URI"
-  [[ "$HF_REMOTE_URI" == "$EXPECTED_REMOTE_ROOT-$RUN_ID" ]] || die "unexpected immutable output URI"
+  [[ "$HF_REMOTE_URI" == "$EXPECTED_REMOTE_ROOT/$RUN_ID" ]] || die "unexpected immutable output URI"
   [[ "$RUNTIME_IMAGE" == "$EXPECTED_RUNTIME_IMAGE" ]] || die "runtime image mismatch"
   [[ "$RUNTIME_IMAGE_DIGEST" == "$EXPECTED_RUNTIME_IMAGE_DIGEST" ]] || die "runtime image digest mismatch"
   [[ "$MODEL_ID" == "$EXPECTED_MODEL_ID" ]] || die "model identity mismatch"
@@ -420,11 +420,10 @@ PY
 }
 
 reserve_remote_prefix() {
-  local bucket_id created
-  bucket_id="${HF_REMOTE_URI#hf://buckets/}"
-  created="$(hf_cli buckets create "$bucket_id" --private --format quiet 2>/dev/null)" \
-    || die "atomic private output reservation failed"
-  [[ "$created" == "$HF_REMOTE_URI" ]] || die "atomic output identity mismatch"
+  local listing
+  listing="$(hf_cli buckets list "$HF_REMOTE_URI" --recursive --format quiet 2>/dev/null)" \
+    || die "private output prefix inspection failed"
+  [[ -z "$listing" ]] || die "remote output prefix already contains files"
   REMOTE_RESERVED="true"
 }
 

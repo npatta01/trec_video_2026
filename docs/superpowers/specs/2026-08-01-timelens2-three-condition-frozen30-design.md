@@ -109,7 +109,7 @@ not silently add an answer judge.
 - Keep `HF_TOKEN` only in dstack secrets. Do not use diagnose output on a
   secret-bearing run.
 - Durable private artifacts live under
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/<run-name>/`.
+  `hf://buckets/Npatta01/trec_video_2026/experiments/<run-name>/`.
   List, download to a fresh ignored directory, and checksum-verify them.
 - `.timelens2-private/` stays locally excluded. Raw competition rows, media,
   answers, labels, grading packets, and logs stay out of Git. Only one uniquely

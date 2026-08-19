@@ -7,7 +7,6 @@ import json
 import os
 import re
 import subprocess
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import ModuleType
 
@@ -26,9 +25,9 @@ CONFIGS = {
 CELLS = tuple(CONFIGS)
 RUN_ID = "vqa-silver-oracle-election-20260809-a1"
 EVIDENCE_URI = (
-    f"hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/{RUN_ID}/evidence"
+    f"hf://buckets/Npatta01/trec_video_2026/experiments/{RUN_ID}/evidence"
 )
-OUTPUT_BUCKET_PREFIX = "Npatta01/trec-video-2026-vqa-silver-answer-20260809-a1"
+OUTPUT_BUCKET_ID = "Npatta01/trec_video_2026"
 RUNTIME_IMAGE = (
     "docker.io/pytorch/pytorch@sha256:"
     "c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755"
@@ -43,11 +42,12 @@ SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 
 def _output_bucket_id(cell: str) -> str:
-    return f"{OUTPUT_BUCKET_PREFIX}-{cell}"
+    del cell
+    return OUTPUT_BUCKET_ID
 
 
 def _output_uri(cell: str) -> str:
-    return f"hf://buckets/{_output_bucket_id(cell)}"
+    return f"hf://buckets/{OUTPUT_BUCKET_ID}/experiments/vqa-silver-answer-20260809-a1-{cell}"
 
 
 def _env(payload: dict[str, object]) -> dict[str, str]:
@@ -447,7 +447,8 @@ def test_nine_configs_cover_exactly_one_unique_answer_cell_each() -> None:
         assert payload["resources"]["gpu"] == "L40S:1:48GB.."
         assert "ports:" not in path.read_text(encoding="utf-8")
         assert "../data/" not in path.read_text(encoding="utf-8")
-    assert len(output_bucket_ids) == len(output_uris) == 9
+    assert len(output_bucket_ids) == 1
+    assert len(output_uris) == 9
     assert len(bundle_pins) == 1
     assert len(marker_pins) == 1
     bundle_pin = next(iter(bundle_pins))
@@ -537,12 +538,12 @@ def test_placeholder_digest_blocks_dstack_job_before_remote_access(
     ("override", "message"),
     [
         (
-            {"HF_OUTPUT_BUCKET_ID": f"{OUTPUT_BUCKET_PREFIX}-gf"},
+            {"HF_OUTPUT_BUCKET_ID": "Npatta01/not-the-project-bucket"},
             "bucket identity",
         ),
         (
             {"HF_REMOTE_URI": "hf://buckets/Npatta01/unpinned-output"},
-            "exact cell bucket identity",
+            "exact cell output prefix",
         ),
     ],
 )
@@ -690,17 +691,17 @@ def test_runner_refuses_existing_local_or_remote_output(tmp_path: Path) -> None:
     result = _run_runner(
         remote_root,
         input_root=input_root,
-        extra={"FAKE_REMOTE_INITIAL_LISTING": f"{_output_bucket_id('gn')}\n"},
+        extra={"FAKE_REMOTE_INITIAL_LISTING": "terminal-status.json\n"},
     )
     assert result.returncode != 0
-    assert "already exists" in result.stderr
+    assert "already contains files" in result.stderr
     assert not (remote_root / "inference.log").exists()
     commands = (remote_root / "hf.log").read_text(encoding="utf-8").splitlines()
     assert len(commands) == 1
-    assert commands[0].startswith("buckets list Npatta01 --search ")
+    assert commands[0].startswith(f"buckets list {_output_uri('gn')} ")
 
 
-def test_atomic_bucket_lease_409_cannot_upload_or_mix_same_cell_output(
+def test_late_prefix_collision_cannot_upload_or_mix_same_cell_output(
     tmp_path: Path,
 ) -> None:
     input_root = _write_input_bundle(tmp_path)
@@ -710,20 +711,17 @@ def test_atomic_bucket_lease_409_cannot_upload_or_mix_same_cell_output(
         input_root=input_root,
         extra={
             "VQA_SKIP_PUBLICATION": "0",
-            "FAKE_CREATE_CONFLICT": "1",
+            "FAKE_REMOTE_FINAL_LISTING": "late-writer.json\n",
         },
     )
 
     assert result.returncode != 0
-    assert "409 conflict" in result.stderr.lower()
-    assert "atomic" in result.stderr.lower() or "lease" in result.stderr.lower()
+    assert "already contains files" in result.stderr.lower()
     assert (run_root / "inference.log").is_file()
     assert (run_root / "output/completion.json").is_file()
     commands = (run_root / "hf.log").read_text(encoding="utf-8").splitlines()
-    create = f"buckets create {_output_bucket_id('gn')} --private --format quiet"
-    assert commands.count(create) == 1
-    assert not any("--exist-ok" in command for command in commands)
-    assert sum(command.startswith("buckets list ") for command in commands) == 1
+    assert not any(command.startswith("buckets create ") for command in commands)
+    assert sum(command.startswith("buckets list ") for command in commands) == 2
     assert not any(
         command.startswith(f"buckets sync {run_root / 'output'} ")
         for command in commands
@@ -731,50 +729,6 @@ def test_atomic_bucket_lease_409_cannot_upload_or_mix_same_cell_output(
     assert not any(command.startswith("buckets cp ") for command in commands)
     assert not (run_root / "uploaded-payload").exists()
     assert not (run_root / "uploaded-terminal.json").exists()
-
-
-def test_concurrent_same_cell_publishers_have_exactly_one_atomic_lease_winner(
-    tmp_path: Path,
-) -> None:
-    input_root = _write_input_bundle(tmp_path / "bundle")
-    lease_root = tmp_path / "provider-bucket-leases"
-
-    def publish(run_name: str) -> tuple[Path, subprocess.CompletedProcess[str]]:
-        run_root = tmp_path / run_name
-        result = _run_runner(
-            run_root,
-            input_root=input_root,
-            extra={
-                "VQA_SKIP_PUBLICATION": "0",
-                "FAKE_BUCKET_LEASE_ROOT": str(lease_root),
-            },
-        )
-        return run_root, result
-
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        outcomes = list(pool.map(publish, ("publisher-a", "publisher-b")))
-
-    winners = [(root, result) for root, result in outcomes if result.returncode == 0]
-    losers = [(root, result) for root, result in outcomes if result.returncode != 0]
-    assert len(winners) == len(losers) == 1
-
-    winner_root, _ = winners[0]
-    loser_root, loser_result = losers[0]
-    assert "409 conflict" in loser_result.stderr.lower()
-    assert (winner_root / "uploaded-payload/completion.json").is_file()
-    assert (winner_root / "uploaded-terminal.json").is_file()
-    assert not (loser_root / "uploaded-payload").exists()
-    assert not (loser_root / "uploaded-terminal.json").exists()
-    for run_root, _ in outcomes:
-        assert (run_root / "inference.log").is_file()
-        commands = (run_root / "hf.log").read_text(encoding="utf-8").splitlines()
-        assert (
-            commands.count(
-                f"buckets create {_output_bucket_id('gn')} --private --format quiet"
-            )
-            == 1
-        )
-        assert not any("--exist-ok" in command for command in commands)
 
 
 def test_success_publication_has_content_bound_completion_marker(
@@ -832,24 +786,18 @@ def test_success_publication_has_content_bound_completion_marker(
     assert terminal["prediction_sha256"] == prediction_sha
     assert terminal["output_bucket_id"] == completion["output_bucket_id"]
     commands = (run_root / "hf.log").read_text(encoding="utf-8").splitlines()
-    create = f"buckets create {_output_bucket_id('gn')} --private --format quiet"
     output_sync = f"buckets sync {run_root / 'output'} {_output_uri('gn')}/payload"
     terminal_cp = (
         f"buckets cp {run_root / 'output.terminal-status.json'} "
         f"{_output_uri('gn')}/terminal-status.json"
     )
-    assert commands.count(create) == 1
-    assert sum(command.startswith("buckets list ") for command in commands) == 1
-    assert (
-        commands.index(create)
-        < commands.index(output_sync)
-        < commands.index(terminal_cp)
-    )
-    assert not any("--exist-ok" in command for command in commands)
+    assert not any(command.startswith("buckets create ") for command in commands)
+    assert sum(command.startswith("buckets list ") for command in commands) == 2
+    assert commands.index(output_sync) < commands.index(terminal_cp)
 
 
 @pytest.mark.parametrize("cell", sorted(CONFIGS))
-def test_each_config_uses_a_distinct_request_and_fresh_bucket(cell: str) -> None:
+def test_each_config_uses_a_distinct_request_and_project_prefix(cell: str) -> None:
     payload = yaml.safe_load(CONFIGS[cell].read_text(encoding="utf-8"))
     env = _env(payload)
     assert env["ANSWER_CELL"] == cell
@@ -858,5 +806,4 @@ def test_each_config_uses_a_distinct_request_and_fresh_bucket(cell: str) -> None
     assert env["HF_REMOTE_URI"] == _output_uri(cell)
     namespace, bucket_name = env["HF_OUTPUT_BUCKET_ID"].split("/", 1)
     assert namespace == "Npatta01"
-    assert re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,94}[a-z0-9])?", bucket_name)
-    assert len(bucket_name) <= 96
+    assert bucket_name == "trec_video_2026"

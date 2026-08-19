@@ -22,7 +22,7 @@ ATTEMPT_UUID = "d6d3a33e-84c5-4067-bcea-fe82cdd10e2f"
 EXECUTION_RUN_ID = "vqa-event-map-canary-a2"
 INPUT_RUN_ID = "vqa-event-map-inputs-20260809-a3"
 OUTPUT_IDENTITY = (
-    "hf://buckets/Npatta01/trec-video-2026-event-map-20260809-vqa-event-map-canary-a2"
+    "hf://buckets/Npatta01/trec_video_2026/experiments/vqa-event-map-canary-a2"
 )
 DSTACK_RUN_UUID = "11111111-1111-4111-8111-111111111111"
 FOREIGN_DSTACK_RUN_UUID = "22222222-2222-4222-8222-222222222222"
@@ -817,7 +817,7 @@ def test_superseded_a1_identity_is_rejected(tmp_path: Path) -> None:
             "run_id": "vqa-event-map-canary",
             "attempt_uuid": "4baaf48c-b690-45f0-b6bf-065b9dc1e527",
             "output_identity": (
-                "hf://buckets/Npatta01/trec-video-2026-event-map-20260809-"
+                "hf://buckets/Npatta01/trec_video_2026/experiments/"
                 "vqa-event-map-canary"
             ),
         }

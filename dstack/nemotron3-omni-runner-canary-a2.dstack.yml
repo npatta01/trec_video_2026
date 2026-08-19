@@ -13,7 +13,7 @@ env:
   - PYTHONPATH=/dstack/run/src
   - EXPERIMENT_MODE=canary
   - EXPERIMENT_RUN_ID=nemotron3-omni-runner-canary-20260730-a2
-  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-runner-canary-20260730-a2
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-runner-canary-20260730-a2
   - RUNTIME_IMAGE=docker.io/vllm/vllm-openai:v0.20.0@sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc
   - RUNTIME_IMAGE_DIGEST=sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc
   - MODEL_ID=nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4

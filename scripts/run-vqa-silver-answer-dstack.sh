@@ -2,9 +2,9 @@
 set -euo pipefail
 
 readonly EXPECTED_RUN_ID="vqa-silver-oracle-election-20260809-a1"
-readonly EXPECTED_EVIDENCE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/${EXPECTED_RUN_ID}/evidence"
-readonly EXPECTED_OUTPUT_NAMESPACE="Npatta01"
-readonly EXPECTED_OUTPUT_BUCKET_PREFIX="${EXPECTED_OUTPUT_NAMESPACE}/trec-video-2026-vqa-silver-answer-20260809-a1"
+readonly EXPECTED_EVIDENCE_URI="hf://buckets/Npatta01/trec_video_2026/experiments/${EXPECTED_RUN_ID}/evidence"
+readonly EXPECTED_OUTPUT_BUCKET_ID="Npatta01/trec_video_2026"
+readonly EXPECTED_OUTPUT_ROOT="hf://buckets/${EXPECTED_OUTPUT_BUCKET_ID}/experiments/vqa-silver-answer-20260809-a1"
 readonly EXPECTED_RUNTIME_IMAGE="docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755"
 readonly EXPECTED_MODEL_ID="Qwen/Qwen3.5-4B"
 readonly EXPECTED_MODEL_REVISION="851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
@@ -96,10 +96,10 @@ validate_dispatch() {
   case "$ANSWER_CELL" in gn|gf|gs|hn|hf|hs|ln|lf|ls) ;; *) die "unsupported answer cell: $ANSWER_CELL" ;; esac
   [[ "$VQA_MODE" == "answer" ]] || die "VQA_MODE must be answer"
   [[ "$HF_INPUT_URI" == "$EXPECTED_EVIDENCE_URI" ]] || die "HF_INPUT_URI is not the immutable evidence URI"
-  [[ "$HF_OUTPUT_BUCKET_ID" == "$EXPECTED_OUTPUT_BUCKET_PREFIX-$ANSWER_CELL" ]] || \
-    die "HF_OUTPUT_BUCKET_ID is not the exact fresh cell bucket identity"
-  [[ "$HF_REMOTE_URI" == "hf://buckets/$HF_OUTPUT_BUCKET_ID" ]] || \
-    die "HF_REMOTE_URI is not bound to the exact cell bucket identity"
+  [[ "$HF_OUTPUT_BUCKET_ID" == "$EXPECTED_OUTPUT_BUCKET_ID" ]] || \
+    die "HF_OUTPUT_BUCKET_ID is not the project bucket identity"
+  [[ "$HF_REMOTE_URI" == "$EXPECTED_OUTPUT_ROOT-$ANSWER_CELL" ]] || \
+    die "HF_REMOTE_URI is not bound to the exact cell output prefix"
   require_sha256_pin EXPECTED_EVIDENCE_BUNDLE_SHA256
   require_sha256_pin EXPECTED_EVIDENCE_MARKER_SHA256
   [[ "$VQA_RUNTIME_IMAGE" == "$EXPECTED_RUNTIME_IMAGE" ]] || die "runtime image is not pinned"
@@ -126,25 +126,11 @@ refuse_nonempty_output() {
   [[ ! -e "$TERMINAL_STATUS_PATH" ]] || die "terminal status path already exists"
 }
 
-output_bucket_is_absent() {
-  local bucket_name listing
-  bucket_name="${HF_OUTPUT_BUCKET_ID#*/}"
-  listing="$(hf_cli buckets list "$EXPECTED_OUTPUT_NAMESPACE" --search "$bucket_name" --format quiet)" || \
-    die "could not inspect output bucket identity"
-  if grep -Fxq "$HF_OUTPUT_BUCKET_ID" <<< "$listing"; then
-    die "remote output bucket already exists: $HF_OUTPUT_BUCKET_ID"
-  fi
-}
-
-acquire_output_bucket_lease() {
-  local created_uri
-  event output-bucket-lease-start
-  if ! created_uri="$(hf_cli buckets create "$HF_OUTPUT_BUCKET_ID" --private --format quiet)"; then
-    die "atomic output bucket lease failed (the provider may have returned 409 for a concurrent publisher)"
-  fi
-  [[ "$created_uri" == "$HF_REMOTE_URI" ]] || \
-    die "created output bucket identity does not match the pinned URI"
-  event output-bucket-lease-acquired
+output_prefix_is_absent() {
+  local listing
+  listing="$(hf_cli buckets list "$HF_REMOTE_URI" --recursive --format quiet)" || \
+    die "could not inspect the project output prefix"
+  [[ -z "$listing" ]] || die "remote output prefix already contains files: $HF_REMOTE_URI"
 }
 
 bootstrap_runtime() {
@@ -725,7 +711,7 @@ PY
   completion_checksum="$(sha256sum "$OUTPUT_DIR/completion.json" | awk '{print $1}')"
   write_terminal_status "$status" "$payload_checksum" "$payload_uri" "$completion_checksum"
   if [[ "${VQA_DRY_RUN:-0}" == "1" && "${VQA_SKIP_PUBLICATION:-0}" == "1" ]]; then return 0; fi
-  acquire_output_bucket_lease
+  output_prefix_is_absent
   hf_cli buckets sync "$OUTPUT_DIR" "$payload_uri" || die "answer payload publication failed"
   hf_cli buckets cp "$TERMINAL_STATUS_PATH" "${HF_REMOTE_URI%/}/terminal-status.json" || die "terminal marker publication failed"
 }
@@ -747,7 +733,7 @@ main() {
   validate_dispatch
   refuse_nonempty_output
   ensure_hf_cli
-  output_bucket_is_absent
+  output_prefix_is_absent
   EXECUTION_STARTED=1
   bootstrap_runtime
   load_runtime_provenance

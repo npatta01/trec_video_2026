@@ -9,12 +9,12 @@ env:
   - HF_TOKEN=${{ secrets.hf_token }}
   - HF_HUB_DISABLE_TELEMETRY=1
   - EXPERIMENT_PROFILE=stage1_seed42
-  - HF_ARCHIVE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4/evidence.tar
+  - HF_ARCHIVE_URI=hf://buckets/Npatta01/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4/evidence.tar
   - SUBMITTED_CODE_REVISION=3b650a432be3ce76a7e6bfb81c73df8f59a636f4
   - EXPECTED_SOURCE_BUNDLE_SHA256=98ac2bd3912c5369f3fa6a7dc642b9799704153e8dbb853ed339b24667898b56
   - EXPERIMENT_RUN_ID=qwen3-omni-f30-calibrated-20260801-s5-seed42
-  - HF_INPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4
-  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen3-omni-f30-calibrated-20260801-s5-seed42
+  - HF_INPUT_URI=hf://buckets/Npatta01/trec_video_2026/inputs/qwen3-omni-frozen30-audio-20260731-a4
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_video_2026/experiments/qwen3-omni-f30-calibrated-20260801-s5-seed42
   - RUNTIME_IMAGE=docker.io/qwenllm/qwen3-omni@sha256:71896cf6533abc610ac298f26289ff3a4ea4bd1fc835f370ece9e5c31e3181d8
   - MODEL_ID=Qwen/Qwen3-Omni-30B-A3B-Thinking
   - MODEL_REVISION=2f443cfc4c54b14a815c0e2bb9a9d6cbcd9a748b

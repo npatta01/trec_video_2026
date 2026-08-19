@@ -19,7 +19,7 @@
 - Use `disk: 100GB..` with no upper disk bound.
 - `HF_TOKEN` comes only from dstack secret `hf_token`; never print it or use secret-bearing diagnose output.
 - Upload exactly the frozen three-video compatibility panel and label-free manifest; never consult oracle labels.
-- Durable output prefix is `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/timelens2-selector-pilot-20260730-a2/` and must be empty before submission.
+- Durable output prefix is `hf://buckets/Npatta01/trec_video_2026/experiments/timelens2-selector-pilot-20260730-a2/` and must be empty before submission.
 
 ---
 

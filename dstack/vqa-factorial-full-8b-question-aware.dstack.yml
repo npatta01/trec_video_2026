@@ -8,8 +8,8 @@ working_dir: /dstack/run
 
 env:
   - HF_TOKEN=${{ secrets.hf_token }}
-  - HF_INPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-factorial-full-evidence-20260809-f1
-  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-factorial-full-20260809-f1/conditions/8b-question-aware
+  - HF_INPUT_URI=hf://buckets/Npatta01/trec_video_2026/experiments/vqa-factorial-full-evidence-20260809-f1
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_video_2026/experiments/vqa-factorial-full-20260809-f1/conditions/8b-question-aware
   - EXPERIMENT_RUN_NAME=vqa-factorial-full-20260809-f1-8b-question-aware
   - CONDITION_ID=8b-question-aware
   - VQA_RUNTIME_IMAGE=docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 readonly EXPECTED_RUN_ID="timelens2-three-condition-canary-20260801-a3"
-readonly EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/$EXPECTED_RUN_ID"
+readonly EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_video_2026/experiments/$EXPECTED_RUN_ID"
 readonly EXPECTED_RUNTIME_IMAGE="docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755"
 readonly EXPECTED_SELECTOR_ID="MCG-NJU/TimeLens2-2B"
 readonly EXPECTED_SELECTOR_REVISION="90dd30b3eeff3520a30c830eff2209f4ad788ca9"

@@ -136,7 +136,7 @@ Submit once with `-y -d`, monitor with normal logs/status, then list, download, 
 - Create after grading: `docs/experiments/2026-08-01-timelens2-three-condition-frozen30.md`
 
 **Interfaces:**
-- Durable prefix: `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/timelens2-three-condition-frozen30-20260801-a1/`.
+- Durable prefix: `hf://buckets/Npatta01/trec_video_2026/experiments/timelens2-three-condition-frozen30-20260801-a1/`.
 - Completion denominator: 30 selector rows and 90 answer rows.
 
 - [ ] **Step 1: Preview and submit**

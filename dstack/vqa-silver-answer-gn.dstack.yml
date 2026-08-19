@@ -12,11 +12,11 @@ env:
   - VQA_MODE=answer
   - EXPERIMENT_RUN_ID=vqa-silver-oracle-election-20260809-a1
   - ANSWER_CELL=gn
-  - HF_INPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-silver-oracle-election-20260809-a1/evidence
+  - HF_INPUT_URI=hf://buckets/Npatta01/trec_video_2026/experiments/vqa-silver-oracle-election-20260809-a1/evidence
   - EXPECTED_EVIDENCE_BUNDLE_SHA256=UNSET_TASK4_EVIDENCE_BUNDLE_SHA256
   - EXPECTED_EVIDENCE_MARKER_SHA256=UNSET_TASK4_EVIDENCE_MARKER_SHA256
-  - HF_OUTPUT_BUCKET_ID=Npatta01/trec-video-2026-vqa-silver-answer-20260809-a1-gn
-  - HF_REMOTE_URI=hf://buckets/Npatta01/trec-video-2026-vqa-silver-answer-20260809-a1-gn
+  - HF_OUTPUT_BUCKET_ID=Npatta01/trec_video_2026
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_video_2026/experiments/vqa-silver-answer-20260809-a1-gn
   - VQA_RUNTIME_IMAGE=docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
   - MODEL_ID=Qwen/Qwen3.5-4B
   - MODEL_REVISION=851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a

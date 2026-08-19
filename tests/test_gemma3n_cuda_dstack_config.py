@@ -67,7 +67,7 @@ def test_gemma3n_runner_pins_native_dependencies_and_preflights_import():
 def test_gemma3n_results_use_an_immutable_private_bucket_prefix():
     combined = CONFIG.read_text(encoding="utf-8") + RUNNER.read_text(encoding="utf-8")
     expected = (
-        f"hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/{RUN_ID}"
+        f"hf://buckets/Npatta01/trec_video_2026/experiments/{RUN_ID}"
     )
 
     assert expected in combined

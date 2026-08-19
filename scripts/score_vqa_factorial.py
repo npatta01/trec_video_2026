@@ -76,11 +76,11 @@ DEFAULT_PROFILE_PATH = (
 )
 EXPECTED_PROFILE_REMOTE_URIS = {
     "vqa-factorial-full-20260809-f1": (
-        "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+        "hf://buckets/Npatta01/trec_video_2026/"
         "experiments/vqa-factorial-full-20260809-f1/conditions"
     ),
     "vqa-factorial-full-20260809-f2": (
-        "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+        "hf://buckets/Npatta01/trec_video_2026/"
         "experiments/vqa-factorial-full-20260809-f2/conditions"
     ),
 }
@@ -254,7 +254,7 @@ def validate_factorial_profile(
             raise ValueError("factorial profile run_name is not pinned")
         expected_header = {
             "input_uri": (
-                "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+                "hf://buckets/Npatta01/trec_video_2026/"
                 "experiments/vqa-factorial-full-evidence-20260809-f1"
             ),
             "remote_uri": expected_remote_uri,

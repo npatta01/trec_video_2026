@@ -22,7 +22,7 @@ SOURCE_BUNDLE_SHA256 = "3dbfa1e31b4550a9ed1c77a2abdbad55c15d1594c7e2a153ad26dcc2
 CONTROLLER_SHA256 = "91815765952ede4e7986b09eec64ce2f831536259a1b3e1f12d0127b244be5a8"
 PROTOCOL_SHA256 = "bc140b5ace4f1cfce9feb98434ca5276466602ed7e2487261788fc163c9fc4f2"
 MODULE_SHA256 = "0deaf7eccafc9225ba533982c19ea894fdc8571c9081db4a52a3ddf11d5ca366"
-REMOTE_ROOT = "hf://buckets/Npatta01/trec-video-2026-event-map-20260809"
+REMOTE_ROOT = "hf://buckets/Npatta01/trec_video_2026/experiments"
 FAILED_CANARY_ATTEMPT_UUID = "4baaf48c-b690-45f0-b6bf-065b9dc1e527"
 CURRENT_CANARY_RUN_ID = "vqa-event-map-canary-a2"
 CURRENT_CANARY_ATTEMPT_UUID = "d6d3a33e-84c5-4067-bcea-fe82cdd10e2f"
@@ -188,7 +188,7 @@ def test_all_configs_pin_model_runtime_identity_and_exact_slice_caps() -> None:
         assert env["MODEL_REVISION"] == REVISION
         assert env["RUNTIME_IMAGE"] == IMAGE
         assert env["RUNTIME_IMAGE_DIGEST"] == IMAGE.split("@", 1)[1]
-        assert env["HF_REMOTE_URI"].startswith(REMOTE_ROOT + "-")
+        assert env["HF_REMOTE_URI"].startswith(REMOTE_ROOT + "/")
         assert env["HF_INPUT_URI"].endswith("/inputs")
 
 
@@ -197,7 +197,7 @@ def test_canary_is_paired_and_full_configs_are_single_condition_slices() -> None
     canary_env = _env(canary)
     assert canary["name"] == CURRENT_CANARY_RUN_ID
     assert canary_env["EXPERIMENT_RUN_ID"] == CURRENT_CANARY_RUN_ID
-    assert canary_env["HF_REMOTE_URI"] == f"{REMOTE_ROOT}-{CURRENT_CANARY_RUN_ID}"
+    assert canary_env["HF_REMOTE_URI"] == f"{REMOTE_ROOT}/{CURRENT_CANARY_RUN_ID}"
     assert canary_env["ATTEMPT_UUID"] == CURRENT_CANARY_ATTEMPT_UUID
     assert canary_env["ATTEMPT_UUID"] != FAILED_CANARY_ATTEMPT_UUID
     assert canary_env["EXPERIMENT_MODE"] == "canary"
@@ -232,11 +232,10 @@ def test_all_attempts_and_input_artifact_hashes_are_exactly_pinned() -> None:
 
 def test_runner_fails_closed_on_identity_leakage_gpu_and_prefix_races() -> None:
     text = RUNNER.read_text(encoding="utf-8")
-    assert "buckets create" in text
-    assert "--private" in text
-    assert "--exist-ok" not in text
+    assert "buckets create" not in text
+    assert 'buckets list "$HF_REMOTE_URI"' in text
     assert "reserve_remote_prefix" in text
-    assert "no-clobber" in text or "atomic" in text
+    assert "already contains files" in text
     assert "L40S" in text
     assert "45000" in text
     assert "H100" not in text

@@ -18,21 +18,21 @@ from typing import Any
 
 
 EXPECTED_INPUT_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+    "hf://buckets/Npatta01/trec_video_2026/"
     "experiments/qwen35-4b-12f-full-20260803-b1-inputs/inputs"
 )
 EXPECTED_EVIDENCE_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+    "hf://buckets/Npatta01/trec_video_2026/"
     "experiments/vqa-factorial-full-evidence-20260809-f1"
 )
 EXPECTED_FULL_CONDITION_IDENTITIES = MappingProxyType(
     {
         "vqa-factorial-full-20260809-f1": (
-            "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+            "hf://buckets/Npatta01/trec_video_2026/"
             "experiments/vqa-factorial-full-20260809-f1/conditions"
         ),
         "vqa-factorial-full-20260809-f2": (
-            "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/"
+            "hf://buckets/Npatta01/trec_video_2026/"
             "experiments/vqa-factorial-full-20260809-f2/conditions"
         ),
     }
