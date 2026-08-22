@@ -284,7 +284,9 @@ the proposed view and final call.
 - If both initial solvers are invalid, skip investigation and run the final
   judge on the complete video.
 - Invalid planner actions receive one mechanical correction opportunity only
-  when doing so cannot consume the final-call reserve.
+  when both the seven-call ceiling and final-call reserve remain intact. The
+  correction consumes a normal call slot and may therefore remove a later
+  inspection opportunity.
 - An invalid observer response is recorded; it never replaces earlier notebook
   evidence.
 - An invalid final response falls back to the most recent complete valid
