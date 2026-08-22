@@ -14,6 +14,7 @@ from trec_video_2026.vqa_experiments.vqa_mc_deliberative_agent import (
     parse_solver,
     validate_action,
 )
+from trec_video_2026.vqa_experiments.vqa_mc_poc20 import sha256_file
 
 
 ROOT = Path(__file__).parents[1]
@@ -276,3 +277,195 @@ def test_notebook_with_planner_is_json_serializable() -> None:
     )
 
     json.dumps(notebook)
+
+
+class _Models:
+    def __init__(self, responses: list[dict[str, Any]]) -> None:
+        self.responses = responses
+        self.requests: list[Any] = []
+
+    def generate_content(self, *, model: str, contents: Any, config: Any) -> Any:
+        self.requests.append({"model": model, "contents": contents, "config": config})
+        return self.responses.pop(0)
+
+
+class _Client:
+    def __init__(self, responses: list[dict[str, Any]]) -> None:
+        self.models = _Models(responses)
+
+
+def _provider_response(value: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "text": json.dumps(value),
+        "usageMetadata": {
+            "promptTokenCount": 100,
+            "candidatesTokenCount": 10,
+            "totalTokenCount": 110,
+        },
+    }
+
+
+def _observer_payload(timestamp_seconds: float = 2.5) -> dict[str, object]:
+    return {
+        "observations": [
+            {
+                "timestamp_seconds": timestamp_seconds,
+                "literal_observation": "The person leaves the floor once.",
+                "interpretation": "This is a completed jump.",
+            }
+        ],
+        "view_limitations": "Only the requested view was available.",
+        "focus_resolution": "present",
+    }
+
+
+def _judge_payload(citation: str) -> dict[str, object]:
+    return {
+        "ranking": list("ABCD"),
+        "decisive_observation_ids": [citation],
+        "strongest_counterargument": "Another jump might be hidden.",
+        "counterargument_resolution": "The complete view shows no other jump.",
+        "ambiguity_present": False,
+        "ambiguity_note": "No unresolved ambiguity.",
+        "rationale": "The cited observation and complete view support A.",
+    }
+
+
+def _path_responses(action_count: int) -> list[dict[str, Any]]:
+    values: list[dict[str, Any]] = [
+        _solver_payload("ABCD"),
+        _solver_payload("BACD"),
+    ]
+    if action_count == 0:
+        values.extend([_planner_payload("finish_search"), _judge_payload("solver-1-o1")])
+    elif action_count == 1:
+        values.extend(
+            [
+                _planner_payload("inspect"),
+                _observer_payload(),
+                _planner_payload("finish_search"),
+                _judge_payload("round-1-o1"),
+            ]
+        )
+    else:
+        values.extend(
+            [
+                _planner_payload("inspect"),
+                _observer_payload(),
+                _planner_payload("inspect"),
+                _observer_payload(),
+                _judge_payload("round-2-o1"),
+            ]
+        )
+    return [_provider_response(value) for value in values]
+
+
+@pytest.mark.parametrize(
+    ("action_count", "expected_calls"),
+    [(0, 4), (1, 6), (2, 7)],
+)
+def test_run_supports_all_bounded_paths(
+    tmp_path: Path, action_count: int, expected_calls: int
+) -> None:
+    client = _Client(_path_responses(action_count))
+    output = tmp_path / f"output-{action_count}"
+    uploads: list[Path] = []
+
+    result = runner.run(
+        requests_path=_request_payload(tmp_path),
+        historical_root=_historical_root(tmp_path),
+        output_root=output,
+        client=client,
+        upload_file=lambda _client, path: uploads.append(path) or _upload(),
+        expected_rows=None,
+        expected_variants=None,
+    )
+
+    assert result["final_valid_count"] == 1
+    assert result["observer_call_count"] == action_count
+    assert result["request_count"] == expected_calls
+    assert result["usage_complete"] is True
+    assert result["prompt_tokens"] == expected_calls * 100
+    assert result["output_tokens"] == expected_calls * 10
+    assert len(client.models.requests) == expected_calls
+    assert len(uploads) == 1
+    assert (output / "anchor/raw-freeze.json").is_file()
+    assert (output / "blind/raw-freeze.json").is_file()
+    assert (output / "judge/raw-freeze.json").is_file()
+    final = json.loads((output / "final-predictions-freeze.json").read_text())
+    assert final["rows"][0]["ranking"] == list("ABCD")
+    assert final["rows"][0]["final_source"] == "judge"
+    notebook_path = output / final["rows"][0]["notebook_path"]
+    assert final["rows"][0]["notebook_sha256"] == sha256_file(notebook_path)
+    assert runner.verify_output(output)["status"] == "verified"
+
+
+def test_invalid_judge_uses_explicit_planner_fallback(tmp_path: Path) -> None:
+    responses = _path_responses(0)
+    responses[-1] = _provider_response(_judge_payload("missing-observation"))
+    output = tmp_path / "fallback-output"
+
+    result = runner.run(
+        requests_path=_request_payload(tmp_path),
+        historical_root=_historical_root(tmp_path),
+        output_root=output,
+        client=_Client(responses),
+        upload_file=lambda _client, _path: _upload(),
+        expected_rows=None,
+        expected_variants=None,
+    )
+
+    assert result["final_valid_count"] == 1
+    final = json.loads((output / "final-predictions-freeze.json").read_text())
+    assert final["rows"][0]["final_source"] == "planner_fallback"
+    assert final["rows"][0]["judge_status"] == "failed"
+
+
+def test_invalid_planner_gets_one_correction_and_removes_second_observer(
+    tmp_path: Path,
+) -> None:
+    responses = [
+        _provider_response(_solver_payload("ABCD")),
+        _provider_response(_solver_payload("BACD")),
+        _provider_response({"invalid": "planner"}),
+        _provider_response(_planner_payload("inspect")),
+        _provider_response(_observer_payload()),
+        _provider_response(_planner_payload("inspect")),
+        _provider_response(_judge_payload("round-1-o1")),
+    ]
+    output = tmp_path / "corrected-planner-output"
+
+    result = runner.run(
+        requests_path=_request_payload(tmp_path),
+        historical_root=_historical_root(tmp_path),
+        output_root=output,
+        client=_Client(responses),
+        upload_file=lambda _client, _path: _upload(),
+        expected_rows=None,
+        expected_variants=None,
+    )
+
+    assert result["request_count"] == 7
+    assert result["observer_call_count"] == 1
+    assert result["call_counts_by_role"]["planner_correction"] == 1
+    notebook = json.loads((output / "notebooks/final/00.json").read_text())
+    assert notebook["rounds"][1]["tool_result"]["authorized"] is False
+    assert notebook["rounds"][1]["tool_result"]["reason"] == "final_call_reserve"
+
+
+def test_verify_output_rejects_tampered_notebook(tmp_path: Path) -> None:
+    output = tmp_path / "tampered-output"
+    runner.run(
+        requests_path=_request_payload(tmp_path),
+        historical_root=_historical_root(tmp_path),
+        output_root=output,
+        client=_Client(_path_responses(0)),
+        upload_file=lambda _client, _path: _upload(),
+        expected_rows=None,
+        expected_variants=None,
+    )
+    notebook_path = output / "notebooks/final/00.json"
+    notebook_path.write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="notebook hash mismatch"):
+        runner.verify_output(output)
