@@ -17,6 +17,7 @@ from trec_video_2026.vqa_experiments.vqa_mc_four_option_agent import (
     parse_observer,
     parse_planner,
 )
+from trec_video_2026.vqa_experiments.vqa_mc_common import sha256_file
 
 
 ROOT = Path(__file__).parents[1]
@@ -379,4 +380,269 @@ def test_requests_reject_label_fields_and_control_identity_drift(tmp_path: Path)
             max_cost_usd=10.0,
             expected_rows=1,
             expected_variants=1,
+        )
+
+
+def _update_payload(ranking: str = "BACD", observation_id: str = "round-1-o1") -> dict[str, Any]:
+    ledger = _initializer_payload()["ledger"]
+    ledger[0]["supporting_evidence_ids"] = [observation_id]
+    return {
+        "provisional_ranking": list(ranking),
+        "ledger": ledger,
+        "mapped_observation_ids": [observation_id],
+        "unresolved_distinctions": [],
+    }
+
+
+def _critic_payload(decision: str = "accept_stop") -> dict[str, Any]:
+    return {
+        "decision": decision,
+        "tested_viable_option_ids": list("ABCD"),
+        "leader_evidence_ids": ["round-1-o1"],
+        "unexplained_counterevidence_ids": [],
+        "next_unresolved_distinction": (
+            "No feasible observation remains."
+            if decision == "accept_stop"
+            else "Inspect another view for contradictory evidence."
+        ),
+        "direct_replacement_supported": False,
+        "reason": "Literal evidence has been considered for all viable options.",
+    }
+
+
+def _judge_payload(
+    ranking: str = "BACD", *, stop_status: str = "evidence_certified"
+) -> dict[str, Any]:
+    return {
+        "ranking": list(ranking),
+        "decisive_evidence_ids": ["round-1-o1"],
+        "strongest_counterevidence": "Part of the clip may contain another event.",
+        "counterevidence_resolution": "The complete judge view resolves the concern.",
+        "protected_answer_action": "retained",
+        "direct_contradiction_evidence_ids": [],
+        "replacement_support_evidence_ids": [],
+        "stop_status": stop_status,
+        "rationale": "The cited literal evidence supports the protected answer.",
+    }
+
+
+def _provider_response(
+    value: dict[str, Any], *, finish_reason: str = "STOP"
+) -> dict[str, Any]:
+    return {
+        "text": json.dumps(value),
+        "finishReason": finish_reason,
+        "modelVersion": "gemini-3.7-flash-20260813",
+        "usageMetadata": {
+            "promptTokenCount": 100,
+            "candidatesTokenCount": 10,
+            "totalTokenCount": 110,
+        },
+    }
+
+
+class _Models:
+    def __init__(self, responses: list[dict[str, Any]]) -> None:
+        self.responses = list(responses)
+        self.request_count = 0
+
+    def generate_content(self, *, model: str, contents: Any, config: Any) -> Any:
+        if model != runner.MODEL or not contents or config is None:
+            raise AssertionError("runner passed an invalid provider request")
+        self.request_count += 1
+        return self.responses.pop(0)
+
+
+class _Client:
+    def __init__(self, responses: list[dict[str, Any]]) -> None:
+        self.models = _Models(responses)
+
+
+def _one_observation_stop_path() -> list[dict[str, Any]]:
+    return [
+        _provider_response(_initializer_payload()),
+        _provider_response(_planner_payload()),
+        _provider_response(_observer_payload()),
+        _provider_response(_update_payload()),
+        _provider_response(_critic_payload("accept_stop")),
+        _provider_response(_judge_payload()),
+    ]
+
+
+def _three_observation_path() -> list[dict[str, Any]]:
+    responses: list[dict[str, Any]] = [_provider_response(_initializer_payload())]
+    for round_index in range(1, 4):
+        planner = _planner_payload()
+        observation_id = f"round-{round_index}-o1"
+        responses.extend(
+            [
+                _provider_response(planner),
+                _provider_response(_observer_payload()),
+                _provider_response(_update_payload(observation_id=observation_id)),
+                _provider_response(_critic_payload("continue")),
+            ]
+        )
+    responses.append(_provider_response(_judge_payload(stop_status="forced_stop")))
+    return responses
+
+
+def _run_fake(
+    tmp_path: Path,
+    *,
+    responses: list[dict[str, Any]],
+    output_name: str = "run",
+) -> tuple[dict[str, Any], Path, _Client]:
+    output = tmp_path / output_name
+    client = _Client(responses)
+    result = runner.run_phase(
+        requests_path=_request_payload(tmp_path),
+        protected_control_path=_control_path(tmp_path),
+        historical_root=_historical_root(tmp_path),
+        output_root=output,
+        capabilities=_capabilities(),
+        client=client,
+        upload_file=lambda _client, _path: _upload(),
+        max_cost_usd=100.0,
+        expected_rows=1,
+        expected_variants=1,
+    )
+    return result, output, client
+
+
+def _final_row(output: Path) -> dict[str, Any]:
+    final = json.loads((output / "final-predictions-freeze.json").read_text())
+    return final["rows"][0]
+
+
+def test_max_tokens_is_recovered_and_never_becomes_an_answer(tmp_path: Path) -> None:
+    responses = [
+        _provider_response(_initializer_payload(), finish_reason="MAX_TOKENS"),
+        *_one_observation_stop_path(),
+    ]
+
+    result, output, client = _run_fake(tmp_path, responses=responses)
+
+    assert result["recovery_call_count"] == 1
+    assert result["operational_invalid_count"] == 0
+    assert client.models.request_count == 7
+    first = json.loads(
+        (output / "rows/00/initializer/attempt-1.json").read_text()
+    )
+    assert first["finish_reason"] == "MAX_TOKENS"
+
+
+def test_second_invalid_initializer_uses_unknown_ledger_fallback(
+    tmp_path: Path,
+) -> None:
+    responses = [
+        _provider_response({"broken": 1}),
+        _provider_response({"still_broken": 1}),
+        *_one_observation_stop_path()[1:],
+    ]
+
+    result, output, _client = _run_fake(tmp_path, responses=responses)
+
+    assert result["operational_invalid_count"] == 1
+    assert _final_row(output)["initializer_status"] == "fallback_unknown_ledger"
+
+
+def test_one_observation_path_cannot_stop_before_observer(tmp_path: Path) -> None:
+    result, output, _client = _run_fake(
+        tmp_path, responses=_one_observation_stop_path()
+    )
+    row = _final_row(output)
+
+    assert row["observer_action_count"] == 1
+    assert row["stop_status"] == "evidence_certified"
+    assert result["provider_call_counts_by_role"] == {
+        "critic": 1,
+        "initializer": 1,
+        "judge": 1,
+        "observer": 1,
+        "planner": 1,
+        "updater": 1,
+    }
+
+
+def test_three_continue_decisions_force_stop_and_still_judge(tmp_path: Path) -> None:
+    result, output, _client = _run_fake(
+        tmp_path, responses=_three_observation_path()
+    )
+    row = _final_row(output)
+
+    assert row["observer_action_count"] == 3
+    assert row["stop_status"] == "forced_stop"
+    assert row["judge_status"] == "passed"
+    assert result["provider_request_count"] == 14
+
+
+def test_invalid_final_judge_falls_back_to_protected_ranking_but_is_invalid(
+    tmp_path: Path,
+) -> None:
+    responses = _one_observation_stop_path()[:-1] + [
+        _provider_response({"broken": 1}),
+        _provider_response({"still_broken": 1}),
+    ]
+
+    result, output, _client = _run_fake(tmp_path, responses=responses)
+    row = _final_row(output)
+
+    assert row["ranking"] == list("BACD")
+    assert row["final_source"] == "protected_direct_fallback"
+    assert row["status"] == "operationally_invalid"
+    assert result["operational_invalid_count"] == 1
+
+
+def test_verify_output_rejects_tampered_observer_audit(tmp_path: Path) -> None:
+    _result, output, _client = _run_fake(
+        tmp_path, responses=_one_observation_stop_path()
+    )
+    audit_path = output / "rows/00/round-1/observer/request-audit.json"
+    audit_path.write_text(json.dumps({"passed": False}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="observer audit"):
+        runner.verify_output(output)
+
+
+def test_full_phase_reuses_canary_rows_only_when_protocol_hashes_match(
+    tmp_path: Path,
+) -> None:
+    _result, canary, _client = _run_fake(
+        tmp_path, responses=_one_observation_stop_path(), output_name="canary"
+    )
+    gate_path = tmp_path / "canary-gate.json"
+    gate_path.write_text(
+        json.dumps(
+            {
+                "continue_to_full": True,
+                "canary_manifest_sha256": sha256_file(
+                    canary / "run-manifest.json"
+                ),
+                "canary_final_sha256": sha256_file(
+                    canary / "final-predictions-freeze.json"
+                ),
+            }
+        ),
+        encoding="utf-8",
+    )
+    full_requests = _request_payload(tmp_path)
+
+    result = runner.verify_canary_reuse(
+        canary_root=canary,
+        full_requests_path=full_requests,
+        canary_gate_path=gate_path,
+    )
+
+    assert result["reusable_row_count"] == 1
+    assert result["reusable_video_ids"] == ["video-0"]
+
+    manifest_path = canary / "run-manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["prompt_contract_sha256"] = "0" * 64
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ValueError, match="protocol identity"):
+        runner.verify_canary_reuse(
+            canary_root=canary,
+            full_requests_path=full_requests,
+            canary_gate_path=gate_path,
         )

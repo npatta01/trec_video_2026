@@ -3,16 +3,19 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import math
+from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
 from google.genai import types
 
+from trec_video_2026 import vqa_gemini37_flash_smoke as smoke
 from trec_video_2026.vqa_experiments.vqa_mc_common import (
     OPTION_IDS,
     canonical_json,
@@ -27,10 +30,22 @@ from trec_video_2026.vqa_experiments.vqa_mc_four_option_agent import (
     PLANNER_SCHEMA,
     UPDATER_SCHEMA,
     MediaAction,
+    append_round_stage,
+    choose_final_ranking,
     critic_prompt,
+    initialize_notebook,
     initializer_prompt,
     judge_prompt,
+    live_option_ids,
+    next_search_state,
+    notebook_observation_ids,
     observer_prompt,
+    parse_critic,
+    parse_initializer,
+    parse_judge,
+    parse_observer,
+    parse_planner,
+    parse_update,
     planner_prompt,
     updater_prompt,
 )
@@ -535,4 +550,798 @@ def preflight(
         "identity": identity,
         "cost": estimate,
         "deliveries": deliveries,
+    }
+
+
+def _write_json(path: Path, value: Any, *, exclusive: bool = True) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mode = "x" if exclusive else "w"
+    with path.open(mode, encoding="utf-8") as handle:
+        json.dump(value, handle, ensure_ascii=False, indent=2, sort_keys=True)
+        handle.write("\n")
+
+
+def _prompt_contract_sha256() -> str:
+    return hashlib.sha256(
+        canonical_json(
+            {
+                "schemas": [
+                    INITIALIZER_SCHEMA,
+                    PLANNER_SCHEMA,
+                    OBSERVER_SCHEMA,
+                    UPDATER_SCHEMA,
+                    CRITIC_SCHEMA,
+                    JUDGE_SCHEMA,
+                ],
+                "model_arm": MODEL_ARM,
+            }
+        )
+    ).hexdigest()
+
+
+def _finish_reason(response: Mapping[str, Any]) -> str:
+    value = response.get("finish_reason", response.get("finishReason"))
+    if isinstance(value, str) and value.strip():
+        return value.strip().upper()
+    candidates = response.get("candidates")
+    if isinstance(candidates, list) and candidates and isinstance(candidates[0], Mapping):
+        value = candidates[0].get(
+            "finish_reason", candidates[0].get("finishReason")
+        )
+        if isinstance(value, str) and value.strip():
+            return value.strip().upper()
+    return "FINISH_REASON_UNSPECIFIED"
+
+
+def _response_usage(response: Mapping[str, Any]) -> dict[str, int] | None:
+    value = smoke._usage(response)
+    if not isinstance(value, Mapping):
+        return None
+    keys = ("prompt_tokens", "output_tokens", "total_tokens")
+    if not all(isinstance(value.get(key), int) for key in keys):
+        return None
+    return {key: int(value[key]) for key in keys}
+
+
+def _usage_cost(usage: Mapping[str, Any] | None) -> float | None:
+    if usage is None:
+        return None
+    prompt = usage.get("prompt_tokens")
+    output = usage.get("output_tokens")
+    if (
+        isinstance(prompt, bool)
+        or not isinstance(prompt, int)
+        or isinstance(output, bool)
+        or not isinstance(output, int)
+    ):
+        return None
+    return (
+        prompt / 1_000_000 * INPUT_USD_PER_MILLION
+        + output / 1_000_000 * OUTPUT_USD_PER_MILLION
+    )
+
+
+def _provider_call(client: Any, request: types.InlinedRequest) -> dict[str, Any]:
+    try:
+        raw = client.models.generate_content(
+            model=request.model,
+            contents=request.contents,
+            config=request.config,
+        )
+    except Exception as error:  # noqa: BLE001 - provider errors are frozen safely
+        return {
+            "status": "error",
+            "finish_reason": "PROVIDER_ERROR",
+            "response": {},
+            "usage": None,
+            "error_type": smoke._safe_error(error),
+        }
+    safe = smoke._safe_response_object(raw)
+    return {
+        "status": "received",
+        "finish_reason": _finish_reason(safe),
+        "response": safe,
+        "usage": _response_usage(safe),
+        "error_type": None,
+    }
+
+
+def _observed_cost(usages: Sequence[Mapping[str, Any] | None]) -> float | None:
+    costs = [_usage_cost(usage) for usage in usages]
+    if any(value is None for value in costs):
+        return None
+    return round(sum(float(value) for value in costs), 8)
+
+
+def call_structured_with_recovery(
+    *,
+    client: Any,
+    request: types.InlinedRequest,
+    parser: Callable[[object], dict[str, Any]],
+    stage_dir: Path,
+    role: str,
+    capabilities: ModelCapabilities,
+    budget: dict[str, Any],
+) -> dict[str, Any]:
+    attempt_paths: list[str] = []
+    last_error: Any = None
+    usages: list[dict[str, int] | None] = []
+    for attempt in (1, 2):
+        maximum_output_cost = (
+            capabilities.output_token_limit
+            / 1_000_000
+            * OUTPUT_USD_PER_MILLION
+        )
+        if float(budget["observed_cost_usd"]) + maximum_output_cost > float(
+            budget["max_cost_usd"]
+        ):
+            return {
+                "status": "budget_blocked",
+                "record": None,
+                "attempt_count": attempt - 1,
+                "recovered": False,
+                "usage": None,
+                "attempt_paths": attempt_paths,
+                "error_type": "maximum_call_reserve_exceeds_remaining_budget",
+            }
+        raw = _provider_call(client, request)
+        budget["provider_request_count"] += 1
+        budget["provider_call_counts_by_role"][role] += 1
+        usage = raw.get("usage")
+        usages.append(usage if isinstance(usage, Mapping) else None)
+        cost = _usage_cost(usage if isinstance(usage, Mapping) else None)
+        if cost is not None:
+            budget["observed_cost_usd"] += cost
+        path = stage_dir / f"attempt-{attempt}.json"
+        _write_json(path, raw)
+        attempt_paths.append(path.as_posix())
+        if raw.get("status") != "received":
+            last_error = raw.get("error_type") or "provider_error"
+            continue
+        finish = raw.get("finish_reason")
+        response = raw.get("response")
+        text = smoke._response_text(response) if isinstance(response, Mapping) else None
+        if finish == "MAX_TOKENS":
+            last_error = "max_tokens"
+            continue
+        if finish != "STOP":
+            last_error = f"finish_reason_{str(finish).casefold()}"
+            continue
+        if not isinstance(text, str) or not text.strip():
+            last_error = "empty_response"
+            continue
+        try:
+            record = parser(text)
+        except Exception as error:  # noqa: BLE001 - schema/parser failure is recoverable
+            last_error = smoke._safe_error(error)
+            continue
+        return {
+            "status": "passed",
+            "record": record,
+            "attempt_count": attempt,
+            "recovered": attempt == 2,
+            "usage": {
+                "attempt_usages": usages,
+                "observed_cost_usd": _observed_cost(usages),
+            },
+            "attempt_paths": attempt_paths,
+            "error_type": None,
+        }
+    return {
+        "status": "failed",
+        "record": None,
+        "attempt_count": 2,
+        "recovered": False,
+        "usage": {
+            "attempt_usages": usages,
+            "observed_cost_usd": _observed_cost(usages),
+        },
+        "attempt_paths": attempt_paths,
+        "error_type": last_error,
+    }
+
+
+def _fallback_initializer(
+    row: Mapping[str, Any], protected_ranking: Sequence[str]
+) -> dict[str, Any]:
+    return {
+        "protected_ranking": list(protected_ranking),
+        "provisional_ranking": list(protected_ranking),
+        "ledger": [
+            {
+                "option_id": str(option["option_id"]),
+                "observable_claim": "The observable claim was not established because initialization failed.",
+                "supporting_evidence_ids": [],
+                "contradicting_evidence_ids": [],
+                "untested_claims": ["All answer-relevant visual and audio evidence remains untested."],
+                "status": "viable",
+                "interpretation": "No initializer interpretation is available.",
+            }
+            for option in row["options"]
+        ],
+        "literal_observations": [],
+        "unresolved_distinctions": ["The complete item remains unresolved."],
+    }
+
+
+def _fallback_planner(
+    *, row: Mapping[str, Any], protected_ranking: Sequence[str], round_index: int
+) -> dict[str, Any]:
+    duration = float(row["duration_seconds"])
+    return {
+        "round_index": round_index,
+        "provisional_ranking": list(protected_ranking),
+        "unresolved_distinction": "The complete literal sequence remains unresolved.",
+        "action": MediaAction(
+            kind="rewatch_full",
+            start_seconds=0.0,
+            end_seconds=duration,
+            fps=8.0,
+            resolution="high",
+            neutral_request=(
+                "Produce a gapless literal timeline of visible actions, exact visible text, and audible speech."
+            ),
+            tested_option_ids=tuple(OPTION_IDS),
+            expected_outcomes=tuple(
+                {
+                    "option_id": option_id,
+                    "literal_outcome": "Record literal evidence relevant to this unresolved possibility.",
+                }
+                for option_id in OPTION_IDS
+            ),
+        ),
+        "why_discriminating": "A complete high-detail timeline is the neutral mechanical fallback.",
+    }
+
+
+def _current_ledger(notebook: Mapping[str, Any]) -> list[dict[str, Any]]:
+    rounds = notebook.get("rounds")
+    if isinstance(rounds, list):
+        for entry in reversed(rounds):
+            if isinstance(entry, Mapping) and isinstance(entry.get("updater"), Mapping):
+                ledger = entry["updater"].get("ledger")
+                if isinstance(ledger, list):
+                    return copy.deepcopy(ledger)
+    initializer = notebook.get("initializer")
+    if isinstance(initializer, Mapping) and isinstance(initializer.get("ledger"), list):
+        return copy.deepcopy(initializer["ledger"])
+    raise ValueError("notebook ledger is unavailable")
+
+
+def _fallback_update(
+    notebook: Mapping[str, Any], protected_ranking: Sequence[str]
+) -> dict[str, Any]:
+    return {
+        "provisional_ranking": list(protected_ranking),
+        "ledger": _current_ledger(notebook),
+        "mapped_observation_ids": [],
+        "unresolved_distinctions": ["The newest observation could not be mapped."],
+    }
+
+
+def _fallback_critic(notebook: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "decision": "continue",
+        "tested_viable_option_ids": sorted(live_option_ids(notebook)),
+        "leader_evidence_ids": [],
+        "unexplained_counterevidence_ids": [],
+        "next_unresolved_distinction": "The stop review was invalid, so investigation must continue.",
+        "direct_replacement_supported": False,
+        "reason": "Invalid stop review cannot certify evidence sufficiency.",
+    }
+
+
+def _prompt_prohibited_values(
+    row: Mapping[str, Any], protected_ranking: Sequence[str]
+) -> list[str]:
+    options = row.get("options")
+    option_texts = [
+        str(option["text"])
+        for option in options
+        if isinstance(option, Mapping) and isinstance(option.get("text"), str)
+    ] if isinstance(options, list) else []
+    return [
+        str(row.get("question", "")),
+        *option_texts,
+        *OPTION_IDS,
+        "".join(protected_ranking),
+        " > ".join(protected_ranking),
+    ]
+
+
+def _relative_paths(root: Path, paths: Sequence[str]) -> list[str]:
+    return [Path(path).relative_to(root).as_posix() for path in paths]
+
+
+def run_row(
+    *,
+    index: int,
+    row: Mapping[str, Any],
+    protected_ranking: Sequence[str],
+    upload: Mapping[str, Any],
+    output_root: Path,
+    capabilities: ModelCapabilities,
+    client: Any,
+    budget: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    row_root = output_root / "rows" / f"{index:02d}"
+    operational_invalid = False
+    recovery_count = 0
+
+    initializer_result = call_structured_with_recovery(
+        client=client,
+        request=build_initializer_request(
+            row=row,
+            upload=upload,
+            protected_ranking=protected_ranking,
+            capabilities=capabilities,
+        ),
+        parser=lambda raw: parse_initializer(
+            raw,
+            duration_seconds=float(row["duration_seconds"]),
+            protected_ranking=protected_ranking,
+        ),
+        stage_dir=row_root / "initializer",
+        role="initializer",
+        capabilities=capabilities,
+        budget=budget,
+    )
+    recovery_count += int(initializer_result["recovered"])
+    initializer = initializer_result.get("record")
+    initializer_status = "passed"
+    if not isinstance(initializer, Mapping):
+        initializer = _fallback_initializer(row, protected_ranking)
+        initializer_status = "fallback_unknown_ledger"
+        operational_invalid = True
+    notebook = initialize_notebook(
+        str(row["video_id"]), protected_ranking, initializer
+    )
+    observer_count = 0
+    stop_status = "forced_stop"
+    observer_audit_paths: list[str] = []
+    stage_results: list[dict[str, Any]] = [initializer_result]
+
+    for round_index in range(1, MAX_OBSERVATIONS + 1):
+        round_root = row_root / f"round-{round_index}"
+        planner_result = call_structured_with_recovery(
+            client=client,
+            request=build_planner_request(
+                row=row,
+                notebook=notebook,
+                round_index=round_index,
+                capabilities=capabilities,
+            ),
+            parser=lambda raw, current=round_index: parse_planner(
+                raw,
+                duration_seconds=float(row["duration_seconds"]),
+                round_index=current,
+            ),
+            stage_dir=round_root / "planner",
+            role="planner",
+            capabilities=capabilities,
+            budget=budget,
+        )
+        recovery_count += int(planner_result["recovered"])
+        planner = planner_result.get("record")
+        if not isinstance(planner, Mapping):
+            planner = _fallback_planner(
+                row=row,
+                protected_ranking=protected_ranking,
+                round_index=round_index,
+            )
+            operational_invalid = True
+        notebook = append_round_stage(
+            notebook,
+            round_index=round_index,
+            stage="planner",
+            record=planner,
+        )
+        stage_results.append(planner_result)
+
+        action = planner.get("action")
+        if not isinstance(action, MediaAction):
+            action = MediaAction(**dict(action)) if isinstance(action, Mapping) else None
+        if not isinstance(action, MediaAction):
+            raise ValueError("planner action is unavailable")
+        observer_request = build_observer_request(
+            upload=upload, action=action, capabilities=capabilities
+        )
+        audit = audit_observer_request(
+            observer_request,
+            prohibited_values=_prompt_prohibited_values(row, protected_ranking),
+        )
+        audit_path = round_root / "observer/request-audit.json"
+        _write_json(audit_path, audit)
+        observer_audit_paths.append(audit_path.relative_to(output_root).as_posix())
+        if not audit["passed"]:
+            raise ValueError("observer request failed information-barrier audit")
+        observer_result = call_structured_with_recovery(
+            client=client,
+            request=observer_request,
+            parser=lambda raw, current_action=action, current_round=round_index: parse_observer(
+                raw,
+                action=current_action,
+                duration_seconds=float(row["duration_seconds"]),
+                view_id=f"view-{current_round}",
+            ),
+            stage_dir=round_root / "observer",
+            role="observer",
+            capabilities=capabilities,
+            budget=budget,
+        )
+        recovery_count += int(observer_result["recovered"])
+        observer = observer_result.get("record")
+        if not isinstance(observer, Mapping):
+            operational_invalid = True
+            stage_results.append(observer_result)
+            continue
+        observer_count += 1
+        observer_record = dict(observer)
+        observer_record["provenance"] = {
+            "view_id": observer_record["view_id"],
+            "start_seconds": action.start_seconds,
+            "end_seconds": action.end_seconds,
+            "fps": action.fps,
+            "resolution": action.resolution,
+            "request_audit_path": audit_path.relative_to(output_root).as_posix(),
+            "request_audit_sha256": sha256_file(audit_path),
+        }
+        notebook = append_round_stage(
+            notebook,
+            round_index=round_index,
+            stage="observer",
+            record=observer_record,
+        )
+        stage_results.append(observer_result)
+
+        updater_result = call_structured_with_recovery(
+            client=client,
+            request=build_updater_request(
+                row=row, notebook=notebook, capabilities=capabilities
+            ),
+            parser=lambda raw: parse_update(raw, notebook=notebook),
+            stage_dir=round_root / "updater",
+            role="updater",
+            capabilities=capabilities,
+            budget=budget,
+        )
+        recovery_count += int(updater_result["recovered"])
+        updater = updater_result.get("record")
+        if not isinstance(updater, Mapping):
+            updater = _fallback_update(notebook, protected_ranking)
+            operational_invalid = True
+        notebook = append_round_stage(
+            notebook,
+            round_index=round_index,
+            stage="updater",
+            record=updater,
+        )
+        stage_results.append(updater_result)
+
+        critic_result = call_structured_with_recovery(
+            client=client,
+            request=build_critic_request(
+                row=row, notebook=notebook, capabilities=capabilities
+            ),
+            parser=lambda raw: parse_critic(
+                raw, notebook=notebook, observation_count=observer_count
+            ),
+            stage_dir=round_root / "critic",
+            role="critic",
+            capabilities=capabilities,
+            budget=budget,
+        )
+        recovery_count += int(critic_result["recovered"])
+        critic = critic_result.get("record")
+        if not isinstance(critic, Mapping):
+            critic = _fallback_critic(notebook)
+            operational_invalid = True
+        notebook = append_round_stage(
+            notebook,
+            round_index=round_index,
+            stage="critic",
+            record=critic,
+        )
+        stage_results.append(critic_result)
+        stop_status = next_search_state(
+            decision=str(critic["decision"]), observation_count=observer_count
+        )
+        if stop_status != "continue":
+            break
+
+    judge_result = call_structured_with_recovery(
+        client=client,
+        request=build_judge_request(
+            row=row,
+            upload=upload,
+            notebook=notebook,
+            capabilities=capabilities,
+        ),
+        parser=lambda raw: parse_judge(
+            raw, notebook=notebook, protected_ranking=protected_ranking
+        ),
+        stage_dir=row_root / "judge",
+        role="judge",
+        capabilities=capabilities,
+        budget=budget,
+    )
+    recovery_count += int(judge_result["recovered"])
+    judge = judge_result.get("record")
+    if isinstance(judge, Mapping) and judge.get("stop_status") != stop_status:
+        judge = None
+        judge_result["status"] = "failed"
+        judge_result["error_type"] = "judge_stop_status_mismatch"
+    if not isinstance(judge, Mapping):
+        operational_invalid = True
+    stage_results.append(judge_result)
+    ranking, final_source = choose_final_ranking(judge, protected_ranking)
+    final_notebook = copy.deepcopy(notebook)
+    final_notebook["judge"] = {
+        "status": "passed" if judge is not None else "failed",
+        "record": copy.deepcopy(judge),
+        "error_type": judge_result.get("error_type"),
+    }
+    notebook_path = row_root / "final-notebook.json"
+    _write_json(notebook_path, final_notebook)
+    return (
+        {
+            "video_id": str(row["video_id"]),
+            "variant_kind": "canonical",
+            "status": "operationally_invalid" if operational_invalid else "passed",
+            "ranking": ranking,
+            "final_source": final_source,
+            "initializer_status": initializer_status,
+            "judge_status": "passed" if judge is not None else "failed",
+            "judge": judge,
+            "stop_status": stop_status,
+            "observer_action_count": observer_count,
+            "recovery_call_count": recovery_count,
+            "notebook_path": notebook_path.relative_to(output_root).as_posix(),
+            "notebook_sha256": sha256_file(notebook_path),
+            "observer_audit_paths": observer_audit_paths,
+            "known_observation_count": len(notebook_observation_ids(final_notebook)),
+        },
+        {
+            "operational_invalid": operational_invalid,
+            "recovery_call_count": recovery_count,
+            "stage_results": stage_results,
+        },
+    )
+
+
+def run_phase(
+    *,
+    requests_path: Path,
+    protected_control_path: Path,
+    historical_root: Path,
+    output_root: Path,
+    capabilities: ModelCapabilities,
+    client: Any,
+    upload_file: Callable[[Any, Path], Mapping[str, Any]],
+    max_cost_usd: float = MAX_COST_USD,
+    expected_rows: int | None = 20,
+    expected_variants: int | None = 20,
+) -> dict[str, Any]:
+    if output_root.exists() or output_root.is_symlink():
+        raise ValueError("output root already exists")
+    gate = preflight(
+        requests_path=requests_path,
+        protected_control_path=protected_control_path,
+        historical_root=historical_root,
+        capabilities=capabilities,
+        max_cost_usd=max_cost_usd,
+        expected_rows=expected_rows,
+        expected_variants=expected_variants,
+    )
+    output_root.mkdir(parents=True)
+    payload = load_requests(
+        requests_path,
+        expected_rows=expected_rows,
+        expected_variants=expected_variants,
+    )
+    request_ids = [str(row["video_id"]) for row in payload["rows"]]
+    controls = load_protected_control(
+        protected_control_path, request_ids=request_ids
+    )
+    manifest = {
+        "schema_version": 1,
+        "status": "running",
+        "model": MODEL,
+        "model_arm": MODEL_ARM,
+        "model_capabilities": asdict(capabilities),
+        "requests_sha256": sha256_file(requests_path),
+        "request_row_sha256s": {
+            str(row["video_id"]): hashlib.sha256(canonical_json(row)).hexdigest()
+            for row in payload["rows"]
+        },
+        "protected_control_sha256": sha256_file(protected_control_path),
+        "prompt_contract_sha256": _prompt_contract_sha256(),
+        "cost": gate["cost"],
+    }
+    _write_json(output_root / "run-manifest.json", manifest)
+    _write_json(output_root / "preflight.json", gate)
+    budget: dict[str, Any] = {
+        "max_cost_usd": max_cost_usd,
+        "observed_cost_usd": 0.0,
+        "provider_request_count": 0,
+        "provider_call_counts_by_role": Counter(),
+    }
+    final_rows: list[dict[str, Any]] = []
+    diagnostics: list[dict[str, Any]] = []
+    for index, row in enumerate(payload["rows"]):
+        video_id = str(row["video_id"])
+        upload = upload_file(client, _delivery_path(historical_root, video_id))
+        final, diagnostic = run_row(
+            index=index,
+            row=row,
+            protected_ranking=controls[video_id],
+            upload=upload,
+            output_root=output_root,
+            capabilities=capabilities,
+            client=client,
+            budget=budget,
+        )
+        final_rows.append(final)
+        diagnostics.append(diagnostic)
+    notebook_index_path = output_root / "notebooks-freeze.json"
+    _write_json(
+        notebook_index_path,
+        {
+            "schema_version": 1,
+            "status": "notebooks_frozen",
+            "rows": [
+                {
+                    "video_id": row["video_id"],
+                    "path": row["notebook_path"],
+                    "sha256": row["notebook_sha256"],
+                }
+                for row in final_rows
+            ],
+        },
+    )
+    manifest_path = output_root / "run-manifest.json"
+    final_path = output_root / "final-predictions-freeze.json"
+    _write_json(
+        final_path,
+        {
+            "schema_version": 1,
+            "status": "predictions_frozen",
+            "model": MODEL,
+            "source_paths": {
+                "manifest": "run-manifest.json",
+                "notebooks": "notebooks-freeze.json",
+            },
+            "source_sha256s": {
+                "manifest": sha256_file(manifest_path),
+                "notebooks": sha256_file(notebook_index_path),
+            },
+            "rows": final_rows,
+        },
+    )
+    recovery_count = sum(int(row["recovery_call_count"]) for row in final_rows)
+    operational_invalid_count = sum(
+        bool(item["operational_invalid"]) for item in diagnostics
+    )
+    summary = {
+        "schema_version": 1,
+        "status": "completed",
+        "row_count": len(final_rows),
+        "final_valid_count": sum(row["status"] == "passed" for row in final_rows),
+        "operational_invalid_count": operational_invalid_count,
+        "observer_call_count": sum(
+            int(row["observer_action_count"]) for row in final_rows
+        ),
+        "recovery_call_count": recovery_count,
+        "provider_request_count": budget["provider_request_count"],
+        "provider_call_counts_by_role": dict(
+            sorted(budget["provider_call_counts_by_role"].items())
+        ),
+        "observed_cost_usd": round(float(budget["observed_cost_usd"]), 8),
+        "formal_cost_usd": gate["cost"]["formal_cost_usd"],
+        "max_cost_usd": max_cost_usd,
+        "final_predictions_sha256": sha256_file(final_path),
+    }
+    _write_json(output_root / "summary.json", summary)
+    return summary
+
+
+def verify_output(output_root: Path) -> dict[str, Any]:
+    root = output_root.resolve(strict=True)
+    final_path = root / "final-predictions-freeze.json"
+    summary_path = root / "summary.json"
+    final = json.loads(final_path.read_text(encoding="utf-8"))
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    rows = final.get("rows") if isinstance(final, Mapping) else None
+    if not isinstance(rows, list) or len(rows) != summary.get("row_count"):
+        raise ValueError("final row count does not match summary")
+    paths = final.get("source_paths")
+    hashes = final.get("source_sha256s")
+    if not isinstance(paths, Mapping) or not isinstance(hashes, Mapping):
+        raise ValueError("final source declarations are missing")
+    for key, relative in paths.items():
+        candidate = (root / str(relative)).resolve(strict=True)
+        candidate.relative_to(root)
+        if sha256_file(candidate) != hashes.get(key):
+            raise ValueError("final source hash mismatch")
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise ValueError("final row is invalid")
+        notebook_path = (root / str(row.get("notebook_path"))).resolve(strict=True)
+        notebook_path.relative_to(root)
+        if sha256_file(notebook_path) != row.get("notebook_sha256"):
+            raise ValueError("final notebook hash mismatch")
+        for relative in row.get("observer_audit_paths", []):
+            audit_path = (root / str(relative)).resolve(strict=True)
+            audit_path.relative_to(root)
+            audit = json.loads(audit_path.read_text(encoding="utf-8"))
+            if audit != {"passed": True, "matched_value_hashes": []}:
+                raise ValueError("observer audit is invalid")
+        notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+        if isinstance(row.get("judge"), Mapping):
+            cited = set(row["judge"].get("decisive_evidence_ids", []))
+            if not cited <= set(notebook_observation_ids(notebook)):
+                raise ValueError("judge citation is invalid")
+    if summary.get("final_predictions_sha256") != sha256_file(final_path):
+        raise ValueError("summary final hash mismatch")
+    return {
+        "status": "verified",
+        "row_count": len(rows),
+        "final_predictions_sha256": sha256_file(final_path),
+        "summary_sha256": sha256_file(summary_path),
+    }
+
+
+def verify_canary_reuse(
+    *,
+    canary_root: Path,
+    full_requests_path: Path,
+    canary_gate_path: Path,
+) -> dict[str, Any]:
+    if canary_root.is_symlink():
+        raise ValueError("canary root must not be a symlink")
+    root = canary_root.resolve(strict=True)
+    manifest_path = root / "run-manifest.json"
+    final_path = root / "final-predictions-freeze.json"
+    gate = json.loads(canary_gate_path.read_text(encoding="utf-8"))
+    if not isinstance(gate, Mapping) or gate.get("continue_to_full") is not True:
+        raise ValueError("canary gate does not authorize full reuse")
+    if (
+        gate.get("canary_manifest_sha256") != sha256_file(manifest_path)
+        or gate.get("canary_final_sha256") != sha256_file(final_path)
+    ):
+        raise ValueError("canary protocol identity hash mismatch")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if (
+        not isinstance(manifest, Mapping)
+        or manifest.get("model") != MODEL
+        or manifest.get("model_arm") != MODEL_ARM
+        or manifest.get("prompt_contract_sha256") != _prompt_contract_sha256()
+    ):
+        raise ValueError("canary protocol identity does not match current runner")
+    declared_rows = manifest.get("request_row_sha256s")
+    if not isinstance(declared_rows, Mapping) or not declared_rows:
+        raise ValueError("canary protocol identity lacks row hashes")
+    full = load_requests(
+        full_requests_path, expected_rows=None, expected_variants=None
+    )
+    full_rows = {str(row["video_id"]): row for row in full["rows"]}
+    for video_id, digest in declared_rows.items():
+        row = full_rows.get(str(video_id))
+        if (
+            row is None
+            or not isinstance(digest, str)
+            or hashlib.sha256(canonical_json(row)).hexdigest() != digest
+        ):
+            raise ValueError("canary request row identity does not match full panel")
+    verify_output(root)
+    final = json.loads(final_path.read_text(encoding="utf-8"))
+    final_ids = [str(row.get("video_id")) for row in final.get("rows", [])]
+    if final_ids != list(declared_rows):
+        raise ValueError("canary final row identity does not match manifest")
+    return {
+        "status": "canary_reuse_verified",
+        "reusable_row_count": len(final_ids),
+        "reusable_video_ids": final_ids,
+        "manifest_sha256": sha256_file(manifest_path),
+        "final_predictions_sha256": sha256_file(final_path),
     }
