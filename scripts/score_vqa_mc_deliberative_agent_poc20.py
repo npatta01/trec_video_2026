@@ -10,7 +10,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from trec_video_2026.vqa_experiments.vqa_mc_poc20 import (
+from trec_video_2026.vqa_experiments.vqa_mc_common import (
     canonical_json,
     parse_ranking,
     score_rankings,

@@ -9,7 +9,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from trec_video_2026.vqa_experiments.vqa_mc_poc20 import (
+from trec_video_2026.vqa_experiments.vqa_mc_common import (
     OPTION_IDS,
     parse_ranking,
 )

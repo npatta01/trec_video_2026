@@ -25,7 +25,7 @@ from trec_video_2026.vqa_experiments.vqa_mc_deliberative_agent import (
     solver_prompt,
     validate_action,
 )
-from trec_video_2026.vqa_experiments.vqa_mc_poc20 import canonical_json
+from trec_video_2026.vqa_experiments.vqa_mc_common import canonical_json
 
 
 def _row() -> dict[str, object]:

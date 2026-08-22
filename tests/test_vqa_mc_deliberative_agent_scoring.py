@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from trec_video_2026.vqa_experiments.vqa_mc_poc20 import sha256_file
+from trec_video_2026.vqa_experiments.vqa_mc_common import sha256_file
 
 
 ROOT = Path(__file__).parents[1]

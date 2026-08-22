@@ -41,7 +41,7 @@ from trec_video_2026.vqa_experiments.vqa_mc_deliberative_agent import (
     planner_prompt,
     solver_prompt,
 )
-from trec_video_2026.vqa_experiments.vqa_mc_poc20 import (
+from trec_video_2026.vqa_experiments.vqa_mc_common import (
     OPTION_IDS,
     canonical_json,
     sha256_file,

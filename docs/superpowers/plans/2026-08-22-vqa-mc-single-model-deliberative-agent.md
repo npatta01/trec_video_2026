@@ -38,6 +38,9 @@ and is not promoted. Across `a1`, `a2`, and `a3`, observed cost was
 
 ## File map
 
+- Create `src/trec_video_2026/vqa_experiments/vqa_mc_common.py`: privacy-safe
+  ranking, scoring, stable-JSON, and hashing primitives shared without the
+  private panel-builder's selected row identities.
 - Create `src/trec_video_2026/vqa_experiments/vqa_mc_deliberative_agent.py`: schemas, parsers, prompts, media actions, notebook transitions, visibility renderers, and final fallback.
 - Create `scripts/run_vqa_mc_gemini_deliberative_agent_poc20.py`: label-isolated preflight, uploads, request builders, adaptive state machine, budget accounting, and immutable freezes.
 - Create `scripts/score_vqa_mc_deliberative_agent_poc20.py`: post-freeze scoring, transitions, path distributions, integrity metrics, and decision gate.

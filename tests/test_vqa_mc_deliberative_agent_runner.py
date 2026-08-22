@@ -14,7 +14,7 @@ from trec_video_2026.vqa_experiments.vqa_mc_deliberative_agent import (
     parse_solver,
     validate_action,
 )
-from trec_video_2026.vqa_experiments.vqa_mc_poc20 import sha256_file
+from trec_video_2026.vqa_experiments.vqa_mc_common import sha256_file
 
 
 ROOT = Path(__file__).parents[1]
