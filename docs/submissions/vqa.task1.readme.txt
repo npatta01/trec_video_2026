@@ -1,0 +1,28 @@
+Welcome to the TREC2026 VQA Track!
+Here you will find the testing dataset for:
+
+1- Answer Generation Task (AG):
+   - The folder task1 includes a json file (vqa.2026.testingDataset.Task1.json) that holds all queries for AG task.
+   It has the format of
+   {
+        "Q_ID": 1,
+        "Video_ID": "8384.webm",
+        "Question": "What happens to the image of the bride and groom?"
+    }
+
+    Where Q_ID is the query unique ID
+          Video_ID is either a webm video (provided in the zip file "videos.zip") or a YouTube video ID
+	  Question: is the question applied to the given video or youtube link and need to be answered by your system
+
+
+NOTES:
+- Please consult the main track guidelines for details on run submissions format https://www-nlpir.nist.gov/projects/tv2026/vqa.html
+- Please follow the schedule to be ready for data release and run submission due dates https://www-nlpir.nist.gov/projects/tv2026/schedule.html
+- All runs need to be submitted through your evalbase team account online (not by emails)
+- We will supply a validator to support testing your run formatting before submission. Also will be applied upon run submission and report any errors back to fix
+- All AG runs need to be submitted by August 17, 2026.
+
+***** IMPORTANT *****
+Please make sure you submit the data agreement form to have your runs accepted and scored.
+Link to data agreement form can be found on the guidelines page, slack channel and here:
+https://www-nlpir.nist.gov/projects/tv2026/DVU_Org.Form.txt
