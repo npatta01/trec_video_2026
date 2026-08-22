@@ -296,7 +296,7 @@ Use `solver_prompt(row)` for both initial calls, `planner_prompt(row, notebook, 
 - [ ] **Step 4: Implement conservative pricing and media-token reservation**
 
 ```python
-ROLE_OUTPUT_LIMITS = {"solver": 1024, "planner": 768, "observer": 768, "judge": 1024}
+ROLE_OUTPUT_LIMITS = {"solver": 2048, "planner": 1536, "observer": 1536, "judge": 2048}
 MEDIA_TOKENS_PER_SECOND = {
     (1.0, "low"): 78,
     (4.0, "low"): 312,
@@ -305,8 +305,8 @@ MEDIA_TOKENS_PER_SECOND = {
     (4.0, "high"): 1136,
     (8.0, "high"): 2272,
 }
-MAX_OBSERVER_INPUT_TOKENS_PER_ROW = 40_000
-MAX_TEXT_INPUT_TOKENS_PER_ROW = 12_000
+MAX_OBSERVER_INPUT_TOKENS_PER_ROW = 10_000
+MAX_TEXT_INPUT_TOKENS_PER_ROW = 4_000
 MAX_COST_USD = 0.75
 ```
 
@@ -324,11 +324,13 @@ output_tokens = row_count * (
 )
 ```
 
-At current prices this ceiling is approximately `$0.707`, below `$0.75` with
-room for rounding. Return every assumption and reject any configuration whose
-recomputed total exceeds the cap. `authorize_action` rejects an action whose
-estimated media tokens exceed the row's remaining 40,000-token observer
-allowance or would consume the reserved judge budget.
+After the bounded output-truncation recovery, the repaired-run ceiling is
+approximately `$0.6525`; including the invalid `$0.09529950` `a1` run, the
+combined conservative ceiling is `$0.74776162`, below `$0.75`. Return every
+assumption and reject any configuration whose recomputed combined total
+exceeds the cap. `authorize_action` rejects an action whose estimated media
+tokens exceed the row's remaining 10,000-token observer allowance or would
+consume the reserved judge budget.
 
 - [ ] **Step 5: Run runner tests**
 
@@ -573,7 +575,7 @@ Run:
 
 ```bash
 test "$(readlink -f data)" = "/home/npatta01/data/competitions/trec_video_2026/data"
-test ! -e data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a1
+test ! -e data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a2
 ```
 
 Expected: both commands exit zero.
@@ -603,7 +605,7 @@ Skip this commit when verification required no changes.
 ### Task 7: Authorized 20-video run and post-freeze score
 
 **Files:**
-- Private create: `data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a1/`
+- Private create: `data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a2/`
 
 **Interfaces:**
 - Consumes: verified runner, canonical requests, preserved WebM deliveries, private Gemini credential, frozen labels, and frozen control predictions.
@@ -616,7 +618,7 @@ Run:
 ```bash
 PYTHONPATH=src python scripts/run_vqa_mc_gemini_deliberative_agent_poc20.py \
   --run --canonical-only \
-  --output data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a1
+  --output data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a2
 ```
 
 Expected: `status: completed`, 20 final rows, no output overwrite, and observed cost at or below `$0.75`.
@@ -627,7 +629,7 @@ Run:
 
 ```bash
 PYTHONPATH=src python scripts/run_vqa_mc_gemini_deliberative_agent_poc20.py \
-  --verify-output data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a1
+  --verify-output data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a2
 ```
 
 Expected: raw freezes, notebook snapshots, final predictions, counts, hashes, citation references, and usage records validate.
@@ -642,8 +644,8 @@ PYTHONPATH=src python scripts/score_vqa_mc_deliberative_agent_poc20.py \
   --labels data/vqa/benchmarks/vqa-mc-poc20-20260821/inputs/labels.json \
   --control data/vqa/benchmarks/vqa-mc-poc20-20260821/gemini-a1/predictions-freeze.json \
   --adaptive data/vqa/benchmarks/vqa-mc-adaptive-agent-poc20-20260821-a1/final-predictions-freeze.json \
-  --run-root data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a1 \
-  --output data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a1/score.json
+  --run-root data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a2 \
+  --output data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a2/score.json
 ```
 
 Expected: `status: scored`; labels appear only in the private score artifact created after inference freeze.

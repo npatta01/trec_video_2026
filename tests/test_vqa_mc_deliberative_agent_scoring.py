@@ -333,7 +333,8 @@ def test_over_cap_fails_cost_gate(tmp_path: Path) -> None:
     paths = _artifacts(tmp_path)
     summary_path = paths["run_root"] / "summary.json"
     summary = json.loads(summary_path.read_text())
-    summary["observed_cost_usd"] = 0.75000001
+    summary["observed_cost_usd"] = 0.1
+    summary["combined_observed_cost_usd"] = 0.75000001
     summary_path.write_text(json.dumps(summary), encoding="utf-8")
 
     result = _score(paths)

@@ -88,7 +88,7 @@ def _planner_payload(decision: str = "finish_search") -> dict[str, object]:
         action = {
             "kind": "inspect_interval",
             "start_seconds": 1.0,
-            "end_seconds": 4.0,
+            "end_seconds": 3.0,
             "fps": 8.0,
             "resolution": "high",
             "investigative_focus": "Describe each time the person leaves the floor.",
@@ -208,7 +208,7 @@ def test_observer_uses_requested_interval_fps_and_resolution() -> None:
     video = request.contents[0].parts[0]
 
     assert video.video_metadata.start_offset == "1.000s"
-    assert video.video_metadata.end_offset == "4.000s"
+    assert video.video_metadata.end_offset == "3.000s"
     assert video.video_metadata.fps == 8.0
     assert video.media_resolution.level.name.endswith("HIGH")
 
@@ -241,7 +241,15 @@ def test_cost_estimate_reserves_seven_calls_and_final_judge(tmp_path: Path) -> N
     assert estimate["request_count_ceiling"] == 7
     assert estimate["max_calls_per_row"] == 7
     assert estimate["final_call_reserved"] is True
+    assert runner.ROLE_OUTPUT_LIMITS == {
+        "solver": 2048,
+        "planner": 1536,
+        "observer": 1536,
+        "judge": 2048,
+    }
+    assert estimate["prior_failed_run_cost_usd"] == pytest.approx(0.0952995)
     assert 0 < estimate["estimated_cost_usd"] < 0.75
+    assert estimate["combined_estimated_cost_usd"] < 0.75
 
 
 def test_action_authorization_consumes_shared_observer_budget() -> None:
@@ -250,7 +258,7 @@ def test_action_authorization_consumes_shared_observer_budget() -> None:
     )
     estimated = runner.estimate_action_input_tokens(action)
 
-    assert estimated == 3.0 * runner.MEDIA_TOKENS_PER_SECOND[(8.0, "high")]
+    assert estimated == 2.0 * runner.MEDIA_TOKENS_PER_SECOND[(8.0, "high")]
     assert runner.authorize_action(
         action,
         calls_used=3,

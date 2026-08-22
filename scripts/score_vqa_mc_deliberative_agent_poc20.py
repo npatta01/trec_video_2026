@@ -479,10 +479,13 @@ def score(
         and summary_consistent
     )
     observed_cost = summary.get("observed_cost_usd")
+    combined_observed_cost = summary.get(
+        "combined_observed_cost_usd", observed_cost
+    )
     within_cost_cap = bool(
-        isinstance(observed_cost, (int, float))
-        and not isinstance(observed_cost, bool)
-        and float(observed_cost) <= MAX_COST_USD
+        isinstance(combined_observed_cost, (int, float))
+        and not isinstance(combined_observed_cost, bool)
+        and float(combined_observed_cost) <= MAX_COST_USD
     )
     known_hits_preserved = all(
         systems["final"][video_id] is not None
@@ -593,6 +596,7 @@ def score(
             "output_tokens": summary.get("output_tokens"),
             "usage_complete": summary.get("usage_complete"),
             "observed_cost_usd": observed_cost,
+            "combined_observed_cost_usd": combined_observed_cost,
             "cost_cap_usd": MAX_COST_USD,
         },
         "integrity": integrity,

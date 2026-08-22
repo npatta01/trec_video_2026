@@ -54,10 +54,10 @@ BASELINE_FPS = 4.0
 INPUT_USD_PER_MILLION = 0.375
 OUTPUT_USD_PER_MILLION = 1.875
 ROLE_OUTPUT_LIMITS = {
-    "solver": 1024,
-    "planner": 768,
-    "observer": 768,
-    "judge": 1024,
+    "solver": 2048,
+    "planner": 1536,
+    "observer": 1536,
+    "judge": 2048,
 }
 MEDIA_TOKENS_PER_SECOND = {
     (1.0, "low"): 78,
@@ -67,11 +67,12 @@ MEDIA_TOKENS_PER_SECOND = {
     (4.0, "high"): 1136,
     (8.0, "high"): 2272,
 }
-MAX_OBSERVER_INPUT_TOKENS_PER_ROW = 40_000
-MAX_TEXT_INPUT_TOKENS_PER_ROW = 12_000
+MAX_OBSERVER_INPUT_TOKENS_PER_ROW = 10_000
+MAX_TEXT_INPUT_TOKENS_PER_ROW = 4_000
 MAX_CALLS_PER_ROW = 7
 MAX_OBSERVER_ACTIONS = 2
 MAX_COST_USD = 0.75
+PRIOR_FAILED_RUN_COST_USD = 0.0952995
 EXPECTED_ROWS = 20
 EXPECTED_VARIANTS = 27
 MIME_TYPE = "video/webm"
@@ -82,7 +83,7 @@ DEFAULT_REQUESTS = (
 DEFAULT_HISTORICAL_ROOT = ROOT / "data/vqa/benchmarks/direct-gemini-batch-475-v1"
 DEFAULT_OUTPUT = (
     ROOT
-    / "data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a1"
+    / "data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a2"
 )
 FORBIDDEN_LABEL_KEYS = frozenset(
     {
@@ -242,6 +243,10 @@ def estimate_worst_case_cost(payload: Mapping[str, Any]) -> dict[str, Any]:
         "worst_case_input_tokens": input_tokens,
         "worst_case_output_tokens": output_tokens,
         "estimated_cost_usd": round(cost, 8),
+        "prior_failed_run_cost_usd": PRIOR_FAILED_RUN_COST_USD,
+        "combined_estimated_cost_usd": round(
+            PRIOR_FAILED_RUN_COST_USD + cost, 8
+        ),
     }
 
 
@@ -272,7 +277,7 @@ def preflight(
         expected_variants=expected_variants,
     )
     estimate = estimate_worst_case_cost(payload)
-    if estimate["estimated_cost_usd"] > max_cost_usd:
+    if estimate["combined_estimated_cost_usd"] > max_cost_usd:
         raise ValueError("Gemini estimate exceeds authorized cost cap")
     deliveries = []
     for row in payload["rows"]:
@@ -1207,8 +1212,17 @@ def run(
         "judge_valid_count": sum(row["judge_status"] == "passed" for row in final_rows),
         "path_distribution": dict(sorted(path_counts.items())),
         "estimated_cost_ceiling_usd": gate["estimated_cost_usd"],
+        "prior_failed_run_cost_usd": PRIOR_FAILED_RUN_COST_USD,
+        "combined_estimated_cost_ceiling_usd": gate[
+            "combined_estimated_cost_usd"
+        ],
         **usage,
     }
+    summary["combined_observed_cost_usd"] = (
+        round(PRIOR_FAILED_RUN_COST_USD + float(summary["observed_cost_usd"]), 8)
+        if summary["observed_cost_usd"] is not None
+        else None
+    )
     _write_json(output_root / "summary.json", summary)
     return summary
 

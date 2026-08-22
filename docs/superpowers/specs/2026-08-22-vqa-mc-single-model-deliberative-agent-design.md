@@ -277,6 +277,23 @@ cost and usage after every call; terminate further investigation, but still
 run the reserved final judge, if an item's remaining budget cannot cover both
 the proposed view and final call.
 
+### Post-launch bounded recovery amendment
+
+The first implementation run (`a1`) exposed an infrastructure contract error:
+Gemini's output ceiling included high-thinking tokens, so the configured
+1,024-token solver/judge ceilings truncated structured responses. All 40
+initial solver records were invalid and the intended treatment never ran. The
+verified `a1` cost was `$0.09529950`; it is retained as an invalid run and is
+not scored as a mechanism result.
+
+One bounded `a2` recovery is permitted with solver/judge output ceilings of
+2,048 tokens, planner/observer ceilings of 1,536 tokens, a 10,000-token shared
+observer-media allowance per row, and a 4,000-token text-input allowance per
+row. The repaired-run worst-case estimate is `$0.65246213`; including `a1`,
+the combined conservative ceiling is `$0.74776162`, still below the original
+`$0.75` authorization. No scientific prompt, label access, call ceiling,
+fallback, metric, or decision rule changes.
+
 ## Failure and fallback behavior
 
 - Invalid anchor or blind-solver output is recorded and omitted from planning;
