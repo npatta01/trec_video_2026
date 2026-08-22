@@ -362,3 +362,31 @@ def test_sanitized_aggregate_excludes_private_rows_and_raw_text() -> None:
     assert "Question 0?" not in serialized
     assert "Choice A-0" not in serialized
     assert "raw_response" not in serialized
+
+
+def test_sanitized_preflight_excludes_private_ids_and_delivery_paths() -> None:
+    preflight = {
+        "schema_version": 1,
+        "status": "preflight_blocked",
+        "paid_run_allowed": False,
+        "block_reason": "formal_worst_case_exceeds_cost_cap",
+        "max_cost_usd": 1.5,
+        "cost": {"formal_cost_usd": 69.95165137, "provider_call_ceiling": 560},
+        "identity": {
+            "model": "gemini-3.7-flash",
+            "model_version": "3.7-flash-08-2026",
+            "output_token_limit": 65536,
+            "prompt_contract_sha256": "1" * 64,
+        },
+        "canary_video_ids": ["private-video-a"],
+        "deliveries": [{"path": "/private/video.webm"}],
+    }
+
+    public = scorer.sanitized_preflight(preflight)
+    serialized = json.dumps(public)
+
+    assert public["evidence_validity"] == "verified_preflight_only"
+    assert "canary_video_ids" not in public
+    assert "deliveries" not in public
+    assert "private-video-a" not in serialized
+    assert "/private/video.webm" not in serialized

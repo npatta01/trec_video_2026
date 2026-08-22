@@ -556,6 +556,51 @@ def sanitized_aggregate(scored: Mapping[str, Any]) -> dict[str, Any]:
     return {key: scored[key] for key in allowed if key in scored}
 
 
+def sanitized_preflight(preflight: Mapping[str, Any]) -> dict[str, Any]:
+    identity = preflight.get("identity")
+    safe_identity_keys = (
+        "model",
+        "model_arm",
+        "model_version",
+        "input_token_limit",
+        "output_token_limit",
+        "supported_actions",
+        "prompt_contract_sha256",
+        "canary_requests_sha256",
+        "full_requests_sha256",
+        "protected_control_sha256",
+        "pricing",
+    )
+    safe_identity = (
+        {
+            key: identity[key]
+            for key in safe_identity_keys
+            if key in identity
+        }
+        if isinstance(identity, Mapping)
+        else {}
+    )
+    return {
+        "schema_version": preflight.get("schema_version", 1),
+        "status": preflight.get("status"),
+        "evidence_validity": "verified_preflight_only",
+        "decision_disposition": "paid_inference_not_launched_under_authorized_cap",
+        "paid_run_allowed": preflight.get("paid_run_allowed") is True,
+        "block_reason": preflight.get("block_reason"),
+        "max_cost_usd": preflight.get("max_cost_usd"),
+        "cost": dict(preflight.get("cost", {}))
+        if isinstance(preflight.get("cost"), Mapping)
+        else {},
+        "identity": safe_identity,
+        "integrity": {
+            "media_upload_count": len(preflight.get("deliveries", []))
+            if isinstance(preflight.get("deliveries"), list)
+            else None,
+            "generation_started": False,
+        },
+    }
+
+
 def build_private_audit(scored: Mapping[str, Any]) -> dict[str, Any]:
     rows = scored.get("rows")
     if not isinstance(rows, list):
