@@ -55,7 +55,10 @@ as a sufficient agent loop. A later single-model deliberative loop fell to
 14/20: its duplicate deterministic solvers agreed, the planner opened no
 inspection, and the judge repeated that consensus. Keep direct Gemini as the
 control; the next agent must create adversarial diversity and make stopping a
-claim that another pass can challenge.
+claim that another pass can challenge. A mandatory-inspection four-option
+replacement is implemented but has not run: its strict provider-maximum,
+all-recovery reservation was `$69.95165137`, so the approved `$1.50` gate
+blocked inference before video upload.
 
 ::: {.theme-decision-strip aria-label="Routing decisions"}
 - **Use now:** visual baseline fallback and selective accepted Whisper for declared lexical speech.
@@ -91,6 +94,12 @@ claim that another pass can challenge.
   All 18 valid planners stopped immediately and requested 0 evidence views;
   this diagnoses deterministic self-confirmation, not the value of higher FPS
   or resolution after inspection.
+- **Four-option agent preflight:** a replacement with an A--D ledger,
+  mandatory blinded observation, up to three adaptive inspections,
+  adversarial stopping, and protected direct fallback passed its local
+  contracts but did not launch. Live Gemini reported a 65,536-token output
+  maximum; reserving it for all 560 possible calls cost `$69.95165137` versus
+  the authorized `$1.50`. No media upload or generation occurred.
 - **Condition boundary:** an unvalidated router does not imply routing, fusion,
   or answer election cannot help under a controlled test.
 
@@ -405,6 +414,52 @@ and the
 [dated evidence record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-08-21-vqa-mc-poc20.md#deliberative-agent-poc20).
 </details>
 
+::: {.content-visible when-format="gfm"}
+<a name="mc-four-option-agent-preflight"></a>
+:::
+
+### Four-option evidence-agent preflight {#mc-four-option-agent-preflight}
+
+- **Reason for testing:** replace deterministic solver consensus with an
+  inference-only, one-model agent that keeps all four answers explicit and
+  must gather new blinded native-AV evidence before stopping.
+- **Tested condition and panel:** preflight for a five-miss canary followed by
+  the frozen 20-row mechanism panel. The protocol protected the direct Gemini
+  ranking, allowed up to three planner/observer/updater/critic rounds, and
+  required cited observer evidence for any final-answer replacement.
+- **Observed result:** live model metadata reported a 65,536-token output
+  maximum. Pricing all 560 allowed provider calls and recoveries at that
+  maximum produced a formal ceiling of **`$69.95165137`**, above the approved
+  **`$1.50`**. The host blocked execution before media upload; there are no
+  predictions or accuracy metrics.
+- **Current condition-bound status:** **Verified preflight only; paid inference
+  not launched under the authorized cap.**
+- **What this rules out now:** running this exact provider-maximum,
+  all-recovery reservation contract under `$1.50`.
+- **What it does not rule out:** the answer quality of the architecture, or a
+  later run under a higher formal authorization or an explicitly approved
+  empirical/dynamic reservation policy.
+- **Possible defect, audit gap, or uncertainty:** the first private canary
+  payload used a forbidden label-bearing provenance field name and was
+  rejected before preflight; its versioned correction passed isolation. The
+  quality effect remains unknown because zero generative calls ran.
+- **Reconsider when:** the cost policy is explicitly changed without silently
+  shrinking the model's reasoning allowance.
+
+<details>
+<summary>Method, result, validity risks, and evidence</summary>
+
+The implementation has host-enforced mandatory observation, observer prompt
+isolation, append-only A--D ledgers, adversarial stop review, one recovery for
+truncation/invalid structure, protected direct-answer fallback, and private
+artifact hashes. The formal ceiling comprised `$1.13885137` input and
+`$68.81280000` output. The result supports only a cost/launch decision, not a
+model-quality conclusion. See the
+[four-option preflight aggregate · Evidence of record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/artifacts/vqa-mc-poc20-20260821/four-option-agent-summary.json)
+and the
+[dated evidence record · Evidence report · GitHub](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-08-21-vqa-mc-poc20.md#four-option-agent-preflight).
+</details>
+
 ## Known failures and cases
 
 - [CASE-001 — Later-span answer selection](failure-library.{{< meta report-ext >}}#case-001)
@@ -453,6 +508,9 @@ and the
   or resolution after inspection because no inspection ran. It rules out the
   tested deterministic consensus-and-stop protocol, not an adversarial agent
   that creates distinct hypotheses and challenges stopping.
+- The blocked four-option preflight does not measure the implemented agent's
+  answer quality. It establishes only that provider-maximum reservation for
+  every allowed call and recovery cannot fit the approved `$1.50` cap.
 
 <span id="possible-bugs-confounds-and-audit-gaps" class="legacy-fragment-alias" aria-hidden="true"></span>
 
@@ -474,6 +532,9 @@ and the
 - **Uncertainty:** the adaptive result diagnoses one forced-inspection topology;
   it does not estimate the value of additional inspection rounds or a global
   evidence ledger.
+- **Audit boundary:** the four-option agent has verified local contracts and a
+  live cost preflight but no media observations, predictions, or accuracy
+  result because its formal ceiling exceeded authorization.
 
 ## Open hypotheses and ideas
 
@@ -556,25 +617,30 @@ and the
 
 - **Prior result:** the first bounded implementation scored 14/20 versus the
   15/20 direct control because duplicate deterministic solvers agreed, all
-  valid planners stopped, and no inspection ran. The remaining hypothesis is
-  narrower: adversarially diverse roles plus a challengeable stop decision may
-  activate useful evidence collection.
+  valid planners stopped, and no inspection ran. A replacement with mandatory
+  blinded inspection, an A--D ledger, adversarial stopping, and protected
+  fallback is implemented, but its provider-maximum formal ceiling was
+  `$69.95165137`; the `$1.50` gate blocked all inference. The remaining
+  hypothesis is therefore scientifically unchanged but operationally waits on
+  an explicit cost-policy decision.
 - **Hypothesis:** preserving a global evidence ledger, assigning one solver to
   seek counterevidence, challenging any proposed stop while unresolved checks
   remain, and testing competing hypotheses with up to two distinct inspections
   repairs more errors without losing the direct control's correct answers.
-- **Smallest valid panel or work item:** a fresh label-blind MC panel with an
-  unchanged full-video Gemini control and a bounded agent: role-diverse global
-  hypotheses, adversarial stop review, up to two non-duplicate inspections,
-  and final arbitration. The existing 20 rows are only a regression suite.
+- **Smallest valid panel or work item:** after cost authorization, first run the
+  frozen five-miss canary as a mechanism check, then the existing 20-row
+  regression suite only if at least one miss is repaired and every integrity
+  gate passes. A later positive mechanism result still requires a fresh
+  label-blind MC panel.
 - **Matched controls and integrity safeguards:** freeze the control first;
   isolate labels; record every evidence claim, timestamp, inspection setting,
   stop/backtrack choice, and fallback; let the arbiter see global and local
   evidence and retain the control; use different declared solver roles or
   seeds; freeze all predictions before scoring.
-- **Decision or promotion rule:** advance only if the agent exceeds the control
-  and its own first stage, repairs exceed regressions, all finals are valid, and
-  observed cost stays under the predeclared cap.
+- **Decision or promotion rule:** launch only under an explicitly approved
+  cost policy; then advance only if the agent exceeds the control, repairs
+  exceed regressions, all finals are valid, every row has blinded evidence,
+  and observed cost stays under the predeclared cap.
 - **Boundary on what a positive result would establish:** the bounded flow on
   the tested panel, not that every MC question needs an agent or that more
   passes are universally better.

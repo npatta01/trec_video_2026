@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "status": "preflight_blocked",
+  "evidence_validity": "verified_preflight_only",
+  "decision_disposition": "paid_inference_not_launched_under_authorized_cap",
+  "paid_run_allowed": false,
+  "block_reason": "formal_worst_case_exceeds_cost_cap",
+  "max_cost_usd": 1.5,
+  "cost": {
+    "row_count": 20,
+    "video_seconds": 246.9,
+    "semantic_call_ceiling": 280,
+    "provider_call_ceiling": 560,
+    "input_token_ceiling": 3036937,
+    "output_token_limit": 65536,
+    "output_token_ceiling": 36700160,
+    "formal_input_cost_usd": 1.13885137,
+    "formal_output_cost_usd": 68.8128,
+    "formal_cost_usd": 69.95165137
+  },
+  "identity": {
+    "model": "gemini-3.7-flash",
+    "model_arm": "four-option-evidence-native-av-v1",
+    "model_version": "3.7-flash-08-2026",
+    "input_token_limit": 1048576,
+    "output_token_limit": 65536,
+    "supported_actions": [
+      "generateContent",
+      "countTokens",
+      "createCachedContent",
+      "batchGenerateContent"
+    ],
+    "pricing": {
+      "input_usd_per_million": 0.375,
+      "output_usd_per_million": 1.875
+    },
+    "prompt_contract_sha256": "e4706d02b04a55a00418e65ceed1b6efaad5ba774b88a5b2e1dd223751a3f37a",
+    "canary_requests_sha256": "a4cef59ded65f1a0a21d8185ec2dadcdaebb34447d096539829c045a9b8772dd",
+    "full_requests_sha256": "796ffdcbbff2caba6a0c8bd621f0f5c7b91c2d99bbaf2c267fa8b655ba4c9a2b",
+    "protected_control_sha256": "8531f5cef881707701094892f783203c2ed40cab095ea0a5accf2d54f5f4a8a1"
+  },
+  "operational_corrections": [
+    {
+      "attempt": "v1_input_preparation",
+      "status": "rejected_before_preflight",
+      "reason": "label-derived source hash used a forbidden label-bearing field name",
+      "canary_requests_sha256": "a13f5f8df1ea0916bf66621ab58923042cab5374b9d0271d2cd15dc50f711b2f"
+    },
+    {
+      "attempt": "v2_preflight",
+      "status": "verified_preflight_blocked",
+      "reason": "corrected label-free canary passed input isolation; formal cost exceeded authorization",
+      "preflight_sha256": "1fa250a1d4423d6c6d6ded1d792ce68873ddd4e2313da510ca39c924de03ad2b"
+    }
+  ],
+  "integrity": {
+    "canary_row_count": 5,
+    "full_row_count": 20,
+    "media_upload_count": 0,
+    "generation_call_count": 0,
+    "predictions_frozen": false,
+    "quality_metrics_available": false
+  }
+}

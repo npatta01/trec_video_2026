@@ -13,6 +13,10 @@ labels, predictions, media, and HF Bucket locations are intentionally omitted.
   aggregate scores, deliberation/path diagnostics, completion, cost, gate
   result, manual-review counts, and private-evidence hashes for the bounded
   single-model deliberative follow-up.
+- `four-option-agent-summary.json`: verified live-model capability and formal
+  cost preflight for the mandatory-inspection, four-option evidence agent. The
+  `$1.50` gate blocked paid inference before media upload, so it contains no
+  accuracy result.
 
 The canonical interpretation is the
 [dated experiment report](../../2026-08-21-vqa-mc-poc20.md).
