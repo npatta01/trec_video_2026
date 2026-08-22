@@ -262,6 +262,12 @@ Expand named experiments by theme
 - [Retrieval versus fusion
   diagnostic](research-routing.md#retrieval-versus-fusion)
 - [Evidence-aware answer election](research-routing.md#answer-election)
+- [Twenty-video direct-path and Borda
+  diagnostic](research-routing.md#mc-poc20)
+- [Two-stage adaptive-inspection
+  diagnostic](research-routing.md#mc-adaptive-poc20)
+- [Bounded single-model deliberative-agent
+  diagnostic](research-routing.md#mc-deliberative-poc20)
 
 </details>
 
@@ -335,7 +341,15 @@ reference, not a prescribed research sequence.
 6.  **Routing, fusion, and answer election:** [measure retrieval,
     oracle-evidence answering, and end-to-end answering
     separately](research-routing.md#required-evidence-labels-and-three-way-measurement),
-    then test election only if evidence paths are stable.
+    then test a fresh abstaining speech route and a [bounded
+    multi-inspection evidence
+    agent](research-routing.md#bounded-multi-inspection-evidence-agent);
+    [blind Borda](research-routing.md#mc-poc20) and [one-window adaptive
+    inspection](research-routing.md#mc-adaptive-poc20) are not promoted.
+    The [deterministic single-model deliberative
+    loop](research-routing.md#mc-deliberative-poc20) is also not
+    promoted; its next valid form needs adversarial solver diversity and
+    a challengeable stop decision on fresh data.
 
 <span id="how-to-interpret-results" class="legacy-fragment-alias"
 aria-hidden="true"></span>

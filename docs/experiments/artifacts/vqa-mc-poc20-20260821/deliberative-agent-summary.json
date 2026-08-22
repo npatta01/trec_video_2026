@@ -1,0 +1,183 @@
+{
+  "schema_version": "vqa-mc-deliberative-agent-poc20-aggregate-v1",
+  "date": "2026-08-22",
+  "panel": {
+    "data_split": "VQA-2025 training",
+    "row_count": 20,
+    "strata": {
+      "causal": 4,
+      "counting": 4,
+      "ocr_detail": 4,
+      "speech": 4,
+      "temporal": 4
+    },
+    "relationship_to_control": "same previously inspected frozen 20-row mechanism panel and frozen 15/20 Gemini control"
+  },
+  "tested_condition": {
+    "model": "gemini-3.7-flash",
+    "arm": "single-model-deliberative-native-av-v1",
+    "complete_video_media": "native AV at 4 FPS and low media resolution",
+    "protocol": "two complete-video solvers, text planner, up to two blinded observer views, and a fresh complete-video judge",
+    "max_semantic_calls_per_row": 7,
+    "max_observer_actions_per_row": 2,
+    "thinking_level": "high",
+    "seed": 42,
+    "solver_judge_output_limit": 2048,
+    "planner_observer_output_limit": 1536,
+    "shared_observer_input_limit_per_row": 10000
+  },
+  "attempts": {
+    "a1": {
+      "validity": "invalid treatment run",
+      "reason": "output ceiling included high-thinking tokens; all 40 initial solver JSON records were truncated or invalid, so planning never ran",
+      "provider_call_count": 60,
+      "observed_cost_usd": 0.0952995
+    },
+    "a2": {
+      "validity": "interrupted host-contract correction",
+      "reason": "stopped after discovering that complete option-keyed arrays in ranking order were rejected by a host-only A-D order constraint",
+      "provider_call_count": 27,
+      "observed_cost_usd": 0.06064163
+    },
+    "a3": {
+      "validity": "verified completed mechanism result",
+      "reused_a2_solver_call_count": 27,
+      "new_provider_call_count": 57,
+      "semantic_call_count": 84
+    }
+  },
+  "completion": {
+    "anchor_valid_count": 19,
+    "blind_solver_valid_count": 20,
+    "planner_valid_count": 18,
+    "planner_correction_call_count": 4,
+    "observer_call_count": 0,
+    "judge_valid_count": 20,
+    "final_valid_count": 20,
+    "final_source_counts": {
+      "judge": 20
+    }
+  },
+  "metrics": {
+    "frozen_control": {
+      "valid_count": 20,
+      "top1_correct": 15,
+      "top1_accuracy": 0.75,
+      "mrr": 0.8666666666666668
+    },
+    "prior_two_call_adaptive": {
+      "valid_count": 20,
+      "top1_correct": 15,
+      "top1_accuracy": 0.75,
+      "mrr": 0.8583333333333334
+    },
+    "anchor": {
+      "valid_count": 19,
+      "top1_correct": 14,
+      "top1_accuracy": 0.7,
+      "mrr": 0.8125
+    },
+    "blind_solver": {
+      "valid_count": 20,
+      "top1_correct": 14,
+      "top1_accuracy": 0.7,
+      "mrr": 0.8291666666666668
+    },
+    "last_planner": {
+      "valid_count": 18,
+      "top1_correct": 14,
+      "top1_accuracy": 0.7,
+      "mrr": 0.7875
+    },
+    "final": {
+      "valid_count": 20,
+      "top1_correct": 14,
+      "top1_accuracy": 0.7,
+      "mrr": 0.8291666666666668
+    }
+  },
+  "final_by_stratum_top1_correct": {
+    "causal": 4,
+    "counting": 2,
+    "ocr_detail": 2,
+    "speech": 2,
+    "temporal": 4
+  },
+  "paired_transitions": {
+    "frozen_control_to_final": {
+      "repaired": 0,
+      "regressed": 1,
+      "unchanged_correct": 14,
+      "unchanged_wrong": 5
+    },
+    "prior_two_call_adaptive_to_final": {
+      "repaired": 1,
+      "regressed": 2,
+      "unchanged_correct": 13,
+      "unchanged_wrong": 4
+    }
+  },
+  "deliberation_diagnostics": {
+    "rows_with_two_valid_solvers": 19,
+    "solver_top1_agreement_count": 19,
+    "solver_full_ranking_agreement_count": 15,
+    "valid_planner_finish_search_count": 18,
+    "valid_planner_inspect_count": 0,
+    "final_top1_equal_to_blind_solver_count": 20,
+    "final_top1_equal_to_frozen_control_count": 19,
+    "zero_action_path_count": 20,
+    "one_action_path_count": 0,
+    "two_action_path_count": 0,
+    "ambiguity_flag_count": 0
+  },
+  "post_label_manual_review": {
+    "final_miss_count": 6,
+    "all_options_wrong_count": 0,
+    "clearly_reference_supported_count": 4,
+    "plausibly_multi_answer_count": 2,
+    "privacy": "row identities, questions, options, labels, traces, and media review notes remain only in the ignored private audit"
+  },
+  "integrity": {
+    "declared_source_count": 7,
+    "notebook_hash_valid_count": 20,
+    "notebook_complete_count": 20,
+    "provenance_complete_count": 20,
+    "citation_valid_count": 20,
+    "summary_consistent": true
+  },
+  "decision_gate": {
+    "predeclared": true,
+    "requires_20_valid_final_rankings": true,
+    "final_exceeds_control": false,
+    "repairs_exceed_regressions": false,
+    "known_prior_regression_hits_preserved": false,
+    "structural_integrity": true,
+    "adaptive_paths": false,
+    "within_cost_cap": true,
+    "promising_development_result": false
+  },
+  "cost_usd": {
+    "combined_observed": 0.2621385,
+    "combined_preflight_ceiling_after_resume": 0.66699825,
+    "authorized_cap": 0.75
+  },
+  "usage": {
+    "a3_including_reused_a2_prompt_tokens": 275464,
+    "a3_including_reused_a2_output_tokens": 33888,
+    "complete": true
+  },
+  "private_evidence_sha256": {
+    "a1_run_manifest": "be335d64602ba4671959f9b54d696f68493966fb59c6167cfdbdf90dc99a26e6",
+    "a1_final_predictions": "bf9d42471da5b87af08d325955e1c430d9d4d985b24889bb0afb2be5c09b7f3b",
+    "a1_summary": "ab75c866ec428929aac0b40a2f6b061017a33efc79691fc323ee63ad4335e626",
+    "a2_run_manifest": "b1866c445ae0b4c673fdd70ebe7a2974065e708ced2a0ed1f6569dd040edbe5b",
+    "a3_run_manifest": "f8bee7a9ff15cac0c7625518338bb2c5613e82f587e351c4cd442b5262198523",
+    "a3_final_predictions": "dc94412034f4f9fdcc45deb23c553a87d5a9a6f8591bc526209bae81a21c410e",
+    "a3_summary": "864e6971edfa509fd054f145fa9a0ce397ee326fbc2ee1d99353457f23855b67",
+    "a3_score": "4fe30944f94687c65ebfc79add36a6d73b04f3e89b9992c97d482e4d6588b9ed",
+    "a3_private_audit": "9468a91957526fbf795d2164e7e050096d8d39b405467779f8466044ace9cad3",
+    "a3_manual_media_review": "161c481e62127f537a1236c6c2c5a6d9c6936b0cd7e2216a8423eba86a3ea5f1"
+  },
+  "primary_interpretation": "The tested flow collapsed into deterministic self-confirmation: the same model, prompt, seed, and complete-video view produced unanimous top choices, the planner stopped without inspection, and the judge repeated the blind solver on every row.",
+  "privacy": "aggregate-only; no questions, choices, labels, row identifiers, rankings, notebook contents, provider artifact locations, or media are included"
+}

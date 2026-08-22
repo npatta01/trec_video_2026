@@ -1,0 +1,130 @@
+{
+  "schema_version": "vqa-mc-adaptive-agent-poc20-aggregate-v1",
+  "date": "2026-08-21",
+  "panel": {
+    "data_split": "VQA-2025 training",
+    "row_count": 20,
+    "strata": {
+      "causal": 4,
+      "counting": 4,
+      "ocr_detail": 4,
+      "speech": 4,
+      "temporal": 4
+    },
+    "relationship_to_control": "same frozen 20-row panel and frozen Gemini control predictions"
+  },
+  "tested_condition": {
+    "model": "gemini-3.7-flash",
+    "arm": "adaptive-native-av-two-stage-v1",
+    "stage_1": "complete native AV at 4 FPS and low media resolution; produce a four-choice ranking and one inspection request",
+    "stage_2": "one requested native-AV interval at 1, 4, or 8 FPS and low or high media resolution; adjudicate the stage-1 top two",
+    "invalid_stage_2_policy": "fall back to the frozen valid stage-1 ranking",
+    "max_output_tokens_per_call": 2048,
+    "thinking_level": "high"
+  },
+  "completion": {
+    "request_count": 40,
+    "stage_1_valid_count": 20,
+    "stage_2_valid_count": 19,
+    "final_valid_count": 20,
+    "inspection_plan_fallback_count": 0,
+    "final_source_counts": {
+      "stage_1_fallback": 1,
+      "stage_2": 19
+    }
+  },
+  "metrics": {
+    "frozen_control": {
+      "mrr": 0.8666666666666668,
+      "top1_correct": 15,
+      "top1_accuracy": 0.75,
+      "valid_count": 20
+    },
+    "adaptive_stage_1": {
+      "mrr": 0.8541666666666667,
+      "top1_correct": 15,
+      "top1_accuracy": 0.75,
+      "valid_count": 20
+    },
+    "adaptive_final": {
+      "mrr": 0.8583333333333334,
+      "top1_correct": 15,
+      "top1_accuracy": 0.75,
+      "valid_count": 20
+    }
+  },
+  "adaptive_final_by_stratum_top1_correct": {
+    "causal": 4,
+    "counting": 2,
+    "ocr_detail": 2,
+    "speech": 3,
+    "temporal": 4
+  },
+  "paired_transitions": {
+    "stage_1_to_final": {
+      "repaired": 1,
+      "regressed": 1,
+      "unchanged_correct": 14,
+      "unchanged_wrong": 4
+    },
+    "frozen_control_to_final": {
+      "repaired": 2,
+      "regressed": 2,
+      "unchanged_correct": 13,
+      "unchanged_wrong": 3
+    }
+  },
+  "inspection_distribution": {
+    "evidence_gap": {
+      "global_composition": 3,
+      "other": 1,
+      "rapid_or_repeated_action": 8,
+      "speech_or_sound": 4,
+      "text_detail": 4
+    },
+    "fps": {
+      "1": 5,
+      "4": 11,
+      "8": 4
+    },
+    "resolution": {
+      "high": 7,
+      "low": 13
+    },
+    "requested_interval_fraction": {
+      "0_to_25_percent": 5,
+      "25_to_50_percent": 11,
+      "50_to_75_percent": 4,
+      "75_to_100_percent": 0
+    }
+  },
+  "decision_gate": {
+    "predeclared": true,
+    "requires_20_valid_final_rankings": true,
+    "final_exceeds_frozen_control": false,
+    "final_exceeds_stage_1": false,
+    "repairs_exceed_regressions": false,
+    "promising_prototype": false
+  },
+  "cost_usd": {
+    "observed": 0.09724613,
+    "preflight_ceiling": 0.40034625,
+    "authorized_cap": 0.75
+  },
+  "usage": {
+    "prompt_tokens": 116098,
+    "output_tokens": 28645,
+    "complete": true
+  },
+  "private_evidence_sha256": {
+    "run_manifest": "a85119be7f22868e4e9e070c5732c3b7384fa43e4608d027d125b6b8b71115a5",
+    "stage_1_raw_freeze": "6244fe910b15f877d06391384f6670f996acc8c48fb62a66b987db3666932b89",
+    "stage_1_predictions": "4728f3be74fdec74977958249a6a732a8765163c0c3054abcbc40220e5cdcb22",
+    "inspection_requests": "1a0496f67a2db18d5586132365b2c0ec896f4ff93018d7e6166573f78ed98330",
+    "stage_2_raw_freeze": "0768aa792d67a886c2614f3405beea4a6e8b00a625a71a04309882eb4c6bae59",
+    "final_predictions": "5a33d6a891ff5a7d4197a3b76decc51059415bd623101259f00141db95ef45bf",
+    "run_summary": "00aad4df9ec5ce6a511e7ab3484ed0a3893063f19d6da417a0a7bbfd8d461d64",
+    "score": "7786ac1f7dec66acff67e384a38f745296bfbf15904a1d6a7e08de7403afb05c"
+  },
+  "privacy": "aggregate-only; no questions, choices, labels, row identifiers, predictions, evidence text, media, or provider artifact locators"
+}

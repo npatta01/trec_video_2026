@@ -10,6 +10,15 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-22-vqa-mc-single-model-deliberative-agent-design.md`
 
+**Completed outcome (2026-08-22):** the verified `a3` run produced 20/20
+valid finals but scored 14/20 versus 15/20 for the frozen direct control. The
+two comparable solver records agreed on top-1 in 19/19 rows, every valid
+planner stopped, no observer view ran, and the judge repeated the blind
+solver's top choice in 20/20 rows. The result is a valid negative: the tested
+same-model/same-prompt/same-seed flow created deterministic self-confirmation
+and is not promoted. Across `a1`, `a2`, and `a3`, observed cost was
+`$0.26213850` under the authorized `$0.75` cap.
+
 ## Global Constraints
 
 - Use only `gemini-3.7-flash` with high thinking for every solver, planner, observer, and judge call.
@@ -51,7 +60,7 @@
 - Consumes: `OPTION_IDS` and `parse_ranking` from `vqa_mc_poc20.py`.
 - Produces: `SOLVER_SCHEMA`, `PLANNER_SCHEMA`, `OBSERVER_SCHEMA`, `JUDGE_SCHEMA`, `MediaAction`, `parse_solver`, `parse_planner`, `parse_observer`, `parse_judge`, and `validate_action`.
 
-- [ ] **Step 1: Write failing schema and parser tests**
+- [x] **Step 1: Write failing schema and parser tests**
 
 ```python
 def test_solver_requires_all_four_hypotheses_and_separates_observation() -> None:
@@ -81,13 +90,13 @@ def test_judge_citations_must_exist() -> None:
         parse_judge(_judge_payload(citations=["missing"]), observation_ids={"solver-1-o1"})
 ```
 
-- [ ] **Step 2: Run the focused test and confirm the new module is missing**
+- [x] **Step 2: Run the focused test and confirm the new module is missing**
 
 Run: `PYTHONPATH=src pytest -q tests/test_vqa_mc_deliberative_agent.py`
 
 Expected: collection fails with `ModuleNotFoundError` for `vqa_mc_deliberative_agent`.
 
-- [ ] **Step 3: Implement bounded schemas and exact parsers**
+- [x] **Step 3: Implement bounded schemas and exact parsers**
 
 ```python
 @dataclass(frozen=True)
@@ -123,13 +132,13 @@ def validate_action(value: object, *, duration_seconds: float) -> MediaAction:
 
 Implement complete JSON schemas with `additionalProperties: false`; complete A-D permutations; one hypothesis per option; bounded strings and arrays; finite timestamps; observer timestamps inside the realized action; and judge citations limited to existing IDs.
 
-- [ ] **Step 4: Run the focused tests**
+- [x] **Step 4: Run the focused tests**
 
 Run: `PYTHONPATH=src pytest -q tests/test_vqa_mc_deliberative_agent.py`
 
 Expected: all Task 1 tests pass.
 
-- [ ] **Step 5: Commit the contract layer**
+- [x] **Step 5: Commit the contract layer**
 
 ```bash
 git add src/trec_video_2026/vqa_experiments/vqa_mc_deliberative_agent.py tests/test_vqa_mc_deliberative_agent.py
@@ -148,7 +157,7 @@ git commit -m "feat: add deliberative VQA agent contracts"
 - Consumes: parsed solver/planner/observer records and `MediaAction` from Task 1.
 - Produces: `solver_prompt`, `planner_prompt`, `observer_prompt`, `judge_prompt`, `initialize_notebook`, `append_planner`, `append_observer`, `notebook_observation_ids`, and `choose_final_ranking`.
 
-- [ ] **Step 1: Add failing visibility and immutability tests**
+- [x] **Step 1: Add failing visibility and immutability tests**
 
 ```python
 def test_blind_solver_prompt_has_no_anchor_state() -> None:
@@ -180,13 +189,13 @@ def test_judge_prompt_renders_literal_observations_before_interpretations() -> N
     assert prompt.index("Literal observations") < prompt.index("Interpretations")
 ```
 
-- [ ] **Step 2: Run the tests and verify the new functions fail**
+- [x] **Step 2: Run the tests and verify the new functions fail**
 
 Run: `PYTHONPATH=src pytest -q tests/test_vqa_mc_deliberative_agent.py`
 
 Expected: failures name the missing prompt/notebook functions.
 
-- [ ] **Step 3: Implement the four fresh-context prompts and notebook transitions**
+- [x] **Step 3: Implement the four fresh-context prompts and notebook transitions**
 
 ```python
 def observer_prompt(action: MediaAction) -> str:
@@ -213,13 +222,13 @@ def append_observer(notebook: Mapping[str, Any], *, round_index: int,
 
 Render solver records neutrally as `solver_1` and `solver_2`. Keep observer prompts constructed only from `MediaAction`; do not accept `row` or `notebook` arguments. Keep every transition copy-on-write and reject duplicate rounds or observer entries.
 
-- [ ] **Step 4: Run all contract tests**
+- [x] **Step 4: Run all contract tests**
 
 Run: `PYTHONPATH=src pytest -q tests/test_vqa_mc_deliberative_agent.py`
 
 Expected: pass.
 
-- [ ] **Step 5: Commit prompt and notebook behavior**
+- [x] **Step 5: Commit prompt and notebook behavior**
 
 ```bash
 git add src/trec_video_2026/vqa_experiments/vqa_mc_deliberative_agent.py tests/test_vqa_mc_deliberative_agent.py
@@ -238,7 +247,7 @@ git commit -m "feat: add deliberative prompts and notebook"
 - Consumes: schemas, prompts, parsers, `MediaAction`, and notebook functions from Tasks 1–2; frozen request and delivery artifacts.
 - Produces: `load_requests`, `canonical_variants`, `estimate_worst_case_cost`, `preflight`, `build_solver_request`, `build_planner_request`, `build_observer_request`, and `build_judge_request`.
 
-- [ ] **Step 1: Write failing request-visibility and cost tests**
+- [x] **Step 1: Write failing request-visibility and cost tests**
 
 ```python
 def test_solver_and_judge_receive_complete_low_4fps_video() -> None:
@@ -268,13 +277,13 @@ def test_preflight_rejects_labels_and_cost_above_cap(tmp_path: Path) -> None:
         runner.preflight(requests_path=_request_payload(tmp_path), historical_root=_historical_root(tmp_path), max_cost_usd=0.000001, expected_rows=None, expected_variants=None)
 ```
 
-- [ ] **Step 2: Run runner tests and confirm import failure**
+- [x] **Step 2: Run runner tests and confirm import failure**
 
 Run: `PYTHONPATH=src pytest -q tests/test_vqa_mc_deliberative_agent_runner.py`
 
 Expected: import fails because the runner does not exist.
 
-- [ ] **Step 3: Implement request builders with role-specific schemas and visibility**
+- [x] **Step 3: Implement request builders with role-specific schemas and visibility**
 
 ```python
 def build_observer_request(*, upload: Mapping[str, Any], action: MediaAction) -> types.InlinedRequest:
@@ -293,7 +302,7 @@ def build_observer_request(*, upload: Mapping[str, Any], action: MediaAction) ->
 
 Use `solver_prompt(row)` for both initial calls, `planner_prompt(row, notebook, budget)` for text-only calls, and `judge_prompt(row, notebook)` with complete baseline media. Every role uses model `gemini-3.7-flash`, seed `42`, JSON output, high thinking, and `include_thoughts=False`.
 
-- [ ] **Step 4: Implement conservative pricing and media-token reservation**
+- [x] **Step 4: Implement conservative pricing and media-token reservation**
 
 ```python
 ROLE_OUTPUT_LIMITS = {"solver": 2048, "planner": 1536, "observer": 1536, "judge": 2048}
@@ -333,13 +342,13 @@ configuration whose recomputed combined total exceeds the cap.
 row's remaining 10,000-token observer allowance or would consume the reserved
 judge budget.
 
-- [ ] **Step 5: Run runner tests**
+- [x] **Step 5: Run runner tests**
 
 Run: `PYTHONPATH=src pytest -q tests/test_vqa_mc_deliberative_agent_runner.py`
 
 Expected: request construction, label rejection, cost cap, and media reservation tests pass.
 
-- [ ] **Step 6: Commit request and preflight support**
+- [x] **Step 6: Commit request and preflight support**
 
 ```bash
 git add scripts/run_vqa_mc_gemini_deliberative_agent_poc20.py tests/test_vqa_mc_deliberative_agent_runner.py
@@ -358,7 +367,7 @@ git commit -m "feat: add deliberative Gemini preflight"
 - Consumes: Task 3 request builders/preflight and Task 2 notebook transitions.
 - Produces: `run`, `verify_output`, CLI `--preflight`/`--run`/`--verify-output`, private stage freezes, `final-predictions-freeze.json`, and `summary.json`.
 
-- [ ] **Step 1: Add mocked zero-, one-, and two-observer end-to-end tests**
+- [x] **Step 1: Add mocked zero-, one-, and two-observer end-to-end tests**
 
 ```python
 @pytest.mark.parametrize(
@@ -387,13 +396,13 @@ def test_run_supports_all_bounded_paths(tmp_path: Path, responses, expected_call
 
 Add tests that an invalid action consumes a call slot and removes a later action, a malformed observer never erases prior evidence, an invalid judge falls back explicitly, all artifacts use exclusive creation, and one upload is reused across every call for a row.
 
-- [ ] **Step 2: Run state-machine tests and confirm failure**
+- [x] **Step 2: Run state-machine tests and confirm failure**
 
 Run: `PYTHONPATH=src pytest -q tests/test_vqa_mc_deliberative_agent_runner.py -k 'bounded_paths or invalid_action or invalid_judge'`
 
 Expected: failures show that `run` and freezes are incomplete.
 
-- [ ] **Step 3: Implement stage-wide initial calls and per-round adaptive orchestration**
+- [x] **Step 3: Implement stage-wide initial calls and per-round adaptive orchestration**
 
 ```python
 for stage, solver_id in (("anchor", "solver_1"), ("blind", "solver_2")):
@@ -429,7 +438,7 @@ for round_index in (1, 2):
 
 Rows choosing `finish_search` skip later planner/observer calls. Rows denied by media or call budget record the tool error and proceed to final judge. No correctness-derived choice enters this path.
 
-- [ ] **Step 4: Implement final judge, fallback, verification, and summary**
+- [x] **Step 4: Implement final judge, fallback, verification, and summary**
 
 ```python
 final_ranking, final_source = choose_final_ranking(
@@ -441,13 +450,13 @@ final_ranking, final_source = choose_final_ranking(
 
 Freeze judge raw responses before parsing. Final rows include ranking, source, cited observation IDs, ambiguity flag, call path, action count, notebook hash, usage, and errors. `verify_output` recomputes every declared freeze hash and validates counts, notebook hashes, final citation references, and usage records without labels.
 
-- [ ] **Step 5: Run runner and contract tests**
+- [x] **Step 5: Run runner and contract tests**
 
 Run: `PYTHONPATH=src pytest -q tests/test_vqa_mc_deliberative_agent.py tests/test_vqa_mc_deliberative_agent_runner.py`
 
 Expected: pass.
 
-- [ ] **Step 6: Commit the runnable agent**
+- [x] **Step 6: Commit the runnable agent**
 
 ```bash
 git add scripts/run_vqa_mc_gemini_deliberative_agent_poc20.py tests/test_vqa_mc_deliberative_agent_runner.py
@@ -466,7 +475,7 @@ git commit -m "feat: run bounded deliberative Gemini agent"
 - Consumes: frozen requests, separate labels, frozen direct predictions, two-call final predictions, deliberative solver predictions, final predictions, notebooks, and run summary.
 - Produces: private `score.json` with row-level audit detail and a sanitized aggregate object for tracked evidence.
 
-- [ ] **Step 1: Write failing scorer tests**
+- [x] **Step 1: Write failing scorer tests**
 
 ```python
 def test_score_reports_repairs_regressions_paths_and_integrity(tmp_path: Path) -> None:
@@ -487,13 +496,13 @@ def test_gate_requires_improvement_more_repairs_and_known_hit_preservation(tmp_p
 
 Add identity-drift, duplicate-row, invalid-ranking, missing-notebook-hash, missing-citation, over-cap, and nonadaptive-path tests.
 
-- [ ] **Step 2: Run scorer tests and verify import failure**
+- [x] **Step 2: Run scorer tests and verify import failure**
 
 Run: `PYTHONPATH=src pytest -q tests/test_vqa_mc_deliberative_agent_scoring.py`
 
 Expected: import fails because the scorer does not exist.
 
-- [ ] **Step 3: Implement post-freeze joins, metrics, and gate**
+- [x] **Step 3: Implement post-freeze joins, metrics, and gate**
 
 ```python
 decision_gate = {
@@ -510,13 +519,13 @@ decision_gate["promising_development_result"] = all(decision_gate.values())
 
 Rows include labels and private traces only in `score.json`. The sanitized aggregate excludes questions, options, labels, row IDs, rankings, notebook contents, and provider artifact locations.
 
-- [ ] **Step 4: Run scorer tests**
+- [x] **Step 4: Run scorer tests**
 
 Run: `PYTHONPATH=src pytest -q tests/test_vqa_mc_deliberative_agent_scoring.py`
 
 Expected: pass.
 
-- [ ] **Step 5: Commit scoring**
+- [x] **Step 5: Commit scoring**
 
 ```bash
 git add scripts/score_vqa_mc_deliberative_agent_poc20.py tests/test_vqa_mc_deliberative_agent_scoring.py
@@ -534,7 +543,7 @@ git commit -m "feat: score deliberative VQA agent"
 - Consumes: completed implementation and canonical shared dataset link.
 - Produces: passing test/lint evidence and a sanitized preflight result.
 
-- [ ] **Step 1: Run focused and regression tests**
+- [x] **Step 1: Run focused and regression tests**
 
 Run:
 
@@ -553,7 +562,7 @@ PYTHONPATH=src pytest -q \
 
 Expected: all selected tests pass.
 
-- [ ] **Step 2: Run lint and patch checks**
+- [x] **Step 2: Run lint and patch checks**
 
 Run:
 
@@ -570,7 +579,7 @@ git diff --check
 
 Expected: no findings.
 
-- [ ] **Step 3: Verify canonical data and unused output root**
+- [x] **Step 3: Verify canonical data and unused output root**
 
 Run:
 
@@ -581,7 +590,7 @@ test ! -e data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a3
 
 Expected: both commands exit zero.
 
-- [ ] **Step 4: Run no-credential preflight**
+- [x] **Step 4: Run no-credential preflight**
 
 Run:
 
@@ -592,7 +601,7 @@ PYTHONPATH=src python scripts/run_vqa_mc_gemini_deliberative_agent_poc20.py \
 
 Expected: JSON reports `status: preflight_passed`, `row_count: 20`, `max_calls_per_row: 7`, `final_call_reserved: true`, and `estimated_cost_usd <= 0.75`. It must not load or report credential material.
 
-- [ ] **Step 5: Commit verification fixes if any**
+- [x] **Step 5: Commit verification fixes if any**
 
 ```bash
 git add src/trec_video_2026/vqa_experiments/vqa_mc_deliberative_agent.py scripts/run_vqa_mc_gemini_deliberative_agent_poc20.py scripts/score_vqa_mc_deliberative_agent_poc20.py tests/test_vqa_mc_deliberative_agent.py tests/test_vqa_mc_deliberative_agent_runner.py tests/test_vqa_mc_deliberative_agent_scoring.py
@@ -612,7 +621,7 @@ Skip this commit when verification required no changes.
 - Consumes: verified runner, canonical requests, preserved WebM deliveries, private Gemini credential, frozen labels, and frozen control predictions.
 - Produces: immutable private inference artifacts, `score.json`, and private audit summary.
 
-- [ ] **Step 1: Launch paid run only after Task 6 passes**
+- [x] **Step 1: Launch paid run only after Task 6 passes**
 
 Run:
 
@@ -625,7 +634,7 @@ PYTHONPATH=src python scripts/run_vqa_mc_gemini_deliberative_agent_poc20.py \
 
 Expected: `status: completed`, 20 final rows, no output overwrite, and observed cost at or below `$0.75`.
 
-- [ ] **Step 2: Verify freezes before labels are loaded**
+- [x] **Step 2: Verify freezes before labels are loaded**
 
 Run:
 
@@ -636,7 +645,7 @@ PYTHONPATH=src python scripts/run_vqa_mc_gemini_deliberative_agent_poc20.py \
 
 Expected: raw freezes, notebook snapshots, final predictions, counts, hashes, citation references, and usage records validate.
 
-- [ ] **Step 3: Score only frozen predictions**
+- [x] **Step 3: Score only frozen predictions**
 
 Run:
 
@@ -652,7 +661,7 @@ PYTHONPATH=src python scripts/score_vqa_mc_deliberative_agent_poc20.py \
 
 Expected: `status: scored`; labels appear only in the private score artifact created after inference freeze.
 
-- [ ] **Step 4: Audit every final miss and answer change**
+- [x] **Step 4: Audit every final miss and answer change**
 
 Inspect private traces for every final miss, repair, regression, budget-rejected request, missing citation, judge departure from two agreeing solvers, and ambiguity flag. Write a private audit JSON under the run root. Do not copy questions, options, row IDs, or trace text into tracked files.
 
@@ -672,7 +681,7 @@ Inspect private traces for every final miss, repair, regression, budget-rejected
 - Consumes: verified private summary, score, notebook audit, and hashes.
 - Produces: aggregate evidence of record and condition-bound project decision.
 
-- [ ] **Step 1: Create sanitized aggregate artifact**
+- [x] **Step 1: Create sanitized aggregate artifact**
 
 Include only:
 
@@ -696,15 +705,15 @@ Include only:
 
 Reject the tracked artifact if it contains a question, answer option, label, video/row identifier, prediction, observation text, notebook text, credential, or provider artifact locator.
 
-- [ ] **Step 2: Update owning QMD result record**
+- [x] **Step 2: Update owning QMD result record**
 
 Append reason, treatment/control/panel, held-fixed variables, hypothesis/falsifier/gate, observed completion and metrics, evidence validity, contamination boundary, decision disposition, reconsideration condition, and evidence links to `docs/experiments/2026-08-21-vqa-mc-poc20.qmd`.
 
-- [ ] **Step 3: Update routing only if decision changes**
+- [x] **Step 3: Update routing only if decision changes**
 
 If the gate passes, require a fresh label-isolated confirmation in routing and queue surfaces. If it fails, preserve the negative condition and leave direct Gemini as the operational baseline.
 
-- [ ] **Step 4: Render and verify documentation**
+- [x] **Step 4: Render and verify documentation**
 
 Run the project guide's Quarto regeneration commands for affected QMD files, then:
 
@@ -716,7 +725,7 @@ rg -n 'GEMINI_API_KEY|provider.*uri|video_id|correct_option_id|question' \
 
 Expected: render succeeds; patch check is clean; privacy scan finds no row-level fields.
 
-- [ ] **Step 5: Commit evidence record**
+- [x] **Step 5: Commit evidence record**
 
 ```bash
 git add docs/experiments/2026-08-21-vqa-mc-poc20.qmd docs/experiments/2026-08-21-vqa-mc-poc20.md docs/experiments/README.md docs/experiments/artifacts/vqa-mc-poc20-20260821/deliberative-agent-summary.json
@@ -730,10 +739,10 @@ Stage only files actually changed. Do not stage private `data/` artifacts or unr
 
 ## Final verification
 
-- [ ] Run focused and existing MC tests again.
-- [ ] Run `ruff check` on every new Python file.
-- [ ] Run `git diff --check`.
-- [ ] Verify private run hashes and score source hashes.
-- [ ] Verify tracked aggregate privacy.
-- [ ] Confirm result disposition matches the predeclared gate.
-- [ ] Report exact top-1/MRR, repairs/regressions, path counts, observed cost, failures, and whether a fresh unseen panel is justified.
+- [x] Run focused and existing MC tests again.
+- [x] Run `ruff check` on every new Python file.
+- [x] Run `git diff --check`.
+- [x] Verify private run hashes and score source hashes.
+- [x] Verify tracked aggregate privacy.
+- [x] Confirm result disposition matches the predeclared gate.
+- [x] Report exact top-1/MRR, repairs/regressions, path counts, observed cost, failures, and whether a fresh unseen panel is justified.

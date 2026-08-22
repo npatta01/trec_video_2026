@@ -1,0 +1,351 @@
+---
+title: "Twenty-video multiple-choice native-AV, fusion, and evidence-agent diagnostic"
+format:
+  gfm:
+    title-block: false
+---
+
+Date: 2026-08-21
+
+Evidence validity: **Verified for completion, contract validity, and frozen-panel
+scoring; diagnostic for model promotion and routing**
+
+Decision disposition: **Not promoted under the tested condition for blind
+fusion, a Qwen submission, one-shot adaptive inspection, or deterministic
+single-model deliberation; Gemini remains the provisional full-panel control**
+
+## Completed evidence record
+
+- **Primary theme:** routing, fusion, and answer selection.
+- **Related themes:** models and adaptation, visual and temporal evidence, and
+  speech/transcripts.
+- **Question:** on a small stratified multiple-choice panel, do direct Gemini
+  native audio-video, Qwen native video, Qwen video plus transcript, or an
+  equal-family Borda fusion provide a safe path to scale? On the same frozen
+  panel, can a second question-selected native-AV inspection improve Gemini?
+  Can a later bounded single-model deliberative loop avoid the adaptive
+  prototype's regressions?
+- **Hypothesis:** independent model families and evidence views may make
+  complementary errors, allowing a family-balanced fusion to outperform either
+  family alone. For the adaptive follow-up, a question-selected native-AV
+  interval at model-chosen temporal and spatial detail may resolve a close
+  top-two decision that the complete low-resolution pass missed. For the
+  deliberative follow-up, competing hypotheses, an append-only evidence
+  notebook, up to two inspections, and a fresh judge may prevent premature
+  commitment.
+- **Falsifier:** contract failures, a budget breach, or no fusion improvement
+  over the strongest single path; for the adaptive follow-up, no final
+  improvement over both its first stage and the frozen Gemini control, or
+  repairs that do not exceed regressions; for the deliberative follow-up, no
+  improvement over 15/20, repairs that do not exceed regressions, repeated
+  prior regressions, nonadaptive paths, invalid finals, incomplete integrity,
+  or a cost breach.
+- **Canonical claim:** this report and
+  [the routing-theme record](../project-status/research-routing.md#mc-poc20).
+- **Sanitized evidence bundle:**
+  [`artifacts/vqa-mc-poc20-20260821/`](artifacts/vqa-mc-poc20-20260821/README.md).
+
+Questions, answer choices, transcripts, labels, row-level predictions, and
+media remain in the ignored private experiment directory. They are not
+reproduced in this report or its tracked aggregate bundle.
+
+## Tested condition and panel
+
+The panel contained 20 locally available VQA-2025 training videos, with four
+rows each from temporal, causal, OCR/detail, counting, and speech strata. Five
+previously inspected canaries were retained; the other rows were selected from
+short, transcript-available examples using label-free metadata. Correct choice
+positions were balanced at five each for A, B, C, and D. Expected answers were
+isolated from both inference runners until predictions froze.
+
+Gemini 3.7 Flash received complete native video and audio. Qwen3.6-27B at
+revision `6a9e13bd6fc8f0983b9b99948120bc37f49c13e9` received two matched views:
+native video and video plus the existing Whisper transcript. Qwen ran in the
+digest-pinned vLLM runtime
+`sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc`.
+Every valid output had to provide a strict ranking of all four choices. The
+within-Qwen result and the equal-family Gemini/Qwen result used Borda scores;
+the two Qwen calls could not outvote Gemini merely by call count.
+
+The initial Gemini attempt used an incorrect 128-token cap with high thinking:
+all 27 responses exhausted their budget before the required JSON ranking. Its
+bounded recovery restored the tested 2,048-token cap and reran only the 20
+canonical rows. The initial Qwen task failed before model startup because its
+private media prefix was empty. A repaired task used a verified 20-file private
+media prefix without changing the scientific inputs.
+
+## Completion, quality, and cost
+
+| Condition | Valid | Top-1 | MRR |
+|---|---:|---:|---:|
+| Gemini native AV | 20 / 20 | **15 / 20 (75%)** | **0.8667** |
+| Qwen video + transcript | 20 / 20 | 13 / 20 (65%) | 0.7750 |
+| Qwen native video | 20 / 20 | 11 / 20 (55%) | 0.7000 |
+| Within-Qwen dual-view Borda | 20 / 20 | 12 / 20 (60%) | 0.7333 |
+| Equal-family Gemini/Qwen Borda | 20 / 20 | 13 / 20 (65%) | 0.7958 |
+
+The two Qwen views agreed on top-1 in 18/20 rows, but agreement did not imply
+correctness. Blind equal-family fusion lost two answers versus Gemini alone.
+The successful Gemini recovery cost `$0.02831925`. Qwen's failed provisioning
+attempt cost `$0.2590`, and its successful task cost `$0.5223`. The observed
+minimum total is therefore `$0.80961925`; the first Gemini attempt did not
+retain provider usage, so adding its complete preflight ceiling produces a
+conservative total bound of `$1.05888025`, below the authorized `$2.15` cap.
+
+## Two-stage adaptive-inspection follow-up
+
+The follow-up kept the same frozen 20 rows and original Gemini predictions as
+the control. Labels remained isolated until all new predictions froze. Gemini
+3.7 Flash first received each complete native audio-video clip at 4 FPS and
+low media resolution. It produced a four-choice ranking plus one unrestricted
+inspection request: a time interval, 1/4/8 FPS, low/high resolution, an
+evidence-gap category, and a question for the second pass. The second call
+received that native-AV interval and adjudicated the first pass's top two. An
+invalid second response fell back to the frozen valid first-stage ranking.
+
+| Condition | Valid | Top-1 | MRR |
+|---|---:|---:|---:|
+| Frozen direct Gemini control | 20 / 20 | 15 / 20 (75%) | **0.8667** |
+| Adaptive stage 1 | 20 / 20 | 15 / 20 (75%) | 0.8542 |
+| Adaptive final | 20 / 20 | 15 / 20 (75%) | 0.8583 |
+
+The adaptive final repaired one first-stage error and regressed one
+first-stage-correct answer. Relative to the frozen direct control, it repaired
+two and regressed two. Nineteen second-stage responses were valid; the one
+invalid response used the predeclared first-stage fallback, leaving 20 valid
+final rankings. The run made 40 calls, used 116,098 prompt tokens and 28,645
+output tokens, and cost `$0.09724613`, below its `$0.75` cap.
+
+The predeclared gate failed: the final result exceeded neither stage 1 nor the
+frozen control, and repairs did not exceed regressions. This is a valid negative
+result, so **one-shot adaptive inspection is not promoted under the tested
+condition**.
+
+### Why the adaptive pass did not help
+
+The agent requested a legal inspection for every row, but its behavior was
+systematically narrow:
+
+- no requested interval covered more than 75% of its clip;
+- 13/20 inspections remained at low resolution;
+- 11/20 used 4 FPS, 5/20 used 1 FPS, and only 4/20 used 8 FPS; and
+- a single local view could not revisit the complete clip, compare competing
+  windows, or recover when its top-two hypothesis was wrong.
+
+The second pass therefore moved errors instead of reducing them. It did repair
+one rapid-action/counting miss with a short 8-FPS/high-resolution interval, but
+another counting inspection changed a correct first-stage answer to a wrong
+one. The lone apparent speech gain over the frozen control came from the new
+first-stage planning prompt and survived through fallback after invalid
+second-stage JSON; it was not evidence that the focused second call resolved
+the speech question.
+
+This follow-up does not show that adaptive evidence collection is ineffective.
+It rules out this one-window, one-reconsideration topology as sufficient on the
+selected panel. A richer bounded agent should preserve a global evidence
+ledger, form competing top-two hypotheses, request up to two distinct local
+inspections, backtrack when evidence conflicts or fails to distinguish the
+choices, and let a final arbiter see both global and local evidence.
+
+## Bounded deliberative-agent follow-up {#deliberative-agent-poc20}
+
+The next follow-up tested that richer topology with one Gemini model. Two
+complete-video solvers produced option-by-option hypotheses and observations;
+a text planner could stop or request up to two blinded native-AV views at
+model-selected intervals, FPS, and resolution; an append-only notebook retained
+all evidence; and a fresh complete-video judge made the final ranking. Labels
+remained isolated until the final predictions and notebook hashes froze.
+
+The predeclared falsifier required more than 15/20, more repairs than
+regressions, preservation of both earlier adaptive-regression hits, 20 valid
+finals, complete structural integrity, at least one zero-inspection path, at
+least two distinct action configurations, and cost at or below `$0.75`.
+
+Two bounded host-contract corrections preceded the completed result. The `a1`
+attempt was invalid because the configured output ceiling included hidden
+high-thinking tokens; all initial solver JSON records failed and the intended
+agent never ran. The `a2` correction was stopped after 27 solver calls when the
+host parser rejected complete option-keyed arrays merely because Gemini
+returned them in ranking order rather than A--D order. The completed `a3` run
+mechanically normalized unique option-keyed rows and reused all 27 immutable
+`a2` solver responses without resampling. These corrections changed transport
+and parsing only, not prompts, labels, semantic decisions, metrics, or gates.
+
+| Condition | Valid | Top-1 | MRR |
+|---|---:|---:|---:|
+| Frozen direct Gemini control | 20 / 20 | **15 / 20 (75%)** | **0.8667** |
+| Prior two-call adaptive final | 20 / 20 | **15 / 20 (75%)** | 0.8583 |
+| Deliberative anchor | 19 / 20 | 14 / 20 (70%) | 0.8125 |
+| Deliberative blind solver | 20 / 20 | 14 / 20 (70%) | 0.8292 |
+| Last valid planner | 18 / 20 | 14 / 20 (70%) | 0.7875 |
+| Deliberative final judge | 20 / 20 | **14 / 20 (70%)** | 0.8292 |
+
+Relative to the frozen control, the final repaired **0**, regressed **1**, kept
+14 correct, and kept five wrong. It also repeated one of the two previously
+observed adaptive-agent regressions. Temporal and causal remained 4/4 each;
+OCR/detail, counting, and speech were 2/4 each.
+
+### Why the richer topology did not activate
+
+This was not a failure of high-resolution evidence after it was requested.
+No observer view was requested at all:
+
+- among 19 rows with two valid solver records, the solvers agreed on top-1 in
+  **19/19** and on the full ranking in 15/19;
+- all 18 valid planner decisions chose `finish_search`; four correction calls
+  recovered two initially invalid planner records, while two remained invalid;
+- zero rows used one or two observer actions, so there were no distinct media
+  action configurations; and
+- the final judge matched the blind solver's top choice in **20/20** rows and
+  changed the frozen control's top choice only once, which was a regression.
+
+The intended “independent” solvers used the same model, complete-video prompt,
+seed, and media settings. Their unanimous top choices therefore provided
+duplicated confidence rather than useful epistemic diversity. The planner then
+treated agreement as settled even when solver records contained unresolved
+questions or proposed checks. The judge received the resulting consensus-heavy
+notebook and ratified it. This is a **confirmed design defect** in the tested
+deliberation protocol: it formed an echo chamber instead of an adversarial
+evidence loop.
+
+Post-label native-media review covered all six final misses. None had all four
+options wrong. Four reference answers were clearly supported: one exact
+misspelling was silently normalized, one complete gesture trajectory was
+reduced to a local pose, one visible reception was redefined using a narrower
+sport-outcome meaning, and one flexing pose was merged into a transition. Two
+other rows had a defensible second option: one visual-description question and
+one dialogue-versus-broad-cause choice. These manual findings diagnose the
+selected rows; official scoring remains unchanged.
+
+The completed `a3` path made 84 semantic calls: 27 reused solver calls and 57
+new provider calls. Across invalid `a1`, interrupted `a2`, and completed `a3`,
+observed cost was `$0.26213850`; the final combined preflight ceiling was
+`$0.66699825`, below the authorized `$0.75`. All 20 final notebooks, declared
+source hashes, provenance records, and citations verified.
+
+The result is **valid but negative** and the protocol is **not promoted under
+the tested condition**. More FPS or resolution alone cannot help when the
+controller never opens an evidence view. A next agent should create actual
+diversity—different solver roles or seeds, with one explicitly searching for a
+counterexample—and require an adversarial stop review that may open evidence
+when reported uncertainty or candidate checks remain. Because this panel is
+now heavily inspected, any promotion claim requires a fresh label-isolated
+panel; the current 20 rows are only a regression and mechanism suite.
+
+The aggregate, privacy-safe evidence and immutable private hashes are in
+[`deliberative-agent-summary.json`](artifacts/vqa-mc-poc20-20260821/deliberative-agent-summary.json).
+
+## Stratum result
+
+| Condition | Temporal | Causal | OCR/detail | Counting | Speech |
+|---|---:|---:|---:|---:|---:|
+| Gemini native AV | 4/4 | 4/4 | 3/4 | 2/4 | 2/4 |
+| Qwen video + transcript | 4/4 | 4/4 | 1/4 | 1/4 | 3/4 |
+| Qwen native video | 4/4 | 4/4 | 1/4 | 0/4 | 2/4 |
+| Within-Qwen Borda | 4/4 | 4/4 | 1/4 | 1/4 | 2/4 |
+| Equal-family Borda | 4/4 | 4/4 | 1/4 | 1/4 | 3/4 |
+| Adaptive stage 1 | 4/4 | 4/4 | 2/4 | 2/4 | 3/4 |
+| Adaptive final | 4/4 | 4/4 | 2/4 | 2/4 | 3/4 |
+| Deliberative final | 4/4 | 4/4 | 2/4 | 2/4 | 2/4 |
+
+The panel is deliberately balanced and selected rather than representative.
+These rates diagnose mechanisms; they do not estimate hidden-test accuracy or
+prove that a speech router will generalize.
+
+## Failure diagnosis and repair hypotheses
+
+Gemini placed the correct answer second on four of its five misses and third on
+the remaining miss. Correct positions were balanced, while misses spanned
+multiple letters; permutation bias is therefore not the leading explanation.
+The five errors divide into one exact-spelling OCR normalization error, two
+event-counting failures, and two speech/visual-detail selections with close or
+incomplete evidence.
+
+- **OCR:** use a high-resolution question-conditioned crop and explicitly
+  preserve misspellings instead of normalizing visible text.
+- **Counting:** reuse the existing full-video AV event map to propose several
+  relevant windows, then run a dense event-boundary counter across those
+  windows. The prior event map resolves one observed miss but not the other, so
+  it is routed evidence rather than a universal answerer.
+- **Speech and close alternatives:** retain audio through the final utterance,
+  align the relevant ASR span, and adjudicate the top two choices against cited
+  evidence. Qwen transcript corrected one Gemini miss but introduced three
+  errors on Gemini-correct rows, so it should not override Gemini globally.
+- **Answer election:** because four correct answers were already ranked second,
+  a small evidence-citing top-two verifier is more directly targeted than
+  permutation consensus or unrestricted voting.
+
+A post-hoc rule that used Qwen transcript only on this panel's four speech rows
+scored 16/20 (80%). This rule was discovered after scoring and is not a valid
+promotion result. It is only a hypothesis for a fresh, label-blind confirmatory
+panel.
+
+## What this rules out now
+
+- Do not treat native-video Qwen, within-Qwen Borda, or equal-family Borda as a
+  third submission merely because the model families are independent.
+- Do not use Qwen-view agreement as a confidence gate: the views can agree on
+  the same wrong choice.
+- Do not make permutation-debiasing the next priority; the observed errors do
+  not show a dominant choice-position mechanism.
+- Do not replace the strongest direct path with the older event-map approach;
+  reuse its selected evidence only where it addresses a measured failure.
+- Do not promote a single question-selected crop merely because it uses native
+  video and can request higher FPS or resolution; the tested pass stayed at
+  15/20 and introduced one stage-1 regression.
+
+## What it does not rule out
+
+This 20-row selected panel does not choose the final official submission. It
+does not rule out Qwen on a representative full panel, a predeclared speech
+route, a stronger OCR/count specialist, or evidence-aware top-two election.
+It also does not estimate accuracy on VQA-2026 evaluation videos. The adaptive
+follow-up does not rule out a bounded multi-inspection agent that retains global
+context, backtracks, and arbitrates explicit competing evidence. The
+deliberative follow-up rules out duplicated deterministic solvers plus an
+unconstrained stop decision as sufficient; because no observer action ran, it
+does not measure whether two well-chosen inspections would help.
+
+## Next decision test
+
+Keep Gemini native AV as the unchanged primary/control path. On a fresh,
+label-blind confirmatory panel, compare it with:
+
+1. Qwen video plus transcript only for a predeclared speech route, with
+   abstention to Gemini;
+2. high-resolution OCR crops with exact-spelling instructions;
+3. top-k AV event-map windows plus a dense counting pass; and
+4. a bounded evidence agent with genuinely diverse solver roles or seeds, an
+   adversarial stop review, a full-video ledger, up to two distinct
+   inspections, and a final arbiter with an explicit retain-the-control option
+   when evidence is weak or conflicting.
+
+Advance a route only if it improves paired accuracy over Gemini without
+regressing non-target controls. A valid final submission choice still requires
+the intended larger panel; this diagnostic alone is not a promotion benchmark.
+
+## Reproducibility and immutable evidence
+
+The aggregate bundle records model revisions, task identifiers, costs, scores,
+and hashes without private row content. The successful Qwen task
+`42bc0ad3-a0ab-49e3-b0d3-b47ccf05aae3` completed `54/54` requests with exit
+status zero; its private HF Bucket copy and locally synced `SHA256SUMS` both
+contain 60 files total, with the checksum manifest verifying the other 59
+payload files.
+
+The private evidence-of-record hashes are:
+
+- input manifest: `8f0df9e5dd5ab69f8306936ee6220cab1b5dad14d14853ad1a8f71aea01b0a95`;
+- Gemini predictions: `8531f5cef881707701094892f783203c2ed40cab095ea0a5accf2d54f5f4a8a1`;
+- Qwen predictions: `6db56960a9288e344a72a68ad6b6eb68da2838be9cd5beda4c7b4a2e4b493052`;
+- final score: `56f6e178fa00c7ed7c907327aedc596dcda72a1fe9e6bcaf896a3372be1dff91`.
+
+The adaptive follow-up's private evidence hashes and aggregate mechanism
+counts are frozen in
+[`adaptive-agent-summary.json`](artifacts/vqa-mc-poc20-20260821/adaptive-agent-summary.json).
+The deliberative follow-up's three-attempt validity record, completion,
+mechanism counts, costs, scores, gates, and private evidence hashes are frozen
+in
+[`deliberative-agent-summary.json`](artifacts/vqa-mc-poc20-20260821/deliberative-agent-summary.json).
+
+Related evidence: [full-panel AV event-map diagnostic](2026-08-10-vqa-plaintext-full-panel.md).
