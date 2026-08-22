@@ -320,9 +320,9 @@ def _option_rows(
                 entry.get(field), f"{name}.{field}", maximum=maximum, limit=80
             )
         rows.append(row)
-    if [row["option_id"] for row in rows] != list(OPTION_IDS):
-        raise ValueError(f"{name} must use canonical option order")
-    return rows
+    if {row["option_id"] for row in rows} != set(OPTION_IDS):
+        raise ValueError(f"{name} must contain each option exactly once")
+    return sorted(rows, key=lambda row: str(row["option_id"]))
 
 
 def _observations(

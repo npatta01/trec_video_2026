@@ -324,13 +324,14 @@ output_tokens = row_count * (
 )
 ```
 
-After the bounded output-truncation recovery, the repaired-run ceiling is
-approximately `$0.6525`; including the invalid `$0.09529950` `a1` run, the
-combined conservative ceiling is `$0.74776162`, below `$0.75`. Return every
-assumption and reject any configuration whose recomputed combined total
-exceeds the cap. `authorize_action` rejects an action whose estimated media
-tokens exceed the row's remaining 10,000-token observer allowance or would
-consume the reserved judge budget.
+After the two bounded host-contract corrections, `a3` reuses 27 solver calls
+from the interrupted `a2` attempt. Prior observed spend is `$0.15594113`; the
+remaining-run ceiling is `$0.51105713`, and the combined conservative ceiling
+is `$0.66699825`, below `$0.75`. Return every assumption and reject any
+configuration whose recomputed combined total exceeds the cap.
+`authorize_action` rejects an action whose estimated media tokens exceed the
+row's remaining 10,000-token observer allowance or would consume the reserved
+judge budget.
 
 - [ ] **Step 5: Run runner tests**
 
@@ -575,7 +576,7 @@ Run:
 
 ```bash
 test "$(readlink -f data)" = "/home/npatta01/data/competitions/trec_video_2026/data"
-test ! -e data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a2
+test ! -e data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a3
 ```
 
 Expected: both commands exit zero.
@@ -605,7 +606,7 @@ Skip this commit when verification required no changes.
 ### Task 7: Authorized 20-video run and post-freeze score
 
 **Files:**
-- Private create: `data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a2/`
+- Private create: `data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a3/`
 
 **Interfaces:**
 - Consumes: verified runner, canonical requests, preserved WebM deliveries, private Gemini credential, frozen labels, and frozen control predictions.
@@ -618,7 +619,8 @@ Run:
 ```bash
 PYTHONPATH=src python scripts/run_vqa_mc_gemini_deliberative_agent_poc20.py \
   --run --canonical-only \
-  --output data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a2
+  --resume-from data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a2 \
+  --output data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a3
 ```
 
 Expected: `status: completed`, 20 final rows, no output overwrite, and observed cost at or below `$0.75`.
@@ -629,7 +631,7 @@ Run:
 
 ```bash
 PYTHONPATH=src python scripts/run_vqa_mc_gemini_deliberative_agent_poc20.py \
-  --verify-output data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a2
+  --verify-output data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a3
 ```
 
 Expected: raw freezes, notebook snapshots, final predictions, counts, hashes, citation references, and usage records validate.
@@ -644,8 +646,8 @@ PYTHONPATH=src python scripts/score_vqa_mc_deliberative_agent_poc20.py \
   --labels data/vqa/benchmarks/vqa-mc-poc20-20260821/inputs/labels.json \
   --control data/vqa/benchmarks/vqa-mc-poc20-20260821/gemini-a1/predictions-freeze.json \
   --adaptive data/vqa/benchmarks/vqa-mc-adaptive-agent-poc20-20260821-a1/final-predictions-freeze.json \
-  --run-root data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a2 \
-  --output data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a2/score.json
+  --run-root data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a3 \
+  --output data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a3/score.json
 ```
 
 Expected: `status: scored`; labels appear only in the private score artifact created after inference freeze.

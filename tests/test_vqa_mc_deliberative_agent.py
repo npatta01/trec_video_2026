@@ -216,6 +216,25 @@ def test_solver_rejects_duplicate_or_missing_hypothesis() -> None:
         parse_solver(payload, duration_seconds=6.0, solver_id="solver_1")
 
 
+def test_option_keyed_rows_are_normalized_from_model_order() -> None:
+    solver_payload = _solver_payload()
+    solver_payload["hypotheses"] = list(reversed(solver_payload["hypotheses"]))
+    planner_payload = _planner_payload(decision="finish_search")
+    planner_payload["option_assessments"] = list(
+        reversed(planner_payload["option_assessments"])
+    )
+
+    solver = parse_solver(
+        solver_payload, duration_seconds=6.0, solver_id="solver_1"
+    )
+    planner = parse_planner(planner_payload, duration_seconds=6.0)
+
+    assert [row["option_id"] for row in solver["hypotheses"]] == list("ABCD")
+    assert [row["option_id"] for row in planner["option_assessments"]] == list(
+        "ABCD"
+    )
+
+
 @pytest.mark.parametrize(
     "updates",
     [

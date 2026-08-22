@@ -5,13 +5,14 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 import math
 import os
 import shlex
 import time
 from collections import Counter
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -72,7 +73,9 @@ MAX_TEXT_INPUT_TOKENS_PER_ROW = 4_000
 MAX_CALLS_PER_ROW = 7
 MAX_OBSERVER_ACTIONS = 2
 MAX_COST_USD = 0.75
-PRIOR_FAILED_RUN_COST_USD = 0.0952995
+INVALID_A1_COST_USD = 0.0952995
+INTERRUPTED_A2_COST_USD = 0.06064163
+PRIOR_SPEND_USD = INVALID_A1_COST_USD + INTERRUPTED_A2_COST_USD
 EXPECTED_ROWS = 20
 EXPECTED_VARIANTS = 27
 MIME_TYPE = "video/webm"
@@ -83,7 +86,7 @@ DEFAULT_REQUESTS = (
 DEFAULT_HISTORICAL_ROOT = ROOT / "data/vqa/benchmarks/direct-gemini-batch-475-v1"
 DEFAULT_OUTPUT = (
     ROOT
-    / "data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a2"
+    / "data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a3"
 )
 FORBIDDEN_LABEL_KEYS = frozenset(
     {
@@ -205,7 +208,11 @@ def canonical_variants(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     return selected
 
 
-def estimate_worst_case_cost(payload: Mapping[str, Any]) -> dict[str, Any]:
+def estimate_worst_case_cost(
+    payload: Mapping[str, Any],
+    *,
+    cached_solver_keys: Collection[tuple[str, str]] = (),
+) -> dict[str, Any]:
     variants = canonical_variants(payload)
     indexed = {row["video_id"]: row for row in payload["rows"]}
     seconds = sum(
@@ -213,16 +220,31 @@ def estimate_worst_case_cost(payload: Mapping[str, Any]) -> dict[str, Any]:
         for variant in variants
     )
     row_count = len(variants)
+    expected_solver_keys = {
+        (stage, str(variant["video_id"]))
+        for stage in ("anchor", "blind")
+        for variant in variants
+    }
+    cached = set(cached_solver_keys)
+    if not cached <= expected_solver_keys:
+        raise ValueError("resume cache contains unexpected solver rows")
+    missing_solver_seconds = sum(
+        float(indexed[video_id]["duration_seconds"])
+        for stage, video_id in expected_solver_keys - cached
+    )
     base_media = math.ceil(
-        seconds * 3 * MEDIA_TOKENS_PER_SECOND[(BASELINE_FPS, "low")]
+        (seconds + missing_solver_seconds)
+        * MEDIA_TOKENS_PER_SECOND[(BASELINE_FPS, "low")]
     )
     observer_media = row_count * MAX_OBSERVER_INPUT_TOKENS_PER_ROW
     text_input = row_count * MAX_TEXT_INPUT_TOKENS_PER_ROW
-    output_tokens = row_count * (
-        2 * ROLE_OUTPUT_LIMITS["solver"]
-        + 2 * ROLE_OUTPUT_LIMITS["planner"]
+    output_tokens = (
+        (2 * row_count - len(cached)) * ROLE_OUTPUT_LIMITS["solver"]
+        + row_count * (
+            2 * ROLE_OUTPUT_LIMITS["planner"]
         + 2 * ROLE_OUTPUT_LIMITS["observer"]
         + ROLE_OUTPUT_LIMITS["judge"]
+        )
     )
     input_tokens = base_media + observer_media + text_input
     cost = (
@@ -231,7 +253,8 @@ def estimate_worst_case_cost(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     return {
         "row_count": row_count,
-        "request_count_ceiling": row_count * MAX_CALLS_PER_ROW,
+        "request_count_ceiling": row_count * MAX_CALLS_PER_ROW - len(cached),
+        "reused_solver_call_count": len(cached),
         "upload_count": row_count,
         "video_seconds": round(seconds, 3),
         "max_calls_per_row": MAX_CALLS_PER_ROW,
@@ -243,9 +266,9 @@ def estimate_worst_case_cost(payload: Mapping[str, Any]) -> dict[str, Any]:
         "worst_case_input_tokens": input_tokens,
         "worst_case_output_tokens": output_tokens,
         "estimated_cost_usd": round(cost, 8),
-        "prior_failed_run_cost_usd": PRIOR_FAILED_RUN_COST_USD,
+        "prior_spend_usd": round(PRIOR_SPEND_USD, 8),
         "combined_estimated_cost_usd": round(
-            PRIOR_FAILED_RUN_COST_USD + cost, 8
+            PRIOR_SPEND_USD + cost, 8
         ),
     }
 
@@ -263,11 +286,61 @@ def _delivery_path(historical_root: Path, video_id: str) -> Path:
     return candidate
 
 
+def _resume_solver_cache(
+    *,
+    resume_from: Path | None,
+    requests_path: Path,
+    variants: Sequence[Mapping[str, Any]],
+) -> tuple[dict[tuple[str, str], dict[str, Any]], dict[str, Any] | None]:
+    if resume_from is None:
+        return {}, None
+    if resume_from.is_symlink():
+        raise ValueError("resume root must not be a symlink")
+    root = resume_from.resolve(strict=True)
+    manifest_path = root / "run-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if (
+        not isinstance(manifest, Mapping)
+        or manifest.get("model") != MODEL
+        or manifest.get("model_arm") != MODEL_ARM
+        or manifest.get("requests_sha256") != sha256_file(requests_path)
+    ):
+        raise ValueError("resume manifest does not match this experiment")
+    cache: dict[tuple[str, str], dict[str, Any]] = {}
+    raw_hashes: list[str] = []
+    for stage in ("anchor", "blind"):
+        for index, variant in enumerate(variants):
+            path = root / stage / "raw" / f"{index:02d}.json"
+            if not path.exists():
+                continue
+            if path.is_symlink() or not path.is_file():
+                raise ValueError("resume raw solver artifact is invalid")
+            record = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(record, dict) or record.get("status") != "received":
+                raise ValueError("resume raw solver call was not received")
+            _answer_usage(record)
+            video_id = str(variant["video_id"])
+            cache[(stage, video_id)] = record
+            raw_hashes.append(sha256_file(path))
+    if not cache:
+        raise ValueError("resume root contains no reusable solver calls")
+    return cache, {
+        "manifest_sha256": sha256_file(manifest_path),
+        "reused_solver_call_count": len(cache),
+        "raw_sha256s_sha256": sha256_file_list(raw_hashes),
+    }
+
+
+def sha256_file_list(values: Sequence[str]) -> str:
+    return hashlib.sha256(canonical_json(list(values))).hexdigest()
+
+
 def preflight(
     *,
     requests_path: Path = DEFAULT_REQUESTS,
     historical_root: Path = DEFAULT_HISTORICAL_ROOT,
     max_cost_usd: float = MAX_COST_USD,
+    resume_from: Path | None = None,
     expected_rows: int | None = EXPECTED_ROWS,
     expected_variants: int | None = EXPECTED_VARIANTS,
 ) -> dict[str, Any]:
@@ -276,7 +349,15 @@ def preflight(
         expected_rows=expected_rows,
         expected_variants=expected_variants,
     )
-    estimate = estimate_worst_case_cost(payload)
+    variants = canonical_variants(payload)
+    resume_cache, resume_metadata = _resume_solver_cache(
+        resume_from=resume_from,
+        requests_path=requests_path,
+        variants=variants,
+    )
+    estimate = estimate_worst_case_cost(
+        payload, cached_solver_keys=resume_cache
+    )
     if estimate["combined_estimated_cost_usd"] > max_cost_usd:
         raise ValueError("Gemini estimate exceeds authorized cost cap")
     deliveries = []
@@ -290,7 +371,12 @@ def preflight(
                 "size_bytes": path.stat().st_size,
             }
         )
-    return {"status": "preflight_passed", **estimate, "deliveries": deliveries}
+    return {
+        "status": "preflight_passed",
+        **estimate,
+        "resume": resume_metadata,
+        "deliveries": deliveries,
+    }
 
 
 def estimate_action_input_tokens(action: MediaAction) -> int:
@@ -674,6 +760,7 @@ def run(
     requests_path: Path = DEFAULT_REQUESTS,
     historical_root: Path = DEFAULT_HISTORICAL_ROOT,
     output_root: Path = DEFAULT_OUTPUT,
+    resume_from: Path | None = None,
     client: Any,
     sleep: Callable[[float], None] = time.sleep,
     upload_file: Callable[[Any, Path], Mapping[str, Any]] | None = None,
@@ -683,6 +770,7 @@ def run(
     gate = preflight(
         requests_path=requests_path,
         historical_root=historical_root,
+        resume_from=resume_from,
         expected_rows=expected_rows,
         expected_variants=expected_variants,
     )
@@ -696,6 +784,11 @@ def run(
     )
     indexed = {row["video_id"]: row for row in payload["rows"]}
     variants = canonical_variants(payload)
+    resume_cache, resume_metadata = _resume_solver_cache(
+        resume_from=resume_from,
+        requests_path=requests_path,
+        variants=variants,
+    )
     _write_json(
         output_root / "run-manifest.json",
         {
@@ -705,6 +798,7 @@ def run(
             "model_arm": MODEL_ARM,
             "requests_sha256": sha256_file(requests_path),
             "cost": {key: value for key, value in gate.items() if key != "deliveries"},
+            "resume": resume_metadata,
             "deliveries": gate["deliveries"],
         },
     )
@@ -719,6 +813,8 @@ def run(
     }
     usage_rows: list[Mapping[str, Any] | None] = []
     call_counts: Counter[str] = Counter()
+    provider_call_counts: Counter[str] = Counter()
+    reused_solver_call_count = 0
     budgets = {
         str(variant["video_id"]): {
             "calls_used": 0,
@@ -740,7 +836,13 @@ def run(
             video_id = str(variant["video_id"])
             row = indexed[video_id]
             request = build_solver_request(row=row, upload=uploads[video_id], stage=stage)
-            raw_record = _provider_call(client, request)
+            cached_record = resume_cache.get((stage, video_id))
+            if cached_record is not None:
+                raw_record = copy.deepcopy(cached_record)
+                reused_solver_call_count += 1
+            else:
+                raw_record = _provider_call(client, request)
+                provider_call_counts[stage] += 1
             budgets[video_id]["calls_used"] += 1
             call_counts[stage] += 1
             raw_path = output_root / stage / "raw" / f"{index:02d}.json"
@@ -860,6 +962,7 @@ def run(
                     round_index=round_index,
                 )
                 planner_raw = _provider_call(client, request)
+                provider_call_counts["planner"] += 1
                 budget["calls_used"] += 1
                 call_counts["planner"] += 1
                 if planner_raw.get("status") == "received":
@@ -889,6 +992,7 @@ def run(
                             round_index=round_index,
                         )
                         correction_raw = _provider_call(client, correction_request)
+                        provider_call_counts["planner_correction"] += 1
                         planner_raw["correction"] = correction_raw
                         budget["calls_used"] += 1
                         call_counts["planner_correction"] += 1
@@ -970,6 +1074,7 @@ def run(
                         upload=uploads[video_id], action=action
                     )
                     observer_raw = _provider_call(client, request)
+                    provider_call_counts["observer"] += 1
                     budget["calls_used"] += 1
                     budget["observer_actions"] += 1
                     budget["observer_input_tokens_remaining"] = authorization[
@@ -1086,6 +1191,7 @@ def run(
             row=row, upload=uploads[video_id], notebook=notebooks[video_id]
         )
         raw_record = _provider_call(client, request)
+        provider_call_counts["judge"] += 1
         budget["calls_used"] += 1
         call_counts["judge"] += 1
         raw_path = output_root / "judge/raw" / f"{index:02d}.json"
@@ -1206,20 +1312,24 @@ def run(
         "status": "completed",
         "row_count": len(variants),
         "request_count": sum(int(row["call_count"]) for row in final_rows),
+        "provider_request_count": sum(provider_call_counts.values()),
+        "provider_call_counts_by_role": dict(sorted(provider_call_counts.items())),
+        "reused_solver_call_count": reused_solver_call_count,
         "call_counts_by_role": dict(sorted(call_counts.items())),
         "observer_call_count": call_counts["observer"],
         "final_valid_count": sum(row["status"] == "passed" for row in final_rows),
         "judge_valid_count": sum(row["judge_status"] == "passed" for row in final_rows),
         "path_distribution": dict(sorted(path_counts.items())),
         "estimated_cost_ceiling_usd": gate["estimated_cost_usd"],
-        "prior_failed_run_cost_usd": PRIOR_FAILED_RUN_COST_USD,
+        "prior_nonreused_cost_usd": INVALID_A1_COST_USD,
+        "interrupted_reused_cost_usd": INTERRUPTED_A2_COST_USD,
         "combined_estimated_cost_ceiling_usd": gate[
             "combined_estimated_cost_usd"
         ],
         **usage,
     }
     summary["combined_observed_cost_usd"] = (
-        round(PRIOR_FAILED_RUN_COST_USD + float(summary["observed_cost_usd"]), 8)
+        round(INVALID_A1_COST_USD + float(summary["observed_cost_usd"]), 8)
         if summary["observed_cost_usd"] is not None
         else None
     )
@@ -1293,6 +1403,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--requests", type=Path, default=DEFAULT_REQUESTS)
     parser.add_argument("--historical-root", type=Path, default=DEFAULT_HISTORICAL_ROOT)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--resume-from", type=Path)
     args = parser.parse_args(argv)
     try:
         if (args.preflight or args.run) and not args.canonical_only:
@@ -1301,6 +1412,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = preflight(
                 requests_path=args.requests,
                 historical_root=args.historical_root,
+                resume_from=args.resume_from,
             )
             result = {key: value for key, value in result.items() if key != "deliveries"}
         elif args.run:
@@ -1308,6 +1420,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 requests_path=args.requests,
                 historical_root=args.historical_root,
                 output_root=args.output,
+                resume_from=args.resume_from,
                 client=genai.Client(api_key=_api_key()),
             )
         else:

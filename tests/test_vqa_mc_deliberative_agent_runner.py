@@ -247,7 +247,7 @@ def test_cost_estimate_reserves_seven_calls_and_final_judge(tmp_path: Path) -> N
         "observer": 1536,
         "judge": 2048,
     }
-    assert estimate["prior_failed_run_cost_usd"] == pytest.approx(0.0952995)
+    assert estimate["prior_spend_usd"] == pytest.approx(0.15594113)
     assert 0 < estimate["estimated_cost_usd"] < 0.75
     assert estimate["combined_estimated_cost_usd"] < 0.75
 
@@ -477,3 +477,58 @@ def test_verify_output_rejects_tampered_notebook(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="notebook hash mismatch"):
         runner.verify_output(output)
+
+
+def test_run_reuses_partial_solver_raw_without_resampling(tmp_path: Path) -> None:
+    requests = _request_payload(tmp_path)
+    historical = _historical_root(tmp_path)
+    resume = tmp_path / "partial-run"
+    cached = {
+        "status": "received",
+        "response": runner.smoke._safe_response_object(
+            _provider_response(_solver_payload("ABCD"))
+        ),
+    }
+    (resume / "anchor/raw").mkdir(parents=True)
+    (resume / "anchor/raw/00.json").write_text(
+        json.dumps(cached), encoding="utf-8"
+    )
+    (resume / "run-manifest.json").write_text(
+        json.dumps(
+            {
+                "model": runner.MODEL,
+                "model_arm": runner.MODEL_ARM,
+                "requests_sha256": sha256_file(requests),
+                "cost": {
+                    "worst_case_output_tokens": 7
+                    * sum(runner.ROLE_OUTPUT_LIMITS.values())
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    client = _Client(
+        [
+            _provider_response(_solver_payload("BACD")),
+            _provider_response(_planner_payload("finish_search")),
+            _provider_response(_judge_payload("solver-1-o1")),
+        ]
+    )
+    output = tmp_path / "resumed-output"
+
+    result = runner.run(
+        requests_path=requests,
+        historical_root=historical,
+        output_root=output,
+        resume_from=resume,
+        client=client,
+        upload_file=lambda _client, _path: _upload(),
+        expected_rows=None,
+        expected_variants=None,
+    )
+
+    assert len(client.models.requests) == 3
+    assert result["request_count"] == 4
+    assert result["provider_request_count"] == 3
+    assert result["reused_solver_call_count"] == 1
+    assert json.loads((output / "anchor/raw/00.json").read_text()) == cached

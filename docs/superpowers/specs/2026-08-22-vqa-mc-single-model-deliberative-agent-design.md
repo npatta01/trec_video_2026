@@ -294,6 +294,16 @@ the combined conservative ceiling is `$0.74776162`, still below the original
 `$0.75` authorization. No scientific prompt, label access, call ceiling,
 fallback, metric, or decision rule changes.
 
+The `a2` recovery was stopped before planning after 27 solver calls because a
+second host-contract defect rejected complete option-keyed hypothesis arrays
+when Gemini returned the four unique option IDs in ranking order rather than
+A--D order. The interrupted spend was `$0.06064163`. The parser now verifies
+uniqueness and normalizes option-keyed rows mechanically. Run `a3` reuses all
+27 immutable `a2` raw solver responses and calls the provider only for missing
+or later stages. Prior spend is `$0.15594113`; the remaining worst-case ceiling
+is `$0.51105713`, for a combined conservative ceiling of `$0.66699825`. No
+solver response is resampled, and no label or semantic decision enters reuse.
+
 ## Failure and fallback behavior
 
 - Invalid anchor or blind-solver output is recorded and omitted from planning;
