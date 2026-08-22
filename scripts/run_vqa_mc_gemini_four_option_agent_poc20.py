@@ -174,7 +174,7 @@ def load_requests(
         _validate_options(row)
         identifiers.append(video_id)
     variant_ids: list[str] = []
-    variant_video_ids: list[str] = []
+    canonical_video_ids: list[str] = []
     for variant in variants:
         if not isinstance(variant, Mapping):
             raise ValueError("variant is invalid")
@@ -182,15 +182,22 @@ def load_requests(
         video_id = variant.get("video_id")
         if not isinstance(variant_id, str) or not variant_id or variant_id in variant_ids:
             raise ValueError("variant IDs must be unique nonempty strings")
-        if variant.get("variant_kind") != "canonical":
-            raise ValueError("only canonical variants are permitted")
+        kind = variant.get("variant_kind")
+        if kind not in {"canonical", "reversed", "repeat"}:
+            raise ValueError("variant kind is unsupported")
         if video_id not in identifiers:
             raise ValueError("variant has unknown video ID")
-        if variant.get("display_order") != list(OPTION_IDS):
-            raise ValueError("variant display order must be A-D")
+        display_order = variant.get("display_order")
+        if not isinstance(display_order, list) or sorted(display_order) != list(
+            OPTION_IDS
+        ):
+            raise ValueError("variant display order must be an A-D permutation")
+        if kind == "canonical":
+            if display_order != list(OPTION_IDS):
+                raise ValueError("canonical variant display order must be A-D")
+            canonical_video_ids.append(str(video_id))
         variant_ids.append(variant_id)
-        variant_video_ids.append(str(video_id))
-    if variant_video_ids != identifiers:
+    if canonical_video_ids != identifiers:
         raise ValueError("canonical variant identity drift")
     return payload
 
@@ -570,9 +577,9 @@ def build_experiment_preflight(
     delivery_probe: Callable[[Path], None] | None = None,
 ) -> dict[str, Any]:
     canary = load_requests(
-        canary_requests_path, expected_rows=5, expected_variants=5
+        canary_requests_path, expected_rows=5, expected_variants=None
     )
-    full = load_requests(full_requests_path, expected_rows=20, expected_variants=20)
+    full = load_requests(full_requests_path, expected_rows=20, expected_variants=None)
     full_rows = {str(row["video_id"]): row for row in full["rows"]}
     canary_ids = [str(row["video_id"]) for row in canary["rows"]]
     if len(set(canary_ids)) != 5 or any(video_id not in full_rows for video_id in canary_ids):
@@ -1546,7 +1553,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     client=client,
                     upload_file=_upload,
                     expected_rows=5,
-                    expected_variants=5,
+                    expected_variants=None,
                 )
         safe = {
             key: value

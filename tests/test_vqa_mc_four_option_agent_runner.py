@@ -383,6 +383,35 @@ def test_requests_reject_label_fields_and_control_identity_drift(tmp_path: Path)
         )
 
 
+def test_requests_validate_but_do_not_execute_order_diagnostic_variants(
+    tmp_path: Path,
+) -> None:
+    path = _request_payload(tmp_path)
+    payload = json.loads(path.read_text())
+    payload["variants"].extend(
+        [
+            {
+                "variant_id": "video-0:reversed",
+                "video_id": "video-0",
+                "variant_kind": "reversed",
+                "display_order": list("DCBA"),
+            },
+            {
+                "variant_id": "video-0:repeat",
+                "video_id": "video-0",
+                "variant_kind": "repeat",
+                "display_order": list("ABCD"),
+            },
+        ]
+    )
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    loaded = runner.load_requests(path, expected_rows=1, expected_variants=None)
+
+    assert len(loaded["rows"]) == 1
+    assert len(loaded["variants"]) == 3
+
+
 def _update_payload(ranking: str = "BACD", observation_id: str = "round-1-o1") -> dict[str, Any]:
     ledger = _initializer_payload()["ledger"]
     ledger[0]["supporting_evidence_ids"] = [observation_id]

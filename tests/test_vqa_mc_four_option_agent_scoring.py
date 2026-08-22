@@ -173,6 +173,7 @@ def test_prepare_canary_selects_exactly_the_five_control_misses_without_labels(
     assert "correct_option" not in serialized
     assert "reference_answer" not in serialized
     assert '"label"' not in serialized
+    assert '"labels"' not in serialized
 
 
 def test_prepare_canary_rejects_a_control_other_than_15_of_20(

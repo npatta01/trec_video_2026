@@ -159,7 +159,7 @@ def prepare_canary(
         "selection_kind": "frozen_control_misses",
         "source_sha256s": {
             "requests": sha256_file(requests_path),
-            "labels": sha256_file(labels_path),
+            "selection_evidence": sha256_file(labels_path),
             "frozen_control": sha256_file(control_path),
         },
         "rows": [row for row in request_rows if row["video_id"] in selected],
@@ -174,6 +174,7 @@ def prepare_canary(
         "correct_option",
         "reference_answer",
         '"label"',
+        '"labels"',
         "ground_truth",
     )
     if any(value in serialized for value in forbidden):
