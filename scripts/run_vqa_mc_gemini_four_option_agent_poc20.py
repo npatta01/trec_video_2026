@@ -3,16 +3,21 @@
 
 from __future__ import annotations
 
+import argparse
 import copy
 import hashlib
 import json
 import math
+import os
+import shlex
+import time
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from google import genai
 from google.genai import types
 
 from trec_video_2026 import vqa_gemini37_flash_smoke as smoke
@@ -62,6 +67,7 @@ MAX_PROVIDER_CALLS_PER_ROW = 28
 MAX_COST_USD = 1.50
 BASELINE_FPS = 4.0
 MIME_TYPE = "video/webm"
+PRIVATE_ENV_FILE = Path("/home/npatta01/.config/trec_video_2026/gemini.env")
 MAX_TEXT_INPUT_TOKENS_PER_ROW = 60_000
 MEDIA_TOKENS_PER_SECOND = {
     (1.0, "low"): 78,
@@ -549,6 +555,73 @@ def preflight(
         "max_cost_usd": max_cost_usd,
         "identity": identity,
         "cost": estimate,
+        "deliveries": deliveries,
+    }
+
+
+def build_experiment_preflight(
+    *,
+    canary_requests_path: Path,
+    full_requests_path: Path,
+    protected_control_path: Path,
+    historical_root: Path,
+    capabilities: ModelCapabilities,
+    max_cost_usd: float = MAX_COST_USD,
+    delivery_probe: Callable[[Path], None] | None = None,
+) -> dict[str, Any]:
+    canary = load_requests(
+        canary_requests_path, expected_rows=5, expected_variants=5
+    )
+    full = load_requests(full_requests_path, expected_rows=20, expected_variants=20)
+    full_rows = {str(row["video_id"]): row for row in full["rows"]}
+    canary_ids = [str(row["video_id"]) for row in canary["rows"]]
+    if len(set(canary_ids)) != 5 or any(video_id not in full_rows for video_id in canary_ids):
+        raise ValueError("canary row identity is not a subset of the full panel")
+    for row in canary["rows"]:
+        if canonical_json(row) != canonical_json(full_rows[str(row["video_id"])]):
+            raise ValueError("canary request row differs from the full panel")
+    full_ids = [str(row["video_id"]) for row in full["rows"]]
+    load_protected_control(protected_control_path, request_ids=full_ids)
+    estimate = estimate_formal_cost(full, capabilities=capabilities)
+    allowed = estimate["formal_cost_usd"] <= max_cost_usd
+    deliveries: list[dict[str, Any]] = []
+    if allowed:
+        for video_id in full_ids:
+            delivery = _delivery_path(historical_root, video_id)
+            if delivery_probe is not None:
+                delivery_probe(delivery)
+            deliveries.append(
+                {
+                    "video_id": video_id,
+                    "path": str(delivery),
+                    "sha256": sha256_file(delivery),
+                    "size_bytes": delivery.stat().st_size,
+                }
+            )
+    return {
+        "schema_version": 1,
+        "status": "preflight_passed" if allowed else "preflight_blocked",
+        "paid_run_allowed": allowed,
+        "block_reason": None if allowed else "formal_worst_case_exceeds_cost_cap",
+        "max_cost_usd": max_cost_usd,
+        "cost": estimate,
+        "identity": {
+            "model": MODEL,
+            "model_arm": MODEL_ARM,
+            "model_version": capabilities.model_version,
+            "input_token_limit": capabilities.input_token_limit,
+            "output_token_limit": capabilities.output_token_limit,
+            "supported_actions": list(capabilities.supported_actions),
+            "prompt_contract_sha256": _prompt_contract_sha256(),
+            "canary_requests_sha256": sha256_file(canary_requests_path),
+            "full_requests_sha256": sha256_file(full_requests_path),
+            "protected_control_sha256": sha256_file(protected_control_path),
+            "pricing": {
+                "input_usd_per_million": INPUT_USD_PER_MILLION,
+                "output_usd_per_million": OUTPUT_USD_PER_MILLION,
+            },
+        },
+        "canary_video_ids": canary_ids,
         "deliveries": deliveries,
     }
 
@@ -1345,3 +1418,147 @@ def verify_canary_reuse(
         "manifest_sha256": sha256_file(manifest_path),
         "final_predictions_sha256": sha256_file(final_path),
     }
+
+
+def _api_key() -> str:
+    value = os.environ.get("GEMINI_API_KEY", "").strip()
+    if value:
+        return value
+    if PRIVATE_ENV_FILE.stat().st_mode & 0o777 != 0o600:
+        raise ValueError("Gemini credential file permissions are not 0600")
+    for line in PRIVATE_ENV_FILE.read_text(encoding="utf-8").splitlines():
+        if not line.strip() or line.lstrip().startswith("#") or "=" not in line:
+            continue
+        key, raw = line.split("=", 1)
+        if key.strip() == "GEMINI_API_KEY":
+            parsed = shlex.split(raw.strip(), comments=True)
+            if parsed and parsed[0].strip():
+                return parsed[0].strip()
+    raise ValueError("GEMINI_API_KEY is unavailable")
+
+
+def _upload(client: Any, delivery: Path) -> dict[str, Any]:
+    uploaded = client.files.upload(
+        file=delivery,
+        config=types.UploadFileConfig(mime_type=MIME_TYPE),
+    )
+    current = smoke._provider_file_metadata(uploaded, expected_mime=MIME_TYPE)
+    for index in range(30):
+        if current["file_state"] == "ACTIVE":
+            return {
+                "file_uri": current["uri"],
+                "mime_type": MIME_TYPE,
+                "provider": current,
+            }
+        if current["file_state"] == "failed":
+            raise ValueError("provider upload failed")
+        if index == 29:
+            raise ValueError("provider upload did not become active")
+        time.sleep(1.0)
+        current = smoke._provider_file_metadata(
+            client.files.get(name=current["name"]), expected_mime=MIME_TYPE
+        )
+    raise AssertionError("unreachable")
+
+
+def _require_paid_preflight(
+    path: Path,
+    *,
+    requests_path: Path,
+    protected_control_path: Path,
+    capabilities: ModelCapabilities,
+) -> None:
+    artifact = json.loads(path.read_text(encoding="utf-8"))
+    identity = artifact.get("identity") if isinstance(artifact, Mapping) else None
+    if (
+        not isinstance(identity, Mapping)
+        or artifact.get("paid_run_allowed") is not True
+        or identity.get("model") != MODEL
+        or identity.get("model_arm") != MODEL_ARM
+        or identity.get("output_token_limit") != capabilities.output_token_limit
+        or identity.get("prompt_contract_sha256") != _prompt_contract_sha256()
+        or identity.get("protected_control_sha256")
+        != sha256_file(protected_control_path)
+        or sha256_file(requests_path)
+        not in {
+            identity.get("canary_requests_sha256"),
+            identity.get("full_requests_sha256"),
+        }
+    ):
+        raise ValueError("paid preflight does not authorize this run")
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="run_vqa_mc_gemini_four_option_agent_poc20"
+    )
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--preflight", action="store_true")
+    mode.add_argument("--run-canary", action="store_true")
+    mode.add_argument("--verify-output", type=Path)
+    parser.add_argument("--canary-requests", type=Path)
+    parser.add_argument("--full-requests", type=Path)
+    parser.add_argument("--requests", type=Path)
+    parser.add_argument("--protected-control", type=Path)
+    parser.add_argument("--historical-root", type=Path)
+    parser.add_argument("--preflight-artifact", type=Path)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args(argv)
+    try:
+        if args.verify_output is not None:
+            result = verify_output(args.verify_output)
+        else:
+            required = {
+                "protected_control": args.protected_control,
+                "historical_root": args.historical_root,
+                "output": args.output,
+            }
+            if any(value is None for value in required.values()):
+                raise ValueError("required path is missing")
+            client = genai.Client(api_key=_api_key())
+            capabilities = get_model_capabilities(client)
+            if args.preflight:
+                if args.canary_requests is None or args.full_requests is None:
+                    raise ValueError("preflight requires canary and full requests")
+                result = build_experiment_preflight(
+                    canary_requests_path=args.canary_requests,
+                    full_requests_path=args.full_requests,
+                    protected_control_path=args.protected_control,
+                    historical_root=args.historical_root,
+                    capabilities=capabilities,
+                )
+                _write_json(args.output, result)
+            else:
+                if args.requests is None or args.preflight_artifact is None:
+                    raise ValueError("canary run requires requests and preflight artifact")
+                _require_paid_preflight(
+                    args.preflight_artifact,
+                    requests_path=args.requests,
+                    protected_control_path=args.protected_control,
+                    capabilities=capabilities,
+                )
+                result = run_phase(
+                    requests_path=args.requests,
+                    protected_control_path=args.protected_control,
+                    historical_root=args.historical_root,
+                    output_root=args.output,
+                    capabilities=capabilities,
+                    client=client,
+                    upload_file=_upload,
+                    expected_rows=5,
+                    expected_variants=5,
+                )
+        safe = {
+            key: value
+            for key, value in result.items()
+            if key not in {"deliveries", "canary_video_ids"}
+        }
+        print(json.dumps(safe, sort_keys=True))
+        return 0
+    except Exception:  # noqa: BLE001 - CLI must not leak credentials or private paths
+        print(json.dumps({"status": "error", "error": "command failed"}))
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

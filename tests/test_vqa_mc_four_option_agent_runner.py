@@ -646,3 +646,81 @@ def test_full_phase_reuses_canary_rows_only_when_protocol_hashes_match(
             full_requests_path=full_requests,
             canary_gate_path=gate_path,
         )
+
+
+def test_experiment_preflight_blocks_formal_full_cost_without_video_probe(
+    tmp_path: Path,
+) -> None:
+    full_path = _request_payload(tmp_path, row_count=20)
+    full = json.loads(full_path.read_text())
+    canary_path = tmp_path / "canary-requests.json"
+    canary_path.write_text(
+        json.dumps(
+            {
+                **full,
+                "rows": full["rows"][:5],
+                "variants": full["variants"][:5],
+            }
+        ),
+        encoding="utf-8",
+    )
+    probes: list[Path] = []
+
+    result = runner.build_experiment_preflight(
+        canary_requests_path=canary_path,
+        full_requests_path=full_path,
+        protected_control_path=_control_path(tmp_path, row_count=20),
+        historical_root=_historical_root(tmp_path, row_count=20),
+        capabilities=_capabilities(),
+        delivery_probe=lambda path: probes.append(path),
+    )
+
+    assert result["status"] == "preflight_blocked"
+    assert result["paid_run_allowed"] is False
+    assert result["cost"]["provider_call_ceiling"] == 20 * 28
+    assert result["cost"]["formal_cost_usd"] > 1.5
+    assert probes == []
+
+
+def test_preflight_cli_writes_blocked_artifact_without_generation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    full_path = _request_payload(tmp_path, row_count=20)
+    full = json.loads(full_path.read_text())
+    canary_path = tmp_path / "canary-requests.json"
+    canary_path.write_text(
+        json.dumps(
+            {
+                **full,
+                "rows": full["rows"][:5],
+                "variants": full["variants"][:5],
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "preflight.json"
+    client = _MetadataClient(output_token_limit=65_536)
+    monkeypatch.setattr(runner, "_api_key", lambda: "test-key")
+    monkeypatch.setattr(runner.genai, "Client", lambda *, api_key: client)
+
+    exit_code = runner.main(
+        [
+            "--preflight",
+            "--canary-requests",
+            str(canary_path),
+            "--full-requests",
+            str(full_path),
+            "--protected-control",
+            str(_control_path(tmp_path, row_count=20)),
+            "--historical-root",
+            str(_historical_root(tmp_path, row_count=20)),
+            "--output",
+            str(output),
+        ]
+    )
+
+    assert exit_code == 0
+    artifact = json.loads(output.read_text())
+    assert artifact["status"] == "preflight_blocked"
+    assert artifact["paid_run_allowed"] is False
+    assert not hasattr(client.models, "generate_content")
