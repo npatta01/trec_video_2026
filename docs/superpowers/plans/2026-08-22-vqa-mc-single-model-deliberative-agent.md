@@ -644,7 +644,7 @@ Run:
 PYTHONPATH=src python scripts/score_vqa_mc_deliberative_agent_poc20.py \
   --requests data/vqa/benchmarks/vqa-mc-poc20-20260821/inputs/requests.json \
   --labels data/vqa/benchmarks/vqa-mc-poc20-20260821/inputs/labels.json \
-  --control data/vqa/benchmarks/vqa-mc-poc20-20260821/gemini-a1/predictions-freeze.json \
+  --control data/vqa/benchmarks/vqa-mc-poc20-20260821/gemini-a2-canonical/predictions-freeze.json \
   --adaptive data/vqa/benchmarks/vqa-mc-adaptive-agent-poc20-20260821-a1/final-predictions-freeze.json \
   --run-root data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a3 \
   --output data/vqa/benchmarks/vqa-mc-deliberative-agent-poc20-20260822-a3/score.json

@@ -246,6 +246,7 @@ def _score(paths: dict[str, Path]) -> dict[str, Any]:
         control_path=paths["control_path"],
         adaptive_path=paths["adaptive_path"],
         run_root=paths["run_root"],
+        expected_control_top1=1,
     )
 
 
@@ -307,6 +308,17 @@ def test_invalid_ranking_stays_in_denominator(tmp_path: Path) -> None:
     assert result["metrics"]["final"]["invalid_count"] == 1
 
 
+def test_score_rejects_wrong_frozen_control_artifact(tmp_path: Path) -> None:
+    paths = _artifacts(tmp_path)
+    control = json.loads(paths["control_path"].read_text())
+    control["rows"][0]["status"] = "failed"
+    control["rows"][0]["ranking"] = None
+    paths["control_path"].write_text(json.dumps(control), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="frozen control"):
+        _score(paths)
+
+
 def test_score_rejects_missing_or_wrong_notebook_hash(tmp_path: Path) -> None:
     paths = _artifacts(tmp_path)
     final = json.loads(paths["final_path"].read_text())
@@ -352,3 +364,20 @@ def test_sanitized_aggregate_excludes_private_row_data(tmp_path: Path) -> None:
     assert "correct_option_id" not in serialized
     assert "notebook_path" not in serialized
     assert "A visible event occurs" not in serialized
+
+
+def test_private_audit_categorizes_transitions_and_ambiguity(tmp_path: Path) -> None:
+    paths = _artifacts(tmp_path)
+    result = _score(paths)
+
+    audit = scorer.build_private_audit(
+        requests_path=paths["requests_path"],
+        run_root=paths["run_root"],
+        scored=result,
+    )
+
+    assert audit["summary"]["control_repair_count"] == 1
+    assert audit["summary"]["adaptive_repair_count"] == 1
+    assert audit["summary"]["ambiguity_flag_count"] == 1
+    assert audit["summary"]["final_miss_count"] == 0
+    assert {row["query_id"] for row in audit["rows"]} == {"q1", "q2"}

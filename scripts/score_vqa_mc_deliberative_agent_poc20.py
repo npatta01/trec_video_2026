@@ -348,6 +348,7 @@ def score(
     control_path: Path,
     adaptive_path: Path,
     run_root: Path,
+    expected_control_top1: int | None = None,
 ) -> dict[str, Any]:
     request_rows = _rows(requests_path)
     label_rows = _rows(labels_path)
@@ -430,6 +431,11 @@ def score(
         name: score_rankings(predictions, labels)
         for name, predictions in systems.items()
     }
+    if expected_control_top1 is not None and (
+        metrics["frozen_control"]["valid_count"] != len(ids)
+        or metrics["frozen_control"]["top1_correct"] != expected_control_top1
+    ):
+        raise ValueError("frozen control does not match the preregistered baseline")
     by_stratum = {
         name: _metric_by_stratum(predictions, labels, strata)
         for name, predictions in systems.items()
@@ -628,6 +634,130 @@ def sanitized_aggregate(result: Mapping[str, Any]) -> dict[str, Any]:
     return {key: result[key] for key in allowed}
 
 
+def build_private_audit(
+    *,
+    requests_path: Path,
+    run_root: Path,
+    scored: Mapping[str, Any],
+) -> dict[str, Any]:
+    request_rows = _rows(requests_path)
+    requests = {str(row["video_id"]): row for row in request_rows}
+    score_rows = scored.get("rows")
+    if not isinstance(score_rows, list) or not all(
+        isinstance(row, Mapping) for row in score_rows
+    ):
+        raise ValueError("private score rows are unavailable")
+    ids = [str(row["video_id"]) for row in request_rows]
+    score_index = {str(row["query_id"]): row for row in score_rows}
+    if list(score_index) != ids:
+        raise ValueError("private score identity drift")
+    root = run_root.resolve(strict=True)
+    final_index = _prediction_index(
+        root / "final-predictions-freeze.json", ids, label="audit final"
+    )
+    categories = (
+        "final_miss",
+        "control_repair",
+        "control_regression",
+        "adaptive_repair",
+        "adaptive_regression",
+        "budget_rejected",
+        "missing_citation",
+        "judge_departure_from_two_agreeing_solvers",
+        "ambiguity_flag",
+    )
+    counts: Counter[str] = Counter({name: 0 for name in categories})
+    selected_rows: list[dict[str, Any]] = []
+    for video_id in ids:
+        row = score_index[video_id]
+        correct = row.get("correct_option_id")
+        final_ranking = row.get("final_ranking")
+        control_ranking = row.get("frozen_control_ranking")
+        adaptive_ranking = row.get("adaptive_two_call_ranking")
+        anchor_ranking = row.get("anchor_ranking")
+        blind_ranking = row.get("blind_ranking")
+        final_top = final_ranking[0] if isinstance(final_ranking, list) else None
+        control_top = (
+            control_ranking[0] if isinstance(control_ranking, list) else None
+        )
+        adaptive_top = (
+            adaptive_ranking[0] if isinstance(adaptive_ranking, list) else None
+        )
+        labels: list[str] = []
+        if final_top != correct:
+            labels.append("final_miss")
+        if control_top != correct and final_top == correct:
+            labels.append("control_repair")
+        if control_top == correct and final_top != correct:
+            labels.append("control_regression")
+        if adaptive_top != correct and final_top == correct:
+            labels.append("adaptive_repair")
+        if adaptive_top == correct and final_top != correct:
+            labels.append("adaptive_regression")
+        final_row = final_index[video_id]
+        notebook_path = _safe_artifact(root, final_row.get("notebook_path"))
+        notebook = _read(notebook_path)
+        rounds = notebook.get("rounds")
+        if isinstance(rounds, list) and any(
+            isinstance(entry, Mapping)
+            and isinstance(entry.get("tool_result"), Mapping)
+            and entry["tool_result"].get("authorized") is False
+            for entry in rounds
+        ):
+            labels.append("budget_rejected")
+        if row.get("citation_valid") is not True:
+            labels.append("missing_citation")
+        if (
+            isinstance(anchor_ranking, list)
+            and isinstance(blind_ranking, list)
+            and anchor_ranking[0] == blind_ranking[0]
+            and final_top != anchor_ranking[0]
+        ):
+            labels.append("judge_departure_from_two_agreeing_solvers")
+        if row.get("ambiguity_present") is True:
+            labels.append("ambiguity_flag")
+        for label in labels:
+            counts[label] += 1
+        if not labels:
+            continue
+        request = requests[video_id]
+        selected_rows.append(
+            {
+                "query_id": video_id,
+                "stratum": request.get("stratum"),
+                "question": request.get("question"),
+                "options": request.get("options"),
+                "correct_option_id": correct,
+                "classifications": labels,
+                "rankings": {
+                    "frozen_control": control_ranking,
+                    "adaptive_two_call": adaptive_ranking,
+                    "anchor": anchor_ranking,
+                    "blind": blind_ranking,
+                    "last_planner": row.get("last_planner_ranking"),
+                    "final": final_ranking,
+                },
+                "final_source": row.get("final_source"),
+                "notebook_sha256": final_row.get("notebook_sha256"),
+                "notebook": notebook,
+            }
+        )
+    return {
+        "schema_version": 1,
+        "status": "audited",
+        "source_sha256s": {
+            "requests": sha256_file(requests_path),
+            "score": str(scored.get("source_sha256s", {}).get("deliberative_final")),
+            "final": sha256_file(root / "final-predictions-freeze.json"),
+        },
+        "summary": {
+            f"{name}_count": counts[name] for name in categories
+        },
+        "selected_row_count": len(selected_rows),
+        "rows": selected_rows,
+    }
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="score_vqa_mc_deliberative_agent_poc20")
     parser.add_argument("--requests", type=Path, required=True)
@@ -636,6 +766,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--adaptive", type=Path, required=True)
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--audit-output", type=Path)
+    parser.add_argument("--expected-control-top1", type=int, default=15)
     args = parser.parse_args(argv)
     result = score(
         requests_path=args.requests,
@@ -643,10 +775,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         control_path=args.control,
         adaptive_path=args.adaptive,
         run_root=args.run_root,
+        expected_control_top1=args.expected_control_top1,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("xb") as handle:
         handle.write(canonical_json(result))
+    if args.audit_output is not None:
+        audit = build_private_audit(
+            requests_path=args.requests,
+            run_root=args.run_root,
+            scored=result,
+        )
+        args.audit_output.parent.mkdir(parents=True, exist_ok=True)
+        with args.audit_output.open("xb") as handle:
+            handle.write(canonical_json(audit))
     print(json.dumps(sanitized_aggregate(result), sort_keys=True))
     return 0
 
