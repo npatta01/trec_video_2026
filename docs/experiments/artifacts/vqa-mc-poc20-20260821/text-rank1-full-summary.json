@@ -1,0 +1,63 @@
+{
+  "strategy": "fusion_rank1_text_llm_option_ranking",
+  "status": "complete",
+  "evidence_validity": "valid_for_completion_format_cost_and_provenance_only",
+  "decision_disposition": "usable_unscored_submission_baseline",
+  "quality_boundary": "No hidden Task 2 labels were available; this run establishes no accuracy or MRR claim.",
+  "source": {
+    "task2_commit": "34f1d1e",
+    "task2_sha256": "1ebb2ba8408bfe6974653bbe314cc9baa42c45ed3d1fd945c2eb7b90772470d8",
+    "fusion_rank1_sha256": "f3ee540c4e865a45973f8f8886363a8501f6d6a58861eb12dfa58986efd147bb"
+  },
+  "method": {
+    "model_catalog_id": "google/gemini-3.7-flash:batch",
+    "provider_model_revision": "google/gemini-3.7-flash-20260813",
+    "api_mode": "openrouter_async_batch",
+    "input_per_query": [
+      "released question",
+      "g37_q36_fusion rank-one answer",
+      "all released MC options"
+    ],
+    "output_contract": "complete permutation of released option IDs, reconstructed as exact released option strings",
+    "video_calls": 0,
+    "batch_request_count": 245,
+    "queries_per_request_max": 10,
+    "reasoning_effort": "high",
+    "max_output_tokens_per_request": 16384
+  },
+  "completion": {
+    "query_count": 2443,
+    "completed_query_count": 2443,
+    "failed_batch_request_count": 0,
+    "option_count_distribution": {
+      "4": 472,
+      "8": 1952,
+      "9": 10,
+      "10": 5,
+      "11": 4
+    },
+    "prompt_tokens": 464890,
+    "completion_tokens_including_reasoning": 612375,
+    "reported_cost_usd": 0.66126844
+  },
+  "pricing": {
+    "verified_input_usd_per_million": 0.1875,
+    "verified_output_usd_per_million": 0.9375,
+    "preflight_ceiling_usd": 4.12209444,
+    "authorized_cap_usd": 5.0
+  },
+  "integrity": {
+    "request_set_sha256": "3295980bdd992ff69ca5b4e017ba1123b057d817209d13a97e95309b2f44f71a",
+    "submission_sha256": "3dcd6cd75e97a13da0ccdf209bb6612a335ec43dc54f1c194a2145b9dfcb47ca",
+    "independent_exact_option_permutation_audit": "passed_2443_of_2443",
+    "official_validator": "not_available_in_this_worktree"
+  },
+  "development_accounting": {
+    "successful_canary_cost_usd": 0.0030620625,
+    "confirmed_full_plus_successful_canary_cost_usd": 0.6643305025,
+    "direct_chat_404_generation_count": 0,
+    "possible_orphaned_canary_batch_count": 1,
+    "possible_orphaned_canary_additional_cost_ceiling_usd": 0.1,
+    "audit_gap": "The first accepted asynchronous canary creation response was rejected locally because it contained error:null; its batch ID was not preserved and the job cannot be reconciled from the available API."
+  }
+}

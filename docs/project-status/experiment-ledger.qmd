@@ -161,7 +161,7 @@ link opens the visible theme record with the tested condition and limits.
 | [Speech](research-speech-transcripts.{{< meta report-ext >}}#current-working-answer) | Adds spoken words with explicit provenance | [Whisper ablation](research-speech-transcripts.{{< meta report-ext >}}#automatic-transcript-ablation) | **Use selectively:** accepted Whisper | **Blocked:** human tier; **Possible:** alternate ASR | [Selective Whisper route](research-speech-transcripts.{{< meta report-ext >}}#distribution-level-selective-whisper) |
 | [Native audio](research-native-audio.{{< meta report-ext >}}#current-working-answer) | Preserves prosody and non-speech sound | [Audio on/off](research-native-audio.{{< meta report-ext >}}#minicpm-audio-on-off) | **Do not default:** global audio on | **Possible:** routed sound/prosody | [Specialist panel](research-native-audio.{{< meta report-ext >}}#matched-native-audio-specialist-panel) |
 | [Models](research-models.{{< meta report-ext >}}#current-working-answer) | Separates compatibility, quality, and adaptation | [Candidate screens](research-models.{{< meta report-ext >}}#failure-panel) | **Use:** Qwen3.5-4B; **Fast:** MiniCPM-o | **Possible:** repaired/specialist model or adaptation | [Bottleneck-first decision](research-models.{{< meta report-ext >}}#bottleneck-first-adaptation-decision) |
-| [Routing](research-routing.{{< meta report-ext >}}#current-working-answer) | Chooses evidence and separates retrieval from answering | [Route seeds](research-routing.{{< meta report-ext >}}#taxonomy-audit) | **Use:** baseline fallback; router unvalidated | **Possible:** fusion and answer election | [Three-way measurement](research-routing.{{< meta report-ext >}}#required-evidence-labels-and-three-way-measurement) |
+| [Routing](research-routing.{{< meta report-ext >}}#current-working-answer) | Chooses evidence and separates retrieval from answering | [Route seeds](research-routing.{{< meta report-ext >}}#taxonomy-audit); [full MC V1/V2/V3 candidates](research-routing.{{< meta report-ext >}}#mc-direct-video-v2-v3-full) | **Use:** preserve three frozen, unscored MC candidates | **Possible:** grounded election and stronger agent | Organizer scoring of V1/V2/V3 |
 :::
 
 ## Experiment index
@@ -222,6 +222,8 @@ link opens the visible theme record with the tested condition and limits.
 - [Twenty-video direct-path and Borda diagnostic](research-routing.{{< meta report-ext >}}#mc-poc20)
 - [Two-stage adaptive-inspection diagnostic](research-routing.{{< meta report-ext >}}#mc-adaptive-poc20)
 - [Bounded single-model deliberative-agent diagnostic](research-routing.{{< meta report-ext >}}#mc-deliberative-poc20)
+- [Full fusion-rank-one text-to-options baseline](research-routing.{{< meta report-ext >}}#mc-text-rank1-full)
+- [Full direct-video V2/V3 candidates](research-routing.{{< meta report-ext >}}#mc-direct-video-v2-v3-full)
 
 </details>
 
@@ -275,6 +277,11 @@ a prescribed research sequence.
 6. **Routing, fusion, and answer election:** [measure retrieval, oracle-evidence
    answering, and end-to-end answering separately](research-routing.{{< meta report-ext >}}#required-evidence-labels-and-three-way-measurement), then test a fresh abstaining speech route and a [bounded multi-inspection evidence agent](research-routing.{{< meta report-ext >}}#bounded-multi-inspection-evidence-agent); [blind Borda](research-routing.{{< meta report-ext >}}#mc-poc20) and [one-window adaptive inspection](research-routing.{{< meta report-ext >}}#mc-adaptive-poc20) are not promoted.
    The [deterministic single-model deliberative loop](research-routing.{{< meta report-ext >}}#mc-deliberative-poc20) is also not promoted; its next valid form needs adversarial solver diversity and a challengeable stop decision on fresh data.
+   For the released 2026 MC set, preserve the completed [fusion-rank-one
+   text-to-options baseline](research-routing.{{< meta report-ext >}}#mc-text-rank1-full)
+   and the frozen [targeted V2 and full direct-video V3 candidates](research-routing.{{< meta report-ext >}}#mc-direct-video-v2-v3-full).
+   Hidden labels and organizer scoring are required before any is promoted on
+   quality.
 
 <span id="how-to-interpret-results" class="legacy-fragment-alias" aria-hidden="true"></span>
 

@@ -173,7 +173,7 @@ aria-label="Scrollable research theme status matrix" tabindex="0">
 | [Speech](research-speech-transcripts.md#current-working-answer) | Adds spoken words with explicit provenance | [Whisper ablation](research-speech-transcripts.md#automatic-transcript-ablation) | **Use selectively:** accepted Whisper | **Blocked:** human tier; **Possible:** alternate ASR | [Selective Whisper route](research-speech-transcripts.md#distribution-level-selective-whisper) |
 | [Native audio](research-native-audio.md#current-working-answer) | Preserves prosody and non-speech sound | [Audio on/off](research-native-audio.md#minicpm-audio-on-off) | **Do not default:** global audio on | **Possible:** routed sound/prosody | [Specialist panel](research-native-audio.md#matched-native-audio-specialist-panel) |
 | [Models](research-models.md#current-working-answer) | Separates compatibility, quality, and adaptation | [Candidate screens](research-models.md#failure-panel) | **Use:** Qwen3.5-4B; **Fast:** MiniCPM-o | **Possible:** repaired/specialist model or adaptation | [Bottleneck-first decision](research-models.md#bottleneck-first-adaptation-decision) |
-| [Routing](research-routing.md#current-working-answer) | Chooses evidence and separates retrieval from answering | [Route seeds](research-routing.md#taxonomy-audit) | **Use:** baseline fallback; router unvalidated | **Possible:** fusion and answer election | [Three-way measurement](research-routing.md#required-evidence-labels-and-three-way-measurement) |
+| [Routing](research-routing.md#current-working-answer) | Chooses evidence and separates retrieval from answering | [Route seeds](research-routing.md#taxonomy-audit); [full MC V1/V2/V3 candidates](research-routing.md#mc-direct-video-v2-v3-full) | **Use:** preserve three frozen, unscored MC candidates | **Possible:** grounded election and stronger agent | Organizer scoring of V1/V2/V3 |
 
 </div>
 
@@ -268,6 +268,10 @@ Expand named experiments by theme
   diagnostic](research-routing.md#mc-adaptive-poc20)
 - [Bounded single-model deliberative-agent
   diagnostic](research-routing.md#mc-deliberative-poc20)
+- [Full fusion-rank-one text-to-options
+  baseline](research-routing.md#mc-text-rank1-full)
+- [Full direct-video V2/V3
+  candidates](research-routing.md#mc-direct-video-v2-v3-full)
 
 </details>
 
@@ -349,7 +353,13 @@ reference, not a prescribed research sequence.
     The [deterministic single-model deliberative
     loop](research-routing.md#mc-deliberative-poc20) is also not
     promoted; its next valid form needs adversarial solver diversity and
-    a challengeable stop decision on fresh data.
+    a challengeable stop decision on fresh data. For the released 2026
+    MC set, preserve the completed [fusion-rank-one text-to-options
+    baseline](research-routing.md#mc-text-rank1-full) and the frozen
+    [targeted V2 and full direct-video V3
+    candidates](research-routing.md#mc-direct-video-v2-v3-full). Hidden
+    labels and organizer scoring are required before any is promoted on
+    quality.
 
 <span id="how-to-interpret-results" class="legacy-fragment-alias"
 aria-hidden="true"></span>

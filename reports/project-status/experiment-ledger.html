@@ -3429,10 +3429,10 @@ break-inside: avoid;
 <tr class="even">
 <td><a href="./research-routing.html#current-working-answer">Routing</a></td>
 <td>Chooses evidence and separates retrieval from answering</td>
-<td><a href="./research-routing.html#taxonomy-audit">Route seeds</a></td>
-<td><strong>Use:</strong> baseline fallback; router unvalidated</td>
-<td><strong>Possible:</strong> fusion and answer election</td>
-<td><a href="./research-routing.html#required-evidence-labels-and-three-way-measurement">Three-way measurement</a></td>
+<td><a href="./research-routing.html#taxonomy-audit">Route seeds</a>; <a href="./research-routing.html#mc-direct-video-v2-v3-full">full MC V1/V2/V3 candidates</a></td>
+<td><strong>Use:</strong> preserve three frozen, unscored MC candidates</td>
+<td><strong>Possible:</strong> grounded election and stronger agent</td>
+<td>Organizer scoring of V1/V2/V3</td>
 </tr>
 </tbody>
 </table>
@@ -3508,6 +3508,8 @@ Expand named experiments by theme
 <li><a href="./research-routing.html#mc-poc20">Twenty-video direct-path and Borda diagnostic</a></li>
 <li><a href="./research-routing.html#mc-adaptive-poc20">Two-stage adaptive-inspection diagnostic</a></li>
 <li><a href="./research-routing.html#mc-deliberative-poc20">Bounded single-model deliberative-agent diagnostic</a></li>
+<li><a href="./research-routing.html#mc-text-rank1-full">Full fusion-rank-one text-to-options baseline</a></li>
+<li><a href="./research-routing.html#mc-direct-video-v2-v3-full">Full direct-video V2/V3 candidates</a></li>
 </ul>
 </section></details>
 </section>
@@ -3541,7 +3543,7 @@ Expand named experiments by theme
 <li><strong>Human/reference transcript controls:</strong> <a href="./research-speech-transcripts.html#label-blind-human-transcript-upper-bound">produce an independently reviewed, label-blind upper bound</a>.</li>
 <li><strong>Routed native audio/sound:</strong> <a href="./research-native-audio.html#matched-native-audio-specialist-panel">test prosody and non-speech strata with abstention and matched controls</a>.</li>
 <li><strong>Repaired/specialist models or bottleneck-first adaptation:</strong> <a href="./research-models.html#repaired-complete-neutral-qwen3-omni-run">repair the strict Omni path</a>, or <a href="./research-models.html#bottleneck-first-adaptation-decision">measure the bottleneck before adapting</a>.</li>
-<li><strong>Routing, fusion, and answer election:</strong> <a href="./research-routing.html#required-evidence-labels-and-three-way-measurement">measure retrieval, oracle-evidence answering, and end-to-end answering separately</a>, then test a fresh abstaining speech route and a <a href="./research-routing.html#bounded-multi-inspection-evidence-agent">bounded multi-inspection evidence agent</a>; <a href="./research-routing.html#mc-poc20">blind Borda</a> and <a href="./research-routing.html#mc-adaptive-poc20">one-window adaptive inspection</a> are not promoted. The <a href="./research-routing.html#mc-deliberative-poc20">deterministic single-model deliberative loop</a> is also not promoted; its next valid form needs adversarial solver diversity and a challengeable stop decision on fresh data.</li>
+<li><strong>Routing, fusion, and answer election:</strong> <a href="./research-routing.html#required-evidence-labels-and-three-way-measurement">measure retrieval, oracle-evidence answering, and end-to-end answering separately</a>, then test a fresh abstaining speech route and a <a href="./research-routing.html#bounded-multi-inspection-evidence-agent">bounded multi-inspection evidence agent</a>; <a href="./research-routing.html#mc-poc20">blind Borda</a> and <a href="./research-routing.html#mc-adaptive-poc20">one-window adaptive inspection</a> are not promoted. The <a href="./research-routing.html#mc-deliberative-poc20">deterministic single-model deliberative loop</a> is also not promoted; its next valid form needs adversarial solver diversity and a challengeable stop decision on fresh data. For the released 2026 MC set, preserve the completed <a href="./research-routing.html#mc-text-rank1-full">fusion-rank-one text-to-options baseline</a> and the frozen <a href="./research-routing.html#mc-direct-video-v2-v3-full">targeted V2 and full direct-video V3 candidates</a>. Hidden labels and organizer scoring are required before any is promoted on quality.</li>
 </ol>
 <p><span id="how-to-interpret-results" class="legacy-fragment-alias" aria-hidden="true"></span></p>
 </section>

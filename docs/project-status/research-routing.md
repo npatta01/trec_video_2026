@@ -60,7 +60,23 @@ and make stopping a claim that another pass can challenge. A
 mandatory-inspection four-option replacement is implemented but has not
 run: its strict provider-maximum, all-recovery reservation was
 `$69.95165137`, so the approved `$1.50` gate blocked inference before
-video upload.
+video upload. For the released 2026 MC questions, which match the AG
+questions by `Q_ID`, a separate text-only baseline now maps the frozen
+fusion rank-one answer to the released options. It completed all 2,443
+rows for `$0.66126844` with no new video call. Treat it as an
+operational submission baseline, not a quality promotion, because hidden
+MC labels are unavailable. A ranking-blind text audit then found that
+the submitted Top-1 is the closest option on 2,382/2,443 rows, but only
+1,625 rows are both closest and textually supported by the frozen AG
+answer. Keep the immutable submission as V1. A shared full direct-video
+pass now yields V2 with 805 fresh rankings on the 818-row queue and V3
+with 2,424 fresh rankings across the panel; explicit V1 fallback covers
+unavailable media and invalid outputs. A bounded recovery later obtained
+valid direct rankings for seven of nine invalid rows. V2b now has
+808/818 direct weak-queue rows and V3b has 2,431/2,443 direct rows; the
+remaining twelve V3b fallbacks are ten unavailable videos and two
+persistent no-video-token failures. All candidates remain unscored
+rather than a quality ordering.
 
 <div class="theme-decision-strip" aria-label="Routing decisions">
 
@@ -78,8 +94,11 @@ video upload.
   selector/evidence recall, oracle-evidence answering, and end-to-end
   answering separately. For MC, test a full-video evidence ledger plus
   up to two distinct local inspections and final arbitration against the
-  unchanged Gemini control, but first force genuine hypothesis diversity
-  and an adversarial stop review on a fresh label-isolated panel.
+  unchanged Gemini control, prioritizing the 11 audit rows where a
+  supported blind-best option differs from the submitted Top-1, then the
+  807 rows with only partial or no option support. Force genuine
+  hypothesis diversity and an adversarial stop review on a fresh
+  label-isolated panel.
 
 </div>
 
@@ -112,6 +131,20 @@ video upload.
   output maximum; reserving it for all 560 possible calls cost
   `$69.95165137` versus the authorized `$1.50`. No media upload or
   generation occurred.
+- **Full text-only MC baseline:** the released question, frozen
+  `g37_q36_fusion` rank-one answer, and all released options were sent
+  through discounted Gemini batch inference. All 2,443 exact-option
+  rankings completed for `$0.66126844`; no hidden labels were available,
+  so this establishes completion, format, provenance, and cost rather
+  than accuracy.
+- **Blind option-support audit:** all 2,443 rows were audited without
+  exposing the existing ranking. The submitted Top-1 belonged to the
+  blind-best option set on 2,382 rows (97.50%), while 1,625 (66.52%)
+  were also exact/paraphrastically supported. The private review queue
+  contains 818 rows and cost `$1.03602844`; no video or hidden label
+  entered the audit. The blind-best set had multiple members on 172
+  rows, so the rate is set membership rather than necessarily
+  unique-choice agreement.
 - **Condition boundary:** an unvalidated router does not imply routing,
   fusion, or answer election cannot help under a controlled test.
 
@@ -530,6 +563,97 @@ and the [dated evidence record · Evidence report ·
 GitHub](https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/2026-08-21-vqa-mc-poc20.md#four-option-agent-preflight).
 </details>
 
+<a name="mc-text-rank1-full"></a>
+
+### Full fusion-rank-one text-to-options baseline
+
+- **Reason for testing:** exploit the identity of the 2026 AG and MC
+  question sets by reusing the already-generated fusion answer instead
+  of paying to understand every video again.
+- **Tested condition and panel:** all 2,443 released Task 2 rows. Gemini
+  received only the question, the frozen `g37_q36_fusion` rank-one
+  answer, and every released option; it returned a full option-ID
+  permutation through OpenRouter’s discounted asynchronous batch API.
+- **Observed result:** 2,443/2,443 valid rankings, 245/245 completed
+  batch requests, zero video calls, and reported full-run cost
+  `$0.66126844`. A separate ranking-blind audit cost `$1.03602844`:
+  2,382 submitted Top-1 choices belonged to the blind-best option set,
+  1,625 were additionally supported, and 818 entered the private review
+  queue.
+- **Current condition-bound status:** **Valid operational completion and
+  an unscored submission baseline.** No quality promotion is possible
+  before hidden-label evaluation.
+- **What this rules out now:** claims that a first MC baseline requires
+  another full video pass or a costly multi-agent controller.
+- **What it does not rule out:** direct option-conditioned video
+  inference outperforming answer conversion, especially where the AG
+  answer is vague or wrong.
+- **Possible defect, audit gap, or uncertainty:** the independent
+  exact-option audit passed, but the official organizer validator is
+  unavailable locally. The blind audit establishes textual
+  representability rather than video truth; its 818 flags require
+  targeted video or hidden-label evaluation. One early accepted canary
+  job lost its batch ID before the parser defect was corrected, so up to
+  `$0.10` of additional development cost is unreconciled.
+- **Reconsider when:** organizer validation or official scoring becomes
+  available, or a matched direct-video run provides a quality
+  comparison.
+
+<details>
+
+<summary>
+
+Method, result, validity risks, and evidence
+</summary>
+
+The host reconstructed answers only from exact released Task 2 option
+strings. The final submission SHA-256 is
+`3dcd6cd75e97a13da0ccdf209bb6612a335ec43dc54f1c194a2145b9dfcb47ca`. The
+live batch rate was `$0.1875/M` input and `$0.9375/M` output; the run
+used 464,890 prompt and 612,375 completion tokens including reasoning.
+See the [aggregate evidence
+record](../experiments/artifacts/vqa-mc-poc20-20260821/text-rank1-full-summary.json)
+and the [blind-audit
+aggregate](../experiments/artifacts/vqa-mc-poc20-20260821/text-rank1-blind-audit-summary.json),
+plus the [dated evidence
+record](../experiments/2026-08-21-vqa-mc-poc20.qmd#text-rank1-full-baseline).
+</details>
+
+### Full direct-video V2/V3 candidates
+
+- **Reason for testing:** compare inexpensive Task 1 answer conversion
+  with a targeted video repair and a complete option-conditioned video
+  pass.
+- **Tested condition and panel:** all 2,443 Task 2 rows; Gemini 3.7
+  Flash saw complete native audio-video, question, and released options
+  at 4 FPS, low media resolution, and high thinking. V1 answers and
+  rankings were excluded.
+- **Observed result:** 2,424 valid fresh rankings, 10 unavailable-media
+  rows, and 9 invalid provider outputs. V2 uses 805 fresh rankings on
+  the frozen 818-row queue; V3 uses all 2,424. V1 supplies every
+  declared fallback. The shared full batch cost `$12.28247138`;
+  including the canary, observed spend was `$12.40184251`.
+- **Current condition-bound status:** **Operationally valid and frozen;
+  unscored.** Exact-option, rank, identity, response-uniqueness, usage,
+  hash, and fallback audits passed.
+- **What this rules out now:** needing separate paid full runs to
+  construct V2 and V3, or silently dropping rows when video inference
+  fails.
+- **What it does not rule out:** V1 outperforming either video
+  candidate, or a future agent improving on all three.
+- **Possible defect, audit gap, or uncertainty:** no hidden labels or
+  organizer validator are available. The full batch exceeded its
+  `$12.00` estimate/cap by `$0.28247138`; no retry was launched.
+- **Reconsider when:** organizer validation and scoring can compare
+  V1/V2/V3.
+
+See the [sanitized
+aggregate](../experiments/artifacts/vqa-mc-poc20-20260821/gemini-direct-v2-v3-full-summary.json)
+and [retry
+aggregate](../experiments/artifacts/vqa-mc-poc20-20260821/gemini-direct-retry-summary.json),
+plus the [dated evidence
+record](../experiments/2026-08-21-vqa-mc-poc20.qmd#direct-video-v2-v3-full).
+
 ## Known failures and cases
 
 - [CASE-001 — Later-span answer selection](failure-library.md#case-001)
@@ -616,6 +740,10 @@ class="legacy-fragment-alias" aria-hidden="true"></span>
 - **Audit boundary:** the four-option agent has verified local contracts
   and a live cost preflight but no media observations, predictions, or
   accuracy result because its formal ceiling exceeded authorization.
+- **Uncertainty:** the full fusion-rank-one text-to-options run is
+  format- and provenance-valid but unscored; hidden labels are required
+  to distinguish a useful semantic selector from confident propagation
+  of an incorrect AG answer.
 
 ## Open hypotheses and ideas
 

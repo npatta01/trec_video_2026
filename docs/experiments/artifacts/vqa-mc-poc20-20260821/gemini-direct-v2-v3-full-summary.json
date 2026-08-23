@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "date": "2026-08-22",
+  "status": "complete_unscored",
+  "model": "gemini-3.7-flash",
+  "protocol": {
+    "input": "complete native audio-video plus released question and options",
+    "fps": 4,
+    "media_resolution": "low",
+    "thinking_level": "high",
+    "output": "complete permutation of released option IDs",
+    "task1_answer_excluded": true,
+    "hidden_labels_excluded": true
+  },
+  "rows": {
+    "total": 2443,
+    "direct_valid": 2424,
+    "media_unavailable": 10,
+    "provider_output_invalid": 9
+  },
+  "v2": {
+    "definition": "V1 except fresh direct-video rankings on the frozen 818-row review queue",
+    "direct_rows": 805,
+    "v1_fallback_rows": 1638,
+    "top1_changes_from_v1": 213,
+    "full_ranking_changes_from_v1": 670,
+    "sha256": "b8f0dadb1db330762f943e735ae6785ccea6dee47199167572cad66eb099a4d2"
+  },
+  "v3": {
+    "definition": "fresh direct-video rankings on every valid row, with V1 fallback",
+    "direct_rows": 2424,
+    "v1_fallback_rows": 19,
+    "top1_changes_from_v1": 338,
+    "full_ranking_changes_from_v1": 1944,
+    "sha256": "28b18d2b02c214de077df1d8cdba73340b254df879de855ea7e202d514e97253"
+  },
+  "fallback_detail": {
+    "weak_queue": {
+      "direct_valid": 805,
+      "media_unavailable": 8,
+      "provider_output_invalid": 5
+    },
+    "all_rows": {
+      "media_unavailable": 10,
+      "empty_provider_response": 8,
+      "invalid_option_permutation": 1
+    }
+  },
+  "usage": {
+    "prompt_tokens": 24959902,
+    "billed_output_tokens_including_reasoning": 1558671,
+    "full_batch_cost_usd": 12.28247138,
+    "canary_cost_usd": 0.11937113,
+    "combined_cost_usd": 12.40184251,
+    "authorized_full_batch_cap_usd": 12.0,
+    "cap_variance_usd": 0.28247138,
+    "additional_retry_cost_usd": 0
+  },
+  "integrity": {
+    "task2_rows_and_order": "pass",
+    "exact_released_options_once_per_row": "pass",
+    "consecutive_ranks": "pass",
+    "fallback_contract": "pass",
+    "unique_direct_response_ids": "pass",
+    "immutable_freeze_resume": "pass",
+    "usage_complete": true,
+    "v1_unchanged_sha256": "3dcd6cd75e97a13da0ccdf209bb6612a335ec43dc54f1c194a2145b9dfcb47ca",
+    "predictions_freeze_sha256": "2fdf351e7d96292e1304e4103a44c2df56fed4b547ce277b5db2ea3b40a3eef6"
+  },
+  "validity": "Operationally valid, label-blind submission candidates; no accuracy or quality claim is supported until organizer scoring."
+}

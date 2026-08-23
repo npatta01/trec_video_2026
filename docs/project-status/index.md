@@ -72,6 +72,30 @@ accepted Whisper for spoken-word questions
 
 <div class="decision-item">
 
+**MC submission baseline**
+
+fusion rank-one answer → discounted text-only Gemini option ranking
+
+</div>
+
+<div class="decision-item">
+
+**MC review queue**
+
+818 blind-audit flags → frozen V2 targeted-video candidate
+
+</div>
+
+<div class="decision-item">
+
+**MC direct-video candidate**
+
+2,424 fresh rankings + 19 explicit V1 fallbacks → frozen V3
+
+</div>
+
+<div class="decision-item">
+
 **Still testing**
 
 category-routed native audio and repaired Qwen3-Omni
@@ -121,6 +145,26 @@ failure occurs across the benchmark.
   quality passes. No versioned evaluated router exists yet.
 - **Prosody or non-speech candidate:** test native audio as a specialist
   branch, never as a global switch on the current evidence.
+- **Multiple-choice operational baseline:** reuse the submitted fusion
+  rank-one answer and rank all released options with discounted
+  text-only Gemini. The full 2,443-row run completed for `$0.66126844`
+  with no new video calls. It is unscored and therefore establishes
+  format, provenance, and cost, not hidden-test quality. A separate
+  ranking-blind text audit agreed with the submitted Top-1 on
+  2,382/2,443 rows, but only 1,625 rows were both closest and
+  exact/paraphrastically supported; use its 818-row private queue for
+  targeted video review. The audit did not use video or hidden labels
+  and therefore does not measure accuracy. That follow-up is now frozen
+  as V2 (805 direct rows on the 818-row queue) and V3 (2,424 direct rows
+  over the full panel), with explicit V1 fallback elsewhere or on
+  terminal failures. Both exact-option audits pass, but neither can be
+  called better before organizer scoring. The shared full batch cost
+  `$12.28247138`, `$0.28247138` above its `$12.00` cap. A later bounded
+  `$0.05033026` recovery produced valid direct rankings for seven of
+  nine invalid outputs. Final V2b has 808/818 direct weak-queue rows;
+  final V3b has 2,431/2,443 direct rows and twelve explicit fallbacks.
+  The two persistent failures returned no video tokens across three
+  representations; further paid retries stopped.
 
 The matched [frozen-30 protocol-v2 report · Evidence of record ·
 Evidence report ·
