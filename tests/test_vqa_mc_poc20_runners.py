@@ -248,7 +248,7 @@ def test_qwen_dstack_config_is_immutable_durable_and_within_budget() -> None:
     assert "--max-model-len 32768" in text
     assert "--media-io-kwargs '{\"video\": {\"backend\": \"pyav\"}}'" in text
     assert (
-        "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/"
+        "hf://buckets/Npatta01/trec_video_2026/experiments/"
         "qwen36-27b-vqa-mc-poc20-20260821-a2" in text
     )
     assert "vqa2025-mc-poc20-20260821-a1/media" in text
