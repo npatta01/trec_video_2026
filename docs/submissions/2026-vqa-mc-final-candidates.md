@@ -46,6 +46,9 @@ That row therefore retains V1's text-derived ranking.
 - **Task:** TRECVID 2026 Video Question Answering, Multiple Choice
 - **State:** Three upload artifacts prepared and locally validated; **not yet
   uploaded to Evalbase**
+- **Submission window:** Opens 11 September 2026; closes 18 September 2026
+- **Portal check:** Signed-in Evalbase showed “submissions not open” on 23
+  August 2026
 - **Official allowance:** At most five runs per registered team
 - **Selected runs:** Three
 - **Submission rows:** 2,443/2,443 official Task 2 queries in every run

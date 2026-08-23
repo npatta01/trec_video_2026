@@ -45,3 +45,7 @@ copy-paste Evalbase descriptions.
 These files are locally validated but have not yet received organizer-side
 validation. Historical V2/V3 and byte-identical V2c/V3c files are intentionally
 not packaged as separate runs.
+
+The Evalbase Multiple-Choice submission window opens 11 September 2026 and
+closes 18 September 2026. The portal correctly showed submissions as closed
+when checked on 23 August.

@@ -4,6 +4,26 @@
 responses carried `Date: Fri, 21 Aug 2026 09:51:45 GMT`). Sources below are
 official NIST/TRECVID pages or NIST-hosted data files.
 
+## Resolution update — 23 August 2026
+
+The official 2026 Task 1 and Task 2 files are now available in this repository
+under `datasets/trecvid-2026/vqa/`.
+
+Direct comparison confirms:
+
+- both files contain 2,443 rows;
+- `Q_ID` values and row order are identical;
+- `Video_ID` is identical for every row;
+- 2,423 question strings are byte-identical;
+- the remaining 20 differ only by leading or trailing whitespace; and
+- Task 2 adds the released options, with 4 to 11 options per question.
+
+The Multiple-Choice Evalbase submission window opens **11 September 2026** and
+closes **18 September 2026**.
+
+The signed-in Evalbase task page was checked on 23 August and correctly showed
+“Multiple Choice Task (submissions not open).”
+
 ## Answers
 
 1. **Same videos: yes.** The TRECVID 2026 VQA guidelines say explicitly:
@@ -11,26 +31,15 @@ official NIST/TRECVID pages or NIST-hosted data files.
    tasks have different submission deadlines, but the video collection is
    shared.
 
-2. **Question identity: not fully specified for 2026.** The published 2026
-   schemas make MC a question record with answer options: AG topics contain
-   `Q_ID`, `Video_ID`, and `Question`; MC topics contain those same fields plus
-   four `Options`. The page's examples use the same example question/video
-   records and add options, so **“same question records plus options” is the
-   best-supported interpretation**. However, NIST only guarantees the shared
-   *videos* in prose; it does not state that the 2026 AG and MC question text
-   or Q_ID set is byte-identical. That exact claim remains unverified until
-   the MC file can be read.
+2. **Question identity: verified.** Direct comparison of the released 2026
+   files confirms identical `Q_ID`, order, and `Video_ID` for all 2,443 rows.
+   The question text is byte-identical for 2,423 rows; the other 20 differ only
+   by leading or trailing whitespace. Task 2 adds the released `Options`.
 
-   As a historical format check (not proof about the unreleased 2026 file),
-   NIST's public 2025 AG and MC files show the pattern directly: the first AG
-   rows contain `Q_ID, Video_ID, Question`, while the corresponding MC rows
-   contain those fields followed by four choices. The 2025 readme describes
-   the MC file as `QueryID, youTube video ID, question, choice 1, ... choice
-   4`.
-
-3. **The Aug 21 date is officially scheduled, but public availability is not
-   verified.** NIST's tentative schedule says “21 Aug — VQA: Testing data
-   available for multiple choice (MC) task.” At the snapshot time:
+3. **At the original Aug. 21 snapshot, public availability was not yet
+   verified.** NIST's tentative schedule said “21 Aug — VQA: Testing data
+   available for multiple choice (MC) task.” At 05:51 America/New_York that
+   morning:
 
    - the public 2026 VQA page listed the training data and the **2025** test
      data, but no live 2026 MC download;
@@ -41,12 +50,9 @@ official NIST/TRECVID pages or NIST-hosted data files.
    - an unauthenticated `HEAD` request to that official endpoint returned
      `401 Unauthorized` with `WWW-Authenticate: Basic realm="trec2026"`.
 
-   Therefore, the defensible status is **scheduled for today, but not
-   publicly accessible/confirmed from the public NIST pages**. It may be
-   available to an authenticated active participant, but that cannot be
-   distinguished from “not yet posted” without authorized credentials. The
-   direct endpoint above should not be treated as a confirmed 2026 file: in
-   the public 2026 markup it is commented out and follows the 2025-era path.
+   That was a time-bounded observation, not the final release state. The Aug.
+   23 comparison above confirms that the released files were subsequently
+   obtained and validated.
 
 ## Official sources
 
