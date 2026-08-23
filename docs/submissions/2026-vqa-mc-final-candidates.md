@@ -3,15 +3,24 @@
 ## Purpose and task context
 
 This document is the complete handoff record for three candidate submissions
-to the **TRECVID 2026 Video Question Answering Multiple-Choice task**. It
-explains what each run does, which files to upload, how unavailable videos are
-handled, and what still needs to happen on submission day.
+to the **TRECVID 2026 Video Question Answering Multiple-Choice task**.
 
-The released Multiple-Choice task contains the same 2,443 questions and videos
-as the earlier Answer Generation task, but adds between 4 and 11 answer options
-to every question. In Answer Generation, a system writes an answer in its own
-words. In Multiple Choice, a submission must rank all released options; the
-first-ranked option is the system's selected answer.
+It explains what each run does.
+
+It identifies the exact files to upload.
+
+It also explains unavailable videos, fallbacks, and the remaining submission
+steps.
+
+The Multiple-Choice task contains the same 2,443 questions and videos as the
+earlier Answer Generation task.
+
+It adds between 4 and 11 answer options to every question.
+
+In Answer Generation, a system writes an answer in its own words.
+
+In Multiple Choice, a submission ranks all released options. The first-ranked
+option is the system's selected answer.
 
 The three runs deliberately test increasingly expensive ways to use the prior
 Answer Generation work:
@@ -22,10 +31,15 @@ Answer Generation work:
    judged uncertain.** It keeps V1 for the other questions.
 3. **V3 rereads the video for every question whose video can be processed.**
 
-In this document, **direct video** or **native audio-video** means that Gemini
-receives the complete video with its audio, the question, and every released
-option. A **V1 fallback** means that direct video could not produce a valid
-ranking, so the final file retains V1's text-derived ranking for that row.
+**Direct video** or **native audio-video** means that Gemini receives:
+
+- the complete video and its audio;
+- the question; and
+- every released option.
+
+A **V1 fallback** means that direct video could not produce a valid ranking.
+
+That row therefore retains V1's text-derived ranking.
 
 ## Current state
 
@@ -47,16 +61,35 @@ Evalbase returns a successful server-side validation result.
 
 ## Approaches at a glance
 
-| Run | How the option ranking is produced | Video processed again? | Direct-video rows | V1 fallback rows |
-|---|---|---:|---:|---:|
-| `g37q36_mc_text` (V1) | Gemini maps the prior rank-one free-text answer to all released options | No | 0 | Not applicable |
-| `g37_mc_target` (V2b) | V1 for most rows; Gemini ranks options from video on a frozen 818-row uncertainty queue | Only for the 818 queued rows | 808 | 10 |
-| `g37_mc_direct` (V3b) | Gemini ranks options directly from video for every processable row | Yes | 2,431 | 12 |
+### V1 — `g37q36_mc_text`
+
+- **Approach:** Map the prior rank-one free-text answer to all released options.
+- **Video processed again:** No.
+- **Direct-video rows:** 0.
+- **Fallback rows:** Not applicable.
+
+### V2b — `g37_mc_target`
+
+- **Approach:** Keep V1 except on a frozen 818-row uncertainty queue.
+- **Video processed again:** Only for those 818 rows.
+- **Direct-video rows:** 808.
+- **V1 fallback rows:** 10.
+
+### V3b — `g37_mc_direct`
+
+- **Approach:** Rank options directly from video for every processable row.
+- **Video processed again:** Yes.
+- **Direct-video rows:** 2,431.
+- **V1 fallback rows:** 12.
 
 These are complementary submissions, not successive versions of one upload.
+
 V1 measures how far the existing Answer Generation answer can carry the MC
-task. V2 spends video inference only where the text evidence is weak. V3 is the
-full direct-video comparison.
+task.
+
+V2 spends video inference only where the text evidence is weak.
+
+V3 is the full direct-video comparison.
 
 ## Files to upload
 
@@ -70,9 +103,12 @@ full direct-video comparison.
 - [`g37_mc_target/submission.json`](../../submissions/trecvid-2026/vqa-mc/g37_mc_target/submission.json)
 - [`g37_mc_direct/submission.json`](../../submissions/trecvid-2026/vqa-mc/g37_mc_direct/submission.json)
 
-The names V2b and V3b identify the repaired final artifacts. Do not upload the
-earlier V2/V3 working files as additional runs. Later V2c/V3c checks produced
-files that are byte-identical to V2b/V3b, so they are not distinct submissions.
+The names V2b and V3b identify the repaired final artifacts.
+
+Do not upload the earlier V2/V3 working files as additional runs.
+
+Later V2c/V3c checks produced files that are byte-identical to V2b/V3b. They are
+not distinct submissions.
 
 ## Detailed approach descriptions
 
@@ -80,79 +116,124 @@ files that are byte-identical to V2b/V3b, so they are not distinct submissions.
 
 #### How it works
 
-For each of the 2,443 questions, V1 starts with the rank-one free-text answer
-from the previously submitted `g37_q36_fusion` Answer Generation run. That
-source run fused answers from Gemini 3.7 Flash native audio-video inference and
-Qwen3.6 inference. A text-only Gemini 3.7 Flash call receives:
+For each question, V1 starts with the rank-one free-text answer from the
+previously submitted `g37_q36_fusion` Answer Generation run.
+
+That source run fused answers from Gemini 3.7 Flash native audio-video
+inference and Qwen3.6 inference.
+
+A text-only Gemini 3.7 Flash call receives:
 
 - the released question;
 - that existing rank-one free-text answer; and
 - every released multiple-choice option.
 
-Gemini then ranks only the released options from best to worst. It cannot
-invent a new answer for the submission, and it does not receive the video in
-this MC conversion step.
+Gemini ranks only the released options from best to worst.
+
+It cannot invent a new answer for the submission.
+
+It does not receive the video in this MC conversion step.
 
 #### Coverage and limitation
 
-All 2,443 rows receive a ranking, so V1 has no media-unavailable gap during the
-MC stage. Its main limitation is that it depends on the earlier free-text
-answer. If that answer is wrong, incomplete, or not well represented by the
-options, text-only matching cannot recover the missing video evidence.
+- **Rows ranked:** 2,443/2,443.
+- **Video-related fallback gap:** None during the MC stage.
+- **Main limitation:** V1 depends on the earlier free-text answer.
+
+If that answer is wrong, incomplete, or poorly represented by the options,
+text-only matching cannot recover the missing video evidence.
 
 ### `g37_mc_target` — V2b targeted video
 
 #### How it works
 
-V2 begins with the complete V1 submission. Before any direct-video replacement,
-a separate text-only audit examined the question, the prior free-text answer,
-and the released options without seeing V1's current ranking. It placed 818
-rows in a frozen review queue when the prior answer was only partially
-represented, unsupported by the options, ambiguous between options, or
-otherwise required video review. No evaluation labels or reference answers
-were used to create this queue.
+V2 begins with the complete V1 submission.
+
+Before any direct-video replacement, a separate text-only audit examines:
+
+- the question;
+- the prior free-text answer; and
+- every released option.
+
+The audit does not see V1's current ranking.
+
+It places 818 rows in a frozen review queue because the prior answer is only
+partially represented, unsupported by the options, ambiguous between options,
+or otherwise requires video review.
+
+No evaluation labels or reference answers were used to create this queue.
 
 For those 818 rows only, Gemini 3.7 Flash receives the complete native
-audio-video, the question, and all options. The video condition uses 4 FPS,
-low media resolution, and high reasoning effort. A valid direct-video ranking
-replaces V1 on that row. The other 1,625 rows remain exactly as V1 ranked them.
+audio-video, the question, and all options.
+
+The video condition uses:
+
+- 4 FPS;
+- low media resolution; and
+- high reasoning effort.
+
+A valid direct-video ranking replaces V1 on that row.
+
+The other 1,625 rows remain exactly as V1 ranked them.
 
 #### Coverage and limitation
 
-Gemini produced 808 valid direct-video rankings for the 818 queued rows. Ten
-queued rows retain V1: eight had unavailable videos and two repeatedly
-produced invalid provider responses. V2 is cheaper than processing every
-video, but its quality depends on the text-only audit correctly identifying
-which rows need another video pass.
+- **Queued rows:** 818.
+- **Valid direct-video rankings:** 808.
+- **V1 fallbacks:** 10.
+  - 8 unavailable videos.
+  - 2 persistent invalid provider responses.
+- **Main limitation:** The text-only audit must correctly identify which rows
+  need another video pass.
+
+V2 is cheaper than processing every video.
 
 ### `g37_mc_direct` — V3b full video
 
 #### How it works
 
-V3 does not use the text audit to decide when to inspect video. For every one
-of the 2,443 questions, Gemini 3.7 Flash is asked to rank all released options
-from the complete native audio-video, the question, and the choices. It uses
-the same 4 FPS, low-resolution, high-reasoning condition as V2.
+V3 does not use the text audit to decide when to inspect video.
+
+For every question, Gemini 3.7 Flash is asked to rank all released options from:
+
+- the complete native audio-video;
+- the question; and
+- every released option.
+
+It uses the same 4 FPS, low-resolution, high-reasoning condition as V2.
 
 #### Coverage and limitation
 
-Gemini produced 2,431 valid direct-video rankings. Twelve rows retain V1:
-ten videos were unavailable and two rows repeatedly produced invalid provider
-responses. V3 uses the most direct evidence and provides the cleanest
-comparison with V1, but it is the most expensive of the three approaches.
+- **Questions:** 2,443.
+- **Valid direct-video rankings:** 2,431.
+- **V1 fallbacks:** 12.
+  - 10 unavailable videos.
+  - 2 persistent invalid provider responses.
+- **Main limitation:** This is the most expensive of the three approaches.
+
+V3 uses the most direct evidence and provides the cleanest comparison with V1.
 
 ## Retry and fallback handling
 
 In the full-video V3 run, nine direct-video calls initially returned invalid
-outputs. A bounded retry with a fresh upload recovered six. The final three
-videos were normalized to H.264/AAC MP4 and tried once more. One additional
-call recovered, but its ranking exactly matched the existing V1 ranking. Q_IDs
-310 and 1563 still returned no candidates and counted no video tokens, so
-further paid retries stopped and those rows retained V1.
+outputs.
 
-V2 has only eight unavailable-video fallbacks because two of the ten
-unavailable videos were outside its 818-row queue. V3 attempts every row, so
-all ten unavailable videos appear in its fallback count.
+- A bounded retry with a fresh upload recovered 6.
+- The final 3 videos were normalized to H.264/AAC MP4 and tried once more.
+- One additional call recovered, but its ranking matched the existing V1
+  ranking exactly.
+- Q_IDs 310 and 1563 still returned no candidates and counted no video tokens.
+
+Further paid retries stopped for Q_IDs 310 and 1563.
+
+Those rows retained V1.
+
+V2 has only 8 unavailable-video fallbacks.
+
+The other 2 unavailable videos were outside its 818-row queue.
+
+V3 attempts every row, so all 10 unavailable videos appear in its fallback
+count.
 
 ## Exact local validation
 
