@@ -2,9 +2,9 @@
 set -euo pipefail
 
 readonly EXPECTED_RUN_ID="vqa-silver-oracle-election-20260809-b4"
-readonly EXPECTED_MEDIA_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/artifacts/vqa2025-training-media-475-20260809-a1/media"
-readonly EXPECTED_CONTROLLER_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-silver-oracle-election-20260809-b4/input-controller"
-readonly EXPECTED_OUTPUT_BASE="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-silver-oracle-election-20260809-b4"
+readonly EXPECTED_MEDIA_URI="hf://buckets/Npatta01/trec_video_2026/artifacts/vqa2025-training-media-475-20260809-a1/media"
+readonly EXPECTED_CONTROLLER_URI="hf://buckets/Npatta01/trec_video_2026/experiments/vqa-silver-oracle-election-20260809-b4/input-controller"
+readonly EXPECTED_OUTPUT_BASE="hf://buckets/Npatta01/trec_video_2026/experiments/vqa-silver-oracle-election-20260809-b4"
 readonly EXPECTED_RUNTIME_IMAGE="docker.io/qwenllm/qwen3-omni@sha256:71896cf6533abc610ac298f26289ff3a4ea4bd1fc835f370ece9e5c31e3181d8"
 readonly EXPECTED_MODEL_ID="Qwen/Qwen3-Omni-30B-A3B-Thinking"
 readonly EXPECTED_MODEL_REVISION="2f443cfc4c54b14a815c0e2bb9a9d6cbcd9a748b"

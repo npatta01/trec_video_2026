@@ -382,7 +382,7 @@ allocation, and no central reserve was used.
 ### Expanded-12 c1 durable evidence
 
 - Sanitized failure audit:
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-expanded12-canary-20260730-c1/audit/`
+  `hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-expanded12-canary-20260730-c1/audit/`
 - Audit `SHA256SUMS` file SHA-256:
   `ffea773f734a18df126e79051c54d9374806ae0306f7fdc26e6881ca9a3dc76b`
 - Exact pinned model:
@@ -571,27 +571,27 @@ recorded `$0.5781`, cumulative model-track spend is `$0.9972`, within the
 original `$8` base allocation. No central reserve was used.
 
 - Canary outputs:
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-expanded12-canary-20260731-d1/outputs/`
+  `hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-expanded12-canary-20260731-d1/outputs/`
 - Canary output `SHA256SUMS` file SHA-256:
   `783d560383b1c37bf14a43b30166961b2a44820fbf33c393b2ff3c6950c696b4`
 - Canary frozen predictions SHA-256:
   `05b27ce9715fdec33881edae4f06dadc7f321aa0e9972edc47fd28932e4072c2`
 - Canary audit:
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-expanded12-canary-20260731-d1/audit/`
+  `hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-expanded12-canary-20260731-d1/audit/`
 - Canary audit `SHA256SUMS` file SHA-256:
   `5503ba4d5a061e98cd08c1b020596d1171c8bae18523d8e0ac261779fa9f562c`
 - Pilot inputs:
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-expanded12-20260731-d1/inputs/`
+  `hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-expanded12-20260731-d1/inputs/`
 - Pilot outputs:
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-expanded12-20260731-d1/outputs/`
+  `hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-expanded12-20260731-d1/outputs/`
 - Pilot output `SHA256SUMS` file SHA-256:
   `9f260cde1f8b76abab6a84a4b7efb05307646ef5ef1c44a562355b114f1931e1`
 - Pilot audit:
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-expanded12-20260731-d1/audit/`
+  `hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-expanded12-20260731-d1/audit/`
 - Pilot audit `SHA256SUMS` file SHA-256:
   `86212a78623fb9505d4692006a944a9de3e13e00e09ffa0b08415d8cde922e8a`
 - Private blind-grading bundle:
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-expanded12-20260731-d1/grading/`
+  `hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-expanded12-20260731-d1/grading/`
 - Grading `SHA256SUMS` file SHA-256:
   `8ec50caad3049b6b4f87dbbd67df4a5766c935ce650e8f88e033e59721c97319`
 
@@ -685,27 +685,27 @@ spend, cumulative model-track spend is `$0.5781`, within the original `$8`
 base allocation. No central reserve was used.
 
 - Sentinel outputs:
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-codec-sentinel-20260730-b1/outputs/`
+  `hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-codec-sentinel-20260730-b1/outputs/`
 - Sentinel output `SHA256SUMS` file SHA-256:
   `20f9ad00517c797d50b1a6e5788e9035fbb3290ca11fd10c5d5de3a52fee79cf`
 - Sentinel frozen predictions SHA-256:
   `118c6212142aa714d6f3cc9b7cea4b7222b1355a52ae06a60189936b3527cc2b`
 - Sentinel audit:
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-codec-sentinel-20260730-b1/audit/`
+  `hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-codec-sentinel-20260730-b1/audit/`
 - Sentinel audit `SHA256SUMS` file SHA-256:
   `7d08d7d5fac4aa9b4788aeb24f4e1f012a2e50bf60a6b31dee4e8a51202bb77a`
 - Pilot outputs:
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-pilot-20260730-b1/outputs/`
+  `hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-pilot-20260730-b1/outputs/`
 - Pilot output `SHA256SUMS` file SHA-256:
   `61069ca2f9565a5fb70bf792d1ab482f203c7cacb28ada6aff2c4bb3d68e2108`
 - Pilot frozen predictions SHA-256:
   `13caa9add0351f31168bc06a48a4ca582f4d96378d324ce0b3feb6ec14961ae6`
 - Pilot audit:
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-pilot-20260730-b1/audit/`
+  `hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-pilot-20260730-b1/audit/`
 - Pilot audit `SHA256SUMS` file SHA-256:
   `8d382e7d8584928f6ea539392aae6dc5bd635dcc66002e7f4ae858db0ce79653`
 - Private blind-grading bundle:
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-pilot-20260730-b1/grading/`
+  `hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-pilot-20260730-b1/grading/`
 - Grading `SHA256SUMS` file SHA-256:
   `dfc414ee68868aa819b7b75eda5c93ad13543f65a9c3bef412dcaef33f4a1909`
 
@@ -831,13 +831,13 @@ Actual GPU spend was `$0.1213 + $0.1222 = $0.2435`, within the `$8` base
 allocation. No central reserve was used.
 
 - Canary URI:
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-runner-canary-20260730-a2/outputs/`
+  `hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-runner-canary-20260730-a2/outputs/`
 - Canary remote `SHA256SUMS` file SHA-256:
   `0990e5e0f017b75ad9efac6e4705e1d6b17381ca5eca244fdb489b5db716a179`
 - Canary frozen predictions SHA-256:
   `c52c4c4e60a60e0482b1708052403893f7a766d34d979ad0dd96932a0de5dc31`
 - Pilot URI:
-  `hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-pilot-20260730-a1/outputs/`
+  `hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-pilot-20260730-a1/outputs/`
 - Pilot remote `SHA256SUMS` file SHA-256:
   `41dfff5ff5ddd6b763003357006e4359dc21450c791d24e05141643e113d29e8`
 - Pilot frozen partial predictions SHA-256:

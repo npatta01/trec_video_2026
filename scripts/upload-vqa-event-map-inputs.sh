@@ -2,7 +2,7 @@
 set -euo pipefail
 
 readonly EXPECTED_DATA_TARGET="/home/npatta01/data/competitions/trec_video_2026/data"
-readonly EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-event-map-inputs-20260809-a3/inputs"
+readonly EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_video_2026/experiments/vqa-event-map-inputs-20260809-a3/inputs"
 readonly PYTHON_BIN="/usr/bin/python3"
 readonly UV_VERSION="0.11.3"
 readonly HF_CLI_VERSION="1.24.0"

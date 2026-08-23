@@ -8,8 +8,8 @@ working_dir: /dstack/run
 
 env:
   - HF_TOKEN=${{ secrets.hf_token }}
-  - HF_INPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-frozen30-20260801-a1/inputs
-  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/qwen35-4b-cuda-canary-20260803-c2
+  - HF_INPUT_URI=hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-frozen30-20260801-a1/inputs
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_video_2026/experiments/qwen35-4b-cuda-canary-20260803-c2
   - EXPERIMENT_RUN_NAME=qwen35-4b-cuda-canary-20260803-c2
   - VQA_RUNTIME_IMAGE=docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
   - HF_HUB_DISABLE_TELEMETRY=1

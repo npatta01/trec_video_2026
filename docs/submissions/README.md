@@ -23,8 +23,8 @@ result. Local validation alone does not change a run to submitted.
 All four Answer Generation runs are submitted and organizer-validated. PR
 [#43](https://github.com/npatta01/trec_video_2026/pull/43) is the integration
 record for the deadline Qwen3.6, Gemini 3.7 Flash, fusion, rescue, grouped
-rewrite, validation, and submission work. The selected integration method is a
-squash merge.
+rewrite, validation, and submission work. It was integrated through merge
+commit `215060ae06eeb0f00f611807b65aace35de92f82`.
 
 The experiment records intentionally retain historical executed-source commit
 hashes from PR #43. Those hashes identify the code that actually produced
@@ -36,3 +36,7 @@ run records remain the upload identities.
 Nonessential refactoring, retirement of deadline-only runners/configurations,
 and unrelated repository-wide test-environment repairs are follow-up work and
 are not part of the submission closure gate.
+
+See [post-deadline maintenance](2026-vqa-post-deadline-maintenance.md) for the
+immutable upload boundary, retained reproducibility tooling, test-health
+context, and the checklist for any later archival cleanup.

@@ -13,7 +13,7 @@ env:
   - EXPERIMENT_MODE=dev
   - EXPERIMENT_RUN_ID=vqa-event-map-dev-a1
   - EVENT_MAP_CONDITIONS=v-map,av-map
-  - HF_INPUT_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/vqa-event-map-inputs-20260809-a3/inputs
+  - HF_INPUT_URI=hf://buckets/Npatta01/trec_video_2026/experiments/vqa-event-map-inputs-20260809-a3/inputs
   - RUNTIME_IMAGE=docker.io/vllm/vllm-openai:v0.20.0@sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc
   - RUNTIME_IMAGE_DIGEST=sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc
   - MODEL_ID=nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4

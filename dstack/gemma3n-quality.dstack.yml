@@ -13,7 +13,7 @@ env:
   - PYTHONPATH=/dstack/run/src
   - MODEL_KEY=gemma3n
   - EXPERIMENT_RUN_ID=gemma3n-cuda-quality-3-20260724-a2
-  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/gemma3n-cuda-quality-3-20260724-a2
+  - HF_REMOTE_URI=hf://buckets/Npatta01/trec_video_2026/experiments/gemma3n-cuda-quality-3-20260724-a2
   - RUNTIME_IMAGE=docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
   - RUNTIME_IMAGE_DIGEST=sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
   - MODEL_ID=google/gemma-3n-E4B-it

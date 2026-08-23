@@ -110,7 +110,7 @@ def test_runner_validate_executes_without_network_or_secret_output(
     _duration: str,
 ) -> None:
     remote = (
-        "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/"
+        "hf://buckets/Npatta01/trec_video_2026/experiments/"
         f"{run_id}"
     )
     env = {
@@ -128,7 +128,7 @@ def test_runner_validate_executes_without_network_or_secret_output(
     if "frozen30" in run_id:
         env["SOURCE_SHA256"] = SOURCE_SHA256
         env["HF_INPUT_URI"] = (
-            "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/"
+            "hf://buckets/Npatta01/trec_video_2026/experiments/"
             "timelens2-three-condition-frozen30-20260801-a1/input"
         )
     completed = subprocess.run(

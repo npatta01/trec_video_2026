@@ -47,11 +47,11 @@ validate_identity() {
     frozen30-paired:nemotron3-omni-frozen30-20260801-a1) ;;
     *) die "unexpected immutable mode/run identity" ;;
   esac
-  [[ "$HF_REMOTE_URI" == "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/$EXPERIMENT_RUN_ID" ]] \
+  [[ "$HF_REMOTE_URI" == "hf://buckets/Npatta01/trec_video_2026/experiments/$EXPERIMENT_RUN_ID" ]] \
     || die "unexpected remote URI"
   case "$EXPERIMENT_RUN_ID" in
     nemotron3-omni-codec-sentinel-20260730-b1|nemotron3-omni-pilot-20260730-b1)
-      [[ "$HF_INPUT_URI" == "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-pilot-20260730-b1" ]] \
+      [[ "$HF_INPUT_URI" == "hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-pilot-20260730-b1" ]] \
         || die "unexpected input URI"
       ;;
     *)

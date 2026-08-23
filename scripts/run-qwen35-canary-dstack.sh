@@ -2,8 +2,8 @@
 set -euo pipefail
 
 readonly EXPECTED_RUN_NAME="qwen35-4b-cuda-canary-20260803-c2"
-readonly EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/nemotron3-omni-frozen30-20260801-a1/inputs"
-readonly EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/$EXPECTED_RUN_NAME"
+readonly EXPECTED_INPUT_URI="hf://buckets/Npatta01/trec_video_2026/experiments/nemotron3-omni-frozen30-20260801-a1/inputs"
+readonly EXPECTED_REMOTE_URI="hf://buckets/Npatta01/trec_video_2026/experiments/$EXPECTED_RUN_NAME"
 readonly EXPECTED_RUNTIME_IMAGE="docker.io/pytorch/pytorch@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755"
 readonly MODEL_ID="Qwen/Qwen3.5-4B"
 readonly MODEL_REVISION="851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"

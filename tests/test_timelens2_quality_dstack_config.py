@@ -14,7 +14,7 @@ SELECTOR_REVISION = "90dd30b3eeff3520a30c830eff2209f4ad788ca9"
 ANSWER_REVISION = "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
 SOURCE_SHA256 = "d2cfec431652bcf7c6c83be59a4932fc0ed75016d6a3dc973e49cebdd9ed0241"
 REMOTE = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/experiments/"
+    "hf://buckets/Npatta01/trec_video_2026/experiments/"
     f"{RUN_ID}"
 )
 

@@ -32,7 +32,7 @@ ARCHIVE_NAME = "evidence.tar"
 MANIFEST_NAME = "manifest.json"
 HEX_DIGITS = frozenset("0123456789abcdef")
 REUSED_ARCHIVE_URI = (
-    "hf://buckets/Npatta01/trec_mlm_2026/trec_video_2026/inputs/"
+    "hf://buckets/Npatta01/trec_video_2026/inputs/"
     "qwen3-omni-frozen30-audio-20260731-a4/evidence.tar"
 )
 REUSED_ARCHIVE_SIZE = 318177280
