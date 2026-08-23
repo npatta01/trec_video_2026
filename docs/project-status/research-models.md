@@ -75,6 +75,10 @@ specialist role.
   Qwen and MiniCPM roles on labeled 2025 training data.
 - **Selected diagnostics:** Qwen3.6, Phi, Gemma, and Omni screens do not
   rank their families globally.
+- **Multiple-choice diagnostic:** the selected 20-row MC screen places
+  Gemini native AV ahead of both Qwen3.6 views and blind fusion, but is
+  not a representative promotion benchmark; see the [routing-owned
+  claim](research-routing.md#mc-poc20).
 - **Completed Omni result:** A4 produced `60/60` eligible outputs;
   frames-only failed the 4B general-model gate, while audio-on showed
   target gains but one control `C→W` regression.

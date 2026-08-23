@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "date": "2026-08-23",
+  "status": "complete_unscored",
+  "parent": {
+    "invalid_provider_outputs": 9,
+    "unavailable_media": 10,
+    "submission_v2_sha256": "b8f0dadb1db330762f943e735ae6785ccea6dee47199167572cad66eb099a4d2",
+    "submission_v3_sha256": "28b18d2b02c214de077df1d8cdba73340b254df879de855ea7e202d514e97253"
+  },
+  "first_retry": {
+    "requested": 9,
+    "fresh_video_uploads": 9,
+    "valid_rankings": 6,
+    "empty_responses": 3,
+    "cost_usd": 0.04640888
+  },
+  "normalized_mp4_retry": {
+    "requested": 3,
+    "representation": "H.264/AAC MP4",
+    "valid_rankings": 1,
+    "empty_responses": 2,
+    "cost_usd": 0.00392138,
+    "submission_bytes_changed": false
+  },
+  "final": {
+    "valid_direct_rankings": 2431,
+    "persistent_invalid_query_count": 2,
+    "persistent_invalid_query_ids": [310, 1563],
+    "unavailable_media": 10,
+    "v3_fallback_count": 12,
+    "v2_weak_queue_direct_count": 808,
+    "v2_weak_queue_fallback_count": 10,
+    "submission_v2b_sha256": "e7bcf6fa2c766b4633b1d2abb7058919dd8e736aba88ca161eb9056d5f17afaf",
+    "submission_v3b_sha256": "02d80093d19b051ce1c85ada5f5c571addffe09b7922056917900f6ee91f3faf",
+    "v2b_equals_v2c_byte_for_byte": true,
+    "v3b_equals_v3c_byte_for_byte": true
+  },
+  "submission_changes_from_parent": {
+    "v2_top1": 1,
+    "v2_full_ranking": 2,
+    "v3_top1": 2,
+    "v3_full_ranking": 5
+  },
+  "cost": {
+    "repair_total_usd": 0.05033026,
+    "repair_cap_usd": 0.25,
+    "project_total_including_full_run_and_canary_usd": 12.45217277
+  },
+  "interpretation": "Seven of nine provider-output failures yielded valid rankings after retry. Two rows returned no candidates and counted no video tokens across the original call, a fresh upload, and normalized MP4 input; further blind retries were stopped. Hidden labels remain unavailable."
+}

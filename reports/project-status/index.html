@@ -6427,6 +6427,18 @@ break-inside: avoid;
 <p>accepted Whisper for spoken-word questions</p>
 </div>
 <div class="decision-item">
+<p><strong>MC submission baseline</strong></p>
+<p>fusion rank-one answer → discounted text-only Gemini option ranking</p>
+</div>
+<div class="decision-item">
+<p><strong>MC review queue</strong></p>
+<p>818 blind-audit flags → frozen V2 targeted-video candidate</p>
+</div>
+<div class="decision-item">
+<p><strong>MC direct-video candidate</strong></p>
+<p>2,424 fresh rankings + 19 explicit V1 fallbacks → frozen V3</p>
+</div>
+<div class="decision-item">
 <p><strong>Still testing</strong></p>
 <p>category-routed native audio and repaired Qwen3-Omni</p>
 </div>
@@ -6452,6 +6464,7 @@ break-inside: avoid;
 <li><strong>Fast alternate:</strong> MiniCPM-o 4.5 with native audio disabled. It had the best <strong>METEOR</strong> (a token-overlap score that gives partial credit for aligned words and some linguistic variants) and fastest measured outer wall in the matched frozen-30 run.</li>
 <li><strong>Lexical-speech route:</strong> add Whisper large-v3 only when a label-blind router classifies the question as spoken-word evidence and transcript quality passes. No versioned evaluated router exists yet.</li>
 <li><strong>Prosody or non-speech candidate:</strong> test native audio as a specialist branch, never as a global switch on the current evidence.</li>
+<li><strong>Multiple-choice operational baseline:</strong> reuse the submitted fusion rank-one answer and rank all released options with discounted text-only Gemini. The full 2,443-row run completed for <code>$0.66126844</code> with no new video calls. It is unscored and therefore establishes format, provenance, and cost, not hidden-test quality. A separate ranking-blind text audit agreed with the submitted Top-1 on 2,382/2,443 rows, but only 1,625 rows were both closest and exact/paraphrastically supported; use its 818-row private queue for targeted video review. The audit did not use video or hidden labels and therefore does not measure accuracy. That follow-up is now frozen as V2 (805 direct rows on the 818-row queue) and V3 (2,424 direct rows over the full panel), with explicit V1 fallback elsewhere or on terminal failures. Both exact-option audits pass, but neither can be called better before organizer scoring. The shared full batch cost <code>$12.28247138</code>, <code>$0.28247138</code> above its <code>$12.00</code> cap. A later bounded <code>$0.05033026</code> recovery produced valid direct rankings for seven of nine invalid outputs. Final V2b has 808/818 direct weak-queue rows; final V3b has 2,431/2,443 direct rows and twelve explicit fallbacks. The two persistent failures returned no video tokens across three representations; further paid retries stopped.</li>
 </ul>
 <p>The matched <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md">frozen-30 protocol-v2 report · Evidence of record · Evidence report · GitHub</a> is the strongest current global comparison. A <strong>protocol version</strong> is the named, fixed revision of the rules, inputs, and scoring used for a run. The later <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/oracle_transcript_diagnostic_issue_7.md">automatic-transcript ablation · Evidence of record · Evidence report · GitHub</a> strengthens the lexical-speech route, while the <a href="https://github.com/npatta01/trec_video_2026/blob/814e55429f6dd1dc8570bc08f1dad849f74e36a1/reports/trecvid_vqa_2026/failure_panel_qwen36_audio_results_2026-07-24.md">failure-selected audio panel · Evidence of record · Evidence report · GitHub</a> shows why native audio remains a specialist. A <strong>panel</strong> is the declared set of examples in a comparison; a <strong>stratum</strong> is a predeclared subgroup, such as lexical speech, within that panel. These GitHub links require repository access until public release.</p>
 <p>For a file-level view of the sanitized dated records behind these decisions, use the <a href="https://github.com/npatta01/trec_video_2026/blob/6f0ade9741fc4220f4712ebf80eda22ba7d4fa21/docs/experiments/README.md">experiment evidence index</a>. The project-status pages remain the source for current decisions and next tests.</p>

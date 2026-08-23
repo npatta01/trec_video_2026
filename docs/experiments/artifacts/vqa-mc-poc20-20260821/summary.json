@@ -1,0 +1,52 @@
+{
+  "schema_version": "vqa-mc-poc20-aggregate-v1",
+  "date": "2026-08-21",
+  "panel": {
+    "data_split": "VQA-2025 training",
+    "row_count": 20,
+    "strata": {
+      "causal": 4,
+      "counting": 4,
+      "ocr_detail": 4,
+      "speech": 4,
+      "temporal": 4
+    }
+  },
+  "metrics": {
+    "equal_family_borda": {"mrr": 0.7958333333333334, "top1_correct": 13, "top1_accuracy": 0.65, "valid_count": 20},
+    "gemini": {"mrr": 0.8666666666666668, "top1_correct": 15, "top1_accuracy": 0.75, "valid_count": 20},
+    "qwen_dual_view": {"mrr": 0.7333333333333335, "top1_correct": 12, "top1_accuracy": 0.6, "valid_count": 20},
+    "qwen_native_video": {"mrr": 0.7000000000000001, "top1_correct": 11, "top1_accuracy": 0.55, "valid_count": 20},
+    "qwen_video_plus_transcript": {"mrr": 0.7750000000000001, "top1_correct": 13, "top1_accuracy": 0.65, "valid_count": 20}
+  },
+  "qwen_view_top1_agreement": {"comparable_count": 20, "agreement_count": 18, "rate": 0.9},
+  "completion": {
+    "gemini_recovery": {"request_count": 20, "valid_count": 20},
+    "qwen_successful_task": {"request_count": 54, "valid_count": 54}
+  },
+  "cost_usd": {
+    "gemini_recovery_observed": 0.02831925,
+    "qwen_failed_task": 0.259,
+    "qwen_successful_task": 0.5223,
+    "observed_minimum_total": 0.80961925,
+    "conservative_total_with_failed_gemini_preflight_ceiling": 1.05888025,
+    "authorized_cap": 2.15
+  },
+  "models": {
+    "gemini": "gemini-3.7-flash",
+    "qwen": "Qwen/Qwen3.6-27B@6a9e13bd6fc8f0983b9b99948120bc37f49c13e9",
+    "qwen_runtime_digest": "sha256:77797441eae630c2e79eefa03957b3d61a278670f2a9928d64ce102e7a0790cc"
+  },
+  "dstack": {
+    "failed_task_id": "120ad606-5455-4e52-998f-32b3624856d5",
+    "successful_task_id": "42bc0ad3-a0ab-49e3-b0d3-b47ccf05aae3",
+    "successful_task_exit_status": 0
+  },
+  "private_evidence_sha256": {
+    "input_manifest": "8f0df9e5dd5ab69f8306936ee6220cab1b5dad14d14853ad1a8f71aea01b0a95",
+    "gemini_predictions": "8531f5cef881707701094892f783203c2ed40cab095ea0a5accf2d54f5f4a8a1",
+    "qwen_predictions": "6db56960a9288e344a72a68ad6b6eb68da2838be9cd5beda4c7b4a2e4b493052",
+    "final_score": "56f6e178fa00c7ed7c907327aedc596dcda72a1fe9e6bcaf896a3372be1dff91"
+  },
+  "privacy": "aggregate-only; no questions, choices, transcripts, labels, row predictions, media, or remote artifact locators"
+}

@@ -44,6 +44,10 @@ repeat its conclusions.
 - **2026-08-01 — [TimeLens2 three-condition frozen-30](2026-08-01-timelens2-three-condition-frozen30.md)** · Selector quality-gate record · [Visual and temporal evidence](../project-status/research-visual-evidence.md#current-working-answer)
 - **Issue 8 — [Question-directed temporal sampling](temporal-sampling-issue-8.md)** · Temporal sampling diagnostic; date not recorded in the source · [Visual and temporal evidence](../project-status/research-visual-evidence.md#directed-temporal-sampling)
 
+### Routing, fusion, and answer selection
+
+- **2026-08-21/22 — [Twenty-video multiple-choice native-AV, fusion, and evidence-agent diagnostic](2026-08-21-vqa-mc-poc20.md)** · Direct-path, blind-fusion, one-shot adaptive-inspection, and bounded deliberative-agent diagnostic · [Routing, fusion, and answer selection](../project-status/research-routing.md#mc-poc20) · [QMD source](2026-08-21-vqa-mc-poc20.qmd)
+
 ## Supporting score artifacts
 
 These JSON files preserve machine-readable scoring and gate summaries. They are
@@ -55,3 +59,6 @@ not independent claims or promotion decisions.
 | [`qwen3-omni-frozen30-a4-score.json`](artifacts/qwen3-omni-frozen30-a4-score.json) | [Qwen3-Omni frozen-30 A4 result](2026-07-31-qwen3-omni-frozen30.md) |
 | [`qwen3-omni-quality-10-neutral-a2-score.json`](artifacts/qwen3-omni-quality-10-neutral-a2-score.json) | [Qwen3-Omni quality-10 neutral A2 result](2026-07-25-qwen3-omni-quality-10-neutral-a2.md) |
 | [`qwen3-omni-quality-10-score.json`](artifacts/qwen3-omni-quality-10-score.json) | [Qwen3-Omni native-audio benchmark](2026-07-25-qwen3-omni-quality-10.md) |
+| [`vqa-mc-poc20-20260821/summary.json`](artifacts/vqa-mc-poc20-20260821/summary.json) | [Twenty-video multiple-choice native-AV, fusion, and adaptive-inspection diagnostic](2026-08-21-vqa-mc-poc20.md) |
+| [`vqa-mc-poc20-20260821/adaptive-agent-summary.json`](artifacts/vqa-mc-poc20-20260821/adaptive-agent-summary.json) | [Two-stage adaptive-inspection follow-up](2026-08-21-vqa-mc-poc20.md#two-stage-adaptive-inspection-follow-up) |
+| [`vqa-mc-poc20-20260821/deliberative-agent-summary.json`](artifacts/vqa-mc-poc20-20260821/deliberative-agent-summary.json) | [Bounded deliberative-agent follow-up](2026-08-21-vqa-mc-poc20.md#deliberative-agent-poc20) |
