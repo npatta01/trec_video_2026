@@ -6,7 +6,8 @@ Task 2 query file.
 - [`task2-diff-summary.json`](task2-diff-summary.json) records the organizer
   file delta without copying row text or answer options.
 - [`run-summary.json`](run-summary.json) records coverage, fallbacks, hashes,
-  disagreement counts, and cost evidence for the three refreshed candidates.
+  disagreement counts, cost evidence, and the pinned organizer-validator result
+  for the three refreshed candidates.
 
 Private prompts, provider responses, row-level predictions, audit decisions,
 and media remain under the ignored `data/` tree. The three complete candidate

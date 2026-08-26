@@ -21,6 +21,10 @@ uses consecutive ranks, and contains every exact revised option once. The
 revised option distribution is 472 four-option rows and 1,971 eight-option
 rows.
 
+All three also pass NIST's published `validate_vqa_mc_2026.py` at commit
+`acb28557f74e9e5a90cce79bfdc66df84af80a9b` with
+`--warnings-as-errors`: zero errors, zero warnings, and `STATUS: VALID`.
+
 V2's 12 queue fallbacks comprise eight unavailable-media rows and four invalid
 provider outputs. V3's 20 fallbacks comprise ten unavailable-media rows and ten
 invalid provider outputs. All fallbacks use the newly generated revised V1;

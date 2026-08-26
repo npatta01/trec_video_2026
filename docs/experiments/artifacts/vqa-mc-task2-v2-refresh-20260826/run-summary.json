@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "complete_locally_validated_not_uploaded",
+  "status": "complete_organizer_script_validated_not_uploaded",
   "task2": {
     "path": "datasets/trecvid-2026/vqa/task2/vqa.2026.testingDataset.Task2_v2.json",
     "sha256": "12042650e1bee6842543b39204fc483d6e46669a861b351435b6ececa3d1aabc",
@@ -8,6 +8,35 @@
     "option_count_distribution": {
       "4": 472,
       "8": 1971
+    }
+  },
+  "organizer_validator": {
+    "repository": "https://github.com/gawad-nist/VQA",
+    "path": "validate_vqa_mc_2026.py",
+    "commit": "acb28557f74e9e5a90cce79bfdc66df84af80a9b",
+    "git_blob_sha": "d2f806089240dd3f200a3981e918179b50908d0d",
+    "sha256": "174c8f3beda59e0c3af84b17a274792d91f424e35391940afdeb919585092df5",
+    "strict_flag": "--warnings-as-errors",
+    "validated_at": "2026-08-26",
+    "runs": {
+      "g37q36_mc_text": {
+        "exit_code": 0,
+        "errors": 0,
+        "warnings": 0,
+        "status": "VALID"
+      },
+      "g37_mc_target": {
+        "exit_code": 0,
+        "errors": 0,
+        "warnings": 0,
+        "status": "VALID"
+      },
+      "g37_mc_direct": {
+        "exit_code": 0,
+        "errors": 0,
+        "warnings": 0,
+        "status": "VALID"
+      }
     }
   },
   "v1_text": {

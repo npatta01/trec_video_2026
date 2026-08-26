@@ -324,8 +324,10 @@ submission SHA-256 is
 This is **valid operational evidence and an unscored submission baseline**. It
 does not establish answer quality, Top-1 accuracy, or MRR because hidden Task 2
 labels were unavailable. The official organizer validator is also not present
-in this worktree, so organizer-format acceptance remains pending even though
-the independent exact-option audit passed.
+in this worktree at the time of that first-release run, so organizer-format
+acceptance remained pending even though the independent exact-option audit
+passed. That artifact is now superseded; the organizer-validator result in the
+revised Task 2 section below applies only to the replacement files.
 
 One development audit gap remains. The first asynchronous canary job was
 accepted, but the local parser incorrectly rejected its successful creation
@@ -498,6 +500,11 @@ the revised V3 SHA-256 is
 `0048a2ae9212f21974335f2d50173a1605e2a45b7e69dd029e701e01304f3198`.
 All three files independently validate every exact revised option exactly once
 with consecutive ranks over 472 four-option and 1,971 eight-option rows.
+They also pass NIST's published `validate_vqa_mc_2026.py` at commit
+`acb28557f74e9e5a90cce79bfdc66df84af80a9b` under
+`--warnings-as-errors`: each returns exit code 0, zero errors, zero warnings,
+and `STATUS: VALID`. This local organizer-script result does not establish
+Evalbase acceptance.
 Compared with V1, V2 changes 229 Top-1 choices and 654 complete rankings; V3
 changes 363 Top-1 choices and 1,976 complete rankings. These remain label-blind
 disagreement counts, not accuracy evidence.

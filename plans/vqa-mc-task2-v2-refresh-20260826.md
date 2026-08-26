@@ -103,6 +103,9 @@ any old prediction.
 - [x] Final repeat-freeze reproduced byte-identical hashes; QMD regeneration,
   Ruff, JSON/link/privacy checks, `git diff --check`, and the 48-test focused
   regression suite all passed.
+- [x] All three candidates passed NIST's published MC validator at commit
+  `acb28557f74e9e5a90cce79bfdc66df84af80a9b` under
+  `--warnings-as-errors`: exit 0, zero errors, zero warnings, and `VALID`.
 
 ## Next action
 

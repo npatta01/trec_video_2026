@@ -2,7 +2,7 @@
 
 ## Current state
 
-- **State:** three replacement candidates prepared and locally validated;
+- **State:** three replacement candidates pass the pinned organizer validator;
   **not uploaded to Evalbase**.
 - **Organizer input:**
   `vqa.2026.testingDataset.Task2_v2.json`, SHA-256
@@ -10,6 +10,8 @@
 - **Coverage:** 2,443/2,443 rows in every run.
 - **Validation:** exact revised `Q_ID`, `Video_ID`, row order, option strings,
   complete consecutive ranks, and option multiplicity.
+- **Organizer validator:** all three returned exit code 0, `VALID`, zero errors,
+  and zero warnings under `--warnings-as-errors`.
 - **First-release artifacts:** the old query JSON is removed; the old candidate
   bundle remains only for audit and is explicitly superseded.
 
@@ -88,10 +90,16 @@ No paid retry or second full Batch was launched.
 
 ## Validation and interpretation
 
-All three files independently pass the exact revised-release validator. The
-revised distribution is 472 four-option rows and 1,971 eight-option rows.
-Repeated direct freeze is immutable, and every normal provider response ID is
-unique; the single provider error is bound by its unique request metadata.
+All three files independently pass the exact revised-release validator. They
+also pass NIST's published
+[`validate_vqa_mc_2026.py`](https://github.com/gawad-nist/VQA/blob/acb28557f74e9e5a90cce79bfdc66df84af80a9b/validate_vqa_mc_2026.py)
+at commit `acb28557f74e9e5a90cce79bfdc66df84af80a9b` with
+`--warnings-as-errors`: each reports 2,443 submitted items, 2,443 unique
+Q_IDs, zero errors, zero warnings, and `STATUS: VALID`. This is a local run of
+the organizer's script, not an Evalbase acceptance result. The revised
+distribution is 472 four-option rows and 1,971 eight-option rows. Repeated
+direct freeze is immutable, and every normal provider response ID is unique;
+the single provider error is bound by its unique request metadata.
 
 Compared with V1, V2 changes 229 Top-1 choices and 654 complete rankings; V3
 changes 363 Top-1 choices and 1,976 complete rankings. These are disagreement
