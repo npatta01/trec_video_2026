@@ -74,7 +74,7 @@ accepted Whisper for spoken-word questions
 
 **MC submission baseline**
 
-fusion rank-one answer → discounted text-only Gemini option ranking
+frozen fusion rank-one answer → fresh revised-option Gemini ranking
 
 </div>
 
@@ -82,7 +82,7 @@ fusion rank-one answer → discounted text-only Gemini option ranking
 
 **MC review queue**
 
-818 blind-audit flags → frozen V2 targeted-video candidate
+798 revised blind-audit flags → frozen V2 targeted-video candidate
 
 </div>
 
@@ -90,7 +90,8 @@ fusion rank-one answer → discounted text-only Gemini option ranking
 
 **MC direct-video candidate**
 
-2,424 fresh rankings + 19 explicit V1 fallbacks → frozen V3
+2,423 fresh revised rankings + 20 explicit fresh-V1 fallbacks → frozen
+V3
 
 </div>
 

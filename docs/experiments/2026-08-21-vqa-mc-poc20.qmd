@@ -11,14 +11,15 @@ Evidence validity: **Verified for completed-run contract validity and
 frozen-panel scoring; verified preflight only for the four-option agent;
 diagnostic for model promotion and routing; valid for textual option
 representability and selector consistency only for the full blind audit;
-operationally verified but unscored for the full V2/V3 direct-video run**
+operationally verified but unscored for the full V2/V3 direct-video run and
+the later revised-Task-2 full refresh**
 
 Decision disposition: **Not promoted under the tested condition for blind
 fusion, a Qwen submission, one-shot adaptive inspection, or deterministic
 single-model deliberation; the four-option agent was not launched under its
 authorized cost contract; Gemini remains the provisional full-panel control;
-preserve the text-only MC baseline plus two frozen direct-video candidates;
-compare V1/V2/V3 only after organizer scoring**
+supersede the first-release candidates with the three freshly regenerated
+revised-Task-2 candidates; compare V1/V2/V3 only after organizer scoring**
 
 ## Completed evidence record
 
@@ -323,8 +324,10 @@ submission SHA-256 is
 This is **valid operational evidence and an unscored submission baseline**. It
 does not establish answer quality, Top-1 accuracy, or MRR because hidden Task 2
 labels were unavailable. The official organizer validator is also not present
-in this worktree, so organizer-format acceptance remains pending even though
-the independent exact-option audit passed.
+in this worktree at the time of that first-release run, so organizer-format
+acceptance remained pending even though the independent exact-option audit
+passed. That artifact is now superseded; the organizer-validator result in the
+revised Task 2 section below applies only to the replacement files.
 
 One development audit gap remains. The first asynchronous canary job was
 accepted, but the local parser incorrectly rejected its successful creation
@@ -455,6 +458,59 @@ V3b SHA-256 is
 `02d80093d19b051ce1c85ada5f5c571addffe09b7922056917900f6ee91f3faf`.
 These remain label-blind candidates, not evidence of higher accuracy. See the
 [`sanitized retry aggregate`](artifacts/vqa-mc-poc20-20260821/gemini-direct-retry-summary.json).
+
+## Revised Task 2 full refresh {#vqa-mc-task2-v2-refresh}
+
+On 2026-08-25, NIST released
+`vqa.2026.testingDataset.Task2_v2.json` and instructed teams to ignore the
+first Task 2 query file. The revised release retains all 2,443 questions and
+video identities but changes 2,435 option arrays: 1,166 exact option sets are
+shuffled, 1,250 differ only after punctuation/format normalization, and 19
+change option membership. Because the organizer explicitly superseded the
+first file, the replacement treatment used fresh inference rather than
+remapping any prior MC ranking.
+
+All three stages were regenerated against revised-file SHA-256
+`12042650e1bee6842543b39204fc483d6e46669a861b351435b6ececa3d1aabc`:
+
+- **V1 text selector:** 2,443/2,443 fresh rankings for `$0.64891763`, plus a
+  `$0.00076819` canary. Submission SHA-256 is
+  `14822f18a86aab72b766a0ca3a936194a0338ac3b6278ded536bda8a95c1f6fd`.
+- **Blind audit:** 2,443/2,443 revised rows for `$1.00464169`, plus a
+  `$0.00139275` canary. It froze a new 798-row review queue, SHA-256
+  `a82ae414e6fe28dc3a9542d4a0d2464ab4c2df2bafacb24a89dc9a5fb723ba93`.
+- **Shared direct video:** the two-row canary cost `$0.03732337`. The sole full
+  Batch returned all 2,433 expected processable-row responses. It yielded
+  2,423 valid fresh direct rankings; ten media-unavailable and ten
+  provider-invalid rows retained the fresh revised V1. V2 uses 786 direct
+  rankings on its 798-row queue; V3 uses all 2,423 valid direct rankings.
+
+One full-Batch response reported a provider internal error without usage
+metadata. The other 2,432 responses account for 24,942,588 prompt tokens,
+1,574,390 billed output tokens including reasoning, and `$12.30545175`. Thus
+accounted cumulative refresh spend including canaries is `$13.99849538`. The
+missing-usage response prevents calling that a complete provider-observed
+total, but both the accounted value and the predeclared `$5 + $5 + $15` stage
+ceilings remain inside the user's `$25` authorization. No paid retry or second
+full Batch was launched.
+
+The revised V2 SHA-256 is
+`da513f71d843d2af288cfd78b49d2c64491c6c3e038f7a859f0530856cf8ebbe`;
+the revised V3 SHA-256 is
+`0048a2ae9212f21974335f2d50173a1605e2a45b7e69dd029e701e01304f3198`.
+All three files independently validate every exact revised option exactly once
+with consecutive ranks over 472 four-option and 1,971 eight-option rows.
+They also pass NIST's published `validate_vqa_mc_2026.py` at commit
+`acb28557f74e9e5a90cce79bfdc66df84af80a9b` under
+`--warnings-as-errors`: each returns exit code 0, zero errors, zero warnings,
+and `STATUS: VALID`. This local organizer-script result does not establish
+Evalbase acceptance.
+Compared with V1, V2 changes 229 Top-1 choices and 654 complete rankings; V3
+changes 363 Top-1 choices and 1,976 complete rankings. These remain label-blind
+disagreement counts, not accuracy evidence.
+
+The compact evidence record is
+[`vqa-mc-task2-v2-refresh-20260826/`](artifacts/vqa-mc-task2-v2-refresh-20260826/README.md).
 
 ## Stratum result
 

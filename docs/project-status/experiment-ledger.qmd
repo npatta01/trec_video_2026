@@ -161,7 +161,7 @@ link opens the visible theme record with the tested condition and limits.
 | [Speech](research-speech-transcripts.{{< meta report-ext >}}#current-working-answer) | Adds spoken words with explicit provenance | [Whisper ablation](research-speech-transcripts.{{< meta report-ext >}}#automatic-transcript-ablation) | **Use selectively:** accepted Whisper | **Blocked:** human tier; **Possible:** alternate ASR | [Selective Whisper route](research-speech-transcripts.{{< meta report-ext >}}#distribution-level-selective-whisper) |
 | [Native audio](research-native-audio.{{< meta report-ext >}}#current-working-answer) | Preserves prosody and non-speech sound | [Audio on/off](research-native-audio.{{< meta report-ext >}}#minicpm-audio-on-off) | **Do not default:** global audio on | **Possible:** routed sound/prosody | [Specialist panel](research-native-audio.{{< meta report-ext >}}#matched-native-audio-specialist-panel) |
 | [Models](research-models.{{< meta report-ext >}}#current-working-answer) | Separates compatibility, quality, and adaptation | [Candidate screens](research-models.{{< meta report-ext >}}#failure-panel) | **Use:** Qwen3.5-4B; **Fast:** MiniCPM-o | **Possible:** repaired/specialist model or adaptation | [Bottleneck-first decision](research-models.{{< meta report-ext >}}#bottleneck-first-adaptation-decision) |
-| [Routing](research-routing.{{< meta report-ext >}}#current-working-answer) | Chooses evidence and separates retrieval from answering | [Route seeds](research-routing.{{< meta report-ext >}}#taxonomy-audit); [full MC V1/V2/V3 candidates](research-routing.{{< meta report-ext >}}#mc-direct-video-v2-v3-full) | **Use:** preserve three frozen, unscored MC candidates | **Possible:** grounded election and stronger agent | Organizer scoring of V1/V2/V3 |
+| [Routing](research-routing.{{< meta report-ext >}}#current-working-answer) | Chooses evidence and separates retrieval from answering | [Route seeds](research-routing.{{< meta report-ext >}}#taxonomy-audit); [revised MC V1/V2/V3 candidates](research-routing.{{< meta report-ext >}}#mc-task2-v2-refresh) | **Use:** preserve the three revised, frozen, unscored MC candidates; do not upload first-release files | **Possible:** grounded election and stronger agent | Organizer validation and scoring of revised V1/V2/V3 |
 :::
 
 ## Experiment index
@@ -224,6 +224,7 @@ link opens the visible theme record with the tested condition and limits.
 - [Bounded single-model deliberative-agent diagnostic](research-routing.{{< meta report-ext >}}#mc-deliberative-poc20)
 - [Full fusion-rank-one text-to-options baseline](research-routing.{{< meta report-ext >}}#mc-text-rank1-full)
 - [Full direct-video V2/V3 candidates](research-routing.{{< meta report-ext >}}#mc-direct-video-v2-v3-full)
+- [Revised Task 2 replacement candidates](research-routing.{{< meta report-ext >}}#mc-task2-v2-refresh)
 
 </details>
 
@@ -277,9 +278,9 @@ a prescribed research sequence.
 6. **Routing, fusion, and answer election:** [measure retrieval, oracle-evidence
    answering, and end-to-end answering separately](research-routing.{{< meta report-ext >}}#required-evidence-labels-and-three-way-measurement), then test a fresh abstaining speech route and a [bounded multi-inspection evidence agent](research-routing.{{< meta report-ext >}}#bounded-multi-inspection-evidence-agent); [blind Borda](research-routing.{{< meta report-ext >}}#mc-poc20) and [one-window adaptive inspection](research-routing.{{< meta report-ext >}}#mc-adaptive-poc20) are not promoted.
    The [deterministic single-model deliberative loop](research-routing.{{< meta report-ext >}}#mc-deliberative-poc20) is also not promoted; its next valid form needs adversarial solver diversity and a challengeable stop decision on fresh data.
-   For the released 2026 MC set, preserve the completed [fusion-rank-one
-   text-to-options baseline](research-routing.{{< meta report-ext >}}#mc-text-rank1-full)
-   and the frozen [targeted V2 and full direct-video V3 candidates](research-routing.{{< meta report-ext >}}#mc-direct-video-v2-v3-full).
+   For the released 2026 MC set, preserve only the [fresh revised Task 2 V1,
+   targeted V2, and full direct-video V3 candidates](research-routing.{{< meta report-ext >}}#mc-task2-v2-refresh);
+   the first-release candidates are superseded and must not be uploaded.
    Hidden labels and organizer scoring are required before any is promoted on
    quality.
 
@@ -353,10 +354,10 @@ substitutes for the current condition-bound conclusions.
 
 ### What superseded what {#what-superseded-what}
 
-Six records explain which later evidence replaced an earlier project statement.
+Seven records explain which later evidence replaced an earlier project statement.
 
 <details>
-<summary>Expand six supersession records</summary>
+<summary>Expand seven supersession records</summary>
 
 | Earlier statement or result | Superseding evidence | Current interpretation |
 |---|---|---|
@@ -366,16 +367,17 @@ Six records explain which later evidence replaced an earlier project statement.
 | Initial Gemma compatibility promotion | Phi/Gemma semantic gate | Gemma and Phi were not promoted beyond the tested three-row semantic screen; compatibility is not quality. |
 | Qwen3-Omni compatibility success | Neutral quality-10 A2 | The strict run is ineligible for its predeclared promotion decision after 19/20 outputs; the model remains eligible for a repaired fresh comparison. |
 | Directed and dense temporal heuristics | Their matched diagnostic panels | The tested implementations were not promoted; smarter fixed-budget sampling remains an open hypothesis. |
+| First-release 2026 MC V1/V2/V3 candidate files | NIST's revised Task 2 release and the 2026-08-26 full refresh | Do not upload the first-release files; use only the three freshly generated, revised-file-validated replacement candidates. |
 
 </details>
 
 ### Chronology index {#chronology-index}
 
-Seven milestones preserve the date-ordered audit trail without making chronology
+Eight milestones preserve the date-ordered audit trail without making chronology
 the primary reading path.
 
 <details>
-<summary>Expand the seven-milestone chronology</summary>
+<summary>Expand the eight-milestone chronology</summary>
 
 | Date | Milestone | Thematic home |
 |---|---|---|
@@ -386,5 +388,6 @@ the primary reading path.
 | July 25 | Strict Qwen3-Omni quality result | [Models and adaptation](research-models.{{< meta report-ext >}}#qwen3-omni-quality) |
 | July 30 | Historical required-moment annotation agreement stop; separate r4 Stage 1 representation selection | [Visual evidence](research-visual-evidence.{{< meta report-ext >}}#temporal-required-moment-oracle) |
 | August 1 | VideoChat3 Temporal/Action specialist screen | [Models and adaptation](research-models.{{< meta report-ext >}}#videochat3-temporal-specialist) |
+| August 26 | Fresh full VQA-MC refresh after NIST revised Task 2 | [Routing](research-routing.{{< meta report-ext >}}#mc-task2-v2-refresh) |
 
 </details>

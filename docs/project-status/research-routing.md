@@ -75,8 +75,11 @@ unavailable media and invalid outputs. A bounded recovery later obtained
 valid direct rankings for seven of nine invalid rows. V2b now has
 808/818 direct weak-queue rows and V3b has 2,431/2,443 direct rows; the
 remaining twelve V3b fallbacks are ten unavailable videos and two
-persistent no-video-token failures. All candidates remain unscored
-rather than a quality ordering.
+persistent no-video-token failures. NIST later superseded that first
+query release. The fresh revised-file replacements use 786 direct
+rankings on a new 798-row V2 queue and 2,423 direct rankings plus 20
+fresh-text fallbacks in V3. Use only the revised V1/V2/V3 files; all
+candidates remain unscored rather than a quality ordering.
 
 <div class="theme-decision-strip" aria-label="Routing decisions">
 
@@ -653,6 +656,39 @@ and [retry
 aggregate](../experiments/artifacts/vqa-mc-poc20-20260821/gemini-direct-retry-summary.json),
 plus the [dated evidence
 record](../experiments/2026-08-21-vqa-mc-poc20.qmd#direct-video-v2-v3-full).
+
+### Revised Task 2 replacement candidates
+
+- **Reason for testing:** NIST superseded the first Task 2 query file
+  after changing option ordering, formatting, or membership on
+  2,435/2,443 rows.
+- **Tested condition and panel:** all 2,443 revised rows; fresh V1 text
+  selection, a fresh blind audit and 798-row V2 queue, and one shared
+  fresh direct native-AV pass for V2/V3. No first-release MC ranking was
+  remapped.
+- **Observed result:** V1 completed all 2,443 rows. The sole full direct
+  Batch returned all 2,433 expected processable-row responses and
+  yielded 2,423 valid rankings. V2 uses 786 direct rankings; V3 uses all
+  2,423. The remaining rows retain fresh revised V1.
+- **Current condition-bound status:** **Revised replacement candidates
+  are complete, frozen, locally validated, and unscored.** The
+  first-release candidates are superseded and must not be uploaded.
+- **What this rules out now:** needing to remap stale MC rankings or
+  launch separate paid full runs for revised V2 and V3.
+- **What it does not rule out:** any relative accuracy ordering among
+  V1/V2/V3.
+- **Possible defect, audit gap, or uncertainty:** one
+  provider-internal-error response returned no usage metadata. The other
+  2,432 direct responses and all text stages account for `$13.99849538`
+  including canaries; no retry was launched. Organizer validation and
+  hidden-label scoring remain unavailable.
+- **Reconsider when:** Evalbase accepts the revised files or organizer
+  scoring can compare the three methods.
+
+See the [sanitized revised-release
+bundle](../experiments/artifacts/vqa-mc-task2-v2-refresh-20260826/README.md)
+and [dated evidence
+record](../experiments/2026-08-21-vqa-mc-poc20.qmd#vqa-mc-task2-v2-refresh).
 
 ## Known failures and cases
 

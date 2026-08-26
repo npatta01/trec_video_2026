@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "status": "complete_organizer_script_validated_not_uploaded",
+  "task2": {
+    "path": "datasets/trecvid-2026/vqa/task2/vqa.2026.testingDataset.Task2_v2.json",
+    "sha256": "12042650e1bee6842543b39204fc483d6e46669a861b351435b6ececa3d1aabc",
+    "row_count": 2443,
+    "option_count_distribution": {
+      "4": 472,
+      "8": 1971
+    }
+  },
+  "organizer_validator": {
+    "repository": "https://github.com/gawad-nist/VQA",
+    "path": "validate_vqa_mc_2026.py",
+    "commit": "acb28557f74e9e5a90cce79bfdc66df84af80a9b",
+    "git_blob_sha": "d2f806089240dd3f200a3981e918179b50908d0d",
+    "sha256": "174c8f3beda59e0c3af84b17a274792d91f424e35391940afdeb919585092df5",
+    "strict_flag": "--warnings-as-errors",
+    "validated_at": "2026-08-26",
+    "runs": {
+      "g37q36_mc_text": {
+        "exit_code": 0,
+        "errors": 0,
+        "warnings": 0,
+        "status": "VALID"
+      },
+      "g37_mc_target": {
+        "exit_code": 0,
+        "errors": 0,
+        "warnings": 0,
+        "status": "VALID"
+      },
+      "g37_mc_direct": {
+        "exit_code": 0,
+        "errors": 0,
+        "warnings": 0,
+        "status": "VALID"
+      }
+    }
+  },
+  "v1_text": {
+    "row_count": 2443,
+    "full_cost_usd": 0.64891763,
+    "canary_cost_usd": 0.00076819,
+    "submission_sha256": "14822f18a86aab72b766a0ca3a936194a0338ac3b6278ded536bda8a95c1f6fd"
+  },
+  "blind_audit": {
+    "row_count": 2443,
+    "full_cost_usd": 1.00464169,
+    "canary_cost_usd": 0.00139275,
+    "review_queue_count": 798,
+    "review_queue_sha256": "a82ae414e6fe28dc3a9542d4a0d2464ab4c2df2bafacb24a89dc9a5fb723ba93",
+    "support_counts": {
+      "exact": 698,
+      "paraphrase": 953,
+      "partial": 424,
+      "none": 368
+    }
+  },
+  "direct_video": {
+    "provider_job_name_sha256": "a671e48eecc7102bab0beec3c34b040cd9b6806b2ef27cd83caf1c29880a7e18",
+    "protocol_sha256": "138c3142b86d02c00e974d9a34ba32ed1c2ace24787ef1ae08c2f28f93e57404",
+    "request_count": 2433,
+    "response_count": 2433,
+    "passed_count": 2423,
+    "media_unavailable_count": 10,
+    "provider_invalid_count": 10,
+    "prompt_tokens_with_returned_usage": 24942588,
+    "billed_output_tokens_with_returned_usage": 1574390,
+    "usage_missing_response_count": 1,
+    "accounted_full_cost_usd": 12.30545175,
+    "reported_full_cost_complete": false,
+    "canary_cost_usd": 0.03732337,
+    "predictions_freeze_sha256": "ec99d00b383079f20b39873fcbdd299ce9557f27c116f5b253bace2d2bc3e216"
+  },
+  "candidates": {
+    "g37q36_mc_text": {
+      "method": "fresh revised-option text selector",
+      "direct_count": 0,
+      "fallback_count": 0,
+      "size_bytes": 1676499,
+      "sha256": "14822f18a86aab72b766a0ca3a936194a0338ac3b6278ded536bda8a95c1f6fd"
+    },
+    "g37_mc_target": {
+      "method": "fresh direct video on the fresh 798-row review queue",
+      "direct_count": 786,
+      "queue_media_unavailable_count": 8,
+      "queue_provider_invalid_count": 4,
+      "fallback_count": 1657,
+      "size_bytes": 1005347,
+      "sha256": "da513f71d843d2af288cfd78b49d2c64491c6c3e038f7a859f0530856cf8ebbe"
+    },
+    "g37_mc_direct": {
+      "method": "fresh full direct video with fresh revised V1 fallback",
+      "direct_count": 2423,
+      "media_unavailable_count": 10,
+      "provider_invalid_count": 10,
+      "fallback_count": 20,
+      "size_bytes": 1005347,
+      "sha256": "0048a2ae9212f21974335f2d50173a1605e2a45b7e69dd029e701e01304f3198"
+    }
+  },
+  "disagreement_counts": {
+    "v1_to_v2_top1_changed": 229,
+    "v1_to_v2_full_ranking_changed": 654,
+    "v1_to_v3_top1_changed": 363,
+    "v1_to_v3_full_ranking_changed": 1976
+  },
+  "cost": {
+    "accounted_cumulative_usd": 13.99849538,
+    "user_authorized_ceiling_usd": 25.0,
+    "interpretation": "One provider-internal-error response returned no usage metadata, so the direct full-run value is the sum of the other 2432 responses rather than a complete provider-observed total. The accounted cumulative spend and the predeclared stage ceilings both remain below the user authorization."
+  }
+}

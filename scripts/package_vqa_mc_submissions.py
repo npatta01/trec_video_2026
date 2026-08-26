@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Package and validate the three TRECVID 2026 VQA-MC candidates."""
+"""Audit the superseded first-release TRECVID 2026 VQA-MC candidates."""
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import subprocess
@@ -17,6 +18,7 @@ TASK2_COMMIT = "34f1d1e"
 TASK2_PATH = "datasets/trecvid-2026/vqa/task2/vqa.2026.testingDataset.Task2.json"
 OUTPUT_ROOT = ROOT / "submissions/trecvid-2026/vqa-mc"
 PRIVATE_ROOT = ROOT / "data/vqa/submissions/trecvid-2026-vqa-mc-final-20260823"
+AUDIT_CATALOG_NAME = "superseded-audit-catalog.json"
 PARENT_ROOT = ROOT / "data/vqa/benchmarks/vqa-mc-gemini-direct-v2-v3-20260822-a1"
 REPAIR_ROOT = (
     ROOT
@@ -252,6 +254,14 @@ def _weak_query_ids() -> set[int]:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(prog="package_vqa_mc_submissions")
+    parser.add_argument(
+        "--legacy-audit",
+        action="store_true",
+        required=True,
+        help="explicitly regenerate the superseded first-release audit bundle",
+    )
+    parser.parse_args()
     task = _task2()
     packaged = package_candidates(
         task_rows=task,
@@ -266,7 +276,8 @@ def main() -> int:
     _write_json(PRIVATE_ROOT / "exceptions.json", tracker)
     catalog = {
         "schema_version": 1,
-        "status": "locally_validated_not_uploaded",
+        "status": "superseded_audit_only",
+        "upload_forbidden": True,
         "competition": "TRECVID 2026 Video Question Answering",
         "task": "Multiple Choice",
         "official_format_url": "https://www-nlpir.nist.gov/projects/tv2026/vqa.html#Runs",
@@ -278,7 +289,7 @@ def main() -> int:
         "exception_tracker": str(PRIVATE_ROOT / "exceptions.json"),
         "exception_counts": tracker["counts"],
     }
-    _write_json(PRIVATE_ROOT / "catalog.json", catalog)
+    _write_json(PRIVATE_ROOT / AUDIT_CATALOG_NAME, catalog)
     print(json.dumps(catalog, ensure_ascii=False, sort_keys=True))
     return 0
 

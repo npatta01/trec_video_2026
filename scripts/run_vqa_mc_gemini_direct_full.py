@@ -819,21 +819,34 @@ def freeze_run(*, root: Path, frozen_at: str) -> dict[str, Any]:
         metadata = payload.get("metadata")
         if not isinstance(metadata, Mapping) or metadata.get("query_id") != str(query_id):
             raise ValueError(f"response metadata mismatch for Q_ID {query_id}")
+        provider_error = payload.get("error")
+        recognized_error_fields = ("code", "message", "status", "details")
+        if not isinstance(provider_error, Mapping) or not any(
+            field in provider_error and bool(provider_error[field])
+            for field in recognized_error_fields
+        ):
+            provider_error = None
         response_id = payload.get("response_id", payload.get("responseId", payload.get("id")))
-        if not isinstance(response_id, str) or not response_id or response_id in response_ids:
-            raise ValueError("response identity is missing or duplicated")
-        response_ids.add(response_id)
+        if response_id is None or response_id == "":
+            if provider_error is None:
+                raise ValueError("response identity is missing")
+            response_id = None
+        elif not isinstance(response_id, str) or response_id in response_ids:
+            raise ValueError("response identity is invalid or duplicated")
+        else:
+            response_ids.add(response_id)
         text = smoke._response_text(payload)
         ranking = None
         row_status = "invalid"
-        error = None
-        try:
-            if not isinstance(text, str) or not text.strip():
-                raise ValueError("response text is empty")
-            ranking = parse_ranking(text, option_count=len(by_id[query_id]["options"]))
-            row_status = "passed"
-        except ValueError as exc:
-            error = {"type": type(exc).__name__, "message": str(exc)}
+        error = dict(provider_error) if provider_error is not None else None
+        if provider_error is None:
+            try:
+                if not isinstance(text, str) or not text.strip():
+                    raise ValueError("response text is empty")
+                ranking = parse_ranking(text, option_count=len(by_id[query_id]["options"]))
+                row_status = "passed"
+            except ValueError as exc:
+                error = {"type": type(exc).__name__, "message": str(exc)}
         usage = smoke._usage(payload)
         cost = _usage_cost(usage)
         if cost is None:
@@ -936,7 +949,15 @@ def _now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _task2_bytes() -> bytes:
+def _task2_bytes(path: Path | None = None) -> bytes:
+    if path is not None:
+        source = Path(path)
+        if not source.is_file() or source.is_symlink():
+            raise ValueError("explicit Task 2 source is unavailable")
+        try:
+            return source.read_bytes()
+        except OSError as error:
+            raise ValueError("explicit Task 2 source is unavailable") from error
     try:
         return subprocess.run(
             ["git", "show", f"{TASK2_COMMIT}:{TASK2_GIT_PATH}"],
@@ -948,7 +969,9 @@ def _task2_bytes() -> bytes:
         raise ValueError("frozen Task 2 git object is unavailable") from error
 
 
-def _weak_query_ids(path: Path = WEAK_QUEUE_PATH) -> set[int]:
+def _weak_query_ids(
+    path: Path = WEAK_QUEUE_PATH, *, expected_count: int = 818
+) -> set[int]:
     result: set[int] = set()
     try:
         lines = Path(path).read_text(encoding="utf-8").splitlines()
@@ -968,8 +991,13 @@ def _weak_query_ids(path: Path = WEAK_QUEUE_PATH) -> set[int]:
         ):
             raise ValueError("weak queue Q_ID coverage is invalid")
         result.add(query_id)
-    if len(result) != 818:
-        raise ValueError("weak queue must contain 818 rows")
+    if (
+        isinstance(expected_count, bool)
+        or not isinstance(expected_count, int)
+        or expected_count <= 0
+        or len(result) != expected_count
+    ):
+        raise ValueError(f"weak queue must contain {expected_count} rows")
     return result
 
 
@@ -981,6 +1009,15 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="run_vqa_mc_gemini_direct_full")
     commands = parser.add_subparsers(dest="command", required=True)
     prepare = commands.add_parser("prepare")
+    prepare.add_argument("--task2", type=Path)
+    prepare.add_argument("--v1", type=Path, default=V1_PATH)
+    prepare.add_argument("--weak-queue", type=Path, default=WEAK_QUEUE_PATH)
+    prepare.add_argument("--expected-weak-count", type=int, default=818)
+    prepare.add_argument("--expected-query-count", type=int, default=2_443)
+    prepare.add_argument(
+        "--experiment-id",
+        default="vqa-mc-gemini-direct-v2-v3-20260822",
+    )
     prepare.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     prepare.add_argument("--query-limit", type=int)
     prepare.add_argument("--max-cost-usd", type=float, required=True)
@@ -990,20 +1027,34 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _prepare_cli(*, output: Path, query_limit: int | None, max_cost_usd: float) -> dict[str, Any]:
-    task2 = _task2_bytes()
+def _prepare_cli(
+    *,
+    output: Path,
+    query_limit: int | None,
+    max_cost_usd: float,
+    task2_path: Path | None = None,
+    v1_path: Path = V1_PATH,
+    weak_queue_path: Path = WEAK_QUEUE_PATH,
+    expected_weak_count: int = 818,
+    expected_query_count: int = 2_443,
+    experiment_id: str = "vqa-mc-gemini-direct-v2-v3-20260822",
+) -> dict[str, Any]:
+    task2 = _task2_bytes(task2_path)
     rows = load_panel(
         task2=task2,
         requests_path=REQUESTS_PATH,
         media_root=MEDIA_ROOT,
+        expected_count=expected_query_count,
     )
-    v1 = _json_source(V1_PATH)
+    v1 = _json_source(v1_path)
     if not isinstance(v1, list):
         raise ValueError("V1 submission is invalid")
     selected = limit_inputs(
         rows=rows,
         v1_submission=v1,
-        weak_query_ids=_weak_query_ids(),
+        weak_query_ids=_weak_query_ids(
+            weak_queue_path, expected_count=expected_weak_count
+        ),
         query_limit=query_limit,
     )
     return prepare_run(
@@ -1012,10 +1063,11 @@ def _prepare_cli(*, output: Path, query_limit: int | None, max_cost_usd: float) 
         v1_submission=selected["v1_submission"],
         weak_query_ids=selected["weak_query_ids"],
         task2_sha256=_sha_bytes(task2),
-        v1_sha256=deadline._sha256_file(V1_PATH),
-        weak_queue_sha256=deadline._sha256_file(WEAK_QUEUE_PATH),
+        v1_sha256=deadline._sha256_file(v1_path),
+        weak_queue_sha256=deadline._sha256_file(weak_queue_path),
         max_cost_usd=max_cost_usd,
         created_at=_now(),
+        experiment_id=experiment_id,
     )
 
 
@@ -1048,6 +1100,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 output=args.output,
                 query_limit=args.query_limit,
                 max_cost_usd=args.max_cost_usd,
+                task2_path=args.task2,
+                v1_path=args.v1,
+                weak_queue_path=args.weak_queue,
+                expected_weak_count=args.expected_weak_count,
+                expected_query_count=args.expected_query_count,
+                experiment_id=args.experiment_id,
             )
         elif args.command == "upload":
             result = upload_run(root=args.output, client=_client(), sleep=time.sleep)

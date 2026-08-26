@@ -1,7 +1,12 @@
-# TRECVID 2026 VQA Multiple-Choice Uploads
+# Historical TRECVID 2026 VQA Multiple-Choice Candidates
 
-This directory contains the three selected organizer-upload candidates for all
-2,443 released Multiple-Choice questions.
+> **Superseded:** these files target NIST's first Task 2 query release. Do not
+> upload them. Use the [revised Task 2 replacement
+> candidates](../vqa-mc-task2-v2/README.md).
+
+This directory preserves three superseded candidates for the first release's
+2,443 Multiple-Choice questions. They are audit artifacts, not upload
+candidates.
 
 Each file ranks every released option for every question.
 
@@ -31,8 +36,6 @@ The runs differ in how they obtain that ranking.
 - **Direct-video rankings:** 2,431.
 - **V1 fallbacks:** 12.
 
-Use the directory name as the Evalbase run tag.
-
 A fallback means direct video could not return a valid ranking.
 
 That row retains V1's text-derived option ranking.
@@ -40,12 +43,8 @@ That row retains V1's text-derived option ranking.
 See the standalone [submission
 record](../../../docs/submissions/2026-vqa-mc-final-candidates.md) for the full
 methods, hashes, unavailable-video handling, validation evidence, and
-copy-paste Evalbase descriptions.
+historical Evalbase descriptions.
 
-These files are locally validated but have not yet received organizer-side
-validation. Historical V2/V3 and byte-identical V2c/V3c files are intentionally
-not packaged as separate runs.
-
-The Evalbase Multiple-Choice submission window opens 11 September 2026 and
-closes 18 September 2026. The portal correctly showed submissions as closed
-when checked on 23 August.
+These files were locally validated only against the superseded first query
+release and must not be submitted. Historical V2/V3 and byte-identical V2c/V3c
+files are intentionally not packaged as separate runs.

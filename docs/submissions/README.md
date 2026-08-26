@@ -11,9 +11,9 @@ outside Git.
 | TRECVID 2026 VQA Answer Generation | `g37_q36_fusion` | Gemini 3.7 Flash native AV + Qwen3.6 transcript/native fusion | Submitted 2026-08-17; organizer validation succeeded | [Run record](2026-g37-q36-fusion.md) |
 | TRECVID 2026 VQA Answer Generation | `q36_dualview` | Qwen3.6 transcript-conditioned + native-video dual view | Submitted 2026-08-17; organizer validation succeeded | [Run record](2026-q36-dualview.md) |
 | TRECVID 2026 VQA Answer Generation | `g37_grouped_unique` | Gemini-grouped grounded rewrites over Gemini/Qwen rank-one answers | Compact RC2 submitted 2026-08-17; organizer validation succeeded after the truncated RC1 upload was replaced | [Run record](2026-g37-grouped-unique.md) |
-| TRECVID 2026 VQA Multiple Choice | `g37q36_mc_text` | Frozen AG fusion rank-one answer mapped to released options by text-only Gemini | Prepared and locally validated; not uploaded | [Three-run MC record](2026-vqa-mc-final-candidates.md) |
-| TRECVID 2026 VQA Multiple Choice | `g37_mc_target` | Targeted Gemini direct-video ranking on the frozen weak queue with text fallback | Prepared and locally validated; not uploaded | [Three-run MC record](2026-vqa-mc-final-candidates.md) |
-| TRECVID 2026 VQA Multiple Choice | `g37_mc_direct` | Full Gemini direct-video option ranking with declared text fallback | Prepared and locally validated; not uploaded | [Three-run MC record](2026-vqa-mc-final-candidates.md) |
+| TRECVID 2026 VQA Multiple Choice | `g37q36_mc_text` | Fresh AG-fusion rank-one selector over NIST's revised Task 2 options | Revised replacement prepared and locally validated; not uploaded | [Revised three-run MC record](2026-vqa-mc-task2-v2-final-candidates.md) |
+| TRECVID 2026 VQA Multiple Choice | `g37_mc_target` | Fresh targeted Gemini direct-video ranking on the revised blind-audit queue with fresh text fallback | Revised replacement prepared and locally validated; not uploaded | [Revised three-run MC record](2026-vqa-mc-task2-v2-final-candidates.md) |
+| TRECVID 2026 VQA Multiple Choice | `g37_mc_direct` | Fresh full Gemini direct-video option ranking with fresh revised text fallback | Revised replacement prepared and locally validated; not uploaded | [Revised three-run MC record](2026-vqa-mc-task2-v2-final-candidates.md) |
 
 An upload is recorded as accepted only after Evalbase returns its own validator
 result. Local validation alone does not change a run to submitted.
