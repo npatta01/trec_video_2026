@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "comparison": {
+    "original_sha256": "1ebb2ba8408bfe6974653bbe314cc9baa42c45ed3d1fd945c2eb7b90772470d8",
+    "revised_sha256": "12042650e1bee6842543b39204fc483d6e46669a861b351435b6ececa3d1aabc",
+    "row_count": 2443,
+    "question_changed_count": 0,
+    "video_id_changed_count": 0,
+    "option_array_changed_count": 2435,
+    "option_array_unchanged_count": 8,
+    "exact_option_set_reordered_count": 1166,
+    "punctuation_or_format_only_option_set_count": 1250,
+    "option_membership_changed_count": 19
+  },
+  "interpretation": "All questions and video identities are unchanged. The revised release changes option ordering, formatting, or membership on 2435 rows. Fresh inference was selected instead of remapping prior MC rankings."
+}

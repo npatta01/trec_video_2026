@@ -3,10 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import sys
 
 import pytest
-
-import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import package_vqa_mc_submissions as packager  # noqa: E402
@@ -131,3 +130,47 @@ def test_build_exception_tracker_separates_unavailable_and_persistent_invalid(
             "status": "persistent_provider_invalid",
         },
     ]
+
+
+def test_legacy_packager_requires_explicit_audit_flag(
+    candidate_fixture: dict[str, object],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    private_root = tmp_path / "private"
+    private_root.mkdir()
+    legacy_catalog = private_root / "catalog.json"
+    legacy_catalog_bytes = b'{"status":"locally_validated_not_uploaded"}\n'
+    legacy_catalog.write_bytes(legacy_catalog_bytes)
+    monkeypatch.setattr(packager, "PRIVATE_ROOT", private_root)
+    monkeypatch.setattr(packager, "_task2", lambda: candidate_fixture["task"])
+    monkeypatch.setattr(
+        packager,
+        "package_candidates",
+        lambda **_: {"runs": {}},
+    )
+    monkeypatch.setattr(packager, "_json", lambda _: {})
+    monkeypatch.setattr(packager, "_weak_query_ids", lambda: set())
+    monkeypatch.setattr(
+        packager,
+        "build_exception_tracker",
+        lambda **_: {"counts": {}},
+    )
+    monkeypatch.setattr(sys, "argv", ["package_vqa_mc_submissions"])
+    with pytest.raises(SystemExit):
+        packager.main()
+    assert legacy_catalog.read_bytes() == legacy_catalog_bytes
+    assert sorted(path.name for path in private_root.iterdir()) == ["catalog.json"]
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["package_vqa_mc_submissions", "--legacy-audit"],
+    )
+    assert packager.main() == 0
+    assert legacy_catalog.read_bytes() == legacy_catalog_bytes
+    audit_catalog = json.loads(
+        (private_root / "superseded-audit-catalog.json").read_text()
+    )
+    assert audit_catalog["status"] == "superseded_audit_only"
+    assert audit_catalog["upload_forbidden"] is True

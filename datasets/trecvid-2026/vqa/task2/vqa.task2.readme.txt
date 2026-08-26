@@ -2,7 +2,12 @@ Welcome to the TREC2026 VQA Track!
 Here you will find the testing dataset for:
 
 1- Multiple Choice (MC) Task:
-   - The folder task2 includes a json file (vqa.2026.testingDataset.Task2.json) that holds all queries for MC task.
+   - The current query file is vqa.2026.testingDataset.Task2_v2.json. NIST
+     released it on August 25, 2026 and instructed teams to ignore the first
+     vqa.2026.testingDataset.Task2.json release.
+   - The superseded first-release JSON has been removed from the working tree.
+     Its hash and aggregate diff remain in the revised-refresh audit record,
+     and its bytes remain recoverable from Git history.
 
    It has the format of
    {

@@ -410,6 +410,99 @@ def test_prepare_upload_and_submit_freeze_one_nonduplicated_batch(
     assert len(client.batches.create_calls) == 1
 
 
+def test_freeze_falls_back_for_provider_error_without_response_id(
+    panel: dict[str, object], tmp_path: Path
+) -> None:
+    class ProviderErrorBatches(_Batches):
+        def get(self, *, name: str) -> object:
+            job = super().get(name=name)
+            job.dest.inlined_responses[0] = {
+                "error": {"code": 13, "message": "Internal error encountered."},
+                "metadata": {"query_id": "2"},
+            }
+            return job
+
+    rows = runner.load_panel(
+        task2=panel["task2"],
+        requests_path=panel["requests"],
+        media_root=panel["media_root"],
+        expected_count=3,
+    )
+    root = tmp_path / "provider-error"
+    runner.prepare_run(
+        rows=rows,
+        root=root,
+        v1_submission=panel["v1"],
+        weak_query_ids={1, 2},
+        task2_sha256=hashlib.sha256(panel["task2"]).hexdigest(),
+        v1_sha256="1" * 64,
+        weak_queue_sha256="2" * 64,
+        max_cost_usd=12.0,
+        created_at="2026-08-26T12:00:00Z",
+    )
+    client = _Client()
+    client.batches = ProviderErrorBatches()
+    runner.upload_run(root=root, client=client, sleep=lambda _: None)
+    runner.submit_batch(root=root, client=client, submitted_at="2026-08-26T12:05:00Z")
+    runner.record_status(root=root, client=client, checked_at="2026-08-26T12:10:00Z")
+
+    frozen = runner.freeze_run(root=root, frozen_at="2026-08-26T12:11:00Z")
+
+    assert frozen["passed_count"] == 1
+    assert frozen["fallback_count"] == 2
+    predictions = json.loads((root / "predictions-freeze.json").read_text())
+    assert predictions["usage_complete"] is False
+    provider_error = predictions["rows"][1]
+    assert provider_error["status"] == "invalid"
+    assert provider_error["response_id"] is None
+    assert provider_error["error"] == {
+        "code": 13,
+        "message": "Internal error encountered.",
+    }
+    v3 = json.loads((root / "submission-v3.json").read_text())
+    assert v3[1] == panel["v1"][1]
+
+
+def test_freeze_rejects_empty_error_mapping_without_response_id(
+    panel: dict[str, object], tmp_path: Path
+) -> None:
+    class EmptyErrorBatches(_Batches):
+        def get(self, *, name: str) -> object:
+            job = super().get(name=name)
+            job.dest.inlined_responses[0] = {
+                "error": {},
+                "metadata": {"query_id": "2"},
+            }
+            return job
+
+    rows = runner.load_panel(
+        task2=panel["task2"],
+        requests_path=panel["requests"],
+        media_root=panel["media_root"],
+        expected_count=3,
+    )
+    root = tmp_path / "empty-provider-error"
+    runner.prepare_run(
+        rows=rows,
+        root=root,
+        v1_submission=panel["v1"],
+        weak_query_ids={1, 2},
+        task2_sha256=hashlib.sha256(panel["task2"]).hexdigest(),
+        v1_sha256="1" * 64,
+        weak_queue_sha256="2" * 64,
+        max_cost_usd=12.0,
+        created_at="2026-08-26T12:00:00Z",
+    )
+    client = _Client()
+    client.batches = EmptyErrorBatches()
+    runner.upload_run(root=root, client=client, sleep=lambda _: None)
+    runner.submit_batch(root=root, client=client, submitted_at="2026-08-26T12:05:00Z")
+    runner.record_status(root=root, client=client, checked_at="2026-08-26T12:10:00Z")
+
+    with pytest.raises(ValueError, match="response identity is missing"):
+        runner.freeze_run(root=root, frozen_at="2026-08-26T12:11:00Z")
+
+
 def test_prepare_run_records_a_distinct_repair_experiment_id(
     panel: dict[str, object], tmp_path: Path
 ) -> None:
@@ -435,3 +528,68 @@ def test_prepare_run_records_a_distinct_repair_experiment_id(
 
     protocol = json.loads((tmp_path / "repair" / "protocol.json").read_text())
     assert protocol["experiment_id"] == "vqa-mc-gemini-direct-v2b-v3b-repair9-20260823"
+
+
+def test_prepare_cli_accepts_explicit_revised_release_sources(tmp_path: Path) -> None:
+    task2 = tmp_path / "task2-v2.json"
+    v1 = tmp_path / "v1-v2.json"
+    weak_queue = tmp_path / "weak-v2.jsonl"
+
+    args = runner._parser().parse_args(
+        [
+            "prepare",
+            "--task2",
+            str(task2),
+            "--v1",
+            str(v1),
+            "--weak-queue",
+            str(weak_queue),
+            "--expected-weak-count",
+            "817",
+            "--experiment-id",
+            "vqa-mc-task2-v2-refresh-20260826",
+            "--output",
+            str(tmp_path / "run"),
+            "--max-cost-usd",
+            "15",
+        ]
+    )
+
+    assert args.task2 == task2
+    assert args.v1 == v1
+    assert args.weak_queue == weak_queue
+    assert args.expected_weak_count == 817
+    assert args.experiment_id == "vqa-mc-task2-v2-refresh-20260826"
+
+
+def test_prepare_cli_freezes_explicit_revised_release_sources(
+    panel: dict[str, object], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    task2 = tmp_path / "task2-v2.json"
+    task2.write_bytes(panel["task2"])
+    v1 = tmp_path / "v1-v2.json"
+    v1.write_text(json.dumps(panel["v1"]), encoding="utf-8")
+    weak_queue = tmp_path / "weak-v2.jsonl"
+    weak_queue.write_text('{"Q_ID": 1}\n', encoding="utf-8")
+    monkeypatch.setattr(runner, "REQUESTS_PATH", panel["requests"])
+    monkeypatch.setattr(runner, "MEDIA_ROOT", panel["media_root"])
+
+    result = runner._prepare_cli(
+        output=tmp_path / "run",
+        query_limit=None,
+        max_cost_usd=12.0,
+        task2_path=task2,
+        v1_path=v1,
+        weak_queue_path=weak_queue,
+        expected_weak_count=1,
+        expected_query_count=3,
+        experiment_id="vqa-mc-task2-v2-refresh-20260826",
+    )
+
+    assert result["status"] == "prepared"
+    protocol = json.loads((tmp_path / "run" / "protocol.json").read_text())
+    assert protocol["experiment_id"] == "vqa-mc-task2-v2-refresh-20260826"
+    assert protocol["source"]["task2_sha256"] == _sha(task2)
+    assert protocol["source"]["v1_sha256"] == _sha(v1)
+    assert protocol["source"]["weak_queue_sha256"] == _sha(weak_queue)
+    assert protocol["weak_query_ids"] == [1]

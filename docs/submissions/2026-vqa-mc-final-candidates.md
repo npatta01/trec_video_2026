@@ -1,16 +1,21 @@
-# TRECVID 2026 VQA Multiple-Choice Final Candidates
+# Historical TRECVID 2026 VQA Multiple-Choice Candidates
+
+> **Superseded:** this record and its candidate files target NIST's first Task
+> 2 query release. Do not upload them. Use the [revised Task 2 replacement
+> record](2026-vqa-mc-task2-v2-final-candidates.md).
 
 ## Purpose and task context
 
-This document is the complete handoff record for three candidate submissions
-to the **TRECVID 2026 Video Question Answering Multiple-Choice task**.
+This document preserves the historical handoff record for three superseded
+candidates to the **TRECVID 2026 Video Question Answering Multiple-Choice
+task**.
 
-It explains what each run does.
+It explains what each run did.
 
-It identifies the exact files to upload.
+It identifies the exact obsolete files for audit only.
 
-It also explains unavailable videos, fallbacks, and the remaining submission
-steps.
+It also explains unavailable videos, fallbacks, and the submission process
+that was planned before NIST replaced the query file.
 
 The Multiple-Choice task contains the same 2,443 questions and videos as the
 earlier Answer Generation task.
@@ -22,7 +27,7 @@ In Answer Generation, a system writes an answer in its own words.
 In Multiple Choice, a submission ranks all released options. The first-ranked
 option is the system's selected answer.
 
-The three runs deliberately test increasingly expensive ways to use the prior
+The three runs deliberately tested increasingly expensive ways to use the prior
 Answer Generation work:
 
 1. **V1 converts an existing free-text answer into an option ranking.** It does
@@ -41,11 +46,10 @@ A **V1 fallback** means that direct video could not produce a valid ranking.
 
 That row therefore retains V1's text-derived ranking.
 
-## Current state
+## Historical state
 
 - **Task:** TRECVID 2026 Video Question Answering, Multiple Choice
-- **State:** Three upload artifacts prepared and locally validated; **not yet
-  uploaded to Evalbase**
+- **State:** Superseded after NIST replaced Task 2; **never upload these files**
 - **Submission window:** Opens 11 September 2026; closes 18 September 2026
 - **Portal check:** Signed-in Evalbase showed “submissions not open” on 23
   August 2026
@@ -58,9 +62,8 @@ That row therefore retains V1's text-derived ranking.
 - **Official format source:** [TRECVID 2026 VQA Run Submission
   Format](https://www-nlpir.nist.gov/projects/tv2026/vqa.html#Runs)
 
-Local validation checks the published schema and released Task 2 file. It does
-not establish organizer acceptance. Change a run to **submitted** only after
-Evalbase returns a successful server-side validation result.
+Historical local validation covered the first Task 2 release only. It does not
+apply to the revised release and does not authorize uploading these files.
 
 ## Approaches at a glance
 
@@ -85,16 +88,17 @@ Evalbase returns a successful server-side validation result.
 - **Direct-video rows:** 2,431.
 - **V1 fallback rows:** 12.
 
-These are complementary submissions, not successive versions of one upload.
+These were complementary candidate methods, not successive versions of one
+upload.
 
-V1 measures how far the existing Answer Generation answer can carry the MC
+V1 measured how far the existing Answer Generation answer could carry the MC
 task.
 
-V2 spends video inference only where the text evidence is weak.
+V2 spent video inference only where the text evidence was weak.
 
-V3 is the full direct-video comparison.
+V3 was the full direct-video comparison.
 
-## Files to upload
+## Historical files (superseded; do not upload)
 
 | Evalbase run tag | Candidate | Rows | Size | SHA-256 |
 |---|---|---:|---:|---|
@@ -108,7 +112,7 @@ V3 is the full direct-video comparison.
 
 The names V2b and V3b identify the repaired final artifacts.
 
-Do not upload the earlier V2/V3 working files as additional runs.
+Do not upload any file in this historical bundle.
 
 Later V2c/V3c checks produced files that are byte-identical to V2b/V3b. They are
 not distinct submissions.
@@ -251,13 +255,15 @@ Git commit `34f1d1e`. For every run, the validator confirmed:
 - the real option-count distribution: 472 four-option, 1,952 eight-option,
   10 nine-option, 5 ten-option, and 4 eleven-option rows.
 
-The private machine-readable catalog is
-`data/vqa/submissions/trecvid-2026-vqa-mc-final-20260823/catalog.json`. The
-private exception tracker is the sibling `exceptions.json`; it records Q_ID,
-Video_ID, status, affected runs, and fallback source for all ten unavailable
-videos and both persistent provider failures.
+The immutable historical machine-readable catalog is
+`data/vqa/submissions/trecvid-2026-vqa-mc-final-20260823/catalog.json`. An
+explicit `--legacy-audit` regeneration preserves that file and writes the
+non-uploadable status to the sibling `superseded-audit-catalog.json`. The
+private exception tracker is `exceptions.json`; it records Q_ID, Video_ID,
+status, affected runs, and fallback source for all ten unavailable videos and
+both persistent provider failures.
 
-## Evalbase copy-paste descriptions
+## Historical Evalbase descriptions (do not use)
 
 ### `g37q36_mc_text`
 
@@ -283,17 +289,12 @@ videos and both persistent provider failures.
 > and twelve declared text-control fallbacks for ten unavailable videos and
 > two persistent provider failures.
 
-For all three runs select **off-the-shelf / no fine-tuning**. No model was
-trained for this task, and no hidden labels or reference answers entered
-inference, routing, repair, or ranking.
+The intended setting for all three superseded runs was **off-the-shelf / no
+fine-tuning**. No model was trained for this task, and no hidden labels or
+reference answers entered inference, routing, repair, or ranking.
 
-## Submission-day checklist
+## Retired submission-day checklist
 
-1. Upload exactly the `submission.json` linked for the matching run tag.
-2. Confirm the local SHA-256 shown above immediately before upload.
-3. Record the Evalbase run ID, upload time, and complete validator response.
-4. Do not label the run submitted or accepted until server-side validation
-   succeeds.
-5. If Evalbase reports any schema difference from the published page, preserve
-   the rejected bytes and validator response before making a new release
-   candidate.
+Do not follow the original upload checklist. Use only the [revised Task 2
+replacement record](2026-vqa-mc-task2-v2-final-candidates.md) for any future
+Evalbase action.
