@@ -2,8 +2,8 @@
 
 ## Current state
 
-- **State:** three replacement candidates pass the pinned organizer validator;
-  **not uploaded to Evalbase**.
+- **State:** all three replacement candidates were submitted to Evalbase on
+  12 September 2026; organizer validation succeeded for every run.
 - **Organizer input:**
   `vqa.2026.testingDataset.Task2_v2.json`, SHA-256
   `12042650e1bee6842543b39204fc483d6e46669a861b351435b6ececa3d1aabc`.
@@ -21,7 +21,7 @@ after punctuation/format normalization, and 19 change option membership. The
 replacement candidates therefore use fresh inference throughout; no prior MC
 ranking was remapped.
 
-## Files to upload
+## Submitted files
 
 | Evalbase run tag | Candidate | Rows | Size | SHA-256 |
 |---|---|---:|---:|---|
@@ -35,6 +35,13 @@ ranking was remapped.
 
 Use the directory name as the Evalbase run tag. Do not upload the files under
 the superseded `submissions/trecvid-2026/vqa-mc/` directory.
+
+## Evalbase result
+
+Evalbase lists all three runs under the TREC 2026 Video Question Answering
+Multiple Choice Task for NP Labs, submitted by `npatta01` on 12 September
+2026. The organizer page reports **validation succeeded** for
+`g37q36_mc_text`, `g37_mc_target`, and `g37_mc_direct`.
 
 ## Approaches
 
