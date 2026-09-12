@@ -1,8 +1,8 @@
 # TRECVID 2026 VQA-MC revised Task 2 candidates
 
-These are the three locally validated replacement candidates generated from
-NIST's revised `vqa.2026.testingDataset.Task2_v2.json` release. They have not
-been uploaded to Evalbase.
+These are the three replacement candidates generated from NIST's revised
+`vqa.2026.testingDataset.Task2_v2.json` release. All three were submitted to
+Evalbase on 12 September 2026 and passed organizer validation.
 
 | Run tag | Method | Direct rows | Fresh V1 fallbacks | SHA-256 |
 |---|---|---:|---:|---|
@@ -10,7 +10,7 @@ been uploaded to Evalbase.
 | `g37_mc_target` | Fresh direct video on the new 798-row audit queue | 786 | 1,657 total: 1,645 non-queue rows plus 12 queue fallbacks | `da513f71d843d2af288cfd78b49d2c64491c6c3e038f7a859f0530856cf8ebbe` |
 | `g37_mc_direct` | Fresh direct video wherever processable | 2,423 | 20 | `0048a2ae9212f21974335f2d50173a1605e2a45b7e69dd029e701e01304f3198` |
 
-Upload paths:
+Submitted paths:
 
 - [`g37q36_mc_text/submission.json`](g37q36_mc_text/submission.json)
 - [`g37_mc_target/submission.json`](g37_mc_target/submission.json)
