@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "status": "locally_validated_not_uploaded",
+  "run_tag": "g38_mc_direct",
+  "model": "gemini-3.8-flash",
+  "task2_sha256": "12042650e1bee6842543b39204fc483d6e46669a861b351435b6ececa3d1aabc",
+  "row_count": 2443,
+  "direct_count": 2428,
+  "fallback_count": 15,
+  "media_unavailable_count": 10,
+  "persistent_invalid_count": 5,
+  "retry": {
+    "attempted_count": 13,
+    "recovered_count": 8,
+    "assembled_row_change_count": 6,
+    "usage_complete": true,
+    "observed_cost_usd": 0.11541488
+  },
+  "cost": {
+    "canary_usd": 0.03853463,
+    "full_batch_usd": 14.67042263,
+    "retry_usd": 0.11541488,
+    "total_usd": 14.82437214,
+    "authorized_envelope_usd": 16.0
+  },
+  "submission": {
+    "path": "submissions/trecvid-2026/vqa-mc-task2-v2/g38_mc_direct/submission.json",
+    "size_bytes": 1005347,
+    "sha256": "13327801b9569a18cacfb16307ece774c251842e2f5a331268e4e679ed02068d"
+  },
+  "validation": {
+    "exact_revised_options": "valid",
+    "nist_validator_commit": "acb28557f74e9e5a90cce79bfdc66df84af80a9b",
+    "nist_validator_sha256": "174c8f3beda59e0c3af84b17a274792d91f424e35391940afdeb919585092df5",
+    "warnings_as_errors": true,
+    "errors": 0,
+    "warnings": 0,
+    "status": "VALID"
+  }
+}
