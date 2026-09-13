@@ -14,8 +14,8 @@
   and zero warnings under `--warnings-as-errors`.
 - **First-release artifacts:** the old query JSON is removed; the old candidate
   bundle remains only for audit and is explicitly superseded.
-- **Additional candidate:** `g38_mc_direct` is prepared as one upload file and
-  locally valid, but has not been uploaded to Evalbase.
+- **Additional candidate:** `g38_mc_direct` was submitted as one upload file on
+  13 September 2026; Evalbase organizer validation succeeded.
 
 NIST's revision retains every question and video identity but changes 2,435 of
 2,443 option arrays: 1,166 are exact option-set shuffles, 1,250 differ only
@@ -38,15 +38,15 @@ ranking was remapped.
 Use the directory name as the Evalbase run tag. Do not upload the files under
 the superseded `submissions/trecvid-2026/vqa-mc/` directory.
 
-## Prepared fourth candidate
+## Submitted fourth candidate
 
 | Evalbase run tag | Candidate | Rows | Size | SHA-256 | State |
 |---|---|---:|---:|---|---|
-| `g38_mc_direct` | Gemini 3.8 full direct video with one invalid-row retry | 2,443 | 1,005,347 bytes | `13327801b9569a18cacfb16307ece774c251842e2f5a331268e4e679ed02068d` | Locally valid; not uploaded |
+| `g38_mc_direct` | Gemini 3.8 full direct video with one invalid-row retry | 2,443 | 1,005,347 bytes | `13327801b9569a18cacfb16307ece774c251842e2f5a331268e4e679ed02068d` | Submitted 2026-09-13; organizer validation succeeded |
 
 - [`g38_mc_direct/submission.json`](../../submissions/trecvid-2026/vqa-mc-task2-v2/g38_mc_direct/submission.json)
 
-This is one submission candidate, not separate base and rescue runs. The
+This is one submission, not separate base and rescue runs. The
 initial full pass and 13-row retry remain private provenance only. The final
 file contains 2,428 direct Gemini 3.8 rankings and 15 revised-V1 fallbacks:
 ten unavailable-media rows and five persistent invalid responses. The retry
@@ -62,8 +62,8 @@ envelope.
 The packaged file passes exact revised-option validation. NIST's pinned
 validator at commit `acb28557f74e9e5a90cce79bfdc66df84af80a9b` also reports
 2,443 submitted items, 2,443 unique Q_IDs, zero errors, zero warnings, and
-`STATUS: VALID` under `--warnings-as-errors`. This is local validation, not an
-Evalbase acceptance result.
+`STATUS: VALID` under `--warnings-as-errors`. These are local validator results;
+the separate Evalbase acceptance is recorded below.
 
 ## Evalbase result
 
@@ -71,6 +71,17 @@ Evalbase lists all three runs under the TREC 2026 Video Question Answering
 Multiple Choice Task for NP Labs, submitted by `npatta01` on 12 September
 2026. The organizer page reports **validation succeeded** for
 `g37q36_mc_text`, `g37_mc_target`, and `g37_mc_direct`.
+
+The fourth run, [`g38_mc_direct`](https://ir.nist.gov/evalbase/run/trec-2026/trec2026-vqa-mcq/g38_mc_direct),
+was submitted from local Chrome by `npatta01` for NP Labs on 13 September
+2026. Its run page reports **Validated? validation succeeded**. The recorded
+fine-tuning choice is **Off the shelf**. Before upload, the file matched the
+2,443 rows, 1,005,347 bytes, and SHA-256 above, and the conference run list
+contained only the three Gemini 3.7 runs. Only one Gemini 3.8 run was uploaded.
+
+This establishes organizer acceptance, not accuracy: no organizer scores are
+available, and completion or disagreement counts do not show that Gemini 3.8
+is more accurate than Gemini 3.7.
 
 ## Approaches
 

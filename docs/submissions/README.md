@@ -14,7 +14,7 @@ outside Git.
 | TRECVID 2026 VQA Multiple Choice | `g37q36_mc_text` | Fresh AG-fusion rank-one selector over NIST's revised Task 2 options | Submitted 2026-09-12; organizer validation succeeded | [Revised three-run MC record](2026-vqa-mc-task2-v2-final-candidates.md) |
 | TRECVID 2026 VQA Multiple Choice | `g37_mc_target` | Fresh targeted Gemini direct-video ranking on the revised blind-audit queue with fresh text fallback | Submitted 2026-09-12; organizer validation succeeded | [Revised three-run MC record](2026-vqa-mc-task2-v2-final-candidates.md) |
 | TRECVID 2026 VQA Multiple Choice | `g37_mc_direct` | Fresh full Gemini direct-video option ranking with fresh revised text fallback | Submitted 2026-09-12; organizer validation succeeded | [Revised three-run MC record](2026-vqa-mc-task2-v2-final-candidates.md) |
-| TRECVID 2026 VQA Multiple Choice | `g38_mc_direct` | Gemini 3.8 Flash V3-compatible direct-video ranking with one invalid-row retry | Prepared 2026-09-13; locally validated, not uploaded | [Revised MC record](2026-vqa-mc-task2-v2-final-candidates.md) |
+| TRECVID 2026 VQA Multiple Choice | `g38_mc_direct` | Gemini 3.8 Flash V3-compatible direct-video ranking with one invalid-row retry | Submitted 2026-09-13; organizer validation succeeded | [Revised MC record](2026-vqa-mc-task2-v2-final-candidates.md) |
 
 An upload is recorded as accepted only after Evalbase returns its own validator
 result. Local validation alone does not change a run to submitted.
