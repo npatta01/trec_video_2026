@@ -1,0 +1,42 @@
+[
+  {
+    "file": "NP_Labs-MC.zip",
+    "bytes": 296538,
+    "sha256": "d9151af525c7afba70981413bdfe994ef8fe6a5961cd1b63e8d9a85588c1cbd3",
+    "entries": [
+      "NP_Labs/",
+      "NP_Labs/g37_mc_direct.scores.json",
+      "NP_Labs/g37q36_mc_text.scores.json",
+      "NP_Labs/g37_mc_direct.per_query.csv",
+      "NP_Labs/g37_mc_target.scores.json",
+      "NP_Labs/g38_mc_direct.per_query.csv",
+      "NP_Labs/g37q36_mc_text.per_query.csv",
+      "NP_Labs/g38_mc_direct.scores.json",
+      "NP_Labs/g37_mc_target.per_query.csv"
+    ]
+  },
+  {
+    "file": "NP_Labs.zip",
+    "bytes": 9801272,
+    "sha256": "dec64015f23ca37129428d4a5cf1f8e8fe7057c893ed16d820eaeb99f4f112c7",
+    "entries": [
+      "NP_Labs/",
+      "NP_Labs/q35_4b_u12.effectiveness_per_query.json",
+      "NP_Labs/g37_q36_fusion.effectiveness_per_query.json",
+      "NP_Labs/q36_dualview.effectiveness_per_query.json",
+      "NP_Labs/g37_grouped_unique.effectiveness_per_query.json"
+    ]
+  },
+  {
+    "file": "vqa.mcq.scores.txt",
+    "bytes": 3359,
+    "sha256": "d4abd8009beed538bd02167f505e4f8711a03072304ddde2d8e55774831d57ed",
+    "source": "User-provided participant-only organizer results file, captured 2026-09-29"
+  },
+  {
+    "file": "VQA_AG_effectiveness_scores.xlsx",
+    "bytes": 43034,
+    "sha256": "7250e86e40e7ac54bb4952f7b25e6c90a4dffee1a18ac2672e169700275d850a",
+    "source": "User-provided participant-only organizer results file, captured 2026-09-29"
+  }
+]
