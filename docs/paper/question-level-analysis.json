@@ -1,0 +1,654 @@
+{
+  "mc": {
+    "patterns": {
+      "1111": 1805,
+      "0000": 271,
+      "1101": 20,
+      "0111": 129,
+      "0011": 58,
+      "0001": 26,
+      "1100": 22,
+      "1000": 28,
+      "0110": 21,
+      "0010": 11,
+      "1001": 9,
+      "1110": 28
+    }
+  },
+  "ag": {
+    "STS": {
+      "means": {
+        "q35_4b_u12": 0.4855524015650741,
+        "q36_dualview": 0.465828028830313,
+        "g37_q36_fusion": 0.48452701853377267,
+        "g37_grouped_unique": 0.48452701853377267
+      },
+      "q36_dualview vs g37_q36_fusion": {
+        "higher": 1035,
+        "equal": 43,
+        "lower": 1350
+      },
+      "q36_dualview vs q35_4b_u12": {
+        "higher": 907,
+        "equal": 417,
+        "lower": 1104
+      }
+    },
+    "METEOR": {
+      "means": {
+        "q35_4b_u12": 0.17053718369028006,
+        "q36_dualview": 0.18857807742998353,
+        "g37_q36_fusion": 0.31824375906095553,
+        "g37_grouped_unique": 0.31824375906095553
+      },
+      "q36_dualview vs g37_q36_fusion": {
+        "higher": 609,
+        "equal": 144,
+        "lower": 1675
+      },
+      "q36_dualview vs q35_4b_u12": {
+        "higher": 902,
+        "equal": 773,
+        "lower": 753
+      }
+    },
+    "BERTScore F1": {
+      "means": {
+        "q35_4b_u12": 0.8907370864909391,
+        "q36_dualview": 0.8916332257001648,
+        "g37_q36_fusion": 0.8788669971169687,
+        "g37_grouped_unique": 0.8788669962932455
+      },
+      "q36_dualview vs g37_q36_fusion": {
+        "higher": 1284,
+        "equal": 27,
+        "lower": 1117
+      },
+      "q36_dualview vs q35_4b_u12": {
+        "higher": 1120,
+        "equal": 321,
+        "lower": 987
+      }
+    }
+  },
+  "answer_availability": {
+    "g37q36_mc_text": {
+      "scored": 2428,
+      "unmatched_correct_answer": 0
+    },
+    "g37_mc_target": {
+      "scored": 2428,
+      "unmatched_correct_answer": 0
+    },
+    "g37_mc_direct": {
+      "scored": 2428,
+      "unmatched_correct_answer": 0
+    },
+    "g38_mc_direct": {
+      "scored": 2428,
+      "unmatched_correct_answer": 0
+    }
+  },
+  "source_revision": "3efb5b19dbd6d8d59232986cc25ef049af24ba5e",
+  "selected_case_ids": {
+    "guiding_case": 1237,
+    "option_overlap": 2092,
+    "count_disagreement": 2161,
+    "unsupported_intent_candidate": 2021,
+    "location_overlap_candidate": 1220
+  },
+  "mc_reference_maximum": {
+    "correct": 2058,
+    "scored": 2428,
+    "accuracy": 0.8476112026359144,
+    "run": "isu-mc-fusefga-v2n"
+  },
+  "mc_question_opening_groups": {
+    "other": {
+      "n": 1562,
+      "correct": {
+        "g37q36_mc_text": 1285,
+        "g37_mc_target": 1350,
+        "g37_mc_direct": 1369,
+        "g38_mc_direct": 1364
+      }
+    },
+    "how many": {
+      "n": 309,
+      "correct": {
+        "g37q36_mc_text": 197,
+        "g37_mc_target": 205,
+        "g37_mc_direct": 200,
+        "g38_mc_direct": 204
+      }
+    },
+    "why": {
+      "n": 360,
+      "correct": {
+        "g37q36_mc_text": 274,
+        "g37_mc_target": 302,
+        "g37_mc_direct": 312,
+        "g38_mc_direct": 308
+      }
+    },
+    "where": {
+      "n": 90,
+      "correct": {
+        "g37q36_mc_text": 64,
+        "g37_mc_target": 70,
+        "g37_mc_direct": 73,
+        "g38_mc_direct": 71
+      }
+    },
+    "when": {
+      "n": 72,
+      "correct": {
+        "g37q36_mc_text": 61,
+        "g37_mc_target": 67,
+        "g37_mc_direct": 67,
+        "g38_mc_direct": 68
+      }
+    },
+    "what sound": {
+      "n": 35,
+      "correct": {
+        "g37q36_mc_text": 31,
+        "g37_mc_target": 31,
+        "g37_mc_direct": 31,
+        "g38_mc_direct": 32
+      }
+    }
+  },
+  "overlapping_question_cues": {
+    "Counting": {
+      "n": 309,
+      "mc_correct": {
+        "g37q36_mc_text": 197,
+        "g37_mc_target": 205,
+        "g37_mc_direct": 200,
+        "g38_mc_direct": 204
+      },
+      "ag": {
+        "q35_4b_u12": {
+          "STS": 0.68419257605178,
+          "METEOR": 0.195964715210356,
+          "BERTScore F1": 0.9558195469255664
+        },
+        "q36_dualview": {
+          "STS": 0.6448127281553399,
+          "METEOR": 0.191228142394822,
+          "BERTScore F1": 0.9531757411003237
+        },
+        "g37_q36_fusion": {
+          "STS": 0.3468541779935275,
+          "METEOR": 0.22075920388349515,
+          "BERTScore F1": 0.8632617184466019
+        },
+        "g37_grouped_unique": {
+          "STS": 0.3468541779935275,
+          "METEOR": 0.22075920388349515,
+          "BERTScore F1": 0.8632617055016181
+        }
+      },
+      "regex": "\\bhow many\\b"
+    },
+    "Speech / reading": {
+      "n": 114,
+      "mc_correct": {
+        "g37q36_mc_text": 87,
+        "g37_mc_target": 93,
+        "g37_mc_direct": 95,
+        "g38_mc_direct": 94
+      },
+      "ag": {
+        "q35_4b_u12": {
+          "STS": 0.39926269298245615,
+          "METEOR": 0.1405780701754386,
+          "BERTScore F1": 0.8799561666666667
+        },
+        "q36_dualview": {
+          "STS": 0.4422157807017544,
+          "METEOR": 0.21400541228070175,
+          "BERTScore F1": 0.8881189122807017
+        },
+        "g37_q36_fusion": {
+          "STS": 0.4902344649122807,
+          "METEOR": 0.3461848157894737,
+          "BERTScore F1": 0.8781172894736842
+        },
+        "g37_grouped_unique": {
+          "STS": 0.4902344649122807,
+          "METEOR": 0.3461848157894737,
+          "BERTScore F1": 0.878117298245614
+        }
+      },
+      "regex": "\\b(say|says|said|saying|speak|speaks|speaking|spoken|tell|tells|told|mention|mentions|mentioned|read|reads|reading|written|text|subtitle|subtitles|caption|captions)\\b"
+    },
+    "Sound / music": {
+      "n": 195,
+      "mc_correct": {
+        "g37q36_mc_text": 146,
+        "g37_mc_target": 160,
+        "g37_mc_direct": 160,
+        "g38_mc_direct": 152
+      },
+      "ag": {
+        "q35_4b_u12": {
+          "STS": 0.4757386564102564,
+          "METEOR": 0.13486367692307694,
+          "BERTScore F1": 0.8741134717948718
+        },
+        "q36_dualview": {
+          "STS": 0.47836705128205126,
+          "METEOR": 0.19994076923076923,
+          "BERTScore F1": 0.8782089692307692
+        },
+        "g37_q36_fusion": {
+          "STS": 0.5233239384615385,
+          "METEOR": 0.29161711282051284,
+          "BERTScore F1": 0.8770886512820513
+        },
+        "g37_grouped_unique": {
+          "STS": 0.5233239384615385,
+          "METEOR": 0.29161711282051284,
+          "BERTScore F1": 0.8770886512820513
+        }
+      },
+      "regex": "\\b(sound|sounds|hear|heard|hearing|noise|noises|music|song|sing|singing|instrument|instruments)\\b"
+    },
+    "Time / order": {
+      "n": 575,
+      "mc_correct": {
+        "g37q36_mc_text": 474,
+        "g37_mc_target": 515,
+        "g37_mc_direct": 519,
+        "g38_mc_direct": 518
+      },
+      "ag": {
+        "q35_4b_u12": {
+          "STS": 0.39441289913043476,
+          "METEOR": 0.14836360173913044,
+          "BERTScore F1": 0.8787642747826087
+        },
+        "q36_dualview": {
+          "STS": 0.39647126782608694,
+          "METEOR": 0.17167923652173914,
+          "BERTScore F1": 0.8815004852173913
+        },
+        "g37_q36_fusion": {
+          "STS": 0.4907806191304348,
+          "METEOR": 0.32694255130434785,
+          "BERTScore F1": 0.87865512
+        },
+        "g37_grouped_unique": {
+          "STS": 0.4907806191304348,
+          "METEOR": 0.32694255130434785,
+          "BERTScore F1": 0.87865512
+        }
+      },
+      "regex": "\\b(when|before|after|first|last|beginning|end|ends|ending)\\b"
+    },
+    "Location": {
+      "n": 90,
+      "mc_correct": {
+        "g37q36_mc_text": 64,
+        "g37_mc_target": 70,
+        "g37_mc_direct": 73,
+        "g38_mc_direct": 71
+      },
+      "ag": {
+        "q35_4b_u12": {
+          "STS": 0.5862969222222222,
+          "METEOR": 0.24316116666666668,
+          "BERTScore F1": 0.8953498333333333
+        },
+        "q36_dualview": {
+          "STS": 0.5357145444444444,
+          "METEOR": 0.18927212222222223,
+          "BERTScore F1": 0.8827832888888889
+        },
+        "g37_q36_fusion": {
+          "STS": 0.4397735222222222,
+          "METEOR": 0.342227,
+          "BERTScore F1": 0.8765017222222222
+        },
+        "g37_grouped_unique": {
+          "STS": 0.4397735222222222,
+          "METEOR": 0.342227,
+          "BERTScore F1": 0.8765017333333334
+        }
+      },
+      "regex": "^\\s*where\\b"
+    }
+  },
+  "ag4_worked_example": {
+    "selection": "Illustrative implementation example, not representative prevalence evidence",
+    "query_id": 447,
+    "video_id": "7040.webm",
+    "question": "What is the person in the four-wheel drive vehicle trying to do?",
+    "sources": [
+      {
+        "answer": "The driver is trying to drive/descend down a steep, rocky dirt hill.",
+        "original_rank": 1,
+        "source_id": "gemini_overlay"
+      },
+      {
+        "answer": "drive down the hill",
+        "original_rank": 1,
+        "source_id": "qwen_video_plus_transcript"
+      },
+      {
+        "answer": "climb a hill",
+        "original_rank": 1,
+        "source_id": "qwen_native_video"
+      },
+      {
+        "answer": "climb the hill",
+        "original_rank": 1,
+        "source_id": "qwen35_control"
+      }
+    ],
+    "recorded_response": {
+      "answers": [
+        {
+          "answer": "The driver is trying to drive/descend down a steep, rocky dirt hill.",
+          "rank": 1,
+          "source_group": "drive_down"
+        },
+        {
+          "answer": "drive down the hill",
+          "rank": 2,
+          "source_group": "drive_down"
+        },
+        {
+          "answer": "To drive down the hill.",
+          "rank": 3,
+          "source_group": "drive_down"
+        },
+        {
+          "answer": "The driver is trying to descend down a steep, rocky dirt hill.",
+          "rank": 4,
+          "source_group": "drive_down"
+        },
+        {
+          "answer": "Drive down a steep, rocky dirt hill.",
+          "rank": 5,
+          "source_group": "drive_down"
+        },
+        {
+          "answer": "climb a hill",
+          "rank": 6,
+          "source_group": "climb_hill"
+        },
+        {
+          "answer": "climb the hill",
+          "rank": 7,
+          "source_group": "climb_hill"
+        },
+        {
+          "answer": "To climb a hill.",
+          "rank": 8,
+          "source_group": "climb_hill"
+        },
+        {
+          "answer": "The driver is trying to climb the hill.",
+          "rank": 9,
+          "source_group": "climb_hill"
+        },
+        {
+          "answer": "To climb the hill.",
+          "rank": 10,
+          "source_group": "climb_hill"
+        }
+      ],
+      "groups": [
+        {
+          "group_id": "drive_down",
+          "source_ids": [
+            "gemini_overlay",
+            "qwen_video_plus_transcript"
+          ]
+        },
+        {
+          "group_id": "climb_hill",
+          "source_ids": [
+            "qwen_native_video",
+            "qwen35_control"
+          ]
+        }
+      ],
+      "query_id": 447
+    },
+    "trace": "data/vqa/benchmarks/grouped-rewrite-full-20260817-grouped_unique_generator_only-a3/batch-0090/attempt-0001/parsed-response.json",
+    "matches_frozen_submission": true,
+    "frame_seconds": 2,
+    "mc_top1": {
+      "MC1": "Trying to climb the hillside",
+      "MC2": "Trying to safely get out of a deep rut",
+      "MC3": "Trying to safely get out of a deep rut",
+      "MC4": "Trying to safely get out of a deep rut"
+    },
+    "official_mc_answer": "Trying to safely get out of a deep rut",
+    "ag3_ag4_rank1_all_reference_scores": {
+      "STS": 0.253626,
+      "METEOR": 0.325387,
+      "BERTScore F1": 0.867442
+    }
+  },
+  "unified_worked_example": {
+    "query_id": 1835,
+    "video_id": "8083.webm",
+    "question": "What is the weather like when someone is filming the white building?",
+    "sources": [
+      {
+        "answer": "It is sunny.",
+        "original_rank": 1,
+        "source_id": "gemini_overlay"
+      },
+      {
+        "answer": "Sunny",
+        "original_rank": 1,
+        "source_id": "qwen_video_plus_transcript"
+      },
+      {
+        "answer": "It's sunny.",
+        "original_rank": 1,
+        "source_id": "qwen_native_video"
+      },
+      {
+        "answer": "rainy",
+        "original_rank": 1,
+        "source_id": "qwen35_control"
+      }
+    ],
+    "recorded_response": {
+      "answers": [
+        {
+          "answer": "It is sunny.",
+          "rank": 1,
+          "source_group": "group_1"
+        },
+        {
+          "answer": "rainy",
+          "rank": 2,
+          "source_group": "group_2"
+        },
+        {
+          "answer": "Sunny",
+          "rank": 3,
+          "source_group": "group_1"
+        },
+        {
+          "answer": "It's sunny.",
+          "rank": 4,
+          "source_group": "group_1"
+        },
+        {
+          "answer": "The weather is rainy.",
+          "rank": 5,
+          "source_group": "group_2"
+        },
+        {
+          "answer": "The weather is sunny.",
+          "rank": 6,
+          "source_group": "group_1"
+        },
+        {
+          "answer": "It is raining.",
+          "rank": 7,
+          "source_group": "group_2"
+        },
+        {
+          "answer": "Bright and sunny.",
+          "rank": 8,
+          "source_group": "group_1"
+        },
+        {
+          "answer": "Rainy weather.",
+          "rank": 9,
+          "source_group": "group_2"
+        },
+        {
+          "answer": "Sunny weather.",
+          "rank": 10,
+          "source_group": "group_1"
+        }
+      ],
+      "groups": [
+        {
+          "group_id": "group_1",
+          "source_ids": [
+            "gemini_overlay",
+            "qwen_video_plus_transcript",
+            "qwen_native_video"
+          ]
+        },
+        {
+          "group_id": "group_2",
+          "source_ids": [
+            "qwen35_control"
+          ]
+        }
+      ],
+      "query_id": 1835
+    },
+    "trace": "data/vqa/benchmarks/grouped-rewrite-full-20260817-grouped_unique_generator_only-a3/batch-0367/attempt-0001/parsed-response.json",
+    "frozen_submission_verified": true,
+    "all_reference_rank1_scores": {
+      "q35_4b_u12": {
+        "rank": 1,
+        "answer": "rainy",
+        "scores": {
+          "STS": 0.552021,
+          "METEOR": 0.0,
+          "BERTScore F1": 0.999436
+        }
+      },
+      "q36_dualview": {
+        "rank": 1,
+        "answer": "Sunny",
+        "scores": {
+          "STS": 1.0,
+          "METEOR": 0.5,
+          "BERTScore F1": 1.0
+        }
+      },
+      "g37_q36_fusion": {
+        "rank": 1,
+        "answer": "It is sunny.",
+        "scores": {
+          "STS": 1.0,
+          "METEOR": 0.992188,
+          "BERTScore F1": 1.0
+        }
+      },
+      "g37_grouped_unique": {
+        "rank": 1,
+        "answer": "It is sunny.",
+        "scores": {
+          "STS": 1.0,
+          "METEOR": 0.992188,
+          "BERTScore F1": 1.0
+        }
+      }
+    },
+    "official_mc_rows": {
+      "g37q36_mc_text": {
+        "Q_ID": "1835",
+        "Video_ID": "8083.webm",
+        "Correct_Answer": "Sunny",
+        "Submitted_Rank_1": "Sunny",
+        "Correct_Answer_Rank": "1",
+        "Top_1": "1",
+        "Reciprocal_Rank": "1.0",
+        "Submitted": "True"
+      },
+      "g37_mc_target": {
+        "Q_ID": "1835",
+        "Video_ID": "8083.webm",
+        "Correct_Answer": "Sunny",
+        "Submitted_Rank_1": "Sunny",
+        "Correct_Answer_Rank": "1",
+        "Top_1": "1",
+        "Reciprocal_Rank": "1.0",
+        "Submitted": "True"
+      },
+      "g37_mc_direct": {
+        "Q_ID": "1835",
+        "Video_ID": "8083.webm",
+        "Correct_Answer": "Sunny",
+        "Submitted_Rank_1": "Rainy",
+        "Correct_Answer_Rank": "7",
+        "Top_1": "0",
+        "Reciprocal_Rank": "0.14285714285714285",
+        "Submitted": "True"
+      },
+      "g38_mc_direct": {
+        "Q_ID": "1835",
+        "Video_ID": "8083.webm",
+        "Correct_Answer": "Sunny",
+        "Submitted_Rank_1": "Sunny",
+        "Correct_Answer_Rank": "1",
+        "Top_1": "1",
+        "Reciprocal_Rank": "1.0",
+        "Submitted": "True"
+      }
+    },
+    "supplied_options_in_mc1_rank_order": [
+      {
+        "Answer": "Sunny",
+        "Rank": 1
+      },
+      {
+        "Answer": "Partly cloudy",
+        "Rank": 2
+      },
+      {
+        "Answer": "Cloudy",
+        "Rank": 3
+      },
+      {
+        "Answer": "Windy",
+        "Rank": 4
+      },
+      {
+        "Answer": "Foggy",
+        "Rank": 5
+      },
+      {
+        "Answer": "Rainy",
+        "Rank": 6
+      },
+      {
+        "Answer": "Stormy",
+        "Rank": 7
+      },
+      {
+        "Answer": "Snowy",
+        "Rank": 8
+      }
+    ],
+    "illustrative_frame_seconds": 2,
+    "selection": "Purposive case covering equivalent wording, recorded groups, and differing MC outcomes; not evidence of prevalence or MC error cause."
+  }
+}

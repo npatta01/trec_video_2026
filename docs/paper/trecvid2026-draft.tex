@@ -1,0 +1,280 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=0.75in]{geometry}
+\usepackage{parskip}
+\usepackage[section]{placeins}
+\usepackage{float}
+\linespread{1.0}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{booktabs,tabularx,array}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric}
+\definecolor{evidenceblue}{HTML}{245B83}
+\definecolor{decisiongreen}{HTML}{28604A}
+\definecolor{reviewamber}{HTML}{785217}
+\tikzset{
+  evidence/.style={draw=evidenceblue,fill=evidenceblue!5},
+  decision/.style={draw=decisiongreen,fill=decisiongreen!5},
+  review/.style={draw=reviewamber,fill=reviewamber!7},
+  paperbox/.style={rounded corners=2pt,align=left,font=\small,
+    inner sep=7pt,line width=0.65pt},
+  flowarrow/.style={-{Latex[length=2mm]},line width=0.75pt}
+}
+\usepackage[hidelinks]{hyperref}
+\usepackage{url}
+\urlstyle{same}
+\newcommand{\run}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\pending}{\textit{Pending}}
+\setlength{\emergencystretch}{1.5em}
+\title{NP Labs at TRECVID 2026: Video Answer Generation\\and Multiple-Choice Ranking}
+\author{Nidhin Pattaniyil\\Individual participant (team: NP Labs)}
+\date{}
+
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\begin{document}
+\begin{center}
+{\Large\bfseries NP Labs at TRECVID 2026:\\Video Answer Generation and Multiple-Choice Ranking\par}
+\vspace{8pt}
+Nidhin Pattaniyil\\Individual participant (team: NP Labs)
+\end{center}
+\section*{Structured Abstract}
+\noindent\textbf{Answer Generation (AG)}\par
+\begingroup
+\renewcommand{\arraystretch}{1.12}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash\bfseries}p{2.9cm}>{\raggedright\arraybackslash}X@{}}
+Data used & We used pretrained models without fine-tuning. Labeled 2025 examples guided development; test answers were excluded.\\
+What we tried & \textbf{AG1}: Qwen answers from 12 video frames.\newline
+\textbf{AG2}: combine Qwen answers from video without a transcript and video with a Whisper speech transcript into one submission.\newline
+\textbf{AG3}: put Gemini's audio-video answer first, followed by Qwen alternatives.\newline
+\textbf{AG4}: reword saved source answers; preserve AG3's first answer.\\
+What changed & AG3 and AG4 tie for the highest METEOR@1 (.3182); AG2 has the highest BERTScore F1@1 (.8916), less than .001 above AG1. AG1 narrowly leads STS@1 (.4856). These are descriptive comparisons.\\
+What helped? & In a selected 30-question 2025 development comparison, adding Whisper to Qwen3.5 frames increased token F1 from .431 to .507. This is development evidence, not an ablation of the submitted AG2 configuration.\\
+What we learned & Fixed Gemini-first ordering can overlook a better Qwen answer, as in the inspected counting case. AG4 preserves rank one by design; its reworded answer lists have lower NDCG@10.\\
+\end{tabularx}
+\endgroup
+
+\noindent\textbf{Multiple Choice (MC)}\par
+\begingroup
+\renewcommand{\arraystretch}{1.12}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash\bfseries}p{2.9cm}>{\raggedright\arraybackslash}X@{}}
+Data used & Organizer-provided questions and options, plus our AG3 first answer or the original video. No training or correct test answers were used.\\
+What we tried & \textbf{MC1}: match our AG3 answer to the supplied options.\newline
+\textbf{MC2}: revisit the video when a text check finds an uncertain or inconsistent option match.\newline
+\textbf{MC3}: rank options from every available video with Gemini 3.7.\newline
+\textbf{MC4}: use the same approach with Gemini 3.8.\\
+What changed & Accuracy rises from 78.748\% (MC1) to 83.402\% (MC2) and 84.514\% (MC3). MC4 scores 84.308\%.\\
+What helped? & Using video predictions wherever available adds 27 correct choices over targeted review, using the same Gemini 3.7 predictions.\\
+What we learned & Full video review fixes 219 text-only errors but introduces 79 errors. Counting remains difficult: MC3 gets 200 of 309 ``how many'' questions right.\\
+\end{tabularx}
+\endgroup
+
+\section*{Overview}
+We submitted four AG and four MC runs covering 2,443 questions from 1,956 videos. AG returns ten ranked answers; MC ranks the released options~\cite{guidelines2026,smeaton2006}. We used the revised MC options. Official scoring covers 2,428 questions after 15 exclusions. Figures~\ref{fig:ag} and~\ref{fig:mc} explain the submissions; each task section then presents its results and limitations.
+
+\clearpage
+\section{Answer Generation}
+\subsection{What we submitted}
+\begin{figure}[ht]\centering
+\begin{tikzpicture}[font=\small, node distance=5mm]
+\node[anchor=west,font=\bfseries] at (0,1) {Independent answer generation};
+\node[paperbox,evidence,text width=3cm] (frames) at (1.6,0) {12 sampled frames};
+\node[paperbox,evidence,text width=3cm] (vid) at (1.6,-1.35) {Video};
+\node[paperbox,evidence,text width=3cm] (speech) at (1.6,-2.7) {Video + Whisper text};
+\node[paperbox,evidence,text width=3cm] (av) at (1.6,-4.05) {Audio-video};
+\node[paperbox,decision,text width=3.1cm] (q35) at (6,0) {Qwen3.5\\Frame answers};
+\node[paperbox,decision,text width=3.1cm] (qv) at (6,-1.35) {Qwen3.6\\Video payload};
+\node[paperbox,decision,text width=3.1cm] (qt) at (6,-2.7) {Qwen3.6\\Video + text};
+\node[paperbox,decision,text width=3.1cm] (gem) at (6,-4.05) {Gemini 3.7\\Audio-video};
+\foreach \a/\b in {frames/q35,vid/qv,speech/qt,av/gem}\draw[flowarrow] (\a)--(\b);
+\node[paperbox,review,text width=4.7cm,minimum height=5cm] (bank) at (12,-2) {\textbf{Assemble saved answers}\\[7pt]
+\textbf{AG1}: frame answers\\[7pt]
+\textbf{AG2}: video + text first; video-without-transcript and frame alternatives next\\[7pt]
+\textbf{AG3}: Gemini first; Qwen answers next};
+\foreach \a in {q35,qv,qt,gem}\draw[flowarrow] (\a.east)--(bank.west |- \a.east);
+\node[paperbox,review,text width=13.7cm,anchor=north west] at (0,-5) {\textbf{AG4: reword saved source answers.} Keep AG3's first answer unchanged.};
+\end{tikzpicture}
+\caption{The question is supplied to every model call. Models generate answers independently; arrows carry inputs or saved outputs, not one model's answer into another model. Each submission contains ten ranked answers. AG4 operates on saved text; Section~\ref{sec:worked} shows actual semantic groups.}\label{fig:ag}
+\end{figure}
+\textbf{AG1: Qwen3.5 frame baseline.} For each available video, we sample the midpoint of each of 12 equal intervals. Ten unavailable-video rows used only the question and were excluded from official scoring. Qwen3.5-4B returns a short answer, then nine alternatives from the same frames. When the model does not produce ten distinct answers, we first request a repair, then fill any remaining positions with predefined generic answers. These fillers occupy 650 of 24,430 positions; they are not predictions from the video.
+
+\textbf{AG2: combined Qwen3.6 answers.} We submitted one list of ten answers per question. To build it, we called Qwen3.6-27B twice on the same video payload, once without and once with speech transcribed into timestamped text by Whisper. Both outputs feed the same submission: the answer from video plus Whisper text first, then the video-without-transcript answer and baseline alternatives, with duplicates removed. Requests use temperature zero, disabled thinking, and a 64-token output cap. We do not assume the video path consumes native audio.
+
+\textbf{AG3: Gemini-first fusion.} Gemini 3.7 Flash answers from audio-video at 4 frames per second, low media resolution, high thinking, and a 2,048-token output cap. Its successful answer goes first; Qwen and baseline candidates fill the list. Missing or failed sources are skipped and duplicates removed. This is a fixed priority for every question, not a learned confidence rule.
+
+\textbf{AG4: grouped rewrite.} Gemini 3.7 Flash receives the saved first answers from the four source calls and generates ten candidates, grouping equivalent meanings and retaining conflicting answers separately. AG3's first answer stays first. If the rewrite fails our checks, we keep AG3's original list.
+
+\textbf{Development evidence.} On 30 selected 2025 questions, adding Whisper to the same Qwen3.5 frames raised token F1 from .431 to .507, with a .269 gain on six speech questions. Neither condition exactly matched any of six sound/music answers. This supports transcripts for speech; it does not isolate AG2's gains, since AG2 also changes model and video input~\cite{development}.
+
+\subsection{Results}
+Scores are from the organizer release~\cite{official2026}.
+\textbf{Official AG results.} AG3 and AG4 tie on METEOR; AG2 has the highest BERTScore, .000896 above AG1; AG1 narrowly leads STS. Statistical significance was not tested. This pattern also holds with human-only references. AG4 keeps AG3's first answer but has lower ranked-list scores: METEOR NDCG@10 falls from .861585 to .812896. STS and BERTScore NDCG@10 also fall in both reference modes.
+
+\begin{table}[ht]
+\centering\small
+\begin{tabular}{lrrr}
+\toprule
+Run & STS@1 & METEOR@1 & BERTScore F1@1\\
+\midrule
+AG1 --- \run{q35_4b_u12} & .485552 & .170537 & .890737\\
+AG2 --- \run{q36_dualview} & .465828 & .188578 & .891633\\
+AG3 --- \run{g37_q36_fusion} & .484527 & .318244 & .878867\\
+AG4 --- \run{g37_grouped_unique} & .484527 & .318244 & .878867\\
+\bottomrule
+\end{tabular}
+\caption{Official AG rank-one similarity using human plus alternative references. These scores are not accuracy. NDCG measures discounted relevance across the ranked list; AG4 changes candidate wording as well as ordering.}
+\label{tab:ag}
+\end{table}
+
+\subsection{A recurring error family: wrong counts}
+Counting disagreements recur across the test set. Among 309 questions containing ``how many,'' MC3 misses 109. In \textbf{76 of those 109 misses}, both its selected option and the official option are explicit numbers and the numbers differ. We compare integer digits and number words (zero--twenty), excluding vague quantities. This measures disagreement, not its cause.
+
+\textbf{A clear inspected case (Q\_ID 106; video \run{8008.webm}).} The question asks how many people are shown. In a 1-fps inspection, we see two people, agreeing with the official MC answer, ``2.'' AG3 instead answers ``4 people (two main subjects and two partially visible in the foreground).'' MC3 also selects ``4.'' MC1 and MC2 also select four, while MC4 selects the official count. We did not find the additional foreground people in the inspected frames. AG1 answers ``2,'' which AG3 retains at rank three below Gemini's ``4'' answer.
+
+
+\subsection{Wording and similarity scores}
+Section~\ref{sec:worked} follows one weather question through AG scores, recorded AG4 groups, and MC choices. Equivalent answers receive different METEOR scores, and a contradictory answer receives near-perfect BERTScore. MC3 and MC4 also make different choices despite their shared direct-video approach.
+\section{Multiple Choice}
+\subsection{What we submitted}
+All runs rank the organizer's options. MC1 uses \emph{our AG3 first answer}, generated before seeing the options; it does not receive the organizer's correct answer.
+
+\begin{figure}[ht]\centering
+\begin{tikzpicture}[font=\small]
+\node[anchor=west,font=\bfseries] at (0,.8) {Question and answer options are supplied in every route};
+\foreach \y/\id in {0/MC1,-1.55/MC2,-3.65/MC3,-5.2/MC4}
+  \node[anchor=east,font=\bfseries] at (1,\y) {\id};
+\node[paperbox,evidence,text width=3cm] (a) at (3,0) {Our AG3 answer};
+\node[paperbox,decision,text width=3cm] (b) at (7.3,0) {Gemini 3.7\\Match to options};
+\node[anchor=west] (c) at (10,0) {Text ranking};
+\draw[flowarrow] (a)--(b);\draw[flowarrow] (b)--(c);
+\node[paperbox,evidence,text width=3cm] (d) at (3,-1.55) {Text checker\\AG3 answer + options};
+\node[paperbox,review,text width=3cm] (e) at (7.3,-1.55) {Review video?};
+\node[anchor=west] (yes) at (10,-1.1) {\textbf{Yes}: reuse MC3 ranking};
+\node[anchor=west] (no) at (10,-2.05) {\textbf{No}: MC1 ranking};
+\draw[flowarrow] (d)--(e);\draw[flowarrow] (e.east)--++(.4,0)|-(yes.west);\draw[flowarrow] (e.east)--++(.4,0)|-(no.west);
+\node[paperbox,evidence,text width=3cm] (f) at (3,-3.65) {Audio-video};
+\node[paperbox,decision,text width=3cm] (g) at (7.3,-3.65) {Gemini 3.7\\Rank options};
+\node[anchor=west] (h) at (10,-3.65) {Video ranking};
+\draw[flowarrow] (f)--(g);\draw[flowarrow] (g)--(h);
+\node[paperbox,evidence,text width=3cm] (i) at (3,-5.2) {Audio-video};
+\node[paperbox,decision,text width=3cm] (j) at (7.3,-5.2) {Gemini 3.8\\Rank options};
+\node[anchor=west] (k) at (10,-5.2) {Video ranking};
+\draw[flowarrow] (i)--(j);\draw[flowarrow] (j)--(k);
+\end{tikzpicture}
+\caption{One row per submission. Only MC2 chooses which questions receive video rankings; it reuses the same video predictions as MC3. Video calls receive no saved AG answer. If a video ranking is unavailable or invalid, retain MC1.}\label{fig:mc}
+\end{figure}
+
+\textbf{MC1: text only.} Gemini 3.7 Flash receives the question, AG3's first answer, and every option, then ranks the options.
+
+\textbf{MC2: selected video checks.} A separate text-model call checks how well our saved answer matches the options. We request video review if the match is partial or absent, the checker asks to see video, or MC1's first choice is outside the checker's closest matches. This selects 798 questions. We use valid video rankings for 786 of them and retain MC1 for the other 12 and all questions not selected.
+
+\textbf{MC3: video review throughout.} Gemini 3.7 receives audio-video, the question, and options at 4 frames per second, low resolution, and high thinking. It does not see saved AG answers or text rankings. Valid video rankings replace MC1 on 2,423 questions; 20 retain MC1 because media is unavailable or output is invalid. MC2 reuses these same video predictions.
+
+\textbf{MC4: Gemini 3.8 video review.} This follows MC3's approach with Gemini 3.8 Flash: 2,428 valid video rankings and 15 MC1 fallbacks. These submission counts precede the organizer's exclusion of 15 questions.
+
+\subsection{Results}
+\textbf{Official MC results.} Full Gemini 3.7 review has 140 more correct first choices than text only and 27 more than targeted review (Table~\ref{tab:mc}). Paired organizer rows show 219 text-only errors corrected by MC3 and 79 text-only successes lost, giving the net gain of 140. Gemini 3.8 has five fewer correct answers than 3.7; this does not establish a general model advantage. These are descriptive comparisons of the submitted runs.
+
+\begin{table}[ht]
+\centering\small
+\begin{tabular}{lrrr}
+\toprule
+Run & Correct / 2,428 & Accuracy & MRR\\
+\midrule
+MC1 --- \run{g37q36_mc_text} & 1912 & 78.748\% & .864605\\
+MC2 --- \run{g37_mc_target} & 2025 & 83.402\% & .896845\\
+MC3 --- \run{g37_mc_direct} & 2052 & 84.514\% & .905653\\
+MC4 --- \run{g38_mc_direct} & 2047 & 84.308\% & .905368\\
+\bottomrule
+\end{tabular}
+\caption{Official MC scores on the same 2,428 questions. MRR is mean reciprocal rank.}
+\label{tab:mc}
+\end{table}
+
+
+MC3 ranks second among organizer-listed runs: 2,052 correct versus the leader's 2,058 (84.761\%). Every official correct answer appears in each submitted ranking; errors arise from placing another option first.
+
+On the 309 ``how many'' questions, MC3 gets 200 right (64.7\%), versus MC2's 205 and MC4's 204. MC3 fixes 24 MC1 errors but introduces 21; its overall advantage does not hold in this lexical group.
+
+\clearpage
+\section{One example across scoring, grouping, and choice}
+\label{sec:worked}
+\begingroup\small
+\setlength{\intextsep}{6pt}
+\setlength{\parskip}{4pt}
+\begin{minipage}{.30\linewidth}\centering
+\includegraphics[width=\linewidth]{private-frames/weather-02.jpg}
+\end{minipage}\hfill
+\begin{minipage}{.66\linewidth}\raggedright
+\textbf{Question: ``What is the weather like when someone is filming the white building?''}\\[5pt]
+Q\_ID 1835; Video\_ID \run{8083.webm}; frame at 2 s.\\[5pt]
+\textbf{Official MC answer: ``Sunny.''} The frame illustrates the clip; it is not a reconstructed model input.
+\end{minipage}
+
+\medskip
+\textbf{A. Wording and correctness are different from similarity scores.}
+\begin{center}\small
+\begin{tabular}{llrrr}\toprule
+Run & Actual first answer & STS & METEOR & BERTScore F1\\\midrule
+AG1 & rainy & .552 & .000 & .999\\
+AG2 & Sunny & 1.000 & .500 & 1.000\\
+AG3 / AG4 & It is sunny. & 1.000 & .992 & 1.000\\\bottomrule
+\end{tabular}\end{center}
+``Sunny'' and ``It is sunny.'' agree but differ in METEOR. The contradictory ``rainy'' still receives BERTScore .999436 (rounded above). These are official all-reference scores; AG reference text is unavailable in the score files.
+
+\medskip
+\textbf{B. AG4 merges equivalents and retains the conflicting source.}
+\begin{figure}[H]\centering
+\begin{tikzpicture}[font=\small]
+\node[paperbox,evidence,text width=6.6cm,anchor=north west] at (0,0) {\textbf{Sunny group: three saved sources}\\[4pt]
+Gemini: ``It is sunny.''\\
+Qwen + transcript: ``Sunny''\\
+Qwen video payload: ``It's sunny.''\\[6pt]
+\textbf{Submitted ranks and answers}\\[4pt]
+1. It is sunny. \textit{(kept; rank 1 fixed)}\\
+3. Sunny \textit{(kept)}\\
+4. It's sunny. \textit{(kept)}\\
+6. The weather is sunny. \textit{(new)}\\
+8. Bright and sunny. \textit{(new)}\\
+10. Sunny weather. \textit{(new)}};
+\node[paperbox,review,text width=6.6cm,anchor=north west] at (7.8,0) {\textbf{Rainy group: one saved source}\\[4pt]
+Qwen3.5: ``rainy''\\[6pt]
+\textbf{Submitted ranks and answers}\\[4pt]
+2. rainy \textit{(kept)}\\
+5. The weather is rainy. \textit{(new)}\\
+7. It is raining. \textit{(new)}\\
+9. Rainy weather. \textit{(new)}};
+\end{tikzpicture}
+\caption{Recorded groups and all ten AG4 answers: four sources retained and six variants added. Sunny occupies six ranks and rainy four, interleaved as shown. Allocation and order are generated, not fixed quotas.}\label{fig:shared}
+\end{figure}
+AG4 requires an unchanged first answer, an exact source per group, and normalized-distinct strings. It groups saved text without revisiting video; ten wordings need not mean ten interpretations or removal of wrong answers.
+
+\medskip
+\textbf{C. MC matches the saved answer or ranks from video.}\\[4pt]
+{\small\textbf{All supplied choices:} Sunny; Partly cloudy; Cloudy; Windy; Foggy; Rainy; Stormy; Snowy. Display order follows MC1's ranking.}
+\begin{center}\small
+\begin{tabular}{llllr}\toprule
+Run & Method & First choice & Result & Rank of Sunny\\\midrule
+MC1 & Saved-answer match & Sunny & Correct & 1\\
+MC2 & Targeted review & Sunny & Correct & 1\\
+MC3 & Video, Gemini 3.7 & Rainy & Incorrect & 7\\
+MC4 & Video, Gemini 3.8 & Sunny & Correct & 1\\\bottomrule
+\end{tabular}\end{center}
+MC1 maps AG3's ``It is sunny.'' to ``Sunny.'' MC3 selects ``Rainy,'' while MC4 selects ``Sunny''; neither receives saved AG answers or AG4 groups. This case was selected to illustrate all three panels: its MC pattern occurs in 20/2,428 questions, whereas MC3 gains 140 correct choices overall versus MC1. It does not establish a sampling cause or that text generally outperforms video.
+
+\endgroup
+\clearpage
+{\small\textbf{Drafting assistance.} Codex assisted with writing, diagrams, and source checks. Author review and final model references remain to be completed.}
+
+\begingroup\small\raggedright
+\begin{thebibliography}{9}
+\setlength{\itemsep}{0pt}
+\bibitem{guidelines2026} NIST. \emph{TRECVID 2026: Video Question Answering guidelines}. \url{https://www-nlpir.nist.gov/projects/tv2026/vqa.html}.
+\bibitem{smeaton2006} A. F. Smeaton, P. Over, and W. Kraaij. Evaluation campaigns and TRECVid. \emph{MIR}, 2006, pp. 321--330. \href{https://doi.org/10.1145/1178677.1178722}{doi:10.1145/1178677.1178722}.
+\bibitem{development} NP Labs. \emph{Native-audio model benchmark: matched 30-question development comparison}. Internal experiment report, July 21, 2026.
+\bibitem{official2026} NIST. \emph{TREC VQA 2026 evaluation results}. Participant release, September 2026. AG workbook and NP Labs MC scores; archived at repository revision \run{3efb5b19dbd6d8d59232986cc25ef049af24ba5e}.
+\end{thebibliography}
+\endgroup
+\end{document}
