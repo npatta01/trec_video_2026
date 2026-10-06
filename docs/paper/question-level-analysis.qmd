@@ -115,3 +115,69 @@ Inspected 2-second-interval contact sheet and embedded the local frame at2s. Med
 ## Adversarial-review corrections — 2026-10-05
 
 The shared weather panel now includes AG1 rainy: STS .552021, METEOR0, BERTScore F1 .999436. MC1/MC2/MC4-correct and MC3-wrong pattern occurs in20/2428 archived rows, versus MC3's overall net140 gain over MC1. Presentation distinguishes the two direct-video runs and explicitly labels case selection. Q106 frozen fusion retains the baseline answer2 at rank3 beneath Gemini's4 at rank1; inspection was1fps, so the paper now bounds the visual observation to inspected frames. How-many MC2/MC3/MC4 totals are205/200/204 of309. AG2's mean BERTScore exceeds AG1's by.000896; this numerical comparison has no significance test. No new scorer or inference run.
+
+## Shared errors and equivalent answer choices {#shared-error-audit}
+
+### Question, scope, and decision
+
+Requested question: do mistakes shared across systems reveal a defensible error family or possible annotation problem? This is a retrospective audit of frozen official results, not a new experiment. Primary evidence record is this section and [shared-error-audit.json](shared-error-audit.json). Scope is NP Labs' four related MC runs on2428 scored questions. The two archived ZIPs contain only NP Labs per-query rows; other-team files contain aggregate leaderboards. We therefore cannot inspect the winning team's errors or claim all-team agreement.
+
+Before candidate inspection, the plan required reproducing the shared-error cohort, distinguishing model mistakes from overlapping choices and false references, inspecting selected clips, retaining negative findings, and avoiding an annotation-error-rate estimate or corrected leaderboard. Hypothesis: some shared scored misses may reflect equivalent answer choices. Falsifier for any proposed case: the options ask/express different quantities or the allegedly equivalent string is absent from the original organizer options. No inference calls, learned selector, or changed predictions. Decision: add a bounded section only for directly supported examples.
+
+### Data integrity and selection
+
+Official source revision remains3efb5b19dbd6d8d59232986cc25ef049af24ba5e. Joined four `.per_query.csv` files from NP_Labs-MC.zip by Q_ID. Required all four Top_1 fields to equal0. Same-choice comparison uses Unicode NFKC, lowercase, and whitespace collapse. For every shared miss, checked each run's top1 and official-reference rank against its frozen submission; both strings must occur in `datasets/trecvid-2026/vqa/task2/vqa.2026.testingDataset.Task2_v2.json`. All271 rows pass. The JSON audit records the original-options SHA256, all271 IDs and answers, every official rank, and eight inspected-video hashes.
+
+Screened all271 question/reference/top1 pairs in two lists:194 unanimous same-choice misses and77 differing-choice misses. Selected eight clips purposively to examine obvious equivalence candidates and contrasting visual/timing disagreements; not a random sample. Automated scanning found no option sets with exact duplicates after lowercasing, whitespace normalization, and removing terminal `.?!` punctuation across2443 released questions. Semantic equivalence can remain despite text-string uniqueness. This scan is a limited diagnostic, not a complete semantic deduplication method.
+
+### Observed findings
+
+271/2428 questions are wrong under all four submissions;194/271 choose the same normalized top option. These are related outputs: MC2 chooses between rankings used by MC1 and MC3, and MC1 uses our saved AG answer. Four-run agreement is not four independent judgments.
+
+Two in-context equivalences are directly confirmed in the original revised options:
+
+| Q_ID / video | Question | Official choice | All four top choices | Official rank in every run |
+|---|---|---|---|---|
+|1369 / Memphis-18.webm|How many beds are in the house?|One|One bed|2|
+|2049 / Archipelago-42.webm|How many people in the video are wearing a hat?|One|One person is wearing a hat|2|
+
+Both selected choices answer exactly the same count as the designated option. The semantic-equivalence claim does not require proving the official count over unseen parts of either clip. This establishes different scoring outcomes for equivalent choices, not that the reference count is false. No adjusted accuracy or ranking is computed. At least two identified cases are reported, without estimating how many of the other269 are equivalent.
+
+### Clip-inspection log and negative findings
+
+Contact sheets were sampled over the full available duration at the intervals recorded in JSON; sampled inspection cannot prove absence between frames. No audio adjudication was performed. No displayed frame is claimed to be an actual model input.
+
+| Q_ID | Inspection | Disposition |
+|---|---|---|
+|1369|102.022s clip, contact sheet every6.376375s; bed visible indoors, other rooms not fully enumerated|Equivalent count choices established from text; no claim to enumerate unseen beds.|
+|2049|165.003s clip, every10.3126875s; two people at an outdoor easel, one painting and wearing a cap; extra frame at50s|Equivalent count choices established;50s frame used as illustration.|
+|1610|1.902s clip,1fps; visible cable-supported bridge; official hanging bridge, selected suspension bridge|Potential synonym/overlap, kept as supporting candidate; excluded from two exact-count cases.|
+|14|89.009s clip, every5.5630625s plus first36s at1fps; train passes early and cyclist appears later|Ambiguous timing/gaze; no false-reference determination.|
+|1757|7.608s clip,1fps; dim tunnel and headgear|Cap versus helmet not confidently resolved; no label claim.|
+|1538|7.799s clip, every.38995s; close view of tulips and steps|Second side not conclusively established; no label claim.|
+|351|8.749s clip, every.43745s; cars at train crossing|Approaching versus stopped can depend on car/time; no definitive label claim.|
+|1291|10.010s clip, every.5005s plus frame6s; baby awake/moving in later frames|Sleeping is incomplete, but dance/audio relation not adjudicated; not promoted as a verified error.|
+
+Q2249 andQ2404 were initially missing from the standardized media directory. Raw MKVs were subsequently located under videos_original, but not inspected or promoted. They are not counted among the eight inspections. No dataset contents were copied or modified; only authorized local derived frames were generated. Paper image remains ignored by Git; the PDF embeds the authorized illustrative frame.
+
+### Interpretation and limits
+
+Evidence validity: valid descriptive cohort plus two verified option-equivalence cases. Decision: add a concise paper section on shared errors and equivalent choices. It establishes an answer-option distinction that additional visual evidence cannot resolve for these questions. It does not establish false reference facts, annotation-error prevalence, the best team's question-level behavior, an improved model, or a corrected leaderboard. More detailed independent adjudication could change the unresolved candidate dispositions; it is not necessary for the two text-equivalence claims. This extends the paper evidence record; it does not supersede official scores or promote a new prediction policy.
+
+Reproduction of cohort construction (Python, from repository root; options and submissions are checked separately as described above):
+
+```python
+import csv, io, subprocess, unicodedata, zipfile
+rev = "3efb5b19dbd6d8d59232986cc25ef049af24ba5e"
+path = "docs/experiments/artifacts/trec-vqa-2026-official-results/NP_Labs-MC.zip"
+z = zipfile.ZipFile(io.BytesIO(subprocess.check_output(["git", "show", f"{rev}:{path}"])))
+tags = ["g37q36_mc_text", "g37_mc_target", "g37_mc_direct", "g38_mc_direct"]
+rows = {t: {int(r["Q_ID"]): r for r in csv.DictReader(io.StringIO(
+    z.read(f"NP_Labs/{t}.per_query.csv").decode("utf-8-sig")))} for t in tags}
+assert all(set(rows[t]) == set(rows[tags[0]]) for t in tags)
+shared = [q for q in rows[tags[0]] if all(float(rows[t][q]["Top_1"]) == 0 for t in tags)]
+def norm(s):
+    return " ".join(unicodedata.normalize("NFKC", s).lower().split())
+same = [q for q in shared if len({norm(rows[t][q]["Submitted_Rank_1"]) for t in tags}) == 1]
+assert (len(rows[tags[0]]), len(shared), len(same)) == (2428, 271, 194)
+```

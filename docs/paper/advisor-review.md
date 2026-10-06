@@ -35,3 +35,12 @@ Scope: current TeX and QMD/JSON evidence, read-only via `cc:adversarial-review`,
 7. **Low: typos and missing implementation detail.** Closed the abstract quotation, removed duplicated video-payload wording, completed the architecture caption sentence, named Gemini3.7 Flash for AG4 from the generator script, and clarified answer-option availability.
 
 No new inference, experiment, or publication. Added local rebuild instructions because the private source frame remains ignored. Verification: frozen Q106 ranks and weather scores checked; official subgroup/pattern totals checked; two-pass XeLaTeX build and rendered-page review. Final draft remains six pages. Native editor image limitation persists. These are fixes assessed and integrated by Codex, not a claim of a second independent approval.
+
+## Shared-error analysis review — 2026-10-05
+
+Focused read-only Claude Code adversarial review of the new paper section and audit QMD/JSON returned **approve**. It confirmed the271/194/77 counts and the two in-context One/One bed and One/One person is wearing a hat equivalences against the audit record, finding the claims appropriately bounded. Two low-priority suggestions were addressed:
+
+- Explicitly identify Q1610 as a possible wording overlap, rather than describing every other inspection as visual/timing ambiguity.
+- Show additional equivalent pairs within the two original option sets. Used precise examples (Two/Two beds; None/No one is wearing a hat), not the reviewer's overly broad suggestion that every count has two forms, since the actual lists do not support that universal statement.
+
+Also clarified that the hat frame shows two people at an easel, one painting. No prevalence, false-reference-fact, all-team-error, or corrected-leaderboard claim was added. Review did not independently replay every video. Local rendering checks remain the primary agent's responsibility.

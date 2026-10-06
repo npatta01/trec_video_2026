@@ -1,0 +1,5408 @@
+{
+  "question": "Which shared scored errors can be distinguished from factual/perceptual errors?",
+  "source_revision": "3efb5b19dbd6d8d59232986cc25ef049af24ba5e",
+  "task2_options_path": "datasets/trecvid-2026/vqa/task2/vqa.2026.testingDataset.Task2_v2.json",
+  "task2_options_sha256": "12042650e1bee6842543b39204fc483d6e46669a861b351435b6ececa3d1aabc",
+  "team_scope": "NP Labs only; other-team per-query outputs absent from archived release",
+  "n_scored": 2428,
+  "all_four_wrong": 271,
+  "same_top1_among_all_wrong": 194,
+  "different_top1_among_all_wrong": 77,
+  "selection": "Screened all271 shared-error question/reference/top1 pairs. Inspected eight purposively selected visual candidates; no random sample or annotation-error-rate estimate. Two attempted candidates2249/2404 were initially missing from standardized path; raw MKV was located but these were not visually audited or promoted.",
+  "classification_limit": "No false underlying reference fact established; two exact in-context answer equivalences established from released option text. No corrected scores.",
+  "cohort": [
+    {
+      "qid": 4,
+      "video_id": "7939.webm",
+      "question": "Why might the field be verdant?",
+      "official_option": "Because it has been raining",
+      "top1_by_run": {
+        "g37q36_mc_text": "Because it is spring",
+        "g37_mc_target": "Because it is spring",
+        "g37_mc_direct": "Because it is spring",
+        "g38_mc_direct": "Because it is spring"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 8,
+      "video_id": "96TNF0giDNw",
+      "question": "What happens at the end of the video?",
+      "official_option": "A woman learns how to give herself a gel manicure",
+      "top1_by_run": {
+        "g37q36_mc_text": "A woman polishes her nails",
+        "g37_mc_target": "A woman polishes her nails",
+        "g37_mc_direct": "A woman polishes her nails",
+        "g38_mc_direct": "A woman polishes her nails"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 14,
+      "video_id": "Memphis-39.webm",
+      "question": "what did the young woman see while she was sitting on the fence?",
+      "official_option": "A train pass by",
+      "top1_by_run": {
+        "g37q36_mc_text": "a cyclist passing by",
+        "g37_mc_target": "a cyclist passing by",
+        "g37_mc_direct": "a cyclist passing by",
+        "g38_mc_direct": "a cyclist passing by"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 40,
+      "video_id": "AtJQgl4MtxI",
+      "question": "How many tunes does the truck's horn make?",
+      "official_option": "One",
+      "top1_by_run": {
+        "g37q36_mc_text": "Five",
+        "g37_mc_target": "Five",
+        "g37_mc_direct": "Seven",
+        "g38_mc_direct": "Two"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 8,
+        "g37_mc_target": 8,
+        "g37_mc_direct": 8,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 43,
+      "video_id": "7698.webm",
+      "question": "What is the person climbing?",
+      "official_option": "A mountain",
+      "top1_by_run": {
+        "g37q36_mc_text": "A rock wall",
+        "g37_mc_target": "A rock wall",
+        "g37_mc_direct": "A rock wall",
+        "g38_mc_direct": "A rock wall"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 48,
+      "video_id": "FFo_08CBM10",
+      "question": "What is the main instrument being played during this video?",
+      "official_option": "Xylophone",
+      "top1_by_run": {
+        "g37q36_mc_text": "Marimba",
+        "g37_mc_target": "Glockenspiel",
+        "g37_mc_direct": "Glockenspiel",
+        "g38_mc_direct": "Marimba"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 50,
+      "video_id": "7041.webm",
+      "question": "What is playing on the TV set?",
+      "official_option": "A television show",
+      "top1_by_run": {
+        "g37q36_mc_text": "A video game",
+        "g37_mc_target": "A video game",
+        "g37_mc_direct": "A video game",
+        "g38_mc_direct": "A video game"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 65,
+      "video_id": "7573.webm",
+      "question": "What is the relationship between the man and the dog?",
+      "official_option": "The dog is the man's pet",
+      "top1_by_run": {
+        "g37q36_mc_text": "The dog is following the man",
+        "g37_mc_target": "The dog is following the man",
+        "g37_mc_direct": "The dog is following the man",
+        "g38_mc_direct": "The dog is following the man"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 85,
+      "video_id": "ChainedforLife-3.webm",
+      "question": "Why are the women all talking about facial hair?",
+      "official_option": "Actresses are all self-conscious",
+      "top1_by_run": {
+        "g37q36_mc_text": "The women are discussing a new grooming trend",
+        "g37_mc_target": "The women are discussing a new grooming trend",
+        "g37_mc_direct": "The women are discussing a new grooming trend",
+        "g38_mc_direct": "The women are discussing a new grooming trend"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 4
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 95,
+      "video_id": "7907.webm",
+      "question": "What are the people sitting around the tables doing?",
+      "official_option": "They are listening to a speaker",
+      "top1_by_run": {
+        "g37q36_mc_text": "They are eating",
+        "g37_mc_target": "They are having a conversation",
+        "g37_mc_direct": "They are having a conversation",
+        "g38_mc_direct": "They are having a conversation"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 107,
+      "video_id": "7594.webm",
+      "question": "What is the wind surfer likely doing while holding on to the string?",
+      "official_option": "Surfing",
+      "top1_by_run": {
+        "g37q36_mc_text": "Kiteboarding",
+        "g37_mc_target": "Kiteboarding",
+        "g37_mc_direct": "Kiteboarding",
+        "g38_mc_direct": "Kiteboarding"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 108,
+      "video_id": "6819.webm",
+      "question": "How many people are trying to push their way onto the subway car?",
+      "official_option": "Many",
+      "top1_by_run": {
+        "g37q36_mc_text": "A crowd",
+        "g37_mc_target": "A crowd",
+        "g37_mc_direct": "A crowd",
+        "g38_mc_direct": "A crowd"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 116,
+      "video_id": "Calloused_Hands-18.webm",
+      "question": "How many more sets of tableware does the one waitress prepare than the other?",
+      "official_option": "Two",
+      "top1_by_run": {
+        "g37q36_mc_text": "One",
+        "g37_mc_target": "One",
+        "g37_mc_direct": "One",
+        "g38_mc_direct": "Zero"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 3
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 129,
+      "video_id": "Liberty_Kid-41.webm",
+      "question": "What was the sound the car made at the end of the video",
+      "official_option": "A music with an accordion",
+      "top1_by_run": {
+        "g37q36_mc_text": "siren sound like a police car",
+        "g37_mc_target": "siren sound like a police car",
+        "g37_mc_direct": "siren sound like a police car",
+        "g38_mc_direct": "siren sound like a police car"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 7,
+        "g37_mc_target": 7,
+        "g37_mc_direct": 7,
+        "g38_mc_direct": 7
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 163,
+      "video_id": "S7K4w5wz9SM",
+      "question": "What does the person do after the other person's hand touches his leg while driving in the car?",
+      "official_option": "The other person removes his hand off his thigh",
+      "top1_by_run": {
+        "g37q36_mc_text": "The other person moves his hand",
+        "g37_mc_target": "The other person moves his hand",
+        "g37_mc_direct": "The other person moves his hand",
+        "g38_mc_direct": "The other person moves his hand"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 178,
+      "video_id": "oVh6SQJg4WE",
+      "question": "what is the sound on the background of the music?",
+      "official_option": "Children hum sporadically",
+      "top1_by_run": {
+        "g37q36_mc_text": "birds chirping in the distance",
+        "g37_mc_target": "screaming children constantly",
+        "g37_mc_direct": "screaming children constantly",
+        "g38_mc_direct": "screaming children constantly"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 185,
+      "video_id": "7046.webm",
+      "question": "How many people are playing on the piano?",
+      "official_option": "2",
+      "top1_by_run": {
+        "g37q36_mc_text": "1",
+        "g37_mc_target": "1",
+        "g37_mc_direct": "1",
+        "g38_mc_direct": "1"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 188,
+      "video_id": "scSJhmKc4vY",
+      "question": "how was the LEGO mini figure built up?",
+      "official_option": "one element at at time followed by pleasant music",
+      "top1_by_run": {
+        "g37q36_mc_text": "constructed step by step while music plays",
+        "g37_mc_target": "constructed step by step while music plays",
+        "g37_mc_direct": "constructed step by step while music plays",
+        "g38_mc_direct": "one piece after another with cheerful tunes"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 5,
+        "g38_mc_direct": 5
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 193,
+      "video_id": "ChainedforLife-34.webm",
+      "question": "How many of the people from the hospital are at the restaurant?",
+      "official_option": "4",
+      "top1_by_run": {
+        "g37q36_mc_text": "5",
+        "g37_mc_target": "5",
+        "g37_mc_direct": "6",
+        "g38_mc_direct": "6"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 4
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 204,
+      "video_id": "9oGYisUmw9E",
+      "question": "Why was the father afraid of his little girl?",
+      "official_option": "He was not afraid of his daughter. He was amazed",
+      "top1_by_run": {
+        "g37q36_mc_text": "Because the girl appeared to be possessed as she was mouthing the words to a song",
+        "g37_mc_target": "Because the girl appeared to be possessed as she was mouthing the words to a song",
+        "g37_mc_direct": "Because the girl appeared to be possessed as she was mouthing the words to a song",
+        "g38_mc_direct": "Because the girl appeared to be possessed as she was mouthing the words to a song"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 206,
+      "video_id": "6734.webm",
+      "question": "Why might the man be wearing a suit?",
+      "official_option": "He is a businessman or office worker",
+      "top1_by_run": {
+        "g37q36_mc_text": "He is participating in a formal presentation",
+        "g37_mc_target": "He is participating in a formal presentation",
+        "g37_mc_direct": "He is participating in a formal presentation",
+        "g38_mc_direct": "He is participating in a formal presentation"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 207,
+      "video_id": "7830.webm",
+      "question": "How many people are shown in the scene?",
+      "official_option": "3",
+      "top1_by_run": {
+        "g37q36_mc_text": "6",
+        "g37_mc_target": "6",
+        "g37_mc_direct": "6",
+        "g38_mc_direct": "6"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 6,
+        "g37_mc_direct": 6,
+        "g38_mc_direct": 6
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 210,
+      "video_id": "Liberty_Kid-20.webm",
+      "question": "How many people stop to buy drugs from the two dealers?",
+      "official_option": "Three",
+      "top1_by_run": {
+        "g37q36_mc_text": "1",
+        "g37_mc_target": "1",
+        "g37_mc_direct": "1",
+        "g38_mc_direct": "0"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 4
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 211,
+      "video_id": "6666.webm",
+      "question": "What is the dog doing while the cat is looking through the window?",
+      "official_option": "It is licking a bone",
+      "top1_by_run": {
+        "g37q36_mc_text": "It is chewing on a toy",
+        "g37_mc_target": "It is chewing on a toy",
+        "g37_mc_direct": "It is sleeping",
+        "g38_mc_direct": "It is sleeping"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 3
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 212,
+      "video_id": "Archipelago-3.webm",
+      "question": "How many different rooms are shown in this video?",
+      "official_option": "5",
+      "top1_by_run": {
+        "g37q36_mc_text": "3",
+        "g37_mc_target": "3",
+        "g37_mc_direct": "3",
+        "g38_mc_direct": "4"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 221,
+      "video_id": "7599.webm",
+      "question": "What are the men doing while the cars are going by?",
+      "official_option": "They are talking",
+      "top1_by_run": {
+        "g37q36_mc_text": "They are walking",
+        "g37_mc_target": "They are walking",
+        "g37_mc_direct": "They are walking",
+        "g38_mc_direct": "They are walking"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 233,
+      "video_id": "6564.webm",
+      "question": "Where is the bride when she gets hugs and flowers?",
+      "official_option": "On a deck outside",
+      "top1_by_run": {
+        "g37q36_mc_text": "Under a gazebo",
+        "g37_mc_target": "Under a gazebo",
+        "g37_mc_direct": "Under a gazebo",
+        "g38_mc_direct": "Under a gazebo"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 272,
+      "video_id": "7774.webm",
+      "question": "What are the snakes doing with each other?",
+      "official_option": "Engaging",
+      "top1_by_run": {
+        "g37q36_mc_text": "Fighting",
+        "g37_mc_target": "Fighting",
+        "g37_mc_direct": "Fighting",
+        "g38_mc_direct": "Fighting"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 284,
+      "video_id": "Memphis-41.webm",
+      "question": "What sounds did the man hear a the end of the video?",
+      "official_option": "Crickets chirping",
+      "top1_by_run": {
+        "g37q36_mc_text": "foot steps",
+        "g37_mc_target": "children playing",
+        "g37_mc_direct": "children playing",
+        "g38_mc_direct": "children playing"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 315,
+      "video_id": "BrU_lH0_-iU",
+      "question": "what kind of surface is this playing field?",
+      "official_option": "clay",
+      "top1_by_run": {
+        "g37q36_mc_text": "dirt",
+        "g37_mc_target": "dirt",
+        "g37_mc_direct": "dirt",
+        "g38_mc_direct": "dirt"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 319,
+      "video_id": "like_me-28.webm",
+      "question": "What did the woman do immediately after she killed the young man with the bat",
+      "official_option": "She threw up",
+      "top1_by_run": {
+        "g37q36_mc_text": "she started to cry",
+        "g37_mc_target": "she started to cry",
+        "g37_mc_direct": "she started to cry",
+        "g38_mc_direct": "she started to cry"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 327,
+      "video_id": "7038.webm",
+      "question": "How many actions did the woman perform with her phone?",
+      "official_option": "1",
+      "top1_by_run": {
+        "g37q36_mc_text": "3",
+        "g37_mc_target": "3",
+        "g37_mc_direct": "3",
+        "g38_mc_direct": "3"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 4
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 329,
+      "video_id": "7750.webm",
+      "question": "How many cars are being walked past?",
+      "official_option": "Some",
+      "top1_by_run": {
+        "g37q36_mc_text": "Three",
+        "g37_mc_target": "Three",
+        "g37_mc_direct": "Three",
+        "g38_mc_direct": "Two"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 5,
+        "g38_mc_direct": 5
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 346,
+      "video_id": "8360.webm",
+      "question": "What is the woman wearing?",
+      "official_option": "A pink suit jacket",
+      "top1_by_run": {
+        "g37q36_mc_text": "A pink blouse",
+        "g37_mc_target": "A pink blouse",
+        "g37_mc_direct": "A pink blouse",
+        "g38_mc_direct": "A pink blouse"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 347,
+      "video_id": "0ETjlDfpxDM",
+      "question": "What kind of present did the little girl get?",
+      "official_option": "A bubble blowing wand",
+      "top1_by_run": {
+        "g37q36_mc_text": "a tootsie pop",
+        "g37_mc_target": "a tootsie pop",
+        "g37_mc_direct": "a tootsie pop",
+        "g38_mc_direct": "a tootsie pop"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 351,
+      "video_id": "7941.webm",
+      "question": "What are the cars doing as the train passes by?",
+      "official_option": "They are approaching the train crossing",
+      "top1_by_run": {
+        "g37q36_mc_text": "They are stopped at a red light",
+        "g37_mc_target": "They are stopped at a red light",
+        "g37_mc_direct": "They are stopped at a red light",
+        "g38_mc_direct": "They are stopped at a red light"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 361,
+      "video_id": "6556.webm",
+      "question": "How many people are likely involved in the scene?",
+      "official_option": "2 or more",
+      "top1_by_run": {
+        "g37q36_mc_text": "1",
+        "g37_mc_target": "1",
+        "g37_mc_direct": "1",
+        "g38_mc_direct": "1"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 362,
+      "video_id": "7575.webm",
+      "question": "What is likely to be heard in the video?",
+      "official_option": "Sound of construction or demolition",
+      "top1_by_run": {
+        "g37q36_mc_text": "Sound of traffic",
+        "g37_mc_target": "Sound of music playing",
+        "g37_mc_direct": "Sound of music playing",
+        "g38_mc_direct": "Sound of music playing"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 366,
+      "video_id": "4jDyEx2XQ5M",
+      "question": "what kind of fence is behind the man in the peep hole?",
+      "official_option": "a brick wall",
+      "top1_by_run": {
+        "g37q36_mc_text": "a wooden",
+        "g37_mc_target": "a wooden",
+        "g37_mc_direct": "a wooden",
+        "g38_mc_direct": "a wooden"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 378,
+      "video_id": "Bps9hEGTl6w",
+      "question": "How many torches we see on the walls the first time the character walks through them",
+      "official_option": "nine",
+      "top1_by_run": {
+        "g37q36_mc_text": "eight",
+        "g37_mc_target": "eight",
+        "g37_mc_direct": "eight",
+        "g38_mc_direct": "ten"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 380,
+      "video_id": "8EMtut3_zDM",
+      "question": "how many child car seats are in the video?",
+      "official_option": "one",
+      "top1_by_run": {
+        "g37q36_mc_text": "none",
+        "g37_mc_target": "none",
+        "g37_mc_direct": "none",
+        "g38_mc_direct": "none"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 394,
+      "video_id": "8458.webm",
+      "question": "Why might the girl be holding her hand to her mouth?",
+      "official_option": "She is surprised or shocked",
+      "top1_by_run": {
+        "g37q36_mc_text": "She is trying to stifle a laugh",
+        "g37_mc_target": "She is trying to stifle a laugh",
+        "g37_mc_direct": "She is trying to stifle a laugh",
+        "g38_mc_direct": "She is trying to stifle a laugh"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 406,
+      "video_id": "COlaISgD-HE",
+      "question": "Do the arm bracelets have any special meanung?",
+      "official_option": "No",
+      "top1_by_run": {
+        "g37q36_mc_text": "Yes, they mean the woman is engaged",
+        "g37_mc_target": "Yes, they match the colors of the saris",
+        "g37_mc_direct": "Yes, they match the colors of the saris",
+        "g38_mc_direct": "Yes, they match the colors of the saris"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 415,
+      "video_id": "8341.webm",
+      "question": "What type of food is likely being fed to the baby?",
+      "official_option": "Solid food",
+      "top1_by_run": {
+        "g37q36_mc_text": "Pureed vegetables",
+        "g37_mc_target": "Pureed vegetables",
+        "g37_mc_direct": "Pureed vegetables",
+        "g38_mc_direct": "Pureed vegetables"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 6,
+        "g37_mc_direct": 6,
+        "g38_mc_direct": 6
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 419,
+      "video_id": "8003.webm",
+      "question": "Why is the man dressed in a scary costume?",
+      "official_option": "He is trying to scare people",
+      "top1_by_run": {
+        "g37q36_mc_text": "He is filming a horror movie scene",
+        "g37_mc_target": "He is filming a horror movie scene",
+        "g37_mc_direct": "He is filming a horror movie scene",
+        "g38_mc_direct": "He is filming a horror movie scene"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 4
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 429,
+      "video_id": "TTPM7g-qelc",
+      "question": "Why did the girl not accept the boy's offer of his drink to help her swallow the pill?",
+      "official_option": "She didn't want his germs",
+      "top1_by_run": {
+        "g37q36_mc_text": "She doesn't like orange soda",
+        "g37_mc_target": "She was concerned about hygiene",
+        "g37_mc_direct": "She was concerned about hygiene",
+        "g38_mc_direct": "She didn't need it"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 3
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 433,
+      "video_id": "p6K56cUuuY4",
+      "question": "How many hand to hand weapons does the narrator discuss?",
+      "official_option": "1",
+      "top1_by_run": {
+        "g37q36_mc_text": "3",
+        "g37_mc_target": "3",
+        "g37_mc_direct": "3",
+        "g38_mc_direct": "3"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 5
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 442,
+      "video_id": "7671.webm",
+      "question": "What is surrounding the road where the participants are running?",
+      "official_option": "Green hills",
+      "top1_by_run": {
+        "g37q36_mc_text": "Trees",
+        "g37_mc_target": "Trees",
+        "g37_mc_direct": "Trees",
+        "g38_mc_direct": "Trees"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 443,
+      "video_id": "Memphis-30.webm",
+      "question": "How many chords does the organist play in this scene?",
+      "official_option": "19",
+      "top1_by_run": {
+        "g37q36_mc_text": "15",
+        "g37_mc_target": "15",
+        "g37_mc_direct": "22",
+        "g38_mc_direct": "18"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 4
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 460,
+      "video_id": "7505.webm",
+      "question": "What is the weather like when the woman is assisting someone with their camera?",
+      "official_option": "Sunny",
+      "top1_by_run": {
+        "g37q36_mc_text": "Overcast",
+        "g37_mc_target": "Overcast",
+        "g37_mc_direct": "Windy",
+        "g38_mc_direct": "Windy"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 7,
+        "g37_mc_target": 7,
+        "g37_mc_direct": 5,
+        "g38_mc_direct": 4
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 471,
+      "video_id": "like_me-13.webm",
+      "question": "What did the woman do with the car?",
+      "official_option": "Clean the windshield",
+      "top1_by_run": {
+        "g37q36_mc_text": "Fill the gas tank",
+        "g37_mc_target": "Fill the gas tank",
+        "g37_mc_direct": "Fill the gas tank",
+        "g38_mc_direct": "Fill the gas tank"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 479,
+      "video_id": "4SwQdNPpEQw",
+      "question": "What does the woman do with the makeup?",
+      "official_option": "Change her appearance",
+      "top1_by_run": {
+        "g37q36_mc_text": "Apply it to her face",
+        "g37_mc_target": "Apply it to her face",
+        "g37_mc_direct": "Apply it to her face",
+        "g38_mc_direct": "Apply it to her face"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 484,
+      "video_id": "6493.webm",
+      "question": "Where is the man sitting?",
+      "official_option": "Inside",
+      "top1_by_run": {
+        "g37q36_mc_text": "At a desk",
+        "g37_mc_target": "At a desk",
+        "g37_mc_direct": "At a desk",
+        "g38_mc_direct": "At a desk"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 489,
+      "video_id": "5pSyVhF9YAw",
+      "question": "how many holes in the shoe is the man threading the lace through?",
+      "official_option": "nine",
+      "top1_by_run": {
+        "g37q36_mc_text": "eight",
+        "g37_mc_target": "eight",
+        "g37_mc_direct": "eight",
+        "g38_mc_direct": "eight"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 497,
+      "video_id": "5IeoNsHyMF0",
+      "question": "what did the girl do when she danced with the boy?",
+      "official_option": "she expressed the words quietly",
+      "top1_by_run": {
+        "g37q36_mc_text": "she jumped and hugged him",
+        "g37_mc_target": "she mouthed the words silently",
+        "g37_mc_direct": "she mouthed the words silently",
+        "g38_mc_direct": "she mouthed the words silently"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 501,
+      "video_id": "6541.webm",
+      "question": "Where is the big fish swimming?",
+      "official_option": "In the sea close to a reef",
+      "top1_by_run": {
+        "g37q36_mc_text": "In an aquarium",
+        "g37_mc_target": "In an aquarium",
+        "g37_mc_direct": "In an aquarium",
+        "g38_mc_direct": "In an aquarium"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 534,
+      "video_id": "7431.webm",
+      "question": "What is the woman doing with her finger on the object?",
+      "official_option": "She is drawing a circle",
+      "top1_by_run": {
+        "g37q36_mc_text": "She is pointing at the object",
+        "g37_mc_target": "She is pointing at the object",
+        "g37_mc_direct": "She is pointing at the object",
+        "g38_mc_direct": "She is tapping the surface"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 6,
+        "g37_mc_direct": 6,
+        "g38_mc_direct": 6
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 540,
+      "video_id": "9dQ51x-Ni3I",
+      "question": "when do the couple kiss",
+      "official_option": "never",
+      "top1_by_run": {
+        "g37q36_mc_text": "in the end",
+        "g37_mc_target": "in the end",
+        "g37_mc_direct": "in the end",
+        "g38_mc_direct": "in the end"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 541,
+      "video_id": "6580.webm",
+      "question": "Where is the girl sitting while drinking juice?",
+      "official_option": "In a mall",
+      "top1_by_run": {
+        "g37q36_mc_text": "In a restaurant",
+        "g37_mc_target": "In a restaurant",
+        "g37_mc_direct": "In a restaurant",
+        "g38_mc_direct": "In a restaurant"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 566,
+      "video_id": "jJc9OvoiT84",
+      "question": "How did this bus accident happen?",
+      "official_option": "The bus driver fell asleep at the wheel",
+      "top1_by_run": {
+        "g37q36_mc_text": "The double-decker bus was top heavy and too hard to handle on a curve in the road",
+        "g37_mc_target": "The double-decker bus was top heavy and too hard to handle on a curve in the road",
+        "g37_mc_direct": "The double-decker bus was top heavy and too hard to handle on a curve in the road",
+        "g38_mc_direct": "The double-decker bus was top heavy and too hard to handle on a curve in the road"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 571,
+      "video_id": "6509.webm",
+      "question": "Why might the young man be taking off his shirt before jumping into the water?",
+      "official_option": "He is getting ready to swim",
+      "top1_by_run": {
+        "g37q36_mc_text": "He is avoiding getting his clothes wet",
+        "g37_mc_target": "He is avoiding getting his clothes wet",
+        "g37_mc_direct": "He is avoiding getting his clothes wet",
+        "g38_mc_direct": "He is avoiding getting his clothes wet"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 577,
+      "video_id": "7kTCrJxS9GQ",
+      "question": "What happens after the man looks down?",
+      "official_option": "He falls through a trap door",
+      "top1_by_run": {
+        "g37q36_mc_text": "He looses his balance",
+        "g37_mc_target": "He gets shot",
+        "g37_mc_direct": "He gets shot",
+        "g38_mc_direct": "He looses his balance"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 4
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 583,
+      "video_id": "6683.webm",
+      "question": "What is the likely sound made by the helicopter?",
+      "official_option": "Loud roaring",
+      "top1_by_run": {
+        "g37q36_mc_text": "High-pitched whining",
+        "g37_mc_target": "High-pitched whining",
+        "g37_mc_direct": "Rhythmic thumping",
+        "g38_mc_direct": "High-pitched whining"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 4
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 590,
+      "video_id": "7925.webm",
+      "question": "What is the puppy doing to the bush?",
+      "official_option": "It is sniffing it",
+      "top1_by_run": {
+        "g37q36_mc_text": "It is playing with it",
+        "g37_mc_target": "It is playing with it",
+        "g37_mc_direct": "It is playing with it",
+        "g38_mc_direct": "It is chasing its tail around it"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 3
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 592,
+      "video_id": "7895.webm",
+      "question": "What type of area is the bicycle path located in?",
+      "official_option": "Forest",
+      "top1_by_run": {
+        "g37q36_mc_text": "Mountain peak",
+        "g37_mc_target": "Mountain peak",
+        "g37_mc_direct": "Mountain peak",
+        "g38_mc_direct": "Mountain peak"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 593,
+      "video_id": "6644.webm",
+      "question": "Why is the dog able to look outside the car window?",
+      "official_option": "The dog is standing on something",
+      "top1_by_run": {
+        "g37q36_mc_text": "The window is open",
+        "g37_mc_target": "The window is open",
+        "g37_mc_direct": "The window is open",
+        "g38_mc_direct": "The window is open"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 4
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 601,
+      "video_id": "8612.webm",
+      "question": "How many people are described as being outside?",
+      "official_option": "2",
+      "top1_by_run": {
+        "g37q36_mc_text": "7",
+        "g37_mc_target": "7",
+        "g37_mc_direct": "7",
+        "g38_mc_direct": "7"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 6,
+        "g37_mc_direct": 6,
+        "g38_mc_direct": 6
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 606,
+      "video_id": "cV5CkS3sYZI",
+      "question": "what do the two girl say after receiving their shots?",
+      "official_option": "Both flip their hands and say: \"Yah\"",
+      "top1_by_run": {
+        "g37q36_mc_text": "They say it didn't hurt",
+        "g37_mc_target": "They say it didn't hurt",
+        "g37_mc_direct": "They say it didn't hurt",
+        "g38_mc_direct": "They say it didn't hurt"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 609,
+      "video_id": "6725.webm",
+      "question": "How many times did the baby fail to walk?",
+      "official_option": "Multiple times",
+      "top1_by_run": {
+        "g37q36_mc_text": "Twice",
+        "g37_mc_target": "Twice",
+        "g37_mc_direct": "Twice",
+        "g38_mc_direct": "Twice"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 615,
+      "video_id": "6649.webm",
+      "question": "How many objects is the woman using?",
+      "official_option": "2",
+      "top1_by_run": {
+        "g37q36_mc_text": "1",
+        "g37_mc_target": "1",
+        "g37_mc_direct": "1",
+        "g38_mc_direct": "1"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 626,
+      "video_id": "5Nun2l6bXHg",
+      "question": "how many hits the man inflicts on the doll?",
+      "official_option": "twelve",
+      "top1_by_run": {
+        "g37q36_mc_text": "eleven",
+        "g37_mc_target": "eleven",
+        "g37_mc_direct": "eleven",
+        "g38_mc_direct": "eleven"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 638,
+      "video_id": "7308.webm",
+      "question": "How many people are giving instructions to the camera man?",
+      "official_option": "Several",
+      "top1_by_run": {
+        "g37q36_mc_text": "Two",
+        "g37_mc_target": "Two",
+        "g37_mc_direct": "Two",
+        "g38_mc_direct": "One"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 7
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 654,
+      "video_id": "7843.webm",
+      "question": "Where is the man in relation to the ocean?",
+      "official_option": "He is near the ocean",
+      "top1_by_run": {
+        "g37q36_mc_text": "He is looking at the ocean from a cliff",
+        "g37_mc_target": "He is looking at the ocean from a cliff",
+        "g37_mc_direct": "He is looking at the ocean from a cliff",
+        "g38_mc_direct": "He is looking at the ocean from a cliff"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 660,
+      "video_id": "6631.webm",
+      "question": "What are the people doing in relation to the street?",
+      "official_option": "They are standing in it",
+      "top1_by_run": {
+        "g37q36_mc_text": "They are walking across it",
+        "g37_mc_target": "They are walking across it",
+        "g37_mc_direct": "They are standing beside it",
+        "g38_mc_direct": "They are standing beside it"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 664,
+      "video_id": "7540.webm",
+      "question": "When is the man running through the woods?",
+      "official_option": "In the evening",
+      "top1_by_run": {
+        "g37q36_mc_text": "At night",
+        "g37_mc_target": "In the morning",
+        "g37_mc_direct": "In the morning",
+        "g38_mc_direct": "In the morning"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 6
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 672,
+      "video_id": "6993.webm",
+      "question": "What is likely to be heard if this scene is recorded?",
+      "official_option": "The sound of a baby and a puppy",
+      "top1_by_run": {
+        "g37q36_mc_text": "The sound of people talking",
+        "g37_mc_target": "The sound of people talking",
+        "g37_mc_direct": "The sound of people talking",
+        "g38_mc_direct": "The sound of people talking"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 679,
+      "video_id": "8147.webm",
+      "question": "When is the person flopping his ears?",
+      "official_option": "At night time",
+      "top1_by_run": {
+        "g37q36_mc_text": "During the day",
+        "g37_mc_target": "During the day",
+        "g37_mc_direct": "During the day",
+        "g38_mc_direct": "During the day"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 4
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 694,
+      "video_id": "1WtFfXDARWQ",
+      "question": "What happens after Bonny says he missed the bus?",
+      "official_option": "He wakes up mommy",
+      "top1_by_run": {
+        "g37q36_mc_text": "Mommy throws him toward the bus",
+        "g37_mc_target": "Mommy throws him toward the bus",
+        "g37_mc_direct": "Mommy throws him toward the bus",
+        "g38_mc_direct": "Mommy throws him toward the bus"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 4
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 705,
+      "video_id": "9T1-9-JCQY8",
+      "question": "how many times the man cranks his motorbike?",
+      "official_option": "two",
+      "top1_by_run": {
+        "g37q36_mc_text": "one",
+        "g37_mc_target": "one",
+        "g37_mc_direct": "one",
+        "g38_mc_direct": "one"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 714,
+      "video_id": "5zDPeMVe3d0",
+      "question": "What did the monkey do when it jumped on the woman back pack?",
+      "official_option": "It screamed",
+      "top1_by_run": {
+        "g37q36_mc_text": "It ran away",
+        "g37_mc_target": "It ran away",
+        "g37_mc_direct": "It ran away",
+        "g38_mc_direct": "It grabbed her hair"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 5,
+        "g38_mc_direct": 5
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 724,
+      "video_id": "7056.webm",
+      "question": "How many people are described as watching a performance?",
+      "official_option": "Multiple",
+      "top1_by_run": {
+        "g37q36_mc_text": "Many",
+        "g37_mc_target": "Many",
+        "g37_mc_direct": "Many",
+        "g38_mc_direct": "Many"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 726,
+      "video_id": "8116.webm",
+      "question": "How many packs is the bicyclist carrying?",
+      "official_option": "1",
+      "top1_by_run": {
+        "g37q36_mc_text": "3",
+        "g37_mc_target": "3",
+        "g37_mc_direct": "4",
+        "g38_mc_direct": "4"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 7,
+        "g38_mc_direct": 6
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 747,
+      "video_id": "8677.webm",
+      "question": "How many people are mentioned as being in the room?",
+      "official_option": "One",
+      "top1_by_run": {
+        "g37q36_mc_text": "Two",
+        "g37_mc_target": "Two",
+        "g37_mc_direct": "Two",
+        "g38_mc_direct": "Two"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 754,
+      "video_id": "7334.webm",
+      "question": "What is one parrot doing as it makes a noise?",
+      "official_option": "It is threatening the other",
+      "top1_by_run": {
+        "g37q36_mc_text": "It is calling out",
+        "g37_mc_target": "It is calling out",
+        "g37_mc_direct": "It is calling out",
+        "g38_mc_direct": "It is calling out"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 755,
+      "video_id": "8605.webm",
+      "question": "What are some of the bikers doing?",
+      "official_option": "Stopping at buildings",
+      "top1_by_run": {
+        "g37q36_mc_text": "Taking a break at a picnic area",
+        "g37_mc_target": "Racing on the road",
+        "g37_mc_direct": "Racing on the road",
+        "g38_mc_direct": "Racing on the road"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 779,
+      "video_id": "7794.webm",
+      "question": "Is the man likely drinking a hot beverage?",
+      "official_option": "No",
+      "top1_by_run": {
+        "g37q36_mc_text": "Yes",
+        "g37_mc_target": "Yes",
+        "g37_mc_direct": "Yes",
+        "g38_mc_direct": "Yes"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 4
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 784,
+      "video_id": "Liberty_Kid-21.webm",
+      "question": "what was the sound that followed the boys when they entered the discotek",
+      "official_option": "drums and very monotonous",
+      "top1_by_run": {
+        "g37q36_mc_text": "electronic dance music with repetitive tones",
+        "g37_mc_target": "electronic dance music with repetitive tones",
+        "g37_mc_direct": "electronic dance music with repetitive tones",
+        "g38_mc_direct": "electronic dance music with repetitive tones"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 5
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 789,
+      "video_id": "Archipelago-40.webm",
+      "question": "what do the people that hear the screaming do?",
+      "official_option": "Nothing, they stay in their place",
+      "top1_by_run": {
+        "g37q36_mc_text": "cover their ears",
+        "g37_mc_target": "cover their ears",
+        "g37_mc_direct": "cover their ears",
+        "g38_mc_direct": "cover their ears"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 5
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 798,
+      "video_id": "DVh4GPF2Ln0",
+      "question": "how many jumps does the character perform?",
+      "official_option": "three",
+      "top1_by_run": {
+        "g37q36_mc_text": "two",
+        "g37_mc_target": "two",
+        "g37_mc_direct": "two",
+        "g38_mc_direct": "two"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 819,
+      "video_id": "7972.webm",
+      "question": "What are the women likely doing that involves making music?",
+      "official_option": "All of the above",
+      "top1_by_run": {
+        "g37q36_mc_text": "Singing and playing a guitar",
+        "g37_mc_target": "Singing and playing a guitar",
+        "g37_mc_direct": "Singing and playing a guitar",
+        "g38_mc_direct": "Singing and playing a guitar"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 8
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 821,
+      "video_id": "8136.webm",
+      "question": "What happens to the gauges above the valve as the man turns it?",
+      "official_option": "They change",
+      "top1_by_run": {
+        "g37q36_mc_text": "They display different numbers",
+        "g37_mc_target": "They remain the same",
+        "g37_mc_direct": "They remain the same",
+        "g38_mc_direct": "They remain the same"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 839,
+      "video_id": "6602.webm",
+      "question": "Where is the toddler feeding the goat?",
+      "official_option": "In the zoo",
+      "top1_by_run": {
+        "g37q36_mc_text": "In a petting zoo",
+        "g37_mc_target": "In a petting zoo",
+        "g37_mc_direct": "In a petting zoo",
+        "g38_mc_direct": "In a petting zoo"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 844,
+      "video_id": "losing_ground-19.webm",
+      "question": "On what does the woman knock?",
+      "official_option": "A fence door",
+      "top1_by_run": {
+        "g37q36_mc_text": "A gate",
+        "g37_mc_target": "A gate",
+        "g37_mc_direct": "A gate",
+        "g38_mc_direct": "A gate"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 851,
+      "video_id": "7137.webm",
+      "question": "Why are the cowboys wearing shirts?",
+      "official_option": "To protect themselves from the sun",
+      "top1_by_run": {
+        "g37q36_mc_text": "To follow a dress code for the event",
+        "g37_mc_target": "To follow a dress code for the event",
+        "g37_mc_direct": "To follow a dress code for the event",
+        "g38_mc_direct": "To follow a dress code for the event"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 6
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 855,
+      "video_id": "8518.webm",
+      "question": "Where are the adults and children before they play outdoors?",
+      "official_option": "In a van",
+      "top1_by_run": {
+        "g37q36_mc_text": "On a bus",
+        "g37_mc_target": "On a bus",
+        "g37_mc_direct": "On a bus",
+        "g38_mc_direct": "On a bus"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 864,
+      "video_id": "6502.webm",
+      "question": "What is the cat sitting on?",
+      "official_option": "A blue pillow",
+      "top1_by_run": {
+        "g37q36_mc_text": "A blue towel",
+        "g37_mc_target": "A blue towel",
+        "g37_mc_direct": "A blue towel",
+        "g38_mc_direct": "A blue towel"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 6,
+        "g38_mc_direct": 6
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 892,
+      "video_id": "8443.webm",
+      "question": "How many muskox are there?",
+      "official_option": "Some",
+      "top1_by_run": {
+        "g37q36_mc_text": "None",
+        "g37_mc_target": "None",
+        "g37_mc_direct": "None",
+        "g38_mc_direct": "Three"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 7,
+        "g37_mc_target": 7,
+        "g37_mc_direct": 7,
+        "g38_mc_direct": 4
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 915,
+      "video_id": "7162.webm",
+      "question": "Who are tasting and sharing treats?",
+      "official_option": "Girls",
+      "top1_by_run": {
+        "g37q36_mc_text": "Friends",
+        "g37_mc_target": "Friends",
+        "g37_mc_direct": "Friends",
+        "g38_mc_direct": "Friends"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 922,
+      "video_id": "7674.webm",
+      "question": "How many people are mentioned in the scene?",
+      "official_option": "2",
+      "top1_by_run": {
+        "g37q36_mc_text": "0",
+        "g37_mc_target": "0",
+        "g37_mc_direct": "7",
+        "g38_mc_direct": "0"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 6,
+        "g38_mc_direct": 3
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 933,
+      "video_id": "8429.webm",
+      "question": "When might the man be from based on his hairdo?",
+      "official_option": "1940s",
+      "top1_by_run": {
+        "g37q36_mc_text": "1950s",
+        "g37_mc_target": "1950s",
+        "g37_mc_direct": "1950s",
+        "g38_mc_direct": "1950s"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 941,
+      "video_id": "6624.webm",
+      "question": "Where are the spectators watching the horse race?",
+      "official_option": "On the race track",
+      "top1_by_run": {
+        "g37q36_mc_text": "Along the finish line",
+        "g37_mc_target": "Along the finish line",
+        "g37_mc_direct": "Along the finish line",
+        "g38_mc_direct": "Along the finish line"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 5,
+        "g38_mc_direct": 5
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 964,
+      "video_id": "6501.webm",
+      "question": "Where does the event take place?",
+      "official_option": "At an indoor event",
+      "top1_by_run": {
+        "g37q36_mc_text": "On a stage",
+        "g37_mc_target": "On a stage",
+        "g37_mc_direct": "On a stage",
+        "g38_mc_direct": "On a stage"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 967,
+      "video_id": "FmlO1eo2vFM",
+      "question": "What instrument is heard in this video?",
+      "official_option": "Piano",
+      "top1_by_run": {
+        "g37q36_mc_text": "Guitar",
+        "g37_mc_target": "Guitar",
+        "g37_mc_direct": "Guitar",
+        "g38_mc_direct": "Banjo"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 991,
+      "video_id": "little_rock-34.webm",
+      "question": "How many girls has the man in this scene kissed?",
+      "official_option": "2",
+      "top1_by_run": {
+        "g37q36_mc_text": "1",
+        "g37_mc_target": "1",
+        "g37_mc_direct": "1",
+        "g38_mc_direct": "1"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1001,
+      "video_id": "7617.webm",
+      "question": "What is the movement of the thing the kids are watching?",
+      "official_option": "It moves around jerkily",
+      "top1_by_run": {
+        "g37q36_mc_text": "It moves slowly and steadily",
+        "g37_mc_target": "It is not visible",
+        "g37_mc_direct": "It is not visible",
+        "g38_mc_direct": "It is not visible"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 7,
+        "g37_mc_direct": 7,
+        "g38_mc_direct": 7
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1006,
+      "video_id": "NS54UX8DST4",
+      "question": "What did the two boys put in someone's hand after they stopped speaking?",
+      "official_option": "The boys each placed a white disc in someone's hand",
+      "top1_by_run": {
+        "g37q36_mc_text": "The boys each put a coin in someone's hand",
+        "g37_mc_target": "The boys each put a coin in someone's hand",
+        "g37_mc_direct": "The boys each put a coin in someone's hand",
+        "g38_mc_direct": "The boys each put a coin in someone's hand"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1007,
+      "video_id": "7019.webm",
+      "question": "What is the person likely doing in front of the screen?",
+      "official_option": "Walking past it",
+      "top1_by_run": {
+        "g37q36_mc_text": "Interacting with the rabbit",
+        "g37_mc_target": "Interacting with the rabbit",
+        "g37_mc_direct": "Interacting with the rabbit",
+        "g38_mc_direct": "Interacting with the rabbit"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1009,
+      "video_id": "8531.webm",
+      "question": "Why might the man with the injured foot still try to ride the bike?",
+      "official_option": "He is being reckless despite the injury",
+      "top1_by_run": {
+        "g37q36_mc_text": "He needs to get somewhere",
+        "g37_mc_target": "He needs to get somewhere",
+        "g37_mc_direct": "He needs to get somewhere",
+        "g38_mc_direct": "He needs to get somewhere"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1012,
+      "video_id": "8147.webm",
+      "question": "How many people are described in the scene?",
+      "official_option": "1",
+      "top1_by_run": {
+        "g37q36_mc_text": "2",
+        "g37_mc_target": "2",
+        "g37_mc_direct": "2",
+        "g38_mc_direct": "2"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1015,
+      "video_id": "Memphis-5.webm",
+      "question": "What do the scenes in this video have in common?",
+      "official_option": "Religious fervor",
+      "top1_by_run": {
+        "g37q36_mc_text": "Worship practices",
+        "g37_mc_target": "Faith-based gatherings",
+        "g37_mc_direct": "Faith-based gatherings",
+        "g38_mc_direct": "People hungry for belonging"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 5
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1030,
+      "video_id": "HtNd53-Yazo",
+      "question": "How many steps does the model take?",
+      "official_option": "5",
+      "top1_by_run": {
+        "g37q36_mc_text": "8",
+        "g37_mc_target": "8",
+        "g37_mc_direct": "7",
+        "g38_mc_direct": "8"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 6,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 6
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1035,
+      "video_id": "mXWgjLL07m4",
+      "question": "how did J.Lo show she was happy.",
+      "official_option": "She gestured with her hands",
+      "top1_by_run": {
+        "g37q36_mc_text": "She smiled brightly",
+        "g37_mc_target": "She smiled brightly",
+        "g37_mc_direct": "She smiled brightly",
+        "g38_mc_direct": "She smiled brightly"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1045,
+      "video_id": "7203.webm",
+      "question": "What is between the path and the tents?",
+      "official_option": "Nothing",
+      "top1_by_run": {
+        "g37q36_mc_text": "A shallow stream",
+        "g37_mc_target": "A wide ditch",
+        "g37_mc_direct": "A wide ditch",
+        "g38_mc_direct": "A wide ditch"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 5,
+        "g38_mc_direct": 4
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1046,
+      "video_id": "6774.webm",
+      "question": "What is happening at the same time as the girl walks?",
+      "official_option": "The other child is spinning",
+      "top1_by_run": {
+        "g37q36_mc_text": "The other child is running",
+        "g37_mc_target": "The other child is standing still",
+        "g37_mc_direct": "The other child is standing still",
+        "g38_mc_direct": "The other child is standing still"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 4
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1047,
+      "video_id": "7676.webm",
+      "question": "What might be the reason the skateboarder is able to perform tricks on his board?",
+      "official_option": "He is an expert skateboarder",
+      "top1_by_run": {
+        "g37q36_mc_text": "He has good balance and coordination",
+        "g37_mc_target": "He has good balance and coordination",
+        "g37_mc_direct": "He has good balance and coordination",
+        "g38_mc_direct": "He has good balance and coordination"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1050,
+      "video_id": "Liberty_Kid-16.webm",
+      "question": "What did the boy do during the test",
+      "official_option": "He was reading the question loudly to himself",
+      "top1_by_run": {
+        "g37q36_mc_text": "He was looking around the room for answers",
+        "g37_mc_target": "He was looking around the room for answers",
+        "g37_mc_direct": "He was looking around the room for answers",
+        "g38_mc_direct": "He was looking around the room for answers"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 4
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1053,
+      "video_id": "losing_ground-26.webm",
+      "question": "How many people are there in this scene?",
+      "official_option": "8",
+      "top1_by_run": {
+        "g37q36_mc_text": "6",
+        "g37_mc_target": "6",
+        "g37_mc_direct": "6",
+        "g38_mc_direct": "6"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 5,
+        "g38_mc_direct": 5
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1054,
+      "video_id": "7562.webm",
+      "question": "What is the man interacting with?",
+      "official_option": "A phone or someone",
+      "top1_by_run": {
+        "g37q36_mc_text": "A book",
+        "g37_mc_target": "A book",
+        "g37_mc_direct": "A person",
+        "g38_mc_direct": "A person"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1063,
+      "video_id": "7985.webm",
+      "question": "How many actions is the woman performing?",
+      "official_option": "3",
+      "top1_by_run": {
+        "g37q36_mc_text": "2",
+        "g37_mc_target": "2",
+        "g37_mc_direct": "2",
+        "g38_mc_direct": "2"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1078,
+      "video_id": "8131.webm",
+      "question": "What is the man likely doing with the styrofoam cup?",
+      "official_option": "He is drinking from it",
+      "top1_by_run": {
+        "g37q36_mc_text": "He is putting it down",
+        "g37_mc_target": "He is putting it down",
+        "g37_mc_direct": "He is putting it down",
+        "g38_mc_direct": "He is putting it down"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1088,
+      "video_id": "JGWl1dyLD54",
+      "question": "How many characters are there in this cartoon video?",
+      "official_option": "There are seven in total",
+      "top1_by_run": {
+        "g37q36_mc_text": "There are at least 5 but the characters move too fast to count in some cases",
+        "g37_mc_target": "There are at least 5 but the characters move too fast to count in some cases",
+        "g37_mc_direct": "There are at least 5 but the characters move too fast to count in some cases",
+        "g38_mc_direct": "There are at least 5 but the characters move too fast to count in some cases"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1104,
+      "video_id": "8186.webm",
+      "question": "Where is the man singing in relation to the cityscape?",
+      "official_option": "Above the cityscape",
+      "top1_by_run": {
+        "g37q36_mc_text": "In front of the cityscape",
+        "g37_mc_target": "In front of the cityscape",
+        "g37_mc_direct": "In front of the cityscape",
+        "g38_mc_direct": "In front of the cityscape"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1109,
+      "video_id": "8022.webm",
+      "question": "Where are the children playing?",
+      "official_option": "On a street",
+      "top1_by_run": {
+        "g37q36_mc_text": "In a school",
+        "g37_mc_target": "In a school",
+        "g37_mc_direct": "In a school",
+        "g38_mc_direct": "In a school"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 4
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1112,
+      "video_id": "8560.webm",
+      "question": "How many items is the man wearing on his upper body?",
+      "official_option": "3",
+      "top1_by_run": {
+        "g37q36_mc_text": "2",
+        "g37_mc_target": "2",
+        "g37_mc_direct": "2",
+        "g38_mc_direct": "1"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 3
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1119,
+      "video_id": "8155.webm",
+      "question": "What can be inferred about the road the cyclist is on?",
+      "official_option": "It is likely to be steep",
+      "top1_by_run": {
+        "g37q36_mc_text": "It is located in a mountainous region",
+        "g37_mc_target": "It is located in a mountainous region",
+        "g37_mc_direct": "It is located in a mountainous region",
+        "g38_mc_direct": "It is located in a mountainous region"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1124,
+      "video_id": "little_rock-2.webm",
+      "question": "Why does Atsuko want to buy a flag?",
+      "official_option": "As a souvenir because she likes America",
+      "top1_by_run": {
+        "g37q36_mc_text": "Because she is looking at postcards and the flags are next to them",
+        "g37_mc_target": "Because she is looking at postcards and the flags are next to them",
+        "g37_mc_direct": "Because she is looking at postcards and the flags are next to them",
+        "g38_mc_direct": "Because she can then gift it to her father"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1134,
+      "video_id": "losing_ground-21.webm",
+      "question": "How many people does the man in the red shirt talk with?",
+      "official_option": "3",
+      "top1_by_run": {
+        "g37q36_mc_text": "2",
+        "g37_mc_target": "2",
+        "g37_mc_direct": "2",
+        "g38_mc_direct": "2"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1140,
+      "video_id": "1UFD5St7WCg",
+      "question": "how many times the man slaps his foot?",
+      "official_option": "eighteen",
+      "top1_by_run": {
+        "g37q36_mc_text": "ten",
+        "g37_mc_target": "seventeen",
+        "g37_mc_direct": "seventeen",
+        "g38_mc_direct": "seventeen"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1146,
+      "video_id": "6497.webm",
+      "question": "Why is the girl sitting on a chair?",
+      "official_option": "All of the above",
+      "top1_by_run": {
+        "g37q36_mc_text": "She is singing",
+        "g37_mc_target": "She is playing the ukulele",
+        "g37_mc_direct": "She is playing the ukulele",
+        "g38_mc_direct": "She is playing the ukulele"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 8,
+        "g37_mc_target": 8,
+        "g37_mc_direct": 8,
+        "g38_mc_direct": 5
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1151,
+      "video_id": "Calloused_Hands-19.webm",
+      "question": "Why does the woman want to see her father?",
+      "official_option": "She has a problem",
+      "top1_by_run": {
+        "g37q36_mc_text": "She needs his advice",
+        "g37_mc_target": "She misses him",
+        "g37_mc_direct": "She misses him",
+        "g38_mc_direct": "She misses him"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 3
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1159,
+      "video_id": "7109.webm",
+      "question": "How many men are on horseback?",
+      "official_option": "Four",
+      "top1_by_run": {
+        "g37q36_mc_text": "Five",
+        "g37_mc_target": "Five",
+        "g37_mc_direct": "Five",
+        "g38_mc_direct": "Six"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 4
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1166,
+      "video_id": "3hOYBFSptuA",
+      "question": "The video says Peru has a mother who is only 5 years old. Is that true?",
+      "official_option": "Probably not",
+      "top1_by_run": {
+        "g37q36_mc_text": "Google says it is",
+        "g37_mc_target": "Google says it is",
+        "g37_mc_direct": "Google says it is",
+        "g38_mc_direct": "Google says it is"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1175,
+      "video_id": "8548.webm",
+      "question": "How many processions are mentioned?",
+      "official_option": "1",
+      "top1_by_run": {
+        "g37q36_mc_text": "3",
+        "g37_mc_target": "3",
+        "g37_mc_direct": "0",
+        "g38_mc_direct": "0"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1181,
+      "video_id": "EJ7h7XXiIIk",
+      "question": "Why didn't the elk move?",
+      "official_option": "Because nothing happened to him",
+      "top1_by_run": {
+        "g37q36_mc_text": "Because the elk was not startled",
+        "g37_mc_target": "Because the archer missed",
+        "g37_mc_direct": "Because the archer missed",
+        "g38_mc_direct": "Because the archer missed"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 4
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1190,
+      "video_id": "8010.webm",
+      "question": "What is the SUV doing?",
+      "official_option": "It is driving slowly up the street",
+      "top1_by_run": {
+        "g37q36_mc_text": "It is reversing",
+        "g37_mc_target": "It is reversing",
+        "g37_mc_direct": "It is reversing",
+        "g38_mc_direct": "It is reversing"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1214,
+      "video_id": "LXgq4vbuINQ",
+      "question": "How is the text displayed in this video?",
+      "official_option": "In circles in and out",
+      "top1_by_run": {
+        "g37q36_mc_text": "text fading in and out",
+        "g37_mc_target": "text fading in and out",
+        "g37_mc_direct": "text fading in and out",
+        "g38_mc_direct": "text fading in and out"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1217,
+      "video_id": "LQgGtqTAmaU",
+      "question": "What is the point of this video?",
+      "official_option": "They are advertising a new pair of earings",
+      "top1_by_run": {
+        "g37q36_mc_text": "The golden balls in the video offer magical powers",
+        "g37_mc_target": "The golden balls in the video offer magical powers",
+        "g37_mc_direct": "The golden balls in the video offer magical powers",
+        "g38_mc_direct": "The golden balls in the video offer magical powers"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1219,
+      "video_id": "A1Ow4chNMOg",
+      "question": "What is the cat wearing?",
+      "official_option": "It is a pirate costume",
+      "top1_by_run": {
+        "g37q36_mc_text": "The cat wears an outfit with a hand waving at people",
+        "g37_mc_target": "The cat wears an outfit with a hand waving at people",
+        "g37_mc_direct": "The cat wears an outfit with a hand waving at people",
+        "g38_mc_direct": "The cat wears an outfit with a hand waving at people"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1220,
+      "video_id": "7593.webm",
+      "question": "Where is the old man?",
+      "official_option": "Out in the ocean",
+      "top1_by_run": {
+        "g37q36_mc_text": "In a boat",
+        "g37_mc_target": "In a boat",
+        "g37_mc_direct": "In a boat",
+        "g38_mc_direct": "In a boat"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1233,
+      "video_id": "xcMGwHzjnx8",
+      "question": "How many children want the treats?",
+      "official_option": "4",
+      "top1_by_run": {
+        "g37q36_mc_text": "5",
+        "g37_mc_target": "5",
+        "g37_mc_direct": "3",
+        "g38_mc_direct": "3"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1249,
+      "video_id": "FIS2_k_H5kA",
+      "question": "how many blocked shots we see in the video?",
+      "official_option": "two",
+      "top1_by_run": {
+        "g37q36_mc_text": "one",
+        "g37_mc_target": "one",
+        "g37_mc_direct": "one",
+        "g38_mc_direct": "one"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1256,
+      "video_id": "7104.webm",
+      "question": "Why might the airplane be flying during daylight?",
+      "official_option": "Because it is a clear day and visibility is good",
+      "top1_by_run": {
+        "g37q36_mc_text": "Because the flight schedule requires it",
+        "g37_mc_target": "Because the flight schedule requires it",
+        "g37_mc_direct": "Because the flight schedule requires it",
+        "g38_mc_direct": "Because the flight schedule requires it"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1257,
+      "video_id": "8265.webm",
+      "question": "How many hot air balloons are descending?",
+      "official_option": "Multiple",
+      "top1_by_run": {
+        "g37q36_mc_text": "None",
+        "g37_mc_target": "None",
+        "g37_mc_direct": "None",
+        "g38_mc_direct": "None"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 7,
+        "g37_mc_target": 7,
+        "g37_mc_direct": 7,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1279,
+      "video_id": "8010.webm",
+      "question": "What is the white car doing relative to the police car?",
+      "official_option": "It is passing the police car",
+      "top1_by_run": {
+        "g37q36_mc_text": "It is following the police car",
+        "g37_mc_target": "It is following the police car",
+        "g37_mc_direct": "It is following the police car",
+        "g38_mc_direct": "It is following the police car"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1291,
+      "video_id": "6884.webm",
+      "question": "What is the baby doing while riding in the car?",
+      "official_option": "He is dancing",
+      "top1_by_run": {
+        "g37q36_mc_text": "He is sleeping",
+        "g37_mc_target": "He is sleeping",
+        "g37_mc_direct": "He is sleeping",
+        "g38_mc_direct": "He is sleeping"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 8,
+        "g37_mc_target": 8,
+        "g37_mc_direct": 8,
+        "g38_mc_direct": 8
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1296,
+      "video_id": "7893.webm",
+      "question": "What is likely to be heard when the man is walking?",
+      "official_option": "The sound of birds chirping",
+      "top1_by_run": {
+        "g37q36_mc_text": "The sound of music playing",
+        "g37_mc_target": "The sound of music playing",
+        "g37_mc_direct": "The sound of music playing",
+        "g38_mc_direct": "The sound of music playing"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1305,
+      "video_id": "bZdGD6TMWnw",
+      "question": "What do the guys do with their glasses?",
+      "official_option": "Lift them together",
+      "top1_by_run": {
+        "g37q36_mc_text": "Clink them gently together",
+        "g37_mc_target": "Raise them in a toast",
+        "g37_mc_direct": "Raise them in a toast",
+        "g38_mc_direct": "Raise them in a toast"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 5
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1309,
+      "video_id": "7647.webm",
+      "question": "Why is the locker locked?",
+      "official_option": "It may be secured",
+      "top1_by_run": {
+        "g37q36_mc_text": "It contains valuable items",
+        "g37_mc_target": "It contains valuable items",
+        "g37_mc_direct": "It contains valuable items",
+        "g38_mc_direct": "It is not locked"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1319,
+      "video_id": "8450.webm",
+      "question": "What is the likely terrain of the area where the bicyclist is riding?",
+      "official_option": "Hilly",
+      "top1_by_run": {
+        "g37q36_mc_text": "Mountainous",
+        "g37_mc_target": "Mountainous",
+        "g37_mc_direct": "Mountainous",
+        "g38_mc_direct": "Mountainous"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1337,
+      "video_id": "losing_ground-24.webm",
+      "question": "How many glasses are there on this long table?",
+      "official_option": "There are four glasses",
+      "top1_by_run": {
+        "g37q36_mc_text": "There are three glasses, two for the young woman and one for the man",
+        "g37_mc_target": "There are three glasses, two for the young woman and one for the man",
+        "g37_mc_direct": "There are three glasses, two for the young woman and one for the man",
+        "g38_mc_direct": "There are three glasses, two for the young woman and one for the man"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1340,
+      "video_id": "Calloused_Hands-51.webm",
+      "question": "What happens to the man by the end of the video?",
+      "official_option": "The man is having some sort of emotional breakdown",
+      "top1_by_run": {
+        "g37q36_mc_text": "The man takes a deep breath and smiles calmly",
+        "g37_mc_target": "The man begins to cry uncontrollably",
+        "g37_mc_direct": "The man begins to cry uncontrollably",
+        "g38_mc_direct": "The man begins to cry uncontrollably"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1348,
+      "video_id": "7861.webm",
+      "question": "How many people are definitely visible in the scene?",
+      "official_option": "2",
+      "top1_by_run": {
+        "g37q36_mc_text": "6",
+        "g37_mc_target": "6",
+        "g37_mc_direct": "6",
+        "g38_mc_direct": "6"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 6,
+        "g37_mc_direct": 6,
+        "g38_mc_direct": 6
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1349,
+      "video_id": "7144.webm",
+      "question": "What is the likely age of the person driving the car?",
+      "official_option": "Toddler",
+      "top1_by_run": {
+        "g37q36_mc_text": "Child",
+        "g37_mc_target": "Child",
+        "g37_mc_direct": "Child",
+        "g38_mc_direct": "Child"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1354,
+      "video_id": "7405.webm",
+      "question": "Why might the woman clap her hands?",
+      "official_option": "She is getting someone's attention",
+      "top1_by_run": {
+        "g37q36_mc_text": "She is celebrating a small victory",
+        "g37_mc_target": "She is applauding",
+        "g37_mc_direct": "She is applauding",
+        "g38_mc_direct": "She is applauding"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1369,
+      "video_id": "Memphis-18.webm",
+      "question": "How many beds are in the house?",
+      "official_option": "One",
+      "top1_by_run": {
+        "g37q36_mc_text": "One bed",
+        "g37_mc_target": "One bed",
+        "g37_mc_direct": "One bed",
+        "g38_mc_direct": "One bed"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1406,
+      "video_id": "6582.webm",
+      "question": "Why might there be a large building in the background?",
+      "official_option": "It is part of a school or university",
+      "top1_by_run": {
+        "g37q36_mc_text": "The people are having a snowball fight near it because it is their house",
+        "g37_mc_target": "It is a government office building",
+        "g37_mc_direct": "It is a government office building",
+        "g38_mc_direct": "It is a government office building"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 5,
+        "g38_mc_direct": 3
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1424,
+      "video_id": "7832.webm",
+      "question": "What are the bicyclists passing?",
+      "official_option": "A mini bus pulled by a horse",
+      "top1_by_run": {
+        "g37q36_mc_text": "A horse-drawn carriage without passengers",
+        "g37_mc_target": "A horse-drawn carriage without passengers",
+        "g37_mc_direct": "A horse-drawn carriage without passengers",
+        "g38_mc_direct": "A horse-drawn carriage without passengers"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1428,
+      "video_id": "7217.webm",
+      "question": "Where are the dogs playing?",
+      "official_option": "In a field",
+      "top1_by_run": {
+        "g37q36_mc_text": "In a park",
+        "g37_mc_target": "In a park",
+        "g37_mc_direct": "In a park",
+        "g38_mc_direct": "In a park"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1430,
+      "video_id": "like_me-4.webm",
+      "question": "How many people speak in this video.",
+      "official_option": "Two voices can be heard, the nihilistic young man in the chair and a narrator at the end",
+      "top1_by_run": {
+        "g37q36_mc_text": "Three people speak, but only one of them can be seen",
+        "g37_mc_target": "Three people speak, but only one of them can be seen",
+        "g37_mc_direct": "Three people speak, but only one of them can be seen",
+        "g38_mc_direct": "Three people speak, but only one of them can be seen"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1431,
+      "video_id": "8063.webm",
+      "question": "How many people are shown in the scene?",
+      "official_option": "2",
+      "top1_by_run": {
+        "g37q36_mc_text": "7",
+        "g37_mc_target": "7",
+        "g37_mc_direct": "6",
+        "g38_mc_direct": "6"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 6,
+        "g37_mc_direct": 6,
+        "g38_mc_direct": 6
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1454,
+      "video_id": "Dv-ZRgS3ZFI",
+      "question": "What does this driver try to accomplish with KIA?",
+      "official_option": "to drive 100kmph",
+      "top1_by_run": {
+        "g37q36_mc_text": "to demonstrate the braking system",
+        "g37_mc_target": "to demonstrate the braking system",
+        "g37_mc_direct": "to demonstrate the braking system",
+        "g38_mc_direct": "to demonstrate the braking system"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1457,
+      "video_id": "bonneville-34.webm",
+      "question": "How many people are there around the campfires?",
+      "official_option": "24",
+      "top1_by_run": {
+        "g37q36_mc_text": "4",
+        "g37_mc_target": "4",
+        "g37_mc_direct": "25",
+        "g38_mc_direct": "25"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 6,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1466,
+      "video_id": "Memphis-41.webm",
+      "question": "How many pictures hang on the walls of the house?",
+      "official_option": "One",
+      "top1_by_run": {
+        "g37q36_mc_text": "Two",
+        "g37_mc_target": "Two",
+        "g37_mc_direct": "Two",
+        "g38_mc_direct": "Two"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1469,
+      "video_id": "7077.webm",
+      "question": "What is on the other side of the sidewalk where the cars are?",
+      "official_option": "The details are not visible",
+      "top1_by_run": {
+        "g37q36_mc_text": "Trees or open space",
+        "g37_mc_target": "Trees or open space",
+        "g37_mc_direct": "Trees or open space",
+        "g38_mc_direct": "Trees or open space"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1470,
+      "video_id": "8101.webm",
+      "question": "What is the likely sound in the bicycle shop?",
+      "official_option": "Sound of swinging arms",
+      "top1_by_run": {
+        "g37q36_mc_text": "Loud music",
+        "g37_mc_target": "Loud music",
+        "g37_mc_direct": "Loud music",
+        "g38_mc_direct": "Loud music"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 8,
+        "g37_mc_target": 8,
+        "g37_mc_direct": 7,
+        "g38_mc_direct": 7
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1478,
+      "video_id": "8200.webm",
+      "question": "What is happening while the man is reciting?",
+      "official_option": "The stage is dark",
+      "top1_by_run": {
+        "g37q36_mc_text": "He is holding a piece of paper",
+        "g37_mc_target": "He is holding a piece of paper",
+        "g37_mc_direct": "He is holding a piece of paper",
+        "g38_mc_direct": "He is holding a piece of paper"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 6,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1489,
+      "video_id": "7697.webm",
+      "question": "How many people are lifting the young man?",
+      "official_option": "The guests",
+      "top1_by_run": {
+        "g37q36_mc_text": "One person",
+        "g37_mc_target": "One person",
+        "g37_mc_direct": "One person",
+        "g38_mc_direct": "One person"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 7,
+        "g37_mc_target": 7,
+        "g37_mc_direct": 7,
+        "g38_mc_direct": 6
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1490,
+      "video_id": "Calloused_Hands-16.webm",
+      "question": "Why does the man offer the canned drink to his son?",
+      "official_option": "He's trying to get his son to drink the alcohol and accept the man's drinking",
+      "top1_by_run": {
+        "g37q36_mc_text": "He wants to share a bonding moment with his son over a drink",
+        "g37_mc_target": "He wants to share a bonding moment with his son over a drink",
+        "g37_mc_direct": "He wants to share a bonding moment with his son over a drink",
+        "g38_mc_direct": "He wants to share a bonding moment with his son over a drink"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 6,
+        "g37_mc_direct": 6,
+        "g38_mc_direct": 6
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1491,
+      "video_id": "2IQQTmk5MAM",
+      "question": "What happens after the the baby gets hit dancing on the railroad tracts?",
+      "official_option": "The train comes to a complete stop before hitting the baby on the railroad tracts. The baby was never on the railroad tracts",
+      "top1_by_run": {
+        "g37q36_mc_text": "The baby dies",
+        "g37_mc_target": "The baby dies",
+        "g37_mc_direct": "The baby dies",
+        "g38_mc_direct": "The baby dies"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 7,
+        "g37_mc_direct": 7,
+        "g38_mc_direct": 7
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1508,
+      "video_id": "7314.webm",
+      "question": "How many groups of spectators are visible?",
+      "official_option": "The image does not provide this information",
+      "top1_by_run": {
+        "g37q36_mc_text": "3",
+        "g37_mc_target": "3",
+        "g37_mc_direct": "3",
+        "g38_mc_direct": "3"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 8,
+        "g37_mc_target": 8,
+        "g37_mc_direct": 8,
+        "g38_mc_direct": 8
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1523,
+      "video_id": "3ZnphVvRve0",
+      "question": "What sound is heard at the very end of this video?",
+      "official_option": "A bell",
+      "top1_by_run": {
+        "g37q36_mc_text": "A glockenspiel",
+        "g37_mc_target": "A triangle",
+        "g37_mc_direct": "A triangle",
+        "g38_mc_direct": "A triangle"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1532,
+      "video_id": "6567.webm",
+      "question": "What is the woman wearing on her head?",
+      "official_option": "Green head scarf",
+      "top1_by_run": {
+        "g37q36_mc_text": "Blue cap",
+        "g37_mc_target": "Blue cap",
+        "g37_mc_direct": "Blue cap",
+        "g38_mc_direct": "Blue cap"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1538,
+      "video_id": "7959.webm",
+      "question": "How many sides of the cement steps have tulips?",
+      "official_option": "Two",
+      "top1_by_run": {
+        "g37q36_mc_text": "One",
+        "g37_mc_target": "One",
+        "g37_mc_direct": "One",
+        "g38_mc_direct": "One"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1556,
+      "video_id": "Memphis-11.webm",
+      "question": "What did the man do at the end of the video?",
+      "official_option": "He gave a loud kiss to the woman",
+      "top1_by_run": {
+        "g37q36_mc_text": "He hugged her tightly",
+        "g37_mc_target": "He walked away without saying anything",
+        "g37_mc_direct": "He walked away without saying anything",
+        "g38_mc_direct": "He walked away without saying anything"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 5
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1572,
+      "video_id": "7066.webm",
+      "question": "Why is a snowball fight occurring?",
+      "official_option": "It is a winter day",
+      "top1_by_run": {
+        "g37q36_mc_text": "There is fresh snow on the ground",
+        "g37_mc_target": "There is fresh snow on the ground",
+        "g37_mc_direct": "There is fresh snow on the ground",
+        "g38_mc_direct": "There is fresh snow on the ground"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1576,
+      "video_id": "7455.webm",
+      "question": "How many people are standing at the video board?",
+      "official_option": "Two or more",
+      "top1_by_run": {
+        "g37q36_mc_text": "Four",
+        "g37_mc_target": "Four",
+        "g37_mc_direct": "Four",
+        "g38_mc_direct": "Four"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1610,
+      "video_id": "6738.webm",
+      "question": "What type of bridge are the bikers biking on?",
+      "official_option": "A hanging bridge",
+      "top1_by_run": {
+        "g37q36_mc_text": "A suspension bridge",
+        "g37_mc_target": "A suspension bridge",
+        "g37_mc_direct": "A suspension bridge",
+        "g38_mc_direct": "A suspension bridge"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1611,
+      "video_id": "5ZClAEhRY0o",
+      "question": "how many swings on the bungee the girl completes?",
+      "official_option": "two",
+      "top1_by_run": {
+        "g37q36_mc_text": "one",
+        "g37_mc_target": "one",
+        "g37_mc_direct": "one",
+        "g38_mc_direct": "one"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1612,
+      "video_id": "8262.webm",
+      "question": "What is the man doing in the ceremony?",
+      "official_option": "He is performing",
+      "top1_by_run": {
+        "g37q36_mc_text": "He is dancing",
+        "g37_mc_target": "He is dancing",
+        "g37_mc_direct": "He is dancing",
+        "g38_mc_direct": "He is dancing"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1619,
+      "video_id": "Bi4uJ2A53eY",
+      "question": "What is this man talking about?",
+      "official_option": "He is trying to explain something",
+      "top1_by_run": {
+        "g37q36_mc_text": "Local politics",
+        "g37_mc_target": "Local politics",
+        "g37_mc_direct": "Local politics",
+        "g38_mc_direct": "Local politics"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1623,
+      "video_id": "7729.webm",
+      "question": "What is happening to the onlookers in the scene?",
+      "official_option": "They are passing by",
+      "top1_by_run": {
+        "g37q36_mc_text": "They are conversing with each other",
+        "g37_mc_target": "They are conversing with each other",
+        "g37_mc_direct": "They are conversing with each other",
+        "g38_mc_direct": "They are conversing with each other"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1648,
+      "video_id": "GnyvylO6B98",
+      "question": "what was the sound the man made when he took the box from the fridge?",
+      "official_option": "The sound of the phone camera taking a picture",
+      "top1_by_run": {
+        "g37q36_mc_text": "no sound",
+        "g37_mc_target": "The sound of a refrigerator door closing",
+        "g37_mc_direct": "The sound of a refrigerator door closing",
+        "g38_mc_direct": "no sound"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 3
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1662,
+      "video_id": "7526.webm",
+      "question": "How many balls are described in the scene?",
+      "official_option": "1",
+      "top1_by_run": {
+        "g37q36_mc_text": "0",
+        "g37_mc_target": "0",
+        "g37_mc_direct": "0",
+        "g38_mc_direct": "0"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1681,
+      "video_id": "7211.webm",
+      "question": "What might be the sound associated with the robotic thing's action?",
+      "official_option": "A mechanical or synthetic licking sound",
+      "top1_by_run": {
+        "g37q36_mc_text": "A soft whirring of gears",
+        "g37_mc_target": "A soft whirring of gears",
+        "g37_mc_direct": "A soft whirring of gears",
+        "g38_mc_direct": "A soft whirring of gears"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1686,
+      "video_id": "7845.webm",
+      "question": "How many people are described as looking at the ocean?",
+      "official_option": "7",
+      "top1_by_run": {
+        "g37q36_mc_text": "6",
+        "g37_mc_target": "6",
+        "g37_mc_direct": "6",
+        "g38_mc_direct": "6"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1701,
+      "video_id": "8616.webm",
+      "question": "Why might the train station be closed?",
+      "official_option": "It is under maintenance",
+      "top1_by_run": {
+        "g37q36_mc_text": "It is being used for a private event",
+        "g37_mc_target": "It is not mentioned",
+        "g37_mc_direct": "It is not mentioned",
+        "g38_mc_direct": "It is not mentioned"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 5,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1707,
+      "video_id": "oFVQObvbtSw",
+      "question": "What happens after three musicians have the same idea while playing their instruments?",
+      "official_option": "They play at the same time and it doesn't sound right",
+      "top1_by_run": {
+        "g37q36_mc_text": "They all stop playing and start laughing",
+        "g37_mc_target": "They all stop playing and start laughing",
+        "g37_mc_direct": "They all stop playing and start laughing",
+        "g38_mc_direct": "They all stop playing and start laughing"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1720,
+      "video_id": "Liberty_Kid-32.webm",
+      "question": "What is the man in the middle wearing that the others are not?",
+      "official_option": "Earrings",
+      "top1_by_run": {
+        "g37q36_mc_text": "A hat",
+        "g37_mc_target": "A hat",
+        "g37_mc_direct": "A hat",
+        "g38_mc_direct": "A hat"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 8,
+        "g37_mc_target": 8,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1722,
+      "video_id": "6843.webm",
+      "question": "What is a likely age of the boys playing with wooden blocks?",
+      "official_option": "10 years old",
+      "top1_by_run": {
+        "g37q36_mc_text": "5 years old",
+        "g37_mc_target": "5 years old",
+        "g37_mc_direct": "5 years old",
+        "g38_mc_direct": "5 years old"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1745,
+      "video_id": "bonneville-39.webm",
+      "question": "Why is the woman in the car crying then starts to laugh?",
+      "official_option": "The woman thinks of something funny that makes her laugh",
+      "top1_by_run": {
+        "g37q36_mc_text": "The woman remembered a humorous memory",
+        "g37_mc_target": "The woman remembered a humorous memory",
+        "g37_mc_direct": "The woman remembered a humorous memory",
+        "g38_mc_direct": "The woman remembered a humorous memory"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1757,
+      "video_id": "8055.webm",
+      "question": "What is the man wearing on his head?",
+      "official_option": "A helmet",
+      "top1_by_run": {
+        "g37q36_mc_text": "A cap",
+        "g37_mc_target": "A cap",
+        "g37_mc_direct": "A cap",
+        "g38_mc_direct": "A cap"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 4
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1767,
+      "video_id": "7bq5WwFxUGg",
+      "question": "How many cats is the baby cuddling with?",
+      "official_option": "It is cuddling with an adult cat and two kittens",
+      "top1_by_run": {
+        "g37q36_mc_text": "Only with one kitten",
+        "g37_mc_target": "Only with one kitten",
+        "g37_mc_direct": "Only with one kitten",
+        "g38_mc_direct": "Only with one kitten"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 4
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1768,
+      "video_id": "yL6pT34EJi0",
+      "question": "How many people try and fail to do a pullup?",
+      "official_option": "3",
+      "top1_by_run": {
+        "g37q36_mc_text": "2",
+        "g37_mc_target": "2",
+        "g37_mc_direct": "2",
+        "g38_mc_direct": "2"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1791,
+      "video_id": "C2RFFucyB_8",
+      "question": "What is the purpose of the needle?",
+      "official_option": "Stitching a wound",
+      "top1_by_run": {
+        "g37q36_mc_text": "Drawing a blood sample",
+        "g37_mc_target": "Drawing a blood sample",
+        "g37_mc_direct": "Drawing a blood sample",
+        "g38_mc_direct": "Drawing a blood sample"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1794,
+      "video_id": "8275.webm",
+      "question": "Where are the palm trees in relation to the Indian men?",
+      "official_option": "Between them",
+      "top1_by_run": {
+        "g37q36_mc_text": "Scattered around them",
+        "g37_mc_target": "Scattered around them",
+        "g37_mc_direct": "Scattered around them",
+        "g38_mc_direct": "Scattered around them"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 5,
+        "g38_mc_direct": 5
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1815,
+      "video_id": "A8BjqK_wYqM",
+      "question": "What happens when the mam sits on the bed?",
+      "official_option": "The pink sheet comes out of the adjacent bin",
+      "top1_by_run": {
+        "g37q36_mc_text": "A woman in a pink sheet comes out of the adjacent bin",
+        "g37_mc_target": "A woman in a pink sheet comes out of the adjacent bin",
+        "g37_mc_direct": "A woman in a pink sheet comes out of the adjacent bin",
+        "g38_mc_direct": "A woman in a pink sheet comes out of the adjacent bin"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1816,
+      "video_id": "7157.webm",
+      "question": "What is the ball dropper going to do next?",
+      "official_option": "Hit the ball",
+      "top1_by_run": {
+        "g37q36_mc_text": "Walk away",
+        "g37_mc_target": "Walk away",
+        "g37_mc_direct": "Walk away",
+        "g38_mc_direct": "Walk away"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 5
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1822,
+      "video_id": "7449.webm",
+      "question": "Why might the military personnel be wearing gas masks?",
+      "official_option": "They are in a hazardous or toxic environment",
+      "top1_by_run": {
+        "g37q36_mc_text": "They are participating in a training exercise",
+        "g37_mc_target": "They are participating in a training exercise",
+        "g37_mc_direct": "They are participating in a training exercise",
+        "g38_mc_direct": "They are participating in a training exercise"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1825,
+      "video_id": "Liberty_Kid-10.webm",
+      "question": "How many cups of coffee did the young man drink?",
+      "official_option": "He drank half of an iced coffee",
+      "top1_by_run": {
+        "g37q36_mc_text": "He drank one iced coffee",
+        "g37_mc_target": "He drank one iced coffee",
+        "g37_mc_direct": "He drank one iced coffee",
+        "g38_mc_direct": "He drank one iced coffee"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1829,
+      "video_id": "6LD0OevMCSQ",
+      "question": "What's going on here?",
+      "official_option": "Contraband material is being trafficed in an Asian country",
+      "top1_by_run": {
+        "g37q36_mc_text": "currency is used instead of traceable electronic payments",
+        "g37_mc_target": "currency is used instead of traceable electronic payments",
+        "g37_mc_direct": "currency is used instead of traceable electronic payments",
+        "g38_mc_direct": "currency is used instead of traceable electronic payments"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1845,
+      "video_id": "8123.webm",
+      "question": "What might the man be trying to do by pounding on the pot?",
+      "official_option": "All of the above",
+      "top1_by_run": {
+        "g37q36_mc_text": "He is trying to clean it",
+        "g37_mc_target": "He is trying to remove a lid stuck on the pot",
+        "g37_mc_direct": "He is trying to remove a lid stuck on the pot",
+        "g38_mc_direct": "He is trying to remove a lid stuck on the pot"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 8,
+        "g37_mc_target": 8,
+        "g37_mc_direct": 8,
+        "g38_mc_direct": 8
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1856,
+      "video_id": "EtJoIje9p3Y",
+      "question": "What does the man do immediately after pulling the carrots out of the ground?",
+      "official_option": "He shakes them to get the loose dirt off",
+      "top1_by_run": {
+        "g37q36_mc_text": "He lays them in a row",
+        "g37_mc_target": "He lays them in a row",
+        "g37_mc_direct": "He lays them in a row",
+        "g38_mc_direct": "He lays them in a row"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1865,
+      "video_id": "like_me-16.webm",
+      "question": "How many people talk to the camera in this video?",
+      "official_option": "Only one, a young man, speaks to the camera",
+      "top1_by_run": {
+        "g37q36_mc_text": "There are 13 people in various parts of this video",
+        "g37_mc_target": "There are 13 people in various parts of this video",
+        "g37_mc_direct": "There are 13 people in various parts of this video",
+        "g38_mc_direct": "There are 13 people in various parts of this video"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1868,
+      "video_id": "heart_machine-15.webm",
+      "question": "Why does the man and Virginia do a high five?",
+      "official_option": "He is happy and grateful for her conscientious work",
+      "top1_by_run": {
+        "g37q36_mc_text": "He is thanking her for completing a task",
+        "g37_mc_target": "He is thanking her for completing a task",
+        "g37_mc_direct": "He is thanking her for completing a task",
+        "g38_mc_direct": "He is thanking her for completing a task"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1872,
+      "video_id": "t76wzjr6wxo",
+      "question": "Why is the woman in this place when she wants to dance with the man?",
+      "official_option": "She is not dancing and does not want to dance. She is teaching the man something",
+      "top1_by_run": {
+        "g37q36_mc_text": "She is soliciting the man's opinion about handbags",
+        "g37_mc_target": "She is trying to decide which purse to buy",
+        "g37_mc_direct": "She is trying to decide which purse to buy",
+        "g38_mc_direct": "She is trying to decide which purse to buy"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 4
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1877,
+      "video_id": "Calloused_Hands-32.webm",
+      "question": "How many people take part in this scene?",
+      "official_option": "Only two. the adolescent boy does not talk to anyone",
+      "top1_by_run": {
+        "g37q36_mc_text": "There are three people in this scene",
+        "g37_mc_target": "There are three people in this scene",
+        "g37_mc_direct": "There are three people in this scene",
+        "g38_mc_direct": "There are three people in this scene"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1905,
+      "video_id": "losing_ground-19.webm",
+      "question": "Why did the young woman end up at the church?",
+      "official_option": "She needed to verify her faith",
+      "top1_by_run": {
+        "g37q36_mc_text": "She was looking for a place to pray",
+        "g37_mc_target": "She was looking for a place to pray",
+        "g37_mc_direct": "She was looking for a place to pray",
+        "g38_mc_direct": "She wanted to seethe inside"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1907,
+      "video_id": "7226.webm",
+      "question": "What sound might be heard in the scene?",
+      "official_option": "Gunfire",
+      "top1_by_run": {
+        "g37q36_mc_text": "Car engines revving",
+        "g37_mc_target": "Car engines revving",
+        "g37_mc_direct": "Car engines revving",
+        "g38_mc_direct": "Car engines revving"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 6,
+        "g37_mc_direct": 6,
+        "g38_mc_direct": 6
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1909,
+      "video_id": "syRFtTXKN2o",
+      "question": "How come the metal spoon didn't explode in the microwave?",
+      "official_option": "It was plastic. It just looked like a metal spoon",
+      "top1_by_run": {
+        "g37q36_mc_text": "It is a new kind of metal, resistant to microwave",
+        "g37_mc_target": "it is a new kind of microwave",
+        "g37_mc_direct": "it is a new kind of microwave",
+        "g38_mc_direct": "The microwave was turned off at the time"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 6
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1917,
+      "video_id": "4QmRg5-sgtQ",
+      "question": "What happens after the masked singer says she is scared?",
+      "official_option": "She leaves the stage",
+      "top1_by_run": {
+        "g37q36_mc_text": "The audience cheers",
+        "g37_mc_target": "The audience cheers",
+        "g37_mc_direct": "The audience cheers",
+        "g38_mc_direct": "The audience cheers"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1927,
+      "video_id": "8278.webm",
+      "question": "What might you hear if you were in the scene described?",
+      "official_option": "The sound of children playing",
+      "top1_by_run": {
+        "g37q36_mc_text": "The sound of a distant train whistle",
+        "g37_mc_target": "The sound of a distant train whistle",
+        "g37_mc_direct": "The sound of a distant train whistle",
+        "g38_mc_direct": "The sound of a distant train whistle"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1928,
+      "video_id": "7994.webm",
+      "question": "What is the man listening to?",
+      "official_option": "Unknown",
+      "top1_by_run": {
+        "g37q36_mc_text": "He is listening to the radio",
+        "g37_mc_target": "He is listening to the radio",
+        "g37_mc_direct": "He is listening to the radio",
+        "g38_mc_direct": "He is listening to the radio"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1933,
+      "video_id": "7864.webm",
+      "question": "How many conservative Jews are purchasing items at the indoor food market?",
+      "official_option": "Several",
+      "top1_by_run": {
+        "g37q36_mc_text": "A few",
+        "g37_mc_target": "A few",
+        "g37_mc_direct": "A few",
+        "g38_mc_direct": "A few"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1960,
+      "video_id": "8298.webm",
+      "question": "What is the weather like outside?",
+      "official_option": "There is snow on the ground",
+      "top1_by_run": {
+        "g37q36_mc_text": "It is overcast",
+        "g37_mc_target": "It is overcast",
+        "g37_mc_direct": "It is foggy",
+        "g38_mc_direct": "It is overcast"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 6,
+        "g37_mc_direct": 8,
+        "g38_mc_direct": 8
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 1963,
+      "video_id": "8448.webm",
+      "question": "How is the workman supported while working on the girder?",
+      "official_option": "He is hanging from a harness",
+      "top1_by_run": {
+        "g37q36_mc_text": "He is suspended by ropes from above",
+        "g37_mc_target": "He is suspended by ropes from above",
+        "g37_mc_direct": "He is suspended by ropes from above",
+        "g38_mc_direct": "He is suspended by ropes from above"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1964,
+      "video_id": "7380.webm",
+      "question": "How many windmills are there?",
+      "official_option": "Multiple",
+      "top1_by_run": {
+        "g37q36_mc_text": "Four",
+        "g37_mc_target": "Four",
+        "g37_mc_direct": "Four",
+        "g38_mc_direct": "Four"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1988,
+      "video_id": "usDDBk38_bA",
+      "question": "What did the boat passengers do after the thunder?",
+      "official_option": "There was no thunder. There was only lightening, and they screamed",
+      "top1_by_run": {
+        "g37q36_mc_text": "They fell on the floor",
+        "g37_mc_target": "They fell on the floor",
+        "g37_mc_direct": "They fell on the floor",
+        "g38_mc_direct": "They fell on the floor"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 8,
+        "g37_mc_direct": 8,
+        "g38_mc_direct": 4
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1989,
+      "video_id": "RjqQRdKHPcY",
+      "question": "how did the yellow shirt players support each other?",
+      "official_option": "they petted each other",
+      "top1_by_run": {
+        "g37q36_mc_text": "they patted each other on the back",
+        "g37_mc_target": "they patted each other on the back",
+        "g37_mc_direct": "they patted each other on the back",
+        "g38_mc_direct": "they patted each other on the back"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 7,
+        "g38_mc_direct": 7
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 1992,
+      "video_id": "ImDF6nFJ9L8",
+      "question": "How does the operator get the dirt and clay off the drill head?",
+      "official_option": "He slowly shakes the drill head in reverse and forward outside the hole",
+      "top1_by_run": {
+        "g37q36_mc_text": "He rapidly spins the drill backwards",
+        "g37_mc_target": "He rapidly spins the drill backwards",
+        "g37_mc_direct": "He rapidly spins the drill backwards",
+        "g38_mc_direct": "He rapidly spins the drill backwards"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2000,
+      "video_id": "6510.webm",
+      "question": "Why are the children likely running on the track?",
+      "official_option": "They are exercising or training",
+      "top1_by_run": {
+        "g37q36_mc_text": "They are racing",
+        "g37_mc_target": "They are racing",
+        "g37_mc_direct": "They are racing",
+        "g38_mc_direct": "They are racing"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2003,
+      "video_id": "8361.webm",
+      "question": "How many people are there in the scene?",
+      "official_option": "2",
+      "top1_by_run": {
+        "g37q36_mc_text": "3",
+        "g37_mc_target": "3",
+        "g37_mc_direct": "3",
+        "g38_mc_direct": "3"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2005,
+      "video_id": "A4EQuu0oDmA",
+      "question": "What instrument is being played in the background in this video?",
+      "official_option": "A harp",
+      "top1_by_run": {
+        "g37q36_mc_text": "A guitar",
+        "g37_mc_target": "A guitar",
+        "g37_mc_direct": "A guitar",
+        "g38_mc_direct": "A piano"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 2011,
+      "video_id": "U-8Hug9Kafo",
+      "question": "How many tops does the man wear?",
+      "official_option": "None, his is putting away clean tops for the woman",
+      "top1_by_run": {
+        "g37q36_mc_text": "He wears one top",
+        "g37_mc_target": "He wears one top",
+        "g37_mc_direct": "He wears one top",
+        "g38_mc_direct": "He wears one top"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 7,
+        "g37_mc_target": 7,
+        "g37_mc_direct": 6,
+        "g38_mc_direct": 6
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2017,
+      "video_id": "8444.webm",
+      "question": "What is the bartender demonstrating?",
+      "official_option": "How to make a drink",
+      "top1_by_run": {
+        "g37q36_mc_text": "How to garnish a cocktail",
+        "g37_mc_target": "How to garnish a cocktail",
+        "g37_mc_direct": "How to garnish a cocktail",
+        "g38_mc_direct": "How to garnish a cocktail"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2021,
+      "video_id": "7872.webm",
+      "question": "Why did the man do a somersault?",
+      "official_option": "The image does not provide enough information to determine why",
+      "top1_by_run": {
+        "g37q36_mc_text": "He was performing a dance move",
+        "g37_mc_target": "He was performing a dance move",
+        "g37_mc_direct": "He was performing a dance move",
+        "g38_mc_direct": "He was performing a dance move"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 6,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2024,
+      "video_id": "6484.webm",
+      "question": "What is the weather like?",
+      "official_option": "Gray",
+      "top1_by_run": {
+        "g37q36_mc_text": "Rainy",
+        "g37_mc_target": "Rainy",
+        "g37_mc_direct": "Rainy",
+        "g38_mc_direct": "Cloudy but bright"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 3
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 2032,
+      "video_id": "7279.webm",
+      "question": "What is the man playing?",
+      "official_option": "A horn",
+      "top1_by_run": {
+        "g37q36_mc_text": "A trumpet",
+        "g37_mc_target": "A trumpet",
+        "g37_mc_direct": "A trumpet",
+        "g38_mc_direct": "A trumpet"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2048,
+      "video_id": "Archipelago-19.webm",
+      "question": "what sound does the reader in the bed make?",
+      "official_option": "Total silence",
+      "top1_by_run": {
+        "g37q36_mc_text": "breathing heavily",
+        "g37_mc_target": "humming very quietly",
+        "g37_mc_direct": "humming very quietly",
+        "g38_mc_direct": "laughing sound"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 7,
+        "g37_mc_target": 7,
+        "g37_mc_direct": 7,
+        "g38_mc_direct": 5
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 2049,
+      "video_id": "Archipelago-42.webm",
+      "question": "How many people in the video are wearing a hat?",
+      "official_option": "One",
+      "top1_by_run": {
+        "g37q36_mc_text": "One person is wearing a hat",
+        "g37_mc_target": "One person is wearing a hat",
+        "g37_mc_direct": "One person is wearing a hat",
+        "g38_mc_direct": "One person is wearing a hat"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2059,
+      "video_id": "little_rock-29.webm",
+      "question": "Why did the woman stand up and walk away?",
+      "official_option": "She realized that the young man was angry at her rebuff",
+      "top1_by_run": {
+        "g37q36_mc_text": "She felt uncomfortable with the situation",
+        "g37_mc_target": "She felt uncomfortable with the situation",
+        "g37_mc_direct": "She felt uncomfortable with the situation",
+        "g38_mc_direct": "She felt uncomfortable with the situation"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2081,
+      "video_id": "7924.webm",
+      "question": "What is likely to be heard if one enters the room?",
+      "official_option": "Piano music",
+      "top1_by_run": {
+        "g37q36_mc_text": "People talking",
+        "g37_mc_target": "People talking",
+        "g37_mc_direct": "People talking",
+        "g38_mc_direct": "People talking"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2088,
+      "video_id": "6810.webm",
+      "question": "What is happening to the train as the women talk?",
+      "official_option": "It is approaching the station",
+      "top1_by_run": {
+        "g37q36_mc_text": "It is leaving the station",
+        "g37_mc_target": "It is leaving the station",
+        "g37_mc_direct": "It is leaving the station",
+        "g38_mc_direct": "It is leaving the station"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2089,
+      "video_id": "dppNDHmaEH4",
+      "question": "How many times does each person contact the bag?",
+      "official_option": "7",
+      "top1_by_run": {
+        "g37q36_mc_text": "6",
+        "g37_mc_target": "6",
+        "g37_mc_direct": "6",
+        "g38_mc_direct": "6"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2090,
+      "video_id": "Calloused_Hands-47.webm",
+      "question": "What did the man do with the pistol?",
+      "official_option": "He threatened the second man for not taking care of his dog",
+      "top1_by_run": {
+        "g37q36_mc_text": "He shot the second man who had neglected to take proper care of the dog",
+        "g37_mc_target": "He shot the second man who had neglected to take proper care of the dog",
+        "g37_mc_direct": "He shot the second man who had neglected to take proper care of the dog",
+        "g38_mc_direct": "He shot the second man who had neglected to take proper care of the dog"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2102,
+      "video_id": "8477.webm",
+      "question": "How many people are clearly visible in the scene?",
+      "official_option": "2",
+      "top1_by_run": {
+        "g37q36_mc_text": "1",
+        "g37_mc_target": "1",
+        "g37_mc_direct": "1",
+        "g38_mc_direct": "1"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2103,
+      "video_id": "8271.webm",
+      "question": "What time of day might the video be taken?",
+      "official_option": "Midday",
+      "top1_by_run": {
+        "g37q36_mc_text": "Early morning or late afternoon",
+        "g37_mc_target": "Early morning or late afternoon",
+        "g37_mc_direct": "Early morning or late afternoon",
+        "g38_mc_direct": "Early morning or late afternoon"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 5,
+        "g38_mc_direct": 4
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2126,
+      "video_id": "myxWhBtAloM",
+      "question": "How many times does the operator bang the bucket on the ground?",
+      "official_option": "3",
+      "top1_by_run": {
+        "g37q36_mc_text": "5",
+        "g37_mc_target": "5",
+        "g37_mc_direct": "7",
+        "g38_mc_direct": "4"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 6,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 2128,
+      "video_id": "8527.webm",
+      "question": "What is the woman doing at the same time as writing on a piece of paper?",
+      "official_option": "She is using a laptop",
+      "top1_by_run": {
+        "g37q36_mc_text": "She is sitting at an outdoor table",
+        "g37_mc_target": "She is sitting at an outdoor table",
+        "g37_mc_direct": "She is sitting at an outdoor table",
+        "g38_mc_direct": "She is sitting at an outdoor table"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2130,
+      "video_id": "7224.webm",
+      "question": "How many people are involved in the scene?",
+      "official_option": "2",
+      "top1_by_run": {
+        "g37q36_mc_text": "4",
+        "g37_mc_target": "4",
+        "g37_mc_direct": "4",
+        "g38_mc_direct": "4"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 4
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2133,
+      "video_id": "Calloused_Hands-31.webm",
+      "question": "What is the woman talking about?",
+      "official_option": "She is asking her son what he was doing the previous day",
+      "top1_by_run": {
+        "g37q36_mc_text": "She is asking if he knew where his father was the previous day",
+        "g37_mc_target": "She is asking if he knew where his father was the previous day",
+        "g37_mc_direct": "She is asking if he knew where his father was the previous day",
+        "g38_mc_direct": "She is asking if he knew where his father was the previous day"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2136,
+      "video_id": "8489.webm",
+      "question": "Why did the young man jump up to another wall in the next step?",
+      "official_option": "He was continuing his movement",
+      "top1_by_run": {
+        "g37q36_mc_text": "He was attempting to reach a higher platform",
+        "g37_mc_target": "He was attempting to reach a higher platform",
+        "g37_mc_direct": "He was attempting to reach a higher platform",
+        "g38_mc_direct": "He was attempting to reach a higher platform"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2145,
+      "video_id": "AFTbJXmw6K8",
+      "question": "what was the sound we heard when the boy lifted the other boy?",
+      "official_option": "sounded like a friction of fabric",
+      "top1_by_run": {
+        "g37q36_mc_text": "jazz music",
+        "g37_mc_target": "roaring sound",
+        "g37_mc_direct": "roaring sound",
+        "g38_mc_direct": "roaring sound"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 2149,
+      "video_id": "7350.webm",
+      "question": "Where is the fourth kitten located?",
+      "official_option": "On top of the radiator",
+      "top1_by_run": {
+        "g37q36_mc_text": "Beside the food bowl",
+        "g37_mc_target": "Beside the food bowl",
+        "g37_mc_direct": "Beside the food bowl",
+        "g38_mc_direct": "Beside the food bowl"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 8,
+        "g37_mc_target": 8,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 5
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2150,
+      "video_id": "7827.webm",
+      "question": "Why did the young man quickly put the book into his bag?",
+      "official_option": "He heard a noise and was reacting to it",
+      "top1_by_run": {
+        "g37q36_mc_text": "He was going to leave the waiting room",
+        "g37_mc_target": "He was going to leave the waiting room",
+        "g37_mc_direct": "He was going to leave the waiting room",
+        "g38_mc_direct": "He was going to leave the waiting room"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2161,
+      "video_id": "3G9LSET-Zwo",
+      "question": "how many pink toys we see?",
+      "official_option": "one",
+      "top1_by_run": {
+        "g37q36_mc_text": "three",
+        "g37_mc_target": "three",
+        "g37_mc_direct": "three",
+        "g38_mc_direct": "two"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 2162,
+      "video_id": "ZLSqaipLTHU",
+      "question": "What is this video showing?",
+      "official_option": "A violent collision of two football players",
+      "top1_by_run": {
+        "g37q36_mc_text": "A football player trying to tackle another player carrying the ball",
+        "g37_mc_target": "A football player trying to tackle another player carrying the ball",
+        "g37_mc_direct": "A football player trying to tackle another player carrying the ball",
+        "g38_mc_direct": "A football player trying to tackle another player carrying the ball"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2204,
+      "video_id": "ERA9JSNFzDE",
+      "question": "why was the camera focusing on the racer on the very right lane?",
+      "official_option": "He did a great job and you wanted to learn form him",
+      "top1_by_run": {
+        "g37q36_mc_text": "He had a unique racing style worth observing",
+        "g37_mc_target": "He was leading the race at that moment",
+        "g37_mc_direct": "He was leading the race at that moment",
+        "g38_mc_direct": "He was leading the race at that moment"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 7,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 5,
+        "g38_mc_direct": 6
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 2208,
+      "video_id": "8031.webm",
+      "question": "What is likely being reflected in the windows along with the mountains?",
+      "official_option": "The men",
+      "top1_by_run": {
+        "g37q36_mc_text": "The sky",
+        "g37_mc_target": "The sky",
+        "g37_mc_direct": "The sky",
+        "g38_mc_direct": "The sky"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 7,
+        "g37_mc_target": 7,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 6
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2215,
+      "video_id": "6516.webm",
+      "question": "What is the woman surrounded by?",
+      "official_option": "Loud music",
+      "top1_by_run": {
+        "g37q36_mc_text": "Quiet environment",
+        "g37_mc_target": "People having a conversation",
+        "g37_mc_direct": "People having a conversation",
+        "g38_mc_direct": "People having a conversation"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 6,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 4
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 2224,
+      "video_id": "Archipelago-30.webm",
+      "question": "What does the man ride next to?",
+      "official_option": "A fence",
+      "top1_by_run": {
+        "g37q36_mc_text": "A tree",
+        "g37_mc_target": "A tree",
+        "g37_mc_direct": "A tree",
+        "g38_mc_direct": "A tree"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2225,
+      "video_id": "bonneville-12.webm",
+      "question": "How many people are in this scene?",
+      "official_option": "5",
+      "top1_by_run": {
+        "g37q36_mc_text": "4",
+        "g37_mc_target": "8",
+        "g37_mc_direct": "8",
+        "g38_mc_direct": "8"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 5
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 2248,
+      "video_id": "QT2VNc1gx2I",
+      "question": "Why does the girl bang the man's toes into the chair leg?",
+      "official_option": "So that he knows how it feels, too",
+      "top1_by_run": {
+        "g37q36_mc_text": "To make him experience the same pain she felt",
+        "g37_mc_target": "To make him experience the same pain she felt",
+        "g37_mc_direct": "To make him experience the same pain she felt",
+        "g38_mc_direct": "To make him experience the same pain she felt"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2249,
+      "video_id": "4LFnYtgVzxs",
+      "question": "What happens after a soccer ball is whizzed away from a man holding it?",
+      "official_option": "He gives a speech",
+      "top1_by_run": {
+        "g37q36_mc_text": "he gives a brief speech",
+        "g37_mc_target": "he gives a brief speech",
+        "g37_mc_direct": "he gives a brief speech",
+        "g38_mc_direct": "he gives a brief speech"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2274,
+      "video_id": "SWlacmqDgaA",
+      "question": "What is the sound that the cars make when thy clash to each other?",
+      "official_option": "Chattering , high pitch squeal",
+      "top1_by_run": {
+        "g37q36_mc_text": "Boom like a bomb",
+        "g37_mc_target": "Boom like a bomb",
+        "g37_mc_direct": "Boom like a bomb",
+        "g38_mc_direct": "Boom like a bomb"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 5,
+        "g37_mc_target": 5,
+        "g37_mc_direct": 6,
+        "g38_mc_direct": 6
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2280,
+      "video_id": "8G09aQmeMBc",
+      "question": "Did the girl get any points for that?",
+      "official_option": "Yes, you get 1 point for a miss",
+      "top1_by_run": {
+        "g37q36_mc_text": "No, you've got to knock over at least one pin",
+        "g37_mc_target": "No, you've got to knock over at least one pin",
+        "g37_mc_direct": "No, you've got to knock over at least one pin",
+        "g38_mc_direct": "No, you've got to knock over at least one pin"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 4
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2281,
+      "video_id": "7469.webm",
+      "question": "How many objects are mentioned as descending?",
+      "official_option": "3",
+      "top1_by_run": {
+        "g37q36_mc_text": "1",
+        "g37_mc_target": "1",
+        "g37_mc_direct": "1",
+        "g38_mc_direct": "0"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 4
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 2283,
+      "video_id": "-zkDJXta2Ag",
+      "question": "Was this a fair score?",
+      "official_option": "No, no referees saw it",
+      "top1_by_run": {
+        "g37q36_mc_text": "Yes, he kicked it in",
+        "g37_mc_target": "Yes, he kicked it in",
+        "g37_mc_direct": "Yes, he kicked it in",
+        "g38_mc_direct": "Yes, he kicked it in"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 4
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2285,
+      "video_id": "Eqh62BbC36U",
+      "question": "The man's hand was on what part of the motorcycle at the end of the video?",
+      "official_option": "The left handlebar lever",
+      "top1_by_run": {
+        "g37q36_mc_text": "The right handlebar lever",
+        "g37_mc_target": "The right handlebar lever",
+        "g37_mc_direct": "The right handlebar lever",
+        "g38_mc_direct": "The right handlebar lever"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2295,
+      "video_id": "8394.webm",
+      "question": "How many people are described in the scene?",
+      "official_option": "2",
+      "top1_by_run": {
+        "g37q36_mc_text": "4",
+        "g37_mc_target": "4",
+        "g37_mc_direct": "4",
+        "g38_mc_direct": "4"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2297,
+      "video_id": "7184.webm",
+      "question": "What is the likely reason the commercial district is well-lit?",
+      "official_option": "It is nighttime",
+      "top1_by_run": {
+        "g37q36_mc_text": "There are many streetlights",
+        "g37_mc_target": "There are many streetlights",
+        "g37_mc_direct": "There are many streetlights",
+        "g38_mc_direct": "There are many streetlights"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 4
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2313,
+      "video_id": "7691.webm",
+      "question": "What can be inferred about the availability of color film technology when the footage was recorded?",
+      "official_option": "It was not available",
+      "top1_by_run": {
+        "g37q36_mc_text": "It was being used for some films",
+        "g37_mc_target": "It was being used for some films",
+        "g37_mc_direct": "It was being used for some films",
+        "g38_mc_direct": "It was being used for some films"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2342,
+      "video_id": "6694.webm",
+      "question": "How many adults are mentioned as supervising the boy?",
+      "official_option": "At least one",
+      "top1_by_run": {
+        "g37q36_mc_text": "None",
+        "g37_mc_target": "None",
+        "g37_mc_direct": "None",
+        "g38_mc_direct": "1"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 4,
+        "g37_mc_target": 4,
+        "g37_mc_direct": 4,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 2350,
+      "video_id": "8142.webm",
+      "question": "How many objects are being handled by the man in this scene?",
+      "official_option": "2",
+      "top1_by_run": {
+        "g37q36_mc_text": "1",
+        "g37_mc_target": "1",
+        "g37_mc_direct": "1",
+        "g38_mc_direct": "1"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2361,
+      "video_id": "6655.webm",
+      "question": "How many men are sitting at the rear of the boat?",
+      "official_option": "2",
+      "top1_by_run": {
+        "g37q36_mc_text": "1",
+        "g37_mc_target": "1",
+        "g37_mc_direct": "1",
+        "g38_mc_direct": "1"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2378,
+      "video_id": "BL-swaTPOJM",
+      "question": "what kind of a machine this is?",
+      "official_option": "a tiller",
+      "top1_by_run": {
+        "g37q36_mc_text": "a plow",
+        "g37_mc_target": "a plow",
+        "g37_mc_direct": "a plow",
+        "g38_mc_direct": "a plow"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2381,
+      "video_id": "7458.webm",
+      "question": "How many stores are mentioned in the scene?",
+      "official_option": "1",
+      "top1_by_run": {
+        "g37q36_mc_text": "2",
+        "g37_mc_target": "2",
+        "g37_mc_direct": "2",
+        "g38_mc_direct": "2"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 2,
+        "g37_mc_target": 2,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2399,
+      "video_id": "ChainedforLife-1.webm",
+      "question": "What does the woman knock off the table?",
+      "official_option": "A glass of chemicals",
+      "top1_by_run": {
+        "g37q36_mc_text": "A beaker",
+        "g37_mc_target": "A beaker",
+        "g37_mc_direct": "A flask",
+        "g38_mc_direct": "A flask"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 2401,
+      "video_id": "Calloused_Hands-52.webm",
+      "question": "What is the man in this scene talking about?",
+      "official_option": "He is angry at the decisions his son has made",
+      "top1_by_run": {
+        "g37q36_mc_text": "He is angry he had to wait for them to show up before he could talk to them",
+        "g37_mc_target": "He is drunk, so he's making issues up",
+        "g37_mc_direct": "He is drunk, so he's making issues up",
+        "g38_mc_direct": "He is drunk, so he's making issues up"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 2
+      },
+      "same_top1": false
+    },
+    {
+      "qid": 2404,
+      "video_id": "F8rxXVr2hHQ",
+      "question": "what does the man give the little girl after she pushes on his knee?",
+      "official_option": "a Rubik cube",
+      "top1_by_run": {
+        "g37q36_mc_text": "a ball",
+        "g37_mc_target": "a ball",
+        "g37_mc_direct": "a ball",
+        "g38_mc_direct": "a ball"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 3,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2410,
+      "video_id": "6963.webm",
+      "question": "How many people are in the scene?",
+      "official_option": "2",
+      "top1_by_run": {
+        "g37q36_mc_text": "3",
+        "g37_mc_target": "3",
+        "g37_mc_direct": "3",
+        "g38_mc_direct": "3"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 3
+      },
+      "same_top1": true
+    },
+    {
+      "qid": 2441,
+      "video_id": "8609.webm",
+      "question": "Where is the young man standing?",
+      "official_option": "Inside an empty auditorium",
+      "top1_by_run": {
+        "g37q36_mc_text": "On a stage",
+        "g37_mc_target": "On a stage",
+        "g37_mc_direct": "On a stage",
+        "g38_mc_direct": "On a stage"
+      },
+      "official_rank_by_run": {
+        "g37q36_mc_text": 3,
+        "g37_mc_target": 3,
+        "g37_mc_direct": 2,
+        "g38_mc_direct": 2
+      },
+      "same_top1": true
+    }
+  ],
+  "clip_inspections": [
+    {
+      "qid": 1369,
+      "video_id": "Memphis-18.webm",
+      "duration_seconds": 102.022,
+      "contact_sheet_interval_seconds": 6.376375,
+      "supplementary_inspection": null,
+      "classification": "equivalent_choices",
+      "observation": "One and One bed express the identical answer to this bed-count question. Clip inspection shows a bed but does not enumerate unseen rooms; equivalence does not depend on doing so.",
+      "source_video_sha256": "49c3d71cd48db9bb4840e605bc7c6bae7d2fb93fa1454312d469ba75618b8994"
+    },
+    {
+      "qid": 2049,
+      "video_id": "Archipelago-42.webm",
+      "duration_seconds": 165.003,
+      "contact_sheet_interval_seconds": 10.3126875,
+      "supplementary_inspection": null,
+      "classification": "equivalent_choices",
+      "observation": "One and One person is wearing a hat express the identical count for the question. Sampled views show two people at an outdoor easel, one painting and wearing a cap.",
+      "source_video_sha256": "bd79903b20b2a3cbc6e5f7b417e26e414b1001c65b761cbcfdcc15ace3d24b0f"
+    },
+    {
+      "qid": 1610,
+      "video_id": "6738.webm",
+      "duration_seconds": 1.902,
+      "contact_sheet_interval_seconds": 1,
+      "supplementary_inspection": null,
+      "classification": "overlapping_synonyms",
+      "observation": "Visible cable-supported bridge; hanging bridge and suspension bridge overlap in ordinary description. Kept as supporting candidate, not included in exact-equivalence count or paper examples.",
+      "source_video_sha256": "fce4be950f7a98a10f1d61e654030ca347357b4101a508d9e68b8653705cff9c"
+    },
+    {
+      "qid": 14,
+      "video_id": "Memphis-39.webm",
+      "duration_seconds": 89.009,
+      "contact_sheet_interval_seconds": 5.5630625,
+      "supplementary_inspection": "first36 seconds at1fps",
+      "classification": "unresolved_temporal_scope",
+      "observation": "Train passes behind the woman early; cyclist later passes along road in reverse-angle view. Both events occur; question gaze/timing is ambiguous. No false-reference determination.",
+      "source_video_sha256": "a95894b1c7f6a09842951d916ed94c380e05ee19ad2aae195be3789f2eb65286"
+    },
+    {
+      "qid": 1757,
+      "video_id": "8055.webm",
+      "duration_seconds": 7.608,
+      "contact_sheet_interval_seconds": 1,
+      "supplementary_inspection": null,
+      "classification": "unresolved_visual_detail",
+      "observation": "Headgear in dim tunnel too unclear to confidently distinguish cap from helmet at inspected resolution. No determination.",
+      "source_video_sha256": "c1ea58893f3fe2bffce21a23322baf7269528d23864f6759269006c403db79bc"
+    },
+    {
+      "qid": 1538,
+      "video_id": "7959.webm",
+      "duration_seconds": 7.799,
+      "contact_sheet_interval_seconds": 0.38995,
+      "supplementary_inspection": null,
+      "classification": "unresolved_visibility",
+      "observation": "Foreground tulips beside steps are clear; full second side is not established by close framing. No determination of reference error.",
+      "source_video_sha256": "9cfce01623fee2f63034d9558e90939b7a2fbbf078b203a9f7349de26911dc73"
+    },
+    {
+      "qid": 351,
+      "video_id": "7941.webm",
+      "duration_seconds": 8.749,
+      "contact_sheet_interval_seconds": 0.43745,
+      "supplementary_inspection": null,
+      "classification": "unresolved_temporal_scope",
+      "observation": "Cars visible at crossing as train passes; approaching versus stopped depends on time/car. No definitive reference error.",
+      "source_video_sha256": "f8f9efc85426e93f14a796354ee30be696cc4f9a7f42473cb7c14dd38a5f6e50"
+    },
+    {
+      "qid": 1291,
+      "video_id": "6884.webm",
+      "duration_seconds": 10.01,
+      "contact_sheet_interval_seconds": 0.5005,
+      "supplementary_inspection": null,
+      "classification": "temporal_activity_candidate",
+      "observation": "Baby is awake and moves head in later sampled frames, making sleeping an incomplete clip description. Dance label and audio relation not independently adjudicated. Not promoted to a verified factual-error example.",
+      "source_video_sha256": "e0fdf984a2ef5df78dcfeff3fdd0302d1d3bc6aa6c4e33d980f8f83935a10a85"
+    }
+  ],
+  "confirmed_equivalence_examples": [
+    {
+      "qid": 1369,
+      "Q_ID": 1369,
+      "Video_ID": "Memphis-18.webm",
+      "Question": "How many beds are in the house?",
+      "Options": [
+        {
+          "option": "None"
+        },
+        {
+          "option": "Three beds"
+        },
+        {
+          "option": "Three"
+        },
+        {
+          "option": "Four beds"
+        },
+        {
+          "option": "One"
+        },
+        {
+          "option": "Two"
+        },
+        {
+          "option": "Two beds"
+        },
+        {
+          "option": "One bed"
+        }
+      ],
+      "official_rows": {
+        "g37q36_mc_text": {
+          "Q_ID": "1369",
+          "Video_ID": "Memphis-18.webm",
+          "Correct_Answer": "One",
+          "Submitted_Rank_1": "One bed",
+          "Correct_Answer_Rank": "2",
+          "Top_1": "0",
+          "Reciprocal_Rank": "0.5",
+          "Submitted": "True"
+        },
+        "g37_mc_target": {
+          "Q_ID": "1369",
+          "Video_ID": "Memphis-18.webm",
+          "Correct_Answer": "One",
+          "Submitted_Rank_1": "One bed",
+          "Correct_Answer_Rank": "2",
+          "Top_1": "0",
+          "Reciprocal_Rank": "0.5",
+          "Submitted": "True"
+        },
+        "g37_mc_direct": {
+          "Q_ID": "1369",
+          "Video_ID": "Memphis-18.webm",
+          "Correct_Answer": "One",
+          "Submitted_Rank_1": "One bed",
+          "Correct_Answer_Rank": "2",
+          "Top_1": "0",
+          "Reciprocal_Rank": "0.5",
+          "Submitted": "True"
+        },
+        "g38_mc_direct": {
+          "Q_ID": "1369",
+          "Video_ID": "Memphis-18.webm",
+          "Correct_Answer": "One",
+          "Submitted_Rank_1": "One bed",
+          "Correct_Answer_Rank": "2",
+          "Top_1": "0",
+          "Reciprocal_Rank": "0.5",
+          "Submitted": "True"
+        }
+      }
+    },
+    {
+      "qid": 2049,
+      "Q_ID": 2049,
+      "Video_ID": "Archipelago-42.webm",
+      "Question": "How many people in the video are wearing a hat?",
+      "Options": [
+        {
+          "option": "One person is wearing a hat"
+        },
+        {
+          "option": "None"
+        },
+        {
+          "option": "Two people are wearing hats"
+        },
+        {
+          "option": "Three"
+        },
+        {
+          "option": "Everyone is wearing a hat"
+        },
+        {
+          "option": "No one is wearing a hat"
+        },
+        {
+          "option": "One"
+        },
+        {
+          "option": "Two"
+        }
+      ],
+      "official_rows": {
+        "g37q36_mc_text": {
+          "Q_ID": "2049",
+          "Video_ID": "Archipelago-42.webm",
+          "Correct_Answer": "One",
+          "Submitted_Rank_1": "One person is wearing a hat",
+          "Correct_Answer_Rank": "2",
+          "Top_1": "0",
+          "Reciprocal_Rank": "0.5",
+          "Submitted": "True"
+        },
+        "g37_mc_target": {
+          "Q_ID": "2049",
+          "Video_ID": "Archipelago-42.webm",
+          "Correct_Answer": "One",
+          "Submitted_Rank_1": "One person is wearing a hat",
+          "Correct_Answer_Rank": "2",
+          "Top_1": "0",
+          "Reciprocal_Rank": "0.5",
+          "Submitted": "True"
+        },
+        "g37_mc_direct": {
+          "Q_ID": "2049",
+          "Video_ID": "Archipelago-42.webm",
+          "Correct_Answer": "One",
+          "Submitted_Rank_1": "One person is wearing a hat",
+          "Correct_Answer_Rank": "2",
+          "Top_1": "0",
+          "Reciprocal_Rank": "0.5",
+          "Submitted": "True"
+        },
+        "g38_mc_direct": {
+          "Q_ID": "2049",
+          "Video_ID": "Archipelago-42.webm",
+          "Correct_Answer": "One",
+          "Submitted_Rank_1": "One person is wearing a hat",
+          "Correct_Answer_Rank": "2",
+          "Top_1": "0",
+          "Reciprocal_Rank": "0.5",
+          "Submitted": "True"
+        }
+      }
+    }
+  ],
+  "exact_string_duplicate_screen": {
+    "released_questions": 2443,
+    "normalization": "Unicode NFKC, lowercase, whitespace collapse, strip terminal .?!",
+    "option_sets_with_duplicates": 0,
+    "scope": "Not a semantic equivalence detector"
+  },
+  "paper_frame": {
+    "path": "private-frames/hat-50.jpg",
+    "qid": 2049,
+    "timestamp_seconds": 50,
+    "sha256": "c4cba1454f2b4599504c1cdc8c690b84b07e30c631d602a8af070ba195727511"
+  }
+}

@@ -266,6 +266,39 @@ MC1 maps AG3's ``It is sunny.'' to ``Sunny.'' MC3 selects ``Rainy,'' while MC4 s
 
 \endgroup
 \clearpage
+\section{Shared errors and equivalent answer choices}
+\label{sec:shared-errors}
+Our four MC runs all miss \textbf{271 of 2,428 questions}. On \textbf{194} of those questions they choose the same non-reference option; on the other \textbf{77}, their choices differ. These are related submissions, not four independent votes: MC2 reuses MC1 or MC3 rankings. Other teams' archived results are aggregate scores only, so this analysis cannot identify questions missed by the leaderboard leader.
+
+\textbf{Audit method.} We checked all 271 shared misses against the revised organizer options and frozen submissions, then screened their question/reference/selected-answer pairs. We inspected eight deliberately selected visual candidates. This is a targeted audit, not an estimate of label-error prevalence. Two cases establish an issue without requiring a disputed interpretation of the video: distinct options express the same count.
+
+\begin{figure}[H]\centering
+\begin{minipage}[t]{.34\linewidth}\centering\vspace{0pt}
+\includegraphics[width=\linewidth]{private-frames/hat-50.jpg}\\[3pt]
+{\small Q\_ID 2049; 50 s\\\run{Archipelago-42.webm}}
+\end{minipage}\hfill
+\begin{minipage}[t]{.62\linewidth}\raggedright\vspace{0pt}
+\textbf{``How many people in the video are wearing a hat?''}\\[8pt]
+\textcolor{decisiongreen}{\textbf{Official choice:}} ``One''\\[6pt]
+\textcolor{evidenceblue}{\textbf{All four runs choose:}}\\``One person is wearing a hat''\\[6pt]
+Both choices give the same count. All four are scored incorrect and rank ``One'' second.
+\end{minipage}
+\caption{An equivalent-choice mismatch in the released option set. The two answers agree on the requested quantity; selecting the longer wording is scored as a miss. The displayed frame is illustrative, not a reconstruction of model input.}
+\end{figure}
+
+\textbf{The same issue recurs in a second question.}
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3cm}Y >{\raggedright\arraybackslash}p{1.8cm}>{\raggedright\arraybackslash}p{2.7cm}@{}}\toprule
+Case & Question & Official choice & All four first choices\\\midrule
+Q\_ID 1369\newline\run{Memphis-18.webm} & How many beds are in the house? & One & One bed\\\bottomrule
+\end{tabularx}\end{center}
+Again, every run ranks ``One'' second. Both strings occur as separate choices in the organizer's revised file; this is not a paraphrase introduced by our submission. The count is identical regardless of whether the video actually contains one bed. Other equivalent pairs recur within these sets: ``Two''/``Two beds'' in Q1369 and ``None''/``No one is wearing a hat'' in Q2049.
+
+\textbf{Interpretation.} These two cases establish equivalent choices receiving different scoring outcomes, not false underlying counts. More visual evidence cannot distinguish ``One'' from ``One bed'' as answers to the bed-count question. Thus at least some shared scored errors concern selecting the designated wording rather than perceiving a different quantity. This complements the AG example: wording affects AG similarity scores, and equivalent wording can also affect MC correctness when it appears as a separate option.
+
+A bridge case (Q1610: ``hanging'' versus ``suspension'') offers a possible wording overlap that we do not count. The remaining inspected candidates involved unclear details or event timing and remain unresolved. We do not relabel them, change official scores, or infer a corrected leaderboard. The supported conclusion is limited: shared failure is useful for finding cases to audit, but does not by itself establish a bad label or a common perception failure.
+
+\clearpage
 {\small\textbf{Drafting assistance.} Codex assisted with writing, diagrams, and source checks. Author review and final model references remain to be completed.}
 
 \begingroup\small\raggedright
