@@ -295,7 +295,7 @@ Same count; different scoring. Every run selects the longer answer and is marked
 
 \textbf{What this tells us.} More video evidence cannot distinguish ``One'' from ``One bed'' as answers to a bed-count question. These are failures to select the designated wording, not disagreements about the count. They do not show that the count label itself is wrong.
 
-We keep the official scores unchanged. This audit covers our runs only; question-level results for other teams were unavailable. Appendix~\ref{app:audit} records the audit method and unresolved cases.
+This audit covers our runs only; question-level results for other teams were unavailable. Appendix~\ref{app:audit} records the audit method and unresolved cases.
 
 \clearpage
 {\small\textbf{Drafting assistance.} Codex assisted with writing, diagrams, and source checks. Author review and final model references remain to be completed.}
@@ -310,24 +310,30 @@ We keep the official scores unchanged. This audit covers our runs only; question
 \endgroup
 
 \appendix
-\section{Development comparison}
+\section{Why we tried speech transcripts}
 \label{app:development}
-We compared Qwen3.5-4B on the same 30 labeled 2025 videos and questions, using either 12 uniformly sampled frames or those identical frames plus a quality-accepted Whisper large-v3 transcript. Rejected transcripts were replaced by null input. The selected panel contains six questions each on speech, sound/music, temporal actions, spatial/OCR/color, and visual controls.
+\textbf{Question.} Can a speech transcript help answer questions that video frames alone cannot resolve? This small development comparison motivated the transcript input used in AG2.
+
+\textbf{What we changed.} Both conditions used Qwen3.5-4B, the same questions, and the same 12 uniformly sampled frames. One condition also received a Whisper large-v3 transcript when it passed the transcript-quality check; otherwise the transcript was omitted. The panel comprised 30 labeled 2025 examples: six each on speech, sound/music, temporal actions, spatial/OCR/color, and visual controls.
 
 \begin{center}\small
 \begin{tabular}{lrrr}\toprule
-Input to Qwen3.5-4B & Exact matches & Token F1 & Speech F1\\\midrule
+Input & Exact matches & Overall token F1 & Speech token F1\\\midrule
 12 frames & 9/30 & .431 & .431\\
-Same frames + Whisper & 11/30 & .507 & .700\\\bottomrule
+Same frames + transcript & 11/30 & .507 & .700\\\bottomrule
 \end{tabular}\end{center}
-Exact match compares normalized answer strings. Token F1 combines normalized token precision and recall; scores are averaged over questions. Speech F1 uses the six speech questions. Neither condition exactly answers any of the six sound/music questions. This exploratory development comparison motivated transcripts for speech; it does not estimate 2026 performance or isolate AG2's effect.
+Exact match requires identical normalized answer strings. Token F1 measures overlap between normalized answer and reference tokens; the table reports means across questions. The speech column covers the six speech questions.
 
-\section{Shared-error audit details}
+\textbf{What we took from it.} Transcripts helped most on speech questions, so they were worth including as an input. They did not solve non-speech audio: neither condition exactly answered any sound/music question. This explains a development choice, not AG2's test-set gain; the submitted AG2 also used a different model and video input.
+
+\section{What the shared-failure review established}
 \label{app:audit}
-We joined the four official MC result files on question ID and checked all shared misses against the revised options and frozen rankings. Of 271 shared misses, 194 have the same first choice across runs and 77 have different choices. The runs are related: MC2 reuses MC1 or MC3 rankings.
+We wanted to know whether a shared failure meant the models had misunderstood the video. We checked the questions that all four runs missed against the organizer's original options and our submitted rankings, then inspected eight selected clips.
 
-We screened all shared question/reference/selected-answer pairs and inspected eight deliberately selected clips. The two count-equivalence examples in Section~\ref{sec:shared-errors} both place the official wording second in every run. Their option sets contain further equivalent pairs, including ``Two''/``Two beds'' and ``None''/``No one is wearing a hat.''
+\textbf{Two cases were clear.} For the bed and hat questions in Section~\ref{sec:shared-errors}, our selected option gave exactly the same count as the official choice. Both wordings were already in the organizer's option list. This is an answer-choice problem, not evidence of a different perceived count.
 
-The other inspected questions were Q14, Q351, Q1291, Q1538, Q1610, and Q1757. A bridge-description pair is a possible synonym; timing or visual detail remains unresolved in the others. These targeted inspections do not estimate label-error prevalence. We have no question-level results for competing teams and make no claim about shared errors with the leaderboard leader.
+\textbf{The other cases were less clear.} For example, one clip contains both a passing train and a cyclist, so the question's timing matters. Other cases had unclear visual details or potentially synonymous choices. We left those unresolved rather than calling the labels wrong.
+
+This was a targeted review, not a random sample. It shows that equivalent choices can cause scored failures; it does not tell us how common that problem is. Detailed case records remain in the supporting analysis.
 
 \end{document}

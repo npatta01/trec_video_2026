@@ -222,3 +222,7 @@ Final verification: seven-page PDF compiled in two XeLaTeX passes with no overfl
 ## Density and self-citation revision — 2026-10-06
 
 Addressed four PDF comments. Simplified the main shared-error section to271 shared failures, two visual answer comparisons, and a short interpretation. Moved194/77 counts, dependencies, selection method and unresolved cases to Appendix B. Did not claim overlap with the leaderboard leader: other-team question-level results are unavailable. Removed inaccessible internal-development bibliography entry; Appendix A now supplies the matched30 setup, metric definitions, and verified results directly. Development evidence verified from reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md (protocol-v2 report dated2026-07-24). No external report publication. Seven-page PDF passes two XeLaTeX runs without warnings; revised pages6–7 visually checked.
+
+## Purpose and reading flow — 2026-10-06
+
+User preference: the paper should sound human and be easy to read; include details only when they help the reader understand the point. Recast Appendix A around why transcripts were tried, what changed, and what was learned. Recast Appendix B around the review question, two clear outcomes, and why other cases remained unresolved. Kept the full case log in supporting evidence rather than expanding the paper into an audit manual. Removed the unnecessary sentence about keeping official scores unchanged. Seven-page local PDF compiles twice without warnings; revised appendix page visually checked.
