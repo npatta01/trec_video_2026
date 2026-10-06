@@ -106,7 +106,7 @@ We submitted four AG and four MC runs covering 2,443 questions from 1,956 videos
 
 \textbf{AG4: grouped rewrite.} Gemini 3.7 Flash receives the saved first answers from the four source calls and generates ten candidates, grouping equivalent meanings and retaining conflicting answers separately. AG3's first answer stays first. If the rewrite fails our checks, we keep AG3's original list.
 
-\textbf{Development evidence.} On 30 selected 2025 questions, adding Whisper to the same Qwen3.5 frames raised token F1 from .431 to .507, with a .269 gain on six speech questions. Neither condition exactly matched any of six sound/music answers. This supports transcripts for speech; it does not isolate AG2's gains, since AG2 also changes model and video input~\cite{development}.
+\textbf{Development evidence.} A small matched 2025 comparison motivated the use of speech transcripts; Appendix~\ref{app:development} gives the setup and results. It is not an ablation of AG2, which also changes the model and video input.
 
 \subsection{Results}
 Scores are from the organizer release~\cite{official2026}.
@@ -268,9 +268,7 @@ MC1 maps AG3's ``It is sunny.'' to ``Sunny.'' MC3 selects ``Rainy,'' while MC4 s
 \clearpage
 \section{Shared errors and equivalent answer choices}
 \label{sec:shared-errors}
-Our four MC runs all miss \textbf{271 of 2,428 questions}. On \textbf{194} of those questions they choose the same non-reference option; on the other \textbf{77}, their choices differ. These are related submissions, not four independent votes: MC2 reuses MC1 or MC3 rankings. Other teams' archived results are aggregate scores only, so this analysis cannot identify questions missed by the leaderboard leader.
-
-\textbf{Audit method.} We checked all 271 shared misses against the revised organizer options and frozen submissions, then screened their question/reference/selected-answer pairs. We inspected eight deliberately selected visual candidates. This is a targeted audit, not an estimate of label-error prevalence. Two cases establish an issue without requiring a disputed interpretation of the video: distinct options express the same count.
+Our four MC runs share \textbf{271 failures}. We reviewed these to ask whether the models misunderstood the video or whether the answer choices themselves caused a mismatch. Two clear examples show the latter: \textbf{the same count appears as two different choices}.
 
 \begin{figure}[H]\centering
 \begin{minipage}[t]{.34\linewidth}\centering\vspace{0pt}
@@ -281,22 +279,23 @@ Our four MC runs all miss \textbf{271 of 2,428 questions}. On \textbf{194} of th
 \textbf{``How many people in the video are wearing a hat?''}\\[8pt]
 \textcolor{decisiongreen}{\textbf{Official choice:}} ``One''\\[6pt]
 \textcolor{evidenceblue}{\textbf{All four runs choose:}}\\``One person is wearing a hat''\\[6pt]
-Both choices give the same count. All four are scored incorrect and rank ``One'' second.
+Same count; different scoring. Every run selects the longer answer and is marked wrong.
 \end{minipage}
-\caption{An equivalent-choice mismatch in the released option set. The two answers agree on the requested quantity; selecting the longer wording is scored as a miss. The displayed frame is illustrative, not a reconstruction of model input.}
+\caption{Both wordings are organizer-provided choices. The frame illustrates the clip; it is not a reconstructed model input.}
 \end{figure}
 
-\textbf{The same issue recurs in a second question.}
-\begin{center}\small
-\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3cm}Y >{\raggedright\arraybackslash}p{1.8cm}>{\raggedright\arraybackslash}p{2.7cm}@{}}\toprule
-Case & Question & Official choice & All four first choices\\\midrule
-Q\_ID 1369\newline\run{Memphis-18.webm} & How many beds are in the house? & One & One bed\\\bottomrule
-\end{tabularx}\end{center}
-Again, every run ranks ``One'' second. Both strings occur as separate choices in the organizer's revised file; this is not a paraphrase introduced by our submission. The count is identical regardless of whether the video actually contains one bed. Other equivalent pairs recur within these sets: ``Two''/``Two beds'' in Q1369 and ``None''/``No one is wearing a hat'' in Q2049.
+\medskip\hrule\medskip
+\textbf{``How many beds are in the house?''}\\[4pt]
+{\small Q\_ID 1369; \run{Memphis-18.webm}}\\[8pt]
+\begin{tabularx}{\linewidth}{@{}XX@{}}
+\textcolor{decisiongreen}{\textbf{Official choice}} & \textcolor{evidenceblue}{\textbf{All four runs choose}}\\[4pt]
+``One'' & ``One bed''
+\end{tabularx}
+\medskip\hrule\medskip
 
-\textbf{Interpretation.} These two cases establish equivalent choices receiving different scoring outcomes, not false underlying counts. More visual evidence cannot distinguish ``One'' from ``One bed'' as answers to the bed-count question. Thus at least some shared scored errors concern selecting the designated wording rather than perceiving a different quantity. This complements the AG example: wording affects AG similarity scores, and equivalent wording can also affect MC correctness when it appears as a separate option.
+\textbf{What this tells us.} More video evidence cannot distinguish ``One'' from ``One bed'' as answers to a bed-count question. These are failures to select the designated wording, not disagreements about the count. They do not show that the count label itself is wrong.
 
-A bridge case (Q1610: ``hanging'' versus ``suspension'') offers a possible wording overlap that we do not count. The remaining inspected candidates involved unclear details or event timing and remain unresolved. We do not relabel them, change official scores, or infer a corrected leaderboard. The supported conclusion is limited: shared failure is useful for finding cases to audit, but does not by itself establish a bad label or a common perception failure.
+We keep the official scores unchanged. This audit covers our runs only; question-level results for other teams were unavailable. Appendix~\ref{app:audit} records the audit method and unresolved cases.
 
 \clearpage
 {\small\textbf{Drafting assistance.} Codex assisted with writing, diagrams, and source checks. Author review and final model references remain to be completed.}
@@ -306,8 +305,29 @@ A bridge case (Q1610: ``hanging'' versus ``suspension'') offers a possible wordi
 \setlength{\itemsep}{0pt}
 \bibitem{guidelines2026} NIST. \emph{TRECVID 2026: Video Question Answering guidelines}. \url{https://www-nlpir.nist.gov/projects/tv2026/vqa.html}.
 \bibitem{smeaton2006} A. F. Smeaton, P. Over, and W. Kraaij. Evaluation campaigns and TRECVid. \emph{MIR}, 2006, pp. 321--330. \href{https://doi.org/10.1145/1178677.1178722}{doi:10.1145/1178677.1178722}.
-\bibitem{development} NP Labs. \emph{Native-audio model benchmark: matched 30-question development comparison}. Internal experiment report, July 21, 2026.
 \bibitem{official2026} NIST. \emph{TREC VQA 2026 evaluation results}. Participant release, September 2026. AG workbook and NP Labs MC scores; archived at repository revision \run{3efb5b19dbd6d8d59232986cc25ef049af24ba5e}.
 \end{thebibliography}
 \endgroup
+
+\appendix
+\section{Development comparison}
+\label{app:development}
+We compared Qwen3.5-4B on the same 30 labeled 2025 videos and questions, using either 12 uniformly sampled frames or those identical frames plus a quality-accepted Whisper large-v3 transcript. Rejected transcripts were replaced by null input. The selected panel contains six questions each on speech, sound/music, temporal actions, spatial/OCR/color, and visual controls.
+
+\begin{center}\small
+\begin{tabular}{lrrr}\toprule
+Input to Qwen3.5-4B & Exact matches & Token F1 & Speech F1\\\midrule
+12 frames & 9/30 & .431 & .431\\
+Same frames + Whisper & 11/30 & .507 & .700\\\bottomrule
+\end{tabular}\end{center}
+Exact match compares normalized answer strings. Token F1 combines normalized token precision and recall; scores are averaged over questions. Speech F1 uses the six speech questions. Neither condition exactly answers any of the six sound/music questions. This exploratory development comparison motivated transcripts for speech; it does not estimate 2026 performance or isolate AG2's effect.
+
+\section{Shared-error audit details}
+\label{app:audit}
+We joined the four official MC result files on question ID and checked all shared misses against the revised options and frozen rankings. Of 271 shared misses, 194 have the same first choice across runs and 77 have different choices. The runs are related: MC2 reuses MC1 or MC3 rankings.
+
+We screened all shared question/reference/selected-answer pairs and inspected eight deliberately selected clips. The two count-equivalence examples in Section~\ref{sec:shared-errors} both place the official wording second in every run. Their option sets contain further equivalent pairs, including ``Two''/``Two beds'' and ``None''/``No one is wearing a hat.''
+
+The other inspected questions were Q14, Q351, Q1291, Q1538, Q1610, and Q1757. A bridge-description pair is a possible synonym; timing or visual detail remains unresolved in the others. These targeted inspections do not estimate label-error prevalence. We have no question-level results for competing teams and make no claim about shared errors with the leaderboard leader.
+
 \end{document}

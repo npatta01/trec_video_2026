@@ -181,3 +181,7 @@ def norm(s):
 same = [q for q in shared if len({norm(rows[t][q]["Submitted_Rank_1"]) for t in tags}) == 1]
 assert (len(rows[tags[0]]), len(shared), len(same)) == (2428, 271, 194)
 ```
+
+## Reader-facing appendices — 2026-10-06
+
+Moved the shared-error audit detail into paper Appendix B, preserving scope and unchanged official scores. Paper Appendix A replaces the internal development-report citation with self-contained methods and results. Verified against reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md: protocol-v2 report dated2026-07-24,30 matched labeled2025 videos, six cases in each of five strata, Qwen3.5-4B12f versus identical12f plus quality-accepted Whisperlarge-v3 transcript. EM9/30 versus11/30; tokenF1 .430725 versus .506795; speechF1 .431159 versus .700000; sound/music EM0/6 in both. No new measurements or public release.
