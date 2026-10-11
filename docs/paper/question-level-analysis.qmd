@@ -185,3 +185,9 @@ assert (len(rows[tags[0]]), len(shared), len(same)) == (2428, 271, 194)
 ## Reader-facing appendices — 2026-10-06
 
 Moved the shared-error audit detail into paper Appendix B, preserving scope and unchanged official scores. Paper Appendix A replaces the internal development-report citation with self-contained methods and results. Verified against reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md: protocol-v2 report dated2026-07-24,30 matched labeled2025 videos, six cases in each of five strata, Qwen3.5-4B12f versus identical12f plus quality-accepted Whisperlarge-v3 transcript. EM9/30 versus11/30; tokenF1 .430725 versus .506795; speechF1 .431159 versus .700000; sound/music EM0/6 in both. No new measurements or public release.
+
+## Paired expansion of video rankings — 2026-10-10 {#paired-video-expansion}
+
+Question: what changes when video rankings replace text rankings on more questions? This extends the existing frozen-result analysis, not a new experiment. On the same 2,428 scored questions, MC2 versus MC1 corrects 150 errors and loses 37 correct answers (net +113). MC3 versus MC2 corrects 69 and loses 42 (net +27). Counts were checked against archived per-query CSV rows and independently reproduced from the four-run correctness patterns in the JSON.
+
+MC2 uses a selected subset of the same video predictions used by MC3. The paired chart exposes corrections and regressions hidden by net accuracy; it does not measure inference cost or explain why individual predictions changed. Evidence validity: valid descriptive post-hoc comparison. Decision: include this compact chart, with no model/router promotion or prospective selection claim. No predeclared decision rule applies; no earlier result is superseded. Reconsider interpretation only if source alignment or official results change.

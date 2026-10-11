@@ -226,3 +226,11 @@ Addressed four PDF comments. Simplified the main shared-error section to271 shar
 ## Purpose and reading flow — 2026-10-06
 
 User preference: the paper should sound human and be easy to read; include details only when they help the reader understand the point. Recast Appendix A around why transcripts were tried, what changed, and what was learned. Recast Appendix B around the review question, two clear outcomes, and why other cases remained unresolved. Kept the full case log in supporting evidence rather than expanding the paper into an audit manual. Removed the unnecessary sentence about keeping official scores unchanged. Seven-page local PDF compiles twice without warnings; revised appendix page visually checked.
+
+## Astra and extended-panel readability pass — 2026-10-10
+
+Objective: preserve the approachable paper while replacing repeated box layouts and adding only analysis that sharpens the argument. Astra first reviewed source, figures, and evidence read-only. Accepted its five focused suggestions: explicit opening argument; source-priority AG layout; compact MC routes; paired corrections/losses chart; ranked AG4 example and clearer audit scope. Kept family-friendly frames and all exact scores. No new model runs or dataset changes.
+
+Verified MC2 versus MC1 +150/-37 and MC3 versus MC2 +69/-42 against archived official rows and the saved correctness patterns. Canonical claim: question-level-analysis.qmd#paired-video-expansion, with JSON counts. Two local XeLaTeX passes succeeded at seven pages; inspected revised pages 2–7 and repaired chart-label spacing. Extended panel is the second review stage, using one frozen source/evidence packet and identical clarity/visual/evidence focus. Final dispositions and verification will be recorded in advisor-review.md.
+
+Extended review complete: Sol, Astra, Claude and Gemini answered; configured Qwen/Kimi failed runtime preflight with no substitutions. Applied the valid bounded wording changes and retained seven pages. Full sanitized dispositions are in advisor-review.md. Final PDF rebuild, rendered checks and local commit complete this pass; author sign-off and final model citations remain outside the current readability pass.

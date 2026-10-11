@@ -44,3 +44,24 @@ Focused read-only Claude Code adversarial review of the new paper section and au
 - Show additional equivalent pairs within the two original option sets. Used precise examples (Two/Two beds; None/No one is wearing a hat), not the reviewer's overly broad suggestion that every count has two forms, since the actual lists do not support that universal statement.
 
 Also clarified that the hat frame shows two people at an easel, one painting. No prevalence, false-reference-fact, all-team-error, or corrected-leaderboard claim was added. Review did not independently replay every video. Local rendering checks remain the primary agent's responsibility.
+
+## Astra first pass and extended panel — 2026-10-10
+
+Requested/effective profile: **extended**. First, a separate GPT-6 Astra xhigh advisor reviewed the source, rendered pages and evidence. After its accepted changes, the extended panel received one frozen source/evidence packet with the same focus: **Improve clarity, visual variety, and evidence-grounded argument without adding density or unsupported analysis.** Panel reviews were source-only; the parent performed rendered PDF inspection.
+
+| Lane | Model | Auth | Outcome | Main contribution |
+|---|---|---|---|---|
+| Sol | gpt-6-sol, xhigh | ChatGPT subscription | Answered | Calibrate count heading; avoid attributing AG4 decline to rewording alone; trim appendix repetition. |
+| Astra | gpt-6-astra, xhigh | ChatGPT subscription | Answered | Clarify saved MC3 reuse, move AG4 constraints into methods, close the main argument. |
+| Claude | opus, max | Claude.ai subscription | Answered | Replace misleading text-only shorthand, emphasize larger METEOR difference, say groups rather than merges, remove source color inconsistency. |
+| Gemini | gemini-3.8-flash-high | Antigravity OAuth; billing tier unverified | Answered | Check chart spacing and color semantics; preserve reference-text uncertainty. |
+| Qwen | opencode-go/qwen3.8-max | Runtime preflight unavailable | Unavailable | No inference or substitute model. |
+| Kimi | opencode-go/kimi-k3 | Runtime preflight unavailable | Unavailable | No inference or substitute model. |
+
+Packet classification: private, task-scoped draft and compact evidence only. Training use was not permitted; every configured lane declared provider_data_use=none. No public-use lanes or training endpoints were enabled. Reviewers were read-only. The runner disposed of temporary OpenCode runtimes; no Qwen/Kimi inference session ran and no session cleanup receipt was produced. The private packet/result files were removed after synthesis; this sanitized record preserves the dispositions.
+
+Accepted: compact source-priority layout and MC routes, paired corrections/losses chart (150/37 then69/42), ten-rank AG4 ladder, explicit audit screening scope, softer counting headline, saved-answer MC1 wording, exact-source/duplicate constraints in AG4 methods, larger METEOR contrast, concise overall takeaway, and shorter Appendix B.
+
+Not adopted: more analysis/MC4 bars, speculative score causes, a same-settings causal comparison of AG3/MC3, or additional repeated numerical bridges. The chart and existing abstract already provide incremental and total differences. Gemini's suggested cross-reference collision is not real: fig:shared and sec:shared-errors are distinct labels. Its suggested label crowding was checked against the render; the positive-count/net spacing had already been repaired. Keep the explicit AG-reference boundary without speculating about missing references. The evidence supports local option equivalence, not prevalence or wrong underlying counts.
+
+Verification: directly rejoined all four archived MC CSVs on the same2,428 IDs; totals1912/2025/2052/2047 and both new transitions match the saved JSON. Rebuilt the seven-page PDF twice with XeLaTeX, checked warnings and whitespace, and inspected all pages. No new model inference, source media alteration, publication, or push. Final model citations and author sign-off remain pre-existing draft tasks.
