@@ -65,3 +65,26 @@ Accepted: compact source-priority layout and MC routes, paired corrections/losse
 Not adopted: more analysis/MC4 bars, speculative score causes, a same-settings causal comparison of AG3/MC3, or additional repeated numerical bridges. The chart and existing abstract already provide incremental and total differences. Gemini's suggested cross-reference collision is not real: fig:shared and sec:shared-errors are distinct labels. Its suggested label crowding was checked against the render; the positive-count/net spacing had already been repaired. Keep the explicit AG-reference boundary without speculating about missing references. The evidence supports local option equivalence, not prevalence or wrong underlying counts.
 
 Verification: directly rejoined all four archived MC CSVs on the same2,428 IDs; totals1912/2025/2052/2047 and both new transitions match the saved JSON. Rebuilt the seven-page PDF twice with XeLaTeX, checked warnings and whitespace, and inspected all pages. No new model inference, source media alteration, publication, or push. Final model citations and author sign-off remain pre-existing draft tasks.
+
+## Visual revision and missing-lane repair — 2026-10-10
+
+User requested substantially less prose and repair of Qwen/Kimi availability. Reworked the paper into six pages with an illustrated task overview, AG source-priority diagram, MC routing diagram, metric/accuracy/paired-change charts, a meaning-group rank ribbon, and a larger real-frame option-equivalence example. Exact scores and settings remain in the appendix. No new result claims or synthetic example media.
+
+Requested/effective profile: extended. All six lanes received the same frozen private source/evidence packet and focus: **Make this paper visually explanatory and easy to read while preserving exact implementation and evidence boundaries.** Reviewers saw source only; parent inspected all rendered pages.
+
+| Lane/model | Auth | Live outcome | Disposition |
+|---|---|---|---|
+| Sol / gpt-6-sol xhigh | ChatGPT subscription | Answered | Keep accurate scales and visible near-tie explanation. |
+| Astra / gpt-6-astra xhigh | ChatGPT subscription | Answered | Neutral AG shading, noncausal weather heading, integrate group markers with text. |
+| Claude / opus max | Claude.ai subscription | Answered | Define the20-question pattern; clarify whole-run NDCG and source ordering. |
+| Gemini / gemini-3.8-flash-high | Antigravity OAuth; tier unverified | Answered | Neutral shading, group badges, explicit MC2 output label. |
+| Qwen / opencode-go/qwen3.8-max | Existing OpenCode Go credential | Preflight passed; live403 | Provider requires an active Go subscription. No alternate model. |
+| Kimi / opencode-go/kimi-k3 | Existing OpenCode Go credential | Preflight passed; live403 | Same unresolved account entitlement. No alternate model. |
+
+All configured lanes declare provider_data_use=none. Private packet; no training permission or public-use lanes. OpenCode session cleanup reported OK for both review lanes; temporary runtimes and packet/result files were removed after synthesis. No credentials or raw provider diagnostics are retained here.
+
+Local root cause: primary OpenCode2.0.26 does not implement the runner's v1 debug interface and attempted a managed server on an occupied default port. Installed OpenCode1.19.0 under a dedicated user-local prefix and exposed opencode-advisor. The runner now prefers that binary, preserves explicit overrides, and keeps v2 plus its running server unchanged. Live probes then reached the provider and identified the separate active-subscription requirement. Sanitized failure classification now reports subscription rather than generic runtime. Configuration changes live in the separate agent-config repository, not this paper tree.
+
+Accepted visual refinements: same bar color for all AG runs with observed leaders bold; exact S/R tags adjacent to every output plus rank-column headings; MC2 shown as a submission; explicit20-of2428 correctness pattern; noncausal weather heading; whole-run NDCG scope; and exact AG3 source priority D→B→C→A verified from scripts/assemble_vqa_gemini_qwen_submission.py. Retained the rank ribbon after render inspection because it makes interleaving visible at a glance. Did not add the proposed unverified MC2 gate-cause explanation or more numerical analysis.
+
+Verification: six-page XeLaTeX build, all pages inspected, all chart values retained from the verified official-score record, and git diff whitespace check. Advisor regression suite:89 tests pass, including executable preference/override/fallback and subscription classification; full agent-config check passes with the host user runtime configured. Author sign-off and final model citations remain existing draft tasks.
