@@ -1,0 +1,29 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=0.85in]{geometry}
+\usepackage{fontspec}
+\setmainfont{TeX Gyre Pagella}
+\usepackage{parskip}
+\usepackage[hidelinks]{hyperref}
+\pagestyle{empty}
+\begin{document}
+{\large\bfseries NP Labs at TRECVID 2026:\\Experiments with Off-the-Shelf Video QA Models\par}
+\vspace{8pt}
+\textbf{Task:} Video Question Answering (VQA)\\
+\textbf{Group:} NP Labs\\
+\textbf{Speaker:} Tanwir Zaman\\
+\textbf{Affiliation:} Independent researcher\\
+\textbf{Email:} \href{mailto:zaman.tanwir@gmail.com}{zaman.tanwir@gmail.com}\\
+\textbf{Presentation mode:} In person
+\vspace{8pt}
+
+\textbf{Abstract}
+\raggedright
+
+Our TRECVID 2026 VQA participation explored how to build video question-answering submissions using open-weight Qwen models and paid Gemini inference, without task-specific training.
+
+\textbf{Answer generation.} Across four runs, we tried sampled frames, speech transcripts, audio-video inputs, and combinations of answers from different models.
+
+\textbf{Multiple choice.} Four runs explored a practical choice: reuse an answer generated earlier, or return to the video with the answer options available.
+
+The talk will present these approaches and their official results, with a focus on where the submitted runs succeeded and failed. We will discuss question types that remained difficult, including counting, and use selected examples to compare answers from open-weight and paid models. These examples will illustrate differences between the approaches and motivate further experiments.
+\end{document}
