@@ -41,3 +41,10 @@ are not part of the submission closure gate.
 See [post-deadline maintenance](2026-vqa-post-deadline-maintenance.md) for the
 immutable upload boundary, retained reproducibility tooling, test-health
 context, and the checklist for any later archival cleanup.
+
+## Workshop speaker proposal
+
+The [VQA speaker proposal](../workshop/README.md) is prepared for Tanwir Zaman
+(Independent researcher, NP Labs team), presenting in person. The record includes
+the PDF and editable source; organizer submission and a confirmed speaking slot
+are not recorded.

@@ -1,0 +1,2162 @@
+[
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.46580000453047776
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.46580000453047776
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.773962073723229
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.1571850259472817
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.1571850259472817
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.4906856507413509
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.8865647870675453
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8865647870675453
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9780075926688633
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.5643590411861614
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.37730506177924217
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.8359945354200988
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.24931703047775947
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.12612612561779243
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.6423474163920923
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.9035279435749588
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8741391396210874
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9874998179571663
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.581681510708402
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.3526248163097199
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.9250290518945634
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.267710557660626
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.11766567792421746
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.7513711985172982
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.9063979303953872
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8714370111202636
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.995107544892916
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.4855524015650741
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.4855524015650741
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.7782116696869852
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.17053718369028006
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.17053718369028006
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.5009657936573312
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.8907370864909391
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8907370864909391
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9778773809719934
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.5855284439868205
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.39496985049423394
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.8399994427512356
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.27020910955518945
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.1400802100494234
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.6542405378912686
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.9079426927512356
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8778437887149918
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9874737998352554
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.6029821285008238
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.3698122306425041
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.9274340131795716
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.28946987397034596
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.13077207537067545
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.7660796095551895
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.9107698134266886
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8750376960461285
+  },
+  {
+    "run": "q35_4b_u12",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9950919443986821
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.4645804485172982
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.4645804485172982
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.7161392384678748
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.28679528624382206
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.28679528624382206
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.7306425004118616
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.8742444563426689
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8742444563426689
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.953221347199341
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.6547763595551894
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.41657987808896213
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.8136120185337726
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.37957727306425043
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.16874214373970345
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.752284823723229
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.9164445658978583
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8776865177100495
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9794935947281713
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.6694985869028006
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.3779491989291598
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.9054205473640856
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.39372598146622734
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.14008275329489292
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.8498837845963756
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.918721936985173
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8735629443986821
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9911061470345964
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.48452701853377267
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.48452701853377267
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.7266569411037891
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.31824375906095553
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.31824375906095553
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.7477722825370675
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.8788669971169687
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8788669971169687
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9533684093904448
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.6730793863261944
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.43476289291598025
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.8188100831960461
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.41251638550247116
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.1862972953047776
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.7626004126853377
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.9212365350082372
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8817344567545304
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9794983908566721
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.6876370547775947
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.39548732042833606
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.9094574592257002
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.4262868381383855
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.15516145222405273
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.8615848224876441
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.9234172067545304
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8773329011532125
+  },
+  {
+    "run": "g37_q36_fusion",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.991099581136738
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.4466298064250412
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.4466298064250412
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.6962586993410215
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.1750501276771005
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.1750501276771005
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.5080670102965403
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.8878152347611202
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8878152347611202
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9721168064250412
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.6077046668039539
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.3945006392092257
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.8077941116144975
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.2912892005766063
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.13488300947281714
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.6393622145799012
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.9109003896210873
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8771488204283361
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9842665675453047
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.6254974584019769
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.36460154859967053
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.9065282314662273
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.3106552833607908
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.122994034184514
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.7640954728171334
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.9134808570840197
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8731914250411862
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9937052384678748
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.465828028830313
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.465828028830313
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.7049446350906096
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.18857807742998353
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.18857807742998353
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.5206412598846788
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.8916332257001648
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8916332257001648
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9717098056013179
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.6253331247940692
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.41214114662273477
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.8121776210873146
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.3142460963756178
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.1489138208401977
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.6515294789950576
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.9151933772652389
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8809877141680396
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9841670601317957
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.6431250794892917
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.3818360654859967
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.9095922252883031
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.33362766021416806
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.13619206754530477
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.7779395193574958
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.9177708422570017
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8768554645799012
+  },
+  {
+    "run": "q36_dualview",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9936493253706754
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.4645804485172982
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.4645804485172982
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.6722297652388798
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.28679528624382206
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.28679528624382206
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.6491942376441515
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.8742444559308072
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8742444559308072
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9437702689456343
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.6677861906919275
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.4562152891268534
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.7602750588962108
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.3996304361614498
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.22448978377265238
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.6403638558484349
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.9191214481054366
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8809656692751235
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9699462129324546
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.7072494077429984
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.4355738883855025
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.8853792005766062
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.44215273558484347
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.21149129448105436
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.8012823793245469
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.9277534880560132
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8803735959637562
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "human_answer_only",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9878559106260296
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.48452701853377267
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.48452701853377267
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.6837037055189457
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.31824375906095553
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.31824375906095553
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.6651419192751236
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.8788669962932455
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8788669962932455
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 1,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9435079275123558
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.6852593797364086
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.47623308978583195
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.7665485724876442
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.43466181754530475
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.24882214909390446
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.6512948134266886
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.9240817714168039
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8854543850906096
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 5,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9694746128500824
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "best_answer_score",
+    "mean": 0.724317147446458
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "mean_top_k_score",
+    "mean": 0.455597800247117
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "STS",
+    "statistic": "ndcg",
+    "mean": 0.8898484695222405
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "best_answer_score",
+    "mean": 0.47706567710049425
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "mean_top_k_score",
+    "mean": 0.23600353171334432
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "METEOR",
+    "statistic": "ndcg",
+    "mean": 0.8128955238879736
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "best_answer_score",
+    "mean": 0.9329150634266886
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "mean_top_k_score",
+    "mean": 0.8848071429159803
+  },
+  {
+    "run": "g37_grouped_unique",
+    "reference_mode": "all_references",
+    "queries": 2428,
+    "submitted": 2428,
+    "cutoff": 10,
+    "metric": "BERTScore F1",
+    "statistic": "ndcg",
+    "mean": 0.9876847994233937
+  }
+]

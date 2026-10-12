@@ -1,0 +1,159 @@
+---
+title: "TREC VQA 2026 — official submission scores and leaderboard"
+date: 2026-09-29
+---
+
+## Evidence and ranking method
+
+This record captures NP_Labs results released by George Awad on September 28,
+2026, and the participant-only leaderboard files supplied on September 29.
+The original ZIPs, MC text file, and AG workbook are preserved unchanged in
+this directory, with SHA-256 checksums in [the manifest](attachment-manifest.json).
+The supplied MC ZIP is byte-identical to the one recovered from the email.
+
+Ranks below are calculated from organizer scores: descending competition rank
+(1 plus the number of strictly better runs). Ties share a rank and leave gaps.
+AG comparisons use the workbook's six-decimal score precision. There are
+42 MC runs and 44 AG runs per reference mode. These are run ranks, not team
+ranks; the source files do not supply an explicit run-to-team mapping.
+No single overall AG ranking is inferred across metrics or reference modes.
+
+[Full extracted leaderboards and metric ranks](leaderboard-summary.json)
+retain all rows and source coordinates. All 216 local AG aggregate fields match
+the workbook within 0.00000051, and all four MC summaries agree with the
+leaderboard at its reported precision.
+
+## MC results
+
+All four NP_Labs runs scored 2,428 queries after 15 exclusions from 2,443,
+with no missing scored queries, warnings, or errors.
+
+| Run | Correct | Accuracy | Accuracy rank / 42 | MRR | MRR rank / 42 |
+|---|---:|---:|---:|---:|---:|
+| g37_mc_direct | 2052 | 84.514% | 2 | 0.905653 | 3 |
+| g38_mc_direct | 2047 | 84.308% | 3 (tie) | 0.905368 | 4 |
+| g37_mc_target | 2025 | 83.402% | 8 | 0.896845 | 8 |
+| g37q36_mc_text | 1912 | 78.748% | 26 | 0.864605 | 23 |
+
+Our best accuracy run, `g37_mc_direct`, is six correct answers behind the accuracy leader `isu-mc-fusefga-v2n` (2,058 correct). The MRR leader is `NII_UIT-avg2_q38` (0.908122). These are descriptive differences; statistical significance has not been assessed.
+
+## AG top-1 results
+
+Values are official workbook macro-averages. Each cell shows score and rank out of 44; “tie” refers to all runs with the same published score.
+
+| Run | Reference mode | STS@1 | METEOR@1 | BERTScore F1@1 |
+|---|---|---:|---:|---:|
+| g37_grouped_unique | human_answer_only | 0.464580 (18, tie) | 0.286795 (2, tie) | 0.874244 (39, tie) |
+| g37_q36_fusion | human_answer_only | 0.464580 (18, tie) | 0.286795 (2, tie) | 0.874244 (39, tie) |
+| q35_4b_u12 | human_answer_only | 0.465800 (17) | 0.157185 (44) | 0.886565 (20) |
+| q36_dualview | human_answer_only | 0.446630 (28) | 0.175050 (40) | 0.887815 (19) |
+| g37_grouped_unique | all_references | 0.484527 (19, tie) | 0.318244 (2, tie) | 0.878867 (39, tie) |
+| g37_q36_fusion | all_references | 0.484527 (19, tie) | 0.318244 (2, tie) | 0.878867 (39, tie) |
+| q35_4b_u12 | all_references | 0.485552 (17) | 0.170537 (44) | 0.890737 (22) |
+| q36_dualview | all_references | 0.465828 (28) | 0.188578 (41) | 0.891633 (19) |
+
+The two g37 runs tie for second on METEOR@1 in both reference modes.
+Their top-1 scores match, but their scores at other cutoffs differ. The full
+JSON preserves all 27 metrics per run per reference mode. The workbook defines
+NDCG as ranking quality within submitted answers using metric scores as graded
+relevance; it is not a cross-team answer-correctness measure. Higher is better
+for all workbook effectiveness metrics. Missing answer ranks count as zero in
+mean-top-k scores.
+
+## How our approaches work
+
+### Answer generation: produce and order answers
+
+```{mermaid}
+flowchart TD
+    V["Video + question"] --> G["Gemini 3.7 Flash<br/>Native audio/video answer"]
+    V --> Q["Qwen3.6<br/>Video with and without transcript"]
+    V --> C["Qwen3.5-4B<br/>12 uniform frames"]
+    G --> F["g37_q36_fusion<br/>Valid Gemini answer first<br/>Qwen alternatives below"]
+    Q --> F
+    C --> F
+    Q --> D["q36_dualview<br/>Combine Qwen views"]
+    C --> B["q35_4b_u12<br/>Baseline answer list"]
+    F --> R["g37_grouped_unique<br/>Group meanings and rewrite<br/>Keep first answer unchanged"]
+```
+
+These are four separately submitted AG runs. Fusion uses Qwen/control
+fallbacks when Gemini fails or is unavailable. Grouped rewriting is text-only
+and uses frozen source answers; it does not re-examine the video. The diagram
+summarizes the flow, not every repair or fallback operation.
+
+**Why this matters:** top-1 metrics inspect only the first answer. Having a
+better answer lower in the list cannot improve those metrics. The grouped
+variant preserves the fusion first answer, so their identical top-1 scores
+are expected. Whether our ordering actually left better answers below rank
+one requires per-query analysis; it is not established by this diagram.
+
+### Multiple choice: rank the supplied options
+
+```{mermaid}
+flowchart TD
+    I["Question + official answer options"] --> T["Text selector<br/>Gemini 3.7 + frozen AG answer"]
+    T --> V1["g37q36_mc_text<br/>78.748% accuracy"]
+    I --> A["Blind text audit<br/>Select 798 queries to revisit"]
+    A --> V2["g37_mc_target<br/>Video rankings on selected queries<br/>Text rankings elsewhere<br/>83.402% accuracy"]
+    I --> G["Gemini direct video ranking<br/>Native audio/video + options"]
+    M["Video and audio"] --> G
+    G --> V2
+    G --> V3["g37_mc_direct<br/>Full Gemini 3.7 pass<br/>84.514% accuracy"]
+    G --> V4["g38_mc_direct<br/>Separate Gemini 3.8 pass + retry<br/>84.308% accuracy"]
+    T -.->|"Fallback when direct ranking fails"| V2
+    T -.->|"Fallback when direct ranking fails"| V3
+    T -.->|"Fallback when direct ranking fails"| V4
+```
+
+The direct Gemini 3.7 pass uses 4 FPS, low media resolution, and high thinking.
+Its frozen direct predictions supply both the targeted and full 3.7 runs;
+Gemini 3.8 is a separate pass. The audit sees the frozen AG answer, question,
+and options, but not the text selector's ranking. Counts such as the 798-query
+audit queue describe the 2,443-query submission panel; reported accuracies
+use the 2,428-query scored panel.
+
+**Why MC can be stronger:** it sees the candidate answers while examining
+video evidence. AG must produce its own answer and choose its wording. This
+explains a task difference, not a proven cause of the metric gaps. AG
+similarity scores must not be read as correctness percentages or compared
+numerically with MC accuracy.
+
+Method sources: [submission ledger](../../../submissions/README.md),
+[AG fusion](../../../submissions/2026-g37-q36-fusion.md),
+[grouped rewrites](../../../submissions/2026-g37-grouped-unique.md),
+and [MC variants](../../../submissions/2026-vqa-mc-task2-v2-final-candidates.md).
+
+## Organizer instructions
+
+- **Speaker proposal due October 12, 2026**, preferably earlier. Include talk
+  title; speaker name, email and affiliation; registered team name; and
+  in-person or virtual presentation mode.
+- **Workshop: November 16–18, 2026.** Organizers also plan to present their
+  2027 track proposal.
+- **Registration:** $400 in person or $225 student, closing November 2;
+  $60 virtual, closing November 18 at noon (timezone not specified in email).
+- The organizer announced plans to update the VQA repository with the scorer
+  used for 2026. Availability of that code has not been verified here.
+- August 26 instructions superseded the original MC query file with Task2_v2:
+  incorrect extra answer options were fixed, options reshuffled, and punctuation
+  normalized. Task 2 uses the same videos as Task 1.
+- The August 10 notice required retaining unavailable-video queries in AG
+  submissions for validation, while excluding them from scoring. Recovered
+  results confirm 2,428 scored queries. No paper deadline was supplied in the
+  reviewed results emails; October 12 is the speaker-proposal deadline.
+
+Sources: [individual results email](https://mail.google.com/mail/u/#all/1a0e88a14176c072),
+[overall results and speaker request](https://mail.google.com/mail/u/#all/1a0e8d9cc1390727),
+[corrected registration email](https://mail.google.com/mail/u/#all/1a0d37d409aaae01),
+[MC revision notice](https://mail.google.com/mail/u/#all/1a04021cbfda6257),
+[AG exclusions notice](https://mail.google.com/mail/u/#all/19fececac6115ba7),
+and [conference registration](https://www.nist.gov/news-events/events/2026/11/trec-2026).
+
+## Scope and remaining work
+
+The source files, scores, leaderboard comparisons, and organizer instructions
+are captured. No inference was rerun and no submission files were changed.
+This record does not establish model-family causality or statistical
+significance. Mapping run identifiers to exact submitted configurations is a
+separate analysis. No release or public publication was created.
