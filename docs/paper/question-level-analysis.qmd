@@ -1,0 +1,193 @@
+---
+title: "Paper evidence: paired official results and selected cases"
+date: 2026-10-05
+---
+
+## Question and scope
+
+Explain the submitted systems' differences using frozen organizer question-level results, rather than creating new predictions. This is a descriptive, post-hoc paper analysis, not a new experiment or a selection policy evaluated prospectively. Primary topic: answer ranking and evidence selection. The paired counts here are the evidence-of-record for the paper's added analysis.
+
+## Evidence and verification
+
+Read original `NP_Labs-MC.zip`, `NP_Labs.zip`, and `vqa.mcq.scores.txt` from revision `3efb5b19dbd6d8d59232986cc25ef049af24ba5e`, under `docs/experiments/artifacts/trec-vqa-2026-official-results/`. No checkout change, inference, or scorer rerun. Aggregate evidence is in [question-level-analysis.json](question-level-analysis.json).
+
+The four MC files align on 2,428 question IDs, have the same official correct answer per question, and match the testing question file's video IDs. Correct totals reproduce 1,912, 2,025, 2,052, and 2,047. Under Unicode NFKC and collapsed-whitespace matching, every organizer correct answer appears at its reported rank in each of the four tracked revised-option submission files. This checks availability in the submitted ranking, not an independent reconstruction of the original options or semantic correctness of the ground truth. The original leaderboard lists a maximum 2,058 correct, or 84.7611%; our best has six fewer and is second by top-1 accuracy.
+
+AG comparisons use rank-one scores in the all-references mode over 2,428 scored rows. Recomputed means reproduce the workbook at its published precision. Comparisons count higher/equal/lower metric values; they do not turn similarity scores into binary correctness. Scores were already frozen before this analysis.
+
+## Observed results
+
+MC3 versus MC1: 219 incorrect-to-correct changes, 79 correct-to-incorrect changes, net +140. MC3 has 376 misses. All four MC runs miss 271 rows; 58 have the MC1/MC2 wrong and MC3/MC4 correct pattern.
+
+Qwen dual-view versus Gemini fusion: BERTScore higher/equal/lower = 1,284/27/1,117; METEOR = 609/144/1,675; STS = 1,035/43/1,350. Qwen improves mean METEOR and BERTScore over the frame baseline, but not STS. There is no universal AG winner.
+
+## Earlier selected cases and selection boundary (superseded presentation)
+
+Guiding case: internal question 1237. Selected from the 58-row MC rescue pattern after reading short-question candidates, also checking that Qwen outranks fusion on all three AG metrics. It asks for a general definition; Qwen gives one while Gemini supplies a specific story detail. Paper figures paraphrase the question and answer meanings, preserving original official scores and MC outcomes. That earlier draft included no copied frames, full options, or verbatim question strings; the explicitly authorized shared-case revision below supersedes this boundary.
+
+Option-overlap case: internal question 2092. Selected from MC1-correct/MC3-wrong rows. The official meaning is passage along a route; MC3 selects slow movement. The descriptions can coexist, making it a candidate annotation/option-overlap issue, not a confirmed bad label. Video and annotation review has not been performed.
+
+## Interpretation and limits
+
+Evidence validity: valid descriptive comparison of the archived scored panel. Decision: explain both improvements and regressions in the paper; no router or model is promoted. Case selection is post-hoc and illustrative, not representative. The earlier draft kept exact test strings and private media outside the report; the user later explicitly authorized selected actual examples in the local draft. A selected answer-scope mismatch supports a local interpretation, not a prevalence claim. Similarity differences can reflect wording. We cannot attribute model errors to perception, speech, or training without additional evidence. Correct-option availability does not establish that annotations are unambiguous. No significance test was run.
+
+## Next action
+
+Author review of the paraphrased cases and paper. If causal failure claims or dataset-quality claims are needed, inspect the corresponding videos and adjudicate the competing option meanings before strengthening them.
+
+## Question-opening analysis
+
+Post-hoc, mutually exclusive groups use lowercased question text, collapsed whitespace, stripped leading quote characters, and word-boundary matches for `how many`, `why`, `when`, `where`, and `what sound`. Everything else is Other. These are lexical groups, not comprehensive semantic task categories. The grouping was chosen after inspecting common openings; it is descriptive, not a preregistered hypothesis test. No category-specific model was selected or rerun. Group sizes sum to 2,428 and correct counts reproduce every official MC total. Per-group counts are saved in the JSON evidence.
+
+MC3: How many 200/309, Why 312/360, When 67/72, Where 73/90, What sound 31/35, Other 1,369/1,562. How-many rows make up 12.7% of questions and 29.0% of MC3 errors (109/376). MC2 gets 205/309, so full review is not better on this group despite being better overall. This identifies a weakness under the official scoring; it does not establish a visual-counting mechanism. Some reference options are broad quantity terms that can overlap exact-number options. No confidence or significance claims are made for subgroup comparisons.
+
+Additional selected case IDs: 2161 (count disagreement), 2021 (specific intent versus insufficient information), and 1220 (vessel versus surrounding location). Each has all four runs wrong under official scoring. Paper descriptions paraphrase the questions/options, omit private media, and distinguish possible mechanisms from verified outcomes. Cases were selected from short-question MC3 misses after observing the category counts; they are not an independently sampled failure-prevalence panel.
+
+## Overlapping question-cue analysis (annotation revision)
+
+Added five overlapping lexical groups: Counting, Speech / reading, Sound / music, Time / order, and Location. Exact regular expressions, group sizes, per-run MC correct counts, and all-reference rank-one AG metric means are saved under `overlapping_question_cues` in the JSON record. Matching is case-insensitive over original question text. Groups are not exhaustive, do not sum to the test panel, and do not identify audio-only or video-only requirements. They are post-hoc descriptive groups, not causal error labels.
+
+Additional selected cases: 853 (insect name versus sentence), 2110 (same sandbar cause with different wording), and 2048 (sound versus silence). Case meanings are paraphrased. No claim of representative prevalence or video adjudication. Development evidence links to `reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md`: matched 30-question Qwen3.5 comparison, separate from the submitted Qwen3.6 run.
+
+## Follow-up visual inspection — 2026-10-05
+
+For selected counting case 2161, inspected a contact sheet sampled at 1 fps across the full 9.568-second local source video. One solid-pink disk, one rainbow disk, and a reversible multicolored toy are visible. Official answer is one; MC1, MC2, and MC3 choose three; MC4 chooses two. Interpretation: the prediction matches the total toy count rather than the solid-pink subset; because the other toys contain pink too, broad color interpretation remains a competing explanation. This supports a case-specific color-filtering issue, not a proven cause of all counting errors. At this inspection stage frames were not embedded; the later user-authorized figure now embeds selected local frames. No audio adjudication was performed; the paper removes the uninspected sound example and reports audio-related groups only as lexical score groups. Also inspected action-case frames, but did not use them to establish intent. Earlier statements that no videos were inspected are superseded for this counting case only.
+
+## Actual-answer follow-up
+
+User authorized displaying actual questions, answers, and choices. The counting panel now includes the complete four-choice set from the frozen MC ranking (none, one, two, three; display order is not original presentation order). AG3's exact first answer says the three toys 'feature pink'. This strengthens the broader-color-criterion interpretation and corrects earlier wording suggesting it merely ignored color. AG2's exact definition and AG3's exact film-detail answer are shown for case 1237, plus the insect-name/sentence comparison for 853. These remain selected cases, not representative prevalence estimates. No additional inference or publication.
+
+## Counting follow-up and grouping decision
+
+The released question JSON contains Q_ID, Video_ID, and Question, with no task-type annotation. Retained reproducible lexical groups rather than substituting unvalidated semantic categories. A richer methodology would independently annotate reasoning task, required evidence, and error mechanism; those annotations have not been completed for this panel.
+
+On the 309 how-many rows, MC3 corrects 24 MC1 errors and loses 21 MC1 successes (net +3). All four miss 79; 30 of MC3's 109 misses are correct in at least one other run. Counts calculated directly from archived Top_1 fields on the same question IDs.
+
+Inspected case 106 at 1 fps across the local clip: two people visible; MC1/2/3 choose 4, MC4 chooses 2, official 2. Added a 4-second frame under prior explicit authorization for actual examples. Cause of overcount not established. Case 108: all choose 'A crowd', official 'Many'; compatible quantity descriptions, not a verified perception failure. Cases distinguish precise numeric disagreement, counting-criterion interpretation, and option overlap without claiming an exhaustive taxonomy. Selection is post-hoc. Case 185 frames were also inspected but not promoted into the paper because playing-versus-presence remains ambiguous.
+
+## Shared AG/MC example revision
+
+Compared all four frozen AG rank-one answers and all four MC first choices for cases 106, 185, and 2161. Selected 106 and 2161 for one combined figure because local frames had already been inspected and they show both shared AG3/MC3 disagreement and cross-run differences. AG1 returns the official count in both selected examples; therefore they are not evidence of a demonstrated frame-sampling failure. Exact output text is copied from frozen submissions (AG4 preserves AG3 rank one). Case185 was not selected because whether the adult plays versus assists is hard to adjudicate from the sampled frames. Removed extended MC-only case analysis and subgroup table from the paper; preserved counts and methodology here. These are selected examples, not a representative sample.
+
+The historical statement that inspected frames were not embedded is superseded by the user's explicit request to embed actual frame examples. Current paper includes two local frames; older no-media statements describe the earlier draft. Assets remain local and ignored. No inference that displayed frames are the exact model samples.
+
+## Spider-Man interpretation correction — 2026-10-05
+Inspected 1-fps frames of case1237 video xRBYzGjT5TU: on-screen text explicitly names Spider-Man: Homecoming, Liz's Avengers drawing, Hawkeye carrying a sword, and the Ronin connection. The earlier factual-failure interpretation is too strong and superseded. AG3 accurately describes the presented clip content; the verified MC correct option supplies a generic definition. The archived AG per-query files provide scores, not AG reference text, so MC reference is labeled distinctly. Added all run-specific first-answer scores to the paper. This supports reference/scope alignment rather than factual falsity.
+
+Shared panels now carry Q_ID and Video_ID. Removed AG1/AG2 rows to emphasize the AG3-to-MC comparison; MC3/MC4 remain separately labeled by model because their shared method yields different selections. Removed the broad lexical-group table from the main paper, retaining one explicitly exploratory how-many comparison; full data remain in the JSON evidence.
+
+## Explicit numeric disagreements and correct-identification score gap
+
+Replaced the Spider-Man discussion as the main failure example. Across MC3's 109 misses in the 309-row case-insensitive word-boundary how-many group, 76 have a different explicit integer in selected and official options. Normalization strips whitespace/lowercases; accepts digit-only integers or whole number words zero through twenty. No extraction from sentences, ranges, or vague quantities. This is a reproducible output-disagreement family, not 76 video-adjudicated perception failures. Selected inspected case106 supports the official count, with AG1=2, AG2=1, AG3/4=4; official AG scores show that the incorrect short numeral1 receives BERTScore .999798.
+
+Inspected case853 video at1fps: a cockroach image appears (with a humorous face overlay). Official MC answer Cockroach. AG1/2 answer cockroach; AG3/4 answer The bug in the video is a cockroach. Per-answer all-reference STS/METEOR/BERT = 1/.5/.975272 versus .587251/.277778/.815225. Same identification, lower scores for longer wording; no prevalence claim. Embedded local frame at6s under existing user authorization. Candidate207 was inspected but rejected: background people complicate the official count, so it is not a clean correctness case.
+
+## Family-friendly shared example replacement
+
+Removed cockroach and dark people imagery at user request. Q106's verified error remains text-only. Q280/6596.webm inspected at1fps: children practicing basketball. AG1/2 'playing basketball' scores STS .850446, METEOR .25, BERT .897268; AG3/4 'The kids are playing basketball on a court.' scores .395171/.185185/.874360. All four frozen MC rankings choose the official 'Practicing basketball'. The paper now connects this same case across AG and MC with exact choices and a bright frame at2s. Retained colorful toy case for contrasting shared disagreement. Alternative horse/car-seat/cat/shoe clips inspected but not selected because they did not improve evidence clarity or presentation.
+
+## Worked AG4 and MC example
+
+Q280 is reused for a single worked example: exact first five AG3/AG4 ranked answers and all eight MC1/MC3 ranked choices, read from frozen submission JSON. AG4 keeps ranks1/2; rewrites ranks3–5 into close paraphrases; AG3 ranks3–5 occur at AG4 ranks8–10. This is an output comparison, not an inferred internal grouping trace. MC1/MC3 rank the official basketball answer first while differing at ranks3–6. No claim about whether MC2's gate selected this question.
+
+## Recorded semantic groups for AG4
+
+Replaced the basketball before/after list with Q1561 (cv16vVzoYwY). Source: data/vqa/benchmarks/grouped-rewrite-full-20260817-grouped_unique_generator_only-a3/batch-0313/attempt-0001/{request,parsed-response}.json. Recorded group1 contains gemini_overlay and qwen35_control; group2 qwen_native_video; group3 qwen_video_plus_transcript. Output source_group membership: group1 ranks1,2,3,6,7,10; group2 ranks4,8; group3 ranks5,9. All ten answer texts/ranks match frozen g37_grouped_unique submission row1561. Diagram titles are explanatory labels; membership is recorded, not retrospectively inferred. Actual source answers and variants are quoted. Local frame at2s inspected. Removed MC ranking walkthrough as requested.
+
+## Group filling and same-case MC results
+
+Full generator script instructions/validator (run_vqa_grouped_rewrite_full.py around498–575) require ten normalized-distinct strings, frozen first answer, every source assigned once, every group represented, and at least one exact source per group. No fixed quota or group-by-group ranking rule. Q1561 keeps all4 exact sources and adds6 variants (group1 four, group2 one, group3 one). All four MC runs rank official 'Usain Bolt winning a sprint' first and 'A Track & Field event' second. AG3/4 all-reference rank1 STS .758207/METEOR .709877/BERT .905383. No claim that MC consumes AG4 groups or that identical rank1 scores evaluate lower-rank changes.
+
+## Implementation-focused AG4 example — 2026-10-05
+
+Replaced Q1561 with Q447 / 7040.webm after scanning accepted grouping traces whose ten answers match the frozen submission. This purposively selected example demonstrates both equivalent-source merging and conflict preservation. Recorded trace: data/vqa/benchmarks/grouped-rewrite-full-20260817-grouped_unique_generator_only-a3/batch-0090/attempt-0001/parsed-response.json, with source answers in adjacent request.json. Gemini and Qwen+transcript describe descending; Qwen video payload and Qwen3.5 describe climbing. The recorded groups each retain two exact inputs and add three variants, at ranks1–5 and6–10. Asserted all ten texts/ranks equal final g37_grouped_unique Q447. Equal group sizes and consecutive allocation are output-specific, not implementation rules. This is not ten distinct meanings or a correctness adjudication. Inspected displayed frame at2s; it illustrates the video, not a claimed model input frame.
+
+Official archived MC per-query rows: MC1 chooses Trying to climb the hillside (incorrect, official option rank2); MC2/3/4 choose Trying to safely get out of a deep rut (correct). No assertion about the MC2 gate decision or AG4 feeding MC. AG3/4 all-reference rank1 scores STS .253626, METEOR .325387, BERTScore F1 .867442. MC reference is labeled separately from unavailable AG reference text. Exact groups, sources, and all ten outputs retained in question-level-analysis.json under ag4_worked_example.
+
+## Single shared scoring/grouping/MC example — 2026-10-05
+
+At the user's request, consolidated the main illustrated examples into Q1835 / 8083.webm. Selected by joining recorded accepted groups to official AG/MC rows, requiring equivalent Gemini/Qwen answers in one recorded group, a conflicting second group, and differing MC top choices. This is purposive selection, not a prevalence estimate. Sunny versus It is sunny. yields METEOR .500000 versus .992188, with STS and BERTScore F1 both1.0; the longer wording scores higher here. AG reference text is unavailable; these archived all-reference scores are not newly computed. No universal claim that longer wording improves scores.
+
+Trace batch-0367/attempt-0001 under grouped-rewrite-full-20260817-grouped_unique_generator_only-a3 records sunny inputs Gemini, Qwen+transcript, Qwen video payload and a separate rainy Qwen3.5 group. All ten answer texts and ranks match final submitted Q1835. Sunny group ranks1,3,4,6,8,10: three sources plus three variants. Rainy ranks2,5,7,9: one source plus three variants. These are generated allocations, not method quotas. MC1/2/4 choose official Sunny; MC3 chooses Rainy and ranks Sunny seventh. All eight options copied from frozen MC1 ranking. No implication that AG4 grouping feeds MC or caused MC3's error; no claim about sampling/perception cause or MC2 gate selection.
+
+Inspected 2-second-interval contact sheet and embedded the local frame at2s. Media remains private/ignored. Removed basketball/toy/hill illustration panels from the paper in favor of this one shared page; historical evidence remains above and in JSON. The short Q106 numeric-error discussion remains to support the separate recurring-error-family analysis. Complete unified evidence is saved as unified_worked_example in question-level-analysis.json.
+
+## Adversarial-review corrections — 2026-10-05
+
+The shared weather panel now includes AG1 rainy: STS .552021, METEOR0, BERTScore F1 .999436. MC1/MC2/MC4-correct and MC3-wrong pattern occurs in20/2428 archived rows, versus MC3's overall net140 gain over MC1. Presentation distinguishes the two direct-video runs and explicitly labels case selection. Q106 frozen fusion retains the baseline answer2 at rank3 beneath Gemini's4 at rank1; inspection was1fps, so the paper now bounds the visual observation to inspected frames. How-many MC2/MC3/MC4 totals are205/200/204 of309. AG2's mean BERTScore exceeds AG1's by.000896; this numerical comparison has no significance test. No new scorer or inference run.
+
+## Shared errors and equivalent answer choices {#shared-error-audit}
+
+### Question, scope, and decision
+
+Requested question: do mistakes shared across systems reveal a defensible error family or possible annotation problem? This is a retrospective audit of frozen official results, not a new experiment. Primary evidence record is this section and [shared-error-audit.json](shared-error-audit.json). Scope is NP Labs' four related MC runs on2428 scored questions. The two archived ZIPs contain only NP Labs per-query rows; other-team files contain aggregate leaderboards. We therefore cannot inspect the winning team's errors or claim all-team agreement.
+
+Before candidate inspection, the plan required reproducing the shared-error cohort, distinguishing model mistakes from overlapping choices and false references, inspecting selected clips, retaining negative findings, and avoiding an annotation-error-rate estimate or corrected leaderboard. Hypothesis: some shared scored misses may reflect equivalent answer choices. Falsifier for any proposed case: the options ask/express different quantities or the allegedly equivalent string is absent from the original organizer options. No inference calls, learned selector, or changed predictions. Decision: add a bounded section only for directly supported examples.
+
+### Data integrity and selection
+
+Official source revision remains3efb5b19dbd6d8d59232986cc25ef049af24ba5e. Joined four `.per_query.csv` files from NP_Labs-MC.zip by Q_ID. Required all four Top_1 fields to equal0. Same-choice comparison uses Unicode NFKC, lowercase, and whitespace collapse. For every shared miss, checked each run's top1 and official-reference rank against its frozen submission; both strings must occur in `datasets/trecvid-2026/vqa/task2/vqa.2026.testingDataset.Task2_v2.json`. All271 rows pass. The JSON audit records the original-options SHA256, all271 IDs and answers, every official rank, and eight inspected-video hashes.
+
+Screened all271 question/reference/top1 pairs in two lists:194 unanimous same-choice misses and77 differing-choice misses. Selected eight clips purposively to examine obvious equivalence candidates and contrasting visual/timing disagreements; not a random sample. Automated scanning found no option sets with exact duplicates after lowercasing, whitespace normalization, and removing terminal `.?!` punctuation across2443 released questions. Semantic equivalence can remain despite text-string uniqueness. This scan is a limited diagnostic, not a complete semantic deduplication method.
+
+### Observed findings
+
+271/2428 questions are wrong under all four submissions;194/271 choose the same normalized top option. These are related outputs: MC2 chooses between rankings used by MC1 and MC3, and MC1 uses our saved AG answer. Four-run agreement is not four independent judgments.
+
+Two in-context equivalences are directly confirmed in the original revised options:
+
+| Q_ID / video | Question | Official choice | All four top choices | Official rank in every run |
+|---|---|---|---|---|
+|1369 / Memphis-18.webm|How many beds are in the house?|One|One bed|2|
+|2049 / Archipelago-42.webm|How many people in the video are wearing a hat?|One|One person is wearing a hat|2|
+
+Both selected choices answer exactly the same count as the designated option. The semantic-equivalence claim does not require proving the official count over unseen parts of either clip. This establishes different scoring outcomes for equivalent choices, not that the reference count is false. No adjusted accuracy or ranking is computed. At least two identified cases are reported, without estimating how many of the other269 are equivalent.
+
+### Clip-inspection log and negative findings
+
+Contact sheets were sampled over the full available duration at the intervals recorded in JSON; sampled inspection cannot prove absence between frames. No audio adjudication was performed. No displayed frame is claimed to be an actual model input.
+
+| Q_ID | Inspection | Disposition |
+|---|---|---|
+|1369|102.022s clip, contact sheet every6.376375s; bed visible indoors, other rooms not fully enumerated|Equivalent count choices established from text; no claim to enumerate unseen beds.|
+|2049|165.003s clip, every10.3126875s; two people at an outdoor easel, one painting and wearing a cap; extra frame at50s|Equivalent count choices established;50s frame used as illustration.|
+|1610|1.902s clip,1fps; visible cable-supported bridge; official hanging bridge, selected suspension bridge|Potential synonym/overlap, kept as supporting candidate; excluded from two exact-count cases.|
+|14|89.009s clip, every5.5630625s plus first36s at1fps; train passes early and cyclist appears later|Ambiguous timing/gaze; no false-reference determination.|
+|1757|7.608s clip,1fps; dim tunnel and headgear|Cap versus helmet not confidently resolved; no label claim.|
+|1538|7.799s clip, every.38995s; close view of tulips and steps|Second side not conclusively established; no label claim.|
+|351|8.749s clip, every.43745s; cars at train crossing|Approaching versus stopped can depend on car/time; no definitive label claim.|
+|1291|10.010s clip, every.5005s plus frame6s; baby awake/moving in later frames|Sleeping is incomplete, but dance/audio relation not adjudicated; not promoted as a verified error.|
+
+Q2249 andQ2404 were initially missing from the standardized media directory. Raw MKVs were subsequently located under videos_original, but not inspected or promoted. They are not counted among the eight inspections. No dataset contents were copied or modified; only authorized local derived frames were generated. Paper image remains ignored by Git; the PDF embeds the authorized illustrative frame.
+
+### Interpretation and limits
+
+Evidence validity: valid descriptive cohort plus two verified option-equivalence cases. Decision: add a concise paper section on shared errors and equivalent choices. It establishes an answer-option distinction that additional visual evidence cannot resolve for these questions. It does not establish false reference facts, annotation-error prevalence, the best team's question-level behavior, an improved model, or a corrected leaderboard. More detailed independent adjudication could change the unresolved candidate dispositions; it is not necessary for the two text-equivalence claims. This extends the paper evidence record; it does not supersede official scores or promote a new prediction policy.
+
+Reproduction of cohort construction (Python, from repository root; options and submissions are checked separately as described above):
+
+```python
+import csv, io, subprocess, unicodedata, zipfile
+rev = "3efb5b19dbd6d8d59232986cc25ef049af24ba5e"
+path = "docs/experiments/artifacts/trec-vqa-2026-official-results/NP_Labs-MC.zip"
+z = zipfile.ZipFile(io.BytesIO(subprocess.check_output(["git", "show", f"{rev}:{path}"])))
+tags = ["g37q36_mc_text", "g37_mc_target", "g37_mc_direct", "g38_mc_direct"]
+rows = {t: {int(r["Q_ID"]): r for r in csv.DictReader(io.StringIO(
+    z.read(f"NP_Labs/{t}.per_query.csv").decode("utf-8-sig")))} for t in tags}
+assert all(set(rows[t]) == set(rows[tags[0]]) for t in tags)
+shared = [q for q in rows[tags[0]] if all(float(rows[t][q]["Top_1"]) == 0 for t in tags)]
+def norm(s):
+    return " ".join(unicodedata.normalize("NFKC", s).lower().split())
+same = [q for q in shared if len({norm(rows[t][q]["Submitted_Rank_1"]) for t in tags}) == 1]
+assert (len(rows[tags[0]]), len(shared), len(same)) == (2428, 271, 194)
+```
+
+## Reader-facing appendices — 2026-10-06
+
+Moved the shared-error audit detail into paper Appendix B, preserving scope and unchanged official scores. Paper Appendix A replaces the internal development-report citation with self-contained methods and results. Verified against reports/trecvid_vqa_2026/native_audio_model_benchmark_results_2026-07-21.md: protocol-v2 report dated2026-07-24,30 matched labeled2025 videos, six cases in each of five strata, Qwen3.5-4B12f versus identical12f plus quality-accepted Whisperlarge-v3 transcript. EM9/30 versus11/30; tokenF1 .430725 versus .506795; speechF1 .431159 versus .700000; sound/music EM0/6 in both. No new measurements or public release.
+
+## Paired expansion of video rankings — 2026-10-10 {#paired-video-expansion}
+
+Question: what changes when video rankings replace text rankings on more questions? This extends the existing frozen-result analysis, not a new experiment. On the same 2,428 scored questions, MC2 versus MC1 corrects 150 errors and loses 37 correct answers (net +113). MC3 versus MC2 corrects 69 and loses 42 (net +27). Counts were checked against archived per-query CSV rows and independently reproduced from the four-run correctness patterns in the JSON.
+
+MC2 uses a selected subset of the same video predictions used by MC3. The paired chart exposes corrections and regressions hidden by net accuracy; it does not measure inference cost or explain why individual predictions changed. Evidence validity: valid descriptive post-hoc comparison. Decision: include this compact chart, with no model/router promotion or prospective selection claim. No predeclared decision rule applies; no earlier result is superseded. Reconsider interpretation only if source alignment or official results change.
