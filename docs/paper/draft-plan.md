@@ -242,3 +242,41 @@ User found the seven-page revision too dense and bland. Current pass replaces th
 Separate tool repair in /home/npatta01/agent-config: installed a user-local OpenCode1.19.0 compatibility CLI as opencode-advisor, leaving primary OpenCode2.0.26 and its server untouched. Runner prefers that dedicated binary and retains explicit overrides. Added three regression tests;89 advisor tests pass. Full agent-config check passes with the host user-runtime environment. All six extended lanes now pass preflight; actual review results and final dispositions are pending.
 
 Final status: the four standard reviewers returned; Qwen/Kimi reached the provider but were rejected with403 requiring an active OpenCode Go subscription. Local compatibility is repaired and tested; account entitlement remains a user-side prerequisite. Applied grounded visual review refinements and verified the saved six-page PDF. No publication or push.
+
+## 2026-11-01: presentation aligned with the MAST working note
+
+Applied the user's approved presentation pass in the existing TRECVID manuscript. Retained the 11-point US Letter single-column layout and structured abstract; used a left-aligned title block, consistent section hierarchy, bold caption labels, and uniform figure spacing. Clarified model-call and answer-priority headings. The abstract now states the official second-of-42 MC result and removes repeated conclusions while retaining the paired comparison and AG wording/order limitation. No evaluation data or submitted predictions changed.
+
+Verification: two XeLaTeX passes, six-page output, no compiler warnings or overfull boxes; inspected all six rendered pages for spacing, clipping, and legibility. Canonical source and PDF updated locally. Author review and final model references remain outstanding as previously recorded.
+
+## 2026-11-07: official scores and ranks made explicit
+
+Replaced score-only AG and MC plots with compact official-result tables on page 3. AG shows all three rank-one metrics with leaderboard ranks out of 44 and explicit tied-rank/reference-mode notes. MC shows correct counts, accuracy and MRR with separate ranks out of 42. Values checked against the archived organizer-results QMD. Retained the paired-error chart and worked-example visuals to explain mechanisms rather than repeat tabular scores. Rechecked the organizer notebook page: structured abstract, US Letter, minimum 9pt; no prescribed template is supplied there.
+
+Verified two XeLaTeX passes, no warnings/overfull boxes, six pages, and visual inspection of all pages. Source and canonical PDF saved locally; no publication or push.
+
+## 2026-11-07: readable appendix
+
+Removed duplicate score tables, retaining a compact mapping of paper labels to organizer run IDs. Split model settings, fallback behavior, the counting example, and transcript development evidence into short sections. Retained key settings, counts, sample composition, and limits on interpretation. Two XeLaTeX passes produced six pages without warnings or overfull boxes. Visually inspected the revised appendix; rendered pages 1-5 are byte-identical to the previous reviewed render. Saved the updated local PDF.
+
+## 2026-11-07: eight reader corrections
+
+Removed the forced title break; corrected the author name to Tanwir Zanman and affiliation to Independent researchers. Abstract now explicitly states four AG and four MC submissions and ten ranked answers per AG question. Replaced the generic lesson with observed MC and AG trade-offs. MC diagram explicitly labels our generated AG3 answer. Removed the unnecessary teams comparison from the rank note. Replaced the transcript motivation narrative with a concrete matched-input comparison and a small results table, retaining sample composition and the AG2 limitation.
+
+Verification: two XeLaTeX passes, no warnings or overfull boxes, six pages. Inspected changed pages 1, 2, 3, and 6; pages 4-5 render identically to the previously reviewed version. Saved source and PDF locally.
+
+## 2026-11-07: whole-paper clarity pass
+
+Read the complete rendered text and tightened repeated lessons, generic conclusions, method captions, and caveats. Replaced the rhetorical error-section opening with the observed option-equivalence issue; made the MC comparison explicit; removed the unrelated computation-savings disclaimer. Kept scores, examples, evidence limits, settings, and the six-page structure. No additional analysis or detail added.
+
+Verification: two XeLaTeX passes without warnings or overfull boxes; inspected all six rendered pages. Updated canonical source and PDF locally.
+
+## 2026-11-07: MC2 decision and reader corrections
+
+Replaced the MC route visual with an explicit MC2 keep/switch decision diagram, explained checker conditions and 786/12 outcomes, and replaced the paired-change bars with a before/after count table. Replaced ambiguous AG leadership language with actual leaderboard positions. Connected the weather example to equivalent-option cases. Renamed appendix sections and labeled settings by run. Removed the requested source-check and unfinished-review statements from the drafting disclosure.
+
+Verification: two XeLaTeX passes, six pages, no warnings or overfull boxes, all six pages visually inspected. Canonical PDF saved locally.
+
+## 2026-11-07: three presentation corrections
+
+Stated the AG3/AG4 list-score comparison directly in the abstract. Added a video-to-ranked-options icon to the MC3 branch, explicitly identifying it as the saved ranking. Replaced the bed-count lead-in with a compact official-versus-chosen option comparison. Two clean XeLaTeX passes; six pages; inspected changed pages 1, 2, 5 and verified remaining rendered pages unchanged.
