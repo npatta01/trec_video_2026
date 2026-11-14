@@ -22,6 +22,11 @@ repeat its conclusions.
 
 ## Dated evidence records
 
+### Experiment integrity and evaluation
+
+- **2026-08-16 — [Comprehension versus metric resolution](2026-08-16-comprehension-vs-metric-resolution.md)** · Controlled re-scoring of a frozen panel; no new provider calls · [Experiment integrity and evaluation](../project-status/research-integrity.md#current-working-answer)
+- **2026-08-16 — [AG answer-set averaging](2026-08-16-ag-answer-set-averaging.md)** · Submission-format scoring defect · [Experiment integrity and evaluation](../project-status/research-integrity.md#current-working-answer)
+
 ### Models and adaptation
 
 - **2026-07-24 — [Non-Qwen omni compatibility probe](2026-07-24-nonqwen-omni-compatibility.md)** · Compatibility probe · [Models and adaptation](../project-status/research-models.md#compatibility-gate-models)
