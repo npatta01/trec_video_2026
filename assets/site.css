@@ -229,6 +229,23 @@ nav a:hover {
   scroll-margin-top: 62px;
 }
 
+.film { margin: 0; }
+
+.film video {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fcf2db;
+}
+
+.film figcaption {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
 .pair, .grid {
   display: grid;
   gap: 16px;
