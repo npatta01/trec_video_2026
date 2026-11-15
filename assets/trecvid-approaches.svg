@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 630" role="img" aria-labelledby="title description">
+  <title id="title">One video, two tasks</title>
+  <desc id="description">A video and question feed two tasks. Answer generation uses Qwen3.5 on twelve sampled frames, Qwen3.6 on video with or without a Whisper transcript, and Gemini 3.7 Flash on video with audio. Each run returns ten ranked answers. Multiple choice matches our saved Gemini-first answer to the options or asks Gemini to rank the supplied options directly from video.</desc>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --background: #f6f8f7;
+      --panel: #fff;
+      --ink: #13231c;
+      --muted: #4b5d54;
+      --border: #cdd8d1;
+      --connector: #67796e;
+      --generation: #4c4ca2;
+      --generation-soft: #eeedfa;
+      --ranking: #096c64;
+      --ranking-soft: #e6f4f0;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --background: #0d1411;
+        --panel: #17211c;
+        --ink: #f0f6f2;
+        --muted: #bac7bf;
+        --border: #33423a;
+        --connector: #92a298;
+        --generation: #c1beff;
+        --generation-soft: #292648;
+        --ranking: #87dfd0;
+        --ranking-soft: #163a34;
+      }
+    }
+
+    text {
+      fill: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+
+    .background { fill: var(--background); }
+    .panel { fill: var(--panel); stroke: var(--border); stroke-width: 2px; }
+    .headline { font-size: 44px; font-weight: 800; letter-spacing: -1px; }
+    .heading { font-size: 32px; font-weight: 760; }
+    .label { font-size: 26px; font-weight: 700; }
+    .detail { fill: var(--muted); font-size: 23px; font-weight: 500; }
+
+    .generation .heading, .generation .outcome { fill: var(--generation); }
+    .ranking .heading, .ranking .outcome { fill: var(--ranking); }
+    .generation .row { fill: var(--generation-soft); }
+    .ranking .row { fill: var(--ranking-soft); }
+    .generation .icon { stroke: var(--generation); }
+    .ranking .icon { stroke: var(--ranking); }
+
+    .connector, .icon {
+      fill: none;
+      stroke-width: 2.6px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .connector, .input-icon { stroke: var(--connector); }
+    .arrowhead { fill: var(--connector); }
+  </style>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path class="arrowhead" d="M0 0 10 5 0 10Z"/>
+    </marker>
+  </defs>
+
+  <rect class="background" width="1080" height="630" rx="18"/>
+  <text class="headline" x="40" y="68">One video, two tasks</text>
+
+  <rect class="panel" x="364" y="94" width="352" height="68" rx="13"/>
+  <g class="icon input-icon" transform="translate(394 111)">
+    <rect width="45" height="34" rx="5"/>
+    <path d="m18 10 12 7-12 7Z"/>
+  </g>
+  <text class="label" x="462" y="137">Video + question</text>
+
+  <path class="connector" d="M540 162V183"/>
+  <path class="connector" d="M540 183H284V207" marker-end="url(#arrow)"/>
+  <path class="connector" d="M540 183H796V207" marker-end="url(#arrow)"/>
+
+  <g class="generation">
+    <rect class="panel" x="40" y="216" width="488" height="374" rx="14"/>
+    <text class="heading" x="64" y="259">Answer generation</text>
+
+    <rect class="row" x="64" y="278" width="440" height="66" rx="9"/>
+    <g class="icon" transform="translate(85 295)">
+      <rect width="35" height="28" rx="4"/>
+      <path d="M9 0v28M18 0v28M27 0v28M0 9h35M0 19h35"/>
+    </g>
+    <text class="label" x="139" y="304">Qwen3.5-4B</text>
+    <text class="detail" x="139" y="330">12 sampled frames</text>
+
+    <rect class="row" x="64" y="353" width="440" height="66" rx="9"/>
+    <g class="icon" transform="translate(82 373)">
+      <rect width="23" height="23" rx="4"/>
+      <path d="m8 6 8 5.5L8 17Z M29 5h13M29 12h13M29 19h9"/>
+    </g>
+    <text class="label" x="139" y="379">Qwen3.6-27B</text>
+    <text class="detail" x="139" y="405">Video ± Whisper transcript</text>
+
+    <rect class="row" x="64" y="428" width="440" height="66" rx="9"/>
+    <g class="icon" transform="translate(81 447)">
+      <path d="M0 14h5l5-6 5 13 7-20 6 25 6-12h10"/>
+    </g>
+    <text class="label" x="139" y="454">Gemini 3.7 Flash</text>
+    <text class="detail" x="139" y="480">Video + audio</text>
+
+    <path class="connector" d="M284 499v22" marker-end="url(#arrow)"/>
+    <text class="label outcome" x="284" y="555" text-anchor="middle">Ten ranked answers</text>
+  </g>
+
+  <g class="ranking">
+    <rect class="panel" x="552" y="216" width="488" height="374" rx="14"/>
+    <text class="heading" x="576" y="259">Multiple choice</text>
+
+    <rect class="row" x="576" y="278" width="440" height="102" rx="9"/>
+    <g class="icon" transform="translate(596 312)">
+      <path d="M5 0h23a5 5 0 0 1 5 5v17a5 5 0 0 1-5 5H13L5 33v-6a5 5 0 0 1-5-5V5a5 5 0 0 1 5-5Z"/>
+      <path d="m10 13 5 5 9-10"/>
+    </g>
+    <text class="label" x="651" y="322">Match the saved answer</text>
+    <text class="detail" x="651" y="352">Gemini-first answer + choices</text>
+
+    <rect class="row" x="576" y="391" width="440" height="103" rx="9"/>
+    <g class="icon" transform="translate(597 426)">
+      <path d="M12 4h24M12 15h19M12 26h14"/>
+      <circle cx="3" cy="4" r="2"/>
+      <circle cx="3" cy="15" r="2"/>
+      <circle cx="3" cy="26" r="2"/>
+    </g>
+    <text class="label" x="651" y="435">Rank choices from video</text>
+    <text class="detail" x="651" y="465">Gemini gets video + choices</text>
+
+    <path class="connector" d="M796 499v22" marker-end="url(#arrow)"/>
+    <text class="label outcome" x="796" y="555" text-anchor="middle">Ranked supplied choices</text>
+  </g>
+</svg>
