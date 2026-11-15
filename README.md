@@ -5,6 +5,8 @@ generated answers from video and ranked the organizer’s multiple-choice option
 
 ## [Project site →](https://npatta01.github.io/trec_video_2026/)
 
+[![Play the TRECVID approach and scores video](assets/trecvid-approach.jpg)](https://npatta01.github.io/trec_video_2026/#film)
+
 **[Watch the approach and scores (1:22)](https://npatta01.github.io/trec_video_2026/#film)** ·
 [Paper (PDF)](docs/paper/trecvid2026.pdf) ·
 [Workshop slides source](docs/workshop/trecvid2026-talk.qmd)

@@ -246,6 +246,18 @@ nav a:hover {
   font-size: 0.95rem;
 }
 
+.approach-diagram {
+  display: block;
+  margin-bottom: 20px;
+  border-radius: var(--radius);
+}
+
+.approach-diagram img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .pair, .grid {
   display: grid;
   gap: 16px;
