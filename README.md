@@ -1,28 +1,31 @@
-# TRECVID 2026 Video Question Answering
+# NP Labs · TRECVID 2026
 
-NP Labs’ entry for the NIST TRECVID 2026 Video Question Answering track. Given
-a video and a question, we generated ranked answers and ranked the organizer’s
-multiple-choice options. We compared Qwen on sampled frames and on video with
-and without Whisper transcripts, and Gemini on video with audio.
+Our submission to the NIST TRECVID 2026 Video Question Answering track. We
+generated answers from video and ranked the organizer’s multiple-choice options.
 
-[Project page](https://npatta01.github.io/trec_video_2026/) ·
+## [Project site →](https://npatta01.github.io/trec_video_2026/)
+
+**[Watch the approach and scores (1:22)](https://npatta01.github.io/trec_video_2026/#film)** ·
 [Paper (PDF)](docs/paper/trecvid2026.pdf) ·
-[Workshop slides source](docs/workshop/trecvid2026-talk.qmd) ·
-[Submission ledger](docs/submissions/README.md)
+[Workshop slides source](docs/workshop/trecvid2026-talk.qmd)
+
+## How we answered video questions
+
+[![A video and question feed two tasks. We generate ranked answers using Qwen on frames or video with or without Whisper, and Gemini on video with audio. For multiple choice, we match the saved Gemini-first answer to a choice or ask Gemini to rank the choices from video.](assets/trecvid-approaches.svg)](https://npatta01.github.io/trec_video_2026/#approach)
+
+In our Gemini-first run, Gemini supplied the first answer and Qwen supplied
+alternatives.
 
 ## Official test results
 
-| Task | Our best result on the metric shown | Leaderboard rank |
-| --- | --- | --- |
-| Answer generation | **0.318244 first-answer METEOR** with Gemini first and Qwen alternatives | Tied 2nd of 44 runs |
-| Multiple choice | **84.514% top-choice accuracy** with Gemini ranking from video, up from 78.748% when matching the saved answer | 2nd of 42 runs |
+- **Answer generation.** Gemini-first scored **0.318244 on first-answer METEOR**, tied for 2nd of 44 runs using human and alternative references.
+- **Multiple choice.** Ranking choices from video with Gemini reached **84.514% top-choice accuracy**, 2nd of 42 runs. Matching the saved answer scored 78.748%.
 
-METEOR compares wording with reference answers. The answer-generation result
-uses human and alternative references. The [paper](docs/paper/trecvid2026.pdf)
-reports all eight runs, including STS, BERTScore and mean reciprocal rank.
+[See all eight submitted runs and their scores in the paper (PDF)](https://npatta01.github.io/trec_video_2026/docs/paper/trecvid2026.pdf#page=3).
 
 ## Repository guide
 
+- [Submission ledger](docs/submissions/README.md) records the runs and organizer validation.
 - [Development decisions](docs/project-status/index.md) and [experiment records](docs/experiments/README.md) document the baselines and follow-up studies.
 - [Python implementation](src/trec_video_2026/) and [configuration files](configs/) contain the runners and experiment settings.
 - [Workshop directory](docs/workshop/) contains the editable talk and local render instructions.
