@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="NP Labs at TRECVID 2026. Read our video question answering paper, compare test results, and explore the workshop slides and code.">
+  <title>TRECVID 2026 · NP Labs</title>
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body id="top">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <a class="brand" href="#top">
+        <span class="brand-mark" aria-hidden="true">NP</span>
+        <span>TRECVID 2026</span>
+      </a>
+      <nav aria-label="Project navigation">
+        <a href="https://npatta01.github.io/trec_video_2026/docs/paper/trecvid2026.pdf">Paper</a>
+        <a href="#approach">Approach</a>
+        <a href="#results">Results</a>
+        <a href="#resources">Resources</a>
+        <a href="https://github.com/npatta01/trec_video_2026">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1">
+    <section class="hero">
+      <div class="shell">
+        <p class="eyebrow">NP Labs · NIST TRECVID 2026</p>
+        <h1>Answering questions about video.</h1>
+        <p class="lede">Given a clip and a question, we generated answers and ranked the choices supplied by NIST. Our runs used Qwen on sampled frames or video, Whisper for speech transcripts, and Gemini on video with audio.</p>
+        <div class="actions">
+          <a class="button primary" href="https://npatta01.github.io/trec_video_2026/docs/paper/trecvid2026.pdf">Read the paper (PDF)</a>
+          <a class="button" href="#approach">See the approach</a>
+          <a class="button" href="#results">Compare results</a>
+        </div>
+      </div>
+    </section>
+
+    <div class="shell">
+      <ul class="facts">
+        <li><strong>2,428 scored questions</strong><span>Official 2026 test set</span></li>
+        <li><strong>4 answer-generation runs</strong><span>Ten ranked answers per question</span></li>
+        <li><strong>4 multiple-choice runs</strong><span>Rankings of the organizer’s choices</span></li>
+      </ul>
+    </div>
+
+    <section id="approach" class="section">
+      <div class="shell">
+        <h2>How the two tasks work</h2>
+        <div class="pair">
+          <article class="card generation">
+            <img src="docs/workshop/slide-assets/section-generation.jpg" width="1240" height="620" alt="Illustration of a video producing sunny and rainy answers">
+            <div class="card-body">
+              <h3>Generate answers</h3>
+              <p>We used Qwen on 12 sampled frames and on video with and without a Whisper transcript. In our Gemini-first run, Gemini answered from video and audio, and Qwen supplied alternatives.</p>
+            </div>
+          </article>
+          <article class="card">
+            <img src="docs/workshop/slide-assets/section-choice.jpg" width="1240" height="620" alt="Illustration of video evidence used to pick sunny from three weather choices">
+            <div class="card-body">
+              <h3>Rank the supplied choices</h3>
+              <p>We matched our saved Gemini-first answer to the supplied choices or asked Gemini to rank them directly from the video.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="results" class="section">
+      <div class="shell">
+        <h2>Official test results</h2>
+        <div class="pair">
+          <article class="card generation">
+            <div class="card-body">
+              <h3>Answer generation</h3>
+              <p>First-answer METEOR compares the wording of the first answer with human and alternative references.</p>
+              <table aria-label="First-answer METEOR results">
+                <thead><tr><th scope="col">Approach</th><th scope="col">METEOR</th></tr></thead>
+                <tbody>
+                  <tr><th scope="row">Qwen on 12 frames</th><td>0.1705</td></tr>
+                  <tr><th scope="row">Qwen video with and without a transcript</th><td>0.1886</td></tr>
+                  <tr class="best"><th scope="row">Gemini-first</th><td>0.3182</td></tr>
+                </tbody>
+              </table>
+              <p class="rank"><strong>Tied 2nd of 44 runs</strong> on first-answer METEOR.</p>
+              <p>Our Qwen runs led on STS and BERTScore.</p>
+            </div>
+          </article>
+          <article class="card">
+            <div class="card-body">
+              <h3>Multiple choice</h3>
+              <p>Top-choice accuracy measures how often the first choice matched the scoring key.</p>
+              <table aria-label="Multiple-choice top-choice accuracy results">
+                <thead><tr><th scope="col">Approach</th><th scope="col">Accuracy</th></tr></thead>
+                <tbody>
+                  <tr><th scope="row">Match our Gemini-first answer</th><td>78.748%</td></tr>
+                  <tr class="best"><th scope="row">Rank from video with Gemini 3.7 Flash</th><td>84.514%</td></tr>
+                </tbody>
+              </table>
+              <p class="rank"><strong>2nd of 42 runs</strong> on top-choice accuracy.</p>
+              <p>Direct ranking got 140 more questions right than answer matching.</p>
+            </div>
+          </article>
+        </div>
+        <p class="section-link"><a href="https://npatta01.github.io/trec_video_2026/docs/paper/trecvid2026.pdf#page=3">All eight run results in the paper (PDF)</a></p>
+      </div>
+    </section>
+
+    <section id="resources" class="section">
+      <div class="shell">
+        <h2>Project resources</h2>
+        <div class="grid">
+          <article class="card generation">
+            <div class="card-body">
+              <h3>Paper &amp; workshop</h3>
+              <ul class="links">
+                <li><a href="https://npatta01.github.io/trec_video_2026/docs/paper/trecvid2026.pdf">Paper (PDF)</a></li>
+                <li><a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/paper/trecvid2026-draft.tex">Paper source</a></li>
+                <li><a href="https://github.com/npatta01/trec_video_2026/tree/main/docs/workshop">Workshop slides source and build guide</a></li>
+              </ul>
+            </div>
+          </article>
+          <article class="card submissions">
+            <div class="card-body">
+              <h3>Submitted runs</h3>
+              <p>Run IDs, methods, and organizer validation records for both tasks.</p>
+              <ul class="links">
+                <li><a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/submissions/README.md">Submission ledger</a></li>
+              </ul>
+            </div>
+          </article>
+          <article class="card">
+            <div class="card-body">
+              <h3>Code &amp; experiments</h3>
+              <ul class="links">
+                <li><a href="https://github.com/npatta01/trec_video_2026/blob/main/README.md">Local setup and commands</a></li>
+                <li><a href="https://github.com/npatta01/trec_video_2026/tree/main/src/trec_video_2026">Python implementation</a></li>
+                <li><a href="https://github.com/npatta01/trec_video_2026/blob/main/docs/experiments/README.md">Experiment index</a></li>
+              </ul>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell footer-inner">
+      <p>NP Labs · Nidhin Pattaniyil, Tanwir Zaman, Semih Yagli</p>
+      <a href="https://github.com/npatta01/trec_video_2026#readme">Repository README</a>
+    </div>
+  </footer>
+</body>
+</html>
