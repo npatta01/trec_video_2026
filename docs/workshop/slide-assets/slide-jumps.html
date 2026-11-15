@@ -1,0 +1,15 @@
+<script>
+document.addEventListener('click', event => {
+  const link = event.target.closest('a[data-scroll-jump]');
+  if (!link || event.defaultPrevented || event.metaKey || event.ctrlKey ||
+      event.shiftKey || event.altKey || document.body.classList.contains('annotation-active')) return;
+  const viewport = window.Reveal?.getViewportElement();
+  if (!viewport?.classList.contains('reveal-scroll')) return;
+
+  const slide = document.getElementById(link.hash.replace(/^#\/+/, ''));
+  if (!slide) return;
+  event.preventDefault();
+  event.stopPropagation();
+  slide.scrollIntoView({ block: 'center' });
+}, true);
+</script>
