@@ -1,0 +1,60 @@
+WEBVTT
+
+00:00:00.550 --> 00:00:04.475
+At TRECVID 2026, we started with a video and a
+question.
+
+00:00:04.675 --> 00:00:09.625
+One task asked us to write answers. The other asked
+us to rank the supplied choices.
+
+00:00:10.005 --> 00:00:14.186
+For answer generation, our baseline sent twelve
+sampled frames to Qwen.
+
+00:00:14.386 --> 00:00:17.991
+We also ran Qwen on video, with and without a
+Whisper transcript.
+
+00:00:18.191 --> 00:00:21.733
+Gemini 3.7 Flash took the video with its audio.
+
+00:00:21.933 --> 00:00:28.887
+Each run returned ten ranked answers. In one run, we
+put Gemini’s answer first, followed by Qwen
+alternatives.
+
+00:00:29.087 --> 00:00:34.143
+For this weather question, Qwen on frames answered
+“rainy.” Gemini answered “It is sunny.”
+
+00:00:34.343 --> 00:00:40.530
+“Sunny” and “It is sunny” mean the same thing here.
+Their METEOR scores were 0.500 and 0.992.
+
+00:00:40.980 --> 00:00:45.076
+For multiple choice, matching our saved answer put
+the option “Sunny” first.
+
+00:00:45.276 --> 00:00:49.820
+Direct video ranking put “Rainy” first on this
+question. The scoring key was “Sunny.”
+
+00:00:50.270 --> 00:00:54.729
+Across 2,428 scored questions, the picture was
+different.
+
+00:00:54.929 --> 00:01:02.971
+Gemini-first scored 0.3182 on first-answer METEOR, a
+wording score. That tied for second of 44 runs.
+
+00:01:03.171 --> 00:01:11.065
+Direct video ranking got 84.5% right, up from 78.7%
+when we matched the saved answer.
+
+00:01:11.265 --> 00:01:17.473
+That put direct video ranking second of 42 runs,
+with 140 more correct answers than matching.
+
+00:01:17.673 --> 00:01:20.467
+The paper has the results for all eight submissions.

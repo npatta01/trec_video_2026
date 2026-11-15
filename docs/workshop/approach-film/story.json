@@ -1,0 +1,78 @@
+[
+  {
+    "id": "start",
+    "text": "At TRECVID 2026, we started with a video and a question.",
+    "spoken": "At Treck vid twenty twenty-six, we started with a video and a question."
+  },
+  {
+    "id": "tasks",
+    "text": "One task asked us to write answers. The other asked us to rank the supplied choices."
+  },
+  {
+    "id": "frames",
+    "text": "For answer generation, our baseline sent twelve sampled frames to Qwen.",
+    "spoken": "For answer generation, our baseline sent twelve sampled frames to Kwen.",
+    "gap": 0.38
+  },
+  {
+    "id": "qwen_video",
+    "text": "We also ran Qwen on video, with and without a Whisper transcript.",
+    "spoken": "We also ran Kwen on video, with and without a Whisper transcript."
+  },
+  {
+    "id": "gemini",
+    "text": "Gemini 3.7 Flash took the video with its audio.",
+    "spoken": "Gemini three point seven Flash took the video with its audio."
+  },
+  {
+    "id": "assemble",
+    "text": "Each run returned ten ranked answers. In one run, we put Gemini’s answer first, followed by Qwen alternatives.",
+    "spoken": "Each run returned ten ranked answers. In one run, we put Gemini's answer first, followed by Kwen alternatives."
+  },
+  {
+    "id": "example",
+    "text": "For this weather question, Qwen on frames answered “rainy.” Gemini answered “It is sunny.”",
+    "spoken": "For this weather question, Kwen on frames answered, rainy. Gemini answered, it is sunny."
+  },
+  {
+    "id": "wording",
+    "text": "“Sunny” and “It is sunny” mean the same thing here. Their METEOR scores were 0.500 and 0.992.",
+    "spoken": "Sunny, and it is sunny, mean the same thing here. Their meteor scores were point five, and point nine nine two."
+  },
+  {
+    "id": "match",
+    "text": "For multiple choice, matching our saved answer put the option “Sunny” first.",
+    "spoken": "For multiple choice, matching our saved answer put the option Sunny first.",
+    "gap": 0.45
+  },
+  {
+    "id": "direct",
+    "text": "Direct video ranking put “Rainy” first on this question. The scoring key was “Sunny.”",
+    "spoken": "Direct video ranking put Rainy first on this question. The scoring key was Sunny."
+  },
+  {
+    "id": "test",
+    "text": "Across 2,428 scored questions, the picture was different.",
+    "spoken": "Across two thousand four hundred twenty-eight scored questions, the picture was different.",
+    "gap": 0.45
+  },
+  {
+    "id": "meteor",
+    "text": "Gemini-first scored 0.3182 on first-answer METEOR, a wording score. That tied for second of 44 runs.",
+    "spoken": "Gemini first scored point three one eight two on first answer meteor, a wording score. That tied for second out of forty-four runs."
+  },
+  {
+    "id": "accuracy",
+    "text": "Direct video ranking got 84.5% right, up from 78.7% when we matched the saved answer.",
+    "spoken": "Direct video ranking got eighty-four point five percent right, up from seventy-eight point seven percent when we matched the saved answer."
+  },
+  {
+    "id": "mc_rank",
+    "text": "That put direct video ranking second of 42 runs, with 140 more correct answers than matching.",
+    "spoken": "That put direct video ranking second out of forty-two runs, with one hundred forty more correct answers than matching."
+  },
+  {
+    "id": "end",
+    "text": "The paper has the results for all eight submissions."
+  }
+]

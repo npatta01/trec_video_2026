@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TRECVID 2026 approach film</title>
+  <style>
+    :root {
+      --paper: #fcf2db;
+      --panel: #fffaf0;
+      --ink: #133239;
+      --muted: #4c5c58;
+      --line: #dcd1ba;
+      --teal: #0c7167;
+      --teal-soft: #e2efe6;
+      --indigo: #5542a2;
+      --indigo-soft: #eee7fc;
+      --green: #286144;
+      --amber: #90520c;
+      --amber-soft: #f8ead0;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: Inter, system-ui, sans-serif;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    #stage {
+      position: relative;
+      width: 1600px;
+      height: 900px;
+      overflow: hidden;
+      background: radial-gradient(ellipse at 73% 19%, #fff8e5, var(--paper) 72%);
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      position: absolute;
+      top: 40px;
+      left: 82px;
+      right: 82px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid var(--line);
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    header p {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 22px;
+      font-weight: 650;
+    }
+
+    .mark {
+      display: grid;
+      place-items: center;
+      width: 50px;
+      height: 50px;
+      border-radius: 13px;
+      color: #fff;
+      background: var(--teal);
+      font-size: 20px;
+      letter-spacing: 0.025em;
+    }
+
+    #opening {
+      position: absolute;
+      top: 233px;
+      left: 82px;
+      width: 730px;
+    }
+
+    h1 {
+      font-size: 86px;
+      font-weight: 820;
+      line-height: 0.99;
+      letter-spacing: -0.05em;
+    }
+
+    #opening > p {
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: 34px;
+    }
+
+    #tasks {
+      display: flex;
+      gap: 14px;
+      margin-top: 33px;
+      font-size: 28px;
+      font-weight: 720;
+    }
+
+    #tasks span {
+      padding: 14px 20px;
+      border-radius: 12px;
+      background: var(--indigo-soft);
+      color: var(--indigo);
+    }
+
+    #tasks span + span {
+      background: var(--teal-soft);
+      color: var(--teal);
+    }
+
+    #clip {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 620px;
+      padding: 16px;
+      transform: translate(868px, 192px);
+      transform-origin: top left;
+      border: 2px solid var(--line);
+      border-radius: 22px;
+      background: var(--panel);
+      box-shadow: 0 16px 40px #2d231012;
+    }
+
+    .clip-image {
+      position: relative;
+      height: 370px;
+      overflow: hidden;
+      border-radius: 12px;
+      background: var(--paper);
+    }
+
+    .clip-image img {
+      position: absolute;
+      top: -83px;
+      left: -26px;
+      width: 1160px;
+      height: auto;
+    }
+
+    .clip-image span {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      padding: 8px 13px;
+      border-radius: 8px;
+      background: var(--ink);
+      color: #fff;
+      font-size: 21px;
+      font-weight: 700;
+    }
+
+    .question { padding: 20px 12px 10px; }
+    .question p { color: var(--muted); font-size: 25px; }
+    .question strong { display: block; margin-top: 6px; font-size: 39px; }
+
+    .chapter {
+      position: absolute;
+      top: 153px;
+      left: 82px;
+      right: 82px;
+      opacity: 0;
+    }
+
+    h2 {
+      font-size: 62px;
+      font-weight: 810;
+      line-height: 1.03;
+      letter-spacing: -0.038em;
+    }
+
+    .chapter p {
+      position: absolute;
+      top: 20px;
+      right: 0;
+      color: var(--muted);
+      font-size: 28px;
+      font-weight: 690;
+    }
+
+    #routes, #choice {
+      position: absolute;
+      top: 250px;
+      left: 615px;
+      right: 82px;
+      opacity: 0;
+    }
+
+    #branch {
+      position: absolute;
+      top: 306px;
+      left: 547px;
+      width: 44px;
+      height: 345px;
+      border-right: 3px solid var(--line);
+      opacity: 0;
+    }
+
+    #branch::after {
+      content: "";
+      position: absolute;
+      top: 147px;
+      width: 100%;
+      height: 3px;
+      background: var(--line);
+    }
+
+    .route {
+      display: grid;
+      grid-template-columns: 96px 1fr auto;
+      align-items: center;
+      gap: 16px;
+      position: absolute;
+      top: 0;
+      width: 100%;
+      height: 104px;
+      padding: 0 20px;
+      border: 2px solid var(--line);
+      border-left: 7px solid var(--indigo);
+      border-radius: 14px;
+      background: var(--panel);
+    }
+
+    .route::before {
+      content: "";
+      position: absolute;
+      top: calc(50% - 1px);
+      right: calc(100% + 7px);
+      width: 30px;
+      height: 3px;
+      background: var(--line);
+    }
+
+    .route.preferred { background: var(--indigo-soft); }
+    .route.source-gemini { border-left-color: var(--teal); }
+
+    .evidence {
+      display: grid;
+      place-items: center;
+      position: relative;
+      width: 86px;
+      height: 58px;
+      border: 2px solid #c4bbdb;
+      border-radius: 10px;
+      background: var(--indigo-soft);
+      color: var(--indigo);
+      white-space: nowrap;
+      font-size: 28px;
+      font-weight: 800;
+    }
+
+    .frame-grid {
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      padding: 6px;
+    }
+
+    .frame-grid i {
+      width: 100%;
+      height: 10px;
+      border-radius: 2px;
+      background: #a095c6;
+    }
+
+    .frame-grid i:nth-child(3n) { background: #655397; }
+
+    .model {
+      font-size: 30px;
+      line-height: 1.08;
+    }
+
+    .input {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 25px;
+      line-height: 1.1;
+    }
+
+    .reply {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      font-size: 31px;
+      font-weight: 740;
+    }
+
+    .count {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      color: var(--indigo);
+      background: #f1ebfc;
+      font-size: 23px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .meter-score {
+      padding: 5px 10px;
+      border-radius: 8px;
+      background: var(--indigo-soft);
+      color: var(--indigo);
+      font-size: 25px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #wording-note, #choice-key {
+      position: absolute;
+      left: 615px;
+      right: 82px;
+      top: 720px;
+      padding: 12px 21px;
+      border-left: 5px solid var(--indigo);
+      border-radius: 0 8px 8px 0;
+      background: var(--indigo-soft);
+      color: var(--indigo);
+      font-size: 27px;
+      font-weight: 680;
+      opacity: 0;
+    }
+
+    #choice {
+      display: grid;
+      gap: 18px;
+    }
+
+    .method {
+      display: grid;
+      gap: 20px;
+      padding: 25px;
+      border: 2px solid var(--line);
+      border-left: 7px solid var(--teal);
+      border-radius: 16px;
+      background: var(--panel);
+    }
+
+    .method h3 { font-size: 33px; }
+
+    .decision {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 46px 210px;
+      align-items: center;
+      gap: 16px;
+      font-size: 30px;
+    }
+
+    .arrow { color: var(--teal); font-weight: 800; }
+
+    .answer-pill {
+      text-align: center;
+      padding: 11px 15px;
+      border-radius: 10px;
+      color: var(--green);
+      background: var(--teal-soft);
+      font-size: 34px;
+      font-weight: 750;
+    }
+
+    .answer-pill.missed {
+      color: var(--amber);
+      background: var(--amber-soft);
+    }
+
+    #choice-key {
+      top: 649px;
+      border-left-color: var(--teal);
+      color: var(--teal);
+      background: var(--teal-soft);
+    }
+
+    #scores {
+      position: absolute;
+      top: 255px;
+      left: 82px;
+      right: 82px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      opacity: 0;
+    }
+
+    .score-card {
+      padding: 27px 30px 30px;
+      border: 2px solid var(--line);
+      border-top: 7px solid var(--accent);
+      border-radius: 18px;
+      background: var(--panel);
+    }
+
+    .score-card.generation { --accent: var(--indigo); }
+    .score-card.ranking { --accent: var(--teal); }
+
+    .score-card h3 { font-size: 32px; }
+
+    .measure {
+      margin-top: 7px;
+      color: var(--accent);
+      font-size: 25px;
+      font-weight: 700;
+    }
+
+    .value {
+      margin: 12px 0 2px;
+      font-size: 88px;
+      font-weight: 820;
+      line-height: 1;
+      letter-spacing: -0.05em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .standing {
+      margin-bottom: 20px;
+      color: var(--accent);
+      font-size: 30px;
+      font-weight: 770;
+    }
+
+    .bar-row + .bar-row { margin-top: 12px; }
+
+    .bar-row p {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 4px;
+      color: var(--muted);
+      font-size: 24px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .bar-row .rail {
+      height: 9px;
+      overflow: hidden;
+      border-radius: 6px;
+      background: #ece2cd;
+    }
+
+    .fill {
+      width: 0;
+      height: 100%;
+      background: var(--accent);
+    }
+
+    .bar-row:first-of-type .fill { opacity: 0.56; }
+
+    #closing {
+      position: absolute;
+      top: 754px;
+      left: 82px;
+      right: 82px;
+      display: flex;
+      justify-content: space-between;
+      gap: 22px;
+      font-size: 25px;
+      font-weight: 690;
+      opacity: 0;
+    }
+
+    #closing span { color: var(--teal); }
+
+    #progress {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 6px;
+      transform: scaleX(0);
+      transform-origin: left;
+      background: var(--teal);
+    }
+  </style>
+</head>
+<body>
+  <main id="stage">
+    <header>
+      <span class="mark">NP</span>
+      <span>NP Labs</span>
+      <p>TRECVID 2026</p>
+    </header>
+
+    <section id="opening">
+      <h1>Video question<br>answering</h1>
+      <p>One video. One question.</p>
+      <div id="tasks">
+        <span>Generate answers</span>
+        <span>Rank supplied choices</span>
+      </div>
+    </section>
+
+    <div id="clip">
+      <div class="clip-image">
+        <img src="../slide-assets/section-choice.jpg" alt="Illustration of a white building reflected in a puddle">
+        <span>Illustrated clip</span>
+      </div>
+      <div class="question">
+        <p>Weather example · Q1835</p>
+        <strong>What is the weather like?</strong>
+      </div>
+    </div>
+
+    <div id="generation-title" class="chapter"><h2>Answer generation</h2></div>
+    <div id="branch" aria-hidden="true"></div>
+    <div id="routes">
+      <div id="frames-route" class="route">
+        <span class="evidence frame-grid" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </span>
+        <div><h3 class="model">Qwen3.5-4B</h3><p class="input">12 sampled frames</p></div>
+        <div class="reply"><span class="count">4</span><span>“rainy”</span></div>
+      </div>
+      <div id="whisper-route" class="route">
+        <span class="evidence" aria-hidden="true">▶ ≡</span>
+        <div><h3 class="model">Qwen3.6-27B</h3><p class="input">Video + Whisper transcript</p></div>
+        <div class="reply"><span class="count">2</span><span>“Sunny”</span><span class="meter-score">0.500</span></div>
+      </div>
+      <div id="video-route" class="route">
+        <span class="evidence" aria-hidden="true">▶</span>
+        <div><h3 class="model">Qwen3.6-27B</h3><p class="input">Video</p></div>
+        <div class="reply"><span class="count">3</span><span>“It’s sunny.”</span></div>
+      </div>
+      <div id="gemini-route" class="route source-gemini">
+        <span class="evidence" aria-hidden="true">▶ ♪</span>
+        <div><h3 class="model">Gemini 3.7 Flash</h3><p class="input">Video + audio</p></div>
+        <div class="reply"><span class="count">1</span><span>“It is sunny.”</span><span class="meter-score">0.992</span></div>
+      </div>
+    </div>
+    <p id="wording-note">Same sunny meaning, different METEOR scores.</p>
+
+    <div id="choice-title" class="chapter"><h2>Multiple-choice ranking</h2></div>
+    <div id="choice">
+      <article id="matching-method" class="method">
+        <h3>Match our saved Gemini-first answer</h3>
+        <div class="decision">
+          <p>“It is sunny.” + choices</p>
+          <span class="arrow" aria-hidden="true">→</span>
+          <strong id="match-pick" class="answer-pill">✓ Sunny</strong>
+        </div>
+      </article>
+      <article id="ranking-method" class="method">
+        <h3>Ask Gemini to rank the choices from video</h3>
+        <div class="decision">
+          <p>Clip + question + choices</p>
+          <span class="arrow" aria-hidden="true">→</span>
+          <strong id="video-pick" class="answer-pill missed">× Rainy</strong>
+        </div>
+      </article>
+    </div>
+    <p id="choice-key">Official choice · Sunny</p>
+
+    <div id="scores-title" class="chapter">
+      <h2>Official test results</h2>
+      <p>2,428 scored questions</p>
+    </div>
+    <div id="scores">
+      <article id="ag-score" class="score-card generation">
+        <h3>Answer generation</h3>
+        <p class="measure">First-answer METEOR · wording match</p>
+        <p class="value">0.3182</p>
+        <p id="ag-rank" class="standing">Tied 2nd of 44 runs</p>
+        <div class="bar-row">
+          <p><span>Qwen on 12 frames</span><strong>0.1705</strong></p>
+          <div class="rail"><div class="fill" data-portion="0.170537"></div></div>
+        </div>
+        <div class="bar-row">
+          <p><span>Gemini-first</span><strong>0.3182</strong></p>
+          <div class="rail"><div class="fill" data-portion="0.318244"></div></div>
+        </div>
+      </article>
+      <article id="mc-score" class="score-card ranking">
+        <h3>Multiple choice</h3>
+        <p class="measure">Top-choice accuracy · % correct</p>
+        <p class="value">84.514%</p>
+        <p id="mc-standing" class="standing">2nd of 42 runs</p>
+        <div class="bar-row">
+          <p><span>Match our saved answer</span><strong>78.748%</strong></p>
+          <div class="rail"><div class="fill" data-portion="0.78748"></div></div>
+        </div>
+        <div class="bar-row">
+          <p><span>Gemini 3.7 Flash ranks from video</span><strong>84.514%</strong></p>
+          <div class="rail"><div class="fill" data-portion="0.84514"></div></div>
+        </div>
+      </article>
+    </div>
+    <p id="closing"><span id="gain">140 more correct with direct ranking</span><strong id="paper">All eight runs in the paper</strong></p>
+    <div id="progress" aria-hidden="true"></div>
+  </main>
+
+  <script src="timeline.js"></script>
+</body>
+</html>
