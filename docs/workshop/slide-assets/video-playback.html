@@ -1,0 +1,26 @@
+<script>
+window.addEventListener('load', () => {
+  const deck = window.Reveal;
+  const example = document.querySelector('#weather-question .example-clip');
+  const clips = document.querySelectorAll('.reveal .slides video.example-clip');
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  if (!deck || !example || /print-pdf/.test(location.search)) return;
+
+  function updatePlayback() {
+    const slide = deck.getCurrentSlide();
+    for (const clip of clips) {
+      if (document.hidden || !slide?.contains(clip)) clip.pause();
+    }
+    if (document.hidden || slide?.id !== 'weather-question') return;
+    if (!reducedMotion.matches && example.currentTime === 0) {
+      example.muted = true;
+      example.play().catch(() => {});
+    }
+  }
+
+  deck.on('ready', updatePlayback);
+  deck.on('slidechanged', updatePlayback);
+  document.addEventListener('visibilitychange', updatePlayback);
+  if (deck.isReady()) updatePlayback();
+});
+</script>

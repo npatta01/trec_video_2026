@@ -1,0 +1,107 @@
+<script>
+(() => {
+  const data = JSON.parse(document.getElementById('official-leaderboard-data').textContent);
+  const team = {
+    q35_4b_u12: 'Qwen frames',
+    q36_dualview: 'Qwen transcript first',
+    g37_q36_fusion: 'Gemini-first',
+    g37_grouped_unique: 'Rewritten list',
+    g37q36_mc_text: 'Match the saved answer',
+    g37_mc_target: 'Targeted video ranking',
+    g37_mc_direct: 'Gemini 3.7 Flash from video',
+    g38_mc_direct: 'Gemini 3.8 Flash from video',
+  };
+
+  function showRows(board, rows) {
+    const tableBody = board.querySelector('tbody');
+    const fragment = document.createDocumentFragment();
+    for (const entry of rows) {
+      const row = document.createElement('tr');
+      const place = row.insertCell();
+      place.textContent = entry.rank + (entry.tie ? ' (tie)' : '');
+
+      const name = document.createElement('th');
+      name.scope = 'row';
+      name.textContent = entry.run;
+      row.append(name);
+      if (Object.hasOwn(team, entry.run)) {
+        row.classList.add('leaderboard-team');
+        row.tabIndex = -1;
+        const label = document.createElement('small');
+        label.textContent = 'NP Labs · ' + team[entry.run];
+        name.append(label);
+      }
+
+      for (const score of entry.scores) {
+        row.insertCell().textContent = score;
+      }
+      fragment.append(row);
+    }
+    tableBody.replaceChildren(fragment);
+    board.querySelector('.leaderboard-scroll').scrollTop = 0;
+  }
+
+  function connect(board, update) {
+    board.querySelectorAll('select').forEach(control => control.addEventListener('change', update));
+    board.querySelector('.leaderboard-jump').addEventListener('click', () => {
+      const region = board.querySelector('.leaderboard-scroll');
+      const row = board.querySelector('tbody .leaderboard-team');
+      const header = board.querySelector('thead');
+      region.scrollTop += row.getBoundingClientRect().top - region.getBoundingClientRect().top -
+        header.getBoundingClientRect().height - 4;
+      row.focus({ preventScroll: true });
+    });
+
+    // Inputs and the scroll region use their native keys within the slide.
+    const tableKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+      'PageUp', 'PageDown', 'Home', 'End', ' ', 'Enter']);
+    board.addEventListener('keydown', event => {
+      if (tableKeys.has(event.key)) event.stopPropagation();
+    });
+    update();
+  }
+
+  const ag = document.getElementById('ag-full-leaderboard');
+  const agMetric = ag.querySelector('[data-metric]');
+  const reference = ag.querySelector('[data-references]');
+  const groups = new Map();
+  for (const name of Object.keys(data.ag[0].metrics)) {
+    const cutoff = name.split('@').at(-1);
+    if (!groups.has(cutoff)) {
+      const group = document.createElement('optgroup');
+      group.label = cutoff === '1' ? 'First answer' : 'First ' + cutoff + ' answers';
+      agMetric.add(group);
+      groups.set(cutoff, group);
+    }
+    groups.get(cutoff).append(new Option(name, name));
+  }
+  agMetric.value = 'METEOR Best@1';
+  connect(ag, () => {
+    const metric = agMetric.value;
+    const rows = data.ag.filter(run => run.reference_mode === reference.value).map(run => {
+      const result = run.metrics[metric];
+      return { run: run.run, rank: result.rank, tie: result.tie_count > 1, scores: [result.score.toFixed(6)] };
+    });
+    rows.sort((a, b) => a.rank - b.rank || a.run.localeCompare(b.run));
+    ag.querySelector('[data-score-heading]').textContent = metric;
+    showRows(ag, rows);
+  });
+
+  const mc = document.getElementById('mc-full-leaderboard');
+  connect(mc, () => {
+    const metric = mc.querySelector('[data-metric]').value;
+    const rows = data.mc.map(run => ({
+      run: run.run,
+      rank: run[metric + '_rank'],
+      tie: run[metric + '_tie_count'] > 1,
+      scores: [
+        (Number(run.top_1_accuracy) * 100).toFixed(3) + '%',
+        Number(run.mrr).toFixed(6),
+        run.top_1_correct_count,
+      ],
+    }));
+    rows.sort((a, b) => a.rank - b.rank || a.run.localeCompare(b.run));
+    showRows(mc, rows);
+  });
+})();
+</script>

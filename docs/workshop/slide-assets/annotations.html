@@ -1,0 +1,340 @@
+<style>
+  #annotation-tools, #annotation-dialog, .annotation-marker {
+    font-family: system-ui, sans-serif;
+  }
+  #annotation-tools {
+    position: fixed;
+    left: 3rem;
+    bottom: max(.42rem, env(safe-area-inset-bottom));
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    max-width: calc(100vw - 6rem);
+  }
+  #annotation-tools button, #annotation-dialog button {
+    border: 1px solid #b9cce1;
+    border-radius: .38rem;
+    background: #fff;
+    color: #143f6e;
+    font: inherit;
+    cursor: pointer;
+  }
+  #annotation-tools button { padding: .4rem .62rem; font-size: .8rem; }
+  #annotation-tools button[aria-pressed="true"], #annotation-dialog .annotation-primary {
+    background: #1f5fa8;
+    color: #fff;
+    border-color: #1f5fa8;
+  }
+  #annotation-hint {
+    background: #fff;
+    color: #21384f;
+    border-radius: .3rem;
+    padding: .35rem .45rem;
+    font-size: .76rem;
+  }
+  body.annotation-active .reveal .slides section,
+  body.annotation-active .reveal .slides section :is(a, img) { cursor: crosshair; }
+  .reveal .slides section .annotation-marker {
+    position: absolute;
+    display: none;
+    place-items: center;
+    transform: translate(-50%, -50%);
+    width: 1.44em;
+    height: 1.44em;
+    padding: 0;
+    border: .10em solid #fff;
+    border-radius: 50%;
+    color: #fff;
+    background: #1f5fa8;
+    font-size: .9em;
+    font-weight: 750;
+    cursor: pointer;
+    z-index: 25;
+    box-shadow: 0 1px 5px #0c2c55a0;
+  }
+  body.annotation-active .reveal .slides section .annotation-marker { display: grid; }
+  #annotation-dialog {
+    box-sizing: border-box;
+    width: min(36rem, calc(100vw - 1.5rem));
+    max-height: calc(100dvh - 1.5rem);
+    border: 1px solid #b9cce1;
+    border-radius: .75rem;
+    padding: 1.15rem;
+    background: #f8fbff;
+    color: #172838;
+    overflow: auto;
+  }
+  #annotation-dialog::backdrop { background: #11243e66; }
+  #annotation-dialog [hidden], #annotation-hint[hidden] { display: none; }
+  #annotation-dialog h2 { margin: 0 0 .5rem; font-size: 1.25rem; }
+  #annotation-dialog p { margin: .5rem 0; overflow-wrap: anywhere; }
+  #annotation-dialog label { display: block; margin-top: .7rem; font-weight: 650; }
+  #annotation-dialog textarea {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    margin: .25rem 0 .65rem;
+    padding: .6rem;
+    min-height: 7rem;
+    border: 1px solid #a1b9d5;
+    border-radius: .35rem;
+    color: #172838;
+    background: #fff;
+    font: inherit;
+  }
+  #annotation-dialog button { padding: .43rem .65rem; }
+  #annotation-dialog .annotation-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+  #annotation-dialog ul { margin: .6rem 0; padding: 0; list-style: none; }
+  #annotation-dialog li + li { margin-top: .4rem; }
+  #annotation-dialog li button { display: block; width: 100%; text-align: left; overflow-wrap: anywhere; white-space: pre-wrap; }
+  #annotation-tools :focus-visible, #annotation-dialog :focus-visible, .annotation-marker:focus-visible {
+    outline: 3px solid #f0a835;
+    outline-offset: 2px;
+  }
+  @media (max-width: 620px) { #annotation-hint:not(.annotation-warning) { display: none; } }
+  @media print {
+    #annotation-tools, #annotation-dialog, body.annotation-active .reveal .slides section .annotation-marker {
+      display: none !important;
+    }
+  }
+</style>
+<template id="annotation-ui">
+  <div id="annotation-tools" aria-label="Slide annotation tools">
+    <button id="annotation-toggle" type="button" aria-pressed="false" title="Turn on, then click a spot on the slide">Annotate</button>
+    <button id="annotation-list-button" type="button">Comments (0)</button>
+    <span id="annotation-hint" role="status" hidden></span>
+  </div>
+  <dialog id="annotation-dialog" aria-labelledby="annotation-heading">
+    <h2 id="annotation-heading">Slide comments</h2>
+    <section id="annotation-review">
+      <p id="annotation-storage">Comments stay in this browser. Export them to send or keep a copy.</p>
+      <ul id="annotation-comment-list"></ul>
+      <div class="annotation-actions">
+        <button id="annotation-add" type="button">Add slide note</button>
+        <button id="annotation-export" type="button" disabled>Export comments</button>
+        <button id="annotation-close" type="button">Close comments</button>
+      </div>
+    </section>
+    <form id="annotation-form" hidden>
+      <p id="annotation-location"></p>
+      <label for="annotation-text">Comment</label>
+      <textarea id="annotation-text" rows="4" maxlength="8000" required></textarea>
+      <div class="annotation-actions">
+        <button class="annotation-primary" type="submit">Save comment</button>
+        <button id="annotation-delete" type="button" hidden>Delete comment</button>
+        <button id="annotation-cancel" type="button">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+</template>
+<script>
+window.addEventListener('load', () => {
+  const deck = window.Reveal;
+  const viewport = document.querySelector('.reveal .slides');
+  if (!deck || !viewport || /print-pdf/.test(location.search)) return;
+
+  document.body.append(document.querySelector('#annotation-ui').content.cloneNode(true));
+  const get = name => document.getElementById('annotation-' + name);
+  const toggle = get('toggle');
+  const dialog = get('dialog');
+  const editor = get('form');
+  const field = get('text');
+  const remove = get('delete');
+  const status = get('hint');
+  const storageKey = 'np-labs.trecvid-2026.slide-comments.v1';
+  let active = false;
+  let draft;
+  let restoreFocus;
+  let storageAvailable = true;
+  let comments = [];
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    if (Array.isArray(saved)) comments = saved;
+  } catch {
+    storageAvailable = false;
+  }
+
+  function slideInfo(slide = deck.getCurrentSlide()) {
+    return {
+      id: slide.id,
+      number: deck.getSlides().indexOf(slide) + 1,
+      title: slide.querySelector('h1, h2')?.textContent.trim() || slide.id,
+    };
+  }
+
+  function describe(comment) {
+    const anchor = comment.anchor?.label;
+    return 'Slide ' + comment.slide.number + ' · ' + comment.slide.title + (anchor ? ' · ' + anchor : '');
+  }
+
+  function updateStatus() {
+    status.hidden = !active && storageAvailable;
+    status.classList.toggle('annotation-warning', !storageAvailable);
+    const message = storageAvailable ? 'Click a spot on the slide.' : 'Export before closing.';
+    if (status.textContent !== message) status.textContent = message;
+    get('storage').textContent = storageAvailable
+      ? 'Comments stay in this browser. Export them to send or keep a copy.'
+      : 'Browser storage is unavailable. Export your comments before closing.';
+  }
+
+  function renderMarkers() {
+    viewport.querySelectorAll('.annotation-marker').forEach(marker => marker.remove());
+    comments.forEach((comment, index) => {
+      if (!comment.anchor) return;
+      const slide = document.getElementById(comment.slide.id);
+      if (!slide?.matches('section') || !viewport.contains(slide)) return;
+      const marker = document.createElement('button');
+      marker.className = 'annotation-marker';
+      marker.type = 'button';
+      marker.style.left = (comment.anchor.x * 100) + '%';
+      marker.style.top = (comment.anchor.y * 100) + '%';
+      marker.textContent = index + 1;
+      marker.setAttribute('aria-label', 'Comment ' + (index + 1) + ': ' + comment.text.slice(0, 120));
+      marker.addEventListener('click', event => {
+        event.stopPropagation();
+        editComment(comment);
+      });
+      slide.append(marker);
+    });
+    get('list-button').textContent = 'Comments (' + comments.length + ')';
+  }
+
+  function persist() {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(comments));
+      storageAvailable = true;
+    } catch {
+      storageAvailable = false;
+    }
+    renderMarkers();
+    updateStatus();
+  }
+
+  function showDialog() {
+    if (dialog.open) return;
+    restoreFocus = document.activeElement;
+    dialog.showModal();
+  }
+
+  function editComment(comment) {
+    draft = comment;
+    get('review').hidden = true;
+    editor.hidden = false;
+    get('heading').textContent = comment.id ? 'Edit comment' : 'Add comment';
+    get('location').textContent = describe(comment);
+    field.value = comment.text || '';
+    field.setCustomValidity('');
+    remove.hidden = !comment.id;
+    showDialog();
+    field.focus();
+  }
+
+  function openComments() {
+    editor.hidden = true;
+    get('review').hidden = false;
+    get('heading').textContent = 'Slide comments';
+    const list = get('comment-list');
+    list.replaceChildren();
+    if (!comments.length) {
+      const empty = document.createElement('li');
+      empty.textContent = 'No comments yet.';
+      list.append(empty);
+    }
+    comments.forEach((comment, index) => {
+      const item = document.createElement('li');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = (index + 1) + '. ' + describe(comment) + '\n' + comment.text;
+      button.addEventListener('click', () => editComment(comment));
+      item.append(button);
+      list.append(item);
+    });
+    get('export').disabled = !comments.length;
+    showDialog();
+  }
+
+  toggle.addEventListener('click', () => {
+    active = !active;
+    toggle.setAttribute('aria-pressed', String(active));
+    document.body.classList.toggle('annotation-active', active);
+    updateStatus();
+  });
+
+  viewport.addEventListener('click', event => {
+    if (!active || deck.isOverview() || !deck.isReady()) return;
+    const slide = deck.getSlides().find(item => item.contains(event.target));
+    if (!slide) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const bounds = slide.getBoundingClientRect();
+    const clamp = fraction => Math.max(0, Math.min(1, fraction));
+    const target = event.target.closest('.path-input, .path-title, .rank-result, h1, h2, p, li, td, th, img, .bar-row, .accuracy-row');
+    const label = target?.getAttribute('alt') || target?.textContent.trim().replace(/\s+/g, ' ');
+    editComment({
+      slide: slideInfo(slide),
+      anchor: {
+        x: clamp((event.clientX - bounds.left) / bounds.width),
+        y: clamp((event.clientY - bounds.top) / bounds.height),
+        label: label?.slice(0, 140) || '',
+      },
+    });
+  });
+
+  get('list-button').addEventListener('click', openComments);
+  get('add').addEventListener('click', () => editComment({ slide: slideInfo(), anchor: null }));
+  get('close').addEventListener('click', () => dialog.close());
+  get('cancel').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('keydown', event => event.stopPropagation());
+  dialog.addEventListener('close', () => {
+    if (restoreFocus?.isConnected && !dialog.contains(restoreFocus)) restoreFocus.focus();
+    else get('list-button').focus();
+  });
+
+  field.addEventListener('input', () => field.setCustomValidity(''));
+  editor.addEventListener('submit', event => {
+    event.preventDefault();
+    const text = field.value.trim();
+    if (!text) {
+      field.setCustomValidity('Enter a comment.');
+      field.reportValidity();
+      return;
+    }
+    if (draft.id) {
+      draft.text = text;
+    } else {
+      comments.push({
+        ...draft,
+        id: crypto.randomUUID(),
+        text,
+      });
+    }
+    persist();
+    dialog.close();
+  });
+
+  remove.addEventListener('click', () => {
+    comments = comments.filter(comment => comment.id !== draft.id);
+    persist();
+    dialog.close();
+  });
+
+  get('export').addEventListener('click', () => {
+    const data = JSON.stringify({
+      deck: 'TRECVID 2026 — NP Labs',
+      formatVersion: 1,
+      comments,
+    }, null, 2);
+    const url = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'trecvid2026-slide-comments.json';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+
+  renderMarkers();
+  updateStatus();
+});
+</script>
