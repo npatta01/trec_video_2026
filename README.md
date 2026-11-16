@@ -9,8 +9,7 @@ generated answers from video and ranked the organizer’s multiple-choice option
 
 **[Watch the approach and scores (1:22)](https://npatta01.github.io/trec_video_2026/#film)** ·
 [Paper (PDF)](docs/paper/trecvid2026.pdf) ·
-[Workshop slides (HTML, Tailscale)](https://npatta01-framework.tail481212.ts.net/plans/trecvid-2026-talk/) ·
-[Workshop slides source](docs/workshop/trecvid2026-talk.qmd)
+[Workshop slides (HTML, Tailscale)](https://npatta01-framework.tail481212.ts.net/plans/trecvid-2026-talk/)
 
 ## How we answered video questions
 
