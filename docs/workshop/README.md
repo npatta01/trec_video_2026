@@ -34,6 +34,11 @@ cp "$proposal_build_dir/trecvid2026-speaker-proposal.pdf" docs/workshop/trecvid2
 
 ## Workshop slides
 
+[Public HTML deck](trecvid2026-talk-public.html) ·
+[Public PDF slides (39 pages)](trecvid2026-talk-public.pdf)
+
+The public PDF contains all 39 slides from the public HTML deck, including the appendix, with one slide per page and selectable text.
+
 The editable Reveal.js talk is [trecvid2026-talk.qmd](trecvid2026-talk.qmd).
 Slides 1–21 are the live talk. Slide 22 opens the appendix, which includes
 the full official answer-generation and multiple-choice leaderboards.
